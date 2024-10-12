@@ -1,3 +1,5 @@
+using Argon.Api.Entities;
+
 namespace Argon.Api;
 
 public class Program
@@ -6,6 +8,8 @@ public class Program
     {
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
+        builder.AddRedisOutputCache("cache");
+        builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
