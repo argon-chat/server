@@ -1,5 +1,6 @@
 using Argon.Api.Entities;
 using Microsoft.EntityFrameworkCore;
+using Orleans.Runtime;
 
 namespace Argon.Api;
 
@@ -29,6 +30,7 @@ public class Program
         app.UseHttpsRedirection();
         app.UseAuthorization();
         app.MapControllers();
+        app.MapDefaultEndpoints();
         await app.RunAsync();
     }
 }
