@@ -16,6 +16,11 @@ public class Program
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
         builder.Services.AddSwaggerGen();
+        builder.Host.UseOrleans(static siloBuilder =>
+        {
+            siloBuilder.UseLocalhostClustering();
+            siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
+        });
         var app = builder.Build();
         if (app.Environment.IsDevelopment())
         {
