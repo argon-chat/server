@@ -1,4 +1,5 @@
 using Argon.Api.Entities;
+using Microsoft.EntityFrameworkCore;
 
 namespace Argon.Api;
 
@@ -18,6 +19,10 @@ public class Program
         {
             app.UseSwagger();
             app.UseSwaggerUI();
+            using var scope = app.Services.CreateScope();
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Thread.Sleep(5000);
+            await db.Database.MigrateAsync();
         }
         app.UseHttpsRedirection();
         app.UseAuthorization();

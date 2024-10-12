@@ -8,7 +8,7 @@ var db = builder.AddPostgres("pg", port: 5432, userName: username, password: pas
 
 var apiDb = db.AddDatabase("apiDb");
 
-var api = builder.AddProject<Projects.Argon_Api>("Argon.Api")
+var api = builder.AddProject<Projects.Argon_Api>("argon-api")
         .WithReference(apiDb, "DefaultConnection")
         .WithReference(cache)
         .WithExternalHttpEndpoints();
