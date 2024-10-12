@@ -10,7 +10,7 @@ public class Program
         var builder = WebApplication.CreateBuilder(args);
         builder.AddServiceDefaults();
         builder.AddRedisOutputCache("cache");
-        builder.AddRabbitMQClient(connectionName: "rmq");
+        builder.AddRabbitMQClient("rmq");
         builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
         builder.Services.AddControllers();
         builder.Services.AddEndpointsApiExplorer();
@@ -25,6 +25,7 @@ public class Program
             Thread.Sleep(5000);
             await db.Database.MigrateAsync();
         }
+
         app.UseHttpsRedirection();
         app.UseAuthorization();
         app.MapControllers();
