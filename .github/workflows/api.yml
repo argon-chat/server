@@ -43,6 +43,6 @@ jobs:
         export IMAGE_TAG=$(date +%s)
         docker buildx ls
         docker buildx inspect
-        docker buildx build --platform=linux/aarch64 -t ${{ secrets.REGISTRY }}/argongg/api-orleans:$IMAGE_TAG -f ./src/Argon.Api/Dockerfile . --push
+        docker buildx build --platform=linux/arm64 -t ${{ secrets.REGISTRY }}/argongg/api-orleans:$IMAGE_TAG -f ./src/Argon.Api/Dockerfile . --push
 #        docker tag ${{ secrets.REGISTRY }}/argongg/api:$IMAGE_TAG ${{ secrets.REGISTRY }}/argongg/api:latest
 #        docker push ${{ secrets.REGISTRY }}/argongg/api:latest
