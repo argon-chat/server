@@ -1,4 +1,5 @@
 ﻿FROM --platform=$BUILDPLATFORM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
+ARG TARGETARCH
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
@@ -9,10 +10,10 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
-RUN dotnet restore "src/Argon.Api/Argon.Api.csproj"
+RUN dotnet restore "src/Argon.Api/Argon.Api.csproj" -a $TARGETARCH
 COPY . .
 WORKDIR "/src/src/Argon.Api"
-RUN dotnet build "Argon.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "Argon.Api.csproj" -c $BUILD_CONFIGURATION -a $TARGETARCH -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
