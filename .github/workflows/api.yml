@@ -43,7 +43,7 @@ jobs:
         context: .
         file: ./src/Argon.Api/Dockerfile
         push: true
-        tags: ${{ secrets.REGISTRY }}/argongg/api-orleans:$(date +%s)
+        tags: argongg/api-orleans:$(date +%s)
         platforms: linux/arm64/v8
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
