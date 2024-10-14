@@ -43,7 +43,7 @@ jobs:
         context: .
         file: ./src/Argon.Api/Dockerfile
         push: true
-        tags: argon/api-orleans:${{ github.run_number }}
+        tags: reg.staging.svck.dev/argon/api-orleans:${{ github.run_number }}
         platforms: linux/arm64/v8
         cache-from: type=local,src=/tmp/.buildx-cache
         cache-to: type=local,dest=/tmp/.buildx-cache
