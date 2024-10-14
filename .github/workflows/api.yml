@@ -29,7 +29,8 @@ jobs:
     - name: Build and push images
       run: |
         export IMAGE_TAG=$(date +%s)
-        echo $IMAGE_TAG
-        docker build --platform=linux/aarch64 -t ${{ secrets.REGISTRY }}/argongg/api-orleans:$IMAGE_TAG -f ./src/Argon.Api/Dockerfile . --push
+        docker buildx ls
+        docker buildx inspect
+        docker buildx build --platform=linux/aarch64 -t ${{ secrets.REGISTRY }}/argongg/api-orleans:$IMAGE_TAG -f ./src/Argon.Api/Dockerfile . --push
 #        docker tag ${{ secrets.REGISTRY }}/argongg/api:$IMAGE_TAG ${{ secrets.REGISTRY }}/argongg/api:latest
 #        docker push ${{ secrets.REGISTRY }}/argongg/api:latest
