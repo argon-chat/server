@@ -35,7 +35,7 @@ public class Program
         app.MapControllers();
         app.MapDefaultEndpoints();
         var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
-        app.MapGet("/", () => buildTime);
+        app.MapGet("/", () => new { buildTime = buildTime });
         await app.RunAsync();
     }
 }
