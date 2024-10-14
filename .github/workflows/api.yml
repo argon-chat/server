@@ -1,0 +1,35 @@
+name: .NET
+
+on:
+  push:
+    branches: [ "master" ]
+    paths:
+      - 'src/Argon.Api/**'
+  pull_request:
+    branches: [ "master" ]
+    paths:
+      - 'src/Argon.Api/**'
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/master'
+    runs-on: ubuntu-latest
+    env:
+      IMAGE_TAG: $(date +%s)
+    steps:
+    - uses: actions/checkout@v4
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+    - name: Log in to GitHub Docker Registry
+      uses: docker/login-action@v1
+      with:
+        registry: ${{ secrets.REGISTRY }}
+        username: ${{ secrets.CR_USER }}
+        password: ${{ secrets.CR_PWD }}
+    - name: Build and push images
+      run: |
+        docker build -t ${{ secrets.REGISTRY }}/argongg/api:$IMAGE_TAG . -f src/Argon.Api/Dockerfile --push
+        docker tag ${{ secrets.REGISTRY }}/argongg/api:$IMAGE_TAG ${{ secrets.REGISTRY }}/argongg/api:latest
+        docker push ${{ secrets.REGISTRY }}/argongg/api:latest
