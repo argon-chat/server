@@ -9,14 +9,14 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
-RUN dotnet restore "src/Argon.Api/Argon.Api.csproj" -r linux-arm64
+RUN dotnet restore "src/Argon.Api/Argon.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Argon.Api"
-RUN dotnet build "Argon.Api.csproj" -c $BUILD_CONFIGURATION -r linux-arm64 -o /app/build
+RUN dotnet build "Argon.Api.csproj" -c $BUILD_CONFIGURATION -o /app/build
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "Argon.Api.csproj" -c $BUILD_CONFIGURATION -r linux-arm64 -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "Argon.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
