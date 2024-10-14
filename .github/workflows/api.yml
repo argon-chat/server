@@ -37,12 +37,13 @@ jobs:
         registry: ${{ secrets.REGISTRY }}
         username: ${{ secrets.CR_USER }}
         password: ${{ secrets.CR_PWD }}
-    - name: Build and push images
-      run: |
-        export DOCKER_DEFAULT_PLATFORM=linux/arm64
-        export IMAGE_TAG=$(date +%s)
-        docker buildx ls
-        docker buildx inspect
-        docker build -t ${{ secrets.REGISTRY }}/argongg/api-orleans:$IMAGE_TAG -f ./src/Argon.Api/Dockerfile . --push
-#        docker tag ${{ secrets.REGISTRY }}/argongg/api:$IMAGE_TAG ${{ secrets.REGISTRY }}/argongg/api:latest
-#        docker push ${{ secrets.REGISTRY }}/argongg/api:latest
+    - name: Build and push
+      uses: docker/build-push-action@v2
+      with:
+        context: .
+        file: ./src/Argon.Api/Dockerfile
+        push: true
+        tags: ${{ secrets.REGISTRY }}/argongg/api-orleans:$(date +%s)
+        platforms: linux/arm64/v8
+        cache-from: type=local,src=/tmp/.buildx-cache
+        cache-to: type=local,dest=/tmp/.buildx-cache
