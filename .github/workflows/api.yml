@@ -12,7 +12,7 @@ on:
 
 jobs:
   qa:
-    runs-on: ubuntu-latest
+    runs-on: ARM64
     steps:
     - uses: actions/checkout@v4
     - name: Setup .NET
@@ -21,7 +21,7 @@ jobs:
         dotnet-version: 8.0.x
   build:
 #    if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    runs-on: ARM64
     needs: qa
     steps:
       - uses: actions/checkout@v4
@@ -49,7 +49,7 @@ jobs:
           file: ./src/Argon.Api/Dockerfile
           push: true
           tags: reg.staging.svck.dev/argon/api-orleans:${{ github.run_number }}
-          platforms: linux/arm64/v8
+#          platforms: linux/arm64/v8
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
     

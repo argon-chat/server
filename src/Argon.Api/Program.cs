@@ -21,20 +21,21 @@ public class Program
             siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
         });
         var app = builder.Build();
+        app.UseSwagger();
+        app.UseSwaggerUI();
         if (app.Environment.IsDevelopment())
         {
-            app.UseSwagger();
-            app.UseSwaggerUI();
             using var scope = app.Services.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             Thread.Sleep(5000);
             await db.Database.MigrateAsync();
         }
-
         app.UseHttpsRedirection();
         app.UseAuthorization();
         app.MapControllers();
         app.MapDefaultEndpoints();
+        var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
+        app.MapGet("/", () => buildTime);
         await app.RunAsync();
     }
 }
