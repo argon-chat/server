@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine-arm64v8 AS base
+﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine-arm64v8
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
@@ -9,6 +9,8 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
+COPY ["src/Argon.Grains/Argon.Grains.csproj", "src/Argon.Grains/"]
+COPY ["src/Argon.Grains.Interfaces/Argon.Grains.Interfaces.csproj", "src/Argon.Grains.Interfaces/"]
 RUN dotnet restore "src/Argon.Api/Argon.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Argon.Api"
