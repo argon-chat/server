@@ -8,6 +8,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ServiceDefaults", "src\Serv
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Api", "src\Argon.Api\Argon.Api.csproj", "{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Grains", "src\Argon.Grains\Argon.Grains.csproj", "{46302042-4AE5-4701-A560-6F7A9DE06C08}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -17,6 +19,7 @@ Global
 		{872FE764-2544-4E27-9193-BA625245F8D5} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{3AEA5748-B88E-45FF-B3DC-319A7A8D13B4} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
+		{46302042-4AE5-4701-A560-6F7A9DE06C08} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{872FE764-2544-4E27-9193-BA625245F8D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -31,5 +34,9 @@ Global
 		{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{46302042-4AE5-4701-A560-6F7A9DE06C08}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{46302042-4AE5-4701-A560-6F7A9DE06C08}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{46302042-4AE5-4701-A560-6F7A9DE06C08}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{46302042-4AE5-4701-A560-6F7A9DE06C08}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
