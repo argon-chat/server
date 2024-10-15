@@ -1,8 +1,11 @@
+using System.Net;
+using System.Reflection;
 using Argon.Api.Common.Models;
 using Argon.Api.Common.Services;
 using Argon.Api.Entities;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Orleans.Configuration;
 
 namespace Argon.Api;
 
@@ -17,7 +20,15 @@ public class Program
         builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
         builder.Services.AddAuthorization();
         builder.Services
-            .AddIdentityApiEndpoints<ApplicationUser>(options => options.SignIn.RequireConfirmedAccount = true)
+            .AddIdentityApiEndpoints<ApplicationUser>(options =>
+            {
+                options.SignIn.RequireConfirmedAccount = true;
+                options.SignIn.RequireConfirmedPhoneNumber = true;
+                options.Lockout.MaxFailedAccessAttempts = 5;
+                options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+                options.SignIn.RequireConfirmedEmail = true;
+                options.User.RequireUniqueEmail = true;
+            })
             .AddEntityFrameworkStores<ApplicationDbContext>()
             .AddDefaultTokenProviders();
         builder.Services.AddTransient<IEmailSender<ApplicationUser>, EmailSender>();
@@ -26,6 +37,12 @@ public class Program
         builder.Services.AddSwaggerGen();
         builder.Host.UseOrleans(static siloBuilder =>
         {
+            siloBuilder.Configure<ClusterOptions>(options =>
+            {
+                options.ClusterId = nameof(Argon.Api);
+                options.ServiceId = nameof(Argon.Api);
+            });
+            siloBuilder.ConfigureEndpoints(11111, 30000, listenOnAnyHostAddress: true);
             siloBuilder.UseLocalhostClustering();
             siloBuilder.AddMemoryGrainStorage("replaceme");
         });
