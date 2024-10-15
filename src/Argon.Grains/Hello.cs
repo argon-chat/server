@@ -1,13 +1,14 @@
 using Argon.Grains.Interfaces;
+using Microsoft.Extensions.Logging;
 using Orleans;
 
 namespace Argon.Grains;
 
-public class Hello : Grain, IHello
+public class Hello(ILogger<Hello> logger) : Grain, IHello
 {
-    public  Task DoIt(string who)
+    public Task DoIt(string who)
     {
-        Console.WriteLine($"Hello: {who}");
+        logger.LogInformation($"Hello: {who}");
         return Task.CompletedTask;
     }
 }
