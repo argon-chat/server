@@ -1,13 +1,6 @@
 name: Api
 
 on:
-  workflow_run:
-    workflows:
-      - Tests
-    types:
-      - completed
-    branches:
-      - master
   push:
     branches: [ "master" ]
     paths:
@@ -26,7 +19,10 @@ on:
       - 'src/Argon.Api.Common/**'
 
 jobs:
+  qa:
+    uses: ./.github/workflows/tests.yml
   build:
+    needs: [ qa ]
     #    if: github.ref == 'refs/heads/master'
     runs-on: ARM64
     steps:

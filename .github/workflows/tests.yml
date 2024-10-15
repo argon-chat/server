@@ -1,10 +1,5 @@
 name: Tests
-on:
-  push:
-    branches: [ "master" ]
-  pull_request:
-    branches: [ "master" ]
-
+on: [ workflow_call ]
 jobs:
   qa:
     runs-on: ARM64
@@ -20,5 +15,3 @@ jobs:
         run: dotnet build --no-restore --verbosity normal
       - name: Test
         run: dotnet test --no-build --verbosity normal
-      - name: Fail test
-        run: exit 1
