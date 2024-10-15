@@ -18,8 +18,8 @@ var api = builder.AddProject<Argon_Api>("argon-api")
     .WithReference(apiDb, "DefaultConnection")
     .WithReference(cache)
     .WithReference(rmq)
-    .WithEndpoint(11111, 11111, "tcp","siloPort", isProxied: false)
-    .WithEndpoint(30000, 30000, "tcp","grainPort", isProxied: false)
+    .WithEndpoint(11111, 11111, "tcp", "siloPort", isProxied: false)
+    .WithEndpoint(30000, 30000, "tcp", "grainPort", isProxied: false)
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();

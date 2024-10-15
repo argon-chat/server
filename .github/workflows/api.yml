@@ -1,28 +1,34 @@
-name: .NET
+name: Api
 
 on:
+  workflow_run:
+    workflows:
+      - Tests
+    types:
+      - completed
+    branches:
+      - master
   push:
     branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
+      - 'src/ServiceDefaults/**'
+      - 'src/Argon.Grains/**'
+      - 'src/Argon.Grains.Interfaces/**'
+      - 'src/Argon.Api.Common/**'
   pull_request:
     branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
+      - 'src/ServiceDefaults/**'
+      - 'src/Argon.Grains/**'
+      - 'src/Argon.Grains.Interfaces/**'
+      - 'src/Argon.Api.Common/**'
 
 jobs:
-  qa:
-    runs-on: ARM64
-    steps:
-    - uses: actions/checkout@v4
-    - name: Setup .NET
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: 8.0.x
   build:
-#    if: github.ref == 'refs/heads/master'
+    #    if: github.ref == 'refs/heads/master'
     runs-on: ARM64
-    needs: qa
     steps:
       - name: Log in to GitHub Docker Registry
         uses: docker/login-action@v1
@@ -37,5 +43,3 @@ jobs:
           file: ./src/Argon.Api/Dockerfile
           push: true
           tags: reg.staging.svck.dev/argon/api-orleans:${{ github.run_number }}
-#          platforms: linux/arm64/v8
-    

@@ -1,5 +1,3 @@
-using System.Net;
-using System.Reflection;
 using Argon.Api.Common.Models;
 using Argon.Api.Common.Services;
 using Argon.Api.Entities;
@@ -23,7 +21,7 @@ public class Program
             .AddIdentityApiEndpoints<ApplicationUser>(options =>
             {
                 options.SignIn.RequireConfirmedAccount = true;
-                options.SignIn.RequireConfirmedPhoneNumber = true;
+                // options.SignIn.RequireConfirmedPhoneNumber = true;
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
                 options.SignIn.RequireConfirmedEmail = true;
@@ -39,8 +37,8 @@ public class Program
         {
             siloBuilder.Configure<ClusterOptions>(options =>
             {
-                options.ClusterId = nameof(Argon.Api);
-                options.ServiceId = nameof(Argon.Api);
+                options.ClusterId = nameof(Api);
+                options.ServiceId = nameof(Api);
             });
             siloBuilder.ConfigureEndpoints(11111, 30000, listenOnAnyHostAddress: true);
             siloBuilder.UseLocalhostClustering();
