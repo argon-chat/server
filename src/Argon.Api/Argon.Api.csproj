@@ -9,7 +9,6 @@
 
     <ItemGroup>
         <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.10"/>
-        <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="8.0.10"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -23,14 +22,15 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Grains\Argon.Grains.csproj" />
+        <ProjectReference Include="..\Argon.Api.Common\Argon.Api.Common.csproj"/>
+        <ProjectReference Include="..\Argon.Grains\Argon.Grains.csproj"/>
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
 </Project>

@@ -12,7 +12,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\Argon.Orleans.Client\Argon.Orleans.Client.csproj" />
+        <ProjectReference Include="..\Argon.Orleans.Client\Argon.Orleans.Client.csproj"/>
     </ItemGroup>
 
 </Project>

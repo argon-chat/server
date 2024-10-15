@@ -1,5 +1,6 @@
+using Argon.Api.Common.Models;
+using Argon.Api.Common.Services;
 using Argon.Api.Entities;
-using Argon.Api.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 

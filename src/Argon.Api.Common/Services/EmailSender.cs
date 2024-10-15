@@ -1,7 +1,8 @@
-using Argon.Api.Entities;
+using Argon.Api.Common.Models;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
-namespace Argon.Api.Services;
+namespace Argon.Api.Common.Services;
 
 public class EmailSender(ILogger<EmailSender> logger) : IEmailSender<ApplicationUser>
 {
