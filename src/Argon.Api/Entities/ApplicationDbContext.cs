@@ -6,4 +6,3 @@ namespace Argon.Api.Entities;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser, IdentityRole<Guid>, Guid>(options);
-

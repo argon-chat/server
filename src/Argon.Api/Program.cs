@@ -31,10 +31,7 @@ public class Program
         builder.Services.AddCors(options =>
         {
             options.AddDefaultPolicy(
-                policy  =>
-                {
-                    policy.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin();
-                });
+                policy => { policy.AllowAnyHeader().AllowAnyMethod().AllowAnyOrigin(); });
         });
         var app = builder.Build();
         app.UseCors();
@@ -47,12 +44,13 @@ public class Program
             Thread.Sleep(5000);
             await db.Database.MigrateAsync();
         }
+
         app.UseAuthentication();
         app.UseAuthorization();
         app.MapControllers();
         app.MapDefaultEndpoints();
         var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
-        app.MapGet("/", () => new { buildTime = buildTime });
+        app.MapGet("/", () => new { buildTime });
         app.MapGroup("/api/identity").MapIdentityApi<ApplicationUser>().RequireCors();
         await app.RunAsync();
     }

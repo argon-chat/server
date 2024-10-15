@@ -4,5 +4,4 @@ namespace Argon.Api.Entities;
 
 public class ApplicationUser : IdentityUser<Guid>
 {
-    
 }
