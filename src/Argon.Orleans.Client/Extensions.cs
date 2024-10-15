@@ -9,7 +9,7 @@ namespace Argon.Orleans.Client;
 
 public static class Extensions
 {
-    public static IHostBuilder UseOrleansClient(this IHostBuilder hostBuilder)
+    public static IHostBuilder CreateOrleansClient(this IHostBuilder hostBuilder)
     {
         return hostBuilder
             .UseOrleansClient(config =>
@@ -30,10 +30,9 @@ public static class Extensions
         return host.Services.GetRequiredService<IClusterClient>();
     }
 
-    public static IClusterClient SayHello(this IClusterClient client)
+    public static async Task<string> SayHello(this IClusterClient client)
     {
         var hello = client.GetGrain<IHello>(Guid.NewGuid(), "Hello", null);
-        hello.DoIt("World");
-        return client;
+        return await hello.DoIt(", Yuuki xuy");
     }
 }

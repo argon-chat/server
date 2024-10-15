@@ -16,6 +16,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Orleans.Client", "src
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Api.Common", "src\Argon.Api.Common\Argon.Api.Common.csproj", "{2E23380A-5F69-4FA2-8E91-C98BBF755DB6}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ConsoleApp1", "src\ConsoleApp1\ConsoleApp1.csproj", "{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -29,6 +31,7 @@ Global
 		{14F7CBC1-D8B6-4BAE-83A0-77987CDF76B5} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{81518909-9B70-4BA8-B28E-A851F0D92823} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{2E23380A-5F69-4FA2-8E91-C98BBF755DB6} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
+		{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
 		{872FE764-2544-4E27-9193-BA625245F8D5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
@@ -59,5 +62,9 @@ Global
 		{2E23380A-5F69-4FA2-8E91-C98BBF755DB6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2E23380A-5F69-4FA2-8E91-C98BBF755DB6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2E23380A-5F69-4FA2-8E91-C98BBF755DB6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7385EA6C-FDD4-4EE5-982C-5BF50437F5F2}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
