@@ -8,7 +8,7 @@ jobs:
         with:
           fetch-depth: 0
           submodules: 'recursive'
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.GITHUB_TOKEN }}
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
