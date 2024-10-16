@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Argon.Api.Common.Models;
 using Argon.Api.Common.Services;
 using Argon.Api.Entities;
@@ -41,7 +42,7 @@ public class Program
                 options.ServiceId = nameof(Api);
             });
             siloBuilder.ConfigureEndpoints(11111, 30000, listenOnAnyHostAddress: true);
-            siloBuilder.UseLocalhostClustering();
+            siloBuilder.UseLocalhostClustering(serviceId: nameof(Api), clusterId: nameof(Api));
             siloBuilder.AddMemoryGrainStorage("replaceme");
         });
         builder.Services.AddCors(options =>
