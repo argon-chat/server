@@ -41,9 +41,7 @@ public class Program
                     options.ClusterId = "argon";
                     options.ServiceId = "argon-api";
                 }).Configure<ConnectionOptions>(connection =>
-                {
-                    connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30);
-                })
+                    connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30))
                 .ConfigureEndpoints(11111, 30000, listenOnAnyHostAddress: true)
                 .AddMemoryGrainStorageAsDefault();
 
