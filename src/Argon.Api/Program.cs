@@ -37,8 +37,8 @@ public class Program
         {
             siloBuilder.Configure<ClusterOptions>(options =>
                 {
-                    options.ClusterId = nameof(Api);
-                    options.ServiceId = nameof(Api);
+                    options.ClusterId = nameof(Api).ToLowerInvariant();
+                    options.ServiceId = nameof(Api).ToLowerInvariant();
                 }).Configure<ConnectionOptions>(connection =>
                 {
                     connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30);
