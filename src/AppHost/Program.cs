@@ -14,12 +14,12 @@ var db = builder.AddPostgres("pg", port: 5432, userName: username, password: pas
 
 var apiDb = db.AddDatabase("apiDb");
 
-var api = builder.AddProject<Argon_Api>("argon-api")
-    .WithReference(apiDb, "DefaultConnection")
-    .WithReference(cache)
-    .WithReference(rmq)
-    .WithEndpoint(11111, 11111, "tcp", "siloPort", isProxied: false)
-    .WithEndpoint(30000, 30000, "tcp", "grainPort", isProxied: false)
-    .WithExternalHttpEndpoints();
+// var api = builder.AddProject<Argon_Api>("argon-api")
+//     .WithReference(apiDb, "DefaultConnection")
+//     .WithReference(cache)
+//     .WithReference(rmq)
+//     .WithEndpoint(11111, 11111, "tcp", "siloPort", isProxied: false)
+//     .WithEndpoint(30000, 30000, "tcp", "grainPort", isProxied: false)
+//     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
