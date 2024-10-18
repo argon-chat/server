@@ -1,4 +1,5 @@
-﻿using Argon.Orleans.Client;
+﻿using System.Net;
+using Argon.Orleans.Client;
 using Microsoft.Extensions.Hosting;
 
 namespace ConsoleApp1;
@@ -15,7 +16,7 @@ internal class Program
 
         var client = host.OrleansClient();
 
-        var result = client.SayHello();
+        var result = await client.SayHello();
 
         Console.WriteLine(result);
         Console.WriteLine(result);

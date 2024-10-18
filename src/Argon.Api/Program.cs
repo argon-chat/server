@@ -42,14 +42,18 @@ public class Program
                 }).Configure<ConnectionOptions>(connection =>
                 {
                     connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30);
-                }).Configure<EndpointOptions>(endpoint =>
-                {
-                    endpoint.GatewayPort = 30000;
-                    endpoint.SiloPort = 11111;
-                    endpoint.AdvertisedIPAddress = IPAddress.Parse("37.157.219.207");
-                    endpoint.SiloListeningEndpoint = new IPEndPoint(IPAddress.Any, 11111);
-                    endpoint.GatewayListeningEndpoint = new IPEndPoint(IPAddress.Any, 30000);
-                }).UseLocalhostClustering(serviceId: nameof(Api), clusterId: nameof(Api))
+                })
+                .ConfigureEndpoints(advertisedIP: IPAddress.Parse("37.157.219.207"), siloPort: 11111,
+                    gatewayPort: 30000, listenOnAnyHostAddress: true)
+                // .Configure<EndpointOptions>(endpoint =>
+                // {
+                //     endpoint.GatewayPort = 30000;
+                //     endpoint.SiloPort = 11111;
+                //     endpoint.AdvertisedIPAddress = IPAddress.Parse("37.157.219.207");
+                //     endpoint.SiloListeningEndpoint = new IPEndPoint(IPAddress.Any, 11111);
+                //     endpoint.GatewayListeningEndpoint = new IPEndPoint(IPAddress.Any, 30000);
+                // })
+                .UseLocalhostClustering(serviceId: nameof(Api), clusterId: nameof(Api))
                 .AddMemoryGrainStorage("replaceme");
         });
         builder.Services.AddCors(options =>
