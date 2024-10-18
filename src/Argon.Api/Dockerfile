@@ -9,6 +9,9 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
+COPY ["Contracts/Argon.Grains/Argon.Grains.csproj", "Contracts/Argon.Grains/"]
+COPY ["Contracts/Argon.Grains.Interfaces/Argon.Grains.Interfaces.csproj", "Contracts/Argon.Grains.Interfaces/"]
+COPY ["src/Argon.Api.Common/Argon.Api.Common.csproj", "src/Argon.Api.Common/"]
 RUN dotnet restore "src/Argon.Api/Argon.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Argon.Api"
