@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net8.0</TargetFramework>
@@ -8,20 +8,21 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Flurl.Http" Version="4.0.2" />
+        <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
-    </ItemGroup>
+        <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0" />
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
+		
+	</ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Controllers\"/>
-    </ItemGroup>
-
-    <ItemGroup>
-        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
+        <ProjectReference Include="..\Argon.Sfu.Protocol\Argon.Sfu.Protocol.csproj" />
+        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 
     <ItemGroup>
