@@ -35,10 +35,11 @@ public class Program
         builder.Services.AddSwaggerGen();
         builder.Host.UseOrleans(siloBuilder =>
         {
-            siloBuilder.Configure<ClusterOptions>(options =>
+            siloBuilder
+                .Configure<ClusterOptions>(options =>
                 {
-                    options.ClusterId = nameof(Api).ToLowerInvariant();
-                    options.ServiceId = nameof(Api).ToLowerInvariant();
+                    options.ClusterId = "argon";
+                    options.ServiceId = "argon-api";
                 }).Configure<ConnectionOptions>(connection =>
                 {
                     connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30);
