@@ -8,7 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj" />
+        <ProjectReference Include="..\..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj"/>
     </ItemGroup>
 
 </Project>

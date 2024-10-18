@@ -3,20 +3,20 @@ using Microsoft.Extensions.Hosting;
 
 namespace ConsoleApp1;
 
-class Program
+internal class Program
 {
-    static async Task Main(string[] args)
+    private static async Task Main(string[] args)
     {
         var host = Host.CreateDefaultBuilder(args)
             .CreateOrleansClient()
             .Build();
-        
+
         await host.StartAsync();
-        
+
         var client = host.OrleansClient();
 
         var result = client.SayHello();
-        
+
         Console.WriteLine(result);
         Console.WriteLine(result);
         Console.WriteLine(result);
@@ -28,7 +28,7 @@ class Program
         Console.WriteLine(result);
         Console.WriteLine(result);
         Console.WriteLine(result);
-        
+
         await host.StopAsync();
     }
 }

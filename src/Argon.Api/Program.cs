@@ -1,4 +1,4 @@
-using System.Net.Sockets;
+using System.Net;
 using Argon.Api.Common.Models;
 using Argon.Api.Common.Services;
 using Argon.Api.Entities;
@@ -22,7 +22,6 @@ public class Program
             .AddIdentityApiEndpoints<ApplicationUser>(options =>
             {
                 options.SignIn.RequireConfirmedAccount = true;
-                // options.SignIn.RequireConfirmedPhoneNumber = true;
                 options.Lockout.MaxFailedAccessAttempts = 5;
                 options.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
                 options.SignIn.RequireConfirmedEmail = true;
@@ -37,13 +36,21 @@ public class Program
         builder.Host.UseOrleans(static siloBuilder =>
         {
             siloBuilder.Configure<ClusterOptions>(options =>
-            {
-                options.ClusterId = nameof(Api);
-                options.ServiceId = nameof(Api);
-            });
-            siloBuilder.ConfigureEndpoints(11111, 30000, listenOnAnyHostAddress: true);
-            siloBuilder.UseLocalhostClustering(serviceId: nameof(Api), clusterId: nameof(Api));
-            siloBuilder.AddMemoryGrainStorage("replaceme");
+                {
+                    options.ClusterId = nameof(Api);
+                    options.ServiceId = nameof(Api);
+                }).Configure<ConnectionOptions>(connection =>
+                {
+                    connection.OpenConnectionTimeout = TimeSpan.FromSeconds(30);
+                }).Configure<EndpointOptions>(endpoint =>
+                {
+                    endpoint.GatewayPort = 30000;
+                    endpoint.SiloPort = 11111;
+                    endpoint.AdvertisedIPAddress = IPAddress.Parse("37.157.219.207");
+                    endpoint.SiloListeningEndpoint = new IPEndPoint(IPAddress.Any, 11111);
+                    endpoint.GatewayListeningEndpoint = new IPEndPoint(IPAddress.Any, 30000);
+                }).UseLocalhostClustering(serviceId: nameof(Api), clusterId: nameof(Api))
+                .AddMemoryGrainStorage("replaceme");
         });
         builder.Services.AddCors(options =>
         {
