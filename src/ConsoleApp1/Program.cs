@@ -1,5 +1,4 @@
-﻿using System.Net;
-using Argon.Orleans.Client;
+﻿using Argon.Orleans.Client;
 using Microsoft.Extensions.Hosting;
 
 namespace ConsoleApp1;
