@@ -1,13 +1,14 @@
+using System.Data.Common;
 using Argon.Api.Entities;
 using Argon.Api.Migrations;
 using Argon.Sfu;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration
-    .AddJsonFile("appsettings.json", false)
-    .AddEnvironmentVariables()
-    .AddCommandLine(args);
+// builder.Configuration
+//     .AddJsonFile("appsettings.json", false)
+//     .AddEnvironmentVariables()
+//     .AddCommandLine(args);
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
@@ -15,10 +16,15 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers();
 builder.Services.AddSwaggerGen().AddEndpointsApiExplorer();
 builder.AddSelectiveForwardingUnit();
-builder.Host.UseOrleans(static siloBuilder =>
+builder.Host.UseOrleans(siloBuilder =>
 {
-    siloBuilder.UseLocalhostClustering();
-    siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
+    siloBuilder
+        .AddAdoNetGrainStorage("OrleansStorage", options =>
+        {
+            options.Invariant = "Npgsql";
+            options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+        })
+        .UseLocalhostClustering();
 });
 var app = builder.Build();
 app.UseSwagger();
