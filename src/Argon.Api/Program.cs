@@ -1,7 +1,11 @@
 using System.Data.Common;
+using System.Text.Json.Serialization;
 using Argon.Api.Entities;
 using Argon.Api.Migrations;
 using Argon.Sfu;
+using Newtonsoft.Json;
+using Orleans.Serialization;
+using Orleans.Storage;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,6 +27,7 @@ builder.Host.UseOrleans(siloBuilder =>
         {
             options.Invariant = "Npgsql";
             options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            // options.GrainStorageSerializer = new JsonGrainStorageSerializer(new OrleansJsonSerializer());
         })
         .UseLocalhostClustering();
 });
