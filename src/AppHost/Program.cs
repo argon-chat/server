@@ -17,13 +17,13 @@ var db = builder.AddPostgres("pg", port: 5432, userName: username, password: pas
 
 var apiDb = db.AddDatabase("apiDb");
 
-// var api = builder.AddProject<Argon_Api>("argon-api")
-//     .WithReference(apiDb, "DefaultConnection")
-//     .WithReference(cache)
-//     .WithReference(rmq)
-//     .WithEnvironment("sfu__url", sfuUrl)
-//     .WithEnvironment("sfu__clientId", sfuClientId)
-//     .WithEnvironment("sfu__clientSecret", sfuClientSecret)
-//     .WithExternalHttpEndpoints();
+var api = builder.AddProject<Argon_Api>("argon-api")
+    .WithReference(apiDb, "DefaultConnection")
+    .WithReference(cache)
+    .WithReference(rmq)
+    .WithEnvironment("sfu__url", sfuUrl)
+    .WithEnvironment("sfu__clientId", sfuClientId)
+    .WithEnvironment("sfu__clientSecret", sfuClientSecret)
+    .WithExternalHttpEndpoints();
 
 builder.Build().Run();

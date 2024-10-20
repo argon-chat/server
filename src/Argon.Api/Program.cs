@@ -4,6 +4,7 @@ using Argon.Api.Entities;
 using Argon.Api.Migrations;
 using Argon.Sfu;
 using Newtonsoft.Json;
+using Orleans.Configuration;
 using Orleans.Serialization;
 using Orleans.Storage;
 
@@ -23,6 +24,11 @@ builder.AddSelectiveForwardingUnit();
 builder.Host.UseOrleans(siloBuilder =>
 {
     siloBuilder
+        .Configure<ClusterOptions>(cluster =>
+        {
+            cluster.ClusterId = "Api";
+            cluster.ServiceId = "Api";
+        })
         .AddAdoNetGrainStorage("OrleansStorage", options =>
         {
             options.Invariant = "Npgsql";
