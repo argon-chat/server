@@ -1,0 +1,23 @@
+name: Tests
+on: [ workflow_call ]
+jobs:
+  qa:
+    runs-on: ARM64
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: 'recursive'
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Install .NET Aspire workload
+        run: dotnet workload install aspire
+      - name: Install dependencies
+        run: dotnet restore
+      - name: Build
+        run: dotnet build --no-restore --verbosity normal
+      - name: Test
+        run: dotnet test --no-build --verbosity normal
