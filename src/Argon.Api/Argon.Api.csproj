@@ -8,6 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0" />
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
