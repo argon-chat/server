@@ -21,7 +21,6 @@
 	</ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Sfu.Protocol\Argon.Sfu.Protocol.csproj" />
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 
