@@ -1,41 +1,32 @@
 using Argon.Api.Entities;
-using Microsoft.EntityFrameworkCore;
+using Argon.Api.Migrations;
+using Argon.Sfu;
 
-namespace Argon.Api;
+var builder = WebApplication.CreateBuilder(args);
 
-public class Program
+builder.Configuration
+    .AddJsonFile("appsettings.json", false)
+    .AddEnvironmentVariables()
+    .AddCommandLine(args);
+builder.AddServiceDefaults();
+builder.AddRedisOutputCache("cache");
+builder.AddRabbitMQClient("rmq");
+builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
+builder.Services.AddControllers();
+builder.Services.AddSwaggerGen().AddEndpointsApiExplorer();
+builder.AddSelectiveForwardingUnit();
+builder.Host.UseOrleans(static siloBuilder =>
 {
-    public static async Task Main(string[] args)
-    {
-        var builder = WebApplication.CreateBuilder(args);
-        builder.AddServiceDefaults();
-        builder.AddRedisOutputCache("cache");
-        builder.AddRabbitMQClient("rmq");
-        builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
-        builder.Services.AddControllers();
-        builder.Services.AddEndpointsApiExplorer();
-        builder.Services.AddSwaggerGen();
-        builder.Host.UseOrleans(static siloBuilder =>
-        {
-            siloBuilder.UseLocalhostClustering();
-            siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
-        });
-        var app = builder.Build();
-        app.UseSwagger();
-        app.UseSwaggerUI();
-        if (app.Environment.IsDevelopment())
-        {
-            using var scope = app.Services.CreateScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Thread.Sleep(5000);
-            await db.Database.MigrateAsync();
-        }
-        app.UseHttpsRedirection();
-        app.UseAuthorization();
-        app.MapControllers();
-        app.MapDefaultEndpoints();
-        var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
-        app.MapGet("/", () => new { buildTime = buildTime });
-        await app.RunAsync();
-    }
-}
+    siloBuilder.UseLocalhostClustering();
+    siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
+});
+var app = builder.Build();
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
+app.UseAuthorization();
+app.MapControllers();
+app.MapDefaultEndpoints();
+var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
+app.MapGet("/", () => new { buildTime });
+await app.WarpUp<ApplicationDbContext>().RunAsync();
