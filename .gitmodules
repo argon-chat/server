@@ -1,3 +1,0 @@
-[submodule "src/Contracts"]
-	path = src/Contracts
-	url = git@github.com:argon-chat/Contracts.git
