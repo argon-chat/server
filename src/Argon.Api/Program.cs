@@ -5,10 +5,6 @@ using Orleans.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// builder.Configuration
-//     .AddJsonFile("appsettings.json", false)
-//     .AddEnvironmentVariables()
-//     .AddCommandLine(args);
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");

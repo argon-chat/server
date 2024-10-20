@@ -34,24 +34,15 @@ public class ArgonSelectiveForwardingUnit(
     [FromKeyedServices(SfuFeature.HttpClientKey)]
     IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
 {
-    private const string pkg = "livekit";
-    private const string prefix = "/twirp";
-
     private static readonly Guid
         SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
     public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-        SfuPermission permission)
-    {
-        // TODO check validity
-        return new ValueTask<RealtimeToken>(CreateJwt(channelId, userId, permission, settings));
-    }
+        SfuPermission permission) =>
+        new(CreateJwt(channelId, userId, permission, settings)); // TODO check validity
 
     public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId)
-    {
-        throw new NotImplementedException();
-        // TODO
-    }
+        => throw new NotImplementedException(); // TODO
 
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
     {
@@ -97,10 +88,8 @@ public class ArgonSelectiveForwardingUnit(
         return true;
     }
 
-    private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
-    {
-        return CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
-    }
+    private RealtimeToken CreateSystemToken(ArgonChannelId channelId) 
+        => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
         IOptions<SfuFeatureSettings> settings)
@@ -123,6 +112,9 @@ public class ArgonSelectiveForwardingUnit(
         JwtSecurityToken token = new(headers, payload);
         return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
     }
+
+    private const string pkg = "livekit";
+    private const string prefix = "/twirp";
 
     public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data,
         Dictionary<string, string> headers, CancellationToken ct = default)
