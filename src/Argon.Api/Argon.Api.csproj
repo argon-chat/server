@@ -16,6 +16,8 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
@@ -24,17 +26,13 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Grains.Interfaces\Argon.Grains.Interfaces.csproj" />
-        <ProjectReference Include="..\Argon.Grains\Argon.Grains.csproj" />
-        <ProjectReference Include="..\Contracts\Argon.Grains\Argon.Grains.csproj"/>
-        <ProjectReference Include="..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj"/>
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
 </Project>

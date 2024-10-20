@@ -1,4 +1,4 @@
-namespace Argon.Grains.Interfaces.States;
+namespace Argon.Api.Grain.Persistence.States;
 
 [GenerateSerializer]
 [Alias(nameof(HelloArchive))]

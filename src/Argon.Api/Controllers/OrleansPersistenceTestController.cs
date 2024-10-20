@@ -1,9 +1,9 @@
 namespace Argon.Api.Controllers;
 
-using Grains.Interfaces;
+using Grain.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-#if DEBUG 
+#if DEBUG
 public record HelloGrainInputDto(string Who);
 
 public record HelloGrainOutputDto(long Count, IEnumerable<string> Whos);

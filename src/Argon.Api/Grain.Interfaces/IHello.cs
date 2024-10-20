@@ -1,4 +1,4 @@
-namespace Argon.Grains.Interfaces;
+namespace Argon.Api.Grain.Interfaces;
 
 public interface IHello : IGrainWithIntegerKey
 {
