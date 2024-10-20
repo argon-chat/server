@@ -3,8 +3,7 @@ namespace Argon.Api.Controllers;
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-// #if DEBUG // TODO: commented out to have this endpoint on staging for one version
-
+#if DEBUG 
 public record HelloGrainInputDto(string Who);
 
 public record HelloGrainOutputDto(long Count, IEnumerable<string> Whos);
@@ -27,4 +26,4 @@ public class OrleansPersistenceTestController(IGrainFactory grainFactory) : Cont
         return await _grain.Create(dto.Who);
     }
 }
-// #endif
+#endif
