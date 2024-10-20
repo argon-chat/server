@@ -24,15 +24,17 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Argon.Grains.Interfaces\Argon.Grains.Interfaces.csproj" />
+        <ProjectReference Include="..\Argon.Grains\Argon.Grains.csproj" />
         <ProjectReference Include="..\Contracts\Argon.Grains\Argon.Grains.csproj"/>
         <ProjectReference Include="..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj"/>
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
+      <Content Include="..\..\.dockerignore">
+        <Link>.dockerignore</Link>
+      </Content>
     </ItemGroup>
 
 </Project>
