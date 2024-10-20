@@ -24,6 +24,8 @@
 	</ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Contracts\Argon.Grains\Argon.Grains.csproj" />
+        <ProjectReference Include="..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj" />
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 
