@@ -1,11 +1,10 @@
-﻿namespace Argon.Sfu;
-
-using Flurl.Http;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
+
+namespace Argon.Sfu;
 
 public static class SfuFeature
 {
@@ -18,7 +17,7 @@ public static class SfuFeature
         builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(HttpClientKey, (provider, o) =>
         {
             var client = new FlurlClient(provider.GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
-            client.Settings.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings()
+            client.Settings.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings
             {
                 ContractResolver = new CamelCasePropertyNamesContractResolver()
             });

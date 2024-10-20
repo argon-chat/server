@@ -1,6 +1,6 @@
-﻿namespace Argon.Api.Migrations;
+﻿using Microsoft.EntityFrameworkCore;
 
-using Microsoft.EntityFrameworkCore;
+namespace Argon.Api.Migrations;
 
 public static class WarpUpExtension
 {
