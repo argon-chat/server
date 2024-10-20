@@ -1,12 +1,12 @@
-﻿using System.IdentityModel.Tokens.Jwt;
+﻿namespace Argon.Sfu;
+
+using System.IdentityModel.Tokens.Jwt;
 using System.Text;
 using Flurl.Http;
 using LiveKit.Proto;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
-
-namespace Argon.Sfu;
 
 #if DEBUG
 public class ArgonSfuTestController : ControllerBase

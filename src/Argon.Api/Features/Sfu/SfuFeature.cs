@@ -1,10 +1,10 @@
-﻿using Flurl.Http;
+﻿namespace Argon.Sfu;
+
+using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
-
-namespace Argon.Sfu;
 
 public static class SfuFeature
 {

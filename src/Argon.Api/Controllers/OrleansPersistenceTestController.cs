@@ -1,7 +1,8 @@
-using Argon.Grains.Interfaces;
+namespace Argon.Api.Controllers;
+
+using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
-namespace Argon.Api.Controllers;
 // #if DEBUG // TODO: commented out to have this endpoint on staging for one version
 
 public record HelloGrainInputDto(string Who);

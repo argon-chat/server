@@ -1,7 +1,7 @@
-﻿using LiveKit.Proto;
-using Microsoft.OpenApi.Extensions;
+﻿namespace Argon.Sfu;
 
-namespace Argon.Sfu;
+using LiveKit.Proto;
+using Microsoft.OpenApi.Extensions;
 
 [Flags]
 public enum SfuPermissionFlags
