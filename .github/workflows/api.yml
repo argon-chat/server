@@ -5,6 +5,8 @@ on:
     branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
+      - 'src/Argon.Grains/**'
+      - 'src/Argon.Grains.Interfaces/**'
       - 'src/ServiceDefaults/**'
   pull_request:
     branches: [ "master" ]
