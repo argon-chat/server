@@ -8,27 +8,31 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0" />
-        <PackageReference Include="Flurl.Http" Version="4.0.2" />
-        <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
+        <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0"/>
+        <PackageReference Include="Flurl.Http" Version="4.0.2"/>
+        <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0" />
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0" />
-        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2" />
-		
-	</ItemGroup>
+        <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
+        <PackageReference Include="Npgsql" Version="8.0.5"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2"/>
 
-    <ItemGroup>
-        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 
     <ItemGroup>
-      <Content Include="..\..\.dockerignore">
-        <Link>.dockerignore</Link>
-      </Content>
+        <ProjectReference Include="..\Contracts\Argon.Grains\Argon.Grains.csproj"/>
+        <ProjectReference Include="..\Contracts\Argon.Orleans.Client\Argon.Orleans.Client.csproj"/>
+        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
 </Project>

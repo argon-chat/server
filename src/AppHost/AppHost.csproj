@@ -1,23 +1,23 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
-    <PropertyGroup>
-        <OutputType>Exe</OutputType>
-        <TargetFramework>net8.0</TargetFramework>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <IsAspireHost>true</IsAspireHost>
-        <UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
-    </PropertyGroup>
+	<PropertyGroup>
+		<OutputType>Exe</OutputType>
+		<TargetFramework>net8.0</TargetFramework>
+		<ImplicitUsings>enable</ImplicitUsings>
+		<Nullable>enable</Nullable>
+		<IsAspireHost>true</IsAspireHost>
+		<UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
+	</PropertyGroup>
 
-    <ItemGroup>
-        <PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.1" />
-        <PackageReference Include="Aspire.Hosting.PostgreSQL" Version="8.2.1" />
-        <PackageReference Include="Aspire.Hosting.RabbitMQ" Version="8.2.1" />
-        <PackageReference Include="Aspire.Hosting.Redis" Version="8.2.1" />
-    </ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Aspire.Hosting.AppHost" Version="8.2.1"/>
+		<PackageReference Include="Aspire.Hosting.PostgreSQL" Version="8.2.1"/>
+		<PackageReference Include="Aspire.Hosting.RabbitMQ" Version="8.2.1"/>
+		<PackageReference Include="Aspire.Hosting.Redis" Version="8.2.1"/>
+	</ItemGroup>
 
-    <ItemGroup>
-        <ProjectReference Include="..\Argon.Api\Argon.Api.csproj" />
-    </ItemGroup>
+	<ItemGroup>
+		<ProjectReference Include="..\Argon.Api\Argon.Api.csproj"/>
+	</ItemGroup>
 
 </Project>

@@ -6,3 +6,4 @@ riderModule.iml
 .idea
 .vs/
 .DS_Store
+*.user

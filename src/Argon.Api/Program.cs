@@ -1,13 +1,10 @@
 using Argon.Api.Entities;
 using Argon.Api.Migrations;
 using Argon.Sfu;
+using Orleans.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Configuration
-    .AddJsonFile("appsettings.json", false)
-    .AddEnvironmentVariables()
-    .AddCommandLine(args);
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
@@ -15,10 +12,21 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers();
 builder.Services.AddSwaggerGen().AddEndpointsApiExplorer();
 builder.AddSelectiveForwardingUnit();
-builder.Host.UseOrleans(static siloBuilder =>
+builder.Host.UseOrleans(siloBuilder =>
 {
-    siloBuilder.UseLocalhostClustering();
-    siloBuilder.AddMemoryGrainStorage("replaceme"); // TODO: replace me pls
+    siloBuilder
+        .Configure<ClusterOptions>(cluster =>
+        {
+            cluster.ClusterId = "Api";
+            cluster.ServiceId = "Api";
+        })
+        .AddAdoNetGrainStorage("OrleansStorage", options =>
+        {
+            options.Invariant = "Npgsql";
+            options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            // options.GrainStorageSerializer = new JsonGrainStorageSerializer(new OrleansJsonSerializer());
+        })
+        .UseLocalhostClustering();
 });
 var app = builder.Build();
 app.UseSwagger();
