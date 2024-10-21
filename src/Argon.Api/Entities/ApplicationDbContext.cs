@@ -4,5 +4,5 @@ using Microsoft.EntityFrameworkCore;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    private DbSet<ApplicationUser> Users { get; set; }
+    public DbSet<ApplicationUser> Users { get; set; }
 }

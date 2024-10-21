@@ -1,9 +1,8 @@
 namespace Argon.Api.Grains;
 
-using Grain.Interfaces;
-using Grain.Persistence.States;
+using Interfaces;
 using Orleans.Providers;
-using Grain = Orleans.Grain;
+using Persistence.States;
 
 [StorageProvider]
 public sealed class Hello(
@@ -16,6 +15,7 @@ public sealed class Hello(
     public async Task<string> Create(string who)
     {
         archive.State.Hellos.Add(who);
+        archive.State.Ints.Add(archive.State.Hellos.Count);
         await archive.WriteStateAsync();
         var message = $"Hello, {who}!";
         logger.LogInformation(message);
@@ -23,10 +23,15 @@ public sealed class Hello(
     }
 
     [ResponseTimeout("00:00:10")]
-    public Task<List<string>> GetList()
+    public Task<Dictionary<string, List<string>>> GetList()
     {
-        var list = archive.State.Hellos;
-        logger.LogInformation("Returning list of {Count} items", list.Count);
-        return Task.FromResult(list);
+        var list1 = archive.State.Hellos;
+        var list2 = archive.State.Ints.Select(i => i.ToString()).ToList();
+        logger.LogInformation("Returning list of {Count} items", list1.Count);
+        return Task.FromResult(new Dictionary<string, List<string>>
+        {
+            { "hellos", list1 },
+            { "ints", list2 }
+        });
     }
 }

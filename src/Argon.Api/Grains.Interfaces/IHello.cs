@@ -1,4 +1,4 @@
-namespace Argon.Api.Grain.Interfaces;
+namespace Argon.Api.Grains.Interfaces;
 
 public interface IHello : IGrainWithIntegerKey
 {
@@ -6,5 +6,5 @@ public interface IHello : IGrainWithIntegerKey
     Task<string> Create(string who);
 
     [Alias("GetList")]
-    Task<List<string>> GetList();
+    Task<Dictionary<string, List<string>>> GetList();
 }
