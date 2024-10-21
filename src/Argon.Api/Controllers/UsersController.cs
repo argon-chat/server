@@ -22,9 +22,6 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     {
         var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
         var token = await userManager.Authenticate(dto.Password);
-#if DEBUG
-        HttpContext.Response.Cookies.Append("x-argon-token", token);
-#endif
         return token;
     }
 
@@ -33,6 +30,14 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     public async Task<ActionResult<UserStorageDto>> Get()
     {
         var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
+        var userManager = grainFactory.GetGrain<IUserManager>(username);
+        return await userManager.Get();
+    }
+
+    [HttpGet("{username}")]
+    [Authorize]
+    public async Task<ActionResult<UserStorageDto>> Get(string username)
+    {
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.Get();
     }
