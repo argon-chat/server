@@ -1,15 +1,15 @@
-// namespace Argon.Api.Grains.Interfaces;
-//
-// using Entities;
-//
-// public interface IUserManager : IGrainWithIntegerKey
-// {
-//     [Alias("Create")]
-//     Task<ApplicationUser> Create(string username, string password);
-//
-//     [Alias("Get")]
-//     Task<ApplicationUser> Get(Guid id);
-//
-//     [Alias("Authenticate")]
-//     Task<string> Authenticate(string username, string password);
-// }
+namespace Argon.Api.Grains.Interfaces;
+
+using Persistence.States;
+
+public interface IUserManager : IGrainWithGuidCompoundKey
+{
+    [Alias("Create")]
+    Task<UserStorageDto> Create(string username, string password);
+
+    [Alias("Get")]
+    Task<UserStorageDto> Get(Guid id);
+
+    [Alias("Authenticate")]
+    Task<string> Authenticate(string username, string password);
+}
