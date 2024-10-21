@@ -1,9 +1,8 @@
-using Microsoft.AspNetCore.Mvc;
-
 namespace Argon.Api.Controllers;
 
 using Grains.Interfaces;
 using Grains.Persistence.States;
+using Microsoft.AspNetCore.Mvc;
 
 public record UserInputDto(string Username, string Password);
 
@@ -13,7 +12,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpPost]
     public async Task<ActionResult<UserStorageDto>> Post([FromBody] UserInputDto dto)
     {
-        var userManager = grainFactory.GetGrain<IUserManager>(Guid.NewGuid(), "users");
-        return await userManager.Create(dto.Username, dto.Password);
+        var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
+        return await userManager.Create(dto.Password);
     }
 }

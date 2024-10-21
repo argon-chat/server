@@ -24,7 +24,6 @@ builder.Host.UseOrleans(siloBuilder =>
         {
             options.Invariant = "Npgsql";
             options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            // options.GrainStorageSerializer = new JsonGrainStorageSerializer(new OrleansJsonSerializer());
         })
         .UseLocalhostClustering();
 });

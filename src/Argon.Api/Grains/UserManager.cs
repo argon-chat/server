@@ -8,11 +8,12 @@ public class UserManager(
     [PersistentState("users", "OrleansStorage")]
     IPersistentState<UserStorage> userStore) : Grain, IUserManager
 {
-    public async Task<UserStorageDto> Create(string username, string password)
+    public async Task<UserStorageDto> Create(string password)
     {
         // await Validate(username, password);
-        userStore.State.Id = this.GetPrimaryKey();
-        userStore.State.Username = username;
+
+        userStore.State.Username = this.GetPrimaryKeyString();
+        userStore.State.Id = Guid.NewGuid();
         userStore.State.Password = password;
         await userStore.WriteStateAsync();
         return userStore.State;
@@ -41,9 +42,23 @@ public class UserManager(
     //     
     // }
 
-    public Task<UserStorageDto> Get(Guid id)
+    public Task<UserStorageDto> Get()
     {
         throw new NotImplementedException();
+    }
+
+    public Task<UserStorageDto> GetByUsername(string username)
+    {
+        var sql = @"with decoded_payload as (
+    select (encode(payloadbinary, 'escape'))::jsonb as payload
+    from orleansstorage
+    where graintypestring = 'users'
+)
+select payload
+from decoded_payload
+where payload->>'Username' = ?;";
+
+        return Task.FromResult(new UserStorageDto());
     }
 
     public Task<string> Authenticate(string username, string password)
