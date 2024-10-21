@@ -32,6 +32,16 @@ public class UserManager(
         return userStore.State;
     }
 
+    public Task<string> Authenticate(string password)
+    {
+        var match = BCrypt.Verify(password, userStore.State.Password);
+
+        if (!match)
+            throw new Exception("Invalid credentials"); // TODO: Come up with application specific errors
+
+        return GenerateJwt();
+    }
+
     public Task<UserStorageDto> GetById(string id)
     {
         var sql = @"with decoded_payload as (
@@ -44,16 +54,6 @@ from decoded_payload
 where payload->>'Id' = ?;";
 
         return Task.FromResult(new UserStorageDto());
-    }
-
-    public Task<string> Authenticate(string password)
-    {
-        var match = BCrypt.Verify(password, userStore.State.Password);
-
-        if (!match)
-            throw new Exception("Invalid credentials"); // TODO: Come up with application specific errors
-
-        return GenerateJwt();
     }
 
     private Task<string> GenerateJwt()
@@ -72,7 +72,9 @@ where payload->>'Id' = ?;";
             new Claim("id", userStore.State.Id.ToString()),
             new Claim("username", userStore.State.Username)
         });
+
         var expires = DateTime.UtcNow.AddDays(228);
+
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject = subject,
@@ -81,6 +83,7 @@ where payload->>'Id' = ?;";
             Audience = audience,
             SigningCredentials = signingCredentials
         };
+
         var tokenHandler = new JwtSecurityTokenHandler();
         var token = tokenHandler.CreateToken(tokenDescriptor);
         var jwtToken = tokenHandler.WriteToken(token);

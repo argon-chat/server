@@ -2,6 +2,7 @@ namespace Argon.Api.Controllers;
 
 using Grains.Interfaces;
 using Grains.Persistence.States;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 public record UserInputDto(string Username, string Password);
@@ -20,6 +21,19 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     public async Task<ActionResult<string>> Authenticate([FromBody] UserInputDto dto)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
-        return await userManager.Authenticate(dto.Password);
+        var token = await userManager.Authenticate(dto.Password);
+#if DEBUG
+        HttpContext.Response.Cookies.Append("x-argon-token", token);
+#endif
+        return token;
+    }
+
+    [HttpGet]
+    [Authorize]
+    public async Task<ActionResult<UserStorageDto>> Get()
+    {
+        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
+        var userManager = grainFactory.GetGrain<IUserManager>(username);
+        return await userManager.Get();
     }
 }
