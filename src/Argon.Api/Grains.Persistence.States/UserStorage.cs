@@ -4,20 +4,22 @@ namespace Argon.Api.Grains.Persistence.States;
 [Alias(nameof(UserStorage))]
 public sealed record class UserStorage
 {
-    [Id(0)] public Guid Id { get; set; } = Guid.NewGuid();
+    [Id(0)] public Guid Id { get; set; } = Guid.Empty;
     [Id(1)] public string Username { get; set; } = string.Empty;
     [Id(2)] public string Password { get; set; } = string.Empty;
-    [Id(3)] public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
+    [Id(3)] public DateTime CreatedAt { get; } = DateTime.UtcNow;
     [Id(4)] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 
-    public static implicit operator UserStorageDto(UserStorage userStorage) =>
-        new UserStorageDto
+    public static implicit operator UserStorageDto(UserStorage userStorage)
+    {
+        return new UserStorageDto()
         {
             Id = userStorage.Id,
             Username = userStorage.Username,
             CreatedAt = userStorage.CreatedAt,
             UpdatedAt = userStorage.UpdatedAt
         };
+    }
 }
 
 [GenerateSerializer]

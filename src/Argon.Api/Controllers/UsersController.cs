@@ -15,4 +15,11 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
         var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
         return await userManager.Create(dto.Password);
     }
+
+    [HttpPost("authenticate")]
+    public async Task<ActionResult<string>> Authenticate([FromBody] UserInputDto dto)
+    {
+        var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
+        return await userManager.Authenticate(dto.Password);
+    }
 }

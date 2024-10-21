@@ -10,9 +10,9 @@ public interface IUserManager : IGrainWithStringKey
     [Alias("Get")]
     Task<UserStorageDto> Get();
 
-    [Alias("GetByUsername")]
-    Task<UserStorageDto> GetByUsername(string username);
+    [Alias("GetById")]
+    Task<UserStorageDto> GetById(string username);
 
     [Alias("Authenticate")]
-    Task<string> Authenticate(string username, string password);
+    Task<string> Authenticate(string password);
 }
