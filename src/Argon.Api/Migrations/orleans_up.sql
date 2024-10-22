@@ -41,9 +41,9 @@ CREATE TABLE OrleansQuery
 -- For each deployment, there will be only one (active) membership version table version column which will be updated periodically.
 CREATE TABLE OrleansMembershipVersionTable
 (
-    DeploymentId varchar(150)   NOT NULL,
+    DeploymentId varchar(150) NOT NULL,
     Timestamp    timestamptz(3) NOT NULL DEFAULT now(),
-    Version      integer        NOT NULL DEFAULT 0,
+    Version      integer      NOT NULL DEFAULT 0,
 
     CONSTRAINT PK_OrleansMembershipVersionTable_DeploymentId PRIMARY KEY (DeploymentId)
 );
@@ -51,15 +51,15 @@ CREATE TABLE OrleansMembershipVersionTable
 -- Every silo instance has a row in the membership table.
 CREATE TABLE OrleansMembershipTable
 (
-    DeploymentId varchar(150)   NOT NULL,
-    Address      varchar(45)    NOT NULL,
-    Port         integer        NOT NULL,
-    Generation   integer        NOT NULL,
-    SiloName     varchar(150)   NOT NULL,
-    HostName     varchar(150)   NOT NULL,
-    Status       integer        NOT NULL,
-    ProxyPort    integer        NULL,
-    SuspectTimes varchar(8000)  NULL,
+    DeploymentId varchar(150) NOT NULL,
+    Address      varchar(45)  NOT NULL,
+    Port         integer      NOT NULL,
+    Generation   integer      NOT NULL,
+    SiloName     varchar(150) NOT NULL,
+    HostName     varchar(150) NOT NULL,
+    Status       integer      NOT NULL,
+    ProxyPort    integer NULL,
+    SuspectTimes varchar(8000) NULL,
     StartTime    timestamptz(3) NOT NULL,
     IAmAliveTime timestamptz(3) NOT NULL,
 
@@ -68,28 +68,29 @@ CREATE TABLE OrleansMembershipTable
 );
 
 CREATE FUNCTION update_i_am_alive_time(
-    deployment_id OrleansMembershipTable.DeploymentId%TYPE,
-    address_arg OrleansMembershipTable.Address%TYPE,
-    port_arg OrleansMembershipTable.Port%TYPE,
-    generation_arg OrleansMembershipTable.Generation%TYPE,
-    i_am_alive_time OrleansMembershipTable.IAmAliveTime%TYPE)
+    deployment_id OrleansMembershipTable.DeploymentId% TYPE,
+    address_arg OrleansMembershipTable.Address% TYPE,
+    port_arg OrleansMembershipTable.Port% TYPE,
+    generation_arg OrleansMembershipTable.Generation% TYPE,
+    i_am_alive_time OrleansMembershipTable.IAmAliveTime% TYPE)
     RETURNS void AS
-$func$
+    $func$
 BEGIN
     -- This is expected to never fail by Orleans, so return value
     -- is not needed nor is it checked.
-    UPDATE OrleansMembershipTable as d
-    SET IAmAliveTime = i_am_alive_time
-    WHERE d.DeploymentId = deployment_id
-      AND deployment_id IS NOT NULL
-      AND d.Address = address_arg
-      AND address_arg IS NOT NULL
-      AND d.Port = port_arg
-      AND port_arg IS NOT NULL
-      AND d.Generation = generation_arg
-      AND generation_arg IS NOT NULL;
+UPDATE OrleansMembershipTable as d
+SET IAmAliveTime = i_am_alive_time
+WHERE d.DeploymentId = deployment_id
+  AND deployment_id IS NOT NULL
+  AND d.Address = address_arg
+  AND address_arg IS NOT NULL
+  AND d.Port = port_arg
+  AND port_arg IS NOT NULL
+  AND d.Generation = generation_arg
+  AND generation_arg IS NOT NULL;
 END
-$func$ LANGUAGE plpgsql;
+$func$
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('UpdateIAmAlivetimeKey', '
@@ -105,35 +106,37 @@ VALUES ('UpdateIAmAlivetimeKey', '
 ');
 
 CREATE FUNCTION insert_membership_version(
-    DeploymentIdArg OrleansMembershipTable.DeploymentId%TYPE
+    DeploymentIdArg OrleansMembershipTable.DeploymentId% TYPE
 )
     RETURNS TABLE
             (
                 row_count integer
-            )
-AS
+            ) AS
 $func$
 DECLARE
-    RowCountVar int := 0;
+RowCountVar int := 0;
 BEGIN
 
-    BEGIN
+BEGIN
 
-        INSERT INTO OrleansMembershipVersionTable
-            (DeploymentId)
-        SELECT DeploymentIdArg
-        ON CONFLICT (DeploymentId) DO NOTHING;
+INSERT INTO OrleansMembershipVersionTable
+    (DeploymentId)
+SELECT DeploymentIdArg ON CONFLICT (DeploymentId) DO NOTHING;
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
 
-        ASSERT RowCountVar <> 0, 'no rows affected, rollback';
+ASSERT
+RowCountVar <> 0, 'no rows affected, rollback';
 
-        RETURN QUERY SELECT RowCountVar;
-    EXCEPTION
+RETURN QUERY SELECT RowCountVar;
+EXCEPTION
         WHEN assert_failure THEN
-    RETURN QUERY SELECT RowCountVar;
-END; END
-$func$ LANGUAGE plpgsql;
+    RETURN QUERY
+SELECT RowCountVar;
+END;
+END
+$func$
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('InsertMembershipVersionKey', '
@@ -143,75 +146,77 @@ VALUES ('InsertMembershipVersionKey', '
 ');
 
 CREATE FUNCTION insert_membership(
-    DeploymentIdArg OrleansMembershipTable.DeploymentId%TYPE,
-    AddressArg OrleansMembershipTable.Address%TYPE,
-    PortArg OrleansMembershipTable.Port%TYPE,
-    GenerationArg OrleansMembershipTable.Generation%TYPE,
-    SiloNameArg OrleansMembershipTable.SiloName%TYPE,
-    HostNameArg OrleansMembershipTable.HostName%TYPE,
-    StatusArg OrleansMembershipTable.Status%TYPE,
-    ProxyPortArg OrleansMembershipTable.ProxyPort%TYPE,
-    StartTimeArg OrleansMembershipTable.StartTime%TYPE,
-    IAmAliveTimeArg OrleansMembershipTable.IAmAliveTime%TYPE,
-    VersionArg OrleansMembershipVersionTable.Version%TYPE)
+    DeploymentIdArg OrleansMembershipTable.DeploymentId% TYPE,
+    AddressArg OrleansMembershipTable.Address% TYPE,
+    PortArg OrleansMembershipTable.Port% TYPE,
+    GenerationArg OrleansMembershipTable.Generation% TYPE,
+    SiloNameArg OrleansMembershipTable.SiloName% TYPE,
+    HostNameArg OrleansMembershipTable.HostName% TYPE,
+    StatusArg OrleansMembershipTable.Status% TYPE,
+    ProxyPortArg OrleansMembershipTable.ProxyPort% TYPE,
+    StartTimeArg OrleansMembershipTable.StartTime% TYPE,
+    IAmAliveTimeArg OrleansMembershipTable.IAmAliveTime% TYPE,
+    VersionArg OrleansMembershipVersionTable.Version% TYPE)
     RETURNS TABLE
             (
                 row_count integer
-            )
-AS
+            ) AS
 $func$
 DECLARE
-    RowCountVar int := 0;
+RowCountVar int := 0;
 BEGIN
 
-    BEGIN
-        INSERT INTO OrleansMembershipTable
-        (DeploymentId,
-         Address,
-         Port,
-         Generation,
-         SiloName,
-         HostName,
-         Status,
-         ProxyPort,
-         StartTime,
-         IAmAliveTime)
-        SELECT DeploymentIdArg,
-               AddressArg,
-               PortArg,
-               GenerationArg,
-               SiloNameArg,
-               HostNameArg,
-               StatusArg,
-               ProxyPortArg,
-               StartTimeArg,
-               IAmAliveTimeArg
-        ON CONFLICT (DeploymentId, Address, Port, Generation) DO
+BEGIN
+INSERT INTO OrleansMembershipTable
+(DeploymentId,
+ Address,
+ Port,
+ Generation,
+ SiloName,
+ HostName,
+ Status,
+ ProxyPort,
+ StartTime,
+ IAmAliveTime)
+SELECT DeploymentIdArg,
+       AddressArg,
+       PortArg,
+       GenerationArg,
+       SiloNameArg,
+       HostNameArg,
+       StatusArg,
+       ProxyPortArg,
+       StartTimeArg,
+       IAmAliveTimeArg ON CONFLICT (DeploymentId, Address, Port, Generation) DO
             NOTHING;
 
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
 
-        UPDATE OrleansMembershipVersionTable
-        SET Timestamp = now(),
-            Version   = Version + 1
-        WHERE DeploymentId = DeploymentIdArg
-          AND DeploymentIdArg IS NOT NULL
-          AND Version = VersionArg
-          AND VersionArg IS NOT NULL
-          AND RowCountVar > 0;
+UPDATE OrleansMembershipVersionTable
+SET Timestamp = now(),
+    Version   = Version + 1
+WHERE DeploymentId = DeploymentIdArg
+  AND DeploymentIdArg IS NOT NULL
+  AND Version = VersionArg
+  AND VersionArg IS NOT NULL
+  AND RowCountVar > 0;
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
 
-        ASSERT RowCountVar <> 0, 'no rows affected, rollback';
+ASSERT
+RowCountVar <> 0, 'no rows affected, rollback';
 
 
-        RETURN QUERY SELECT RowCountVar;
-    EXCEPTION
+RETURN QUERY SELECT RowCountVar;
+EXCEPTION
         WHEN assert_failure THEN
-    RETURN QUERY SELECT RowCountVar;
-END; END
-$func$ LANGUAGE plpgsql;
+    RETURN QUERY
+SELECT RowCountVar;
+END;
+END
+$func$
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('InsertMembershipKey', '
@@ -231,64 +236,67 @@ VALUES ('InsertMembershipKey', '
 ');
 
 CREATE FUNCTION update_membership(
-    DeploymentIdArg OrleansMembershipTable.DeploymentId%TYPE,
-    AddressArg OrleansMembershipTable.Address%TYPE,
-    PortArg OrleansMembershipTable.Port%TYPE,
-    GenerationArg OrleansMembershipTable.Generation%TYPE,
-    StatusArg OrleansMembershipTable.Status%TYPE,
-    SuspectTimesArg OrleansMembershipTable.SuspectTimes%TYPE,
-    IAmAliveTimeArg OrleansMembershipTable.IAmAliveTime%TYPE,
-    VersionArg OrleansMembershipVersionTable.Version%TYPE
+    DeploymentIdArg OrleansMembershipTable.DeploymentId% TYPE,
+    AddressArg OrleansMembershipTable.Address% TYPE,
+    PortArg OrleansMembershipTable.Port% TYPE,
+    GenerationArg OrleansMembershipTable.Generation% TYPE,
+    StatusArg OrleansMembershipTable.Status% TYPE,
+    SuspectTimesArg OrleansMembershipTable.SuspectTimes% TYPE,
+    IAmAliveTimeArg OrleansMembershipTable.IAmAliveTime% TYPE,
+    VersionArg OrleansMembershipVersionTable.Version% TYPE
 )
     RETURNS TABLE
             (
                 row_count integer
-            )
-AS
+            ) AS
 $func$
 DECLARE
-    RowCountVar int := 0;
+RowCountVar int := 0;
 BEGIN
 
-    BEGIN
+BEGIN
 
-        UPDATE OrleansMembershipVersionTable
-        SET Timestamp = now(),
-            Version   = Version + 1
-        WHERE DeploymentId = DeploymentIdArg
-          AND DeploymentIdArg IS NOT NULL
-          AND Version = VersionArg
-          AND VersionArg IS NOT NULL;
-
-
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
-
-        UPDATE OrleansMembershipTable
-        SET Status       = StatusArg,
-            SuspectTimes = SuspectTimesArg,
-            IAmAliveTime = IAmAliveTimeArg
-        WHERE DeploymentId = DeploymentIdArg
-          AND DeploymentIdArg IS NOT NULL
-          AND Address = AddressArg
-          AND AddressArg IS NOT NULL
-          AND Port = PortArg
-          AND PortArg IS NOT NULL
-          AND Generation = GenerationArg
-          AND GenerationArg IS NOT NULL
-          AND RowCountVar > 0;
+UPDATE OrleansMembershipVersionTable
+SET Timestamp = now(),
+    Version   = Version + 1
+WHERE DeploymentId = DeploymentIdArg
+  AND DeploymentIdArg IS NOT NULL
+  AND Version = VersionArg
+  AND VersionArg IS NOT NULL;
 
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
 
-        ASSERT RowCountVar <> 0, 'no rows affected, rollback';
+UPDATE OrleansMembershipTable
+SET Status       = StatusArg,
+    SuspectTimes = SuspectTimesArg,
+    IAmAliveTime = IAmAliveTimeArg
+WHERE DeploymentId = DeploymentIdArg
+  AND DeploymentIdArg IS NOT NULL
+  AND Address = AddressArg
+  AND AddressArg IS NOT NULL
+  AND Port = PortArg
+  AND PortArg IS NOT NULL
+  AND Generation = GenerationArg
+  AND GenerationArg IS NOT NULL
+  AND RowCountVar > 0;
 
 
-        RETURN QUERY SELECT RowCountVar;
-    EXCEPTION
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+
+ASSERT
+RowCountVar <> 0, 'no rows affected, rollback';
+
+
+RETURN QUERY SELECT RowCountVar;
+EXCEPTION
         WHEN assert_failure THEN
-    RETURN QUERY SELECT RowCountVar;
-END; END
-$func$ LANGUAGE plpgsql;
+    RETURN QUERY
+SELECT RowCountVar;
+END;
+END
+$func$
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('UpdateMembershipKey', '
@@ -376,13 +384,13 @@ VALUES ('GatewaysQueryKey', '
 
 CREATE TABLE OrleansStorage
 (
-    grainidhash            integer                     NOT NULL,
-    grainidn0              bigint                      NOT NULL,
-    grainidn1              bigint                      NOT NULL,
-    graintypehash          integer                     NOT NULL,
-    graintypestring        character varying(512)      NOT NULL,
+    grainidhash            integer                NOT NULL,
+    grainidn0              bigint                 NOT NULL,
+    grainidn1              bigint                 NOT NULL,
+    graintypehash          integer                NOT NULL,
+    graintypestring        character varying(512) NOT NULL,
     grainidextensionstring character varying(512),
-    serviceid              character varying(150)      NOT NULL,
+    serviceid              character varying(150) NOT NULL,
     payloadbinary          bytea,
     modifiedon             timestamp without time zone NOT NULL,
     version                integer
@@ -390,9 +398,10 @@ CREATE TABLE OrleansStorage
 
 CREATE INDEX ix_orleansstorage
     ON orleansstorage USING btree
-        (grainidhash, graintypehash);
+    (grainidhash, graintypehash);
 
-CREATE OR REPLACE FUNCTION writetostorage(
+CREATE
+OR REPLACE FUNCTION writetostorage(
     _grainidhash integer,
     _grainidn0 bigint,
     _grainidn1 bigint,
@@ -410,8 +419,9 @@ CREATE OR REPLACE FUNCTION writetostorage(
 AS
 $function$
 DECLARE
-    _newGrainStateVersion integer := _GrainStateVersion;
-    RowCountVar           integer := 0;
+_newGrainStateVersion integer := _GrainStateVersion;
+    RowCountVar
+integer := 0;
 
 BEGIN
 
@@ -433,42 +443,45 @@ BEGIN
     -- and throws an InconsistentStateException.
     --
     -- See further information at https://learn.microsoft.com/dotnet/orleans/grains/grain-persistence.
-    IF _GrainStateVersion IS NOT NULL
+    IF
+_GrainStateVersion IS NOT NULL
     THEN
-        UPDATE OrleansStorage
-        SET PayloadBinary = _PayloadBinary,
-            ModifiedOn    = (now() at time zone 'utc'),
-            Version       = Version + 1
+UPDATE OrleansStorage
+SET PayloadBinary = _PayloadBinary,
+    ModifiedOn    = (now() at time zone 'utc'),
+    Version       = Version + 1
 
-        WHERE GrainIdHash = _GrainIdHash
-          AND _GrainIdHash IS NOT NULL
-          AND GrainTypeHash = _GrainTypeHash
-          AND _GrainTypeHash IS NOT NULL
-          AND GrainIdN0 = _GrainIdN0
-          AND _GrainIdN0 IS NOT NULL
-          AND GrainIdN1 = _GrainIdN1
-          AND _GrainIdN1 IS NOT NULL
-          AND GrainTypeString = _GrainTypeString
-          AND _GrainTypeString IS NOT NULL
-          AND ((_GrainIdExtensionString IS NOT NULL AND GrainIdExtensionString IS NOT NULL AND
-                GrainIdExtensionString = _GrainIdExtensionString) OR
-               _GrainIdExtensionString IS NULL AND GrainIdExtensionString IS NULL)
-          AND ServiceId = _ServiceId
-          AND _ServiceId IS NOT NULL
-          AND Version IS NOT NULL
-          AND Version = _GrainStateVersion
-          AND _GrainStateVersion IS NOT NULL;
+WHERE GrainIdHash = _GrainIdHash
+  AND _GrainIdHash IS NOT NULL
+  AND GrainTypeHash = _GrainTypeHash
+  AND _GrainTypeHash IS NOT NULL
+  AND GrainIdN0 = _GrainIdN0
+  AND _GrainIdN0 IS NOT NULL
+  AND GrainIdN1 = _GrainIdN1
+  AND _GrainIdN1 IS NOT NULL
+  AND GrainTypeString = _GrainTypeString
+  AND _GrainTypeString IS NOT NULL
+  AND ((_GrainIdExtensionString IS NOT NULL AND GrainIdExtensionString IS NOT NULL AND
+        GrainIdExtensionString = _GrainIdExtensionString) OR
+       _GrainIdExtensionString IS NULL AND GrainIdExtensionString IS NULL)
+  AND ServiceId = _ServiceId
+  AND _ServiceId IS NOT NULL
+  AND Version IS NOT NULL
+  AND Version = _GrainStateVersion
+  AND _GrainStateVersion IS NOT NULL;
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
-        IF RowCountVar > 0
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+IF
+RowCountVar > 0
         THEN
             _newGrainStateVersion := _GrainStateVersion + 1;
-        END IF;
-    END IF;
+END IF;
+END IF;
 
     -- The grain state has not been read. The following locks rather pessimistically
     -- to ensure only one INSERT succeeds.
-    IF _GrainStateVersion IS NULL
+    IF
+_GrainStateVersion IS NULL
     THEN
         INSERT INTO OrleansStorage
         (GrainIdHash,
@@ -481,17 +494,16 @@ BEGIN
          PayloadBinary,
          ModifiedOn,
          Version)
-        SELECT _GrainIdHash,
-               _GrainIdN0,
-               _GrainIdN1,
-               _GrainTypeHash,
-               _GrainTypeString,
-               _GrainIdExtensionString,
-               _ServiceId,
-               _PayloadBinary,
-               (now() at time zone 'utc'),
-               1
-        WHERE NOT EXISTS
+SELECT _GrainIdHash,
+       _GrainIdN0,
+       _GrainIdN1,
+       _GrainTypeHash,
+       _GrainTypeString,
+       _GrainIdExtensionString,
+       _ServiceId,
+       _PayloadBinary,
+       (now() at time zone 'utc'),
+       1 WHERE NOT EXISTS
                   (
                       -- There should not be any version of this grain state.
                       SELECT 1
@@ -512,14 +524,15 @@ BEGIN
                         AND ServiceId = _ServiceId
                         AND _ServiceId IS NOT NULL);
 
-        GET DIAGNOSTICS RowCountVar = ROW_COUNT;
-        IF RowCountVar > 0
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+IF
+RowCountVar > 0
         THEN
             _newGrainStateVersion := 1;
-        END IF;
-    END IF;
+END IF;
+END IF;
 
-    RETURN QUERY SELECT _newGrainStateVersion AS NewGrainStateVersion;
+RETURN QUERY SELECT _newGrainStateVersion AS NewGrainStateVersion;
 END
 
 $function$;
@@ -569,13 +582,13 @@ VALUES ('ClearStorageKey', '
 -- Orleans Reminders table - https://learn.microsoft.com/dotnet/orleans/grains/timers-and-reminders
 CREATE TABLE OrleansRemindersTable
 (
-    ServiceId    varchar(150)   NOT NULL,
-    GrainId      varchar(150)   NOT NULL,
-    ReminderName varchar(150)   NOT NULL,
+    ServiceId    varchar(150) NOT NULL,
+    GrainId      varchar(150) NOT NULL,
+    ReminderName varchar(150) NOT NULL,
     StartTime    timestamptz(3) NOT NULL,
-    Period       bigint         NOT NULL,
-    GrainHash    integer        NOT NULL,
-    Version      integer        NOT NULL,
+    Period bigint NOT NULL,
+    GrainHash    integer      NOT NULL,
+    Version      integer      NOT NULL,
 
     CONSTRAINT PK_RemindersTable_ServiceId_GrainId_ReminderName PRIMARY KEY (ServiceId, GrainId, ReminderName)
 );
@@ -591,42 +604,41 @@ CREATE FUNCTION upsert_reminder_row(
     RETURNS TABLE
             (
                 version integer
-            )
-AS
+            ) AS
 $func$
 DECLARE
-    VersionVar int := 0;
+VersionVar int := 0;
 BEGIN
 
-    INSERT INTO OrleansRemindersTable
-    (ServiceId,
-     GrainId,
-     ReminderName,
-     StartTime,
-     Period,
-     GrainHash,
-     Version)
-    SELECT ServiceIdArg,
-           GrainIdArg,
-           ReminderNameArg,
-           StartTimeArg,
-           PeriodArg,
-           GrainHashArg,
-           0
-    ON CONFLICT (ServiceId, GrainId, ReminderName)
-        DO UPDATE SET StartTime = excluded.StartTime,
-                      Period    = excluded.Period,
-                      GrainHash = excluded.GrainHash,
-                      Version   = OrleansRemindersTable.Version + 1
+INSERT INTO OrleansRemindersTable
+(ServiceId,
+ GrainId,
+ ReminderName,
+ StartTime,
+ Period,
+ GrainHash,
+ Version)
+SELECT ServiceIdArg,
+       GrainIdArg,
+       ReminderNameArg,
+       StartTimeArg,
+       PeriodArg,
+       GrainHashArg,
+       0 ON CONFLICT (ServiceId, GrainId, ReminderName)
+        DO
+UPDATE SET StartTime = excluded.StartTime,
+    Period = excluded.Period,
+    GrainHash = excluded.GrainHash,
+    Version = OrleansRemindersTable.Version + 1
     RETURNING
-        OrleansRemindersTable.Version
-        INTO STRICT VersionVar;
+    OrleansRemindersTable.Version
+INTO STRICT VersionVar;
 
-    RETURN QUERY SELECT VersionVar AS versionr;
+RETURN QUERY SELECT VersionVar AS versionr;
 
 END
 $func$
-    LANGUAGE plpgsql;
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('UpsertReminderRowKey', '
@@ -708,32 +720,31 @@ CREATE FUNCTION delete_reminder_row(
     RETURNS TABLE
             (
                 row_count integer
-            )
-AS
+            ) AS
 $func$
 DECLARE
-    RowCountVar int := 0;
+RowCountVar int := 0;
 BEGIN
 
 
-    DELETE
-    FROM OrleansRemindersTable
-    WHERE ServiceId = ServiceIdArg
-      AND ServiceIdArg IS NOT NULL
-      AND GrainId = GrainIdArg
-      AND GrainIdArg IS NOT NULL
-      AND ReminderName = ReminderNameArg
-      AND ReminderNameArg IS NOT NULL
-      AND Version = VersionArg
-      AND VersionArg IS NOT NULL;
+DELETE
+FROM OrleansRemindersTable
+WHERE ServiceId = ServiceIdArg
+  AND ServiceIdArg IS NOT NULL
+  AND GrainId = GrainIdArg
+  AND GrainIdArg IS NOT NULL
+  AND ReminderName = ReminderNameArg
+  AND ReminderNameArg IS NOT NULL
+  AND Version = VersionArg
+  AND VersionArg IS NOT NULL;
 
-    GET DIAGNOSTICS RowCountVar = ROW_COUNT;
+GET DIAGNOSTICS RowCountVar = ROW_COUNT;
 
-    RETURN QUERY SELECT RowCountVar;
+RETURN QUERY SELECT RowCountVar;
 
 END
 $func$
-    LANGUAGE plpgsql;
+LANGUAGE plpgsql;
 
 INSERT INTO OrleansQuery(QueryKey, QueryText)
 VALUES ('DeleteReminderRowKey', '

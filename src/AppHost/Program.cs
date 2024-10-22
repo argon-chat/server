@@ -7,6 +7,7 @@ var password = builder.AddParameter("password", true);
 var sfuUrl = builder.AddParameter("sfu-url", true);
 var sfuClientId = builder.AddParameter("sfu-client-id", true);
 var sfuClientSecret = builder.AddParameter("sfu-client-secret", true);
+var jwtKey = builder.AddParameter("jwt-key", true);
 
 var cache = builder.AddRedis("cache", 6379);
 var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: password)
@@ -24,6 +25,10 @@ var api = builder.AddProject<Argon_Api>("argon-api")
     .WithEnvironment("sfu__url", sfuUrl)
     .WithEnvironment("sfu__clientId", sfuClientId)
     .WithEnvironment("sfu__clientSecret", sfuClientSecret)
+    .WithEnvironment("Jwt__Issuer", "Argon")
+    .WithEnvironment("Jwt__Audience", "Argon")
+    .WithEnvironment("Jwt__Key", jwtKey)
+    .WithEnvironment("Jwt__Expire", "228")
     .WithExternalHttpEndpoints();
 
 builder.Build().Run();
