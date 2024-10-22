@@ -88,7 +88,7 @@ public class ArgonSelectiveForwardingUnit(
         return true;
     }
 
-    private RealtimeToken CreateSystemToken(ArgonChannelId channelId) 
+    private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
         => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,

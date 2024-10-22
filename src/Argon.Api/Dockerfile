@@ -8,8 +8,6 @@ FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine-arm64v8 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
-COPY ["src/Argon.Grains/Argon.Grains.csproj", "src/Argon.Grains/"]
-COPY ["src/Argon.Grains.Interfaces/Argon.Grains.Interfaces.csproj", "src/Argon.Grains.Interfaces/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
 RUN dotnet restore "src/Argon.Api/Argon.Api.csproj"
 COPY . .
