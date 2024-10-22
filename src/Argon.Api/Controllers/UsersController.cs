@@ -5,6 +5,7 @@ using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+#if DEBUG
 public record UserInputDto(string Username, string Password);
 
 [Route("api/[controller]")]
@@ -42,3 +43,4 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
         return await userManager.Get();
     }
 }
+#endif

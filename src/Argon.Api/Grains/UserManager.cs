@@ -20,7 +20,8 @@ public class UserManager(
 
         userStore.State.Id = Guid.NewGuid();
         userStore.State.Username = username;
-        userStore.State.Password = BCrypt.HashPassword(password);
+        var salt = BCrypt.GenerateSalt();
+        userStore.State.Password = BCrypt.HashPassword(password, salt);
         await userStore.WriteStateAsync();
         return userStore.State;
     }
