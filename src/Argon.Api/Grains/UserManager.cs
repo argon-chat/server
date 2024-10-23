@@ -9,7 +9,10 @@ public class UserManager(
     ILogger<UserManager> logger,
     [PersistentState("users", "OrleansStorage")]
     IPersistentState<UserStorage> userStore,
-    UserManagerService managerService
+    [PersistentState("userServers", "OrleansStorage")]
+    IPersistentState<UserToServerRelations> userServerStore,
+    UserManagerService managerService,
+    IGrainFactory grainFactory
 ) : Grain, IUserManager
 {
     public async Task<UserStorageDto> Create(string password)
@@ -40,6 +43,29 @@ public class UserManager(
             throw new Exception("Invalid credentials"); // TODO: Come up with application specific errors
 
         return managerService.GenerateJwt(id: userStore.State.Id, username: this.GetPrimaryKeyString());
+    }
+
+    public async Task<ServerStorage> CreateServer(string name, string description)
+    {
+        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.NewGuid());
+        await serverManager.CreateServer(name, description);
+        var relation = new UserToServerRelation
+        {
+            ServerId = serverManager.GetPrimaryKey(),
+            Role = ServerRole.Owner,
+            Username = this.GetPrimaryKeyString(),
+            CustomUsername = this.GetPrimaryKeyString()
+        };
+        userServerStore.State.Servers.Add(relation);
+        await serverManager.AddUser(relation);
+        await userServerStore.WriteStateAsync();
+        return await serverManager.GetServer();
+    }
+
+    public async Task<List<UserToServerRelation>> GetServers()
+    {
+        await userServerStore.ReadStateAsync();
+        return userServerStore.State.Servers;
     }
 
 
