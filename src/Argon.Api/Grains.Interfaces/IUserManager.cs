@@ -17,5 +17,5 @@ public interface IUserManager : IGrainWithStringKey
     Task<ServerStorage> CreateServer(string name, string description);
 
     [Alias("GetServers")]
-    Task<List<UserToServerRelation>> GetServers();
+    Task<List<ServerStorage>> GetServers();
 }

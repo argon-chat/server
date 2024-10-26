@@ -62,10 +62,12 @@ public class UserManager(
         return await serverManager.GetServer();
     }
 
-    public async Task<List<UserToServerRelation>> GetServers()
+    public async Task<List<ServerStorage>> GetServers()
     {
         await userServerStore.ReadStateAsync();
-        return userServerStore.State.Servers;
+        var servers =
+            userServerStore.State.Servers.Select(x => grainFactory.GetGrain<IServerManager>(x.ServerId).GetServer());
+        return (await Task.WhenAll(servers)).ToList();
     }
 
 
