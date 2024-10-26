@@ -21,8 +21,7 @@ public class ServerManager(
         await CreateDefaultChannels(userId);
         return serverStore.State;
     }
-
-
+    
     public async Task<string> CreateJoinLink()
     {
         return await Task.Run(() => ""); // TODO: register url generator grain for this one line
@@ -42,50 +41,22 @@ public class ServerManager(
 
     private async Task CreateDefaultChannels(Guid userId)
     {
-        await CreateDefaultTextChannel(userId);
-        await CreateDefaultVoiceChannel(userId);
-        await CreateDefaultAnnouncementChannel(userId);
+        await CreateDefaultChannel(userId, "General", "Default text channel", ChannelType.Text);
+        await CreateDefaultChannel(userId, "General", "Default voice channel", ChannelType.Voice);
+        await CreateDefaultChannel(userId, "Announcements", "Default announcement channel", ChannelType.Announcement);
     }
 
-    private async Task CreateDefaultAnnouncementChannel(Guid UserId)
+    private async Task CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
     {
         var id = Guid.NewGuid();
         await grainFactory.GetGrain<IChannelManager>(id)
             .CreateChannel(new ChannelStorage
             {
                 Id = id,
-                Name = "General",
-                Description = "Default announcement channel",
-                ChannelType = ChannelType.Announcement,
-                CreatedBy = UserId
-            });
-    }
-
-    private async Task CreateDefaultVoiceChannel(Guid UserId)
-    {
-        var id = Guid.NewGuid();
-        await grainFactory.GetGrain<IChannelManager>(id)
-            .CreateChannel(new ChannelStorage
-            {
-                Id = id,
-                Name = "General",
-                Description = "Default voice channel",
-                CreatedBy = UserId,
-                ChannelType = ChannelType.Voice
-            });
-    }
-
-    private async Task CreateDefaultTextChannel(Guid userId)
-    {
-        var id = Guid.NewGuid();
-        await grainFactory.GetGrain<IChannelManager>(id)
-            .CreateChannel(new ChannelStorage
-            {
-                Id = id,
-                Name = "General",
-                Description = "Default text channel",
-                ChannelType = ChannelType.Text,
-                CreatedBy = userId
+                Name = name,
+                Description = description,
+                ChannelType = channelType,
+                CreatedBy = userId,
             });
     }
 }
