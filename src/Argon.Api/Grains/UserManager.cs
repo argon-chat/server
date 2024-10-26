@@ -48,7 +48,7 @@ public class UserManager(
     public async Task<ServerStorage> CreateServer(string name, string description)
     {
         var serverManager = grainFactory.GetGrain<IServerManager>(Guid.NewGuid());
-        await serverManager.CreateServer(name, description);
+        await serverManager.CreateServer(name, description, userStore.State.Id);
         var relation = new UserToServerRelation
         {
             ServerId = serverManager.GetPrimaryKey(),

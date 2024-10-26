@@ -5,7 +5,7 @@ using Persistence.States;
 public interface IServerManager : IGrainWithGuidKey
 {
     [Alias("CreateServer")]
-    Task<ServerStorage> CreateServer(string name, string description);
+    Task<ServerStorage> CreateServer(string name, string description, Guid userId);
 
     [Alias("CreateJoinLink")]
     Task<string> CreateJoinLink();
@@ -15,6 +15,4 @@ public interface IServerManager : IGrainWithGuidKey
 
     [Alias("GetServer")]
     Task<ServerStorage> GetServer();
-
-
 }
