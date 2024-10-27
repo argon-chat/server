@@ -1,6 +1,9 @@
 namespace Argon.Api.Grains.Persistence.States;
 
+using MemoryPack;
+
 [GenerateSerializer]
+[MemoryPackable]
 [Alias(nameof(HelloArchive))]
 public sealed record HelloArchive
 {

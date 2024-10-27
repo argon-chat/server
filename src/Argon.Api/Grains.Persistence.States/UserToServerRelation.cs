@@ -1,7 +1,10 @@
 namespace Argon.Api.Grains.Persistence.States;
 
+using MemoryPack;
+
 [GenerateSerializer]
 [Serializable]
+[MemoryPackable]
 [Alias(nameof(UserToServerRelation))]
 public sealed record UserToServerRelation
 {

@@ -21,7 +21,7 @@ public class ServerManager(
         await CreateDefaultChannels(userId);
         return serverStore.State;
     }
-    
+
     public async Task<string> CreateJoinLink()
     {
         return await Task.Run(() => ""); // TODO: register url generator grain for this one line
@@ -41,12 +41,18 @@ public class ServerManager(
 
     private async Task CreateDefaultChannels(Guid userId)
     {
-        await CreateDefaultChannel(userId, "General", "Default text channel", ChannelType.Text);
-        await CreateDefaultChannel(userId, "General", "Default voice channel", ChannelType.Voice);
-        await CreateDefaultChannel(userId, "Announcements", "Default announcement channel", ChannelType.Announcement);
+        List<Guid> a =
+        [
+            await CreateDefaultChannel(userId, "General", "Default text channel", ChannelType.Text),
+            await CreateDefaultChannel(userId, "General", "Default voice channel", ChannelType.Voice),
+            await CreateDefaultChannel(userId, "Announcements", "Default announcement channel",
+                ChannelType.Announcement)
+        ];
+
+        // serverStore.State.Channels = a;
     }
 
-    private async Task CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
+    private async Task<Guid> CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
     {
         var id = Guid.NewGuid();
         await grainFactory.GetGrain<IChannelManager>(id)
@@ -56,7 +62,9 @@ public class ServerManager(
                 Name = name,
                 Description = description,
                 ChannelType = channelType,
-                CreatedBy = userId,
+                CreatedBy = userId
             });
+
+        return id;
     }
 }

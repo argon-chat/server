@@ -12,6 +12,7 @@
 		<PackageReference Include="BCrypt.Net-Next" Version="4.0.3"/>
 		<PackageReference Include="Flurl.Http" Version="4.0.2"/>
 		<PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
+		<PackageReference Include="MemoryPack" Version="1.21.3"/>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10"/>
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
 			<PrivateAssets>all</PrivateAssets>
@@ -20,6 +21,7 @@
 		<PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
+		<PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
 		<PackageReference Include="Npgsql" Version="8.0.5"/>
 		<PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
