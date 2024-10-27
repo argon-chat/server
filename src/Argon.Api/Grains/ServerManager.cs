@@ -35,6 +35,25 @@ public class ServerManager(
         await serverUserStore.WriteStateAsync();
     }
 
+    public async Task<IEnumerable<ChannelStorage>> GetChannels()
+    {
+        return await Task.WhenAll(serverChannelStore.State.Channels.Select(async channelId =>
+            await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel()));
+    }
+
+
+    public async Task<ChannelStorage> AddChannel(ChannelStorage channel)
+    {
+        return await grainFactory.GetGrain<IChannelManager>(channel.Id).CreateChannel(channel);
+    }
+
+    public async Task<ChannelStorage> GetChannel(Guid channelId)
+    {
+        if (!serverChannelStore.State.Channels.Contains(channelId)) throw new Exception("ty che, psina"); // TODO 
+
+        return await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel();
+    }
+
     public async Task<ServerStorage> GetServer()
     {
         await serverStore.ReadStateAsync();
