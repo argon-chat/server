@@ -1,34 +1,33 @@
 namespace Argon.Api.Services;
 
 using Contracts;
+using Grains.Interfaces;
 
 public class UserInteractionService(
     string username, // TODO to be injected
     IGrainFactory grainFactory
 ) : IUserInteraction
 {
-    public Task<UserResponse> GetMe()
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<UserResponse> GetMe() => await grainFactory.GetGrain<IUserManager>(username).Get();
 
-    public Task<ServerResponse> CreateServer(CreateServerRequest request)
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<ServerResponse> CreateServer(CreateServerRequest request) =>
+        await grainFactory
+            .GetGrain<IUserManager>(username)
+            .CreateServer(request.Name, request.Description);
 
-    public Task<List<ServerResponse>> GetServers()
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<List<ServerResponse>> GetServers() =>
+        (await grainFactory
+            .GetGrain<IUserManager>(username)
+            .GetServers())
+        .Select(x => (ServerResponse)x)
+        .ToList();
 
-    public Task<List<ServerDetailsResponse>> GetServerDetails()
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<List<ServerDetailsResponse>> GetServerDetails(ServerDetailsRequest request) =>
+        (await grainFactory.GetGrain<IUserManager>(username).GetServerChannels(request.ServerId))
+        .Select(x => (ServerDetailsResponse)x)
+        .ToList();
 
-    public Task<ChannelJoinResponse> JoinChannel(ChannelJoinRequest request)
-    {
-        throw new NotImplementedException();
-    }
+    public async Task<ChannelJoinResponse> JoinChannel(ChannelJoinRequest request) =>
+        new((await grainFactory.GetGrain<IUserManager>(username)
+            .JoinChannel(request.ServerId, request.ChannelId)).value);
 }

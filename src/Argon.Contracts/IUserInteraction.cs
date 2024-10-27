@@ -11,11 +11,21 @@ public interface IUserInteraction : IRpcService
     Task<ServerResponse> CreateServer(CreateServerRequest request);
     Task<List<ServerResponse>> GetServers();
 
-    Task<List<ServerDetailsResponse>> GetServerDetails();
+    Task<List<ServerDetailsResponse>> GetServerDetails(ServerDetailsRequest request);
 
     // Task CreateChannel(string username);
     Task<ChannelJoinResponse> JoinChannel(ChannelJoinRequest request);
 }
+
+[DataContract]
+[MemoryPackable(GenerateType.VersionTolerant)]
+[MessagePackObject]
+public sealed partial record ServerDetailsRequest(
+    [property: DataMember(Order = 0)]
+    [property: MemoryPackOrder(0)]
+    [property: Key(0)]
+    Guid ServerId
+);
 
 [DataContract]
 [MemoryPackable(GenerateType.VersionTolerant)]
