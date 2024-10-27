@@ -19,11 +19,10 @@ public class UserManagerService(
             key,
             SecurityAlgorithms.HmacSha512Signature
         );
-        var subject = new ClaimsIdentity(new[]
-        {
+        var subject = new ClaimsIdentity([
             new Claim("id", id.ToString()),
             new Claim("username", username)
-        });
+        ]);
         var expires = DateTime.UtcNow.AddDays(configuration.GetValue<int>("Jwt:Expires"));
         var tokenDescriptor = new SecurityTokenDescriptor
         {

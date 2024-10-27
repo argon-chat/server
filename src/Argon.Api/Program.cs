@@ -1,9 +1,9 @@
 using ActualLab.Fusion;
-using ActualLab.Fusion.Authentication;
 using ActualLab.Rpc;
 using ActualLab.Rpc.Server;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
+using Argon.Api.Filters;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Contracts;
@@ -15,10 +15,10 @@ builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
+builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
 builder.Services.AddFusion(RpcServiceMode.Server, true)
     .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
     .AddWebSocketServer(true);
-builder.Services.AddControllers();
 builder.AddSwaggerWithAuthHeader();
 builder.AddJwt();
 builder.Services.AddAuthorization();
