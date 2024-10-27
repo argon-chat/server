@@ -11,7 +11,7 @@ public interface IUserManager : IGrainWithStringKey
     [Alias("Get")]
     Task<UserStorageDto> Get();
 
-    [Alias("Authenticate")]
+    [Alias("Authorize")]
     Task<string> Authorize(string password);
 
     [Alias("CreateServer")]
