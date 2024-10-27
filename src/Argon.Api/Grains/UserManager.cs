@@ -4,6 +4,7 @@ using BCrypt.Net;
 using Interfaces;
 using Persistence.States;
 using Services;
+using Sfu;
 
 public class UserManager(
     ILogger<UserManager> logger,
@@ -68,6 +69,21 @@ public class UserManager(
         var servers =
             userServerStore.State.Servers.Select(x => grainFactory.GetGrain<IServerManager>(x.ServerId).GetServer());
         return (await Task.WhenAll(servers)).ToList();
+    }
+
+    public async Task<IEnumerable<ChannelStorage>> GetServerChannels(Guid serverId)
+    {
+        return await grainFactory.GetGrain<IServerManager>(serverId).GetChannels();
+    }
+
+    public async Task<ChannelStorage> GetChannel(Guid serverId, Guid channelId)
+    {
+        return await grainFactory.GetGrain<IServerManager>(serverId).GetChannel(channelId);
+    }
+
+    public async Task<RealtimeToken> JoinChannel(Guid serverId, Guid channelId)
+    {
+        return await grainFactory.GetGrain<IServerManager>(serverId).JoinChannel(userStore.State.Id, channelId);
     }
 
 

@@ -2,14 +2,13 @@ namespace Argon.Api.Grains;
 
 using Interfaces;
 using Persistence.States;
+using Sfu;
 
 public class ServerManager(
     [PersistentState("serverUsers", "OrleansStorage")]
     IPersistentState<ServerToUserRelations> serverUserStore,
     [PersistentState("server", "OrleansStorage")]
     IPersistentState<ServerStorage> serverStore,
-    [PersistentState("serverChannels", "OrleansStorage")]
-    IPersistentState<ServerChannelsStore> serverChannelStore,
     IGrainFactory grainFactory
 ) : Grain, IServerManager
 {
@@ -26,7 +25,8 @@ public class ServerManager(
 
     public async Task<string> CreateJoinLink()
     {
-        return await Task.Run(() => ""); // TODO: register url generator grain for this one line
+        return await Task.Run(() => "");
+        // TODO: register url generator grain for this one line
     }
 
     public async Task AddUser(UserToServerRelation Relation)
@@ -37,8 +37,7 @@ public class ServerManager(
 
     public async Task<IEnumerable<ChannelStorage>> GetChannels()
     {
-        return await Task.WhenAll(serverChannelStore.State.Channels.Select(async channelId =>
-            await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel()));
+        return await Task.WhenAll(serverStore.State.Channels.Select(async channelId => await GetChannel(channelId)));
     }
 
 
@@ -49,7 +48,7 @@ public class ServerManager(
 
     public async Task<ChannelStorage> GetChannel(Guid channelId)
     {
-        if (!serverChannelStore.State.Channels.Contains(channelId)) throw new Exception("ty che, psina"); // TODO 
+        if (!serverStore.State.Channels.Contains(channelId)) throw new Exception("ty che, psina"); // TODO 
 
         return await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel();
     }
@@ -58,6 +57,11 @@ public class ServerManager(
     {
         await serverStore.ReadStateAsync();
         return serverStore.State;
+    }
+
+    public async Task<RealtimeToken> JoinChannel(Guid userId, Guid channelId)
+    {
+        return await grainFactory.GetGrain<IChannelManager>(channelId).JoinLink(userId, this.GetPrimaryKey());
     }
 
     private async Task CreateDefaultChannels(Guid userId)
@@ -70,9 +74,9 @@ public class ServerManager(
                 ChannelType.Announcement)
         ];
 
-        foreach (var ChannelId in channelIds) serverChannelStore.State.Channels.Add(ChannelId);
+        foreach (var ChannelId in channelIds) serverStore.State.Channels.Add(ChannelId);
 
-        await serverChannelStore.WriteStateAsync();
+        await serverStore.WriteStateAsync();
     }
 
     private async Task<Guid> CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
