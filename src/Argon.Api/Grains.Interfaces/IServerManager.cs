@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains.Interfaces;
 
 using Persistence.States;
+using Sfu;
 
 public interface IServerManager : IGrainWithGuidKey
 {
@@ -24,4 +25,7 @@ public interface IServerManager : IGrainWithGuidKey
 
     [Alias("GetServer")]
     Task<ServerStorage> GetServer();
+
+    [Alias("JoinChannel")]
+    Task<RealtimeToken> JoinChannel(Guid userId, Guid channelId);
 }
