@@ -8,6 +8,8 @@ public class ServerManager(
     IPersistentState<ServerToUserRelations> serverUserStore,
     [PersistentState("server", "OrleansStorage")]
     IPersistentState<ServerStorage> serverStore,
+    [PersistentState("serverChannels", "OrleansStorage")]
+    IPersistentState<ServerChannelsStore> serverChannelStore,
     IGrainFactory grainFactory
 ) : Grain, IServerManager
 {
@@ -41,7 +43,7 @@ public class ServerManager(
 
     private async Task CreateDefaultChannels(Guid userId)
     {
-        List<Guid> a =
+        Guid[] channelIds =
         [
             await CreateDefaultChannel(userId, "General", "Default text channel", ChannelType.Text),
             await CreateDefaultChannel(userId, "General", "Default voice channel", ChannelType.Voice),
@@ -49,7 +51,9 @@ public class ServerManager(
                 ChannelType.Announcement)
         ];
 
-        // serverStore.State.Channels = a;
+        foreach (var ChannelId in channelIds) serverChannelStore.State.Channels.Add(ChannelId);
+
+        await serverChannelStore.WriteStateAsync();
     }
 
     private async Task<Guid> CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
