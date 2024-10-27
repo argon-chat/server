@@ -28,7 +28,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     public async Task<ActionResult<string>> Authenticate([FromBody] UserInputDto dto)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(dto.Username);
-        var token = await userManager.Authenticate(dto.Password);
+        var token = await userManager.Authorize(dto.Password);
         return token;
     }
 

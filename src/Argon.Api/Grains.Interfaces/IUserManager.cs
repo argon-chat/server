@@ -12,7 +12,7 @@ public interface IUserManager : IGrainWithStringKey
     Task<UserStorageDto> Get();
 
     [Alias("Authenticate")]
-    Task<string> Authenticate(string password);
+    Task<string> Authorize(string password);
 
     [Alias("CreateServer")]
     Task<ServerStorage> CreateServer(string name, string description);
