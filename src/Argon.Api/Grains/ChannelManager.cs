@@ -31,7 +31,7 @@ public class ChannelManager(
     {
         return await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(userId),
             new ArgonChannelId(new ArgonServerId(serverId), this.GetPrimaryKey()),
-            new SfuPermission(SfuPermissionFlags.ROOM_JOIN,
+            new SfuPermission(SfuPermissionFlags.ALL,
                 [
                     TrackSource.Microphone,
                     TrackSource.Camera,
@@ -39,7 +39,7 @@ public class ChannelManager(
                     TrackSource.ScreenShareAudio,
                     TrackSource.Unknown
                 ]
-            ));
+            )); // TODO: permissions and flags
     }
 
     public async Task<ChannelStorage> UpdateChannel(ChannelStorage channel)
