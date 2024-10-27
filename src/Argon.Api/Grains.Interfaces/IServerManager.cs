@@ -3,6 +3,7 @@ namespace Argon.Api.Grains.Interfaces;
 using Persistence.States;
 using Sfu;
 
+[Alias("Argon.Api.Grains.Interfaces.IServerManager")]
 public interface IServerManager : IGrainWithGuidKey
 {
     [Alias("CreateServer")]

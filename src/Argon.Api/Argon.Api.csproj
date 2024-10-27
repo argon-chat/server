@@ -20,6 +20,7 @@
 			<PrivateAssets>all</PrivateAssets>
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 		</PackageReference>
+		<PackageReference Include="Microsoft.Orleans.EventSourcing" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
 		<PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>

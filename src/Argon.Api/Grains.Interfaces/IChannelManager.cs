@@ -3,6 +3,7 @@ namespace Argon.Api.Grains.Interfaces;
 using Persistence.States;
 using Sfu;
 
+[Alias("Argon.Api.Grains.Interfaces.IChannelManager")]
 public interface IChannelManager : IGrainWithGuidKey
 {
     [Alias("CreateChannel")]
