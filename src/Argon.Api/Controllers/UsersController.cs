@@ -10,6 +10,10 @@ using Sfu;
 #if DEBUG
 public record UserInputDto(string Username, string Password);
 
+public record ServerInputDto(
+    string Name,
+    string Description);
+
 [Route("api/[controller]")]
 public class UsersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
@@ -30,16 +34,15 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
 
     [HttpGet]
     [Authorize]
-    public async Task<ActionResult<UserStorageDto>> Get()
+    [InjectUsername]
+    public async Task<ActionResult<UserStorageDto>> Get(string username)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.Get();
     }
 
     [HttpGet("{username}")]
-    [Authorize]
-    public async Task<ActionResult<UserStorageDto>> Get(string username)
+    public async Task<ActionResult<UserStorageDto>> GetByUsername(string username)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.Get();
@@ -47,27 +50,27 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
 
     [HttpPost("server")]
     [Authorize]
-    public async Task<ActionResult<ServerStorage>> CreateServer([FromBody] string name, string description)
+    [InjectUsername]
+    public async Task<ActionResult<ServerStorage>> CreateServer(string username, [FromBody] ServerInputDto dto)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
-        return await userManager.CreateServer(name, description);
+        return await userManager.CreateServer(dto.Name, dto.Description);
     }
 
     [HttpGet("servers")]
     [Authorize]
-    public async Task<ActionResult<List<ServerStorage>>> GetServers()
+    [InjectUsername]
+    public async Task<ActionResult<List<ServerStorage>>> GetServers(string username)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.GetServers();
     }
 
     [HttpGet("servers/{serverId}/channels")]
     [Authorize]
-    public async Task<ActionResult<IEnumerable<ChannelStorage>>> GetServerChannels(Guid serverId)
+    [InjectUsername]
+    public async Task<ActionResult<IEnumerable<ChannelStorage>>> GetServerChannels(string username, Guid serverId)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         var channels = await userManager.GetServerChannels(serverId);
         return channels.ToList();
@@ -75,9 +78,9 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
 
     [HttpGet("servers/{serverId}/channels/{channelId}")]
     [Authorize]
-    public async Task<ActionResult<ChannelStorage>> GetChannel(Guid serverId, Guid channelId)
+    [InjectUsername]
+    public async Task<ActionResult<ChannelStorage>> GetChannel(string username, Guid serverId, Guid channelId)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.GetChannel(serverId, channelId);
     }
