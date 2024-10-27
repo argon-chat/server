@@ -1,12 +1,15 @@
 namespace Argon.Api.Grains;
 
 using Interfaces;
+using LiveKit.Proto;
 using Persistence.States;
+using Sfu;
 
 public class ChannelManager(
     [PersistentState("channels", "OrleansStorage")]
     IPersistentState<ChannelStorage> channelStore,
-    IGrainFactory grainFactory
+    IGrainFactory grainFactory,
+    IArgonSelectiveForwardingUnit sfu
 ) : Grain, IChannelManager
 {
     public async Task<ChannelStorage> CreateChannel(ChannelStorage channel)
@@ -24,9 +27,19 @@ public class ChannelManager(
         return channelStore.State;
     }
 
-    public async Task<List<UserToServerRelation>> GetUsers()
+    public async Task<RealtimeToken> JoinLink(Guid userId, Guid serverId)
     {
-        throw new NotImplementedException();
+        return await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(userId),
+            new ArgonChannelId(new ArgonServerId(serverId), this.GetPrimaryKey()),
+            new SfuPermission(SfuPermissionFlags.ROOM_JOIN,
+                [
+                    TrackSource.Microphone,
+                    TrackSource.Camera,
+                    TrackSource.ScreenShare,
+                    TrackSource.ScreenShareAudio,
+                    TrackSource.Unknown
+                ]
+            ));
     }
 
     public async Task<ChannelStorage> UpdateChannel(ChannelStorage channel)
