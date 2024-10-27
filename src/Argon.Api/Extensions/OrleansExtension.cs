@@ -35,6 +35,7 @@ public static class OrleansExtension
                     options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
                 })
+                .AddMemoryGrainStorageAsDefault()
                 .UseLocalhostClustering();
         });
 
