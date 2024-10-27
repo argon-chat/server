@@ -6,7 +6,7 @@ using MemoryPack;
 [Serializable]
 [MemoryPackable]
 [Alias(nameof(ChannelStorage))]
-public record ChannelStorage
+public sealed partial record ChannelStorage
 {
     [Id(0)] public Guid Id { get; set; } = Guid.Empty;
     [Id(1)] public string Name { get; set; } = string.Empty;

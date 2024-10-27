@@ -1,5 +1,3 @@
-using Projects;
-
 var builder = DistributedApplication.CreateBuilder(args);
 
 var username = builder.AddParameter("username", true);
@@ -18,17 +16,17 @@ var db = builder.AddPostgres("pg", port: 5432, userName: username, password: pas
 
 var apiDb = db.AddDatabase("apiDb");
 
-var api = builder.AddProject<Argon_Api>("argon-api")
-    .WithReference(apiDb, "DefaultConnection")
-    .WithReference(cache)
-    .WithReference(rmq)
-    .WithEnvironment("sfu__url", sfuUrl)
-    .WithEnvironment("sfu__clientId", sfuClientId)
-    .WithEnvironment("sfu__clientSecret", sfuClientSecret)
-    .WithEnvironment("Jwt__Issuer", "Argon")
-    .WithEnvironment("Jwt__Audience", "Argon")
-    .WithEnvironment("Jwt__Key", jwtKey)
-    .WithEnvironment("Jwt__Expire", "228")
-    .WithExternalHttpEndpoints();
+// var api = builder.AddProject<Argon_Api>("argon-api")
+//     .WithReference(apiDb, "DefaultConnection")
+//     .WithReference(cache)
+//     .WithReference(rmq)
+//     .WithEnvironment("sfu__url", sfuUrl)
+//     .WithEnvironment("sfu__clientId", sfuClientId)
+//     .WithEnvironment("sfu__clientSecret", sfuClientSecret)
+//     .WithEnvironment("Jwt__Issuer", "Argon")
+//     .WithEnvironment("Jwt__Audience", "Argon")
+//     .WithEnvironment("Jwt__Key", jwtKey)
+//     .WithEnvironment("Jwt__Expire", "228")
+//     .WithExternalHttpEndpoints();
 
 builder.Build().Run();

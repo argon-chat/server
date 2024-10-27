@@ -6,7 +6,7 @@ using MemoryPack;
 [Serializable]
 [MemoryPackable]
 [Alias(nameof(UserToServerRelation))]
-public sealed record UserToServerRelation
+public sealed partial record UserToServerRelation
 {
     [Id(1)] public Guid ServerId { get; set; }
     [Id(2)] public DateTime Joined { get; } = DateTime.UtcNow;

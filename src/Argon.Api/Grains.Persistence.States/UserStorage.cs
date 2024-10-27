@@ -6,7 +6,7 @@ using MemoryPack;
 [Serializable]
 [MemoryPackable]
 [Alias(nameof(UserStorage))]
-public sealed record UserStorage
+public sealed partial record UserStorage
 {
     [Id(0)] public Guid Id { get; set; } = Guid.Empty;
     [Id(1)] public string Username { get; set; } = string.Empty;

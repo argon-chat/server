@@ -6,7 +6,7 @@ using MemoryPack;
 [Serializable]
 [MemoryPackable]
 [Alias(nameof(ServerToUserRelations))]
-public sealed record ServerToUserRelations
+public sealed partial record ServerToUserRelations
 {
     [Id(0)] public List<UserToServerRelation> Users { get; private set; } = [];
 }

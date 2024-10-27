@@ -6,7 +6,7 @@ using MemoryPack;
 [Serializable]
 [MemoryPackable]
 [Alias(nameof(ServerChannelsStore))]
-public record ServerChannelsStore
+public sealed partial record ServerChannelsStore
 {
     [Id(0)] public List<Guid> Channels { get; private set; } = [];
 }

@@ -1,5 +1,6 @@
 namespace Argon.Api.Controllers;
 
+using Attributes;
 using Grains.Interfaces;
 using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
@@ -83,9 +84,9 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
 
     [HttpPost("servers/{serverId}/channels/{channelId}/join")]
     [Authorize]
-    public async Task<ActionResult<RealtimeToken>> JoinChannel(Guid serverId, Guid channelId)
+    [InjectUsername]
+    public async Task<ActionResult<RealtimeToken>> JoinChannel(string username, Guid serverId, Guid channelId)
     {
-        var username = User.Claims.FirstOrDefault(cl => cl.Type == "username")?.Value;
         var userManager = grainFactory.GetGrain<IUserManager>(username);
         return await userManager.JoinChannel(serverId, channelId);
     }
