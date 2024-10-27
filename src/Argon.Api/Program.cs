@@ -1,5 +1,6 @@
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
+using Argon.Api.Filters;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Sfu;
@@ -10,7 +11,7 @@ builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
-builder.Services.AddControllers();
+builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
 builder.AddSwaggerWithAuthHeader();
 builder.AddJwt();
 builder.Services.AddAuthorization();
