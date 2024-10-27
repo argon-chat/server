@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains;
 
-using BCrypt.Net;
+using System.Security.Cryptography;
+using System.Text;
 using Interfaces;
 using Persistence.States;
 using Services;
@@ -24,8 +25,7 @@ public class UserManager(
 
         userStore.State.Id = Guid.NewGuid();
         userStore.State.Username = username;
-        var salt = BCrypt.GenerateSalt();
-        userStore.State.Password = BCrypt.HashPassword(password, salt);
+        userStore.State.Password = HashPassword(password);
         await userStore.WriteStateAsync();
         return userStore.State;
     }
@@ -38,7 +38,7 @@ public class UserManager(
 
     public Task<string> Authenticate(string password)
     {
-        var match = BCrypt.Verify(password, userStore.State.Password);
+        var match = userStore.State.Password == HashPassword(password);
 
         if (!match)
             throw new Exception("Invalid credentials"); // TODO: Come up with application specific errors
@@ -93,5 +93,13 @@ public class UserManager(
             throw new Exception("User already exists"); // TODO: Come up with application specific errors
 
         return Task.CompletedTask;
+    }
+
+    private static string HashPassword(string input) // TODO: replace with an actual secure hashing mechanism
+    {
+        using var sha256 = SHA256.Create();
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = sha256.ComputeHash(bytes);
+        return Convert.ToBase64String(hash);
     }
 }

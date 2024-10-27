@@ -1,7 +1,6 @@
 namespace Argon.Api.Grains;
 
 using Interfaces;
-using LiveKit.Proto;
 using Persistence.States;
 using Sfu;
 
@@ -31,15 +30,7 @@ public class ChannelManager(
     {
         return await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(userId),
             new ArgonChannelId(new ArgonServerId(serverId), this.GetPrimaryKey()),
-            new SfuPermission(SfuPermissionFlags.ALL,
-                [
-                    TrackSource.Microphone,
-                    TrackSource.Camera,
-                    TrackSource.ScreenShare,
-                    TrackSource.ScreenShareAudio,
-                    TrackSource.Unknown
-                ]
-            )); // TODO: permissions and flags
+            SfuPermission.DefaultUser); // TODO: permissions and flags
     }
 
     public async Task<ChannelStorage> UpdateChannel(ChannelStorage channel)
