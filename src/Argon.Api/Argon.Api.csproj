@@ -11,6 +11,10 @@
 		<PackageReference Include="Flurl.Http" Version="4.0.2"/>
 		<PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
 		<PackageReference Include="MemoryPack" Version="1.21.3"/>
+		<PackageReference Include="MemoryPack.Generator" Version="1.21.3">
+			<PrivateAssets>all</PrivateAssets>
+			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+		</PackageReference>
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10"/>
 		<PackageReference Include="ActualLab.Fusion" Version="9.5.52"/>
 		<PackageReference Include="ActualLab.Fusion.EntityFramework.Npgsql" Version="9.5.52"/>

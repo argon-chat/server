@@ -18,6 +18,7 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
 builder.Services.AddFusion(RpcServiceMode.Server, true)
     .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
+    .AddServer<IUserInteraction, UserInteractionService>()
     .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.AddJwt();
