@@ -2,7 +2,7 @@ namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
 
-public class User : ApplicationRecord
+public sealed class User : ApplicationRecord
 {
     [MaxLength(255)] [MinLength(12)] public string? Email { get; set; } = string.Empty;
 
