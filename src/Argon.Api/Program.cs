@@ -1,7 +1,5 @@
 using ActualLab.Fusion;
-using ActualLab.Fusion.Extensions;
 using ActualLab.Rpc;
-using ActualLab.Rpc.Infrastructure;
 using ActualLab.Rpc.Server;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
@@ -23,8 +21,7 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
 builder.Services.AddFusion(RpcServiceMode.Server, true)
     .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
-    .AddServer<IUserInteraction, UserInteractionService>()
-    .AddInboundMiddleware<FusionAuthorizationMiddleware>()
+    // .AddServer<IUserInteraction, UserInteractionService>()
     .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
