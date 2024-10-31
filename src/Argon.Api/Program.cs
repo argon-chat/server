@@ -21,14 +21,10 @@ builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
-builder.Services.AddFusion(x =>
-{
-    x.WithServiceMode(RpcServiceMode.DistributedPair, true);
-    x.Rpc.AddWebSocketServer(true);
-    x.Rpc.AddServer<IUserAuthorization, UserAuthorization>();
-    x.AddFusionTime();
-    x.Rpc.AddInboundMiddleware<FusionAuthorizationMiddleware>();
-});
+builder.Services.AddFusion(RpcServiceMode.Server, true)
+    .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
+    .AddServer<IUserInteraction, UserInteractionService>()
+    .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();

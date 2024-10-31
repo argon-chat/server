@@ -36,7 +36,7 @@ public class UserManager(
         return userStore.State;
     }
 
-    public Task<string> Authenticate(string password)
+    public Task<string> Authorize(string password)
     {
         var match = userStore.State.Password == HashPassword(password);
 
