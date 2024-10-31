@@ -24,6 +24,7 @@ builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>
 builder.Services.AddFusion(RpcServiceMode.Server, true)
     .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
     .AddServer<IUserInteraction, UserInteractionService>()
+    .AddInboundMiddleware<FusionAuthorizationMiddleware>()
     .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
