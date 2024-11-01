@@ -18,7 +18,7 @@ builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
-builder.Services.AddControllers(opts => { opts.Filters.Add<InjectUsernameFilter>(); });
+builder.Services.AddControllers(opts => { opts.Filters.Add<InjectIdFilter>(); });
 builder.Services.AddFusion(RpcServiceMode.Server, true)
     .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
     // .AddServer<IUserInteraction, UserInteractionService>()

@@ -3,17 +3,8 @@ namespace Argon.Api.Grains.Interfaces;
 using Persistence.States;
 using Sfu;
 
-public interface IUserManager : IGrainWithStringKey
+public interface IUserManager : IGrainWithGuidKey
 {
-    [Alias("Create")]
-    Task<UserStorageDto> Create(string password);
-
-    [Alias("Get")]
-    Task<UserStorageDto> Get();
-
-    [Alias("Authorize")]
-    Task<string> Authorize(string password);
-
     [Alias("CreateServer")]
     Task<ServerStorage> CreateServer(string name, string description);
 

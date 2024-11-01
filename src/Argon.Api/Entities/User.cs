@@ -1,6 +1,7 @@
 namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
+using Grains.Persistence.States;
 
 public sealed class User : ApplicationRecord
 {
@@ -14,4 +15,18 @@ public sealed class User : ApplicationRecord
     [MaxLength(30)] public string? PhoneNumber { get; set; } = string.Empty;
     [Required] [MaxLength(511)] public string PasswordDigest { get; set; } = string.Empty;
     [MaxLength(1023)] public string? AvatarUrl { get; set; } = string.Empty;
+
+    public static implicit operator UserStorageDto(User user)
+    {
+        return new UserStorageDto
+        {
+            Id = user.Id,
+            Username = user.Username,
+            Email = user.Email,
+            PhoneNumber = user.PhoneNumber,
+            AvatarUrl = user.AvatarUrl,
+            CreatedAt = user.CreatedAt,
+            UpdatedAt = user.UpdatedAt
+        };
+    }
 }
