@@ -1,5 +1,6 @@
 namespace Argon.Api.Services;
 
+using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
@@ -42,14 +43,15 @@ public class UserManagerService(
         return Task.FromResult(jwtToken);
     }
 
-    public async Task Validate(string username, string password)
+    [Conditional("RELEASE")]
+    public void Validate(string username, string password)
     {
-        await ValidateLength(username, nameof(username), 3, 50);
-        await ValidateLength(password, nameof(password), 8, 32);
-        await ValidatePasswordStrength(password);
+        ValidateLength(username, nameof(username), 3, 50);
+        ValidateLength(password, nameof(password), 8, 32);
+        ValidatePasswordStrength(password);
     }
 
-    private Task ValidatePasswordStrength(string password)
+    private void ValidatePasswordStrength(string password)
     {
         if (!password.Any(char.IsDigit))
             throw new Exception(
@@ -62,15 +64,11 @@ public class UserManagerService(
         if (!password.Any(char.IsLower))
             throw new Exception(
                 "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
-
-        return Task.CompletedTask;
     }
 
-    private Task ValidateLength(string str, string obj, int min, int max)
+    private void ValidateLength(string str, string obj, int min, int max)
     {
         if (str.Length < min || str.Length > max)
             throw new Exception($"{obj}: Invalid length"); // TODO: Come up with application specific errors
-
-        return Task.CompletedTask;
     }
 }
