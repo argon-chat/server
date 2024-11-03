@@ -1,37 +1,34 @@
 ﻿namespace Argon.Api.Features.Jwt;
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 public record JwtOptions
 {
     public required string Issuer { get; set; }
+
     public required string Audience { get; set; }
+
     // TODO use cert in production
     public required string Key { get; set; }
     public required TimeSpan Expires { get; set; }
 
     public void Deconstruct(out string issuer, out string audience, out string key, out TimeSpan expires)
     {
-        audience = this.Audience;
-        issuer = this.Issuer;
-        key = this.Key;
-        expires = this.Expires;
+        audience = Audience;
+        issuer = Issuer;
+        key = Key;
+        expires = Expires;
     }
 }
-
 
 public static class JwtFeature
 {
     public static IServiceCollection AddJwt(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-        
+
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
         builder.Services.AddAuthentication(options =>
@@ -50,7 +47,7 @@ public static class JwtFeature
                 ValidateAudience = true,
                 ValidateLifetime = true,
                 ValidateIssuerSigningKey = true,
-                ClockSkew = TimeSpan.Zero,
+                ClockSkew = TimeSpan.Zero
             };
             o.Events = new JwtBearerEvents
             {

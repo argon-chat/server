@@ -1,19 +1,18 @@
 namespace Argon.Api.Grains.Interfaces;
 
-using Persistence.States;
 using Sfu;
 
 public interface IChannelManager : IGrainWithGuidKey
 {
     [Alias("CreateChannel")]
-    Task<ChannelStorage> CreateChannel(ChannelStorage channel);
+    Task CreateChannel(object channel);
 
     [Alias("GetChannel")]
-    Task<ChannelStorage> GetChannel();
+    Task GetChannel();
 
     [Alias("JoinLink")]
     Task<RealtimeToken> JoinLink(Guid userId, Guid serverId);
 
     [Alias("UpdateChannel")]
-    Task<ChannelStorage> UpdateChannel(ChannelStorage channel);
+    Task UpdateChannel(object channel);
 }

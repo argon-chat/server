@@ -1,52 +1,99 @@
 namespace Argon.Api.Grains;
 
+using System.Security.Cryptography;
+using System.Text;
+using Entities;
+using Helpers;
 using Interfaces;
-using Persistence.States;
-using Sfu;
 
 public class UserManager(
-    [PersistentState("userServers", "OrleansStorage")]
-    IPersistentState<UserToServerRelations> userServerStore,
-    IGrainFactory grainFactory
+    // [PersistentState("userServers", "OrleansStorage")]
+    // IPersistentState<UserToServerRelations> userServerStore,
+    IGrainFactory grainFactory,
+    ILogger<UserManager> logger,
+    ApplicationDbContext context
 ) : Grain, IUserManager
 {
-    public async Task<ServerStorage> CreateServer(string name, string description)
+    public Task CreateUser(UserCredentialsInput input)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.NewGuid());
-        await serverManager.CreateServer(name, description, this.GetPrimaryKey());
-        var relation = new UserToServerRelation
+        var user = new User
         {
-            ServerId = serverManager.GetPrimaryKey(),
-            Role = ServerRole.Owner,
-            UserId = this.GetPrimaryKey(),
-            CustomUsername = this.GetPrimaryKeyString()
+            Id = Guid.NewGuid(),
+            Email = input.Email,
+            Username = input.Username,
+            PhoneNumber = input.PhoneNumber,
+            PasswordDigest = HashPassword(VerifyPassword(input.Password, input.PasswordConfirmation)),
+            OTP = ""
         };
-        userServerStore.State.Servers.Add(relation);
-        await serverManager.AddUser(relation);
-        await userServerStore.WriteStateAsync();
-        return await serverManager.GetServer();
+        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        context.Users.Add(user);
+        return context.SaveChangesAsync();
     }
 
-    public async Task<List<ServerStorage>> GetServers()
+    public Task UpdateUser(UserCredentialsInput input)
     {
-        await userServerStore.ReadStateAsync();
-        var servers =
-            userServerStore.State.Servers.Select(x => grainFactory.GetGrain<IServerManager>(x.ServerId).GetServer());
-        return (await Task.WhenAll(servers)).ToList();
+        var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
+        user.Email = input.Email;
+        user.Username = input.Username;
+        user.PhoneNumber = input.PhoneNumber;
+        user.PasswordDigest = HashPassword(VerifyPassword(input.Password, input.PasswordConfirmation));
+        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        return context.SaveChangesAsync();
     }
 
-    public async Task<IEnumerable<ChannelStorage>> GetServerChannels(Guid serverId)
+    public Task DeleteUser()
     {
-        return await grainFactory.GetGrain<IServerManager>(serverId).GetChannels();
+        var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
+        user.DeletedAt = DateTime.UtcNow;
+        return context.SaveChangesAsync();
     }
 
-    public async Task<ChannelStorage> GetChannel(Guid serverId, Guid channelId)
+    public Task GetUser()
     {
-        return await grainFactory.GetGrain<IServerManager>(serverId).GetChannel(channelId);
+        return Task.CompletedTask;
     }
 
-    public async Task<RealtimeToken> JoinChannel(Guid serverId, Guid channelId)
+    private static string? HashPassword(string? input) // TODO: replace with an actual secure hashing mechanism
     {
-        return await grainFactory.GetGrain<IServerManager>(serverId).JoinChannel(this.GetPrimaryKey(), channelId);
+        if (input is null) return null;
+        using var sha256 = SHA256.Create();
+        var bytes = Encoding.UTF8.GetBytes(input);
+        var hash = sha256.ComputeHash(bytes);
+        return Convert.ToBase64String(hash);
+    }
+
+    private string? VerifyPassword(string? InputPassword, string? InputPasswordConfirmation)
+    {
+        if (InputPassword is null || InputPasswordConfirmation is null) return null;
+        if (InputPassword != InputPasswordConfirmation)
+            throw new ArgumentException("Are you axueli tam?"); // TODO: implement application errors
+
+        // TODO: implement password strength verification
+
+        return InputPassword;
+    }
+
+    private async Task<JwtToken> GenerateOtp(User User)
+    {
+        User.OTP = SecureRandom.Hex(3);
+        logger.LogInformation($"OTP for {User.Username} is {User.OTP}");
+        await context.SaveChangesAsync();
+        return new JwtToken("");
+    }
+
+    private Task ValidatePassword(string? InputPassword, User user)
+    {
+        if (user.PasswordDigest is null)
+        {
+            if (InputPassword != user.OTP)
+                throw new Exception("sebya brutforsi sabaken"); // TODO: implement application errors
+
+            return Task.CompletedTask;
+        }
+
+        if (HashPassword(InputPassword) != user.PasswordDigest)
+            throw new Exception("sebya brutforsi sabaken"); // TODO: implement application errors
+
+        return Task.CompletedTask;
     }
 }

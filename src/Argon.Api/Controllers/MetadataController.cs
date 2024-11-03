@@ -8,28 +8,30 @@ public class MetadataController : ControllerBase
 {
     [Route("/cfg.json")]
     [AllowAnonymous]
-    public ValueTask<HeadRoutingConfig> GetHead() =>
-        new(new HeadRoutingConfig(
+    public ValueTask<HeadRoutingConfig> GetHead()
+    {
+        return new ValueTask<HeadRoutingConfig>(new HeadRoutingConfig(
             $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}",
             "api.argon.gl",
-            "argon-f14ic5ia.livekit.cloud", 
+            "argon-f14ic5ia.livekit.cloud",
             [
                 new RegionalNode("cdn-ru1.argon.gl", "ru1"),
                 new RegionalNode("cdn-ru2.argon.gl", "ru1"),
                 new RegionalNode("cdn-as1.argon.gl", "as1")
             ], [
                 new FeatureFlag("dev.window", true),
-                new FeatureFlag("user.allowServerCreation", true),
+                new FeatureFlag("user.allowServerCreation", true)
             ]));
+    }
 }
 
 public record HeadRoutingConfig(
-        string version,
-        string masterEndpoint,
-        string webRtcEndpoint,
-        List<RegionalNode> cdnAddresses,
-        List<FeatureFlag> features
-    );
+    string version,
+    string masterEndpoint,
+    string webRtcEndpoint,
+    List<RegionalNode> cdnAddresses,
+    List<FeatureFlag> features
+);
 
 public record RegionalNode(string url, string code);
 
