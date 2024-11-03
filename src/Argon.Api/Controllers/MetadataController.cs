@@ -3,10 +3,9 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
-[ApiController]
 public class MetadataController : ControllerBase
 {
-    [Route("/cfg.json")]
+    [HttpGet("/cfg.json")]
     [AllowAnonymous]
     public ValueTask<HeadRoutingConfig> GetHead() =>
         new(new HeadRoutingConfig(
