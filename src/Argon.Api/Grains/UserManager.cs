@@ -21,7 +21,7 @@ public class UserManager(
     {
         var username = this.GetPrimaryKeyString();
         await EnsureUnique();
-        await managerService.Validate(username, password);
+        managerService.Validate(username, password);
 
         userStore.State.Id = Guid.NewGuid();
         userStore.State.Username = username;

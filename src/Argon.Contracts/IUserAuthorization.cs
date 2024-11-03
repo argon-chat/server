@@ -27,7 +27,10 @@ public sealed partial record AuthorizeRequest(
     [property: Key(2)]
     string machineKey);
 
-public sealed record AuthorizeResponse(
+[DataContract]
+[MemoryPackable(GenerateType.VersionTolerant)]
+[MessagePackObject]
+public sealed partial record AuthorizeResponse(
     [property: DataMember(Order = 0)]
     [property: MemoryPackOrder(0)]
     [property: Key(0)]
