@@ -11,7 +11,7 @@ using MessagePack;
 [Serializable]
 [GenerateSerializer]
 [Alias("Argon.Api.Entities.Server")]
-public sealed record Server
+public sealed partial record Server
 {
     [System.ComponentModel.DataAnnotations.Key]
     [Id(0)]

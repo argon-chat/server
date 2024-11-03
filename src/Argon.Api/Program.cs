@@ -9,7 +9,6 @@ using Argon.Api.Features.Rpc;
 using Argon.Api.Filters;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
-using Argon.Contracts;
 using Argon.Sfu;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -20,10 +19,10 @@ builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddControllers(opts => { opts.Filters.Add<InjectIdFilter>(); });
-builder.Services.AddFusion(RpcServiceMode.Server, true)
-    .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
-    // .AddServer<IUserInteraction, UserInteractionService>()
-    .AddWebSocketServer(true);
+builder.Services.AddFusion(RpcServiceMode.Server, true);
+// .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
+// .AddServer<IUserInteraction, UserInteractionService>()
+// .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
@@ -40,5 +39,5 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
-app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}", });
+app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}" });
 await app.WarpUp<ApplicationDbContext>().RunAsync();

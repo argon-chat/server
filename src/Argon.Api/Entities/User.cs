@@ -11,7 +11,7 @@ using MessagePack;
 [Serializable]
 [GenerateSerializer]
 [Alias("Argon.Api.Entities.User")]
-public sealed record User
+public sealed partial record User
 {
     [System.ComponentModel.DataAnnotations.Key]
     [Id(0)]

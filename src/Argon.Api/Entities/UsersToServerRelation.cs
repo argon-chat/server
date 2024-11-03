@@ -18,7 +18,7 @@ public enum ServerRole : ushort // TODO: sort out roles and how we actually want
 [Serializable]
 [GenerateSerializer]
 [Alias("Argon.Api.Entities.UsersToServerRelation")]
-public sealed record UsersToServerRelation
+public sealed partial record UsersToServerRelation
 {
     [System.ComponentModel.DataAnnotations.Key]
     [Id(0)]

@@ -37,6 +37,9 @@ namespace Argon.Api.Migrations
                     b.Property<int>("ChannelType")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -69,6 +72,9 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Description")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -96,6 +102,12 @@ namespace Argon.Api.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1023)
                         .HasColumnType("character varying(1023)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Email")
                         .IsRequired()
@@ -142,6 +154,9 @@ namespace Argon.Api.Migrations
                         .HasColumnType("character varying(255)");
 
                     b.Property<DateTime?>("BannedUntil")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CustomAvatarUrl")

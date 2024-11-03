@@ -18,7 +18,7 @@ public enum ChannelType : ushort
 [Serializable]
 [GenerateSerializer]
 [Alias("Argon.Api.Entities.Channel")]
-public sealed record Channel
+public sealed partial record Channel
 {
     [System.ComponentModel.DataAnnotations.Key]
     [Id(0)]
