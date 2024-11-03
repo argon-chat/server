@@ -3,6 +3,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
+[ApiController]
 public class MetadataController : ControllerBase
 {
     [HttpGet("/cfg.json")]
