@@ -1,6 +1,7 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
 using ActualLab.Rpc.Server;
+using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.Jwt;
@@ -39,6 +40,5 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
-var buildTime = File.GetLastWriteTimeUtc(typeof(Program).Assembly.Location);
-app.MapGet("/", () => new { buildTime });
+app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}", });
 await app.WarpUp<ApplicationDbContext>().RunAsync();

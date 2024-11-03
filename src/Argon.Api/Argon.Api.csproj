@@ -51,7 +51,9 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="Features\Jwt\" />
+		<PackageReference Include="GitVersion.MsBuild" Version="5.12">
+			<PrivateAssets>All</PrivateAssets>
+		</PackageReference>
 	</ItemGroup>
 
 </Project>

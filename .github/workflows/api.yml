@@ -11,6 +11,7 @@ on:
     paths:
       - 'src/Argon.Api/**'
       - 'src/ServiceDefaults/**'
+  workflow_dispatch:
 
 jobs:
   qa:
