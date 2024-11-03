@@ -47,6 +47,7 @@ public class UserManagerService(
         await ValidatePasswordStrength(password);
     }
 
+
     private Task ValidatePasswordStrength(string password)
     {
         if (!password.Any(char.IsDigit))
