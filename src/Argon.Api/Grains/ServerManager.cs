@@ -61,7 +61,11 @@ public class ServerManager(
 
     public async Task<RealtimeToken> JoinChannel(Guid userId, Guid channelId)
     {
-        return await grainFactory.GetGrain<IChannelManager>(channelId).JoinLink(userId, this.GetPrimaryKey());
+        var channel = grainFactory.GetGrain<IChannelManager>(channelId);
+        if ((await channel.GetChannel()).ChannelType != ChannelType.Voice)
+            throw new Exception("You can only join voice channels");
+
+        return await channel.JoinLink(userId, this.GetPrimaryKey());
     }
 
     private async Task CreateDefaultChannels(Guid userId)
