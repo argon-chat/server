@@ -94,7 +94,7 @@ public sealed partial record ServerResponse(
     [property: DataMember(Order = 4)]
     [property: MemoryPackOrder(4)]
     [property: Key(4)]
-    List<Guid> Channels,
+    List<ServerDetailsResponse> Channels,
     [property: DataMember(Order = 5)]
     [property: MemoryPackOrder(5)]
     [property: Key(5)]

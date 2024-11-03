@@ -33,11 +33,15 @@ namespace Argon.Api.Migrations
                         .HasColumnType("character varying(1023)");
 
                     b.Property<string>("Email")
+                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 
+                    b.Property<string>("OTP")
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)");
+
                     b.Property<string>("PasswordDigest")
-                        .IsRequired()
                         .HasMaxLength(511)
                         .HasColumnType("character varying(511)");
 
@@ -49,7 +53,6 @@ namespace Argon.Api.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Username")
-                        .IsRequired()
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)");
 

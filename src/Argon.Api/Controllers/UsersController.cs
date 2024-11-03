@@ -6,6 +6,7 @@ using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Sfu;
+using Swashbuckle.AspNetCore.Annotations;
 
 #if DEBUG
 
@@ -35,10 +36,10 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpGet("me")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<UserStorageDto>> Get(string id)
+    public async Task<ActionResult<UserStorageDto>> Get([SwaggerIgnore] string id)
     {
         var userManager = grainFactory.GetGrain<IUserAuthorizationManager>(Guid.NewGuid());
-        return await userManager.GetMe(Guid.Parse(id));
+        return await userManager.GetById(Guid.Parse(id));
     }
 
     // [HttpGet("{username}")]
@@ -51,7 +52,8 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpPost("server")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<ServerStorage>> CreateServer(string id, [FromBody] ServerInputDto dto)
+    public async Task<ActionResult<ServerStorage>> CreateServer([SwaggerIgnore] string id,
+        [FromBody] ServerInputDto dto)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(Guid.Parse(id));
         return await userManager.CreateServer(dto.Name, dto.Description);
@@ -60,7 +62,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpGet("servers")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<List<ServerStorage>>> GetServers(string id)
+    public async Task<ActionResult<List<ServerStorage>>> GetServers([SwaggerIgnore] string id)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(Guid.Parse(id));
         return await userManager.GetServers();
@@ -69,7 +71,8 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpGet("servers/{serverId}/channels")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<IEnumerable<ChannelStorage>>> GetServerChannels(string id, Guid serverId)
+    public async Task<ActionResult<IEnumerable<ChannelStorage>>> GetServerChannels([SwaggerIgnore] string id,
+        Guid serverId)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(Guid.Parse(id));
         var channels = await userManager.GetServerChannels(serverId);
@@ -79,7 +82,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpGet("servers/{serverId}/channels/{channelId}")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<ChannelStorage>> GetChannel(string id, Guid serverId, Guid channelId)
+    public async Task<ActionResult<ChannelStorage>> GetChannel([SwaggerIgnore] string id, Guid serverId, Guid channelId)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(Guid.Parse(id));
         return await userManager.GetChannel(serverId, channelId);
@@ -88,7 +91,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     [HttpPost("servers/{serverId}/channels/{channelId}/join")]
     [Authorize]
     [InjectId]
-    public async Task<ActionResult<RealtimeToken>> JoinChannel(string id, Guid serverId, Guid channelId)
+    public async Task<ActionResult<RealtimeToken>> JoinChannel([SwaggerIgnore] string id, Guid serverId, Guid channelId)
     {
         var userManager = grainFactory.GetGrain<IUserManager>(Guid.Parse(id));
         return await userManager.JoinChannel(serverId, channelId);

@@ -4,7 +4,6 @@
 // using Grains.Interfaces;
 //
 // public class UserInteractionService(
-//     string username, // TODO to be injected
 //     IGrainFactory grainFactory
 // ) : IUserInteraction
 // {
@@ -39,4 +38,4 @@
 //         return new ChannelJoinResponse((await userManager.JoinChannel(request.ServerId, request.ChannelId)).value);
 //     }
 // }
-
+//

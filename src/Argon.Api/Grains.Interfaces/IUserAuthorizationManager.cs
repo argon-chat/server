@@ -13,8 +13,8 @@ public interface IUserAuthorizationManager : IGrainWithGuidKey
     [Alias("Register")]
     Task Register(UserCredentialsInput input);
 
-    [Alias("GetMe")]
-    Task<UserStorageDto> GetMe(Guid id);
+    [Alias("GetById")]
+    Task<UserStorageDto> GetById(Guid id);
 }
 
 [Serializable]
@@ -34,12 +34,12 @@ public sealed partial record UserCredentialsInput(
     [property: MemoryPackOrder(0)]
     [property: Key(0)]
     [property: Id(0)]
-    string? Email,
+    string Email,
     [property: DataMember(Order = 1)]
     [property: MemoryPackOrder(1)]
     [property: Key(1)]
     [property: Id(1)]
-    string Username,
+    string? Username,
     [property: DataMember(Order = 2)]
     [property: MemoryPackOrder(2)]
     [property: Key(2)]
@@ -49,10 +49,15 @@ public sealed partial record UserCredentialsInput(
     [property: MemoryPackOrder(3)]
     [property: Key(3)]
     [property: Id(3)]
-    string Password,
+    string? Password,
     [property: DataMember(Order = 4)]
     [property: MemoryPackOrder(4)]
     [property: Key(4)]
     [property: Id(4)]
-    string PasswordConfirmation
+    string? PasswordConfirmation,
+    [property: DataMember(Order = 5)]
+    [property: MemoryPackOrder(5)]
+    [property: Key(5)]
+    [property: Id(5)]
+    bool GenerateOtp
 );

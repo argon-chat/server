@@ -20,4 +20,8 @@
 		<ProjectReference Include="..\Argon.Api\Argon.Api.csproj"/>
 	</ItemGroup>
 
+	<ItemGroup>
+	  <Folder Include="aspirate-output\" />
+	</ItemGroup>
+
 </Project>

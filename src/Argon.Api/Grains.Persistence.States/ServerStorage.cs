@@ -16,17 +16,4 @@ public sealed partial record ServerStorage
     [Id(6)] public List<Guid> Channels { get; set; } = [];
     [Id(3)] public DateTime CreatedAt { get; } = DateTime.UtcNow;
     [Id(4)] public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    public static implicit operator ServerResponse(ServerStorage serverStorage)
-    {
-        return new ServerResponse(
-            serverStorage.Id,
-            serverStorage.Name,
-            serverStorage.Description,
-            serverStorage.AvatarUrl,
-            serverStorage.Channels,
-            serverStorage.CreatedAt,
-            serverStorage.UpdatedAt
-        );
-    }
 }
