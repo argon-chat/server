@@ -7,8 +7,7 @@ using MessagePack;
 
 public sealed record User
 {
-    [System.ComponentModel.DataAnnotations.Key]
-    public Guid Id { get; } = Guid.Empty;
+    public Guid Id { get; } = Guid.NewGuid();
 
     public DateTime CreatedAt { get; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

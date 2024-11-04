@@ -4,12 +4,14 @@ using Entities;
 using Helpers;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Services;
 
 public class UserManager(
     // [PersistentState("userServers", "OrleansStorage")]
     // IPersistentState<UserToServerRelations> userServerStore,
     IGrainFactory grainFactory,
     ILogger<UserManager> logger,
+    IPasswordHashingService passwordHashingService,
     ApplicationDbContext context
 ) : Grain, IUserManager
 {
@@ -20,9 +22,8 @@ public class UserManager(
             Email = input.Email,
             Username = input.Username,
             PhoneNumber = input.PhoneNumber,
-            PasswordDigest =
-                UserHelper.HashPassword(UserHelper.VerifyPassword(input.Password, input.PasswordConfirmation)),
-            OTP = ""
+            PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation),
+            OTP = passwordHashingService.GenerateOtp()
         };
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
@@ -36,9 +37,8 @@ public class UserManager(
         user.Email = input.Email;
         user.Username = input.Username ?? user.Username;
         user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
-        user.PasswordDigest =
-            UserHelper.HashPassword(UserHelper.VerifyPassword(input.Password, input.PasswordConfirmation)) ??
-            user.PasswordDigest;
+        user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
+                              user.PasswordDigest;
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         await context.SaveChangesAsync();
         return user;

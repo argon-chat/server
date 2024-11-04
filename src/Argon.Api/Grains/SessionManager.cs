@@ -1,7 +1,6 @@
 namespace Argon.Api.Grains;
 
 using Entities;
-using Helpers;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
@@ -9,8 +8,8 @@ using Services;
 public class SessionManager(
     IGrainFactory grainFactory,
     ILogger<UserManager> logger,
-    
     UserManagerService managerService,
+    IPasswordHashingService passwordHashingService,
     ApplicationDbContext context
 ) : Grain, ISessionManager
 {
@@ -23,27 +22,32 @@ public class SessionManager(
 
         if (input.GenerateOtp)
         {
-            user = await UserHelper.GenerateOtp(user);
+            user.OTP = passwordHashingService.GenerateOtp();
+            logger.LogCritical(user.OTP); // TODO: replace with emailing the user the OTP
             await context.SaveChangesAsync();
             return new JwtToken("");
         }
 
-        await UserHelper.ValidatePassword(input.Password, user);
-        user = await UserHelper.GenerateOtp(user); // regenerate OTP after successful login
+        var verified = passwordHashingService.VerifyPassword(input.Password, user);
+        if (!verified)
+            throw new Exception("Invalid credentials"); // TODO: implement application errors
+        user.OTP = passwordHashingService.GenerateOtp();
         await context.SaveChangesAsync();
         return await GenerateJwt(user);
     }
 
-    private async Task<JwtToken> GenerateJwt(User User) =>
-        new(await managerService.GenerateJwt(User.Email, User.Id));
-
-    public Task GetUser()
+    public async Task<UserDto> GetUser()
     {
-        throw new NotImplementedException();
+        return await context.Users.FirstAsync(u => u.Id == this.GetPrimaryKey());
     }
 
     public Task Logout()
     {
         throw new NotImplementedException();
+    }
+
+    private async Task<JwtToken> GenerateJwt(User User)
+    {
+        return new JwtToken(await managerService.GenerateJwt(User.Email, User.Id));
     }
 }

@@ -1,6 +1,3 @@
-using ActualLab.Fusion;
-using ActualLab.Rpc;
-using ActualLab.Rpc.Server;
 using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
@@ -18,8 +15,9 @@ builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
+builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers(opts => { opts.Filters.Add<InjectIdFilter>(); });
-builder.Services.AddFusion(RpcServiceMode.Server, true);
+// builder.Services.AddFusion(RpcServiceMode.Server, true);
 // .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
 // .AddServer<IUserInteraction, UserInteractionService>()
 // .AddWebSocketServer(true);
@@ -38,6 +36,6 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
-app.MapRpcWebSocketServer();
+// app.MapRpcWebSocketServer();
 app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}" });
 await app.WarpUp<ApplicationDbContext>().RunAsync();

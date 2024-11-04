@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Entities;
 using MemoryPack;
 
 [Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
@@ -9,7 +10,7 @@ public interface ISessionManager : IGrainWithGuidKey
     Task<JwtToken> Authorize(UserCredentialsInput input);
 
     [Alias("GetUser")]
-    Task GetUser();
+    Task<UserDto> GetUser();
 
     [Alias("Logout")]
     Task Logout(); // TODO: revoke jwt by adding it into a blacklist
