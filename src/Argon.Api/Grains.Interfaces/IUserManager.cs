@@ -1,22 +1,23 @@
 namespace Argon.Api.Grains.Interfaces;
 
 using System.Runtime.Serialization;
+using Entities;
 using MemoryPack;
 using MessagePack;
 
 public interface IUserManager : IGrainWithGuidKey
 {
     [Alias("CreateUser")]
-    Task CreateUser(UserCredentialsInput input);
+    Task<UserDto> CreateUser(UserCredentialsInput input);
 
     [Alias("UpdateUser")]
-    Task UpdateUser(UserCredentialsInput input);
+    Task<UserDto> UpdateUser(UserCredentialsInput input);
 
     [Alias("DeleteUser")]
     Task DeleteUser();
 
     [Alias("GetUser")]
-    Task GetUser();
+    Task<UserDto> GetUser();
 }
 
 [DataContract]

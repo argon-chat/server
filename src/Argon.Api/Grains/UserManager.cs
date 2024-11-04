@@ -3,6 +3,7 @@ namespace Argon.Api.Grains;
 using Entities;
 using Helpers;
 using Interfaces;
+using Microsoft.EntityFrameworkCore;
 
 public class UserManager(
     // [PersistentState("userServers", "OrleansStorage")]
@@ -12,7 +13,7 @@ public class UserManager(
     ApplicationDbContext context
 ) : Grain, IUserManager
 {
-    public Task CreateUser(UserCredentialsInput input)
+    public async Task<UserDto> CreateUser(UserCredentialsInput input)
     {
         var user = new User
         {
@@ -25,10 +26,11 @@ public class UserManager(
         };
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
-        return context.SaveChangesAsync();
+        await context.SaveChangesAsync();
+        return user;
     }
 
-    public Task UpdateUser(UserCredentialsInput input)
+    public async Task<UserDto> UpdateUser(UserCredentialsInput input)
     {
         var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
         user.Email = input.Email;
@@ -38,7 +40,8 @@ public class UserManager(
             UserHelper.HashPassword(UserHelper.VerifyPassword(input.Password, input.PasswordConfirmation)) ??
             user.PasswordDigest;
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
-        return context.SaveChangesAsync();
+        await context.SaveChangesAsync();
+        return user;
     }
 
     public Task DeleteUser()
@@ -48,8 +51,8 @@ public class UserManager(
         return context.SaveChangesAsync();
     }
 
-    public Task GetUser()
+    public async Task<UserDto> GetUser()
     {
-        return Task.CompletedTask;
+        return await context.Users.FirstAsync(u => u.Id == this.GetPrimaryKey());
     }
 }

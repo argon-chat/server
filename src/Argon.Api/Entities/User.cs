@@ -5,70 +5,73 @@ using System.Runtime.Serialization;
 using MemoryPack;
 using MessagePack;
 
+public sealed record User
+{
+    [System.ComponentModel.DataAnnotations.Key]
+    public Guid Id { get; } = Guid.Empty;
+
+    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    [Required] [MaxLength(255)] public string Email { get; set; } = string.Empty;
+    [MaxLength(255)] [MinLength(6)] public string? Username { get; set; } = string.Empty;
+    [MaxLength(30)] public string? PhoneNumber { get; set; } = string.Empty;
+    [MaxLength(511)] public string? PasswordDigest { get; set; } = string.Empty;
+    [MaxLength(1023)] public string? AvatarUrl { get; set; } = string.Empty;
+    [MaxLength(7)] public string? OTP { get; set; } = string.Empty;
+    public DateTime? DeletedAt { get; set; }
+
+    public static implicit operator UserDto(User user)
+    {
+        return new UserDto(
+            user.Id,
+            user.CreatedAt,
+            user.UpdatedAt,
+            user.Email,
+            user.Username,
+            user.PhoneNumber,
+            user.AvatarUrl,
+            user.DeletedAt
+        );
+    }
+}
+
 [DataContract]
 [MemoryPackable(GenerateType.VersionTolerant)]
 [MessagePackObject]
 [Serializable]
 [GenerateSerializer]
-[Alias("Argon.Api.Entities.User")]
-public sealed partial record User
-{
-    [System.ComponentModel.DataAnnotations.Key]
-    [Id(0)]
-    [MemoryPackOrder(0)]
-    [DataMember(Order = 0)]
-    public Guid Id { get; private set; } = Guid.Empty;
-
-    [Id(1)]
-    [MemoryPackOrder(1)]
-    [DataMember(Order = 1)]
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-
-    [Id(2)]
-    [MemoryPackOrder(2)]
-    [DataMember(Order = 2)]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    [Required]
-    [MaxLength(255)]
-    [Id(3)]
-    [MemoryPackOrder(3)]
-    [DataMember(Order = 3)]
-    public string Email { get; set; } = string.Empty;
-
-    [MaxLength(255)]
-    [MinLength(6)]
-    [Id(4)]
-    [MemoryPackOrder(4)]
-    [DataMember(Order = 4)]
-    public string? Username { get; set; } = string.Empty;
-
-    [MaxLength(30)]
-    [Id(5)]
-    [MemoryPackOrder(5)]
-    [DataMember(Order = 5)]
-    public string? PhoneNumber { get; set; } = string.Empty;
-
-    [MaxLength(511)]
-    [Id(6)]
-    [MemoryPackOrder(6)]
-    [DataMember(Order = 6)]
-    public string? PasswordDigest { get; set; } = string.Empty;
-
-    [MaxLength(1023)]
-    [Id(7)]
-    [MemoryPackOrder(7)]
-    [DataMember(Order = 7)]
-    public string? AvatarUrl { get; set; } = string.Empty;
-
-    [MaxLength(7)]
-    [Id(8)]
-    [MemoryPackOrder(8)]
-    [DataMember(Order = 8)]
-    public string? OTP { get; set; } = string.Empty;
-
-    [Id(9)]
-    [MemoryPackOrder(9)]
-    [DataMember(Order = 9)]
-    public DateTime? DeletedAt { get; set; }
-}
+[Alias(nameof(UserDto))]
+public sealed partial record UserDto(
+    [property: DataMember(Order = 0)]
+    [property: MemoryPackOrder(0)]
+    [property: Id(0)]
+    Guid Id,
+    [property: DataMember(Order = 1)]
+    [property: MemoryPackOrder(1)]
+    [property: Id(1)]
+    DateTime CreatedAt,
+    [property: DataMember(Order = 2)]
+    [property: MemoryPackOrder(2)]
+    [property: Id(2)]
+    DateTime UpdatedAt,
+    [property: DataMember(Order = 3)]
+    [property: MemoryPackOrder(3)]
+    [property: Id(3)]
+    string Email,
+    [property: DataMember(Order = 4)]
+    [property: MemoryPackOrder(4)]
+    [property: Id(4)]
+    string? Username,
+    [property: DataMember(Order = 5)]
+    [property: MemoryPackOrder(5)]
+    [property: Id(5)]
+    string? PhoneNumber,
+    [property: DataMember(Order = 6)]
+    [property: MemoryPackOrder(6)]
+    [property: Id(6)]
+    string? AvatarUrl,
+    [property: DataMember(Order = 7)]
+    [property: MemoryPackOrder(7)]
+    [property: Id(7)]
+    DateTime? DeletedAt
+);
