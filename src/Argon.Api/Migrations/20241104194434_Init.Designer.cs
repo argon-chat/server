@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241104192701_Init")]
+    [Migration("20241104194434_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -105,6 +105,9 @@ namespace Argon.Api.Migrations
                     b.Property<string>("AvatarUrl")
                         .HasMaxLength(1023)
                         .HasColumnType("character varying(1023)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");

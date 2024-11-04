@@ -51,6 +51,7 @@ namespace Argon.Api.Migrations
                 columns: table => new
                 {
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Email = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     Username = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
