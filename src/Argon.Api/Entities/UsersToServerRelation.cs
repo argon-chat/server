@@ -1,6 +1,5 @@
 namespace Argon.Api.Entities;
 
-using System.ComponentModel.DataAnnotations;
 using System.Runtime.Serialization;
 using MemoryPack;
 using MessagePack;
@@ -12,97 +11,117 @@ public enum ServerRole : ushort // TODO: sort out roles and how we actually want
     Owner
 }
 
+public sealed record UsersToServerRelation
+{
+    public Guid Id { get; } = Guid.NewGuid();
+    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    public Guid ServerId { get; set; } = Guid.Empty;
+    public DateTime Joined { get; } = DateTime.UtcNow;
+    public ServerRole Role { get; set; } = ServerRole.User;
+    public Guid UserId { get; set; } = Guid.Empty;
+    public string CustomUsername { get; set; } = string.Empty;
+    public bool IsBanned { get; set; }
+    public bool IsMuted { get; set; }
+    public DateTime? BannedUntil { get; set; }
+    public DateTime? MutedUntil { get; set; }
+    public string AvatarUrl { get; set; } = string.Empty;
+    public string? CustomAvatarUrl { get; set; }
+    public string? BanReason { get; set; }
+    public string? MuteReason { get; set; }
+
+    public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation)
+    {
+        return new UsersToServerRelationDto(
+            relation.Id,
+            relation.CreatedAt,
+            relation.UpdatedAt,
+            relation.ServerId,
+            relation.Joined,
+            relation.Role,
+            relation.UserId,
+            relation.CustomUsername,
+            relation.IsBanned,
+            relation.IsMuted,
+            relation.BannedUntil,
+            relation.MutedUntil,
+            relation.AvatarUrl,
+            relation.CustomAvatarUrl,
+            relation.BanReason,
+            relation.MuteReason
+        );
+    }
+}
+
 [DataContract]
 [MemoryPackable(GenerateType.VersionTolerant)]
 [MessagePackObject]
 [Serializable]
 [GenerateSerializer]
-[Alias("Argon.Api.Entities.UsersToServerRelation")]
-public sealed partial record UsersToServerRelation
-{
-    [System.ComponentModel.DataAnnotations.Key]
-    [Id(0)]
-    [MemoryPackOrder(0)]
-    [DataMember(Order = 0)]
-    public Guid Id { get; private set; } = Guid.NewGuid();
-
-    [Id(1)]
-    [MemoryPackOrder(1)]
-    [DataMember(Order = 1)]
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-
-    [Id(2)]
-    [MemoryPackOrder(2)]
-    [DataMember(Order = 2)]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    [Id(3)]
-    [MemoryPackOrder(3)]
-    [DataMember(Order = 3)]
-    public Guid ServerId { get; set; } = Guid.Empty;
-
-    [Id(4)]
-    [MemoryPackOrder(4)]
-    [DataMember(Order = 4)]
-    public DateTime Joined { get; } = DateTime.UtcNow;
-
-    [Id(5)]
-    [MemoryPackOrder(5)]
-    [DataMember(Order = 5)]
-    public ServerRole Role { get; set; } = ServerRole.User;
-
-    [Id(6)]
-    [MemoryPackOrder(6)]
-    [DataMember(Order = 6)]
-    public Guid UserId { get; set; } = Guid.Empty;
-
-    [MaxLength(255)]
-    [Id(7)]
-    [MemoryPackOrder(7)]
-    [DataMember(Order = 7)]
-    public string CustomUsername { get; set; } = string.Empty;
-
-    [Id(8)]
-    [MemoryPackOrder(8)]
-    [DataMember(Order = 8)]
-    public bool IsBanned { get; set; }
-
-    [Id(9)]
-    [MemoryPackOrder(9)]
-    [DataMember(Order = 9)]
-    public bool IsMuted { get; set; }
-
-    [Id(10)]
-    [MemoryPackOrder(10)]
-    [DataMember(Order = 10)]
-    public DateTime? BannedUntil { get; set; }
-
-    [Id(11)]
-    [MemoryPackOrder(11)]
-    [DataMember(Order = 11)]
-    public DateTime? MutedUntil { get; set; }
-
-    [MaxLength(255)]
-    [Id(12)]
-    [MemoryPackOrder(12)]
-    [DataMember(Order = 12)]
-    public string AvatarUrl { get; set; } = string.Empty;
-
-    [MaxLength(255)]
-    [Id(13)]
-    [MemoryPackOrder(13)]
-    [DataMember(Order = 13)]
-    public string? CustomAvatarUrl { get; set; }
-
-    [MaxLength(255)]
-    [Id(14)]
-    [MemoryPackOrder(14)]
-    [DataMember(Order = 14)]
-    public string? BanReason { get; set; }
-
-    [MaxLength(255)]
-    [Id(15)]
-    [MemoryPackOrder(15)]
-    [DataMember(Order = 15)]
-    public string? MuteReason { get; set; }
-}
+[Alias(nameof(UsersToServerRelationDto))]
+public sealed partial record UsersToServerRelationDto(
+    [property: DataMember(Order = 0)]
+    [property: MemoryPackOrder(0)]
+    [property: Id(0)]
+    Guid Id,
+    [property: DataMember(Order = 1)]
+    [property: MemoryPackOrder(1)]
+    [property: Id(1)]
+    DateTime CreatedAt,
+    [property: DataMember(Order = 2)]
+    [property: MemoryPackOrder(2)]
+    [property: Id(2)]
+    DateTime UpdatedAt,
+    [property: DataMember(Order = 3)]
+    [property: MemoryPackOrder(3)]
+    [property: Id(3)]
+    Guid ServerId,
+    [property: DataMember(Order = 4)]
+    [property: MemoryPackOrder(4)]
+    [property: Id(4)]
+    DateTime Joined,
+    [property: DataMember(Order = 5)]
+    [property: MemoryPackOrder(5)]
+    [property: Id(5)]
+    ServerRole Role,
+    [property: DataMember(Order = 6)]
+    [property: MemoryPackOrder(6)]
+    [property: Id(6)]
+    Guid UserId,
+    [property: DataMember(Order = 7)]
+    [property: MemoryPackOrder(7)]
+    [property: Id(7)]
+    string CustomUsername,
+    [property: DataMember(Order = 8)]
+    [property: MemoryPackOrder(8)]
+    [property: Id(8)]
+    bool IsBanned,
+    [property: DataMember(Order = 9)]
+    [property: MemoryPackOrder(9)]
+    [property: Id(9)]
+    bool IsMuted,
+    [property: DataMember(Order = 10)]
+    [property: MemoryPackOrder(10)]
+    [property: Id(10)]
+    DateTime? BannedUntil,
+    [property: DataMember(Order = 11)]
+    [property: MemoryPackOrder(11)]
+    [property: Id(11)]
+    DateTime? MutedUntil,
+    [property: DataMember(Order = 12)]
+    [property: MemoryPackOrder(12)]
+    [property: Id(12)]
+    string AvatarUrl,
+    [property: DataMember(Order = 13)]
+    [property: MemoryPackOrder(13)]
+    [property: Id(13)]
+    string? CustomAvatarUrl,
+    [property: DataMember(Order = 14)]
+    [property: MemoryPackOrder(14)]
+    [property: Id(14)]
+    string? BanReason,
+    [property: DataMember(Order = 15)]
+    [property: MemoryPackOrder(15)]
+    [property: Id(15)]
+    string? MuteReason
+);

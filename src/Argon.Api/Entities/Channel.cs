@@ -12,59 +12,75 @@ public enum ChannelType : ushort
     Announcement
 }
 
+public sealed record Channel
+{
+    public Guid Id { get; } = Guid.NewGuid();
+    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
+    [MaxLength(255)] public string Name { get; set; } = string.Empty;
+    [MaxLength(255)] public string Description { get; set; } = string.Empty;
+    public Guid UserId { get; set; } = Guid.Empty;
+    public ChannelType ChannelType { get; set; } = ChannelType.Text;
+    public ServerRole AccessLevel { get; set; } = ServerRole.User;
+    public Guid ServerId { get; set; } = Guid.Empty;
+
+    public static implicit operator ChannelDto(Channel channel)
+    {
+        return new ChannelDto(
+            channel.Id,
+            channel.CreatedAt,
+            channel.UpdatedAt,
+            channel.Name,
+            channel.Description,
+            channel.UserId,
+            channel.ChannelType,
+            channel.AccessLevel,
+            channel.ServerId
+        );
+    }
+}
+
 [DataContract]
 [MemoryPackable(GenerateType.VersionTolerant)]
 [MessagePackObject]
 [Serializable]
 [GenerateSerializer]
-[Alias("Argon.Api.Entities.Channel")]
-public sealed partial record Channel
-{
-    [System.ComponentModel.DataAnnotations.Key]
-    [Id(0)]
-    [MemoryPackOrder(0)]
-    [DataMember(Order = 0)]
-    public Guid Id { get; private set; } = Guid.NewGuid();
-
-    [Id(1)]
-    [MemoryPackOrder(1)]
-    [DataMember(Order = 1)]
-    public DateTime CreatedAt { get; private set; } = DateTime.UtcNow;
-
-    [Id(2)]
-    [MemoryPackOrder(2)]
-    [DataMember(Order = 2)]
-    public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
-
-    [MaxLength(255)]
-    [Id(3)]
-    [MemoryPackOrder(3)]
-    [DataMember(Order = 3)]
-    public string Name { get; set; } = string.Empty;
-
-    [MaxLength(255)]
-    [Id(4)]
-    [MemoryPackOrder(4)]
-    [DataMember(Order = 4)]
-    public string Description { get; set; } = string.Empty;
-
-    [Id(5)]
-    [MemoryPackOrder(5)]
-    [DataMember(Order = 5)]
-    public Guid UserId { get; set; } = Guid.Empty;
-
-    [Id(6)]
-    [MemoryPackOrder(6)]
-    [DataMember(Order = 6)]
-    public ChannelType ChannelType { get; set; } = ChannelType.Text;
-
-    [Id(7)]
-    [MemoryPackOrder(7)]
-    [DataMember(Order = 7)]
-    public ServerRole AccessLevel { get; set; } = ServerRole.User;
-
-    [Id(8)]
-    [MemoryPackOrder(8)]
-    [DataMember(Order = 8)]
-    public Guid ChannelId { get; set; } = Guid.Empty;
-}
+[Alias(nameof(ChannelDto))]
+public sealed partial record ChannelDto(
+    [property: DataMember(Order = 0)]
+    [property: MemoryPackOrder(0)]
+    [property: Id(0)]
+    Guid Id,
+    [property: DataMember(Order = 1)]
+    [property: MemoryPackOrder(1)]
+    [property: Id(1)]
+    DateTime CreatedAt,
+    [property: DataMember(Order = 2)]
+    [property: MemoryPackOrder(2)]
+    [property: Id(2)]
+    DateTime UpdatedAt,
+    [property: DataMember(Order = 3)]
+    [property: MemoryPackOrder(3)]
+    [property: Id(3)]
+    string Name,
+    [property: DataMember(Order = 4)]
+    [property: MemoryPackOrder(4)]
+    [property: Id(4)]
+    string Description,
+    [property: DataMember(Order = 5)]
+    [property: MemoryPackOrder(5)]
+    [property: Id(5)]
+    Guid UserId,
+    [property: DataMember(Order = 6)]
+    [property: MemoryPackOrder(6)]
+    [property: Id(6)]
+    ChannelType ChannelType,
+    [property: DataMember(Order = 7)]
+    [property: MemoryPackOrder(7)]
+    [property: Id(7)]
+    ServerRole AccessLevel,
+    [property: DataMember(Order = 8)]
+    [property: MemoryPackOrder(8)]
+    [property: Id(8)]
+    Guid ServerId
+);

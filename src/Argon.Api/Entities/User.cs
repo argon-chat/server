@@ -17,6 +17,7 @@ public sealed record User
     [MaxLength(1023)] public string? AvatarUrl { get; set; } = string.Empty;
     [MaxLength(7)] public string? OTP { get; set; } = string.Empty;
     public DateTime? DeletedAt { get; set; }
+    public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
     public static implicit operator UserDto(User user)
     {
@@ -28,7 +29,8 @@ public sealed record User
             user.Username,
             user.PhoneNumber,
             user.AvatarUrl,
-            user.DeletedAt
+            user.DeletedAt,
+            user.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList()
         );
     }
 }
@@ -71,5 +73,9 @@ public sealed partial record UserDto(
     [property: DataMember(Order = 7)]
     [property: MemoryPackOrder(7)]
     [property: Id(7)]
-    DateTime? DeletedAt
+    DateTime? DeletedAt,
+    [property: DataMember(Order = 8)]
+    [property: MemoryPackOrder(8)]
+    [property: Id(8)]
+    List<UsersToServerRelationDto> UsersToServerRelations
 );
