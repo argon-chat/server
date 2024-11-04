@@ -14,8 +14,8 @@ public enum ChannelType : ushort
 
 public sealed record Channel
 {
-    public Guid Id { get; } = Guid.NewGuid();
-    public DateTime CreatedAt { get; } = DateTime.UtcNow;
+    public Guid Id { get; set; } = Guid.NewGuid();
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     [MaxLength(255)] public string Name { get; set; } = string.Empty;
     [MaxLength(255)] public string Description { get; set; } = string.Empty;
