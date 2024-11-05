@@ -48,19 +48,13 @@ public class UserManagerService(ILogger<UserManagerService> logger, IOptions<Jwt
     private Task ValidatePasswordStrength(string password)
     {
         if (!password.Any(char.IsDigit))
-        {
             throw new Exception("Password must contain at least one digit"); // TODO: Come up with application specific errors
-        }
 
         if (!password.Any(char.IsUpper))
-        {
             throw new Exception("Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
-        }
 
         if (!password.Any(char.IsLower))
-        {
             throw new Exception("Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
-        }
 
         return Task.CompletedTask;
     }

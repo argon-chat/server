@@ -22,7 +22,7 @@ public class SessionManager(
         if (input.GenerateOtp)
         {
             user.OTP = passwordHashingService.GenerateOtp();
-            logger.LogCritical(user.OTP); // TODO: replace with emailing the user the OTP
+            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid()).SendEmailAsync(user.Email, "OTP", $"Your OTP is {user.OTP}");
             context.Users.Update(user);
             await context.SaveChangesAsync();
             return new JwtToken("");

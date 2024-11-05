@@ -6,6 +6,7 @@ using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Rpc;
+using Argon.Api.Grains.Interfaces;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Sfu;
@@ -13,6 +14,7 @@ using Argon.Sfu;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddJwt();
+builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
