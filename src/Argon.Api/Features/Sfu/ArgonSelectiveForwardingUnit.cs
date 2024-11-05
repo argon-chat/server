@@ -34,7 +34,7 @@ public class ArgonSelectiveForwardingUnit(
         SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
     public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-                                                                 SfuPermission permission)
+        SfuPermission permission)
         => new(CreateJwt(channelId, userId, permission, settings));
 
     // TODO check validity
@@ -58,7 +58,7 @@ public class ArgonSelectiveForwardingUnit(
     }
 
     public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId,
-                                                                             uint maxParticipants)
+        uint maxParticipants)
     {
         var result = await RequestAsync<CreateRoomRequest, Room>("RoomService", "CreateRoom", new CreateRoomRequest
         {
@@ -96,7 +96,7 @@ public class ArgonSelectiveForwardingUnit(
         => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
-                                           IOptions<SfuFeatureSettings> settings)
+        IOptions<SfuFeatureSettings> settings)
     {
         var now = DateTime.UtcNow;
         JwtHeader headers =
@@ -131,7 +131,7 @@ public class ArgonSelectiveForwardingUnit(
     }
 
     public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data,
-                                                            Dictionary<string, string> headers, CancellationToken ct = default)
+        Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
            .Request($"{prefix}/{pkg}.{service}/{method}")
@@ -145,7 +145,7 @@ public class ArgonSelectiveForwardingUnit(
     }
 
     public async ValueTask RequestAsync<TReq>(string service, string method, TReq data,
-                                              Dictionary<string, string> headers, CancellationToken ct = default)
+        Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
            .Request($"{prefix}/{pkg}.{service}/{method}")

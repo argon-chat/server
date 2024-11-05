@@ -7,17 +7,23 @@ using MessagePack;
 
 public sealed record User
 {
-    public                                Guid                        Id                     { get; init; } = Guid.NewGuid();
-    public                                DateTime                    CreatedAt              { get; init; } = DateTime.UtcNow;
-    public                                DateTime                    UpdatedAt              { get; set; }  = DateTime.UtcNow;
-    [Required, MaxLength(255)]     public string                      Email                  { get; set; }  = string.Empty;
-    [MaxLength(255), MinLength(6)] public string?                     Username               { get; set; }  = string.Empty;
-    [MaxLength(30)]                public string?                     PhoneNumber            { get; set; }  = string.Empty;
-    [MaxLength(511)]               public string?                     PasswordDigest         { get; set; }  = string.Empty;
-    [MaxLength(1023)]              public string?                     AvatarUrl              { get; set; }  = string.Empty;
-    [MaxLength(7)]                 public string?                     OTP                    { get; set; }  = string.Empty;
-    public                                DateTime?                   DeletedAt              { get; set; }
-    public                                List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
+    public Guid     Id        { get; init; } = Guid.NewGuid();
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; }  = DateTime.UtcNow;
+    [Required, MaxLength(255)]
+    public string Email { get; set; } = string.Empty;
+    [MaxLength(255)]
+    public string? Username { get; set; } = string.Empty;
+    [MaxLength(30)]
+    public string? PhoneNumber { get; set; } = string.Empty;
+    [MaxLength(511)]
+    public string? PasswordDigest { get; set; } = string.Empty;
+    [MaxLength(1023)]
+    public string? AvatarUrl { get; set; } = string.Empty;
+    [MaxLength(7)]
+    public string? OTP { get;                                        set; } = string.Empty;
+    public DateTime?                   DeletedAt              { get; set; }
+    public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
     public static implicit operator UserDto(User user)
         => new(

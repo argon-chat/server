@@ -14,15 +14,17 @@ public enum ChannelType : ushort
 
 public sealed record Channel
 {
-    public                  Guid        Id          { get; init; } = Guid.NewGuid();
-    public                  DateTime    CreatedAt   { get; init; } = DateTime.UtcNow;
-    public                  DateTime    UpdatedAt   { get; set; }  = DateTime.UtcNow;
-    [MaxLength(255)] public string      Name        { get; set; }  = string.Empty;
-    [MaxLength(255)] public string      Description { get; set; }  = string.Empty;
-    public                  Guid        UserId      { get; set; }  = Guid.Empty;
-    public                  ChannelType ChannelType { get; set; }  = ChannelType.Text;
-    public                  ServerRole  AccessLevel { get; set; }  = ServerRole.User;
-    public                  Guid        ServerId    { get; set; }  = Guid.Empty;
+    public Guid     Id        { get; init; } = Guid.NewGuid();
+    public DateTime CreatedAt { get; init; } = DateTime.UtcNow;
+    public DateTime UpdatedAt { get; set; }  = DateTime.UtcNow;
+    [MaxLength(255)]
+    public string Name { get; set; } = string.Empty;
+    [MaxLength(255)]
+    public string Description { get;      set; } = string.Empty;
+    public Guid        UserId      { get; set; } = Guid.Empty;
+    public ChannelType ChannelType { get; set; } = ChannelType.Text;
+    public ServerRole  AccessLevel { get; set; } = ServerRole.User;
+    public Guid        ServerId    { get; set; } = Guid.Empty;
 
     public static implicit operator ChannelDto(Channel channel)
         => new(
