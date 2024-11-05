@@ -12,48 +12,49 @@ using Microsoft.IdentityModel.Tokens;
 public class ArgonSfuTestController : ControllerBase
 {
     [HttpGet("/sfu/create_channel")]
-    public async ValueTask<IActionResult> GetData(
-        [FromServices] IArgonSelectiveForwardingUnit sfu, [FromQuery] Guid serverId, [FromQuery] Guid channelId)
-        => Ok(await sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
+    public async ValueTask<IActionResult> GetData([FromServices] IArgonSelectiveForwardingUnit sfu, [FromQuery] Guid serverId,
+        [FromQuery] Guid channelId) =>
+        Ok(await sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
 
     [HttpPost("/sfu/token")]
-    public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu, [FromBody] ArgonChannelId roomId)
-        => Ok(await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
+    public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu, [FromBody] ArgonChannelId roomId) =>
+        Ok(await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
 }
 #endif
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
     [FromKeyedServices(SfuFeature.HttpClientKey)]
-    IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
+    IFlurlClient httpClient
+) : IArgonSelectiveForwardingUnit
 {
     private const string pkg    = "livekit";
     private const string prefix = "/twirp";
-
     private static readonly Guid
         SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
     public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-        SfuPermission permission)
-        => new(CreateJwt(channelId, userId, permission, settings));
+        SfuPermission permission) =>
+        new(CreateJwt(channelId, userId, permission, settings));
 
     // TODO check validity
-    public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId)
-        => throw new NotImplementedException();
+    public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId) =>
+        throw new NotImplementedException();
 
     // TODO
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
     {
         await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
-        {
-            Identity = userId.ToRawIdentity(),
-            Room     = channelId.ToRawRoomId()
-        }, new Dictionary<string, string>
-        {
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                Identity = userId.ToRawIdentity(),
+                Room     = channelId.ToRawRoomId(),
+            }, new Dictionary<string, string>
+            {
+                {
+                    "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                },
             }
-        });
+        );
         return true;
     }
 
@@ -61,39 +62,40 @@ public class ArgonSelectiveForwardingUnit(
         uint maxParticipants)
     {
         var result = await RequestAsync<CreateRoomRequest, Room>("RoomService", "CreateRoom", new CreateRoomRequest
-        {
-            Name             = channelId.ToRawRoomId(),
-            Metadata         = channelId.ToRawRoomId(),
-            MaxParticipants  = maxParticipants,
-            DepartureTimeout = 10,
-            EmptyTimeout     = 2,
-            SyncStreams      = true
-        }, new Dictionary<string, string>
-        {
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                Name             = channelId.ToRawRoomId(),
+                Metadata         = channelId.ToRawRoomId(),
+                MaxParticipants  = maxParticipants,
+                DepartureTimeout = 10,
+                EmptyTimeout     = 2,
+                SyncStreams      = true,
+            }, new Dictionary<string, string>
+            {
+                {
+                    "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                },
             }
-        });
-
+        );
         return new EphemeralChannelInfo(channelId, result.Sid, result);
     }
 
     public async ValueTask<bool> PruneEphemeralChannelAsync(ArgonChannelId channelId)
     {
         await RequestAsync("RoomService", "DeleteRoom", new DeleteRoomRequest
-        {
-            Room = channelId.ToRawRoomId()
-        }, new Dictionary<string, string>
-        {
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                Room = channelId.ToRawRoomId(),
+            }, new Dictionary<string, string>
+            {
+                {
+                    "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                },
             }
-        });
+        );
         return true;
     }
 
-    private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
-        => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
+    private RealtimeToken CreateSystemToken(ArgonChannelId channelId) =>
+        CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
         IOptions<SfuFeatureSettings> settings)
@@ -102,8 +104,9 @@ public class ArgonSelectiveForwardingUnit(
         JwtHeader headers =
             new(new
                 SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)),
-                    "HS256"));
-
+                    "HS256"
+                )
+            );
         JwtPayload payload = new()
         {
             {
@@ -123,9 +126,8 @@ public class ArgonSelectiveForwardingUnit(
             },
             {
                 "video", permissions.ToDictionary(roomName)
-            }
+            },
         };
-
         JwtSecurityToken token = new(headers, payload);
         return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
     }
@@ -138,7 +140,6 @@ public class ArgonSelectiveForwardingUnit(
            .WithHeaders(headers)
            .AllowAnyHttpStatus()
            .PostJsonAsync(data, cancellationToken: ct);
-
         if (response.StatusCode != 200)
             throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
         return await response.GetJsonAsync<TResp>();
@@ -152,7 +153,6 @@ public class ArgonSelectiveForwardingUnit(
            .WithHeaders(headers)
            .AllowAnyHttpStatus()
            .PostJsonAsync(data, cancellationToken: ct);
-
         if (response.StatusCode != 200)
             throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
     }

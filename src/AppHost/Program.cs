@@ -1,24 +1,24 @@
 using AppHost;
 using Projects;
 
-var builder = DistributedApplication.CreateBuilder(args);
-
+var builder         = DistributedApplication.CreateBuilder(args);
 var username        = builder.AddParameter("username", true);
 var password        = builder.AddParameter("password", true);
 var sfuUrl          = builder.AddParameter("sfu-url", true);
 var sfuClientId     = builder.AddParameter("sfu-client-id", true);
 var sfuClientSecret = builder.AddParameter("sfu-client-secret", true);
 var jwtKey          = builder.AddParameter("jwt-key", true);
-
-var cache = builder.AddRedis("cache", 6379);
-var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: password)
+var cache           = builder.AddRedis("cache", 6379);
+var rmq = builder
+   .AddRabbitMQ("rmq", port: 5672, userName: username, password: password)
    .WithDataVolume(isReadOnly: false)
    .WithManagementPlugin();
-var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password)
+var db = builder
+   .AddPostgres("pg", port: 5432, userName: username, password: password)
    .WithDataVolume();
-
 var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
-var clickhouse = builder.AddResource(clickhouseResource)
+var clickhouse = builder
+   .AddResource(clickhouseResource)
    .WithImage("clickhouse/clickhouse-server")
    .WithVolume("clickhouse-data", "/var/lib/clickhouse")
    .WithVolume("logs", "/var/log/clickhouse-server")
@@ -28,10 +28,9 @@ var clickhouse = builder.AddResource(clickhouseResource)
    .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
    .WithHttpEndpoint(8123, 8123) // http endpoint
    .WithEndpoint(9000, 9000);    // native client endpoint
-
 var apiDb = db.AddDatabase("apiDb");
-
-var api = builder.AddProject<Argon_Api>("argonapi")
+var api = builder
+   .AddProject<Argon_Api>("argonapi")
    .WithReference(apiDb, "DefaultConnection")
    .WithReference(cache)
    .WithReference(clickhouse)
@@ -44,5 +43,4 @@ var api = builder.AddProject<Argon_Api>("argonapi")
    .WithEnvironment("Jwt__Key", jwtKey)
    .WithEnvironment("Jwt__Expire", "228")
    .WithExternalHttpEndpoints();
-
 builder.Build().Run();

@@ -6,31 +6,34 @@ public static class SwaggerExtension
 {
     public static WebApplicationBuilder AddSwaggerWithAuthHeader(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSwaggerGen(c =>
-            {
-                c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+        builder
+           .Services.AddSwaggerGen(c =>
                 {
-                    Name        = "x-argon-token",
-                    In          = ParameterLocation.Header,
-                    Description = "access token"
-                });
-                c.AddSecurityRequirement(new OpenApiSecurityRequirement
-                {
-                    {
-                        new OpenApiSecurityScheme
+                    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                         {
-                            Reference = new OpenApiReference
+                            Name        = "x-argon-token",
+                            In          = ParameterLocation.Header,
+                            Description = "access token",
+                        }
+                    );
+                    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                        {
                             {
-                                Type = ReferenceType.SecurityScheme,
-                                Id   = "Bearer"
-                            }
-                        },
-                        []
-                    }
-                });
-            })
+                                new OpenApiSecurityScheme
+                                {
+                                    Reference = new OpenApiReference
+                                    {
+                                        Type = ReferenceType.SecurityScheme,
+                                        Id   = "Bearer",
+                                    },
+                                },
+                                []
+                            },
+                        }
+                    );
+                }
+            )
            .AddEndpointsApiExplorer();
-
         return builder;
     }
 }

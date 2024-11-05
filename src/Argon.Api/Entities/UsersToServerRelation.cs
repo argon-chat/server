@@ -8,7 +8,7 @@ public enum ServerRole : ushort // TODO: sort out roles and how we actually want
 {
     User,
     Admin,
-    Owner
+    Owner,
 }
 
 public sealed record UsersToServerRelation
@@ -32,8 +32,8 @@ public sealed record UsersToServerRelation
     public string?    BanReason       { get; set; }
     public string?    MuteReason      { get; set; }
 
-    public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation)
-        => new(
+    public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation) =>
+        new(
             relation.Id,
             relation.CreatedAt,
             relation.Joined,

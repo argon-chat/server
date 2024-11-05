@@ -19,7 +19,7 @@ public class UserManager(
             Username       = input.Username,
             PhoneNumber    = input.PhoneNumber,
             PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation),
-            OTP            = passwordHashingService.GenerateOtp()
+            OTP            = passwordHashingService.GenerateOtp(),
         };
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
@@ -34,7 +34,7 @@ public class UserManager(
         user.Username    = input.Username ?? user.Username;
         user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
         user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
-                              user.PasswordDigest;
+            user.PasswordDigest;
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Update(user);
         await context.SaveChangesAsync();
@@ -49,11 +49,12 @@ public class UserManager(
         return context.SaveChangesAsync();
     }
 
-    public async Task<UserDto> GetUser()
-        => await Get();
+    public async Task<UserDto> GetUser() =>
+        await Get();
 
-    private async Task<User> Get()
-        => await context.Users
+    private async Task<User> Get() =>
+        await context
+           .Users
            .Include(x => x.UsersToServerRelations)
            .ThenInclude(x => x.Server)
            .ThenInclude(x => x.Channels)
