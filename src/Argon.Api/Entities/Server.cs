@@ -7,14 +7,14 @@ using MessagePack;
 
 public sealed record Server
 {
-    public                  Guid                        Id                     { get; set; } = Guid.NewGuid();
-    public                  DateTime                    CreatedAt              { get; set; } = DateTime.UtcNow;
-    public                  DateTime                    UpdatedAt              { get; set; } = DateTime.UtcNow;
-    [MaxLength(255)] public string                      Name                   { get; set; } = string.Empty;
-    [MaxLength(255)] public string?                     Description            { get; set; } = string.Empty;
-    [MaxLength(255)] public string?                     AvatarUrl              { get; set; } = string.Empty;
-    public                  List<Channel>               Channels               { get; set; } = new();
-    public                  List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
+    public                  Guid                        Id                     { get; init; } = Guid.NewGuid();
+    public                  DateTime                    CreatedAt              { get; init; } = DateTime.UtcNow;
+    public                  DateTime                    UpdatedAt              { get; set; }  = DateTime.UtcNow;
+    [MaxLength(255)] public string                      Name                   { get; set; }  = string.Empty;
+    [MaxLength(255)] public string?                     Description            { get; set; }  = string.Empty;
+    [MaxLength(255)] public string?                     AvatarUrl              { get; set; }  = string.Empty;
+    public                  List<Channel>               Channels               { get; set; }  = new();
+    public                  List<UsersToServerRelation> UsersToServerRelations { get; set; }  = new();
 
     public static implicit operator ServerDto(Server server)
         => new(

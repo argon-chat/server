@@ -13,12 +13,12 @@ public enum ServerRole : ushort // TODO: sort out roles and how we actually want
 
 public sealed record UsersToServerRelation
 {
-    public Guid       Id              { get; set; } = Guid.NewGuid();
-    public DateTime   CreatedAt       { get; set; } = DateTime.UtcNow;
-    public DateTime   UpdatedAt       { get; set; } = DateTime.UtcNow;
-    public Guid       ServerId        { get; set; } = Guid.Empty;
+    public Guid       Id              { get; init; } = Guid.NewGuid();
+    public DateTime   CreatedAt       { get; init; } = DateTime.UtcNow;
+    public DateTime   UpdatedAt       { get; set; }  = DateTime.UtcNow;
+    public Guid       ServerId        { get; set; }  = Guid.Empty;
     public Server     Server          { get; set; }
-    public DateTime   Joined          { get; }      = DateTime.UtcNow;
+    public DateTime   Joined          { get; set; } = DateTime.UtcNow;
     public ServerRole Role            { get; set; } = ServerRole.User;
     public Guid       UserId          { get; set; } = Guid.Empty;
     public User       User            { get; set; }
