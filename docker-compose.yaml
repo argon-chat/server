@@ -1,22 +1,10 @@
 services:
-  aspire-dashboard:
-    container_name: "aspire-dashboard"
-    image: "mcr.microsoft.com/dotnet/aspire-dashboard:8.0"
-    environment:
-      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
-    ports:
-    - target: 18888
-      published: 18888
-    restart: unless-stopped
   cache:
     container_name: "cache"
     image: "docker.io/library/redis:7.4"
-    environment:
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "cache"
     ports:
-    - target: 6379
-      published: 6379
+      - target: 6379
+        published: 6379
     restart: unless-stopped
   rmq:
     container_name: "rmq"
@@ -24,15 +12,13 @@ services:
     environment:
       RABBITMQ_DEFAULT_USER: "svck"
       RABBITMQ_DEFAULT_PASS: "Password123"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "rmq"
     volumes:
-    - "apphost-rmq-data:/var/lib/rabbitmq"
+      - "apphost-rmq-data:/var/lib/rabbitmq"
     ports:
-    - target: 5672
-      published: 5672
-    - target: 15672
-      published: 15672
+      - target: 5672
+        published: 5672
+      - target: 15672
+        published: 15672
     restart: unless-stopped
   pg:
     container_name: "pg"
@@ -42,14 +28,31 @@ services:
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
       POSTGRES_USER: "svck"
       POSTGRES_PASSWORD: "Password123"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "pg"
     volumes:
-    - "apphost-pg-data:/var/lib/postgresql/data"
+      - "apphost-pg-data:/var/lib/postgresql/data"
     ports:
-    - target: 5432
-      published: 5432
+      - target: 5432
+        published: 5432
+    restart: unless-stopped
+  clickhouse:
+    container_name: "clickhouse"
+    image: "clickhouse/clickhouse-server:latest"
+    environment:
+      CLICKHOUSE_USER: "svck"
+      CLICKHOUSE_PASSWORD: "Password123"
+      CLICKHOUSE_DB: "svck"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - "clickhouse-data:/var/lib/clickhouse"
+      - "logs:/var/log/clickhouse-server"
+    ports:
+      - target: 8123
+        published: 8123
+      - target: 9000
+        published: 9000
     restart: unless-stopped
 volumes:
-  apphost-rmq-data: {}
-  apphost-pg-data: {}
+  apphost-rmq-data: { }
+  apphost-pg-data: { }
+  clickhouse-data: { }
+  logs: { }

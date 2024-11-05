@@ -10,7 +10,10 @@ using MessagePack;
 [MessagePackObject]
 [Serializable]
 [GenerateSerializer]
-public sealed record UsersJoinedToChannel
+public sealed partial record UsersJoinedToChannel
 {
-    public List<UsersToServerRelation> Users { get; set; } = new();
+    [DataMember(Order = 0)]
+    [MemoryPackOrder(0)]
+    [Id(0)]
+    public List<UsersToServerRelationDto> Users { get; set; } = new();
 }

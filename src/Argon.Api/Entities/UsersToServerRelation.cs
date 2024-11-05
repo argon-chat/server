@@ -47,7 +47,9 @@ public sealed record UsersToServerRelation
             relation.AvatarUrl,
             relation.CustomAvatarUrl,
             relation.BanReason,
-            relation.MuteReason
+            relation.MuteReason,
+            relation.ServerId,
+            relation.UserId
         );
     }
 }
@@ -110,5 +112,13 @@ public sealed partial record UsersToServerRelationDto(
     [property: DataMember(Order = 12)]
     [property: MemoryPackOrder(12)]
     [property: Id(12)]
-    string? MuteReason
+    string? MuteReason,
+    [property: DataMember(Order = 13)]
+    [property: MemoryPackOrder(13)]
+    [property: Id(13)]
+    Guid ServerId,
+    [property: DataMember(Order = 14)]
+    [property: MemoryPackOrder(14)]
+    [property: Id(14)]
+    Guid UserId
 );

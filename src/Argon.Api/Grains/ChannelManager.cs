@@ -16,6 +16,7 @@ public class ChannelManager(
     public async Task<RealtimeToken> Join(Guid userId)
     {
         var channel = await GetChannel();
+        if (channel.ChannelType != ChannelType.Voice) throw new Exception("k mamke svoey podklyuchaysa");
 
         var user = (await context.Servers.Include(x => x.UsersToServerRelations)
                 .FirstAsync(x => x.Id == channel.ServerId))
@@ -42,6 +43,18 @@ public class ChannelManager(
 
     public async Task<ChannelDto> GetChannel()
     {
+        return await Get();
+    }
+
+    public async Task<ChannelDto> UpdateChannel(ChannelInput input)
+    {
+        var channel = await Get();
+        channel.Name = input.Name;
+        channel.AccessLevel = input.AccessLevel;
+        channel.Description = input.Description ?? channel.Description;
+        channel.ChannelType = input.ChannelType;
+        context.Channels.Update(channel);
+        await context.SaveChangesAsync();
         return await Get();
     }
 

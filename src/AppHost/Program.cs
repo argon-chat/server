@@ -1,3 +1,4 @@
+using AppHost;
 using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
@@ -16,11 +17,24 @@ var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: p
 var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password)
     .WithDataVolume();
 
+var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
+var clickhouse = builder.AddResource(clickhouseResource)
+    .WithImage("clickhouse/clickhouse-server")
+    .WithVolume("clickhouse-data", "/var/lib/clickhouse")
+    .WithVolume("logs", "/var/log/clickhouse-server")
+    .WithEnvironment("CLICKHOUSE_USER", username)
+    .WithEnvironment("CLICKHOUSE_PASSWORD", password)
+    .WithEnvironment("CLICKHOUSE_DB", username)
+    .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
+    .WithHttpEndpoint(8123, 8123) // http endpoint
+    .WithEndpoint(9000, 9000); // native client endpoint
+
 var apiDb = db.AddDatabase("apiDb");
 
 var api = builder.AddProject<Argon_Api>("argon-api")
     .WithReference(apiDb, "DefaultConnection")
     .WithReference(cache)
+    .WithReference(clickhouse)
     .WithReference(rmq)
     .WithEnvironment("sfu__url", sfuUrl)
     .WithEnvironment("sfu__clientId", sfuClientId)
