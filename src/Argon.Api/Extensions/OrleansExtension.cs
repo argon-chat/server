@@ -7,30 +7,30 @@ using Orleans.Storage;
 internal class MemoryPackStorageSerializer : IGrainStorageSerializer
 {
     public BinaryData Serialize<T>(T input)
-        => new(data: MemoryPackSerializer.Serialize(value: input));
+        => new(MemoryPackSerializer.Serialize(input));
 
     public T Deserialize<T>(BinaryData input)
-        => MemoryPackSerializer.Deserialize<T>(buffer: input) ?? throw new InvalidOperationException();
+        => MemoryPackSerializer.Deserialize<T>(input) ?? throw new InvalidOperationException();
 }
 
 public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        builder.Host.UseOrleans(configureDelegate: siloBuilder =>
+        builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder
-                .Configure<ClusterOptions>(configureOptions: cluster =>
+                .Configure<ClusterOptions>(cluster =>
                 {
                     cluster.ClusterId = "Api";
                     cluster.ServiceId = "Api";
                 })
-                .AddAdoNetGrainStorage(name: "OrleansStorage", configureOptions: options =>
+                .AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
                     options.Invariant = "Npgsql";
                     options.ConnectionString =
                         builder.Configuration
-                               .GetConnectionString(name: "DefaultConnection");
+                               .GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer =
                         new MemoryPackStorageSerializer();
                 })

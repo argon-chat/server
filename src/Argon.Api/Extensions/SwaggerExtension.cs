@@ -6,15 +6,15 @@ public static class SwaggerExtension
 {
     public static WebApplicationBuilder AddSwaggerWithAuthHeader(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSwaggerGen(setupAction: c =>
+        builder.Services.AddSwaggerGen(c =>
                {
-                   c.AddSecurityDefinition(name: "Bearer", securityScheme: new OpenApiSecurityScheme
+                   c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                    {
                        Name        = "x-argon-token",
                        In          = ParameterLocation.Header,
                        Description = "access token"
                    });
-                   c.AddSecurityRequirement(securityRequirement: new OpenApiSecurityRequirement
+                   c.AddSecurityRequirement(new OpenApiSecurityRequirement
                    {
                        {
                            new OpenApiSecurityScheme

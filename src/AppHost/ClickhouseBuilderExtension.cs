@@ -6,11 +6,11 @@ public class ClickhouseBuilderExtension : ContainerResource, IResourceWithConnec
     internal const string ClientEndpointName  = "tcp";
     private const  string DefaultUserName     = "guest";
 
-    public ClickhouseBuilderExtension(string                               name, IResourceBuilder<ParameterResource>? userName,
-                                      IResourceBuilder<ParameterResource>? password) : base(name: name)
+    public ClickhouseBuilderExtension(string name, IResourceBuilder<ParameterResource>? userName, IResourceBuilder<ParameterResource>? password) :
+        base(name)
     {
-        PrimaryEndpoint   = new EndpointReference(owner: this, endpointName: PrimaryEndpointName);
-        ClientEndpoint    = new EndpointReference(owner: this, endpointName: ClientEndpointName);
+        PrimaryEndpoint   = new EndpointReference(this, PrimaryEndpointName);
+        ClientEndpoint    = new EndpointReference(this, ClientEndpointName);
         UserNameParameter = userName?.Resource;
         PasswordParameter = password?.Resource;
     }
@@ -22,7 +22,6 @@ public class ClickhouseBuilderExtension : ContainerResource, IResourceWithConnec
 
     public ReferenceExpression ConnectionStringExpression =>
         ReferenceExpression.Create(
-            handler:
-            $"http://{UserNameParameter}:{PasswordParameter}@{PrimaryEndpoint.Property(property: EndpointProperty.Host)}:{PrimaryEndpoint.Property(property: EndpointProperty.Port)}"
-        );
+                                   $"http://{UserNameParameter}:{PasswordParameter}@{PrimaryEndpoint.Property(EndpointProperty.Host)}:{PrimaryEndpoint.Property(EndpointProperty.Port)}"
+                                  );
 }

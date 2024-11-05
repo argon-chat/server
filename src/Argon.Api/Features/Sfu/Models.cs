@@ -5,13 +5,13 @@ using MemoryPack;
 
 public record struct EphemeralChannelInfo(ArgonChannelId channelId, string sid, Room room);
 
-[Serializable, GenerateSerializer, MemoryPackable, Alias(alias: nameof(RealtimeToken))]
+[Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(RealtimeToken))]
 public partial record struct RealtimeToken(string value);
 
 public record struct ArgonUserId(Guid id)
 {
     public string ToRawIdentity()
-        => id.ToString(format: "N");
+        => id.ToString("N");
 }
 
 public record struct ArgonServerId(Guid id);

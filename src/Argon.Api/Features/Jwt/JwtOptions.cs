@@ -27,16 +27,16 @@ public static class JwtFeature
 {
     public static IServiceCollection AddJwt(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<JwtOptions>(config: builder.Configuration.GetSection(key: "Jwt"));
+        builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
-        var jwt = builder.Configuration.GetSection(key: "Jwt").Get<JwtOptions>();
+        var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
-        builder.Services.AddAuthentication(configureOptions: options =>
+        builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
             options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
-        }).AddJwtBearer(configureOptions: o =>
+        }).AddJwtBearer(o =>
         {
             o.TokenValidationParameters =
                 new TokenValidationParameters
@@ -44,8 +44,8 @@ public static class JwtFeature
                     ValidIssuer   = jwt.Issuer,
                     ValidAudience = jwt.Audience,
                     IssuerSigningKey =
-                        new SymmetricSecurityKey(key: Encoding
-                                                      .UTF8.GetBytes(s: jwt.Key)),
+                        new SymmetricSecurityKey(Encoding
+                                                 .UTF8.GetBytes(jwt.Key)),
                     ValidateIssuer           = true,
                     ValidateAudience         = true,
                     ValidateLifetime         = true,
@@ -57,8 +57,8 @@ public static class JwtFeature
                 OnMessageReceived = ctx =>
                 {
                     if (ctx.Request.Headers
-                           .TryGetValue(key: "x-argon-token",
-                               value: out var value))
+                           .TryGetValue("x-argon-token",
+                                        out var value))
                     {
                         ctx.Token = value;
                         return Task.CompletedTask;

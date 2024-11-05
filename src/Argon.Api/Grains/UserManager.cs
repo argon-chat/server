@@ -18,11 +18,11 @@ public class UserManager(
             Email          = input.Email,
             Username       = input.Username,
             PhoneNumber    = input.PhoneNumber,
-            PasswordDigest = passwordHashingService.HashPassword(password: input.Password, passwordConfirmation: input.PasswordConfirmation),
+            PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation),
             OTP            = passwordHashingService.GenerateOtp()
         };
-        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user: user);
-        context.Users.Add(entity: user);
+        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;
     }
@@ -33,19 +33,19 @@ public class UserManager(
         user.Email       = input.Email;
         user.Username    = input.Username ?? user.Username;
         user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
-        user.PasswordDigest = passwordHashingService.HashPassword(password: input.Password, passwordConfirmation: input.PasswordConfirmation) ??
+        user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
                               user.PasswordDigest;
-        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user: user);
-        context.Users.Update(entity: user);
+        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        context.Users.Update(user);
         await context.SaveChangesAsync();
         return user;
     }
 
     public Task DeleteUser()
     {
-        var user = context.Users.First(predicate: u => u.Id == this.GetPrimaryKey());
+        var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
         user.DeletedAt = DateTime.UtcNow;
-        context.Users.Update(entity: user);
+        context.Users.Update(user);
         return context.SaveChangesAsync();
     }
 
@@ -54,8 +54,8 @@ public class UserManager(
 
     private async Task<User> Get()
         => await context.Users
-                        .Include(navigationPropertyPath: x => x.UsersToServerRelations)
-                        .ThenInclude(navigationPropertyPath: x => x.Server)
-                        .ThenInclude(navigationPropertyPath: x => x.Channels)
-                        .FirstAsync(predicate: user => user.Id == this.GetPrimaryKey());
+                        .Include(x => x.UsersToServerRelations)
+                        .ThenInclude(x => x.Server)
+                        .ThenInclude(x => x.Channels)
+                        .FirstAsync(user => user.Id == this.GetPrimaryKey());
 }

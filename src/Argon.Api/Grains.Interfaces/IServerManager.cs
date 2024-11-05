@@ -7,26 +7,26 @@ using MessagePack;
 
 public interface IServerManager : IGrainWithGuidKey
 {
-    [Alias(alias: "CreateServer")]
+    [Alias("CreateServer")]
     Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
 
-    [Alias(alias: "GetServer")]
+    [Alias("GetServer")]
     Task<ServerDto> GetServer();
 
-    [Alias(alias: "UpdateServer")]
+    [Alias("UpdateServer")]
     Task<ServerDto> UpdateServer(ServerInput input);
 
-    [Alias(alias: "DeleteServer")]
+    [Alias("DeleteServer")]
     Task DeleteServer();
 }
 
-[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
- Alias(alias: nameof(ServerInput))]
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
+ Alias(nameof(ServerInput))]
 public sealed partial record ServerInput(
-    [property: DataMember(Order = 0), MemoryPackOrder(order: 0), Key(x: 0), Id(id: 0)]
+    [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
     string Name,
-    [property: DataMember(Order = 1), MemoryPackOrder(order: 1), Key(x: 1), Id(id: 1)]
+    [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]
     string? Description,
-    [property: DataMember(Order = 2), MemoryPackOrder(order: 2), Key(x: 2), Id(id: 2)]
+    [property: DataMember(Order = 2), MemoryPackOrder(2), Key(2), Id(2)]
     string? AvatarUrl
 );

@@ -15,14 +15,13 @@ public class UserManagerService(
     public Task<string> GenerateJwt(string email, Guid id)
     {
         var (issuer, audience, key, exp) = jwt.Value;
-        var signingCredentials = new SigningCredentials(key: new SymmetricSecurityKey(key: Encoding.UTF8.GetBytes(s: key)),
-            algorithm: SecurityAlgorithms.HmacSha512Signature);
-        var subject = new ClaimsIdentity(claims:
-        [
-            new Claim(type: "id", value: id.ToString()),
-            new Claim(type: "email", value: email)
+        var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+                                                        SecurityAlgorithms.HmacSha512Signature);
+        var subject = new ClaimsIdentity([
+            new Claim("id", id.ToString()),
+            new Claim("email", email)
         ]);
-        var expires = DateTime.UtcNow.Add(value: exp);
+        var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
             Subject            = subject,
@@ -33,40 +32,40 @@ public class UserManagerService(
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
-        var token        = tokenHandler.CreateToken(tokenDescriptor: tokenDescriptor);
-        var jwtToken     = tokenHandler.WriteToken(token: token);
+        var token        = tokenHandler.CreateToken(tokenDescriptor);
+        var jwtToken     = tokenHandler.WriteToken(token);
         if (jwtToken == null)
-            throw new Exception(message: "Failed to generate token"); // TODO: Come up with application specific errors
+            throw new Exception("Failed to generate token"); // TODO: Come up with application specific errors
 
-        return Task.FromResult(result: jwtToken);
+        return Task.FromResult(jwtToken);
     }
 
     public async Task Validate(string username, string password)
     {
-        await ValidateLength(str: username, obj: nameof(username), min: 3, max: 50);
-        await ValidateLength(str: password, obj: nameof(password), min: 8, max: 32);
-        await ValidatePasswordStrength(password: password);
+        await ValidateLength(username, nameof(username), 3, 50);
+        await ValidateLength(password, nameof(password), 8, 32);
+        await ValidatePasswordStrength(password);
     }
 
 
     private Task ValidatePasswordStrength(string password)
     {
-        if (!password.Any(predicate: char.IsDigit))
+        if (!password.Any(char.IsDigit))
         {
             throw new Exception(
-                message: "Password must contain at least one digit"); // TODO: Come up with application specific errors
+                                "Password must contain at least one digit"); // TODO: Come up with application specific errors
         }
 
-        if (!password.Any(predicate: char.IsUpper))
+        if (!password.Any(char.IsUpper))
         {
             throw new Exception(
-                message: "Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
+                                "Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
         }
 
-        if (!password.Any(predicate: char.IsLower))
+        if (!password.Any(char.IsLower))
         {
             throw new Exception(
-                message: "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
+                                "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
         }
 
         return Task.CompletedTask;
@@ -75,7 +74,7 @@ public class UserManagerService(
     private Task ValidateLength(string str, string obj, int min, int max)
     {
         if (str.Length < min || str.Length > max)
-            throw new Exception(message: $"{obj}: Invalid length"); // TODO: Come up with application specific errors
+            throw new Exception($"{obj}: Invalid length"); // TODO: Come up with application specific errors
 
         return Task.CompletedTask;
     }

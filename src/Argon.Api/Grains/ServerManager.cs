@@ -11,7 +11,7 @@ public class ServerManager(
 {
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
-        var user = await grainFactory.GetGrain<IUserManager>(primaryKey: creatorId).GetUser();
+        var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
         var server = new Server
         {
             Name        = input.Name,
@@ -28,12 +28,12 @@ public class ServerManager(
                     Role            = ServerRole.Owner
                 }
             },
-            Channels = CreateDefaultChannels(CreatorId: creatorId)
+            Channels = CreateDefaultChannels(creatorId)
         };
 
-        context.Servers.Add(entity: server);
+        context.Servers.Add(server);
         await context.SaveChangesAsync();
-        return await grainFactory.GetGrain<IServerManager>(primaryKey: server.Id).GetServer();
+        return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
     }
 
     public async Task<ServerDto> GetServer()
@@ -45,24 +45,24 @@ public class ServerManager(
         server.Name        = input.Name;
         server.Description = input.Description;
         server.AvatarUrl   = input.AvatarUrl;
-        context.Servers.Update(entity: server);
+        context.Servers.Update(server);
         await context.SaveChangesAsync();
         return await Get();
     }
 
     public async Task DeleteServer()
     {
-        var server = await context.Servers.FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
-        context.Servers.Remove(entity: server);
+        var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
+        context.Servers.Remove(server);
         await context.SaveChangesAsync();
     }
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId)
         =>
         [
-            CreateChannel(CreatorId: CreatorId, name: "General", description: "General text channel", channelType: ChannelType.Text),
-            CreateChannel(CreatorId: CreatorId, name: "General", description: "General voice channel", channelType: ChannelType.Voice),
-            CreateChannel(CreatorId: CreatorId, name: "General", description: "General anouncements channel", channelType: ChannelType.Announcement)
+            CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
+            CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
+            CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
         ];
 
     private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
@@ -77,7 +77,7 @@ public class ServerManager(
 
     private async Task<Server> Get()
         => await context.Servers
-                        .Include(navigationPropertyPath: x => x.Channels)
-                        .Include(navigationPropertyPath: x => x.UsersToServerRelations)
-                        .FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
+                        .Include(x => x.Channels)
+                        .Include(x => x.UsersToServerRelations)
+                        .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }

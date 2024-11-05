@@ -15,35 +15,35 @@ public class SessionManager(
 {
     public async Task<JwtToken> Authorize(UserCredentialsInput input)
     {
-        var user = await context.Users.FirstOrDefaultAsync(predicate: u => u.Email == input.Email);
+        var user = await context.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
 
         if (user is null)
-            throw new Exception(message: "User not found with given credentials"); // TODO: implement application errors
+            throw new Exception("User not found with given credentials"); // TODO: implement application errors
 
         if (input.GenerateOtp)
         {
             user.OTP = passwordHashingService.GenerateOtp();
-            logger.LogCritical(message: user.OTP); // TODO: replace with emailing the user the OTP
-            context.Users.Update(entity: user);
+            logger.LogCritical(user.OTP); // TODO: replace with emailing the user the OTP
+            context.Users.Update(user);
             await context.SaveChangesAsync();
-            return new JwtToken(token: "");
+            return new JwtToken("");
         }
 
-        var verified = passwordHashingService.VerifyPassword(inputPassword: input.Password, user: user);
+        var verified = passwordHashingService.VerifyPassword(input.Password, user);
         if (!verified)
-            throw new Exception(message: "Invalid credentials"); // TODO: implement application errors
+            throw new Exception("Invalid credentials"); // TODO: implement application errors
         user.OTP = passwordHashingService.GenerateOtp();
-        context.Users.Update(entity: user);
+        context.Users.Update(user);
         await context.SaveChangesAsync();
-        return await GenerateJwt(User: user);
+        return await GenerateJwt(user);
     }
 
     public async Task<UserDto> GetUser()
-        => await grainFactory.GetGrain<IUserManager>(primaryKey: this.GetPrimaryKey()).GetUser();
+        => await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
 
     public Task Logout()
         => throw new NotImplementedException();
 
     private async Task<JwtToken> GenerateJwt(User User)
-        => new(token: await managerService.GenerateJwt(email: User.Email, id: User.Id));
+        => new(await managerService.GenerateJwt(User.Email, User.Id));
 }

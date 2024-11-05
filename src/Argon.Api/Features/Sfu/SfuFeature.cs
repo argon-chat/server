@@ -13,13 +13,13 @@ public static class SfuFeature
     public static IHostApplicationBuilder AddSelectiveForwardingUnit(this IHostApplicationBuilder builder)
     {
         builder.Services.AddTransient<IArgonSelectiveForwardingUnit, ArgonSelectiveForwardingUnit>();
-        builder.Services.Configure<SfuFeatureSettings>(config: builder.Configuration.GetSection(key: "sfu"));
-        builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(serviceKey: HttpClientKey, implementationFactory: (provider, o) =>
+        builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
+        builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(HttpClientKey, (provider, o) =>
         {
-            var client = new FlurlClient(baseUrl: provider
-                                                  .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
+            var client = new FlurlClient(provider
+                                         .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
             client.Settings.JsonSerializer =
-                new NewtonsoftJsonSerializer(settings: new JsonSerializerSettings
+                new NewtonsoftJsonSerializer(new JsonSerializerSettings
                 {
                     ContractResolver = new CamelCasePropertyNamesContractResolver()
                 });

@@ -19,20 +19,20 @@ public class PasswordHashingService : IPasswordHashingService
     public string? HashPassword(string? password, string? passwordConfirmation)
     {
         if (password is null || passwordConfirmation is null) return null;
-        if (password != passwordConfirmation) throw new Exception(message: "Password confirmation does not match password");
+        if (password != passwordConfirmation) throw new Exception("Password confirmation does not match password");
         using var sha256 = SHA256.Create();
-        var       bytes  = Encoding.UTF8.GetBytes(s: password);
-        var       hash   = sha256.ComputeHash(buffer: bytes);
-        return Convert.ToBase64String(inArray: hash);
+        var       bytes  = Encoding.UTF8.GetBytes(password);
+        var       hash   = sha256.ComputeHash(bytes);
+        return Convert.ToBase64String(hash);
     }
 
     public bool VerifyPassword(string? inputPassword, User user)
-        => ValidatePassword(password: inputPassword, passwordDigest: user.PasswordDigest) || VerifyOtp(inputOtp: inputPassword, userOtp: user.OTP);
+        => ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
         if (password is null || passwordDigest is null) return false;
-        return HashPassword(password: password, passwordConfirmation: password) == passwordDigest;
+        return HashPassword(password, password) == passwordDigest;
     }
 
     public bool VerifyOtp(string? inputOtp, string? userOtp)
@@ -41,6 +41,5 @@ public class PasswordHashingService : IPasswordHashingService
         return inputOtp == userOtp;
     }
 
-    public string GenerateOtp()
-        => SecureRandom.Hex(n: 3);
+    public string GenerateOtp() => SecureRandom.Hex(3);
 }

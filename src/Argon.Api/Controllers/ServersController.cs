@@ -7,34 +7,34 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
-[Route(template: "api/[controller]")]
+[Route("api/[controller]")]
 public class ServersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
     [HttpPost, Authorize, InjectId]
     public async Task<ActionResult<ServerDto>> Post([SwaggerIgnore] string id, [FromBody] ServerInput input)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(primaryKey: Guid.NewGuid());
-        return await serverManager.CreateServer(input: input, creatorId: Guid.Parse(input: id));
+        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.NewGuid());
+        return await serverManager.CreateServer(input, Guid.Parse(id));
     }
 
-    [HttpGet(template: "{serverId:guid}"), Authorize]
+    [HttpGet("{serverId:guid}"), Authorize]
     public async Task<ActionResult<ServerDto>> Get(Guid serverId)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(primaryKey: serverId);
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
         return await serverManager.GetServer();
     }
 
-    [HttpPatch(template: "{serverId:guid}"), Authorize]
+    [HttpPatch("{serverId:guid}"), Authorize]
     public async Task<ActionResult<ServerDto>> Patch(Guid serverId, [FromBody] ServerInput input)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(primaryKey: serverId);
-        return await serverManager.UpdateServer(input: input);
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
+        return await serverManager.UpdateServer(input);
     }
 
-    [HttpDelete(template: "{serverId:guid}"), Authorize]
+    [HttpDelete("{serverId:guid}"), Authorize]
     public async Task<ActionResult> Delete(Guid serverId)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(primaryKey: serverId);
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
         await serverManager.DeleteServer();
         return Ok();
     }

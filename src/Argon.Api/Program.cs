@@ -10,16 +10,16 @@ using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Sfu;
 
-var builder = WebApplication.CreateBuilder(args: args);
+var builder = WebApplication.CreateBuilder(args);
 
 builder.AddJwt();
 builder.AddServiceDefaults();
-builder.AddRedisOutputCache(connectionName: "cache");
-builder.AddRabbitMQClient(connectionName: "rmq");
-builder.AddNpgsqlDbContext<ApplicationDbContext>(connectionName: "DefaultConnection");
+builder.AddRedisOutputCache("cache");
+builder.AddRabbitMQClient("rmq");
+builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers();
-builder.Services.AddFusion(defaultServiceMode: RpcServiceMode.Server, setDefaultServiceMode: true);
+builder.Services.AddFusion(RpcServiceMode.Server, true);
 // .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
 // .AddServer<IUserInteraction, UserInteractionService>()
 // .AddWebSocketServer(true);
@@ -39,7 +39,7 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
-app.MapGet(pattern: "/", handler: () => new
+app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });

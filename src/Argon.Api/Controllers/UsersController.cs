@@ -8,27 +8,27 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
-[Route(template: "api/[controller]")]
+[Route("api/[controller]")]
 public class UsersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
     [HttpPost]
     public async Task<ActionResult<UserDto>> Post([FromBody] UserCredentialsInput input)
     {
-        var userManager = grainFactory.GetGrain<IUserManager>(primaryKey: Guid.NewGuid());
-        return await userManager.CreateUser(input: input);
+        var userManager = grainFactory.GetGrain<IUserManager>(Guid.NewGuid());
+        return await userManager.CreateUser(input);
     }
 
-    [HttpPost(template: "Authorize")]
+    [HttpPost("Authorize")]
     public async Task<ActionResult<JwtToken>> Authorize([FromBody] UserCredentialsInput input)
     {
-        var userManager = grainFactory.GetGrain<ISessionManager>(primaryKey: Guid.NewGuid());
-        return await userManager.Authorize(input: input);
+        var userManager = grainFactory.GetGrain<ISessionManager>(Guid.NewGuid());
+        return await userManager.Authorize(input);
     }
 
-    [HttpGet(template: "Me"), Authorize, InjectId]
+    [HttpGet("Me"), Authorize, InjectId]
     public async Task<ActionResult<UserDto>> Get([SwaggerIgnore] string id)
     {
-        var userManager = grainFactory.GetGrain<ISessionManager>(primaryKey: Guid.Parse(input: id));
+        var userManager = grainFactory.GetGrain<ISessionManager>(Guid.Parse(id));
         return await userManager.GetUser();
     }
 }

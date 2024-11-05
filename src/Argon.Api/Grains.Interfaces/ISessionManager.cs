@@ -3,18 +3,18 @@ namespace Argon.Api.Grains.Interfaces;
 using Entities;
 using MemoryPack;
 
-[Alias(alias: "Argon.Api.Grains.Interfaces.ISessionManager")]
+[Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
 public interface ISessionManager : IGrainWithGuidKey
 {
-    [Alias(alias: "Authorize")]
+    [Alias("Authorize")]
     Task<JwtToken> Authorize(UserCredentialsInput input);
 
-    [Alias(alias: "GetUser")]
+    [Alias("GetUser")]
     Task<UserDto> GetUser();
 
-    [Alias(alias: "Logout")]
+    [Alias("Logout")]
     Task Logout(); // TODO: revoke jwt by adding it into a blacklist
 }
 
-[Serializable, GenerateSerializer, MemoryPackable, Alias(alias: nameof(JwtToken))]
+[Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(JwtToken))]
 public partial record struct JwtToken(string token);

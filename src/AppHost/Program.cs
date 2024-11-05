@@ -1,48 +1,48 @@
 using AppHost;
 using Projects;
 
-var builder = DistributedApplication.CreateBuilder(args: args);
+var builder = DistributedApplication.CreateBuilder(args);
 
-var username        = builder.AddParameter(name: "username", secret: true);
-var password        = builder.AddParameter(name: "password", secret: true);
-var sfuUrl          = builder.AddParameter(name: "sfu-url", secret: true);
-var sfuClientId     = builder.AddParameter(name: "sfu-client-id", secret: true);
-var sfuClientSecret = builder.AddParameter(name: "sfu-client-secret", secret: true);
-var jwtKey          = builder.AddParameter(name: "jwt-key", secret: true);
+var username        = builder.AddParameter("username", true);
+var password        = builder.AddParameter("password", true);
+var sfuUrl          = builder.AddParameter("sfu-url", true);
+var sfuClientId     = builder.AddParameter("sfu-client-id", true);
+var sfuClientSecret = builder.AddParameter("sfu-client-secret", true);
+var jwtKey          = builder.AddParameter("jwt-key", true);
 
-var cache = builder.AddRedis(name: "cache", port: 6379);
-var rmq = builder.AddRabbitMQ(name: "rmq", port: 5672, userName: username, password: password)
+var cache = builder.AddRedis("cache", 6379);
+var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: password)
                  .WithDataVolume(isReadOnly: false)
                  .WithManagementPlugin();
-var db = builder.AddPostgres(name: "pg", port: 5432, userName: username, password: password)
+var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password)
                 .WithDataVolume();
 
-var clickhouseResource = new ClickhouseBuilderExtension(name: "clickhouse", userName: username, password: password);
-var clickhouse = builder.AddResource(resource: clickhouseResource)
-                        .WithImage(image: "clickhouse/clickhouse-server")
-                        .WithVolume(name: "clickhouse-data", target: "/var/lib/clickhouse")
-                        .WithVolume(name: "logs", target: "/var/log/clickhouse-server")
-                        .WithEnvironment(name: "CLICKHOUSE_USER", parameter: username)
-                        .WithEnvironment(name: "CLICKHOUSE_PASSWORD", parameter: password)
-                        .WithEnvironment(name: "CLICKHOUSE_DB", parameter: username)
-                        .WithEnvironment(name: "CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", value: "1")
-                        .WithHttpEndpoint(port: 8123, targetPort: 8123) // http endpoint
-                        .WithEndpoint(port: 9000, targetPort: 9000);    // native client endpoint
+var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
+var clickhouse = builder.AddResource(clickhouseResource)
+                        .WithImage("clickhouse/clickhouse-server")
+                        .WithVolume("clickhouse-data", "/var/lib/clickhouse")
+                        .WithVolume("logs", "/var/log/clickhouse-server")
+                        .WithEnvironment("CLICKHOUSE_USER", username)
+                        .WithEnvironment("CLICKHOUSE_PASSWORD", password)
+                        .WithEnvironment("CLICKHOUSE_DB", username)
+                        .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1")
+                        .WithHttpEndpoint(8123, 8123) // http endpoint
+                        .WithEndpoint(9000, 9000);    // native client endpoint
 
-var apiDb = db.AddDatabase(name: "apiDb");
+var apiDb = db.AddDatabase("apiDb");
 
-var api = builder.AddProject<Argon_Api>(name: "argonapi")
-                 .WithReference(source: apiDb, connectionName: "DefaultConnection")
-                 .WithReference(source: cache)
-                 .WithReference(source: clickhouse)
-                 .WithReference(source: rmq)
-                 .WithEnvironment(name: "sfu__url", parameter: sfuUrl)
-                 .WithEnvironment(name: "sfu__clientId", parameter: sfuClientId)
-                 .WithEnvironment(name: "sfu__clientSecret", parameter: sfuClientSecret)
-                 .WithEnvironment(name: "Jwt__Issuer", value: "Argon")
-                 .WithEnvironment(name: "Jwt__Audience", value: "Argon")
-                 .WithEnvironment(name: "Jwt__Key", parameter: jwtKey)
-                 .WithEnvironment(name: "Jwt__Expire", value: "228")
+var api = builder.AddProject<Argon_Api>("argonapi")
+                 .WithReference(apiDb, "DefaultConnection")
+                 .WithReference(cache)
+                 .WithReference(clickhouse)
+                 .WithReference(rmq)
+                 .WithEnvironment("sfu__url", sfuUrl)
+                 .WithEnvironment("sfu__clientId", sfuClientId)
+                 .WithEnvironment("sfu__clientSecret", sfuClientSecret)
+                 .WithEnvironment("Jwt__Issuer", "Argon")
+                 .WithEnvironment("Jwt__Audience", "Argon")
+                 .WithEnvironment("Jwt__Key", jwtKey)
+                 .WithEnvironment("Jwt__Expire", "228")
                  .WithExternalHttpEndpoints();
 
 builder.Build().Run();

@@ -7,27 +7,27 @@ using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
 
 public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFactory GrainFactory)
-    : RpcInboundMiddleware(services: Services)
+    : RpcInboundMiddleware(Services)
 {
     public AsyncLocal<string> Token = new();
 
     public async override Task OnBeforeCall(RpcInboundCall call)
     {
         var existAttribute =
-            call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(inheritFromInterfaces: true, inheritFromBaseTypes: true).Count != 0;
+            call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
 
         if (!existAttribute)
         {
-            await base.OnBeforeCall(call: call);
+            await base.OnBeforeCall(call);
             return;
         }
 
-        var grain = GrainFactory.GetGrain<IFusionSession>(primaryKey: call.Context.Peer.Id);
+        var grain = GrainFactory.GetGrain<IFusionSession>(call.Context.Peer.Id);
 
         var state = await grain.GetState();
         if (state.IsAuthorized)
         {
-            await base.OnBeforeCall(call: call);
+            await base.OnBeforeCall(call);
             return;
         }
 
@@ -42,7 +42,7 @@ public class FusionServiceContext(IGrainFactory GrainFactory) : IFusionServiceCo
         var current = RpcInboundContext.GetCurrent();
         var peerId  = current.Peer.Id;
 
-        var grain = GrainFactory.GetGrain<IFusionSession>(primaryKey: peerId);
+        var grain = GrainFactory.GetGrain<IFusionSession>(peerId);
 
         return grain.GetState();
     }

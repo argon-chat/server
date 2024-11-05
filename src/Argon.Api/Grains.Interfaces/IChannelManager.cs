@@ -8,28 +8,28 @@ using Sfu;
 
 public interface IChannelManager : IGrainWithGuidKey
 {
-    [Alias(alias: "Join")]
+    [Alias("Join")]
     Task<RealtimeToken> Join(Guid userId);
 
-    [Alias(alias: "Leave")]
+    [Alias("Leave")]
     Task Leave(Guid userId);
 
-    [Alias(alias: "GetChannel")]
+    [Alias("GetChannel")]
     Task<ChannelDto> GetChannel();
 
-    [Alias(alias: "UpdateChannel")]
+    [Alias("UpdateChannel")]
     Task<ChannelDto> UpdateChannel(ChannelInput input);
 }
 
-[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
- Alias(alias: nameof(ChannelInput))]
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
+ Alias(nameof(ChannelInput))]
 public sealed partial record ChannelInput(
-    [property: DataMember(Order = 0), MemoryPackOrder(order: 0), Key(x: 0), Id(id: 0)]
+    [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
     string Name,
-    [property: DataMember(Order = 1), MemoryPackOrder(order: 1), Key(x: 1), Id(id: 1)]
+    [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]
     ServerRole AccessLevel,
-    [property: DataMember(Order = 2), MemoryPackOrder(order: 2), Key(x: 2), Id(id: 2)]
+    [property: DataMember(Order = 2), MemoryPackOrder(2), Key(2), Id(2)]
     string? Description,
-    [property: DataMember(Order = 3), MemoryPackOrder(order: 3), Key(x: 3), Id(id: 3)]
+    [property: DataMember(Order = 3), MemoryPackOrder(3), Key(3), Id(3)]
     ChannelType ChannelType
 );
