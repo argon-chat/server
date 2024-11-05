@@ -43,7 +43,9 @@ public class ChannelManager(
 
     public async Task<ChannelDto> GetChannel()
     {
-        return await Get();
+        ChannelDto channel = await Get();
+        channel.ConnectedUsers = joinedUsers.State.Users;
+        return channel;
     }
 
     public async Task<ChannelDto> UpdateChannel(ChannelInput input)

@@ -9,7 +9,6 @@ using Swashbuckle.AspNetCore.Annotations;
 
 #if DEBUG
 [Route("api/[controller]")]
-[ApiController]
 public class ServersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
     [HttpPost]

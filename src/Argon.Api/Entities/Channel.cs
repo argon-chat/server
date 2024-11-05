@@ -83,4 +83,10 @@ public sealed partial record ChannelDto(
     [property: MemoryPackOrder(8)]
     [property: Id(8)]
     Guid ServerId
-);
+)
+{
+    [property: DataMember(Order = 9)]
+    [property: MemoryPackOrder(9)]
+    [property: Id(9)]
+    public List<UsersToServerRelationDto> ConnectedUsers { get; set; } = [];
+}

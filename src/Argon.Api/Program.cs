@@ -3,7 +3,6 @@ using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Rpc;
-using Argon.Api.Filters;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Sfu;
@@ -16,7 +15,7 @@ builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-builder.Services.AddControllers(opts => { opts.Filters.Add<InjectIdFilter>(); });
+builder.Services.AddControllers();
 // builder.Services.AddFusion(RpcServiceMode.Server, true);
 // .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
 // .AddServer<IUserInteraction, UserInteractionService>()
