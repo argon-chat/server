@@ -21,7 +21,13 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="aspirate-output\" />
+		<Folder Include="aspirate-output\"/>
+	</ItemGroup>
+
+	<ItemGroup>
+		<Reference Include="AppHost">
+			<HintPath>..\..\tests\Tests\bin\Debug\net8.0\AppHost.dll</HintPath>
+		</Reference>
 	</ItemGroup>
 
 </Project>

@@ -21,7 +21,7 @@ public class ServersController(IGrainFactory grainFactory, ILogger<UsersControll
         return await serverManager.CreateServer(input, Guid.Parse(id));
     }
 
-    [HttpGet("{serverId}")]
+    [HttpGet("{serverId:guid}")]
     [Authorize]
     public async Task<ActionResult<ServerDto>> Get(Guid serverId)
     {
@@ -29,7 +29,7 @@ public class ServersController(IGrainFactory grainFactory, ILogger<UsersControll
         return await serverManager.GetServer();
     }
 
-    [HttpPatch("{serverId}")]
+    [HttpPatch("{serverId:guid}")]
     [Authorize]
     public async Task<ActionResult<ServerDto>> Patch(Guid serverId, [FromBody] ServerInput input)
     {
@@ -37,7 +37,7 @@ public class ServersController(IGrainFactory grainFactory, ILogger<UsersControll
         return await serverManager.UpdateServer(input);
     }
 
-    [HttpDelete("{serverId}")]
+    [HttpDelete("{serverId:guid}")]
     [Authorize]
     public async Task<ActionResult> Delete(Guid serverId)
     {

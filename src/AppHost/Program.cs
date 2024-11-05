@@ -31,7 +31,7 @@ var clickhouse = builder.AddResource(clickhouseResource)
 
 var apiDb = db.AddDatabase("apiDb");
 
-var api = builder.AddProject<Argon_Api>("argon-api")
+var api = builder.AddProject<Argon_Api>("argonapi")
     .WithReference(apiDb, "DefaultConnection")
     .WithReference(cache)
     .WithReference(clickhouse)

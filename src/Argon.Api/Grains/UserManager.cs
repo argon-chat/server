@@ -28,12 +28,12 @@ public class UserManager(
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
         await context.SaveChangesAsync();
-        return await Get();
+        return user;
     }
 
     public async Task<UserDto> UpdateUser(UserCredentialsInput input)
     {
-        var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
+        var user = await Get();
         user.Email = input.Email;
         user.Username = input.Username ?? user.Username;
         user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
@@ -42,7 +42,7 @@ public class UserManager(
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Update(user);
         await context.SaveChangesAsync();
-        return await Get();
+        return user;
     }
 
     public Task DeleteUser()
