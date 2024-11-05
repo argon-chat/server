@@ -25,22 +25,11 @@ public sealed record User
     public DateTime?                   DeletedAt              { get; set; }
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
-    public static implicit operator UserDto(User user)
-        => new(
-            user.Id,
-            user.CreatedAt,
-            user.UpdatedAt,
-            user.Email,
-            user.Username,
-            user.PhoneNumber,
-            user.AvatarUrl,
-            user.DeletedAt,
-            user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList()
-        );
+    public static implicit operator UserDto(User user) => new(user.Id, user.CreatedAt, user.UpdatedAt, user.Email, user.Username, user.PhoneNumber,
+        user.AvatarUrl, user.DeletedAt, user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList());
 }
 
-[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
- Alias(nameof(UserDto))]
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(UserDto))]
 public sealed partial record UserDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
@@ -59,5 +48,4 @@ public sealed partial record UserDto(
     [property: DataMember(Order = 7), MemoryPackOrder(7), Id(7)]
     DateTime? DeletedAt,
     [property: DataMember(Order = 8), MemoryPackOrder(8), Id(8)]
-    List<ServerDto> Servers
-);
+    List<ServerDto> Servers);

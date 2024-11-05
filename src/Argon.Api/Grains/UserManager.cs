@@ -6,10 +6,7 @@ using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
 
-public class UserManager(
-    IPasswordHashingService passwordHashingService,
-    ApplicationDbContext context
-) : Grain, IUserManager
+public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
 {
     public async Task<UserDto> CreateUser(UserCredentialsInput input)
     {
@@ -30,12 +27,11 @@ public class UserManager(
     public async Task<UserDto> UpdateUser(UserCredentialsInput input)
     {
         var user = await Get();
-        user.Email       = input.Email;
-        user.Username    = input.Username ?? user.Username;
-        user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
-        user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
-                              user.PasswordDigest;
-        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        user.Email          = input.Email;
+        user.Username       = input.Username ?? user.Username;
+        user.PhoneNumber    = input.PhoneNumber ?? user.PhoneNumber;
+        user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ?? user.PasswordDigest;
+        user.AvatarUrl      = Gravatar.GenerateGravatarUrl(user);
         context.Users.Update(user);
         await context.SaveChangesAsync();
         return user;
@@ -49,13 +45,8 @@ public class UserManager(
         return context.SaveChangesAsync();
     }
 
-    public async Task<UserDto> GetUser()
-        => await Get();
+    public async Task<UserDto> GetUser() => await Get();
 
-    private async Task<User> Get()
-        => await context.Users
-           .Include(x => x.UsersToServerRelations)
-           .ThenInclude(x => x.Server)
-           .ThenInclude(x => x.Channels)
-           .FirstAsync(user => user.Id == this.GetPrimaryKey());
+    private async Task<User> Get() => await context.Users.Include(x => x.UsersToServerRelations).ThenInclude(x => x.Server)
+       .ThenInclude(x => x.Channels).FirstAsync(user => user.Id == this.GetPrimaryKey());
 }

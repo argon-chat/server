@@ -10,8 +10,7 @@ public class SessionManager(
     ILogger<UserManager> logger,
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    ApplicationDbContext context
-) : Grain, ISessionManager
+    ApplicationDbContext context) : Grain, ISessionManager
 {
     public async Task<JwtToken> Authorize(UserCredentialsInput input)
     {
@@ -38,12 +37,9 @@ public class SessionManager(
         return await GenerateJwt(user);
     }
 
-    public async Task<UserDto> GetUser()
-        => await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
+    public async Task<UserDto> GetUser() => await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
 
-    public Task Logout()
-        => throw new NotImplementedException();
+    public Task Logout() => throw new NotImplementedException();
 
-    private async Task<JwtToken> GenerateJwt(User User)
-        => new(await managerService.GenerateJwt(User.Email, User.Id));
+    private async Task<JwtToken> GenerateJwt(User User) => new(await managerService.GenerateJwt(User.Email, User.Id));
 }

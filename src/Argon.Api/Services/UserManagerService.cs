@@ -7,10 +7,7 @@ using Features.Jwt;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
-public class UserManagerService(
-    ILogger<UserManagerService> logger,
-    IOptions<JwtOptions> jwt,
-    IConfiguration configuration)
+public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt, IConfiguration configuration)
 {
     public Task<string> GenerateJwt(string email, Guid id)
     {
@@ -52,20 +49,17 @@ public class UserManagerService(
     {
         if (!password.Any(char.IsDigit))
         {
-            throw new Exception(
-                "Password must contain at least one digit"); // TODO: Come up with application specific errors
+            throw new Exception("Password must contain at least one digit"); // TODO: Come up with application specific errors
         }
 
         if (!password.Any(char.IsUpper))
         {
-            throw new Exception(
-                "Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
+            throw new Exception("Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
         }
 
         if (!password.Any(char.IsLower))
         {
-            throw new Exception(
-                "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
+            throw new Exception("Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
         }
 
         return Task.CompletedTask;

@@ -38,27 +38,22 @@ public static class JwtFeature
             options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
         }).AddJwtBearer(o =>
         {
-            o.TokenValidationParameters =
-                new TokenValidationParameters
-                {
-                    ValidIssuer   = jwt.Issuer,
-                    ValidAudience = jwt.Audience,
-                    IssuerSigningKey =
-                        new SymmetricSecurityKey(Encoding
-                           .UTF8.GetBytes(jwt.Key)),
-                    ValidateIssuer           = true,
-                    ValidateAudience         = true,
-                    ValidateLifetime         = true,
-                    ValidateIssuerSigningKey = true,
-                    ClockSkew                = TimeSpan.Zero
-                };
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer              = jwt.Issuer,
+                ValidAudience            = jwt.Audience,
+                IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
+                ValidateIssuer           = true,
+                ValidateAudience         = true,
+                ValidateLifetime         = true,
+                ValidateIssuerSigningKey = true,
+                ClockSkew                = TimeSpan.Zero
+            };
             o.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>
                 {
-                    if (ctx.Request.Headers
-                       .TryGetValue("x-argon-token",
-                            out var value))
+                    if (ctx.Request.Headers.TryGetValue("x-argon-token", out var value))
                     {
                         ctx.Token = value;
                         return Task.CompletedTask;

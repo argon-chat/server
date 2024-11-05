@@ -32,24 +32,9 @@ public sealed record UsersToServerRelation
     public string?    BanReason       { get; set; }
     public string?    MuteReason      { get; set; }
 
-    public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation)
-        => new(
-            relation.Id,
-            relation.CreatedAt,
-            relation.Joined,
-            relation.Role,
-            relation.CustomUsername,
-            relation.IsBanned,
-            relation.IsMuted,
-            relation.BannedUntil,
-            relation.MutedUntil,
-            relation.AvatarUrl,
-            relation.CustomAvatarUrl,
-            relation.BanReason,
-            relation.MuteReason,
-            relation.ServerId,
-            relation.UserId
-        );
+    public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation) => new(relation.Id, relation.CreatedAt, relation.Joined,
+        relation.Role, relation.CustomUsername, relation.IsBanned, relation.IsMuted, relation.BannedUntil, relation.MutedUntil, relation.AvatarUrl,
+        relation.CustomAvatarUrl, relation.BanReason, relation.MuteReason, relation.ServerId, relation.UserId);
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
@@ -84,5 +69,4 @@ public sealed partial record UsersToServerRelationDto(
     [property: DataMember(Order = 13), MemoryPackOrder(13), Id(13)]
     Guid ServerId,
     [property: DataMember(Order = 14), MemoryPackOrder(14), Id(14)]
-    Guid UserId
-);
+    Guid UserId);

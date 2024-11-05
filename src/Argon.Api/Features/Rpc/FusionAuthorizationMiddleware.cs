@@ -6,15 +6,13 @@ using Grains;
 using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
 
-public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFactory GrainFactory)
-    : RpcInboundMiddleware(Services)
+public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFactory GrainFactory) : RpcInboundMiddleware(Services)
 {
     public AsyncLocal<string> Token = new();
 
     public async override Task OnBeforeCall(RpcInboundCall call)
     {
-        var existAttribute =
-            call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
+        var existAttribute = call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
 
         if (!existAttribute)
         {

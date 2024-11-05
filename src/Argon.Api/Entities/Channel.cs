@@ -26,22 +26,11 @@ public sealed record Channel
     public ServerRole  AccessLevel { get; set; } = ServerRole.User;
     public Guid        ServerId    { get; set; } = Guid.Empty;
 
-    public static implicit operator ChannelDto(Channel channel)
-        => new(
-            channel.Id,
-            channel.CreatedAt,
-            channel.UpdatedAt,
-            channel.Name,
-            channel.Description,
-            channel.UserId,
-            channel.ChannelType,
-            channel.AccessLevel,
-            channel.ServerId
-        );
+    public static implicit operator ChannelDto(Channel channel) => new(channel.Id, channel.CreatedAt, channel.UpdatedAt, channel.Name,
+        channel.Description, channel.UserId, channel.ChannelType, channel.AccessLevel, channel.ServerId);
 }
 
-[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
- Alias(nameof(ChannelDto))]
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelDto))]
 public sealed partial record ChannelDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
@@ -60,8 +49,7 @@ public sealed partial record ChannelDto(
     [property: DataMember(Order = 7), MemoryPackOrder(7), Id(7)]
     ServerRole AccessLevel,
     [property: DataMember(Order = 8), MemoryPackOrder(8), Id(8)]
-    Guid ServerId
-)
+    Guid ServerId)
 {
     [property: DataMember(Order = 9), MemoryPackOrder(9), Id(9)]
     public List<UsersToServerRelationDto> ConnectedUsers { get; set; } = [];

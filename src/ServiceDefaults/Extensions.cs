@@ -48,20 +48,16 @@ public static class Extensions
             logging.IncludeScopes           = true;
         });
 
-        builder.Services.AddOpenTelemetry()
-           .WithMetrics(metrics =>
-            {
-                metrics.AddAspNetCoreInstrumentation()
-                   .AddHttpClientInstrumentation()
-                   .AddRuntimeInstrumentation();
-            })
-           .WithTracing(tracing =>
-            {
-                tracing.AddAspNetCoreInstrumentation()
-                    // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
-                    //.AddGrpcClientInstrumentation()
-                   .AddHttpClientInstrumentation();
-            });
+        builder.Services.AddOpenTelemetry().WithMetrics(metrics =>
+        {
+            metrics.AddAspNetCoreInstrumentation().AddHttpClientInstrumentation().AddRuntimeInstrumentation();
+        }).WithTracing(tracing =>
+        {
+            tracing.AddAspNetCoreInstrumentation()
+                // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
+                //.AddGrpcClientInstrumentation()
+               .AddHttpClientInstrumentation();
+        });
 
         builder.AddOpenTelemetryExporters();
 

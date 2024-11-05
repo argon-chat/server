@@ -34,5 +34,4 @@ public sealed partial record UserCredentialsInput(
     [property: DataMember(Order = 4), MemoryPackOrder(4), Key(4), Id(4)]
     string? PasswordConfirmation,
     [property: DataMember(Order = 5), MemoryPackOrder(5), Key(5), Id(5)]
-    bool GenerateOtp
-);
+    bool GenerateOtp);

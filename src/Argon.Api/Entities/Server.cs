@@ -19,21 +19,12 @@ public sealed record Server
     public List<Channel>               Channels               { get; set; } = new();
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
-    public static implicit operator ServerDto(Server server)
-        => new(
-            server.Id,
-            server.CreatedAt,
-            server.UpdatedAt,
-            server.Name,
-            server.Description,
-            server.AvatarUrl,
-            server.Channels.Select(channel => (ChannelDto)channel).ToList(),
-            server.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList()
-        );
+    public static implicit operator ServerDto(Server server) => new(server.Id, server.CreatedAt, server.UpdatedAt, server.Name, server.Description,
+        server.AvatarUrl, server.Channels.Select(channel => (ChannelDto)channel).ToList(),
+        server.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList());
 }
 
-[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
- Alias(nameof(ServerDto))]
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerDto))]
 public sealed partial record ServerDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
@@ -50,5 +41,4 @@ public sealed partial record ServerDto(
     [property: DataMember(Order = 6), MemoryPackOrder(6), Id(6)]
     List<ChannelDto> Channels,
     [property: DataMember(Order = 7), MemoryPackOrder(7), Id(7)]
-    List<UsersToServerRelationDto> Users
-);
+    List<UsersToServerRelationDto> Users);

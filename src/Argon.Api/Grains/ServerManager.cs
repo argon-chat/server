@@ -4,10 +4,7 @@ using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 
-public class ServerManager(
-    IGrainFactory grainFactory,
-    ApplicationDbContext context
-) : Grain, IServerManager
+public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
 {
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
@@ -36,8 +33,7 @@ public class ServerManager(
         return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
     }
 
-    public async Task<ServerDto> GetServer()
-        => await Get();
+    public async Task<ServerDto> GetServer() => await Get();
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
@@ -57,27 +53,22 @@ public class ServerManager(
         await context.SaveChangesAsync();
     }
 
-    private List<Channel> CreateDefaultChannels(Guid CreatorId)
-        =>
-        [
-            CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
-            CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
-            CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
-        ];
+    private List<Channel> CreateDefaultChannels(Guid CreatorId) =>
+    [
+        CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
+        CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
+        CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
+    ];
 
-    private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
-        => new()
-        {
-            Name        = name,
-            Description = description,
-            UserId      = CreatorId,
-            ChannelType = channelType,
-            AccessLevel = ServerRole.User
-        };
+    private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType) => new()
+    {
+        Name        = name,
+        Description = description,
+        UserId      = CreatorId,
+        ChannelType = channelType,
+        AccessLevel = ServerRole.User
+    };
 
-    private async Task<Server> Get()
-        => await context.Servers
-           .Include(x => x.Channels)
-           .Include(x => x.UsersToServerRelations)
-           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+    private async Task<Server> Get() => await context.Servers.Include(x => x.Channels).Include(x => x.UsersToServerRelations)
+       .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }

@@ -20,8 +20,7 @@ public interface IUserInteraction : IRpcService
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record ServerDetailsRequest(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
-    Guid ServerId
-);
+    Guid ServerId);
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record UserResponse(
@@ -34,8 +33,7 @@ public sealed partial record UserResponse(
     [property: DataMember(Order = 3), MemoryPackOrder(3), Key(3)]
     DateTime CreatedAt,
     [property: DataMember(Order = 4), MemoryPackOrder(4), Key(4)]
-    DateTime UpdatedAt
-);
+    DateTime UpdatedAt);
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record CreateServerRequest(
@@ -44,8 +42,7 @@ public sealed partial record CreateServerRequest(
     [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1)]
     string Description,
     [property: DataMember(Order = 2), MemoryPackOrder(2), Key(2)]
-    string AvatarUrl
-);
+    string AvatarUrl);
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record ServerResponse(
@@ -92,11 +89,9 @@ public sealed partial record ChannelJoinRequest(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
     Guid ServerId,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1)]
-    Guid ChannelId
-);
+    Guid ChannelId);
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record ChannelJoinResponse(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
-    string Token
-);
+    string Token);

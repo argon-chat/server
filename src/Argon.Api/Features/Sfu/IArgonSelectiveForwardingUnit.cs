@@ -17,8 +17,7 @@ public interface IArgonSelectiveForwardingUnit
     /// <returns>
     ///     Realtime token for connect to channel
     /// </returns>
-    ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-        SfuPermission permission);
+    ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission);
 
     /// <summary>
     ///     Set mute or unmute for participant

@@ -12,34 +12,30 @@ using Microsoft.IdentityModel.Tokens;
 public class ArgonSfuTestController : ControllerBase
 {
     [HttpGet("/sfu/create_channel")]
-    public async ValueTask<IActionResult> GetData(
-        [FromServices] IArgonSelectiveForwardingUnit sfu, [FromQuery] Guid serverId, [FromQuery] Guid channelId)
-        => Ok(await sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
+    public async ValueTask<IActionResult> GetData([FromServices] IArgonSelectiveForwardingUnit sfu, [FromQuery] Guid serverId,
+        [FromQuery] Guid channelId) => Ok(await sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
 
     [HttpPost("/sfu/token")]
-    public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu, [FromBody] ArgonChannelId roomId)
-        => Ok(await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
+    public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu, [FromBody] ArgonChannelId roomId) =>
+        Ok(await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
 }
 #endif
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
-    [FromKeyedServices(SfuFeature.HttpClientKey)]
-    IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
+    [FromKeyedServices(SfuFeature.HttpClientKey)] IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
 {
     private const string pkg    = "livekit";
     private const string prefix = "/twirp";
 
-    private static readonly Guid
-        SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
+    private static readonly Guid SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
-    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-        SfuPermission permission)
-        => new(CreateJwt(channelId, userId, permission, settings));
+    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission) =>
+        new(CreateJwt(channelId, userId, permission, settings));
 
     // TODO check validity
-    public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId)
-        => throw new NotImplementedException();
+    public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId) =>
+        throw new NotImplementedException();
 
     // TODO
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
@@ -57,8 +53,7 @@ public class ArgonSelectiveForwardingUnit(
         return true;
     }
 
-    public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId,
-        uint maxParticipants)
+    public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId, uint maxParticipants)
     {
         var result = await RequestAsync<CreateRoomRequest, Room>("RoomService", "CreateRoom", new CreateRoomRequest
         {
@@ -92,17 +87,14 @@ public class ArgonSelectiveForwardingUnit(
         return true;
     }
 
-    private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
-        => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
+    private RealtimeToken CreateSystemToken(ArgonChannelId channelId) =>
+        CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
         IOptions<SfuFeatureSettings> settings)
     {
-        var now = DateTime.UtcNow;
-        JwtHeader headers =
-            new(new
-                SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)),
-                    "HS256"));
+        var       now     = DateTime.UtcNow;
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
 
         JwtPayload payload = new()
         {
@@ -130,13 +122,10 @@ public class ArgonSelectiveForwardingUnit(
         return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
     }
 
-    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data,
-        Dictionary<string, string> headers, CancellationToken ct = default)
+    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data, Dictionary<string, string> headers,
+        CancellationToken ct = default)
     {
-        var response = await httpClient
-           .Request($"{prefix}/{pkg}.{service}/{method}")
-           .WithHeaders(headers)
-           .AllowAnyHttpStatus()
+        var response = await httpClient.Request($"{prefix}/{pkg}.{service}/{method}").WithHeaders(headers).AllowAnyHttpStatus()
            .PostJsonAsync(data, cancellationToken: ct);
 
         if (response.StatusCode != 200)
@@ -144,13 +133,10 @@ public class ArgonSelectiveForwardingUnit(
         return await response.GetJsonAsync<TResp>();
     }
 
-    public async ValueTask RequestAsync<TReq>(string service, string method, TReq data,
-        Dictionary<string, string> headers, CancellationToken ct = default)
+    public async ValueTask RequestAsync<TReq>(string service, string method, TReq data, Dictionary<string, string> headers,
+        CancellationToken ct = default)
     {
-        var response = await httpClient
-           .Request($"{prefix}/{pkg}.{service}/{method}")
-           .WithHeaders(headers)
-           .AllowAnyHttpStatus()
+        var response = await httpClient.Request($"{prefix}/{pkg}.{service}/{method}").WithHeaders(headers).AllowAnyHttpStatus()
            .PostJsonAsync(data, cancellationToken: ct);
 
         if (response.StatusCode != 200)

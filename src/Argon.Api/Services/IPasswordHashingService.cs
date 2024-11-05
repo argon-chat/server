@@ -26,8 +26,8 @@ public class PasswordHashingService : IPasswordHashingService
         return Convert.ToBase64String(hash);
     }
 
-    public bool VerifyPassword(string? inputPassword, User user)
-        => ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
+    public bool VerifyPassword(string? inputPassword, User user) =>
+        ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
