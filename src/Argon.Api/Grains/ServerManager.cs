@@ -6,7 +6,6 @@ using Microsoft.EntityFrameworkCore;
 
 public class ServerManager(
     IGrainFactory grainFactory,
-    ILogger<UserManager> logger,
     ApplicationDbContext context
 ) : Grain, IServerManager
 {

@@ -7,10 +7,6 @@ using Microsoft.EntityFrameworkCore;
 using Services;
 
 public class UserManager(
-    // [PersistentState("userServers", "OrleansStorage")]
-    // IPersistentState<UserToServerRelations> userServerStore,
-    IGrainFactory grainFactory,
-    ILogger<UserManager> logger,
     IPasswordHashingService passwordHashingService,
     ApplicationDbContext context
 ) : Grain, IUserManager
