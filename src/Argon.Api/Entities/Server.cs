@@ -57,11 +57,11 @@ public sealed partial record ServerDto(
     [property: DataMember(Order = 4)]
     [property: MemoryPackOrder(4)]
     [property: Id(4)]
-    string Description,
+    string? Description,
     [property: DataMember(Order = 5)]
     [property: MemoryPackOrder(5)]
     [property: Id(5)]
-    string AvatarUrl,
+    string? AvatarUrl,
     [property: DataMember(Order = 6)]
     [property: MemoryPackOrder(6)]
     [property: Id(6)]
@@ -69,5 +69,5 @@ public sealed partial record ServerDto(
     [property: DataMember(Order = 7)]
     [property: MemoryPackOrder(7)]
     [property: Id(7)]
-    List<UsersToServerRelationDto> UsersToServerRelations
+    List<UsersToServerRelationDto> Users
 );

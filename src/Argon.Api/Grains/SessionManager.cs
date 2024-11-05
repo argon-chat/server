@@ -24,6 +24,7 @@ public class SessionManager(
         {
             user.OTP = passwordHashingService.GenerateOtp();
             logger.LogCritical(user.OTP); // TODO: replace with emailing the user the OTP
+            context.Users.Update(user);
             await context.SaveChangesAsync();
             return new JwtToken("");
         }
@@ -32,13 +33,14 @@ public class SessionManager(
         if (!verified)
             throw new Exception("Invalid credentials"); // TODO: implement application errors
         user.OTP = passwordHashingService.GenerateOtp();
+        context.Users.Update(user);
         await context.SaveChangesAsync();
         return await GenerateJwt(user);
     }
 
     public async Task<UserDto> GetUser()
     {
-        return await context.Users.FirstAsync(u => u.Id == this.GetPrimaryKey());
+        return await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
     }
 
     public Task Logout()

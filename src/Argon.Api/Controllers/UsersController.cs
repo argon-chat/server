@@ -8,12 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
 #if DEBUG
-
-public record ServerInputDto(
-    string Name,
-    string Description);
-
 [Route("api/[controller]")]
+[ApiController]
 public class UsersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
     [HttpPost]

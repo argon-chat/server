@@ -30,7 +30,7 @@ public sealed record User
             user.PhoneNumber,
             user.AvatarUrl,
             user.DeletedAt,
-            user.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList()
+            user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList()
         );
     }
 }
@@ -77,5 +77,5 @@ public sealed partial record UserDto(
     [property: DataMember(Order = 8)]
     [property: MemoryPackOrder(8)]
     [property: Id(8)]
-    List<UsersToServerRelationDto> UsersToServerRelations
+    List<ServerDto> Servers
 );

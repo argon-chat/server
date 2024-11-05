@@ -17,9 +17,11 @@ public sealed record UsersToServerRelation
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     public Guid ServerId { get; set; } = Guid.Empty;
+    public Server Server { get; set; }
     public DateTime Joined { get; } = DateTime.UtcNow;
     public ServerRole Role { get; set; } = ServerRole.User;
     public Guid UserId { get; set; } = Guid.Empty;
+    public User User { get; set; }
     public string CustomUsername { get; set; } = string.Empty;
     public bool IsBanned { get; set; }
     public bool IsMuted { get; set; }

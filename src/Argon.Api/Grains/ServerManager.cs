@@ -3,7 +3,6 @@ namespace Argon.Api.Grains;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 
 public class ServerManager(
     IGrainFactory grainFactory,
@@ -13,6 +12,7 @@ public class ServerManager(
 {
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
+        var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
         var server = new Server
         {
             Name = input.Name,
@@ -20,10 +20,13 @@ public class ServerManager(
             AvatarUrl = input.AvatarUrl,
             UsersToServerRelations = new List<UsersToServerRelation>
             {
-                new UsersToServerRelation
+                new()
                 {
                     UserId = creatorId,
-                    Role = ServerRole.Owner,
+                    CustomUsername = user.Username ?? user.Email,
+                    AvatarUrl = user.AvatarUrl,
+                    CustomAvatarUrl = user.AvatarUrl,
+                    Role = ServerRole.Owner
                 }
             },
             Channels = CreateDefaultChannels(creatorId)
@@ -31,48 +34,59 @@ public class ServerManager(
 
         context.Servers.Add(server);
         await context.SaveChangesAsync();
-        return server;
-    }
-
-    private List<Channel> CreateDefaultChannels(Guid CreatorId)
-    {
-        List<Channel> channels = new();
-        channels.Add(CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text));
-        channels.Add(CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice));
-        channels.Add(CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement));
-        return channels;
-    }
-
-    private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
-    {
-        return new()
-        {
-            Name = name,
-            Description = description,
-            UserId = CreatorId,
-            ChannelType = channelType,
-            AccessLevel = ServerRole.User,
-        };
+        return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
     }
 
     public async Task<ServerDto> GetServer()
     {
-        return await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
+        return await Get();
     }
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
-        var server = context.Servers.First(s => s.Id == this.GetPrimaryKey());
+        var server = await Get();
         server.Name = input.Name;
         server.Description = input.Description;
         server.AvatarUrl = input.AvatarUrl;
+        context.Servers.Update(server);
         await context.SaveChangesAsync();
-        return server;
+        return await Get();
     }
 
     public async Task DeleteServer()
     {
         var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
         context.Servers.Remove(server);
+        await context.SaveChangesAsync();
+    }
+
+    private List<Channel> CreateDefaultChannels(Guid CreatorId)
+    {
+        return
+        [
+            CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
+            CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
+            CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
+        ];
+    }
+
+    private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
+    {
+        return new Channel
+        {
+            Name = name,
+            Description = description,
+            UserId = CreatorId,
+            ChannelType = channelType,
+            AccessLevel = ServerRole.User
+        };
+    }
+
+    private async Task<Server> Get()
+    {
+        return await context.Servers
+            .Include(x => x.Channels)
+            .Include(x => x.UsersToServerRelations)
+            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 }

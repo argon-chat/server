@@ -28,7 +28,7 @@ public class UserManager(
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
         await context.SaveChangesAsync();
-        return user;
+        return await Get();
     }
 
     public async Task<UserDto> UpdateUser(UserCredentialsInput input)
@@ -40,19 +40,30 @@ public class UserManager(
         user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
                               user.PasswordDigest;
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
+        context.Users.Update(user);
         await context.SaveChangesAsync();
-        return user;
+        return await Get();
     }
 
     public Task DeleteUser()
     {
         var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
         user.DeletedAt = DateTime.UtcNow;
+        context.Users.Update(user);
         return context.SaveChangesAsync();
     }
 
     public async Task<UserDto> GetUser()
     {
-        return await context.Users.FirstAsync(u => u.Id == this.GetPrimaryKey());
+        return await Get();
+    }
+
+    private async Task<User> Get()
+    {
+        return await context.Users
+            .Include(x => x.UsersToServerRelations)
+            .ThenInclude(x => x.Server)
+            .ThenInclude(x => x.Channels)
+            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 }

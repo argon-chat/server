@@ -7,7 +7,9 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
+#if DEBUG
 [Route("api/[controller]")]
+[ApiController]
 public class ServersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
     [HttpPost]
@@ -19,27 +21,29 @@ public class ServersController(IGrainFactory grainFactory, ILogger<UsersControll
         return await serverManager.CreateServer(input, Guid.Parse(id));
     }
 
-    [HttpGet]
-    public async Task<ActionResult<ServerDto>> Get(string id)
+    [HttpGet("{serverId}")]
+    [Authorize]
+    public async Task<ActionResult<ServerDto>> Get(Guid serverId)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.Parse(id));
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
         return await serverManager.GetServer();
     }
 
-    [HttpPatch]
+    [HttpPatch("{serverId}")]
     [Authorize]
-    public async Task<ActionResult<ServerDto>> Patch(string id, [FromBody] ServerInput input)
+    public async Task<ActionResult<ServerDto>> Patch(Guid serverId, [FromBody] ServerInput input)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.Parse(id));
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
         return await serverManager.UpdateServer(input);
     }
 
-    [HttpDelete]
+    [HttpDelete("{serverId}")]
     [Authorize]
-    public async Task<ActionResult> Delete(string id)
+    public async Task<ActionResult> Delete(Guid serverId)
     {
-        var serverManager = grainFactory.GetGrain<IServerManager>(Guid.Parse(id));
+        var serverManager = grainFactory.GetGrain<IServerManager>(serverId);
         await serverManager.DeleteServer();
         return Ok();
     }
 }
+#endif
