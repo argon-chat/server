@@ -1,4 +1,4 @@
-﻿namespace Argon.Contracts;
+namespace Argon.Contracts;
 
 using System.Runtime.Serialization;
 using ActualLab.Rpc;

@@ -1,4 +1,4 @@
-﻿namespace Argon.Sfu;
+namespace Argon.Sfu;
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Text;

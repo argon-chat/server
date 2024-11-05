@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Controllers;
+namespace Argon.Api.Controllers;
 
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

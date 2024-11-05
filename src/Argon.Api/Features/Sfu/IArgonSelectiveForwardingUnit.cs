@@ -1,4 +1,4 @@
-﻿namespace Argon.Sfu;
+namespace Argon.Sfu;
 
 public interface IArgonSelectiveForwardingUnit
 {

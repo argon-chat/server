@@ -20,7 +20,7 @@ public class EmailManager(IOptions<SmtpConfig> config, ILogger<EmailManager> log
     public Task SendEmailAsync(string email, string subject, string message, string template = "none")
     {
     #if DEBUG
-        logger.LogInformation($"Email sent to {email} with subject {subject} and message {message}");
+        logger.LogCritical($"Email sent to {email} with subject {subject} and message {message}");
         return Task.CompletedTask;
     #else
         var mail = new MailMessage(config.Value.User, email, subject, message)

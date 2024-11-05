@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Grains.Persistence.States;
+namespace Argon.Api.Grains.Persistence.States;
 
 using MemoryPack;
 
