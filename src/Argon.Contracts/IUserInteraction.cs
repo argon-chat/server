@@ -7,10 +7,9 @@ using MessagePack;
 
 public interface IUserInteraction : IRpcService
 {
-    Task<UserResponse>         GetMe();
-    Task<ServerResponse>       CreateServer(CreateServerRequest request);
-    Task<List<ServerResponse>> GetServers();
-
+    Task<UserResponse>                GetMe();
+    Task<ServerResponse>              CreateServer(CreateServerRequest request);
+    Task<List<ServerResponse>>        GetServers();
     Task<List<ServerDetailsResponse>> GetServerDetails(ServerDetailsRequest request);
 
     // Task CreateChannel(string username);

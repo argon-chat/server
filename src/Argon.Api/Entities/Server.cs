@@ -19,8 +19,8 @@ public sealed record Server
     public List<Channel>               Channels               { get; set; } = new();
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
-    public static implicit operator ServerDto(Server server)
-        => new(
+    public static implicit operator ServerDto(Server server) =>
+        new(
             server.Id,
             server.CreatedAt,
             server.UpdatedAt,

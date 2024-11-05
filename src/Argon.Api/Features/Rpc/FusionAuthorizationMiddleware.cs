@@ -15,7 +15,6 @@ public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFact
     {
         var existAttribute =
             call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
-
         if (!existAttribute)
         {
             await base.OnBeforeCall(call);
@@ -23,7 +22,6 @@ public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFact
         }
 
         var grain = GrainFactory.GetGrain<IFusionSession>(call.Context.Peer.Id);
-
         var state = await grain.GetState();
         if (state.IsAuthorized)
         {
@@ -41,9 +39,7 @@ public class FusionServiceContext(IGrainFactory GrainFactory) : IFusionServiceCo
     {
         var current = RpcInboundContext.GetCurrent();
         var peerId  = current.Peer.Id;
-
-        var grain = GrainFactory.GetGrain<IFusionSession>(peerId);
-
+        var grain   = GrainFactory.GetGrain<IFusionSession>(peerId);
         return grain.GetState();
     }
 }

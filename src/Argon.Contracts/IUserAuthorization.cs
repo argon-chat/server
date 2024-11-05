@@ -23,9 +23,11 @@ public sealed partial record AuthorizeRequest(
     [property: DataMember(Order = 4), MemoryPackOrder(4), Key(4)]
     string? phoneNumber,
     [property: DataMember(Order = 5), MemoryPackOrder(5), Key(5)]
-    bool generateOtp = false);
+    bool generateOtp = false
+);
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record AuthorizeResponse(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
-    string token);
+    string token
+);

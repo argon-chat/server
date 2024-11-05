@@ -20,7 +20,6 @@ public static class Gravatar
         var       sb         = new StringBuilder();
         foreach (var t in hashBytes)
             sb.Append(t.ToString("x2"));
-
         return sb.ToString();
     }
 }

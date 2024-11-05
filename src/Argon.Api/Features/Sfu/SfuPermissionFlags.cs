@@ -25,7 +25,7 @@ public enum SfuPermissionFlags
     CAN_LISTEN = 1 << 8,
     [FlagName("hidden")]
     HIDDEN = 1 << 9,
-    ALL = ROOM_CREATE | ROOM_JOIN | UPDATE_METADATA | ROOM_LIST | CAN_PUBLISH | ROOM_RECORD | ROOM_ADMIN | CAN_LISTEN
+    ALL = ROOM_CREATE | ROOM_JOIN | UPDATE_METADATA | ROOM_LIST | CAN_PUBLISH | ROOM_RECORD | ROOM_ADMIN | CAN_LISTEN,
 }
 
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
@@ -33,10 +33,11 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
     public static readonly SfuPermission DefaultUser = new(
         SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
         SfuPermissionFlags.ROOM_JOIN,
-        [TrackSource.Microphone, TrackSource.Microphone]);
-
+        [TrackSource.Microphone, TrackSource.Microphone]
+    );
     public static readonly SfuPermission DefaultSystem = new(
-        SfuPermissionFlags.ALL, []);
+        SfuPermissionFlags.ALL, []
+    );
 
     public Dictionary<string, object> ToDictionary(ArgonChannelId channelId)
     {
@@ -57,22 +58,24 @@ public class FlagNameAttribute(string flagName) : Attribute
 
 public static class LiveKitExtensions
 {
-    public static string ToFormatString(this TrackSource trackSource)
-        => trackSource switch
+    public static string ToFormatString(this TrackSource trackSource) =>
+        trackSource switch
         {
             TrackSource.Camera           => "camera",
             TrackSource.Microphone       => "microphone",
             TrackSource.ScreenShare      => "screen_share",
             TrackSource.ScreenShareAudio => "screen_share_audio",
-            _                            => throw new ArgumentOutOfRangeException(nameof(trackSource), trackSource, null)
+            _                            => throw new ArgumentOutOfRangeException(nameof(trackSource), trackSource, null),
         };
 
-    public static IEnumerable<T> EnumerateFlags<T>(this T @enum) where T : Enum
-        => from Enum value in Enum.GetValues(@enum.GetType()) where @enum.HasFlag(value) select (T)value;
+    public static IEnumerable<T> EnumerateFlags<T>(this T @enum) where T : Enum =>
+        from Enum value in Enum.GetValues(@enum.GetType()) where @enum.HasFlag(value) select (T)value;
 
-    public static List<string> ToList(this SfuPermissionFlags sfuPermissionFlags)
-        => sfuPermissionFlags.EnumerateFlags()
+    public static List<string> ToList(this SfuPermissionFlags sfuPermissionFlags) =>
+        sfuPermissionFlags
+           .EnumerateFlags()
            .Select(permission => permission.GetAttributeOfType<FlagNameAttribute>())
            .Where(x => x is not null)
-           .Select(attr => attr.FlagName).ToList();
+           .Select(attr => attr.FlagName)
+           .ToList();
 }

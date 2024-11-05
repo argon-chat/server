@@ -9,7 +9,7 @@ public enum ChannelType : ushort
 {
     Text,
     Voice,
-    Announcement
+    Announcement,
 }
 
 public sealed record Channel
@@ -26,8 +26,8 @@ public sealed record Channel
     public ServerRole  AccessLevel { get; set; } = ServerRole.User;
     public Guid        ServerId    { get; set; } = Guid.Empty;
 
-    public static implicit operator ChannelDto(Channel channel)
-        => new(
+    public static implicit operator ChannelDto(Channel channel) =>
+        new(
             channel.Id,
             channel.CreatedAt,
             channel.UpdatedAt,

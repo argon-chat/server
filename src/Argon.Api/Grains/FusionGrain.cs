@@ -5,16 +5,15 @@ using Microsoft.IdentityModel.Tokens;
 using Persistence.States;
 
 public class FusionGrain(
-    [PersistentState("sessions", "OrleansStorage")]
-    IPersistentState<FusionSession> sessionStorage,
-    TokenValidationParameters JwtParameters) : Grain, IFusionSession
+    [PersistentState("sessions", "OrleansStorage")] IPersistentState<FusionSession> sessionStorage,
+    TokenValidationParameters JwtParameters
+) : Grain, IFusionSession
 {
     public async ValueTask<bool> AuthorizeAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
         tokenHandler.ValidateToken(token, JwtParameters, out var validatedToken);
         var jwt = (JwtSecurityToken)validatedToken;
-
         sessionStorage.State.Id           = Guid.Parse(jwt.Id);
         sessionStorage.State.IsAuthorized = true;
         await sessionStorage.WriteStateAsync();

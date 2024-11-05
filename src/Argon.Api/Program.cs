@@ -11,7 +11,6 @@ using Argon.Api.Services;
 using Argon.Sfu;
 
 var builder = WebApplication.CreateBuilder(args);
-
 builder.AddJwt();
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
@@ -40,7 +39,8 @@ app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
 app.MapGet("/", () => new
-{
-    version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-});
+    {
+        version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}",
+    }
+);
 await app.WarpUp<ApplicationDbContext>().RunAsync();

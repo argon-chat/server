@@ -25,8 +25,8 @@ public sealed record User
     public DateTime?                   DeletedAt              { get; set; }
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
-    public static implicit operator UserDto(User user)
-        => new(
+    public static implicit operator UserDto(User user) =>
+        new(
             user.Id,
             user.CreatedAt,
             user.UpdatedAt,

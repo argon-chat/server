@@ -15,17 +15,20 @@ public static class SfuFeature
         builder.Services.AddTransient<IArgonSelectiveForwardingUnit, ArgonSelectiveForwardingUnit>();
         builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
         builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(HttpClientKey, (provider, o) =>
-        {
-            var client = new FlurlClient(provider
-               .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
-            client.Settings.JsonSerializer =
-                new NewtonsoftJsonSerializer(new JsonSerializerSettings
-                {
-                    ContractResolver = new CamelCasePropertyNamesContractResolver()
-                });
-            return client;
-        });
-
+            {
+                var client = new FlurlClient(provider
+                   .GetRequiredService<IOptions<SfuFeatureSettings>>()
+                   .Value.Url
+                );
+                client.Settings.JsonSerializer =
+                    new NewtonsoftJsonSerializer(new JsonSerializerSettings
+                        {
+                            ContractResolver = new CamelCasePropertyNamesContractResolver(),
+                        }
+                    );
+                return client;
+            }
+        );
         return builder;
     }
 }

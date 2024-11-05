@@ -10,17 +10,16 @@ using Microsoft.IdentityModel.Tokens;
 public class UserManagerService(
     ILogger<UserManagerService> logger,
     IOptions<JwtOptions> jwt,
-    IConfiguration configuration)
+    IConfiguration configuration
+)
 {
     public Task<string> GenerateJwt(string email, Guid id)
     {
         var (issuer, audience, key, exp) = jwt.Value;
         var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
-            SecurityAlgorithms.HmacSha512Signature);
-        var subject = new ClaimsIdentity([
-            new Claim("id", id.ToString()),
-            new Claim("email", email)
-        ]);
+            SecurityAlgorithms.HmacSha512Signature
+        );
+        var subject = new ClaimsIdentity([new Claim("id", id.ToString()), new Claim("email", email)]);
         var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
@@ -28,15 +27,13 @@ public class UserManagerService(
             Expires            = expires,
             Issuer             = issuer,
             Audience           = audience,
-            SigningCredentials = signingCredentials
+            SigningCredentials = signingCredentials,
         };
-
         var tokenHandler = new JwtSecurityTokenHandler();
         var token        = tokenHandler.CreateToken(tokenDescriptor);
         var jwtToken     = tokenHandler.WriteToken(token);
         if (jwtToken == null)
             throw new Exception("Failed to generate token"); // TODO: Come up with application specific errors
-
         return Task.FromResult(jwtToken);
     }
 
@@ -47,25 +44,27 @@ public class UserManagerService(
         await ValidatePasswordStrength(password);
     }
 
-
     private Task ValidatePasswordStrength(string password)
     {
         if (!password.Any(char.IsDigit))
         {
             throw new Exception(
-                "Password must contain at least one digit"); // TODO: Come up with application specific errors
+                "Password must contain at least one digit"
+            ); // TODO: Come up with application specific errors
         }
 
         if (!password.Any(char.IsUpper))
         {
             throw new Exception(
-                "Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
+                "Password must contain at least one uppercase letter"
+            ); // TODO: Come up with application specific errors
         }
 
         if (!password.Any(char.IsLower))
         {
             throw new Exception(
-                "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
+                "Password must contain at least one lowercase letter"
+            ); // TODO: Come up with application specific errors
         }
 
         return Task.CompletedTask;
@@ -75,7 +74,6 @@ public class UserManagerService(
     {
         if (str.Length < min || str.Length > max)
             throw new Exception($"{obj}: Invalid length"); // TODO: Come up with application specific errors
-
         return Task.CompletedTask;
     }
 }
