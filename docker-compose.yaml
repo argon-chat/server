@@ -1,4 +1,13 @@
 services:
+  smtpdev:
+    container_name: "smtpdev"
+    image: "rnwood/smtp4dev:latest"
+    ports:
+      - target: 80
+        published: 3080
+      - target: 25
+        published: 2525
+    restart: unless-stopped
   cache:
     container_name: "cache"
     image: "docker.io/library/redis:7.4"
