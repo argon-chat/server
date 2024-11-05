@@ -17,12 +17,9 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         Credentials           = new NetworkCredential(smtpOptions.Value.User, smtpOptions.Value.Password)
     };
 
-    public Task SendEmailAsync(string email, string subject, string message, string template = "none")
-    {
-        var mail = new MailMessage(smtpOptions.Value.User, email, subject, message)
+    public Task SendEmailAsync(string email, string subject, string message, string template = "none") =>
+        Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, subject, message)
         {
             IsBodyHtml = true
-        };
-        return Client.SendMailAsync(mail);
-    }
+        });
 }

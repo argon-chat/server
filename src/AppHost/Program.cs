@@ -24,7 +24,7 @@ var clickhouse = builder.AddResource(clickhouseResource).WithImage("clickhouse/c
    .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1").WithHttpEndpoint(8123, 8123) // http endpoint
    .WithEndpoint(9000, 9000);                                                                 // native client endpoint
 
-var smtp = builder.AddContainer("smtpdev", "rnwood/smtp4dev").WithEndpoint(3080, 80, "http").WithEndpoint(2525, 25, "tcp");
+builder.AddContainer("smtpdev", "rnwood/smtp4dev").WithEndpoint(3080, 80, "http").WithEndpoint(2525, 25, "tcp");
 
 var apiDb = db.AddDatabase("apiDb");
 
