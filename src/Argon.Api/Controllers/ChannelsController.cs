@@ -9,41 +9,27 @@ using Microsoft.AspNetCore.Mvc;
 using Sfu;
 using Swashbuckle.AspNetCore.Annotations;
 
-[Authorize]
-[Route("api/[controller]/{channelId:guid}")]
+[Authorize, Route(template: "api/[controller]/{channelId:guid}")]
 public class ChannelsController(
     IGrainFactory grainFactory
 ) : ControllerBase
 {
-    [HttpPost]
-    [Route("join")]
-    [InjectId]
+    [HttpPost, Route(template: "join"), InjectId]
     public async Task<RealtimeToken> Join([SwaggerIgnore] string id, Guid channelId)
-    {
-        return await grainFactory.GetGrain<IChannelManager>(channelId).Join(Guid.Parse(id));
-    }
+        => await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).Join(userId: Guid.Parse(input: id));
 
-    [HttpPost]
-    [Route("leave")]
-    [InjectId]
+    [HttpPost, Route(template: "leave"), InjectId]
     public async Task Leave([SwaggerIgnore] string id, Guid channelId)
     {
-        await grainFactory.GetGrain<IChannelManager>(channelId).Leave(Guid.Parse(id));
+        await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).Leave(userId: Guid.Parse(input: id));
     }
 
-    [HttpGet]
-    [Route("")]
+    [HttpGet, Route(template: "")]
     public async Task<ChannelDto> GetChannel(Guid channelId)
-    {
-        return await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel();
-    }
+        => await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).GetChannel();
 
-    [HttpPut]
-    [HttpPatch]
-    [Route("")]
+    [HttpPut, HttpPatch, Route(template: "")]
     public async Task<ChannelDto> UpdateChannel(Guid channelId, [FromBody] ChannelInput input)
-    {
-        return await grainFactory.GetGrain<IChannelManager>(channelId).UpdateChannel(input);
-    }
+        => await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).UpdateChannel(input: input);
 }
 #endif

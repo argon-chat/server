@@ -5,15 +5,9 @@ using Entities;
 using MemoryPack;
 using MessagePack;
 
-[DataContract]
-[MemoryPackable(GenerateType.VersionTolerant)]
-[MessagePackObject]
-[Serializable]
-[GenerateSerializer]
+[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer]
 public sealed partial record UsersJoinedToChannel
 {
-    [DataMember(Order = 0)]
-    [MemoryPackOrder(0)]
-    [Id(0)]
+    [DataMember(Order = 0), MemoryPackOrder(order: 0), Id(id: 0)]
     public List<UsersToServerRelationDto> Users { get; set; } = new();
 }

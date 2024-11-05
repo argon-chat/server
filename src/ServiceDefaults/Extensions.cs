@@ -22,14 +22,14 @@ public static class Extensions
 
         builder.Services.AddServiceDiscovery();
 
-        builder.Services.ConfigureHttpClientDefaults(http =>
-        {
-            // Turn on resilience by default
-            http.AddStandardResilienceHandler();
+        builder.Services.ConfigureHttpClientDefaults(configure: http =>
+                                                                {
+                                                                    // Turn on resilience by default
+                                                                    http.AddStandardResilienceHandler();
 
-            // Turn on service discovery by default
-            http.AddServiceDiscovery();
-        });
+                                                                    // Turn on service discovery by default
+                                                                    http.AddServiceDiscovery();
+                                                                });
 
         // Uncomment the following to restrict the allowed schemes for service discovery.
         // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
@@ -42,26 +42,26 @@ public static class Extensions
 
     public static IHostApplicationBuilder ConfigureOpenTelemetry(this IHostApplicationBuilder builder)
     {
-        builder.Logging.AddOpenTelemetry(logging =>
-        {
-            logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes = true;
-        });
+        builder.Logging.AddOpenTelemetry(configure: logging =>
+                                                    {
+                                                        logging.IncludeFormattedMessage = true;
+                                                        logging.IncludeScopes           = true;
+                                                    });
 
         builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics =>
-            {
-                metrics.AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
-            })
-            .WithTracing(tracing =>
-            {
-                tracing.AddAspNetCoreInstrumentation()
-                    // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
-                    //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation();
-            });
+               .WithMetrics(configure: metrics =>
+                                       {
+                                           metrics.AddAspNetCoreInstrumentation()
+                                                  .AddHttpClientInstrumentation()
+                                                  .AddRuntimeInstrumentation();
+                                       })
+               .WithTracing(configure: tracing =>
+                                       {
+                                           tracing.AddAspNetCoreInstrumentation()
+                                                  // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
+                                                  //.AddGrpcClientInstrumentation()
+                                                  .AddHttpClientInstrumentation();
+                                       });
 
         builder.AddOpenTelemetryExporters();
 
@@ -70,7 +70,7 @@ public static class Extensions
 
     private static IHostApplicationBuilder AddOpenTelemetryExporters(this IHostApplicationBuilder builder)
     {
-        var useOtlpExporter = !string.IsNullOrWhiteSpace(builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]);
+        var useOtlpExporter = !string.IsNullOrWhiteSpace(value: builder.Configuration[key: "OTEL_EXPORTER_OTLP_ENDPOINT"]);
 
         if (useOtlpExporter) builder.Services.AddOpenTelemetry().UseOtlpExporter();
 
@@ -87,8 +87,8 @@ public static class Extensions
     public static IHostApplicationBuilder AddDefaultHealthChecks(this IHostApplicationBuilder builder)
     {
         builder.Services.AddHealthChecks()
-            // Add a default liveness check to ensure app is responsive
-            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+               // Add a default liveness check to ensure app is responsive
+               .AddCheck(name: "self", check: () => HealthCheckResult.Healthy(), tags: ["live"]);
 
         return builder;
     }
@@ -99,12 +99,12 @@ public static class Extensions
         // See https://aka.ms/dotnet/aspire/healthchecks for details before enabling these endpoints in non-development environments.
         if (!app.Environment.IsDevelopment()) return app;
         // All health checks must pass for app to be considered ready to accept traffic after starting
-        app.MapHealthChecks("/health");
+        app.MapHealthChecks(pattern: "/health");
 
         // Only health checks tagged with the "live" tag must pass for app to be considered alive
-        app.MapHealthChecks("/alive", new HealthCheckOptions
+        app.MapHealthChecks(pattern: "/alive", options: new HealthCheckOptions
         {
-            Predicate = r => r.Tags.Contains("live")
+            Predicate = r => r.Tags.Contains(item: "live")
         });
 
         return app;

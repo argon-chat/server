@@ -7,39 +7,26 @@ using MessagePack;
 
 public interface IServerManager : IGrainWithGuidKey
 {
-    [Alias("CreateServer")]
+    [Alias(alias: "CreateServer")]
     Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
 
-    [Alias("GetServer")]
+    [Alias(alias: "GetServer")]
     Task<ServerDto> GetServer();
 
-    [Alias("UpdateServer")]
+    [Alias(alias: "UpdateServer")]
     Task<ServerDto> UpdateServer(ServerInput input);
 
-    [Alias("DeleteServer")]
+    [Alias(alias: "DeleteServer")]
     Task DeleteServer();
 }
 
-[DataContract]
-[MemoryPackable(GenerateType.VersionTolerant)]
-[MessagePackObject]
-[Serializable]
-[GenerateSerializer]
-[Alias(nameof(ServerInput))]
+[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
+ Alias(alias: nameof(ServerInput))]
 public sealed partial record ServerInput(
-    [property: DataMember(Order = 0)]
-    [property: MemoryPackOrder(0)]
-    [property: Key(0)]
-    [property: Id(0)]
+    [property: DataMember(Order = 0), MemoryPackOrder(order: 0), Key(x: 0), Id(id: 0)]
     string Name,
-    [property: DataMember(Order = 1)]
-    [property: MemoryPackOrder(1)]
-    [property: Key(1)]
-    [property: Id(1)]
+    [property: DataMember(Order = 1), MemoryPackOrder(order: 1), Key(x: 1), Id(id: 1)]
     string? Description,
-    [property: DataMember(Order = 2)]
-    [property: MemoryPackOrder(2)]
-    [property: Key(2)]
-    [property: Id(2)]
+    [property: DataMember(Order = 2), MemoryPackOrder(order: 2), Key(x: 2), Id(id: 2)]
     string? AvatarUrl
 );

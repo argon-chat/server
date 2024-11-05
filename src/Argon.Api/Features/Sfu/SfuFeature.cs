@@ -13,16 +13,18 @@ public static class SfuFeature
     public static IHostApplicationBuilder AddSelectiveForwardingUnit(this IHostApplicationBuilder builder)
     {
         builder.Services.AddTransient<IArgonSelectiveForwardingUnit, ArgonSelectiveForwardingUnit>();
-        builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
-        builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(HttpClientKey, (provider, o) =>
-        {
-            var client = new FlurlClient(provider.GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
-            client.Settings.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings
-            {
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            });
-            return client;
-        });
+        builder.Services.Configure<SfuFeatureSettings>(config: builder.Configuration.GetSection(key: "sfu"));
+        builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(serviceKey: HttpClientKey, implementationFactory: (provider, o) =>
+                                                                   {
+                                                                       var client = new FlurlClient(baseUrl: provider
+                                                                           .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
+                                                                       client.Settings.JsonSerializer =
+                                                                           new NewtonsoftJsonSerializer(settings: new JsonSerializerSettings
+                                                                           {
+                                                                               ContractResolver = new CamelCasePropertyNamesContractResolver()
+                                                                           });
+                                                                       return client;
+                                                                   });
 
         return builder;
     }
@@ -30,7 +32,7 @@ public static class SfuFeature
 
 public class SfuFeatureSettings
 {
-    public required string Url { get; set; }
-    public required string ClientId { get; set; }
+    public required string Url          { get; set; }
+    public required string ClientId     { get; set; }
     public required string ClientSecret { get; set; }
 }

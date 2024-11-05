@@ -10,16 +10,16 @@ using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Sfu;
 
-var builder = WebApplication.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args: args);
 
 builder.AddJwt();
 builder.AddServiceDefaults();
-builder.AddRedisOutputCache("cache");
-builder.AddRabbitMQClient("rmq");
-builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
+builder.AddRedisOutputCache(connectionName: "cache");
+builder.AddRabbitMQClient(connectionName: "rmq");
+builder.AddNpgsqlDbContext<ApplicationDbContext>(connectionName: "DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers();
-builder.Services.AddFusion(RpcServiceMode.Server, true);
+builder.Services.AddFusion(defaultServiceMode: RpcServiceMode.Server, setDefaultServiceMode: true);
 // .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
 // .AddServer<IUserInteraction, UserInteractionService>()
 // .AddWebSocketServer(true);
@@ -39,5 +39,8 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
-app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}" });
+app.MapGet(pattern: "/", handler: () => new
+{
+    version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+});
 await app.WarpUp<ApplicationDbContext>().RunAsync();

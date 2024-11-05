@@ -11,136 +11,152 @@ using Microsoft.IdentityModel.Tokens;
 #if DEBUG
 public class ArgonSfuTestController : ControllerBase
 {
-    [HttpGet("/sfu/create_channel")]
+    [HttpGet(template: "/sfu/create_channel")]
     public async ValueTask<IActionResult> GetData([FromServices] IArgonSelectiveForwardingUnit sfu,
-        [FromQuery] Guid serverId, [FromQuery] Guid channelId)
-    {
-        return Ok(await
-            sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
-    }
+                                                  [FromQuery]    Guid                          serverId, [FromQuery] Guid channelId)
+        => Ok(value: await
+                         sfu.EnsureEphemeralChannelAsync(channelId: new ArgonChannelId(serverId: new ArgonServerId(id: serverId), channelId: channelId),
+                                                         maxParticipants: 15));
 
-    [HttpPost("/sfu/token")]
+    [HttpPost(template: "/sfu/token")]
     public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu,
-        [FromBody] ArgonChannelId roomId)
-    {
-        return Ok(await
-            sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
-    }
+                                                   [FromBody]     ArgonChannelId                roomId)
+        => Ok(value: await
+                         sfu.IssueAuthorizationTokenAsync(userId: new ArgonUserId(id: Guid.NewGuid()), channelId: roomId,
+                                                          permission: SfuPermission.DefaultUser));
 }
 #endif
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
-    [FromKeyedServices(SfuFeature.HttpClientKey)]
+    [FromKeyedServices(key: SfuFeature.HttpClientKey)]
     IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
 {
+    private const string pkg    = "livekit";
+    private const string prefix = "/twirp";
     private static readonly Guid
-        SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
+        SystemUser = new(b: [2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
-    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
-        SfuPermission permission) =>
-        new(CreateJwt(channelId, userId, permission, settings)); // TODO check validity
+    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId   userId, ArgonChannelId channelId,
+                                                                 SfuPermission permission) =>
+        new(result: CreateJwt(roomName: channelId, identity: userId, permissions: permission, settings: settings)); // TODO check validity
 
     public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId)
         => throw new NotImplementedException(); // TODO
 
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
     {
-        await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
+        await RequestAsync(service: "RoomService", method: "RemoveParticipant", data: new RoomParticipantIdentity
         {
             Identity = userId.ToRawIdentity(),
-            Room = channelId.ToRawRoomId()
-        }, new Dictionary<string, string>
+            Room     = channelId.ToRawRoomId()
+        }, headers: new Dictionary<string, string>
         {
-            { "Authorization", $"Bearer {CreateSystemToken(channelId).value}" }
+            {
+                "Authorization", $"Bearer {CreateSystemToken(channelId: channelId).value}"
+            }
         });
         return true;
     }
 
     public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId,
-        uint maxParticipants)
+                                                                             uint           maxParticipants)
     {
-        var result = await RequestAsync<CreateRoomRequest, Room>("RoomService", "CreateRoom", new CreateRoomRequest
+        var result = await RequestAsync<CreateRoomRequest, Room>(service: "RoomService", method: "CreateRoom", data: new CreateRoomRequest
         {
-            Name = channelId.ToRawRoomId(),
-            Metadata = channelId.ToRawRoomId(),
-            MaxParticipants = maxParticipants,
+            Name             = channelId.ToRawRoomId(),
+            Metadata         = channelId.ToRawRoomId(),
+            MaxParticipants  = maxParticipants,
             DepartureTimeout = 10,
-            EmptyTimeout = 2,
-            SyncStreams = true
-        }, new Dictionary<string, string>
+            EmptyTimeout     = 2,
+            SyncStreams      = true
+        }, headers: new Dictionary<string, string>
         {
-            { "Authorization", $"Bearer {CreateSystemToken(channelId).value}" }
+            {
+                "Authorization", $"Bearer {CreateSystemToken(channelId: channelId).value}"
+            }
         });
 
-        return new EphemeralChannelInfo(channelId, result.Sid, result);
+        return new EphemeralChannelInfo(channelId: channelId, sid: result.Sid, room: result);
     }
 
     public async ValueTask<bool> PruneEphemeralChannelAsync(ArgonChannelId channelId)
     {
-        await RequestAsync("RoomService", "DeleteRoom", new DeleteRoomRequest
+        await RequestAsync(service: "RoomService", method: "DeleteRoom", data: new DeleteRoomRequest
         {
             Room = channelId.ToRawRoomId()
-        }, new Dictionary<string, string>
+        }, headers: new Dictionary<string, string>
         {
-            { "Authorization", $"Bearer {CreateSystemToken(channelId).value}" }
+            {
+                "Authorization", $"Bearer {CreateSystemToken(channelId: channelId).value}"
+            }
         });
         return true;
     }
 
     private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
-        => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
+        => CreateJwt(roomName: channelId, identity: new ArgonUserId(id: SystemUser), permissions: SfuPermission.DefaultSystem, settings: settings);
 
-    private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
-        IOptions<SfuFeatureSettings> settings)
+    private static RealtimeToken CreateJwt(ArgonChannelId               roomName, ArgonUserId identity, SfuPermission permissions,
+                                           IOptions<SfuFeatureSettings> settings)
     {
         var now = DateTime.UtcNow;
         JwtHeader headers =
-            new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)),
-                "HS256"));
+            new(signingCredentials: new
+                    SigningCredentials(key: new SymmetricSecurityKey(key: Encoding.UTF8.GetBytes(s: settings.Value.ClientSecret)),
+                                       algorithm: "HS256"));
 
         JwtPayload payload = new()
         {
-            { "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds() },
-            { "iss", settings.Value.ClientId },
-            { "nbf", 0 },
-            { "sub", identity.ToRawIdentity() },
-            { "name", identity.ToRawIdentity() },
-            { "video", permissions.ToDictionary(roomName) }
+            {
+                "exp", new DateTimeOffset(dateTime: now.AddHours(value: 1)).ToUnixTimeSeconds()
+            },
+            {
+                "iss", settings.Value.ClientId
+            },
+            {
+                "nbf", 0
+            },
+            {
+                "sub", identity.ToRawIdentity()
+            },
+            {
+                "name", identity.ToRawIdentity()
+            },
+            {
+                "video", permissions.ToDictionary(channelId: roomName)
+            }
         };
 
-        JwtSecurityToken token = new(headers, payload);
-        return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
+        JwtSecurityToken token = new(header: headers, payload: payload);
+        return new RealtimeToken(value: new JwtSecurityTokenHandler().WriteToken(token: token));
     }
 
-    private const string pkg = "livekit";
-    private const string prefix = "/twirp";
-
-    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data,
-        Dictionary<string, string> headers, CancellationToken ct = default)
+    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string                     service, string            method, TReq data,
+                                                            Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
-            .Request($"{prefix}/{pkg}.{service}/{method}")
-            .WithHeaders(headers)
-            .AllowAnyHttpStatus()
-            .PostJsonAsync(data, cancellationToken: ct);
+                             .Request($"{prefix}/{pkg}.{service}/{method}")
+                             .WithHeaders(headers: headers)
+                             .AllowAnyHttpStatus()
+                             .PostJsonAsync(body: data, cancellationToken: ct);
 
         if (response.StatusCode != 200)
-            throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
+            throw new SfuRPCExceptions(statusCode: response.StatusCode, message: await response.GetStringAsync());
         return await response.GetJsonAsync<TResp>();
     }
 
-    public async ValueTask RequestAsync<TReq>(string service, string method, TReq data,
-        Dictionary<string, string> headers, CancellationToken ct = default)
+    public async ValueTask RequestAsync<TReq>(string                     service, string            method, TReq data,
+                                              Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
-            .Request($"{prefix}/{pkg}.{service}/{method}")
-            .WithHeaders(headers)
-            .AllowAnyHttpStatus()
-            .PostJsonAsync(data, cancellationToken: ct);
+                             .Request($"{prefix}/{pkg}.{service}/{method}")
+                             .WithHeaders(headers: headers)
+                             .AllowAnyHttpStatus()
+                             .PostJsonAsync(body: data, cancellationToken: ct);
 
         if (response.StatusCode != 200)
-            throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
+            throw new SfuRPCExceptions(statusCode: response.StatusCode, message: await response.GetStringAsync());
     }
 
     private class SfuRPCExceptions(int statusCode, string message) : Exception;

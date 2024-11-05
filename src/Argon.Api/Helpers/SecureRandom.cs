@@ -8,10 +8,8 @@ public static class SecureRandom
     {
         var buffer = new byte[n];
         using (var rng = RandomNumberGenerator.Create())
-        {
-            rng.GetBytes(buffer);
-        }
+            rng.GetBytes(data: buffer);
 
-        return BitConverter.ToString(buffer).Replace("-", "").ToLower();
+        return BitConverter.ToString(value: buffer).Replace(oldValue: "-", newValue: "").ToLower();
     }
 }

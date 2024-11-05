@@ -10,40 +10,22 @@ public interface IUserAuthorization : IRpcService
     Task<AuthorizeResponse> AuthorizeAsync(AuthorizeRequest request);
 }
 
-[DataContract]
-[MemoryPackable(GenerateType.VersionTolerant)]
-[MessagePackObject]
+[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record AuthorizeRequest(
-    [property: DataMember(Order = 0)]
-    [property: MemoryPackOrder(0)]
-    [property: Key(0)]
+    [property: DataMember(Order = 0), MemoryPackOrder(order: 0), Key(x: 0)]
     string? username,
-    [property: DataMember(Order = 1)]
-    [property: MemoryPackOrder(1)]
-    [property: Key(1)]
+    [property: DataMember(Order = 1), MemoryPackOrder(order: 1), Key(x: 1)]
     string password,
-    [property: DataMember(Order = 2)]
-    [property: MemoryPackOrder(2)]
-    [property: Key(2)]
+    [property: DataMember(Order = 2), MemoryPackOrder(order: 2), Key(x: 2)]
     string? machineKey,
-    [property: DataMember(Order = 3)]
-    [property: MemoryPackOrder(3)]
-    [property: Key(3)]
+    [property: DataMember(Order = 3), MemoryPackOrder(order: 3), Key(x: 3)]
     string email,
-    [property: DataMember(Order = 4)]
-    [property: MemoryPackOrder(4)]
-    [property: Key(4)]
+    [property: DataMember(Order = 4), MemoryPackOrder(order: 4), Key(x: 4)]
     string? phoneNumber,
-    [property: DataMember(Order = 5)]
-    [property: MemoryPackOrder(5)]
-    [property: Key(5)]
+    [property: DataMember(Order = 5), MemoryPackOrder(order: 5), Key(x: 5)]
     bool generateOtp = false);
 
-[DataContract]
-[MemoryPackable(GenerateType.VersionTolerant)]
-[MessagePackObject]
+[DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject]
 public sealed partial record AuthorizeResponse(
-    [property: DataMember(Order = 0)]
-    [property: MemoryPackOrder(0)]
-    [property: Key(0)]
+    [property: DataMember(Order = 0), MemoryPackOrder(order: 0), Key(x: 0)]
     string token);

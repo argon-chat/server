@@ -5,87 +5,81 @@ using Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 public class ServerManager(
-    IGrainFactory grainFactory,
+    IGrainFactory        grainFactory,
     ApplicationDbContext context
 ) : Grain, IServerManager
 {
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
-        var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
+        var user = await grainFactory.GetGrain<IUserManager>(primaryKey: creatorId).GetUser();
         var server = new Server
         {
-            Name = input.Name,
+            Name        = input.Name,
             Description = input.Description,
-            AvatarUrl = input.AvatarUrl,
+            AvatarUrl   = input.AvatarUrl,
             UsersToServerRelations = new List<UsersToServerRelation>
             {
                 new()
                 {
-                    UserId = creatorId,
-                    CustomUsername = user.Username ?? user.Email,
-                    AvatarUrl = user.AvatarUrl,
+                    UserId          = creatorId,
+                    CustomUsername  = user.Username ?? user.Email,
+                    AvatarUrl       = user.AvatarUrl,
                     CustomAvatarUrl = user.AvatarUrl,
-                    Role = ServerRole.Owner
+                    Role            = ServerRole.Owner
                 }
             },
-            Channels = CreateDefaultChannels(creatorId)
+            Channels = CreateDefaultChannels(CreatorId: creatorId)
         };
 
-        context.Servers.Add(server);
+        context.Servers.Add(entity: server);
         await context.SaveChangesAsync();
-        return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
+        return await grainFactory.GetGrain<IServerManager>(primaryKey: server.Id).GetServer();
     }
 
     public async Task<ServerDto> GetServer()
-    {
-        return await Get();
-    }
+        => await Get();
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
         var server = await Get();
-        server.Name = input.Name;
+        server.Name        = input.Name;
         server.Description = input.Description;
-        server.AvatarUrl = input.AvatarUrl;
-        context.Servers.Update(server);
+        server.AvatarUrl   = input.AvatarUrl;
+        context.Servers.Update(entity: server);
         await context.SaveChangesAsync();
         return await Get();
     }
 
     public async Task DeleteServer()
     {
-        var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
-        context.Servers.Remove(server);
+        var server = await context.Servers.FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
+        context.Servers.Remove(entity: server);
         await context.SaveChangesAsync();
     }
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId)
-    {
-        return
+        =>
         [
-            CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
-            CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
-            CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
+            CreateChannel(CreatorId: CreatorId, name: "General", description: "General text channel",         channelType: ChannelType.Text),
+            CreateChannel(CreatorId: CreatorId, name: "General", description: "General voice channel",        channelType: ChannelType.Voice),
+            CreateChannel(CreatorId: CreatorId, name: "General", description: "General anouncements channel", channelType: ChannelType.Announcement)
         ];
-    }
 
     private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
-    {
-        return new Channel
+        => new()
         {
-            Name = name,
+            Name        = name,
             Description = description,
-            UserId = CreatorId,
+            UserId      = CreatorId,
             ChannelType = channelType,
             AccessLevel = ServerRole.User
         };
-    }
 
     private async Task<Server> Get()
     {
         return await context.Servers
-            .Include(x => x.Channels)
-            .Include(x => x.UsersToServerRelations)
-            .FirstAsync(s => s.Id == this.GetPrimaryKey());
+                            .Include(navigationPropertyPath: x => x.Channels)
+                            .Include(navigationPropertyPath: x => x.UsersToServerRelations)
+                            .FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
     }
 }
