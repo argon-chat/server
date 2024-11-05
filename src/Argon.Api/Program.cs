@@ -1,6 +1,5 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
-using ActualLab.Rpc.Server;
 using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
@@ -40,7 +39,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
-app.MapRpcWebSocketServer();
+// app.MapRpcWebSocketServer();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
