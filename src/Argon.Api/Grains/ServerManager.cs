@@ -1,97 +1,74 @@
 namespace Argon.Api.Grains;
 
+using Entities;
 using Interfaces;
-using Persistence.States;
-using Sfu;
+using Microsoft.EntityFrameworkCore;
 
-public class ServerManager(
-    [PersistentState("serverUsers", "OrleansStorage")]
-    IPersistentState<ServerToUserRelations> serverUserStore,
-    [PersistentState("server", "OrleansStorage")]
-    IPersistentState<ServerStorage> serverStore,
-    IGrainFactory grainFactory
-) : Grain, IServerManager
+public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
 {
-    public async Task<ServerStorage> CreateServer(string name, string description, Guid userId)
+    public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
-        serverStore.State.Id = this.GetPrimaryKey();
-        serverStore.State.Name = name;
-        serverStore.State.Description = description;
-        serverStore.State.UpdatedAt = DateTime.UtcNow;
-        await serverStore.WriteStateAsync();
-        await CreateDefaultChannels(userId);
-        return serverStore.State;
-    }
-
-    public async Task<string> CreateJoinLink()
-    {
-        return await Task.Run(() => "");
-        // TODO: register url generator grain for this one line
-    }
-
-    public async Task AddUser(UserToServerRelation Relation)
-    {
-        serverUserStore.State.Users.Add(Relation);
-        await serverUserStore.WriteStateAsync();
-    }
-
-    public async Task<IEnumerable<ChannelStorage>> GetChannels()
-    {
-        return await Task.WhenAll(serverStore.State.Channels.Select(async channelId => await GetChannel(channelId)));
-    }
-
-
-    public async Task<ChannelStorage> AddChannel(ChannelStorage channel)
-    {
-        return await grainFactory.GetGrain<IChannelManager>(channel.Id).CreateChannel(channel);
-    }
-
-    public async Task<ChannelStorage> GetChannel(Guid channelId)
-    {
-        if (!serverStore.State.Channels.Contains(channelId)) throw new Exception("ty che, psina"); // TODO 
-
-        return await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel();
-    }
-
-    public async Task<ServerStorage> GetServer()
-    {
-        await serverStore.ReadStateAsync();
-        return serverStore.State;
-    }
-
-    public async Task<RealtimeToken> JoinChannel(Guid userId, Guid channelId)
-    {
-        return await grainFactory.GetGrain<IChannelManager>(channelId).JoinLink(userId, this.GetPrimaryKey());
-    }
-
-    private async Task CreateDefaultChannels(Guid userId)
-    {
-        Guid[] channelIds =
-        [
-            await CreateDefaultChannel(userId, "General", "Default text channel", ChannelType.Text),
-            await CreateDefaultChannel(userId, "General", "Default voice channel", ChannelType.Voice),
-            await CreateDefaultChannel(userId, "Announcements", "Default announcement channel",
-                ChannelType.Announcement)
-        ];
-
-        foreach (var ChannelId in channelIds) serverStore.State.Channels.Add(ChannelId);
-
-        await serverStore.WriteStateAsync();
-    }
-
-    private async Task<Guid> CreateDefaultChannel(Guid userId, string name, string description, ChannelType channelType)
-    {
-        var id = Guid.NewGuid();
-        await grainFactory.GetGrain<IChannelManager>(id)
-            .CreateChannel(new ChannelStorage
+        var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
+        var server = new Server
+        {
+            Name        = input.Name,
+            Description = input.Description,
+            AvatarUrl   = input.AvatarUrl,
+            UsersToServerRelations = new List<UsersToServerRelation>
             {
-                Id = id,
-                Name = name,
-                Description = description,
-                ChannelType = channelType,
-                CreatedBy = userId
-            });
+                new()
+                {
+                    UserId          = creatorId,
+                    CustomUsername  = user.Username ?? user.Email,
+                    AvatarUrl       = user.AvatarUrl,
+                    CustomAvatarUrl = user.AvatarUrl,
+                    Role            = ServerRole.Owner
+                }
+            },
+            Channels = CreateDefaultChannels(creatorId)
+        };
 
-        return id;
+        context.Servers.Add(server);
+        await context.SaveChangesAsync();
+        return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
     }
+
+    public async Task<ServerDto> GetServer() => await Get();
+
+    public async Task<ServerDto> UpdateServer(ServerInput input)
+    {
+        var server = await Get();
+        server.Name        = input.Name;
+        server.Description = input.Description;
+        server.AvatarUrl   = input.AvatarUrl;
+        context.Servers.Update(server);
+        await context.SaveChangesAsync();
+        return await Get();
+    }
+
+    public async Task DeleteServer()
+    {
+        var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
+        context.Servers.Remove(server);
+        await context.SaveChangesAsync();
+    }
+
+    private List<Channel> CreateDefaultChannels(Guid CreatorId) =>
+    [
+        CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
+        CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
+        CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
+    ];
+
+    private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType) => new()
+    {
+        Name        = name,
+        Description = description,
+        UserId      = CreatorId,
+        ChannelType = channelType,
+        AccessLevel = ServerRole.User
+    };
+
+    private async Task<Server> Get() => await context.Servers.Include(x => x.Channels).Include(x => x.UsersToServerRelations)
+       .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }

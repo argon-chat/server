@@ -1,31 +1,30 @@
 namespace Argon.Api.Grains.Interfaces;
 
-using Persistence.States;
-using Sfu;
+using System.Runtime.Serialization;
+using Entities;
+using MemoryPack;
+using MessagePack;
 
 public interface IServerManager : IGrainWithGuidKey
 {
     [Alias("CreateServer")]
-    Task<ServerStorage> CreateServer(string name, string description, Guid userId);
-
-    [Alias("CreateJoinLink")]
-    Task<string> CreateJoinLink();
-
-    [Alias("AddUser")]
-    Task AddUser(UserToServerRelation Relation);
-
-    [Alias("GetChannels")]
-    Task<IEnumerable<ChannelStorage>> GetChannels();
-
-    [Alias("AddChannel")]
-    Task<ChannelStorage> AddChannel(ChannelStorage channel);
-
-    [Alias("GetChannel")]
-    Task<ChannelStorage> GetChannel(Guid channelId);
+    Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
 
     [Alias("GetServer")]
-    Task<ServerStorage> GetServer();
+    Task<ServerDto> GetServer();
 
-    [Alias("JoinChannel")]
-    Task<RealtimeToken> JoinChannel(Guid userId, Guid channelId);
+    [Alias("UpdateServer")]
+    Task<ServerDto> UpdateServer(ServerInput input);
+
+    [Alias("DeleteServer")]
+    Task DeleteServer();
 }
+
+[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerInput))]
+public sealed partial record ServerInput(
+    [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
+    string Name,
+    [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]
+    string? Description,
+    [property: DataMember(Order = 2), MemoryPackOrder(2), Key(2), Id(2)]
+    string? AvatarUrl);

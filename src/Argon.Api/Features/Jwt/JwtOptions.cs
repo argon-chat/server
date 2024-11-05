@@ -1,59 +1,54 @@
-﻿namespace Argon.Api.Features.Jwt;
+namespace Argon.Api.Features.Jwt;
 
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.Tokens;
 using System.Text;
-using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 public record JwtOptions
 {
     public required string Issuer { get; set; }
+
     public required string Audience { get; set; }
+
     // TODO use cert in production
-    public required string Key { get; set; }
+    public required string   Key     { get; set; }
     public required TimeSpan Expires { get; set; }
 
-    public void Deconstruct(out string issuer, out string audience, out string key)
+    public void Deconstruct(out string issuer, out string audience, out string key, out TimeSpan expires)
     {
-        audience = this.Audience;
-        issuer = this.Issuer;
-        key = this.Key;
+        audience = Audience;
+        issuer   = Issuer;
+        key      = Key;
+        expires  = Expires;
     }
 }
-
 
 public static class JwtFeature
 {
     public static IServiceCollection AddJwt(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-        builder.Services.AddKeyedSingleton(JwtBearerDefaults.AuthenticationScheme,
-            (services, _) =>
-            {
-                var options = services.GetRequiredService<IOptions<JwtOptions>>();
-                var (issuer, audience, key) = options.Value;
-                return new TokenValidationParameters
-                {
-                    ValidateIssuer = true,
-                    ValidateAudience = true,
-                    ValidateIssuerSigningKey = true,
-                    ValidIssuer = issuer,
-                    ValidAudience = audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
-                    ClockSkew = TimeSpan.Zero
-                };
-            });
+
+        var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
         }).AddJwtBearer(o =>
         {
+            o.TokenValidationParameters = new TokenValidationParameters
+            {
+                ValidIssuer              = jwt.Issuer,
+                ValidAudience            = jwt.Audience,
+                IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
+                ValidateIssuer           = true,
+                ValidateAudience         = true,
+                ValidateLifetime         = true,
+                ValidateIssuerSigningKey = true,
+                ClockSkew                = TimeSpan.Zero
+            };
             o.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>

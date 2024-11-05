@@ -1,25 +1,25 @@
 <Project>
-  <PropertyGroup>
-    <InvariantGlobalization>true</InvariantGlobalization>
-    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <LangVersion>latest</LangVersion>
-    <Version>0.1</Version>
-    <EnablePreviewFeatures>true</EnablePreviewFeatures>
-  </PropertyGroup>
-  <PropertyGroup>
-    <CurrentYear>$([System.DateTime]::Now.ToString(yyyy))</CurrentYear>
-    <PackageProjectUrl>https://github.com/argon-chat/server</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/argon-chat/server</RepositoryUrl>
-    <RepositoryType>git</RepositoryType>
-    <Copyright>(C) 2024-$(CurrentYear) Contributors of the Argon repository</Copyright>
-    <Authors>Yuuki Wesp, Aram Hayrapetyan, and all contributors of the Argon repository (argon-chat/server)</Authors>
-    <Company>Argon Chat</Company>
-    <EmbedUntrackedSources>true</EmbedUntrackedSources>
-    <IncludeSymbols>true</IncludeSymbols>
-    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
-    <NoWarn>CS0162,CS8981,CS8632,CS9113,CS8618,CS9113,CS8321,CS0219,CS1998,IDE0053</NoWarn>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
-  </ItemGroup>
+    <PropertyGroup>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+        <LangVersion>latest</LangVersion>
+        <Version>0.1</Version>
+        <EnablePreviewFeatures>true</EnablePreviewFeatures>
+    </PropertyGroup>
+    <PropertyGroup>
+        <CurrentYear>$([System.DateTime]::Now.ToString(yyyy))</CurrentYear>
+        <PackageProjectUrl>https://github.com/argon-chat/server</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/argon-chat/server</RepositoryUrl>
+        <RepositoryType>git</RepositoryType>
+        <Copyright>(C) 2024-$(CurrentYear) Contributors of the Argon repository</Copyright>
+        <Authors>Yuuki Wesp, Aram Hayrapetyan, and all contributors of the Argon repository (argon-chat/server)</Authors>
+        <Company>Argon Chat</Company>
+        <EmbedUntrackedSources>true</EmbedUntrackedSources>
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+        <NoWarn>CS0162,CS8981,CS8632,CS9113,CS8618,CS9113,CS8321,CS0219,CS1998,IDE0053</NoWarn>
+    </PropertyGroup>
+    <ItemGroup>
+        <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All"/>
+    </ItemGroup>
 </Project>

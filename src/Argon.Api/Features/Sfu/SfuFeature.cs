@@ -30,7 +30,7 @@ public static class SfuFeature
 
 public class SfuFeatureSettings
 {
-    public required string Url { get; set; }
-    public required string ClientId { get; set; }
+    public required string Url          { get; set; }
+    public required string ClientId     { get; set; }
     public required string ClientSecret { get; set; }
 }

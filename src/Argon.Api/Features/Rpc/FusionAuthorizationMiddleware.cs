@@ -1,20 +1,16 @@
 ﻿namespace Argon.Api.Features.Rpc;
 
-using ActualLab.Rpc.Infrastructure;
-using ActualLab.Rpc;
-using MemoryPack;
-using Microsoft.Extensions.Caching.Distributed;
-using ActualLab;
 using ActualLab.Reflection;
+using ActualLab.Rpc.Infrastructure;
 using Grains;
 using Grains.Persistence.States;
 using Microsoft.AspNetCore.Authorization;
-using Orleans;
 
 public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFactory GrainFactory) : RpcInboundMiddleware(Services)
 {
-    public AsyncLocal<string> Token = new AsyncLocal<string>();
-    public override async Task OnBeforeCall(RpcInboundCall call)
+    public AsyncLocal<string> Token = new();
+
+    public async override Task OnBeforeCall(RpcInboundCall call)
     {
         var existAttribute = call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
 
@@ -34,7 +30,6 @@ public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFact
         }
 
         call.Cancel();
-        return;
     }
 }
 
@@ -43,7 +38,7 @@ public class FusionServiceContext(IGrainFactory GrainFactory) : IFusionServiceCo
     public ValueTask<FusionSession> GetSessionState()
     {
         var current = RpcInboundContext.GetCurrent();
-        var peerId = current.Peer.Id;
+        var peerId  = current.Peer.Id;
 
         var grain = GrainFactory.GetGrain<IFusionSession>(peerId);
 
