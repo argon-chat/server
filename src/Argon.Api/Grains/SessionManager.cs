@@ -6,11 +6,11 @@ using Microsoft.EntityFrameworkCore;
 using Services;
 
 public class SessionManager(
-    IGrainFactory           grainFactory,
-    ILogger<UserManager>    logger,
-    UserManagerService      managerService,
+    IGrainFactory grainFactory,
+    ILogger<UserManager> logger,
+    UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    ApplicationDbContext    context
+    ApplicationDbContext context
 ) : Grain, ISessionManager
 {
     public async Task<JwtToken> Authorize(UserCredentialsInput input)

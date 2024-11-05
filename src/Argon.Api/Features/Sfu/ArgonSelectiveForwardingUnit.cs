@@ -33,7 +33,7 @@ public class ArgonSelectiveForwardingUnit(
     private static readonly Guid
         SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
-    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId   userId, ArgonChannelId channelId,
+    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId,
                                                                  SfuPermission permission)
         => new(CreateJwt(channelId, userId, permission, settings));
 
@@ -58,7 +58,7 @@ public class ArgonSelectiveForwardingUnit(
     }
 
     public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId,
-                                                                             uint           maxParticipants)
+                                                                             uint maxParticipants)
     {
         var result = await RequestAsync<CreateRoomRequest, Room>("RoomService", "CreateRoom", new CreateRoomRequest
         {
@@ -95,14 +95,14 @@ public class ArgonSelectiveForwardingUnit(
     private RealtimeToken CreateSystemToken(ArgonChannelId channelId)
         => CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
-    private static RealtimeToken CreateJwt(ArgonChannelId               roomName, ArgonUserId identity, SfuPermission permissions,
+    private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
                                            IOptions<SfuFeatureSettings> settings)
     {
         var now = DateTime.UtcNow;
         JwtHeader headers =
             new(new
-                    SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)),
-                                       "HS256"));
+                SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)),
+                    "HS256"));
 
         JwtPayload payload = new()
         {
@@ -130,28 +130,28 @@ public class ArgonSelectiveForwardingUnit(
         return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
     }
 
-    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string                     service, string            method, TReq data,
+    public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data,
                                                             Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
-                             .Request($"{prefix}/{pkg}.{service}/{method}")
-                             .WithHeaders(headers)
-                             .AllowAnyHttpStatus()
-                             .PostJsonAsync(data, cancellationToken: ct);
+           .Request($"{prefix}/{pkg}.{service}/{method}")
+           .WithHeaders(headers)
+           .AllowAnyHttpStatus()
+           .PostJsonAsync(data, cancellationToken: ct);
 
         if (response.StatusCode != 200)
             throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
         return await response.GetJsonAsync<TResp>();
     }
 
-    public async ValueTask RequestAsync<TReq>(string                     service, string            method, TReq data,
+    public async ValueTask RequestAsync<TReq>(string service, string method, TReq data,
                                               Dictionary<string, string> headers, CancellationToken ct = default)
     {
         var response = await httpClient
-                             .Request($"{prefix}/{pkg}.{service}/{method}")
-                             .WithHeaders(headers)
-                             .AllowAnyHttpStatus()
-                             .PostJsonAsync(data, cancellationToken: ct);
+           .Request($"{prefix}/{pkg}.{service}/{method}")
+           .WithHeaders(headers)
+           .AllowAnyHttpStatus()
+           .PostJsonAsync(data, cancellationToken: ct);
 
         if (response.StatusCode != 200)
             throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());

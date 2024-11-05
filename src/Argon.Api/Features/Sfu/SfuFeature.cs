@@ -17,7 +17,7 @@ public static class SfuFeature
         builder.Services.AddKeyedScoped<IFlurlClient, FlurlClient>(HttpClientKey, (provider, o) =>
         {
             var client = new FlurlClient(provider
-                                         .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
+               .GetRequiredService<IOptions<SfuFeatureSettings>>().Value.Url);
             client.Settings.JsonSerializer =
                 new NewtonsoftJsonSerializer(new JsonSerializerSettings
                 {

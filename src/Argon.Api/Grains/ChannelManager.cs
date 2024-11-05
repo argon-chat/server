@@ -8,7 +8,7 @@ using Sfu;
 
 public class ChannelManager(
     IArgonSelectiveForwardingUnit sfu,
-    ApplicationDbContext          context,
+    ApplicationDbContext context,
     [PersistentState("joinedUsers", "OrleansStorage")]
     IPersistentState<UsersJoinedToChannel> joinedUsers
 ) : Grain, IChannelManager
@@ -19,20 +19,20 @@ public class ChannelManager(
         if (channel.ChannelType != ChannelType.Voice) throw new Exception("k mamke svoey podklyuchaysa");
 
         var user = (await context.Servers.Include(x => x.UsersToServerRelations)
-                                 .FirstAsync(x => x.Id == channel.ServerId))
-                   .UsersToServerRelations.First(x => x.UserId == userId);
+               .FirstAsync(x => x.Id == channel.ServerId))
+           .UsersToServerRelations.First(x => x.UserId == userId);
 
         joinedUsers.State.Users.Add(user);
         await joinedUsers.WriteStateAsync();
 
         return await sfu.IssueAuthorizationTokenAsync(
-                                                      new ArgonUserId(userId),
-                                                      new ArgonChannelId(
-                                                                         new ArgonServerId(channel.ServerId),
-                                                                         this.GetPrimaryKey()
-                                                                        ),
-                                                      SfuPermission.DefaultUser // TODO: sort out permissions
-                                                     );
+            new ArgonUserId(userId),
+            new ArgonChannelId(
+                new ArgonServerId(channel.ServerId),
+                this.GetPrimaryKey()
+            ),
+            SfuPermission.DefaultUser // TODO: sort out permissions
+        );
     }
 
     public Task Leave(Guid userId)

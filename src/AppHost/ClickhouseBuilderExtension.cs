@@ -22,6 +22,6 @@ public class ClickhouseBuilderExtension : ContainerResource, IResourceWithConnec
 
     public ReferenceExpression ConnectionStringExpression =>
         ReferenceExpression.Create(
-                                   $"http://{UserNameParameter}:{PasswordParameter}@{PrimaryEndpoint.Property(EndpointProperty.Host)}:{PrimaryEndpoint.Property(EndpointProperty.Port)}"
-                                  );
+            $"http://{UserNameParameter}:{PasswordParameter}@{PrimaryEndpoint.Property(EndpointProperty.Host)}:{PrimaryEndpoint.Property(EndpointProperty.Port)}"
+        );
 }

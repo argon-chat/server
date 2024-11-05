@@ -34,22 +34,22 @@ public sealed record UsersToServerRelation
 
     public static implicit operator UsersToServerRelationDto(UsersToServerRelation relation)
         => new(
-               relation.Id,
-               relation.CreatedAt,
-               relation.Joined,
-               relation.Role,
-               relation.CustomUsername,
-               relation.IsBanned,
-               relation.IsMuted,
-               relation.BannedUntil,
-               relation.MutedUntil,
-               relation.AvatarUrl,
-               relation.CustomAvatarUrl,
-               relation.BanReason,
-               relation.MuteReason,
-               relation.ServerId,
-               relation.UserId
-              );
+            relation.Id,
+            relation.CreatedAt,
+            relation.Joined,
+            relation.Role,
+            relation.CustomUsername,
+            relation.IsBanned,
+            relation.IsMuted,
+            relation.BannedUntil,
+            relation.MutedUntil,
+            relation.AvatarUrl,
+            relation.CustomAvatarUrl,
+            relation.BanReason,
+            relation.MuteReason,
+            relation.ServerId,
+            relation.UserId
+        );
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

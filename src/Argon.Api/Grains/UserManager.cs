@@ -8,7 +8,7 @@ using Services;
 
 public class UserManager(
     IPasswordHashingService passwordHashingService,
-    ApplicationDbContext    context
+    ApplicationDbContext context
 ) : Grain, IUserManager
 {
     public async Task<UserDto> CreateUser(UserCredentialsInput input)
@@ -54,8 +54,8 @@ public class UserManager(
 
     private async Task<User> Get()
         => await context.Users
-                        .Include(x => x.UsersToServerRelations)
-                        .ThenInclude(x => x.Server)
-                        .ThenInclude(x => x.Channels)
-                        .FirstAsync(user => user.Id == this.GetPrimaryKey());
+           .Include(x => x.UsersToServerRelations)
+           .ThenInclude(x => x.Server)
+           .ThenInclude(x => x.Channels)
+           .FirstAsync(user => user.Id == this.GetPrimaryKey());
 }

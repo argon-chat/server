@@ -23,16 +23,16 @@ public sealed record User
 
     public static implicit operator UserDto(User user)
         => new(
-               user.Id,
-               user.CreatedAt,
-               user.UpdatedAt,
-               user.Email,
-               user.Username,
-               user.PhoneNumber,
-               user.AvatarUrl,
-               user.DeletedAt,
-               user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList()
-              );
+            user.Id,
+            user.CreatedAt,
+            user.UpdatedAt,
+            user.Email,
+            user.Username,
+            user.PhoneNumber,
+            user.AvatarUrl,
+            user.DeletedAt,
+            user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList()
+        );
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

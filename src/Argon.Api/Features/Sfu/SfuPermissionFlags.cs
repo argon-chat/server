@@ -31,12 +31,12 @@ public enum SfuPermissionFlags
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
 {
     public static readonly SfuPermission DefaultUser = new(
-                                                           SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
-                                                           SfuPermissionFlags.ROOM_JOIN,
-                                                           [TrackSource.Microphone, TrackSource.Microphone]);
+        SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
+        SfuPermissionFlags.ROOM_JOIN,
+        [TrackSource.Microphone, TrackSource.Microphone]);
 
     public static readonly SfuPermission DefaultSystem = new(
-                                                             SfuPermissionFlags.ALL, []);
+        SfuPermissionFlags.ALL, []);
 
     public Dictionary<string, object> ToDictionary(ArgonChannelId channelId)
     {
@@ -72,7 +72,7 @@ public static class LiveKitExtensions
 
     public static List<string> ToList(this SfuPermissionFlags sfuPermissionFlags)
         => sfuPermissionFlags.EnumerateFlags()
-                             .Select(permission => permission.GetAttributeOfType<FlagNameAttribute>())
-                             .Where(x => x is not null)
-                             .Select(attr => attr.FlagName).ToList();
+           .Select(permission => permission.GetAttributeOfType<FlagNameAttribute>())
+           .Where(x => x is not null)
+           .Select(attr => attr.FlagName).ToList();
 }

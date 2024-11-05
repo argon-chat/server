@@ -45,7 +45,7 @@ public static class JwtFeature
                     ValidAudience = jwt.Audience,
                     IssuerSigningKey =
                         new SymmetricSecurityKey(Encoding
-                                                 .UTF8.GetBytes(jwt.Key)),
+                           .UTF8.GetBytes(jwt.Key)),
                     ValidateIssuer           = true,
                     ValidateAudience         = true,
                     ValidateLifetime         = true,
@@ -57,8 +57,8 @@ public static class JwtFeature
                 OnMessageReceived = ctx =>
                 {
                     if (ctx.Request.Headers
-                           .TryGetValue("x-argon-token",
-                                        out var value))
+                       .TryGetValue("x-argon-token",
+                            out var value))
                     {
                         ctx.Token = value;
                         return Task.CompletedTask;

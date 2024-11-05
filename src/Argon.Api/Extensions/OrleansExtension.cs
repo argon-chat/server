@@ -20,22 +20,22 @@ public static class OrleansExtension
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder
-                .Configure<ClusterOptions>(cluster =>
+               .Configure<ClusterOptions>(cluster =>
                 {
                     cluster.ClusterId = "Api";
                     cluster.ServiceId = "Api";
                 })
-                .AddAdoNetGrainStorage("OrleansStorage", options =>
+               .AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
                     options.Invariant = "Npgsql";
                     options.ConnectionString =
                         builder.Configuration
-                               .GetConnectionString("DefaultConnection");
+                           .GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer =
                         new MemoryPackStorageSerializer();
                 })
-                .AddMemoryGrainStorageAsDefault()
-                .UseLocalhostClustering();
+               .AddMemoryGrainStorageAsDefault()
+               .UseLocalhostClustering();
         });
 
         return builder;

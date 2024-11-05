@@ -18,15 +18,15 @@ public sealed record Server
 
     public static implicit operator ServerDto(Server server)
         => new(
-               server.Id,
-               server.CreatedAt,
-               server.UpdatedAt,
-               server.Name,
-               server.Description,
-               server.AvatarUrl,
-               server.Channels.Select(channel => (ChannelDto)channel).ToList(),
-               server.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList()
-              );
+            server.Id,
+            server.CreatedAt,
+            server.UpdatedAt,
+            server.Name,
+            server.Description,
+            server.AvatarUrl,
+            server.Channels.Select(channel => (ChannelDto)channel).ToList(),
+            server.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList()
+        );
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

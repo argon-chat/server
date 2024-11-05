@@ -5,7 +5,7 @@ using Interfaces;
 using Microsoft.EntityFrameworkCore;
 
 public class ServerManager(
-    IGrainFactory        grainFactory,
+    IGrainFactory grainFactory,
     ApplicationDbContext context
 ) : Grain, IServerManager
 {
@@ -77,7 +77,7 @@ public class ServerManager(
 
     private async Task<Server> Get()
         => await context.Servers
-                        .Include(x => x.Channels)
-                        .Include(x => x.UsersToServerRelations)
-                        .FirstAsync(s => s.Id == this.GetPrimaryKey());
+           .Include(x => x.Channels)
+           .Include(x => x.UsersToServerRelations)
+           .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }

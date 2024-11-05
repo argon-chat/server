@@ -26,16 +26,16 @@ public sealed record Channel
 
     public static implicit operator ChannelDto(Channel channel)
         => new(
-               channel.Id,
-               channel.CreatedAt,
-               channel.UpdatedAt,
-               channel.Name,
-               channel.Description,
-               channel.UserId,
-               channel.ChannelType,
-               channel.AccessLevel,
-               channel.ServerId
-              );
+            channel.Id,
+            channel.CreatedAt,
+            channel.UpdatedAt,
+            channel.Name,
+            channel.Description,
+            channel.UserId,
+            channel.ChannelType,
+            channel.AccessLevel,
+            channel.ServerId
+        );
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

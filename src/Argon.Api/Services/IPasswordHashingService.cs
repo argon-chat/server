@@ -7,10 +7,10 @@ using Helpers;
 
 public interface IPasswordHashingService
 {
-    string? HashPassword(string?     password,      string? passwordConfirmation);
-    bool    VerifyPassword(string?   inputPassword, User    user);
-    bool    ValidatePassword(string? password,      string? passwordDigest);
-    bool    VerifyOtp(string?        inputOtp,      string? userOtp);
+    string? HashPassword(string? password, string? passwordConfirmation);
+    bool    VerifyPassword(string? inputPassword, User user);
+    bool    ValidatePassword(string? password, string? passwordDigest);
+    bool    VerifyOtp(string? inputOtp, string? userOtp);
     string  GenerateOtp();
 }
 
