@@ -1,5 +1,6 @@
 namespace Argon.Api.Controllers;
 
+#if DEBUG
 using Attributes;
 using Entities;
 using Grains.Interfaces;
@@ -45,3 +46,4 @@ public class ChannelsController(
         return await grainFactory.GetGrain<IChannelManager>(channelId).UpdateChannel(input);
     }
 }
+#endif

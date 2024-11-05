@@ -1,5 +1,5 @@
 namespace Argon.Api.Controllers;
-
+#if DEBUG
 using Attributes;
 using Entities;
 using Grains.Interfaces;
@@ -7,7 +7,6 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Swashbuckle.AspNetCore.Annotations;
 
-#if DEBUG
 [Route("api/[controller]")]
 public class ServersController(IGrainFactory grainFactory, ILogger<UsersController> logger) : ControllerBase
 {
