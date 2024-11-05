@@ -10,13 +10,13 @@ using Sfu;
 using Swashbuckle.AspNetCore.Annotations;
 
 [Authorize]
-[Route("api/[controller]")]
+[Route("api/[controller]/{channelId:guid}")]
 public class ChannelsController(
     IGrainFactory grainFactory
 ) : ControllerBase
 {
     [HttpPost]
-    [Route("{channelId:guid}/join")]
+    [Route("join")]
     [InjectId]
     public async Task<RealtimeToken> Join([SwaggerIgnore] string id, Guid channelId)
     {
@@ -24,7 +24,7 @@ public class ChannelsController(
     }
 
     [HttpPost]
-    [Route("{channelId:guid}/leave")]
+    [Route("leave")]
     [InjectId]
     public async Task Leave([SwaggerIgnore] string id, Guid channelId)
     {
@@ -32,7 +32,7 @@ public class ChannelsController(
     }
 
     [HttpGet]
-    [Route("{channelId:guid}")]
+    [Route("")]
     public async Task<ChannelDto> GetChannel(Guid channelId)
     {
         return await grainFactory.GetGrain<IChannelManager>(channelId).GetChannel();
@@ -40,7 +40,7 @@ public class ChannelsController(
 
     [HttpPut]
     [HttpPatch]
-    [Route("{channelId:guid}")]
+    [Route("")]
     public async Task<ChannelDto> UpdateChannel(Guid channelId, [FromBody] ChannelInput input)
     {
         return await grainFactory.GetGrain<IChannelManager>(channelId).UpdateChannel(input);
