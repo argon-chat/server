@@ -60,7 +60,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("ServerId");
 
-                    b.ToTable("Channels");
+                    b.ToTable("Channels", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Server", b =>
@@ -90,7 +90,7 @@ namespace Argon.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Servers");
+                    b.ToTable("Servers", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.User", b =>
@@ -135,7 +135,7 @@ namespace Argon.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users");
+                    b.ToTable("Users", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
@@ -194,7 +194,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UsersToServerRelations");
+                    b.ToTable("UsersToServerRelations", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Channel", b =>

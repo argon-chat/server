@@ -26,7 +26,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
         return await userManager.Authorize(input);
     }
 
-    [HttpGet("me")]
+    [HttpGet("Me")]
     [Authorize]
     [InjectId]
     public async Task<ActionResult<UserDto>> Get([SwaggerIgnore] string id)
