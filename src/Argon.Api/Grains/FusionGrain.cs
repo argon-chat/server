@@ -12,10 +12,10 @@ public class FusionGrain(
     public async ValueTask<bool> AuthorizeAsync(string token)
     {
         var tokenHandler = new JwtSecurityTokenHandler();
-        tokenHandler.ValidateToken(token, JwtParameters, out SecurityToken validatedToken);
+        tokenHandler.ValidateToken(token, JwtParameters, out var validatedToken);
         var jwt = (JwtSecurityToken)validatedToken;
 
-        sessionStorage.State.Id = Guid.Parse(jwt.Id);
+        sessionStorage.State.Id           = Guid.Parse(jwt.Id);
         sessionStorage.State.IsAuthorized = true;
         await sessionStorage.WriteStateAsync();
         return true;
@@ -26,9 +26,7 @@ public class FusionGrain(
         await sessionStorage.ReadStateAsync();
         return sessionStorage.State;
     }
-
 }
-
 
 public interface IFusionSession : IGrainWithGuidKey
 {

@@ -11,15 +11,15 @@ public record JwtOptions
     public required string Audience { get; set; }
 
     // TODO use cert in production
-    public required string Key { get; set; }
+    public required string   Key     { get; set; }
     public required TimeSpan Expires { get; set; }
 
     public void Deconstruct(out string issuer, out string audience, out string key, out TimeSpan expires)
     {
         audience = Audience;
-        issuer = Issuer;
-        key = Key;
-        expires = Expires;
+        issuer   = Issuer;
+        key      = Key;
+        expires  = Expires;
     }
 }
 
@@ -34,26 +34,31 @@ public static class JwtFeature
         builder.Services.AddAuthentication(options =>
         {
             options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
-            options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
         }).AddJwtBearer(o =>
         {
-            o.TokenValidationParameters = new TokenValidationParameters
-            {
-                ValidIssuer = jwt.Issuer,
-                ValidAudience = jwt.Audience,
-                IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
-                ValidateIssuer = true,
-                ValidateAudience = true,
-                ValidateLifetime = true,
-                ValidateIssuerSigningKey = true,
-                ClockSkew = TimeSpan.Zero
-            };
+            o.TokenValidationParameters =
+                new TokenValidationParameters
+                {
+                    ValidIssuer   = jwt.Issuer,
+                    ValidAudience = jwt.Audience,
+                    IssuerSigningKey =
+                        new SymmetricSecurityKey(Encoding
+                           .UTF8.GetBytes(jwt.Key)),
+                    ValidateIssuer           = true,
+                    ValidateAudience         = true,
+                    ValidateLifetime         = true,
+                    ValidateIssuerSigningKey = true,
+                    ClockSkew                = TimeSpan.Zero
+                };
             o.Events = new JwtBearerEvents
             {
                 OnMessageReceived = ctx =>
                 {
-                    if (ctx.Request.Headers.TryGetValue("x-argon-token", out var value))
+                    if (ctx.Request.Headers
+                       .TryGetValue("x-argon-token",
+                            out var value))
                     {
                         ctx.Token = value;
                         return Task.CompletedTask;

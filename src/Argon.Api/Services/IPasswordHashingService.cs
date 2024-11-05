@@ -8,10 +8,10 @@ using Helpers;
 public interface IPasswordHashingService
 {
     string? HashPassword(string? password, string? passwordConfirmation);
-    bool VerifyPassword(string? inputPassword, User user);
-    bool ValidatePassword(string? password, string? passwordDigest);
-    bool VerifyOtp(string? inputOtp, string? userOtp);
-    string GenerateOtp();
+    bool    VerifyPassword(string? inputPassword, User user);
+    bool    ValidatePassword(string? password, string? passwordDigest);
+    bool    VerifyOtp(string? inputOtp, string? userOtp);
+    string  GenerateOtp();
 }
 
 public class PasswordHashingService : IPasswordHashingService
@@ -21,13 +21,13 @@ public class PasswordHashingService : IPasswordHashingService
         if (password is null || passwordConfirmation is null) return null;
         if (password != passwordConfirmation) throw new Exception("Password confirmation does not match password");
         using var sha256 = SHA256.Create();
-        var bytes = Encoding.UTF8.GetBytes(password);
-        var hash = sha256.ComputeHash(bytes);
+        var       bytes  = Encoding.UTF8.GetBytes(password);
+        var       hash   = sha256.ComputeHash(bytes);
         return Convert.ToBase64String(hash);
     }
 
-    public bool VerifyPassword(string? inputPassword, User user) =>
-        ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
+    public bool VerifyPassword(string? inputPassword, User user)
+        => ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {

@@ -11,9 +11,10 @@ public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFact
 {
     public AsyncLocal<string> Token = new();
 
-    public override async Task OnBeforeCall(RpcInboundCall call)
+    public async override Task OnBeforeCall(RpcInboundCall call)
     {
-        var existAttribute = call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
+        var existAttribute =
+            call.MethodDef.Method.GetAttributes<AuthorizeAttribute>(true, true).Count != 0;
 
         if (!existAttribute)
         {
@@ -39,7 +40,7 @@ public class FusionServiceContext(IGrainFactory GrainFactory) : IFusionServiceCo
     public ValueTask<FusionSession> GetSessionState()
     {
         var current = RpcInboundContext.GetCurrent();
-        var peerId = current.Peer.Id;
+        var peerId  = current.Peer.Id;
 
         var grain = GrainFactory.GetGrain<IFusionSession>(peerId);
 

@@ -12,7 +12,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241104210028_Init")]
+    [Migration("20241105120248_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -173,6 +173,9 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsMuted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime>("Joined")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("MuteReason")
                         .HasColumnType("text");
 
@@ -211,17 +214,21 @@ namespace Argon.Api.Migrations
 
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
                 {
-                    b.HasOne("Argon.Api.Entities.Server", null)
+                    b.HasOne("Argon.Api.Entities.Server", "Server")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.Api.Entities.User", null)
+                    b.HasOne("Argon.Api.Entities.User", "User")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Server");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Server", b =>

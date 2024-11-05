@@ -45,22 +45,22 @@ public static class Extensions
         builder.Logging.AddOpenTelemetry(logging =>
         {
             logging.IncludeFormattedMessage = true;
-            logging.IncludeScopes = true;
+            logging.IncludeScopes           = true;
         });
 
         builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics =>
+           .WithMetrics(metrics =>
             {
                 metrics.AddAspNetCoreInstrumentation()
-                    .AddHttpClientInstrumentation()
-                    .AddRuntimeInstrumentation();
+                   .AddHttpClientInstrumentation()
+                   .AddRuntimeInstrumentation();
             })
-            .WithTracing(tracing =>
+           .WithTracing(tracing =>
             {
                 tracing.AddAspNetCoreInstrumentation()
                     // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                     //.AddGrpcClientInstrumentation()
-                    .AddHttpClientInstrumentation();
+                   .AddHttpClientInstrumentation();
             });
 
         builder.AddOpenTelemetryExporters();
@@ -88,7 +88,7 @@ public static class Extensions
     {
         builder.Services.AddHealthChecks()
             // Add a default liveness check to ensure app is responsive
-            .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
+           .AddCheck("self", () => HealthCheckResult.Healthy(), ["live"]);
 
         return builder;
     }

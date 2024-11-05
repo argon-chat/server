@@ -39,17 +39,11 @@ public class SessionManager(
     }
 
     public async Task<UserDto> GetUser()
-    {
-        return await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
-    }
+        => await grainFactory.GetGrain<IUserManager>(this.GetPrimaryKey()).GetUser();
 
     public Task Logout()
-    {
-        throw new NotImplementedException();
-    }
+        => throw new NotImplementedException();
 
     private async Task<JwtToken> GenerateJwt(User User)
-    {
-        return new JwtToken(await managerService.GenerateJwt(User.Email, User.Id));
-    }
+        => new(await managerService.GenerateJwt(User.Email, User.Id));
 }

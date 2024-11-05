@@ -60,7 +60,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("ServerId");
 
-                    b.ToTable("Channels", (string)null);
+                    b.ToTable("Channels");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Server", b =>
@@ -90,7 +90,7 @@ namespace Argon.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Servers", (string)null);
+                    b.ToTable("Servers");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.User", b =>
@@ -135,7 +135,7 @@ namespace Argon.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Users", (string)null);
+                    b.ToTable("Users");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
@@ -170,6 +170,9 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsMuted")
                         .HasColumnType("boolean");
 
+                    b.Property<DateTime>("Joined")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("MuteReason")
                         .HasColumnType("text");
 
@@ -194,7 +197,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("UsersToServerRelations", (string)null);
+                    b.ToTable("UsersToServerRelations");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Channel", b =>
@@ -208,17 +211,21 @@ namespace Argon.Api.Migrations
 
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
                 {
-                    b.HasOne("Argon.Api.Entities.Server", null)
+                    b.HasOne("Argon.Api.Entities.Server", "Server")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.Api.Entities.User", null)
+                    b.HasOne("Argon.Api.Entities.User", "User")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("Server");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.Server", b =>

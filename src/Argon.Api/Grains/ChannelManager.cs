@@ -19,8 +19,8 @@ public class ChannelManager(
         if (channel.ChannelType != ChannelType.Voice) throw new Exception("k mamke svoey podklyuchaysa");
 
         var user = (await context.Servers.Include(x => x.UsersToServerRelations)
-                .FirstAsync(x => x.Id == channel.ServerId))
-            .UsersToServerRelations.First(x => x.UserId == userId);
+               .FirstAsync(x => x.Id == channel.ServerId))
+           .UsersToServerRelations.First(x => x.UserId == userId);
 
         joinedUsers.State.Users.Add(user);
         await joinedUsers.WriteStateAsync();
@@ -51,7 +51,7 @@ public class ChannelManager(
     public async Task<ChannelDto> UpdateChannel(ChannelInput input)
     {
         var channel = await Get();
-        channel.Name = input.Name;
+        channel.Name        = input.Name;
         channel.AccessLevel = input.AccessLevel;
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
@@ -61,7 +61,5 @@ public class ChannelManager(
     }
 
     private async Task<Channel> Get()
-    {
-        return await context.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
-    }
+        => await context.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
 }

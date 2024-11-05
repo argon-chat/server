@@ -6,7 +6,6 @@ using Entities;
 
 public static class Gravatar
 {
-
     public static string GenerateGravatarUrl(User user, int size = 200)
     {
         var emailHash = GetMd5Hash(user.Email.Trim().ToLower());
@@ -15,14 +14,12 @@ public static class Gravatar
 
     private static string GetMd5Hash(string input)
     {
-        using var md5 = MD5.Create();
-        var inputBytes = Encoding.ASCII.GetBytes(input);
-        var hashBytes = md5.ComputeHash(inputBytes);
-        var sb = new StringBuilder();
+        using var md5        = MD5.Create();
+        var       inputBytes = Encoding.ASCII.GetBytes(input);
+        var       hashBytes  = md5.ComputeHash(inputBytes);
+        var       sb         = new StringBuilder();
         foreach (var t in hashBytes)
-        {
             sb.Append(t.ToString("x2"));
-        }
 
         return sb.ToString();
     }

@@ -15,11 +15,11 @@ public class UserManager(
     {
         var user = new User
         {
-            Email = input.Email,
-            Username = input.Username,
-            PhoneNumber = input.PhoneNumber,
+            Email          = input.Email,
+            Username       = input.Username,
+            PhoneNumber    = input.PhoneNumber,
             PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation),
-            OTP = passwordHashingService.GenerateOtp()
+            OTP            = passwordHashingService.GenerateOtp()
         };
         user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
@@ -30,8 +30,8 @@ public class UserManager(
     public async Task<UserDto> UpdateUser(UserCredentialsInput input)
     {
         var user = await Get();
-        user.Email = input.Email;
-        user.Username = input.Username ?? user.Username;
+        user.Email       = input.Email;
+        user.Username    = input.Username ?? user.Username;
         user.PhoneNumber = input.PhoneNumber ?? user.PhoneNumber;
         user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ??
                               user.PasswordDigest;
@@ -50,16 +50,12 @@ public class UserManager(
     }
 
     public async Task<UserDto> GetUser()
-    {
-        return await Get();
-    }
+        => await Get();
 
     private async Task<User> Get()
-    {
-        return await context.Users
-            .Include(x => x.UsersToServerRelations)
-            .ThenInclude(x => x.Server)
-            .ThenInclude(x => x.Channels)
-            .FirstAsync(user => user.Id == this.GetPrimaryKey());
-    }
+        => await context.Users
+           .Include(x => x.UsersToServerRelations)
+           .ThenInclude(x => x.Server)
+           .ThenInclude(x => x.Channels)
+           .FirstAsync(user => user.Id == this.GetPrimaryKey());
 }

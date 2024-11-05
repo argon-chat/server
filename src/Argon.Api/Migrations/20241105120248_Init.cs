@@ -80,6 +80,7 @@ namespace Argon.Api.Migrations
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     ServerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Joined = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     Role = table.Column<int>(type: "integer", nullable: false),
                     UserId = table.Column<Guid>(type: "uuid", nullable: false),
                     CustomUsername = table.Column<string>(type: "text", nullable: false),

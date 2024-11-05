@@ -14,18 +14,18 @@ public class ServerManager(
         var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
         var server = new Server
         {
-            Name = input.Name,
+            Name        = input.Name,
             Description = input.Description,
-            AvatarUrl = input.AvatarUrl,
+            AvatarUrl   = input.AvatarUrl,
             UsersToServerRelations = new List<UsersToServerRelation>
             {
                 new()
                 {
-                    UserId = creatorId,
-                    CustomUsername = user.Username ?? user.Email,
-                    AvatarUrl = user.AvatarUrl,
+                    UserId          = creatorId,
+                    CustomUsername  = user.Username ?? user.Email,
+                    AvatarUrl       = user.AvatarUrl,
                     CustomAvatarUrl = user.AvatarUrl,
-                    Role = ServerRole.Owner
+                    Role            = ServerRole.Owner
                 }
             },
             Channels = CreateDefaultChannels(creatorId)
@@ -37,16 +37,14 @@ public class ServerManager(
     }
 
     public async Task<ServerDto> GetServer()
-    {
-        return await Get();
-    }
+        => await Get();
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
         var server = await Get();
-        server.Name = input.Name;
+        server.Name        = input.Name;
         server.Description = input.Description;
-        server.AvatarUrl = input.AvatarUrl;
+        server.AvatarUrl   = input.AvatarUrl;
         context.Servers.Update(server);
         await context.SaveChangesAsync();
         return await Get();
@@ -60,32 +58,26 @@ public class ServerManager(
     }
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId)
-    {
-        return
+        =>
         [
             CreateChannel(CreatorId, "General", "General text channel", ChannelType.Text),
             CreateChannel(CreatorId, "General", "General voice channel", ChannelType.Voice),
             CreateChannel(CreatorId, "General", "General anouncements channel", ChannelType.Announcement)
         ];
-    }
 
     private Channel CreateChannel(Guid CreatorId, string name, string description, ChannelType channelType)
-    {
-        return new Channel
+        => new()
         {
-            Name = name,
+            Name        = name,
             Description = description,
-            UserId = CreatorId,
+            UserId      = CreatorId,
             ChannelType = channelType,
             AccessLevel = ServerRole.User
         };
-    }
 
     private async Task<Server> Get()
-    {
-        return await context.Servers
-            .Include(x => x.Channels)
-            .Include(x => x.UsersToServerRelations)
-            .FirstAsync(s => s.Id == this.GetPrimaryKey());
-    }
+        => await context.Servers
+           .Include(x => x.Channels)
+           .Include(x => x.UsersToServerRelations)
+           .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }

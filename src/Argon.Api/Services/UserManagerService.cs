@@ -24,16 +24,16 @@ public class UserManagerService(
         var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject = subject,
-            Expires = expires,
-            Issuer = issuer,
-            Audience = audience,
+            Subject            = subject,
+            Expires            = expires,
+            Issuer             = issuer,
+            Audience           = audience,
             SigningCredentials = signingCredentials
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();
-        var token = tokenHandler.CreateToken(tokenDescriptor);
-        var jwtToken = tokenHandler.WriteToken(token);
+        var token        = tokenHandler.CreateToken(tokenDescriptor);
+        var jwtToken     = tokenHandler.WriteToken(token);
         if (jwtToken == null)
             throw new Exception("Failed to generate token"); // TODO: Come up with application specific errors
 
@@ -51,16 +51,22 @@ public class UserManagerService(
     private Task ValidatePasswordStrength(string password)
     {
         if (!password.Any(char.IsDigit))
+        {
             throw new Exception(
                 "Password must contain at least one digit"); // TODO: Come up with application specific errors
+        }
 
         if (!password.Any(char.IsUpper))
+        {
             throw new Exception(
                 "Password must contain at least one uppercase letter"); // TODO: Come up with application specific errors
+        }
 
         if (!password.Any(char.IsLower))
+        {
             throw new Exception(
                 "Password must contain at least one lowercase letter"); // TODO: Come up with application specific errors
+        }
 
         return Task.CompletedTask;
     }

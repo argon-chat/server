@@ -31,7 +31,8 @@ public enum SfuPermissionFlags
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
 {
     public static readonly SfuPermission DefaultUser = new(
-        SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH | SfuPermissionFlags.ROOM_JOIN,
+        SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
+        SfuPermissionFlags.ROOM_JOIN,
         [TrackSource.Microphone, TrackSource.Microphone]);
 
     public static readonly SfuPermission DefaultSystem = new(
@@ -57,27 +58,21 @@ public class FlagNameAttribute(string flagName) : Attribute
 public static class LiveKitExtensions
 {
     public static string ToFormatString(this TrackSource trackSource)
-    {
-        return trackSource switch
+        => trackSource switch
         {
-            TrackSource.Camera => "camera",
-            TrackSource.Microphone => "microphone",
-            TrackSource.ScreenShare => "screen_share",
+            TrackSource.Camera           => "camera",
+            TrackSource.Microphone       => "microphone",
+            TrackSource.ScreenShare      => "screen_share",
             TrackSource.ScreenShareAudio => "screen_share_audio",
-            _ => throw new ArgumentOutOfRangeException(nameof(trackSource), trackSource, null)
+            _                            => throw new ArgumentOutOfRangeException(nameof(trackSource), trackSource, null)
         };
-    }
 
     public static IEnumerable<T> EnumerateFlags<T>(this T @enum) where T : Enum
-    {
-        return from Enum value in Enum.GetValues(@enum.GetType()) where @enum.HasFlag(value) select (T)value;
-    }
+        => from Enum value in Enum.GetValues(@enum.GetType()) where @enum.HasFlag(value) select (T)value;
 
     public static List<string> ToList(this SfuPermissionFlags sfuPermissionFlags)
-    {
-        return sfuPermissionFlags.EnumerateFlags()
-            .Select(permission => permission.GetAttributeOfType<FlagNameAttribute>())
-            .Where(x => x is not null)
-            .Select(attr => attr.FlagName).ToList();
-    }
+        => sfuPermissionFlags.EnumerateFlags()
+           .Select(permission => permission.GetAttributeOfType<FlagNameAttribute>())
+           .Where(x => x is not null)
+           .Select(attr => attr.FlagName).ToList();
 }

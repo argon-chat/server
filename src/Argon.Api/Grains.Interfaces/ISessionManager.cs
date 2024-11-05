@@ -16,8 +16,5 @@ public interface ISessionManager : IGrainWithGuidKey
     Task Logout(); // TODO: revoke jwt by adding it into a blacklist
 }
 
-[Serializable]
-[GenerateSerializer]
-[MemoryPackable]
-[Alias(nameof(JwtToken))]
+[Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(JwtToken))]
 public partial record struct JwtToken(string token);

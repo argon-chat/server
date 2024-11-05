@@ -8,9 +8,7 @@ public static class SecureRandom
     {
         var buffer = new byte[n];
         using (var rng = RandomNumberGenerator.Create())
-        {
             rng.GetBytes(buffer);
-        }
 
         return BitConverter.ToString(buffer).Replace("-", "").ToLower();
     }

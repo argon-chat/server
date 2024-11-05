@@ -39,5 +39,8 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
-app.MapGet("/", () => new { version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}" });
+app.MapGet("/", () => new
+{
+    version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+});
 await app.WarpUp<ApplicationDbContext>().RunAsync();

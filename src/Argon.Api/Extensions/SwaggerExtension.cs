@@ -10,8 +10,8 @@ public static class SwaggerExtension
             {
                 c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
                 {
-                    Name = "x-argon-token",
-                    In = ParameterLocation.Header,
+                    Name        = "x-argon-token",
+                    In          = ParameterLocation.Header,
                     Description = "access token"
                 });
                 c.AddSecurityRequirement(new OpenApiSecurityRequirement
@@ -22,16 +22,15 @@ public static class SwaggerExtension
                             Reference = new OpenApiReference
                             {
                                 Type = ReferenceType.SecurityScheme,
-                                Id = "Bearer"
+                                Id   = "Bearer"
                             }
                         },
                         []
                     }
                 });
             })
-            .AddEndpointsApiExplorer();
+           .AddEndpointsApiExplorer();
 
         return builder;
     }
-
 }

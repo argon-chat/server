@@ -6,11 +6,9 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class MetadataController : ControllerBase
 {
-    [HttpGet("/cfg.json")]
-    [AllowAnonymous]
+    [HttpGet("/cfg.json"), AllowAnonymous]
     public ValueTask<HeadRoutingConfig> GetHead()
-    {
-        return new ValueTask<HeadRoutingConfig>(new HeadRoutingConfig(
+        => new(new HeadRoutingConfig(
             $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}",
             "api.argon.gl",
             "argon-f14ic5ia.livekit.cloud",
@@ -22,7 +20,6 @@ public class MetadataController : ControllerBase
                 new FeatureFlag("dev.window", true),
                 new FeatureFlag("user.allowServerCreation", true)
             ]));
-    }
 }
 
 public record HeadRoutingConfig(
