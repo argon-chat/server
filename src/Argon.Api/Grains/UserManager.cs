@@ -53,11 +53,9 @@ public class UserManager(
         => await Get();
 
     private async Task<User> Get()
-    {
-        return await context.Users
-                            .Include(navigationPropertyPath: x => x.UsersToServerRelations)
-                            .ThenInclude(navigationPropertyPath: x => x.Server)
-                            .ThenInclude(navigationPropertyPath: x => x.Channels)
-                            .FirstAsync(predicate: user => user.Id == this.GetPrimaryKey());
-    }
+        => await context.Users
+                        .Include(navigationPropertyPath: x => x.UsersToServerRelations)
+                        .ThenInclude(navigationPropertyPath: x => x.Server)
+                        .ThenInclude(navigationPropertyPath: x => x.Channels)
+                        .FirstAsync(predicate: user => user.Id == this.GetPrimaryKey());
 }

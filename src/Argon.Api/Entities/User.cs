@@ -11,8 +11,10 @@ public sealed record User
     public                                     DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public                                     DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     [Required, MaxLength(length: 255)]  public string   Email     { get; set; } = string.Empty;
-    [MaxLength(          length: 255), MinLength(length: 6)] 
-    public string? Username { get;                                                             set; } = string.Empty;
+
+    [MaxLength(length: 255), MinLength(length: 6)] 
+    public string? Username { get; set; } = string.Empty;
+
     [MaxLength(length: 30)]   public string?                     PhoneNumber            { get; set; } = string.Empty;
     [MaxLength(length: 511)]  public string?                     PasswordDigest         { get; set; } = string.Empty;
     [MaxLength(length: 1023)] public string?                     AvatarUrl              { get; set; } = string.Empty;
@@ -21,19 +23,17 @@ public sealed record User
     public                           List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
     public static implicit operator UserDto(User user)
-    {
-        return new UserDto(
-                           Id: user.Id,
-                           CreatedAt: user.CreatedAt,
-                           UpdatedAt: user.UpdatedAt,
-                           Email: user.Email,
-                           Username: user.Username,
-                           PhoneNumber: user.PhoneNumber,
-                           AvatarUrl: user.AvatarUrl,
-                           DeletedAt: user.DeletedAt,
-                           Servers: user.UsersToServerRelations.Select(selector: relation => (ServerDto)relation.Server).ToList()
-                          );
-    }
+        => new(
+            Id: user.Id,
+            CreatedAt: user.CreatedAt,
+            UpdatedAt: user.UpdatedAt,
+            Email: user.Email,
+            Username: user.Username,
+            PhoneNumber: user.PhoneNumber,
+            AvatarUrl: user.AvatarUrl,
+            DeletedAt: user.DeletedAt,
+            Servers: user.UsersToServerRelations.Select(selector: relation => (ServerDto)relation.Server).ToList()
+        );
 }
 
 [DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

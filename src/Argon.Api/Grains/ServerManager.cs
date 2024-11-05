@@ -60,8 +60,8 @@ public class ServerManager(
     private List<Channel> CreateDefaultChannels(Guid CreatorId)
         =>
         [
-            CreateChannel(CreatorId: CreatorId, name: "General", description: "General text channel",         channelType: ChannelType.Text),
-            CreateChannel(CreatorId: CreatorId, name: "General", description: "General voice channel",        channelType: ChannelType.Voice),
+            CreateChannel(CreatorId: CreatorId, name: "General", description: "General text channel", channelType: ChannelType.Text),
+            CreateChannel(CreatorId: CreatorId, name: "General", description: "General voice channel", channelType: ChannelType.Voice),
             CreateChannel(CreatorId: CreatorId, name: "General", description: "General anouncements channel", channelType: ChannelType.Announcement)
         ];
 
@@ -76,10 +76,8 @@ public class ServerManager(
         };
 
     private async Task<Server> Get()
-    {
-        return await context.Servers
-                            .Include(navigationPropertyPath: x => x.Channels)
-                            .Include(navigationPropertyPath: x => x.UsersToServerRelations)
-                            .FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
-    }
+        => await context.Servers
+                        .Include(navigationPropertyPath: x => x.Channels)
+                        .Include(navigationPropertyPath: x => x.UsersToServerRelations)
+                        .FirstAsync(predicate: s => s.Id == this.GetPrimaryKey());
 }

@@ -23,13 +23,13 @@ public static class Extensions
         builder.Services.AddServiceDiscovery();
 
         builder.Services.ConfigureHttpClientDefaults(configure: http =>
-                                                                {
-                                                                    // Turn on resilience by default
-                                                                    http.AddStandardResilienceHandler();
+        {
+            // Turn on resilience by default
+            http.AddStandardResilienceHandler();
 
-                                                                    // Turn on service discovery by default
-                                                                    http.AddServiceDiscovery();
-                                                                });
+            // Turn on service discovery by default
+            http.AddServiceDiscovery();
+        });
 
         // Uncomment the following to restrict the allowed schemes for service discovery.
         // builder.Services.Configure<ServiceDiscoveryOptions>(options =>
@@ -43,25 +43,25 @@ public static class Extensions
     public static IHostApplicationBuilder ConfigureOpenTelemetry(this IHostApplicationBuilder builder)
     {
         builder.Logging.AddOpenTelemetry(configure: logging =>
-                                                    {
-                                                        logging.IncludeFormattedMessage = true;
-                                                        logging.IncludeScopes           = true;
-                                                    });
+        {
+            logging.IncludeFormattedMessage = true;
+            logging.IncludeScopes           = true;
+        });
 
         builder.Services.AddOpenTelemetry()
                .WithMetrics(configure: metrics =>
-                                       {
-                                           metrics.AddAspNetCoreInstrumentation()
-                                                  .AddHttpClientInstrumentation()
-                                                  .AddRuntimeInstrumentation();
-                                       })
+               {
+                   metrics.AddAspNetCoreInstrumentation()
+                          .AddHttpClientInstrumentation()
+                          .AddRuntimeInstrumentation();
+               })
                .WithTracing(configure: tracing =>
-                                       {
-                                           tracing.AddAspNetCoreInstrumentation()
-                                                  // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
-                                                  //.AddGrpcClientInstrumentation()
-                                                  .AddHttpClientInstrumentation();
-                                       });
+               {
+                   tracing.AddAspNetCoreInstrumentation()
+                          // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
+                          //.AddGrpcClientInstrumentation()
+                          .AddHttpClientInstrumentation();
+               });
 
         builder.AddOpenTelemetryExporters();
 

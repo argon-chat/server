@@ -26,8 +26,8 @@ public class PasswordHashingService : IPasswordHashingService
         return Convert.ToBase64String(inArray: hash);
     }
 
-    public bool VerifyPassword(string? inputPassword, User user) =>
-        ValidatePassword(password: inputPassword, passwordDigest: user.PasswordDigest) || VerifyOtp(inputOtp: inputPassword, userOtp: user.OTP);
+    public bool VerifyPassword(string? inputPassword, User user)
+        => ValidatePassword(password: inputPassword, passwordDigest: user.PasswordDigest) || VerifyOtp(inputOtp: inputPassword, userOtp: user.OTP);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
@@ -41,5 +41,6 @@ public class PasswordHashingService : IPasswordHashingService
         return inputOtp == userOtp;
     }
 
-    public string GenerateOtp() => SecureRandom.Hex(n: 3);
+    public string GenerateOtp()
+        => SecureRandom.Hex(n: 3);
 }

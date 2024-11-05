@@ -26,13 +26,13 @@ public class ChannelManager(
         await joinedUsers.WriteStateAsync();
 
         return await sfu.IssueAuthorizationTokenAsync(
-                                                      userId: new ArgonUserId(id: userId),
-                                                      channelId: new ArgonChannelId(
-                                                                                    serverId: new ArgonServerId(id: channel.ServerId),
-                                                                                    channelId: this.GetPrimaryKey()
-                                                                                   ),
-                                                      permission: SfuPermission.DefaultUser // TODO: sort out permissions
-                                                     );
+                   userId: new ArgonUserId(id: userId),
+                   channelId: new ArgonChannelId(
+                       serverId: new ArgonServerId(id: channel.ServerId),
+                       channelId: this.GetPrimaryKey()
+                   ),
+                   permission: SfuPermission.DefaultUser // TODO: sort out permissions
+               );
     }
 
     public Task Leave(Guid userId)
@@ -61,7 +61,5 @@ public class ChannelManager(
     }
 
     private async Task<Channel> Get()
-    {
-        return await context.Channels.FirstAsync(predicate: c => c.Id == this.GetPrimaryKey());
-    }
+        => await context.Channels.FirstAsync(predicate: c => c.Id == this.GetPrimaryKey());
 }

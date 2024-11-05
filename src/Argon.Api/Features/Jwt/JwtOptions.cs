@@ -32,43 +32,43 @@ public static class JwtFeature
         var jwt = builder.Configuration.GetSection(key: "Jwt").Get<JwtOptions>();
 
         builder.Services.AddAuthentication(configureOptions: options =>
-                                                             {
-                                                                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-                                                                 options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
-                                                                 options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
-                                                             }).AddJwtBearer(configureOptions: o =>
-                                                                                               {
-                                                                                                   o.TokenValidationParameters =
-                                                                                                       new TokenValidationParameters
-                                                                                                       {
-                                                                                                           ValidIssuer   = jwt.Issuer,
-                                                                                                           ValidAudience = jwt.Audience,
-                                                                                                           IssuerSigningKey =
-                                                                                                               new SymmetricSecurityKey(key: Encoding
-                                                                                                                   .UTF8.GetBytes(s: jwt.Key)),
-                                                                                                           ValidateIssuer           = true,
-                                                                                                           ValidateAudience         = true,
-                                                                                                           ValidateLifetime         = true,
-                                                                                                           ValidateIssuerSigningKey = true,
-                                                                                                           ClockSkew                = TimeSpan.Zero
-                                                                                                       };
-                                                                                                   o.Events = new JwtBearerEvents
-                                                                                                   {
-                                                                                                       OnMessageReceived = ctx =>
-                                                                                                       {
-                                                                                                           if (ctx.Request.Headers
-                                                                                                            .TryGetValue(key: "x-argon-token",
-                                                                                                             value: out var value))
-                                                                                                           {
-                                                                                                               ctx.Token = value;
-                                                                                                               return Task.CompletedTask;
-                                                                                                           }
+        {
+            options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            options.DefaultScheme             = JwtBearerDefaults.AuthenticationScheme;
+        }).AddJwtBearer(configureOptions: o =>
+        {
+            o.TokenValidationParameters =
+                new TokenValidationParameters
+                {
+                    ValidIssuer   = jwt.Issuer,
+                    ValidAudience = jwt.Audience,
+                    IssuerSigningKey =
+                        new SymmetricSecurityKey(key: Encoding
+                                                      .UTF8.GetBytes(s: jwt.Key)),
+                    ValidateIssuer           = true,
+                    ValidateAudience         = true,
+                    ValidateLifetime         = true,
+                    ValidateIssuerSigningKey = true,
+                    ClockSkew                = TimeSpan.Zero
+                };
+            o.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = ctx =>
+                {
+                    if (ctx.Request.Headers
+                           .TryGetValue(key: "x-argon-token",
+                               value: out var value))
+                    {
+                        ctx.Token = value;
+                        return Task.CompletedTask;
+                    }
 
-                                                                                                           ctx.Response.StatusCode = 401;
-                                                                                                           return Task.CompletedTask;
-                                                                                                       }
-                                                                                                   };
-                                                                                               });
+                    ctx.Response.StatusCode = 401;
+                    return Task.CompletedTask;
+                }
+            };
+        });
         return builder.Services;
     }
 }

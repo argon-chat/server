@@ -15,15 +15,16 @@ public class ArgonSfuTestController : ControllerBase
     public async ValueTask<IActionResult> GetData([FromServices] IArgonSelectiveForwardingUnit sfu,
                                                   [FromQuery]    Guid                          serverId, [FromQuery] Guid channelId)
         => Ok(value: await
-                         sfu.EnsureEphemeralChannelAsync(channelId: new ArgonChannelId(serverId: new ArgonServerId(id: serverId), channelId: channelId),
-                                                         maxParticipants: 15));
+                         sfu.EnsureEphemeralChannelAsync(
+                             channelId: new ArgonChannelId(serverId: new ArgonServerId(id: serverId), channelId: channelId),
+                             maxParticipants: 15));
 
     [HttpPost(template: "/sfu/token")]
     public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu,
                                                    [FromBody]     ArgonChannelId                roomId)
         => Ok(value: await
                          sfu.IssueAuthorizationTokenAsync(userId: new ArgonUserId(id: Guid.NewGuid()), channelId: roomId,
-                                                          permission: SfuPermission.DefaultUser));
+                             permission: SfuPermission.DefaultUser));
 }
 #endif
 
@@ -34,16 +35,19 @@ public class ArgonSelectiveForwardingUnit(
 {
     private const string pkg    = "livekit";
     private const string prefix = "/twirp";
+
     private static readonly Guid
         SystemUser = new(b: [2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
     public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId   userId, ArgonChannelId channelId,
-                                                                 SfuPermission permission) =>
-        new(result: CreateJwt(roomName: channelId, identity: userId, permissions: permission, settings: settings)); // TODO check validity
+                                                                 SfuPermission permission)
+        => new(result: CreateJwt(roomName: channelId, identity: userId, permissions: permission, settings: settings));
 
+    // TODO check validity
     public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId)
-        => throw new NotImplementedException(); // TODO
+        => throw new NotImplementedException();
 
+    // TODO
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
     {
         await RequestAsync(service: "RoomService", method: "RemoveParticipant", data: new RoomParticipantIdentity
@@ -103,8 +107,8 @@ public class ArgonSelectiveForwardingUnit(
         var now = DateTime.UtcNow;
         JwtHeader headers =
             new(signingCredentials: new
-                    SigningCredentials(key: new SymmetricSecurityKey(key: Encoding.UTF8.GetBytes(s: settings.Value.ClientSecret)),
-                                       algorithm: "HS256"));
+                SigningCredentials(key: new SymmetricSecurityKey(key: Encoding.UTF8.GetBytes(s: settings.Value.ClientSecret)),
+                    algorithm: "HS256"));
 
         JwtPayload payload = new()
         {

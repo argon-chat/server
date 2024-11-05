@@ -31,12 +31,12 @@ public enum SfuPermissionFlags
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
 {
     public static readonly SfuPermission DefaultUser = new(
-                                                           flags: SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
-                                                                  SfuPermissionFlags.ROOM_JOIN,
-                                                           allowedSources: [TrackSource.Microphone, TrackSource.Microphone]);
+        flags: SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH |
+               SfuPermissionFlags.ROOM_JOIN,
+        allowedSources: [TrackSource.Microphone, TrackSource.Microphone]);
 
     public static readonly SfuPermission DefaultSystem = new(
-                                                             flags: SfuPermissionFlags.ALL, allowedSources: []);
+        flags: SfuPermissionFlags.ALL, allowedSources: []);
 
     public Dictionary<string, object> ToDictionary(ArgonChannelId channelId)
     {
@@ -44,7 +44,7 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
         foreach (var key in flags.ToList())
             dict.Add(key: key, value: true);
         dict.Add(key: "canPublishSources", value: allowedSources.Select(selector: x => x.ToFormatString()).ToList());
-        dict.Add(key: "room",              value: $"{channelId.serverId.id:N}:{channelId.channelId:N}");
+        dict.Add(key: "room", value: $"{channelId.serverId.id:N}:{channelId.channelId:N}");
         return dict;
     }
 }
@@ -58,25 +58,21 @@ public class FlagNameAttribute(string flagName) : Attribute
 public static class LiveKitExtensions
 {
     public static string ToFormatString(this TrackSource trackSource)
-    {
-        return trackSource switch
-               {
-                   TrackSource.Camera => "camera",
-                   TrackSource.Microphone => "microphone",
-                   TrackSource.ScreenShare => "screen_share",
-                   TrackSource.ScreenShareAudio => "screen_share_audio",
-                   _ => throw new ArgumentOutOfRangeException(paramName: nameof(trackSource), actualValue: trackSource, message: null)
-               };
-    }
+        => trackSource switch
+           {
+               TrackSource.Camera => "camera",
+               TrackSource.Microphone => "microphone",
+               TrackSource.ScreenShare => "screen_share",
+               TrackSource.ScreenShareAudio => "screen_share_audio",
+               _ => throw new ArgumentOutOfRangeException(paramName: nameof(trackSource), actualValue: trackSource, message: null)
+           };
 
     public static IEnumerable<T> EnumerateFlags<T>(this T @enum) where T : Enum
         => from Enum value in Enum.GetValues(enumType: @enum.GetType()) where @enum.HasFlag(flag: value) select (T)value;
 
     public static List<string> ToList(this SfuPermissionFlags sfuPermissionFlags)
-    {
-        return sfuPermissionFlags.EnumerateFlags()
-                                 .Select(selector: permission => permission.GetAttributeOfType<FlagNameAttribute>())
-                                 .Where(predicate: x => x is not null)
-                                 .Select(selector: attr => attr.FlagName).ToList();
-    }
+        => sfuPermissionFlags.EnumerateFlags()
+                             .Select(selector: permission => permission.GetAttributeOfType<FlagNameAttribute>())
+                             .Where(predicate: x => x is not null)
+                             .Select(selector: attr => attr.FlagName).ToList();
 }

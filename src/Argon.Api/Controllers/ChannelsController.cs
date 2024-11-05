@@ -20,9 +20,7 @@ public class ChannelsController(
 
     [HttpPost, Route(template: "leave"), InjectId]
     public async Task Leave([SwaggerIgnore] string id, Guid channelId)
-    {
-        await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).Leave(userId: Guid.Parse(input: id));
-    }
+        => await grainFactory.GetGrain<IChannelManager>(primaryKey: channelId).Leave(userId: Guid.Parse(input: id));
 
     [HttpGet, Route(template: "")]
     public async Task<ChannelDto> GetChannel(Guid channelId)

@@ -17,18 +17,16 @@ public sealed record Server
     public                          List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
     public static implicit operator ServerDto(Server server)
-    {
-        return new ServerDto(
-                             Id: server.Id,
-                             CreatedAt: server.CreatedAt,
-                             UpdatedAt: server.UpdatedAt,
-                             Name: server.Name,
-                             Description: server.Description,
-                             AvatarUrl: server.AvatarUrl,
-                             Channels: server.Channels.Select(selector: channel => (ChannelDto)channel).ToList(),
-                             Users: server.UsersToServerRelations.Select(selector: relation => (UsersToServerRelationDto)relation).ToList()
-                            );
-    }
+        => new(
+            Id: server.Id,
+            CreatedAt: server.CreatedAt,
+            UpdatedAt: server.UpdatedAt,
+            Name: server.Name,
+            Description: server.Description,
+            AvatarUrl: server.AvatarUrl,
+            Channels: server.Channels.Select(selector: channel => (ChannelDto)channel).ToList(),
+            Users: server.UsersToServerRelations.Select(selector: relation => (UsersToServerRelationDto)relation).ToList()
+        );
 }
 
 [DataContract, MemoryPackable(generateType: GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,

@@ -18,25 +18,25 @@ public static class OrleansExtension
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
         builder.Host.UseOrleans(configureDelegate: siloBuilder =>
-                                                   {
-                                                       siloBuilder
-                                                           .Configure<ClusterOptions>(configureOptions: cluster =>
-                                                                                      {
-                                                                                          cluster.ClusterId = "Api";
-                                                                                          cluster.ServiceId = "Api";
-                                                                                      })
-                                                           .AddAdoNetGrainStorage(name: "OrleansStorage", configureOptions: options =>
-                                                                                  {
-                                                                                      options.Invariant = "Npgsql";
-                                                                                      options.ConnectionString =
-                                                                                          builder.Configuration
-                                                                                                 .GetConnectionString(name: "DefaultConnection");
-                                                                                      options.GrainStorageSerializer =
-                                                                                          new MemoryPackStorageSerializer();
-                                                                                  })
-                                                           .AddMemoryGrainStorageAsDefault()
-                                                           .UseLocalhostClustering();
-                                                   });
+        {
+            siloBuilder
+                .Configure<ClusterOptions>(configureOptions: cluster =>
+                {
+                    cluster.ClusterId = "Api";
+                    cluster.ServiceId = "Api";
+                })
+                .AddAdoNetGrainStorage(name: "OrleansStorage", configureOptions: options =>
+                {
+                    options.Invariant = "Npgsql";
+                    options.ConnectionString =
+                        builder.Configuration
+                               .GetConnectionString(name: "DefaultConnection");
+                    options.GrainStorageSerializer =
+                        new MemoryPackStorageSerializer();
+                })
+                .AddMemoryGrainStorageAsDefault()
+                .UseLocalhostClustering();
+        });
 
         return builder;
     }
