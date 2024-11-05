@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 [ApiController]
 public class MetadataController : ControllerBase
 {
-    [Route("/cfg.json")]
+    [HttpGet("/cfg.json")]
     [AllowAnonymous]
     public ValueTask<HeadRoutingConfig> GetHead()
     {
