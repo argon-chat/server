@@ -1,7 +1,5 @@
 namespace Argon.Api.Grains.Persistence.States;
 
-using MemoryPack;
-
 [GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(FusionSession))]
 public partial class FusionSession
 {

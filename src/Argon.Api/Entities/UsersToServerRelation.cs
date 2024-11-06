@@ -1,9 +1,5 @@
 namespace Argon.Api.Entities;
 
-using System.Runtime.Serialization;
-using MemoryPack;
-using MessagePack;
-
 public enum ServerRole : ushort // TODO: sort out roles and how we actually want to handle them
 {
     User,

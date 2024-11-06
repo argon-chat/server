@@ -1,38 +1,43 @@
 namespace Argon.Api.Services;
 
-using System.Security.Cryptography;
-using System.Text;
 using Entities;
-using Helpers;
+using Features.Otp;
 
 public interface IPasswordHashingService
 {
-    string? HashPassword(string? password, string? passwordConfirmation);
+    string? HashPassword(string? password);
     bool    VerifyPassword(string? inputPassword, User user);
     bool    ValidatePassword(string? password, string? passwordDigest);
     bool    VerifyOtp(string? inputOtp, string? userOtp);
-    string  GenerateOtp();
+    OtpCode GenerateOtp(Guid userId);
+
+    const string OneTimePassKey = $"{nameof(IPasswordHashingService)}.onetime";
 }
 
-public class PasswordHashingService : IPasswordHashingService
+public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.OneTimePassKey)] OtpGenerator otpGenerator) : IPasswordHashingService
 {
-    public string? HashPassword(string? password, string? passwordConfirmation)
+    public unsafe string? HashPassword(string? password)
     {
-        if (password is null || passwordConfirmation is null) return null;
-        if (password != passwordConfirmation) throw new Exception("Password confirmation does not match password");
-        using var sha256 = SHA256.Create();
-        var       bytes  = Encoding.UTF8.GetBytes(password);
-        var       hash   = sha256.ComputeHash(bytes);
-        return Convert.ToBase64String(hash);
+        if (password is null) return null;
+        using var  sha256   = SHA256.Create();
+        var        bytesLen = Encoding.UTF8.GetByteCount(password);
+        Span<byte> source   = stackalloc byte[bytesLen];
+        Span<byte> dest     = stackalloc byte[32];
+        Encoding.UTF8.GetBytes(password, source);
+
+        if (!sha256.TryComputeHash(source, dest, out var written))
+            throw new InvalidOperationException($"SHA256 cannot create hash");
+
+        return Convert.ToBase64String(dest[..written]);
     }
 
     public bool VerifyPassword(string? inputPassword, User user) =>
-        ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OTP);
+        ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OtpHash);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
         if (password is null || passwordDigest is null) return false;
-        return HashPassword(password, password) == passwordDigest;
+        return HashPassword(password) == passwordDigest;
     }
 
     public bool VerifyOtp(string? inputOtp, string? userOtp)
@@ -41,5 +46,6 @@ public class PasswordHashingService : IPasswordHashingService
         return inputOtp == userOtp;
     }
 
-    public string GenerateOtp() => SecureRandom.Hex(3);
+    public OtpCode GenerateOtp(Guid userId)
+        => new(otpGenerator.GenerateKey(userId, DateTimeOffset.Now));
 }

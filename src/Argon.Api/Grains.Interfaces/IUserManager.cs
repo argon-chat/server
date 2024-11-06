@@ -1,9 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
-using System.Runtime.Serialization;
 using Entities;
-using MemoryPack;
-using MessagePack;
 
 public interface IUserManager : IGrainWithGuidKey
 {
@@ -32,6 +29,4 @@ public sealed partial record UserCredentialsInput(
     [property: DataMember(Order = 3), MemoryPackOrder(3), Key(3), Id(3)]
     string? Password,
     [property: DataMember(Order = 4), MemoryPackOrder(4), Key(4), Id(4)]
-    string? PasswordConfirmation,
-    [property: DataMember(Order = 5), MemoryPackOrder(5), Key(5), Id(5)]
-    bool GenerateOtp);
+    string? OtpCode);

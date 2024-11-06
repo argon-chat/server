@@ -1,9 +1,6 @@
 namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
-using System.Runtime.Serialization;
-using MemoryPack;
-using MessagePack;
 
 public enum ChannelType : ushort
 {

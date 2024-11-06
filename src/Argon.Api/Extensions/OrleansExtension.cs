@@ -1,6 +1,5 @@
 namespace Argon.Api.Extensions;
 
-using MemoryPack;
 using Orleans.Configuration;
 using Orleans.Storage;
 
