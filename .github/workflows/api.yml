@@ -33,11 +33,11 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.ARGON_GHCR_PAT }}
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: ghcr.io/${{github.actor}}/orleans:${{ github.run_number }}
+          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
