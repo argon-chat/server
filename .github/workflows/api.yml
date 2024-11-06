@@ -40,4 +40,4 @@ jobs:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: reg.staging.svck.dev/${{github.repository_id}}/orleans:${{ github.run_number }}
+          tags: ghcr.io/${{github.repository_id}}/orleans:${{ github.run_number }}
