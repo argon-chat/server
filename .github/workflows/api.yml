@@ -5,11 +5,13 @@ on:
     branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
+      - 'src/Argon.Contracts/**'
       - 'src/ServiceDefaults/**'
   pull_request:
     branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
+      - 'src/Argon.Contracts/**'
       - 'src/ServiceDefaults/**'
   workflow_dispatch:
 
@@ -38,4 +40,4 @@ jobs:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: reg.staging.svck.dev/argon/api:${{ github.run_number }}
+          tags: reg.staging.svck.dev/${{github.repository_id}}/orleans:${{ github.run_number }}
