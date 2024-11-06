@@ -7,17 +7,23 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="ActualLab.Fusion" Version="9.5.52"/>
-        <PackageReference Include="ActualLab.Fusion.Ext.Contracts" Version="9.5.52"/>
+        <PackageReference Include="ActualLab.Fusion" Version="9.5.52" />
+        <PackageReference Include="ActualLab.Fusion.Ext.Contracts" Version="9.5.52" />
         <PackageReference Include="ActualLab.Generators" Version="9.5.52">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Mapster" Version="7.4.0"/>
+        <PackageReference Include="Mapster" Version="7.4.0" />
         <PackageReference Include="MemoryPack.Generator" Version="1.21.3">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.CodeGenerator" Version="8.2.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.Core" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0" />
     </ItemGroup>
 
 </Project>

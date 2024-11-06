@@ -2,6 +2,7 @@ namespace Argon.Api.Controllers;
 
 #if DEBUG
 using Attributes;
+using Contracts;
 using Entities;
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Authorization;
@@ -19,7 +20,7 @@ public class UsersController(IGrainFactory grainFactory, ILogger<UsersController
     }
 
     [HttpPost("Authorize")]
-    public async Task<ActionResult<JwtToken>> Authorize([FromBody] UserCredentialsInput input)
+    public async Task<ActionResult<Either<JwtToken, AuthorizationError>>> Authorize([FromBody] UserCredentialsInput input)
     {
         var userManager = grainFactory.GetGrain<ISessionManager>(Guid.NewGuid());
         return await userManager.Authorize(input);
