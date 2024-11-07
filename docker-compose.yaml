@@ -35,8 +35,8 @@ services:
     environment:
       POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
       POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
-      POSTGRES_USER: "svck"
-      POSTGRES_PASSWORD: "Password123"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
     volumes:
       - "apphost-pg-data:/var/lib/postgresql/data"
     ports:
