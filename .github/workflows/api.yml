@@ -21,7 +21,7 @@ jobs:
   build:
     needs: [ qa ]
     if: github.ref == 'refs/heads/master'
-    runs-on: ubuntu-latest
+    runs-on: ARM64
     steps:
       - uses: actions/checkout@v4
         with:
@@ -31,13 +31,13 @@ jobs:
       - name: Log in to GitHub Docker Registry
         uses: docker/login-action@v1
         with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.ARGON_GHCR_PAT }}
+          registry: ${{ secrets.REGISTRY }}
+          username: ${{ secrets.CR_USER }}
+          password: ${{ secrets.CR_PWD }}
       - name: Build and push
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          tags: reg.staging.svck.dev/argon/api-orleans:${{ github.run_number }}
