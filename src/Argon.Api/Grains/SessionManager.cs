@@ -1,6 +1,8 @@
 namespace Argon.Api.Grains;
 
+using Contracts;
 using Entities;
+using Features.Otp;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
@@ -12,26 +14,41 @@ public class SessionManager(
     IPasswordHashingService passwordHashingService,
     ApplicationDbContext context) : Grain, ISessionManager
 {
-    public async Task<JwtToken> Authorize(UserCredentialsInput input)
+    // TODO machineKey
+    public async Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
-
         if (user is null)
-            throw new Exception("User not found with given credentials"); // TODO: implement application errors
-
-        if (input.GenerateOtp)
         {
-            user.OTP = passwordHashingService.GenerateOtp();
-            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid()).SendEmailAsync(user.Email, "OTP", $"Your OTP is {user.OTP}");
+            logger.LogError("Not found user '{email}'", input.Email);
+            return AuthorizationError.BAD_CREDENTIALS;
+        }
+        var verified = passwordHashingService.VerifyPassword(input.Password, user);
+
+        if (!verified)
+            return AuthorizationError.BAD_CREDENTIALS;
+
+        if (string.IsNullOrEmpty(input.OtpCode))
+        {
+            var otp = passwordHashingService.GenerateOtp(user.Id);
+            user.OtpHash = otp.Hashed;
             context.Users.Update(user);
             await context.SaveChangesAsync();
-            return new JwtToken("");
+            // TODO check latest send otp time (evade ddos)
+            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
+               .SendOtpCodeAsync(user.Email, otp.Code, TimeSpan.FromMinutes(15));
+            return AuthorizationError.REQUIRED_OTP;
         }
 
-        var verified = passwordHashingService.VerifyPassword(input.Password, user);
-        if (!verified)
-            throw new Exception("Invalid credentials"); // TODO: implement application errors
-        user.OTP = passwordHashingService.GenerateOtp();
+        var userOtp = new OtpCode(input.OtpCode);
+
+        if (!(user.OtpHash?.Equals(userOtp.Hashed) ?? false))
+        {
+            logger.LogError("User '{email}' entered invalid otp code {otp} {optHash}", input.Email, userOtp.Code, userOtp.Hashed);
+            return AuthorizationError.BAD_OTP;
+        }
+
+        user.OtpHash = null;
         context.Users.Update(user);
         await context.SaveChangesAsync();
         return await GenerateJwt(user);

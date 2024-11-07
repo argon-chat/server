@@ -1,7 +1,6 @@
 namespace Argon.Sfu;
 
 using LiveKit.Proto;
-using MemoryPack;
 
 public record struct EphemeralChannelInfo(ArgonChannelId channelId, string sid, Room room);
 

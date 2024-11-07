@@ -1,7 +1,6 @@
 namespace Argon.Sfu;
 
 using System.IdentityModel.Tokens.Jwt;
-using System.Text;
 using Flurl.Http;
 using LiveKit.Proto;
 using Microsoft.AspNetCore.Mvc;

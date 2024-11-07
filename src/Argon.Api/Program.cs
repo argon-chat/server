@@ -3,7 +3,9 @@ using ActualLab.Rpc;
 using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
+using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
+using Argon.Api.Features.Otp;
 using Argon.Api.Features.Rpc;
 using Argon.Api.Grains.Interfaces;
 using Argon.Api.Migrations;
@@ -19,7 +21,7 @@ builder.AddRedisOutputCache("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-builder.Services.AddControllers();
+builder.Services.AddControllers().AddNewtonsoftJson();
 builder.Services.AddFusion(RpcServiceMode.Server, true);
 // .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
 // .AddServer<IUserInteraction, UserInteractionService>()
@@ -29,7 +31,9 @@ builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddTransient<IFusionServiceContext, FusionServiceContext>();
+builder.AddOtpCodes();
 builder.AddOrleans();
+builder.AddEMailForms();
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();
