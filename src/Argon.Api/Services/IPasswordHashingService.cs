@@ -5,13 +5,12 @@ using Features.Otp;
 
 public interface IPasswordHashingService
 {
-    string? HashPassword(string? password);
-    bool    VerifyPassword(string? inputPassword, User user);
-    bool    ValidatePassword(string? password, string? passwordDigest);
-    bool    VerifyOtp(string? inputOtp, string? userOtp);
-    OtpCode GenerateOtp(Guid userId);
-
     const string OneTimePassKey = $"{nameof(IPasswordHashingService)}.onetime";
+    string?      HashPassword(string? password);
+    bool         VerifyPassword(string? inputPassword, User user);
+    bool         ValidatePassword(string? password, string? passwordDigest);
+    bool         VerifyOtp(string? inputOtp, string? userOtp);
+    OtpCode      GenerateOtp(Guid userId);
 }
 
 public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.OneTimePassKey)] OtpGenerator otpGenerator) : IPasswordHashingService
@@ -26,7 +25,7 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
         Encoding.UTF8.GetBytes(password, source);
 
         if (!sha256.TryComputeHash(source, dest, out var written))
-            throw new InvalidOperationException($"SHA256 cannot create hash");
+            throw new InvalidOperationException("SHA256 cannot create hash");
 
         return Convert.ToBase64String(dest[..written]);
     }
@@ -46,6 +45,5 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
         return inputOtp == userOtp;
     }
 
-    public OtpCode GenerateOtp(Guid userId)
-        => new(otpGenerator.GenerateKey(userId, DateTimeOffset.Now));
+    public OtpCode GenerateOtp(Guid userId) => new(otpGenerator.GenerateKey(userId, DateTimeOffset.Now));
 }

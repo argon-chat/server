@@ -1,10 +1,9 @@
 namespace Argon.Api.Features.Otp;
 
-using Argon.Api.Services;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Options;
 using OtpNet;
-
+using Services;
 
 public record OneTimeOtpSettings
 {
@@ -21,8 +20,7 @@ public static class PasswordHashingExtensions
     {
         var services = hostBuilder.Services;
         services.Configure<OneTimeOtpSettings>(hostBuilder.Configuration.GetSection("Totp"));
-        services
-           .AddKeyedSingleton<OtpGenerator>(IPasswordHashingService.OneTimePassKey);
+        services.AddKeyedSingleton<OtpGenerator>(IPasswordHashingService.OneTimePassKey);
         return services;
     }
 }
@@ -32,14 +30,12 @@ public class OtpGenerator(IDataProtectionProvider dataProtection, IOptions<OneTi
     public unsafe string GenerateKey(Guid userId, DateTimeOffset creationTime)
     {
         var settings = otpSettings.Value;
-        var date = DateOnly.FromDateTime(creationTime.UtcDateTime);
-        var time = TimeOnly.FromDateTime(creationTime.UtcDateTime);
-        var hashKey = dataProtection.CreateProtector(settings.ProtectorId)
-           .ToTimeLimitedDataProtector()
-           .Protect($"{date:d}:{time.Hour:x8}:{userId}",
-                DateTimeOffset.Now.AddMinutes(settings.Duration));
+        var date     = DateOnly.FromDateTime(creationTime.UtcDateTime);
+        var time     = TimeOnly.FromDateTime(creationTime.UtcDateTime);
+        var hashKey = dataProtection.CreateProtector(settings.ProtectorId).ToTimeLimitedDataProtector()
+           .Protect($"{date:d}:{time.Hour:x8}:{userId}", DateTimeOffset.Now.AddMinutes(settings.Duration));
         var hashKeyLen = Encoding.UTF8.GetByteCount(hashKey);
-        var secretLen = Encoding.UTF8.GetByteCount(settings.SecretPart);
+        var secretLen  = Encoding.UTF8.GetByteCount(settings.SecretPart);
 
         Span<byte> mem = stackalloc byte[hashKeyLen + secretLen];
 
@@ -56,7 +52,7 @@ public class OtpGenerator(IDataProtectionProvider dataProtection, IOptions<OneTi
         if (input.Length == 0)
             return;
         var degrees = (int)MathF.Floor(radians * (180.0f / MathF.PI) % 360f);
-        var length = input.Length;
+        var length  = input.Length;
         degrees %= length;
         if (degrees < 0)
             degrees += length;
@@ -67,6 +63,7 @@ public class OtpGenerator(IDataProtectionProvider dataProtection, IOptions<OneTi
         input[degrees..].Reverse();
     }
 }
+
 public record OtpCode(string Code)
 {
     public string Hashed => Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(Code)));

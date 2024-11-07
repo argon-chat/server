@@ -23,6 +23,7 @@ public class SessionManager(
             logger.LogError("Not found user '{email}'", input.Email);
             return AuthorizationError.BAD_CREDENTIALS;
         }
+
         var verified = passwordHashingService.VerifyPassword(input.Password, user);
 
         if (!verified)
@@ -35,8 +36,7 @@ public class SessionManager(
             context.Users.Update(user);
             await context.SaveChangesAsync();
             // TODO check latest send otp time (evade ddos)
-            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
-               .SendOtpCodeAsync(user.Email, otp.Code, TimeSpan.FromMinutes(15));
+            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid()).SendOtpCodeAsync(user.Email, otp.Code, TimeSpan.FromMinutes(15));
             return AuthorizationError.REQUIRED_OTP;
         }
 
