@@ -33,6 +33,7 @@
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0" />
         <PackageReference Include="Npgsql" Version="8.0.5" />
         <PackageReference Include="Otp.NET" Version="1.4.0" />
         <PackageReference Include="R3" Version="1.2.9" />

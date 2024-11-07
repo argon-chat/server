@@ -1,6 +1,10 @@
-﻿namespace Argon.Api.Fusion;
+namespace Argon.Api.Fusion;
 
-public class AuthorizationService
+using Argon.Contracts;
+using Grains.Interfaces;
+
+public class AuthorizationService(IGrainFactory grainFactory) : IUserAuthorization
 {
-    
+    public Task<Either<JwtToken, AuthorizationError>> AuthorizeAsync(UserCredentialsInput request)
+        => grainFactory.GetGrain<IAuthorizationGrain>(IAuthorizationGrain.DefaultId).Authorize(request);
 }

@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Features.Rpc;
+namespace Argon.Api.Features.Rpc;
 
 using ActualLab.Reflection;
 using ActualLab.Rpc.Infrastructure;
@@ -20,7 +20,7 @@ public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFact
             return;
         }
 
-        var grain = GrainFactory.GetGrain<IFusionSession>(call.Context.Peer.Id);
+        var grain = GrainFactory.GetGrain<IFusionSessionGrain>(call.Context.Peer.Ref.Key);
 
         var state = await grain.GetState();
         if (state.IsAuthorized)
@@ -40,7 +40,7 @@ public class FusionServiceContext(IGrainFactory GrainFactory) : IFusionServiceCo
         var current = RpcInboundContext.GetCurrent();
         var peerId  = current.Peer.Id;
 
-        var grain = GrainFactory.GetGrain<IFusionSession>(peerId);
+        var grain = GrainFactory.GetGrain<IFusionSessionGrain>(peerId);
 
         return grain.GetState();
     }

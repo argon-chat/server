@@ -1,5 +1,6 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
+using ActualLab.Rpc.Server;
 using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
@@ -22,10 +23,11 @@ builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers().AddNewtonsoftJson();
-builder.Services.AddFusion(RpcServiceMode.Server, true);
-// .Rpc.AddServer<IUserAuthorization, UserAuthorization>()
-// .AddServer<IUserInteraction, UserInteractionService>()
-// .AddWebSocketServer(true);
+builder.Services.AddFusion(RpcServiceMode.Server, true)
+ //.Rpc.AddServer<IUserAuthorization, UserAuthorization>()
+ //.AddServer<IUserInteraction, UserInteractionService>()
+.Rpc.AddClient<>()
+ .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
