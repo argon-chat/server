@@ -1,6 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
-using Argon.Contracts;
+using Contracts;
 using Entities;
 
 public enum AuthorizationError

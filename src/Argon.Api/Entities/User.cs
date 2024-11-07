@@ -18,7 +18,7 @@ public sealed record User
     [MaxLength(1023)]
     public string? AvatarFileId { get; set; } = string.Empty;
     [MaxLength(128)]
-    public string? OtpHash { get;                                        set; } = string.Empty;
+    public string? OtpHash { get;                                    set; } = string.Empty;
     public DateTime?                   DeletedAt              { get; set; }
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 

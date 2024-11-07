@@ -16,8 +16,7 @@ public class EMailFormStorage
 {
     private readonly ConcurrentDictionary<string, string> htmlForms = new();
 
-    public void Load(string name, string content)
-        => htmlForms.TryAdd(name, content);
+    public void Load(string name, string content) => htmlForms.TryAdd(name, content);
 
     public string GetContentFor(string formKey)
     {
@@ -47,7 +46,7 @@ public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> 
         foreach (var file in formFiles)
         {
             var content = await File.ReadAllTextAsync(file, stoppingToken);
-            var name = Path.GetFileNameWithoutExtension(file);
+            var name    = Path.GetFileNameWithoutExtension(file);
             storage.Load(name, content);
 
             logger.LogInformation("Loaded '{name}' email form", name);

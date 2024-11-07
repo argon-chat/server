@@ -5,25 +5,9 @@ using MessagePack;
 using Newtonsoft.Json;
 using Orleans;
 
-[JsonObject, MessagePackObject, MemoryPackable,
- Immutable, GenerateSerializer, Serializable]
+[JsonObject, MessagePackObject, MemoryPackable, Immutable, GenerateSerializer, Serializable]
 public readonly partial record struct Either<TResult, TError>
 {
-    [JsonProperty("result"),Key(0), Id(0), MemoryPackInclude]
-    private TResult? _result { get; init; }
-
-    [JsonProperty("error"),Key(1), Id(1), MemoryPackInclude]
-    private TError? _error { get; init; }
-
-    [JsonIgnore,IgnoreMember,MemoryPackIgnore]
-    public bool IsSuccess => _result is not null;
-
-    [JsonIgnore, IgnoreMember, MemoryPackIgnore]
-    public TResult Value => IsSuccess ? _result! : throw new InvalidOperationException("No result available.");
-
-    [JsonIgnore,IgnoreMember,MemoryPackIgnore]
-    public TError Error => !IsSuccess ? _error! : throw new InvalidOperationException("No error available.");
-
     private Either(TResult result)
     {
         _result = result;
@@ -42,6 +26,21 @@ public readonly partial record struct Either<TResult, TError>
         _result = result;
         _error  = error;
     }
+
+    [JsonProperty("result"), Key(0), Id(0), MemoryPackInclude]
+    private TResult? _result { get; init; }
+
+    [JsonProperty("error"), Key(1), Id(1), MemoryPackInclude]
+    private TError? _error { get; init; }
+
+    [JsonIgnore, IgnoreMember, MemoryPackIgnore]
+    public bool IsSuccess => _result is not null;
+
+    [JsonIgnore, IgnoreMember, MemoryPackIgnore]
+    public TResult Value => IsSuccess ? _result! : throw new InvalidOperationException("No result available.");
+
+    [JsonIgnore, IgnoreMember, MemoryPackIgnore]
+    public TError Error => !IsSuccess ? _error! : throw new InvalidOperationException("No error available.");
 
     public static Either<TResult, TError> Success(TResult result) => new(result);
     public static Either<TResult, TError> Failure(TError error)   => new(error);
@@ -96,25 +95,22 @@ public readonly partial record struct Either<TResult, TError>
 //    public Maybe<TResult>          ConvertFromSurrogate(in MaybeSurrogate<TResult> surrogate) => surrogate;
 //}
 
-[JsonObject, MessagePackObject,
- MemoryPackable, Immutable,
- GenerateSerializer, Serializable]
+[JsonObject, MessagePackObject, MemoryPackable, Immutable, GenerateSerializer, Serializable]
 public readonly partial record struct Maybe<TResult>
 {
     [JsonProperty("value"), Key(0), Id(0), MemoryPackInclude]
     private readonly TResult? _value;
 
+    private Maybe(TResult value) => _value = value;
+
     [JsonIgnore, IgnoreMember, MemoryPackIgnore]
     public bool HasValue => _value is not null;
 
-    [Newtonsoft.Json.JsonIgnore, IgnoreMember, MemoryPackIgnore]
+    [JsonIgnore, IgnoreMember, MemoryPackIgnore]
     public TResult Value => HasValue ? _value! : throw new InvalidOperationException("No value available.");
 
-    private Maybe(TResult value)
-        => _value = value;
-
     public static Maybe<TResult> Some(TResult value) => new(value);
-    public static Maybe<TResult> None() => new();
+    public static Maybe<TResult> None()              => new();
 
     public static implicit operator Maybe<TResult>(TResult result) => new(result);
 }
@@ -128,5 +124,5 @@ public static class Either
 public static class Maybe
 {
     public static Maybe<TResult> Value<TResult>(TResult value) => Maybe<TResult>.Some(value);
-    public static Maybe<TResult> None<TResult>() => Maybe<TResult>.None();
+    public static Maybe<TResult> None<TResult>()               => Maybe<TResult>.None();
 }
