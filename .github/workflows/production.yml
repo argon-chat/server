@@ -1,0 +1,43 @@
+name: Api
+
+on:
+  push:
+    branches: [ "production" ]
+    paths:
+      - 'src/Argon.Api/**'
+      - 'src/Argon.Contracts/**'
+      - 'src/ServiceDefaults/**'
+  pull_request:
+    branches: [ "production" ]
+    paths:
+      - 'src/Argon.Api/**'
+      - 'src/Argon.Contracts/**'
+      - 'src/ServiceDefaults/**'
+  workflow_dispatch:
+
+jobs:
+  qa:
+    uses: ./.github/workflows/tests.yml
+  build:
+    needs: [ qa ]
+    if: github.ref == 'refs/heads/production'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: 'recursive'
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Log in to GitHub Docker Registry
+        uses: docker/login-action@v1
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.ARGON_GHCR_PAT }}
+      - name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./src/Argon.Api/Dockerfile
+          push: true
+          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
