@@ -1,5 +1,6 @@
 namespace Argon.Api.Extensions;
 
+using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Storage;
 
@@ -25,7 +26,9 @@ public static class OrleansExtension
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                 options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-            }).AddMemoryGrainStorageAsDefault().UseLocalhostClustering().UseDashboard(o => o.Port = 22832);
+            }).AddReminders().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
+            if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
+            else siloBuilder.UseKubeMembership();
         });
 
         return builder;
