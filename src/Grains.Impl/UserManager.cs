@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
 using Orleans;
+using Services;
 
 public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
 {
