@@ -1,6 +1,7 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
 using Argon.Api;
+using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
