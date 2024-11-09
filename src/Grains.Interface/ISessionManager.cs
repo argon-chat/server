@@ -12,16 +12,16 @@ public enum AuthorizationError
     BAD_OTP
 }
 
-[Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
+[Alias(nameof(ISessionManager))]
 public interface ISessionManager : IGrainWithGuidKey
 {
-    [Alias("Authorize")]
+    [Alias(nameof(Authorize))]
     Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input);
 
-    [Alias("GetUser")]
+    [Alias(nameof(GetUser))]
     Task<UserDto> GetUser();
 
-    [Alias("Logout")]
+    [Alias(nameof(Logout))]
     Task Logout(); // TODO: revoke jwt by adding it into a blacklist
 }
 

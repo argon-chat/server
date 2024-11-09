@@ -9,16 +9,16 @@ using Orleans;
 
 public interface IChannelManager : IGrainWithGuidKey
 {
-    [Alias("Join")]
+    [Alias(nameof(Join))]
     Task<RealtimeToken> Join(Guid userId);
 
-    [Alias("Leave")]
+    [Alias(nameof(Leave))]
     Task Leave(Guid userId);
 
-    [Alias("GetChannel")]
+    [Alias(nameof(GetChannel))]
     Task<ChannelDto> GetChannel();
 
-    [Alias("UpdateChannel")]
+    [Alias(nameof(UpdateChannel))]
     Task<ChannelDto> UpdateChannel(ChannelInput input);
 }
 

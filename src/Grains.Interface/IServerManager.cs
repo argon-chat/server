@@ -8,16 +8,16 @@ using Orleans;
 
 public interface IServerManager : IGrainWithGuidKey
 {
-    [Alias("CreateServer")]
+    [Alias(nameof(CreateServer))]
     Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
 
-    [Alias("GetServer")]
+    [Alias(nameof(GetServer))]
     Task<ServerDto> GetServer();
 
-    [Alias("UpdateServer")]
+    [Alias(nameof(UpdateServer))]
     Task<ServerDto> UpdateServer(ServerInput input);
 
-    [Alias("DeleteServer")]
+    [Alias(nameof(DeleteServer))]
     Task DeleteServer();
 }
 

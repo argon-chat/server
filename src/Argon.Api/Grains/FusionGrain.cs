@@ -29,9 +29,9 @@ public class FusionGrain(
 
 public interface IFusionSession : IGrainWithGuidKey
 {
-    [Alias("AuthorizeAsync")]
+    [Alias(nameof(AuthorizeAsync))]
     ValueTask<bool> AuthorizeAsync(string token);
 
-    [Alias("GetState")]
+    [Alias(nameof(GetState))]
     ValueTask<FusionSession> GetState();
 }

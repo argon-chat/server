@@ -8,16 +8,16 @@ using Orleans;
 
 public interface IUserManager : IGrainWithGuidKey
 {
-    [Alias("CreateUser")]
+    [Alias(nameof(CreateUser))]
     Task<UserDto> CreateUser(UserCredentialsInput input);
 
-    [Alias("UpdateUser")]
+    [Alias(nameof(UpdateUser))]
     Task<UserDto> UpdateUser(UserCredentialsInput input);
 
-    [Alias("DeleteUser")]
+    [Alias(nameof(DeleteUser))]
     Task DeleteUser();
 
-    [Alias("GetUser")]
+    [Alias(nameof(GetUser))]
     Task<UserDto> GetUser();
 }
 
