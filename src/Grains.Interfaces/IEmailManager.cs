@@ -11,6 +11,8 @@ public record SmtpConfig
     public bool   UseSsl   { get; set; }
 }
 
+[Alias(nameof(IEmailManager))]
+
 public interface IEmailManager : IGrainWithGuidKey
 {
     Task SendEmailAsync(string email, string subject, string message, string template = "none");

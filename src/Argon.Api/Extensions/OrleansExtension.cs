@@ -27,10 +27,9 @@ public static class OrleansExtension
         {
             siloBuilder.Configure<ClusterOptions>(cluster =>
             {
-                cluster.ClusterId = "Api";
-                cluster.ServiceId = "Api";
-            })
-               .AddAdoNetGrainStorage("OrleansStorage", options =>
+                cluster.ClusterId = "argonapi";
+                cluster.ServiceId = "argonapi";
+            }).AddAdoNetGrainStorage("OrleansStorage", options =>
             {
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");

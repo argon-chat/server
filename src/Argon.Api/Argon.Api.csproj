@@ -28,10 +28,17 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Orleans.CodeGenerator" Version="8.2.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.Core" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
@@ -51,12 +58,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="GitVersion.MsBuild" Version="5.12">
             <PrivateAssets>All</PrivateAssets>
         </PackageReference>
@@ -73,6 +74,12 @@
         <Folder Include="Grains.Persistence.States\"/>
         <Folder Include="Grains\"/>
         <Folder Include="Services\"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 
 </Project>

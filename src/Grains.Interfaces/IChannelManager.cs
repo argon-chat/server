@@ -4,6 +4,7 @@ using Models;
 using Models.DTO;
 using Orleans;
 
+[Alias(nameof(IChannelManager))]
 public interface IChannelManager : IGrainWithGuidKey
 {
     [Alias(nameof(Join))]

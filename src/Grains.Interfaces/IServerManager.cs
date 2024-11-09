@@ -4,6 +4,8 @@ using Models;
 using Models.DTO;
 using Orleans;
 
+[Alias(nameof(IServerManager))]
+
 public interface IServerManager : IGrainWithGuidKey
 {
     [Alias(nameof(CreateServer))]

@@ -4,6 +4,8 @@ using Models;
 using Models.DTO;
 using Orleans;
 
+[Alias(nameof(IUserManager))]
+
 public interface IUserManager : IGrainWithGuidKey
 {
     [Alias(nameof(CreateUser))]
