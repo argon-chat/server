@@ -1,6 +1,10 @@
 namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
+using System.Runtime.Serialization;
+using MemoryPack;
+using MessagePack;
+using Orleans;
 
 public sealed record Server
 {
@@ -22,7 +26,7 @@ public sealed record Server
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerDto))]
-public sealed partial record ServerDto(
+public sealed record ServerDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Id(1)]

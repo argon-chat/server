@@ -1,6 +1,10 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using System.Runtime.Serialization;
 using Entities;
+using MemoryPack;
+using MessagePack;
+using Orleans;
 
 public interface IUserManager : IGrainWithGuidKey
 {
@@ -19,7 +23,7 @@ public interface IUserManager : IGrainWithGuidKey
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
  Alias(nameof(UserCredentialsInput))]
-public sealed partial record UserCredentialsInput(
+public sealed record UserCredentialsInput(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
     string Email,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]

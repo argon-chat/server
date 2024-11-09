@@ -1,6 +1,5 @@
 namespace Argon.Api.Controllers;
 
-#if DEBUG
 using Attributes;
 using Entities;
 using Grains.Interfaces;
@@ -9,6 +8,7 @@ using Microsoft.AspNetCore.Mvc;
 using Sfu;
 using Swashbuckle.AspNetCore.Annotations;
 
+#if DEBUG
 [Authorize, Route("api/[controller]/{channelId:guid}")]
 public class ChannelsController(IGrainFactory grainFactory) : ControllerBase
 {

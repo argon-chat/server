@@ -45,6 +45,8 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Argon.Contracts\Argon.Contracts.csproj"/>
+        <ProjectReference Include="..\DataTypes\DataTypes.csproj"/>
+        <ProjectReference Include="..\Grain.Interface\Grain.Interface.csproj"/>
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
     </ItemGroup>
 
@@ -68,6 +70,7 @@
 
     <ItemGroup>
         <Folder Include="Features\Otp\"/>
+        <Folder Include="Grains.Interfaces\"/>
     </ItemGroup>
 
 </Project>

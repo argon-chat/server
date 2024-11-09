@@ -1,5 +1,10 @@
 namespace Argon.Api.Entities;
 
+using System.Runtime.Serialization;
+using MemoryPack;
+using MessagePack;
+using Orleans;
+
 public enum ServerRole : ushort // TODO: sort out roles and how we actually want to handle them
 {
     User,
@@ -35,7 +40,7 @@ public sealed record UsersToServerRelation
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
  Alias(nameof(UsersToServerRelationDto))]
-public sealed partial record UsersToServerRelationDto(
+public sealed record UsersToServerRelationDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Id(1)]

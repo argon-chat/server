@@ -2,6 +2,8 @@ namespace Argon.Api.Grains.Interfaces;
 
 using Contracts;
 using Entities;
+using MemoryPack;
+using Orleans;
 
 public enum AuthorizationError
 {
@@ -24,4 +26,4 @@ public interface ISessionManager : IGrainWithGuidKey
 }
 
 [Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(JwtToken))]
-public partial record struct JwtToken(string token);
+public record struct JwtToken(string token);

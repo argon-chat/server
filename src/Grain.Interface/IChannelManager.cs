@@ -1,6 +1,10 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using System.Runtime.Serialization;
 using Entities;
+using MemoryPack;
+using MessagePack;
+using Orleans;
 using Sfu;
 
 public interface IChannelManager : IGrainWithGuidKey
@@ -19,7 +23,7 @@ public interface IChannelManager : IGrainWithGuidKey
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelInput))]
-public sealed partial record ChannelInput(
+public sealed record ChannelInput(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
     string Name,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]

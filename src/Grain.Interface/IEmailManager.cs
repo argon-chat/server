@@ -1,5 +1,7 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Orleans;
+
 public record SmtpConfig
 {
     public string Host     { get; set; }
