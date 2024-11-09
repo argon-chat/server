@@ -1,0 +1,39 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <OutputType>Library</OutputType>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Grains.Interfaces\Grains.Interfaces.csproj"/>
+        <ProjectReference Include="..\Services\Services.csproj"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="MemoryPack" Version="1.21.3"/>
+        <PackageReference Include="MemoryPack.Core" Version="1.21.3"/>
+        <PackageReference Include="MemoryPack.Generator" Version="1.21.3">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="MessagePack" Version="2.5.187"/>
+        <PackageReference Include="MessagePack.Annotations" Version="2.5.187"/>
+        <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.1.2"/>
+        <PackageReference Include="Microsoft.Orleans.CodeGenerator" Version="8.2.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.Core" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0"/>
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2"/>
+    </ItemGroup>
+
+</Project>

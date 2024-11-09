@@ -5,12 +5,13 @@ using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
-using Argon.Api.Features.Otp;
 using Argon.Api.Features.Rpc;
-using Argon.Api.Grains.Interfaces;
+using Argon.Api.Features.Sfu;
 using Argon.Api.Migrations;
-using Argon.Api.Services;
-using Argon.Sfu;
+using Grains.Interfaces;
+using ServiceDefaults;
+using Services;
+using Services.Otp;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -32,10 +33,10 @@ builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddTransient<IFusionServiceContext, FusionServiceContext>();
 builder.AddOtpCodes();
+builder.AddEMailForms();
 #pragma warning disable ORLEANSEXP001
 builder.AddOrleans();
 #pragma warning restore ORLEANSEXP001
-builder.AddEMailForms();
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();

@@ -27,14 +27,14 @@ public static class OrleansExtension
         {
             siloBuilder.Configure<ClusterOptions>(cluster =>
             {
-                cluster.ClusterId = "Api";
-                cluster.ServiceId = "Api";
+                cluster.ClusterId = "argonapi";
+                cluster.ServiceId = "argonapi";
             }).AddAdoNetGrainStorage("OrleansStorage", options =>
             {
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                 options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-            }).AddReminders().AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
+            }).AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });

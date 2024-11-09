@@ -1,5 +1,6 @@
-﻿namespace Argon.Sfu;
+﻿namespace Argon.Api.Features.Sfu;
 
+using Contracts;
 using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Microsoft.Extensions.Options;
