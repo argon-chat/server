@@ -13,7 +13,7 @@ internal class MemoryPackStorageSerializer : IGrainStorageSerializer
     public T Deserialize<T>(BinaryData input) => MemoryPackSerializer.Deserialize<T>(input) ?? throw new InvalidOperationException();
 }
 
-internal class Zalupus : IImbalanceToleranceRule
+internal class Balancer : IImbalanceToleranceRule
 {
     public bool IsSatisfiedBy(uint imbalance) => imbalance % 2 == 0;
 }
@@ -34,7 +34,7 @@ public static class OrleansExtension
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                 options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-            }).AddReminders().AddActivationRepartitioner<Zalupus>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
+            }).AddReminders().AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });
