@@ -25,7 +25,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Contracts", "src\Argo
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{90798FD4-3C62-4AE1-ADE9-F5EC4A0FD4B1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains.Interface", "src\Grains.Interface\Grains.Interface.csproj", "{5BA1F3B1-D442-4C16-B8D5-D9A1D2D13957}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains.Interfaces", "src\Grains.Interfaces\Grains.Interfaces.csproj", "{5BA1F3B1-D442-4C16-B8D5-D9A1D2D13957}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Models", "src\Models\Models.csproj", "{9D390396-E330-4060-9C2A-FD5B933C7F90}"
 EndProject

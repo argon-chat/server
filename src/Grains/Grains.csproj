@@ -8,19 +8,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Grains.Interface\Grains.Interface.csproj"/>
-        <ProjectReference Include="..\Services\Services.csproj" />
+        <ProjectReference Include="..\Grains.Interfaces\Grains.Interfaces.csproj"/>
+        <ProjectReference Include="..\Services\Services.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.1.2"/>
         <PackageReference Include="Microsoft.Orleans.CodeGenerator" Version="8.2.0">
-          <PrivateAssets>all</PrivateAssets>
-          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
-        <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2"/>
     </ItemGroup>
 

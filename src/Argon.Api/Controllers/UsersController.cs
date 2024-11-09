@@ -3,7 +3,7 @@ namespace Argon.Api.Controllers;
 #if DEBUG
 using Attributes;
 using Contracts.etc;
-using global::Grains.Interface;
+using Grains.Interfaces;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Models;

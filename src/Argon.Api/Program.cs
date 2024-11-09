@@ -8,8 +8,7 @@ using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Rpc;
 using Argon.Api.Features.Sfu;
 using Argon.Api.Migrations;
-using Grains.Interface;
-using Models;
+using Grains.Interfaces;
 using ServiceDefaults;
 using Services;
 using Services.Otp;
@@ -34,10 +33,10 @@ builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddTransient<IFusionServiceContext, FusionServiceContext>();
 builder.AddOtpCodes();
+builder.AddEMailForms();
 #pragma warning disable ORLEANSEXP001
 builder.AddOrleans();
 #pragma warning restore ORLEANSEXP001
-builder.AddEMailForms();
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();

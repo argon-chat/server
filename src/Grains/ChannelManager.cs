@@ -1,12 +1,10 @@
 namespace Grains;
 
 using Argon.Contracts;
-using Interface;
+using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
-using Orleans;
-using Orleans.Runtime;
 using States;
 
 public class ChannelManager(

@@ -1,4 +1,4 @@
-namespace Grains.Interface;
+namespace Grains.Interfaces;
 
 using Models;
 using Models.DTO;

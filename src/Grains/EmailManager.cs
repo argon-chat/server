@@ -2,10 +2,8 @@ namespace Grains;
 
 using System.Net;
 using System.Net.Mail;
-using Grains.Interface;
-using Microsoft.Extensions.Logging;
+using Interfaces;
 using Microsoft.Extensions.Options;
-using Orleans;
 using Services;
 
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
