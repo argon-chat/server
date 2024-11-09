@@ -1,12 +1,12 @@
 namespace Grains.Impl;
 
-using Grains.Interface;
+using Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
 using Orleans;
 
-public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
+public class ServerManager(IGrainFactory grainFactory, AbstractApplicationDbContext context) : Grain, IServerManager
 {
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {

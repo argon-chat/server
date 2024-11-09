@@ -34,7 +34,7 @@ public static class OrleansExtension
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                 options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-            }).AddReminders().AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
+            }).AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });

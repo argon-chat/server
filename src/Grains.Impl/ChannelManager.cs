@@ -1,7 +1,7 @@
 namespace Grains.Impl;
 
 using Argon.Contracts;
-using Grains.Interface;
+using Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
@@ -11,7 +11,7 @@ using States;
 
 public class ChannelManager(
     IArgonSelectiveForwardingUnit sfu,
-    ApplicationDbContext context,
+    AbstractApplicationDbContext context,
     [PersistentState("joinedUsers", "OrleansStorage")] IPersistentState<UsersJoinedToChannel> joinedUsers) : Grain, IChannelManager
 {
     public async Task<RealtimeToken> Join(Guid userId)

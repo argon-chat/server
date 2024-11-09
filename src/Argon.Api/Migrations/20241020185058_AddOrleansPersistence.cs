@@ -10,7 +10,6 @@ namespace Argon.Api.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            // read file orleans_up.sql in the same directory
             var sql = System.IO.File.ReadAllText("Migrations/orleans_up.sql");
             migrationBuilder.Sql(sql);
         }

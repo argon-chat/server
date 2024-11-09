@@ -48,7 +48,7 @@
         <ProjectReference Include="..\Grains.Impl\Grains.Impl.csproj"/>
         <ProjectReference Include="..\Grains.Interface\Grains.Interface.csproj"/>
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
-        <ProjectReference Include="..\Services\Services.csproj" />
+        <ProjectReference Include="..\Services\Services.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -70,7 +70,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Folder Include="Entities\"/>
         <Folder Include="Features\Otp\"/>
         <Folder Include="Grains.Interfaces\"/>
         <Folder Include="Grains.Persistence.States\"/>

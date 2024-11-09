@@ -4,17 +4,16 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Models;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
 namespace Argon.Api.Migrations
 {
-    using Models;
-
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20241106102428_updateUserModel")]
-    partial class updateUserModel
+    [Migration("20241109211527_Init")]
+    partial class Init
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -26,7 +25,7 @@ namespace Argon.Api.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Argon.Api.Entities.Channel", b =>
+            modelBuilder.Entity("Models.Channel", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -67,7 +66,7 @@ namespace Argon.Api.Migrations
                     b.ToTable("Channels");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.Server", b =>
+            modelBuilder.Entity("Models.Server", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -97,7 +96,7 @@ namespace Argon.Api.Migrations
                     b.ToTable("Servers");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.User", b =>
+            modelBuilder.Entity("Models.User", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -142,7 +141,7 @@ namespace Argon.Api.Migrations
                     b.ToTable("Users");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
+            modelBuilder.Entity("Models.UsersToServerRelation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -204,24 +203,24 @@ namespace Argon.Api.Migrations
                     b.ToTable("UsersToServerRelations");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.Channel", b =>
+            modelBuilder.Entity("Models.Channel", b =>
                 {
-                    b.HasOne("Argon.Api.Entities.Server", null)
+                    b.HasOne("Models.Server", null)
                         .WithMany("Channels")
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
+            modelBuilder.Entity("Models.UsersToServerRelation", b =>
                 {
-                    b.HasOne("Argon.Api.Entities.Server", "Server")
+                    b.HasOne("Models.Server", "Server")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.Api.Entities.User", "User")
+                    b.HasOne("Models.User", "User")
                         .WithMany("UsersToServerRelations")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -232,14 +231,14 @@ namespace Argon.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.Server", b =>
+            modelBuilder.Entity("Models.Server", b =>
                 {
                     b.Navigation("Channels");
 
                     b.Navigation("UsersToServerRelations");
                 });
 
-            modelBuilder.Entity("Argon.Api.Entities.User", b =>
+            modelBuilder.Entity("Models.User", b =>
                 {
                     b.Navigation("UsersToServerRelations");
                 });

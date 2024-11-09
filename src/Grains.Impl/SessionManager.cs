@@ -1,7 +1,7 @@
 namespace Grains.Impl;
 
 using Argon.Contracts.etc;
-using Grains.Interface;
+using Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
@@ -14,7 +14,7 @@ public class SessionManager(
     ILogger<UserManager> logger,
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    ApplicationDbContext context) : Grain, ISessionManager
+    AbstractApplicationDbContext context) : Grain, ISessionManager
 {
     // TODO machineKey
     public async Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input)

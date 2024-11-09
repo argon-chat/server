@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -38,8 +38,8 @@ namespace Argon.Api.Migrations
                     Username = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: true),
                     PhoneNumber = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
                     PasswordDigest = table.Column<string>(type: "character varying(511)", maxLength: 511, nullable: true),
-                    AvatarUrl = table.Column<string>(type: "character varying(1023)", maxLength: 1023, nullable: true),
-                    OTP = table.Column<string>(type: "character varying(7)", maxLength: 7, nullable: true),
+                    AvatarFileId = table.Column<string>(type: "character varying(1023)", maxLength: 1023, nullable: true),
+                    OtpHash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>

@@ -1,13 +1,13 @@
 namespace Grains.Impl;
 
-using Grains.Interface;
+using Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
 using Orleans;
 using Services;
 
-public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
+public class UserManager(IPasswordHashingService passwordHashingService, AbstractApplicationDbContext context) : Grain, IUserManager
 {
     public async Task<UserDto> CreateUser(UserCredentialsInput input)
     {
