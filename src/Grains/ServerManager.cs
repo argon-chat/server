@@ -1,4 +1,4 @@
-namespace Grains.Impl;
+namespace Grains;
 
 using Interface;
 using Microsoft.EntityFrameworkCore;

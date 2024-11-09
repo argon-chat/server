@@ -1,4 +1,4 @@
-﻿namespace Grains.Impl;
+﻿namespace Grains;
 
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;

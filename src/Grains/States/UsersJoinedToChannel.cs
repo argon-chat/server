@@ -1,4 +1,4 @@
-namespace Grains.Impl.States;
+namespace Grains.States;
 
 using System.Runtime.Serialization;
 using MemoryPack;

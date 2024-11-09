@@ -29,7 +29,8 @@ public static class OrleansExtension
             {
                 cluster.ClusterId = "Api";
                 cluster.ServiceId = "Api";
-            }).AddAdoNetGrainStorage("OrleansStorage", options =>
+            })
+               .AddAdoNetGrainStorage("OrleansStorage", options =>
             {
                 options.Invariant              = "Npgsql";
                 options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");

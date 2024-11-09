@@ -29,7 +29,7 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains.Interface", "src\Gra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Models", "src\Models\Models.csproj", "{9D390396-E330-4060-9C2A-FD5B933C7F90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains.Impl", "src\Grains.Impl\Grains.Impl.csproj", "{ADC6379C-C252-4C24-9047-E09D7BE73D5E}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains", "src\Grains\Grains.csproj", "{ADC6379C-C252-4C24-9047-E09D7BE73D5E}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Services", "src\Services\Services.csproj", "{8BEE378B-511C-49C6-AE76-BC04517FA808}"
 EndProject

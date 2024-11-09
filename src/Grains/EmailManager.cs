@@ -1,4 +1,4 @@
-namespace Grains.Impl;
+namespace Grains;
 
 using System.Net;
 using System.Net.Mail;
