@@ -3,7 +3,6 @@ namespace Models.DTO;
 using System.Runtime.Serialization;
 using MemoryPack;
 using MessagePack;
-using Models;
 using Orleans;
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelInput))]
