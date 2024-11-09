@@ -1,8 +1,9 @@
 namespace Argon.Api.Grains;
 
 using Entities;
-using Interfaces;
+using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
+using Models;
 
 public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
 {

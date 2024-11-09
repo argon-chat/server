@@ -1,6 +1,6 @@
 namespace Argon.Api.Grains.Persistence.States;
 
-using Entities;
+using Models;
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer]
 public sealed partial record UsersJoinedToChannel

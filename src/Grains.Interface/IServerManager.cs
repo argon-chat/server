@@ -1,9 +1,9 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Grains.Interface;
 
 using System.Runtime.Serialization;
-using Entities;
 using MemoryPack;
 using MessagePack;
+using Models;
 using Orleans;
 
 public interface IServerManager : IGrainWithGuidKey

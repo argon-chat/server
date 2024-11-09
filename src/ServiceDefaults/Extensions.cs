@@ -1,10 +1,11 @@
-namespace Microsoft.Extensions.Hosting;
+namespace ServiceDefaults;
 
-using AspNetCore.Builder;
-using AspNetCore.Diagnostics.HealthChecks;
-using DependencyInjection;
-using Diagnostics.HealthChecks;
-using Logging;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;

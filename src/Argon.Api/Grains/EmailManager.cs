@@ -3,7 +3,7 @@ namespace Argon.Api.Grains;
 using System.Net;
 using System.Net.Mail;
 using Features.EmailForms;
-using Interfaces;
+using global::Grains.Interface;
 using Microsoft.Extensions.Options;
 
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager

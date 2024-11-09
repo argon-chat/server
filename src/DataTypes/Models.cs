@@ -1,4 +1,4 @@
-namespace Argon.Sfu;
+namespace DataTypes;
 
 using LiveKit.Proto;
 using MemoryPack;

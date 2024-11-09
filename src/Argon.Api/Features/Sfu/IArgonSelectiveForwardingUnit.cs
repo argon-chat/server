@@ -1,4 +1,6 @@
-namespace Argon.Sfu;
+namespace Argon.Api.Features.Sfu;
+
+using DataTypes;
 
 public interface IArgonSelectiveForwardingUnit
 {

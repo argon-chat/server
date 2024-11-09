@@ -46,7 +46,7 @@
     <ItemGroup>
         <ProjectReference Include="..\Argon.Contracts\Argon.Contracts.csproj"/>
         <ProjectReference Include="..\DataTypes\DataTypes.csproj"/>
-        <ProjectReference Include="..\Grain.Interface\Grain.Interface.csproj"/>
+        <ProjectReference Include="..\Grains.Interface\Grains.Interface.csproj" />
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
     </ItemGroup>
 

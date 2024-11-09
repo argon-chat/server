@@ -1,10 +1,11 @@
 namespace Argon.Api.Grains;
 
-using Contracts;
+using Contracts.etc;
 using Entities;
 using Features.Otp;
-using Interfaces;
+using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
+using Models;
 using Services;
 
 public class SessionManager(

@@ -1,4 +1,4 @@
-namespace Argon.Api.Entities;
+namespace Models;
 
 using System.ComponentModel.DataAnnotations;
 using System.Runtime.Serialization;

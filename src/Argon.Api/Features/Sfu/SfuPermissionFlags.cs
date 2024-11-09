@@ -1,5 +1,6 @@
-﻿namespace Argon.Sfu;
+﻿namespace Argon.Api.Features.Sfu;
 
+using DataTypes;
 using LiveKit.Proto;
 using Microsoft.OpenApi.Extensions;
 

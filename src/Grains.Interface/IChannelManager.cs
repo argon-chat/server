@@ -1,11 +1,11 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Grains.Interface;
 
 using System.Runtime.Serialization;
-using Entities;
+using DataTypes;
 using MemoryPack;
 using MessagePack;
+using Models;
 using Orleans;
-using Sfu;
 
 public interface IChannelManager : IGrainWithGuidKey
 {

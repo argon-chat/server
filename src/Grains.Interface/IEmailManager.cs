@@ -1,4 +1,4 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Grains.Interface;
 
 using Orleans;
 

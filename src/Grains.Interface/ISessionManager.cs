@@ -1,8 +1,8 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Grains.Interface;
 
-using Contracts;
-using Entities;
+using Argon.Contracts.etc;
 using MemoryPack;
+using Models;
 using Orleans;
 
 public enum AuthorizationError

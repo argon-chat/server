@@ -1,4 +1,4 @@
-namespace Argon.Contracts;
+namespace Argon.Contracts.etc;
 
 using MemoryPack;
 using MessagePack;

@@ -1,4 +1,4 @@
-namespace Argon.Api.Entities;
+namespace Models;
 
 using System.Runtime.Serialization;
 using MemoryPack;

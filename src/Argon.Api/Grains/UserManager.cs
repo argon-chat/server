@@ -1,8 +1,9 @@
 namespace Argon.Api.Grains;
 
 using Entities;
-using Interfaces;
+using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
+using Models;
 using Services;
 
 public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
