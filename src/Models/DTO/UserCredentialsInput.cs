@@ -7,7 +7,7 @@ using Orleans;
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
  Alias(nameof(UserCredentialsInput))]
-public sealed record UserCredentialsInput(
+public sealed partial record UserCredentialsInput(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
     string Email,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1), Id(1)]

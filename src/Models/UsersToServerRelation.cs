@@ -40,7 +40,7 @@ public sealed record UsersToServerRelation
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer,
  Alias(nameof(UsersToServerRelationDto))]
-public sealed record UsersToServerRelationDto(
+public sealed partial record UsersToServerRelationDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Id(1)]

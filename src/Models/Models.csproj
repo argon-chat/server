@@ -9,10 +9,17 @@
 
     <ItemGroup>
         <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0"/>
+        <PackageReference Include="MemoryPack" Version="1.21.3"/>
         <PackageReference Include="MemoryPack.Core" Version="1.21.3"/>
-        <PackageReference Include="MessagePack.Annotations" Version="2.5.172"/>
+        <PackageReference Include="MemoryPack.Generator" Version="1.21.3">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="MessagePack" Version="2.5.187"/>
+        <PackageReference Include="MessagePack.Annotations" Version="2.5.187"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10"/>
         <PackageReference Include="Microsoft.OpenApi" Version="1.6.14"/>
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0"/>
     </ItemGroup>
 

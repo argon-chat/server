@@ -32,7 +32,7 @@ public sealed record Channel
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelDto))]
-public sealed record ChannelDto(
+public sealed partial record ChannelDto(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
     Guid Id,
     [property: DataMember(Order = 1), MemoryPackOrder(1), Id(1)]

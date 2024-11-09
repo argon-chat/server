@@ -1,10 +1,9 @@
 namespace Grains.States;
 
 using MemoryPack;
-using Orleans;
 
 [GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(FusionSession))]
-public class FusionSession
+public sealed partial class FusionSession
 {
     [Id(0)]
     public required Guid Id { get; set; } = Guid.Empty;
