@@ -11,6 +11,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace Argon.Api.Migrations
 {
+    using Entities;
+
     [DbContext(typeof(ApplicationDbContext))]
     [Migration("20241109211527_Init")]
     partial class Init

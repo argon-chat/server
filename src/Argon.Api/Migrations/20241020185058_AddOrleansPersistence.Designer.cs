@@ -10,6 +10,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 namespace Argon.Api.Migrations
 {
+    using Entities;
     using Models;
 
     [DbContext(typeof(ApplicationDbContext))]
