@@ -5,7 +5,7 @@ using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
-using Services;
+using Orleans;
 
 public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
 {

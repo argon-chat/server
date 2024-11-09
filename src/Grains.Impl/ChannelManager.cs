@@ -6,6 +6,8 @@ using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
+using Orleans;
+using Orleans.Runtime;
 using Persistence.States;
 
 public class ChannelManager(

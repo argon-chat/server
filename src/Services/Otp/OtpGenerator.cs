@@ -1,6 +1,10 @@
 namespace Argon.Api.Features.Otp;
 
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OtpNet;
 using Services;

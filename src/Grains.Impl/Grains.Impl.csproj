@@ -1,0 +1,20 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0</TargetFramework>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Grains.Interface\Grains.Interface.csproj"/>
+        <ProjectReference Include="..\Services\Services.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.IdentityModel.Tokens" Version="8.1.2"/>
+        <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2"/>
+    </ItemGroup>
+
+</Project>

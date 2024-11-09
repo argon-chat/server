@@ -10,6 +10,8 @@
         <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0"/>
         <PackageReference Include="MemoryPack.Core" Version="1.21.3"/>
         <PackageReference Include="MessagePack.Annotations" Version="2.5.172"/>
+        <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.10"/>
+        <PackageReference Include="Microsoft.OpenApi" Version="1.6.14"/>
         <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0"/>
     </ItemGroup>
 

@@ -1,7 +1,10 @@
 namespace Argon.Api.Grains.Persistence.States;
 
+using MemoryPack;
+using Orleans;
+
 [GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(FusionSession))]
-public partial class FusionSession
+public class FusionSession
 {
     [Id(0)]
     public required Guid Id { get; set; } = Guid.Empty;
