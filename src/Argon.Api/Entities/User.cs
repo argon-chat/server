@@ -1,9 +1,6 @@
 namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
-using System.Runtime.Serialization;
-using MemoryPack;
-using MessagePack;
 
 public sealed record User
 {
@@ -19,14 +16,14 @@ public sealed record User
     [MaxLength(511)]
     public string? PasswordDigest { get; set; } = string.Empty;
     [MaxLength(1023)]
-    public string? AvatarUrl { get; set; } = string.Empty;
-    [MaxLength(7)]
-    public string? OTP { get;                                        set; } = string.Empty;
+    public string? AvatarFileId { get; set; } = string.Empty;
+    [MaxLength(128)]
+    public string? OtpHash { get;                                    set; } = string.Empty;
     public DateTime?                   DeletedAt              { get; set; }
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 
     public static implicit operator UserDto(User user) => new(user.Id, user.CreatedAt, user.UpdatedAt, user.Email, user.Username, user.PhoneNumber,
-        user.AvatarUrl, user.DeletedAt, user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList());
+        user.AvatarFileId, user.DeletedAt, user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList());
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(UserDto))]

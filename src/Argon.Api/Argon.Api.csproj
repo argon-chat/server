@@ -22,6 +22,7 @@
         <PackageReference Include="ActualLab.Fusion.EntityFramework.Npgsql" Version="9.5.52"/>
         <PackageReference Include="ActualLab.Rpc.Server" Version="9.5.52"/>
         <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0"/>
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.10"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -33,6 +34,9 @@
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
+        <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
+        <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
+        <PackageReference Include="Otp.NET" Version="1.4.0"/>
         <PackageReference Include="R3" Version="1.2.9"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.9.0"/>
@@ -54,6 +58,16 @@
         <PackageReference Include="GitVersion.MsBuild" Version="5.12">
             <PrivateAssets>All</PrivateAssets>
         </PackageReference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="Resources\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Folder Include="Features\Otp\"/>
     </ItemGroup>
 
 </Project>

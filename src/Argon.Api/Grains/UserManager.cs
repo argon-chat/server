@@ -1,7 +1,6 @@
 namespace Argon.Api.Grains;
 
 using Entities;
-using Helpers;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
@@ -15,10 +14,8 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
             Email          = input.Email,
             Username       = input.Username,
             PhoneNumber    = input.PhoneNumber,
-            PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation),
-            OTP            = passwordHashingService.GenerateOtp()
+            PasswordDigest = passwordHashingService.HashPassword(input.Password)
         };
-        user.AvatarUrl = Gravatar.GenerateGravatarUrl(user);
         context.Users.Add(user);
         await context.SaveChangesAsync();
         return user;
@@ -30,8 +27,7 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         user.Email          = input.Email;
         user.Username       = input.Username ?? user.Username;
         user.PhoneNumber    = input.PhoneNumber ?? user.PhoneNumber;
-        user.PasswordDigest = passwordHashingService.HashPassword(input.Password, input.PasswordConfirmation) ?? user.PasswordDigest;
-        user.AvatarUrl      = Gravatar.GenerateGravatarUrl(user);
+        user.PasswordDigest = passwordHashingService.HashPassword(input.Password) ?? user.PasswordDigest;
         context.Users.Update(user);
         await context.SaveChangesAsync();
         return user;

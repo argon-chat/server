@@ -18,6 +18,12 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.CodeGenerator" Version="8.2.0">
+            <PrivateAssets>all</PrivateAssets>
+            <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.Orleans.Core" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Serialization.Abstractions" Version="8.2.0"/>
     </ItemGroup>
 
 </Project>

@@ -1,13 +1,20 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Contracts;
 using Entities;
-using MemoryPack;
+
+public enum AuthorizationError
+{
+    BAD_CREDENTIALS,
+    REQUIRED_OTP,
+    BAD_OTP
+}
 
 [Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
 public interface ISessionManager : IGrainWithGuidKey
 {
     [Alias("Authorize")]
-    Task<JwtToken> Authorize(UserCredentialsInput input);
+    Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input);
 
     [Alias("GetUser")]
     Task<UserDto> GetUser();
