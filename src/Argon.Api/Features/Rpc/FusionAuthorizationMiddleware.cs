@@ -2,8 +2,8 @@
 
 using ActualLab.Reflection;
 using ActualLab.Rpc.Infrastructure;
-using Grains;
-using Grains.Persistence.States;
+using Grains.Impl;
+using Grains.Impl.States;
 using Microsoft.AspNetCore.Authorization;
 
 public class FusionAuthorizationMiddleware(IServiceProvider Services, IGrainFactory GrainFactory) : RpcInboundMiddleware(Services)

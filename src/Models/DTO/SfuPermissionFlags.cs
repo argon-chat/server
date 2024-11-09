@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Features.Sfu;
+﻿namespace Models.DTO;
 
 [Flags]
 public enum SfuPermissionFlags

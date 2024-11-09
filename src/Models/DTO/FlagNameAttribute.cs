@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Sfu;
+namespace Models.DTO;
 
 [AttributeUsage(AttributeTargets.Field)]
 public class FlagNameAttribute(string flagName) : Attribute

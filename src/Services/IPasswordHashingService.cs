@@ -1,9 +1,9 @@
-namespace Argon.Api.Services;
+namespace Services;
 
 using System.Security.Cryptography;
 using System.Text;
-using Features.Otp;
 using Models;
+using Otp;
 
 public interface IPasswordHashingService
 {

@@ -1,10 +1,10 @@
-﻿namespace Argon.Api.Grains;
+﻿namespace Grains.Impl;
 
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 using Orleans;
 using Orleans.Runtime;
-using Persistence.States;
+using States;
 
 public class FusionGrain(
     [PersistentState("sessions", "OrleansStorage")] IPersistentState<FusionSession> sessionStorage,

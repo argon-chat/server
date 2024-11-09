@@ -1,17 +1,17 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
 using Argon.Api;
-using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
-using Argon.Api.Features.Otp;
 using Argon.Api.Features.Rpc;
 using Argon.Api.Features.Sfu;
 using Argon.Api.Migrations;
-using Argon.Api.Services;
 using Grains.Interface;
+using Models;
 using ServiceDefaults;
+using Services;
+using Services.Otp;
 
 var builder = WebApplication.CreateBuilder(args);
 

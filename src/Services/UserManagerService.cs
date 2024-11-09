@@ -1,9 +1,9 @@
-namespace Argon.Api.Services;
+namespace Services;
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
-using Contracts;
+using Argon.Contracts;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 

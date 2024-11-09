@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Sfu;
+namespace Models.DTO;
 
 using LiveKit.Proto;
 using Microsoft.OpenApi.Extensions;

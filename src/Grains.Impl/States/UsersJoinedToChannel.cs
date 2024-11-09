@@ -1,4 +1,4 @@
-namespace Argon.Api.Grains.Persistence.States;
+namespace Grains.Impl.States;
 
 using System.Runtime.Serialization;
 using MemoryPack;

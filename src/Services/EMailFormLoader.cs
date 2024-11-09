@@ -1,4 +1,4 @@
-namespace Argon.Api.Services;
+namespace Services;
 
 public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> logger) : BackgroundService
 {

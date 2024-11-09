@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Otp;
+namespace Services.Otp;
 
 using System.Security.Cryptography;
 using System.Text;
@@ -7,7 +7,6 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
 using OtpNet;
-using Services;
 
 public record OneTimeOtpSettings
 {

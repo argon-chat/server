@@ -1,7 +1,6 @@
-namespace Argon.Api.Entities;
+namespace Models;
 
 using Microsoft.EntityFrameworkCore;
-using Models;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {

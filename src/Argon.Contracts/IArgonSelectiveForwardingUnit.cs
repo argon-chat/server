@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Sfu;
+namespace Argon.Contracts;
 
 using Models.DTO;
 

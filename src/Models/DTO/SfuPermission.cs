@@ -1,7 +1,6 @@
-namespace Argon.Api.Features.Sfu;
+namespace Models.DTO;
 
 using LiveKit.Proto;
-using Models.DTO;
 
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
 {

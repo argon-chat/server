@@ -1,8 +1,8 @@
-namespace Argon.Api.Grains;
+namespace Grains.Impl;
 
 using System.Net;
 using System.Net.Mail;
-using global::Grains.Interface;
+using Grains.Interface;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Orleans;

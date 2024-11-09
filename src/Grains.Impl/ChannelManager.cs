@@ -1,14 +1,13 @@
-namespace Argon.Api.Grains;
+namespace Grains.Impl;
 
-using Entities;
-using Features.Sfu;
-using global::Grains.Interface;
+using Argon.Contracts;
+using Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
 using Orleans;
 using Orleans.Runtime;
-using Persistence.States;
+using States;
 
 public class ChannelManager(
     IArgonSelectiveForwardingUnit sfu,

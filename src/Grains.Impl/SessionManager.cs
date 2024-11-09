@@ -1,14 +1,13 @@
-namespace Argon.Api.Grains;
+namespace Grains.Impl;
 
-using Contracts.etc;
-using Entities;
-using Features.Otp;
-using global::Grains.Interface;
+using Argon.Contracts.etc;
+using Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;
 using Orleans;
 using Services;
+using Services.Otp;
 
 public class SessionManager(
     IGrainFactory grainFactory,

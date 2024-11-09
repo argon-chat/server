@@ -1,7 +1,6 @@
-namespace Argon.Api.Grains;
+namespace Grains.Impl;
 
-using Entities;
-using global::Grains.Interface;
+using Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
 using Models.DTO;

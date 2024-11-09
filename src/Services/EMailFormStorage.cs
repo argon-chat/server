@@ -1,4 +1,4 @@
-namespace Argon.Api.Services;
+namespace Services;
 
 using System.Collections.Concurrent;
 
