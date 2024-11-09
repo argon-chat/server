@@ -14,7 +14,6 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Argon.Contracts\Argon.Contracts.csproj" />
-        <ProjectReference Include="..\DataTypes\DataTypes.csproj"/>
         <ProjectReference Include="..\Models\Models.csproj"/>
     </ItemGroup>
 

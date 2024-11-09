@@ -6,6 +6,7 @@ using Features.Otp;
 using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
+using Models.DTO;
 using Services;
 
 public class SessionManager(

@@ -1,6 +1,6 @@
 namespace Argon.Api.Features.Sfu;
 
-using DataTypes;
+using Models.DTO;
 
 public interface IArgonSelectiveForwardingUnit
 {

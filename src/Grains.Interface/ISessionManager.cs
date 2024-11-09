@@ -1,8 +1,8 @@
 namespace Grains.Interface;
 
 using Argon.Contracts.etc;
-using MemoryPack;
 using Models;
+using Models.DTO;
 using Orleans;
 
 public enum AuthorizationError
@@ -24,6 +24,3 @@ public interface ISessionManager : IGrainWithGuidKey
     [Alias(nameof(Logout))]
     Task Logout(); // TODO: revoke jwt by adding it into a blacklist
 }
-
-[Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(JwtToken))]
-public record struct JwtToken(string token);

@@ -1,11 +1,11 @@
 namespace Argon.Api.Grains;
 
-using DataTypes;
 using Entities;
 using Features.Sfu;
 using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
+using Models.DTO;
 using Persistence.States;
 
 public class ChannelManager(

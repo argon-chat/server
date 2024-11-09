@@ -1,11 +1,11 @@
 namespace Argon.Api.Controllers;
 
 using Attributes;
-using DataTypes;
 using global::Grains.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Models;
+using Models.DTO;
 using Swashbuckle.AspNetCore.Annotations;
 
 #if DEBUG

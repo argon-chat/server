@@ -29,8 +29,6 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Grains.Interface", "src\Gra
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Models", "src\Models\Models.csproj", "{9D390396-E330-4060-9C2A-FD5B933C7F90}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DataTypes", "src\DataTypes\DataTypes.csproj", "{F8DFA006-875D-40FA-90F5-34AFC6C502D4}"
-EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -61,10 +59,6 @@ Global
 		{9D390396-E330-4060-9C2A-FD5B933C7F90}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9D390396-E330-4060-9C2A-FD5B933C7F90}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9D390396-E330-4060-9C2A-FD5B933C7F90}.Release|Any CPU.Build.0 = Release|Any CPU
-		{F8DFA006-875D-40FA-90F5-34AFC6C502D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{F8DFA006-875D-40FA-90F5-34AFC6C502D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{F8DFA006-875D-40FA-90F5-34AFC6C502D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{F8DFA006-875D-40FA-90F5-34AFC6C502D4}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -76,7 +70,6 @@ Global
 		{151002BD-57E5-440B-9CA7-C681A69CA02C} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{5BA1F3B1-D442-4C16-B8D5-D9A1D2D13957} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{9D390396-E330-4060-9C2A-FD5B933C7F90} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
-		{F8DFA006-875D-40FA-90F5-34AFC6C502D4} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {576333C3-629F-47F8-BE21-3E82EDC2655D}

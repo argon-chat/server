@@ -7,6 +7,7 @@ using global::Grains.Interface;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Models;
+using Models.DTO;
 using Swashbuckle.AspNetCore.Annotations;
 
 [Route("api/[controller]")]

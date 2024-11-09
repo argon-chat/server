@@ -4,6 +4,7 @@ using Entities;
 using global::Grains.Interface;
 using Microsoft.EntityFrameworkCore;
 using Models;
+using Models.DTO;
 
 public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
 {
