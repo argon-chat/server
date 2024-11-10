@@ -2,21 +2,20 @@ namespace Argon.Api.Services;
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
-using ActualLab;
 using Features.Jwt;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt, IConfiguration configuration)
 {
-    public Task<string> GenerateJwt(string email, Guid id)
+    public Task<string> GenerateJwt(Guid id, Guid machineId)
     {
         var (issuer, audience, key, exp) = jwt.Value;
         var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
             SecurityAlgorithms.HmacSha512Signature);
         var subject = new ClaimsIdentity([
             new Claim("id", id.ToString()),
-            new Claim("email", email)
+            new Claim("machineId", machineId.ToString("N"))
         ]);
         var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor

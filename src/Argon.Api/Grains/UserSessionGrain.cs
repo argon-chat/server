@@ -1,21 +1,26 @@
 namespace Argon.Api.Grains;
 
+using Contracts;
 using Interfaces;
 using Microsoft.Extensions.Logging;
 
-public class UserActiveSessionGrain(
-    [PersistentState("userSessions", "OrleansStorage")] 
-    IPersistentState<UserSessionGrainState> sessionStorage,
-    ILogger<IUserActiveSessionGrain> logger) : Grain, IUserActiveSessionGrain
+public class UserMachineSessions(
+    [PersistentState("userMachineSessions", "OrleansStorage")] 
+    IPersistentState<UserMachineSessionGrainState> sessionStorage,
+    ILogger<IUserMachineSessions> logger) : Grain, IUserMachineSessions
 {
-    public ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName, string platform)
+    public async ValueTask<Guid> CreateMachineKey(UserConnectionInfo connectionInfo)
     {
-        logger.LogInformation("User '{userId}' has add machine key {key}, {region}, {hostName}", this.GetPrimaryKey(), key, region, hostName);
-        sessionStorage.State.Sessions.Add(issueId, new UserSessionMachineEntity(hostName, region, key, platform)
+        logger.LogInformation("User '{userId}' has add machine key {key}", this.GetPrimaryKey(), connectionInfo);
+        var issueId = Guid.NewGuid();
+        sessionStorage.State.Sessions.Add(issueId, new UserSessionMachineEntity(
+            issueId, 
+            connectionInfo.HostName, 
+            connectionInfo.Region, connectionInfo.IpAddress, connectionInfo.ClientName)
         {
             LatestAccess = DateTimeOffset.UtcNow
         });
-        return ValueTask.CompletedTask;
+        return issueId;
     }
 
     public ValueTask<bool> HasKeyExist(Guid issueId)
@@ -26,6 +31,9 @@ public class UserActiveSessionGrain(
         sessionStorage.State.Sessions.Remove(issueId);
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask<List<UserSessionMachineEntity>> GetAllSessions()
+        => new(sessionStorage.State.Sessions.Select(x => x.Value).ToList());
 
     public ValueTask IndicateLastActive(Guid issueId)
     {
@@ -41,13 +49,13 @@ public class UserActiveSessionGrain(
 }
 
 // state to pgsql!!!
-[GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserSessionGrainState))]
-public partial class UserSessionGrainState
+[GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserMachineSessionGrainState))]
+public partial class UserMachineSessionGrainState
 {
     public Dictionary<Guid, UserSessionMachineEntity> Sessions { get; set; } = new();
 }
 
-public record UserSessionMachineEntity(string hostName, string region, string machineKey, string platform)
+public record UserSessionMachineEntity(Guid id, string hostName, string region, string ipAddress, string platform)
 {
     public DateTimeOffset LatestAccess { get; set; }
 }

@@ -2,14 +2,19 @@ namespace ActualLab.Rpc.Server;
 
 using System.Net;
 using System.Net.WebSockets;
+using Argon.Api.Grains.Interfaces;
 using Clients;
+using Collections;
 using Infrastructure;
 using WebSockets;
 using Time;
+using Argon.Api.Services;
 
 public class RpcWebSocketServer(
     RpcWebSocketServer.Options settings,
-    IServiceProvider services
+    IServiceProvider services,
+    IGrainFactory grainFactory,
+    TokenAuthorization tokenAuthorization
     ) : RpcServiceBase(services)
 {
     public record Options
@@ -36,23 +41,38 @@ public class RpcWebSocketServer(
     public async Task Invoke(HttpContext context, bool isBackend)
     {
         var cancellationToken = context.RequestAborted;
-        if (!context.WebSockets.IsWebSocketRequest) {
+        if (!context.WebSockets.IsWebSocketRequest) 
+        {
             context.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             return;
         }
+        if (!context.Request.Headers.TryGetValue(HttpRequestHeader.Authorization.ToString(), out var value))
+        {
+            context.Response.StatusCode = 403;
+            return;
+        }
 
-        WebSocket? webSocket = null;
-        RpcConnection? connection = null;
+        var validationResult = await tokenAuthorization.AuthorizeByToken(value.ToString());
+
+        if (!validationResult.IsSuccess)
+        {
+            context.Response.StatusCode = 401;
+            await context.Response.WriteAsJsonAsync(new { error = validationResult.Error }, cancellationToken);
+            return;
+        }
+
+        var userData = validationResult.Value;
+
+        WebSocket?          webSocket  = null;
+        RpcConnection?      connection = null;
+        IFusionSessionGrain?fs         = null;
         try {
             var peerRef = PeerRefFactory.Invoke(this, context, isBackend).RequireServer();
-            var peer = Hub.GetServerPeer(peerRef);
+            var peer    = Hub.GetServerPeer(peerRef);
+            fs      = grainFactory.GetGrain<IFusionSessionGrain>(peer.Id);
 
-#if NET6_0_OR_GREATER
             var webSocketAcceptContext = Settings.ConfigureWebSocket.Invoke();
-            var acceptWebSocketTask = context.WebSockets.AcceptWebSocketAsync(webSocketAcceptContext);
-#else
-            var acceptWebSocketTask = context.WebSockets.AcceptWebSocketAsync();
-#endif
+            var acceptWebSocketTask    = context.WebSockets.AcceptWebSocketAsync(webSocketAcceptContext);
             webSocket = await acceptWebSocketTask.ConfigureAwait(false);
             var properties = PropertyBag.Empty
                 .Set((RpcPeer)peer)
@@ -73,6 +93,10 @@ public class RpcWebSocketServer(
                 Log.LogWarning("{Peer} is already connected, will change its connection in {Delay}...",
                     peer, delay.ToShortString());
                 await peer.Hub.Clock.Delay(delay, cancellationToken).ConfigureAwait(false);
+            }
+            else
+            {
+                await fs.BeginRealtimeSession(userData.id, userData.machineId);
             }
             peer.SetConnection(connection);
             await channel.WhenClosed.ConfigureAwait(false);
@@ -95,6 +119,7 @@ public class RpcWebSocketServer(
         }
         finally {
             webSocket?.Dispose();
+            await (fs?.EndRealtimeSession() ?? ValueTask.CompletedTask);
         }
     }
 }

@@ -6,22 +6,25 @@ using Contracts;
 public interface IAuthorizationGrain : IGrainWithStringKey
 {
     [Alias("Authorize")]
-    Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input);
+    Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
     public const string DefaultId = "auth";
 }
 
-[Alias("Argon.Api.Grains.Interfaces.IUserActiveSessionGrain")]
-public interface IUserActiveSessionGrain : IGrainWithGuidKey
+[Alias("Argon.Api.Grains.Interfaces.IUserMachineSessions")]
+public interface IUserMachineSessions : IGrainWithGuidKey
 {
-    [Alias("AddMachineKey")]
-    ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName, string platform);
+    [Alias("CreateMachineKey")]
+    ValueTask<Guid> CreateMachineKey(UserConnectionInfo connectionInfo);
 
     [Alias("HasKeyExist")]
     ValueTask<bool> HasKeyExist(Guid issueId);
 
     [Alias("Remove")]
     ValueTask Remove(Guid issueId);
+
+    [Alias("GetAllSessions")]
+    ValueTask<List<UserSessionMachineEntity>> GetAllSessions();
 
     [Alias("IndicateLastActive")]
     ValueTask IndicateLastActive(Guid issueId);

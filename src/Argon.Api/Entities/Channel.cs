@@ -1,13 +1,7 @@
 namespace Argon.Api.Entities;
 
 using System.ComponentModel.DataAnnotations;
-
-public enum ChannelType : ushort
-{
-    Text,
-    Voice,
-    Announcement
-}
+using Contracts;
 
 public sealed record Channel
 {

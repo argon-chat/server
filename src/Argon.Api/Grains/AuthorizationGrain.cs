@@ -7,15 +7,14 @@ using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
 
-
 public class AuthorizationGrain(IGrainFactory grainFactory,
     ILogger<AuthorizationGrain> logger,
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    ApplicationDbContext context) : Grain, IAuthorizationGrain
+    ApplicationDbContext context,
+    IUserMachineSessions machineSessions) : Grain, IAuthorizationGrain
 {
-    // TODO machineKey
-    public async Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input)
+    public async Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
         if (user is null)
@@ -48,10 +47,12 @@ public class AuthorizationGrain(IGrainFactory grainFactory,
             return AuthorizationError.BAD_OTP;
         }
 
+        var machineId = await machineSessions.CreateMachineKey(connectionInfo);
+
         user.OtpHash = null;
         context.Users.Update(user);
         await context.SaveChangesAsync();
-        return await GenerateJwt(user);
+        return await GenerateJwt(user, machineId);
     }
-    private async Task<JwtToken> GenerateJwt(User User) => new(await managerService.GenerateJwt(User.Email, User.Id));
+    private async Task<JwtToken> GenerateJwt(User User, Guid machineId) => new(await managerService.GenerateJwt(User.Id, machineId));
 }

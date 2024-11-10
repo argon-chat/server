@@ -4,6 +4,7 @@ using Extensions;
 using Interfaces;
 using Orleans.Streams;
 using R3;
+using Services;
 using static DeactivationReasonCode;
 using static FusionGrainEventKind;
 
@@ -13,6 +14,7 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
     private DateTimeOffset _latestSignalTime = DateTimeOffset.UtcNow;
     private DisposableBag disposableBag;
     private Guid _userId;
+    private Guid _macineId;
 
     public async ValueTask SelfDestroy()
         => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
@@ -46,8 +48,9 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
     {
         this.RegisterGrainTimer(OnValidateActiveAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30))
            .AddTo(ref disposableBag);
-        this._userId = userId;
-        await grainFactory.GetGrain<IUserActiveSessionGrain>(userId).IndicateLastActive(machineKey);
+        this._userId   = userId;
+        this._macineId = machineKey;
+        await grainFactory.GetGrain<IUserMachineSessions>(userId).IndicateLastActive(machineKey);
     }
 
     public ValueTask EndRealtimeSession()
@@ -61,6 +64,9 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
         _latestSignalTime = DateTimeOffset.UtcNow;
         return ValueTask.CompletedTask;
     }
+
+    public ValueTask<TokenUserData> GetTokenUserData()
+        => new(new TokenUserData(_userId, _macineId));
 }
 
 

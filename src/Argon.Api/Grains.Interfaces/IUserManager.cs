@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Contracts;
 using Entities;
 
 public interface IUserManager : IGrainWithGuidKey
@@ -15,5 +16,8 @@ public interface IUserManager : IGrainWithGuidKey
 
     [Alias("GetUser")]
     Task<UserDto> GetUser();
+
+    [Alias("GetMyServers")]
+    Task<List<ServerDto>> GetMyServers();
 }
 

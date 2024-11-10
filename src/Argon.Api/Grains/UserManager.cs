@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains;
 
+using Contracts;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
