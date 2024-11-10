@@ -6,10 +6,7 @@ using Features.EmailForms;
 using Interfaces;
 using Microsoft.Extensions.Options;
 
-public class EmailManager(
-    IOptions<SmtpConfig> smtpOptions, 
-    ILogger<EmailManager> logger,
-    EMailFormStorage formStorage) : Grain, IEmailManager
+public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
 {
     private SmtpClient Client => new()
     {
@@ -29,10 +26,14 @@ public class EmailManager(
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
-        var form = formStorage.CompileAndGetForm("otp", new Dictionary<string, string>()
+        var form = formStorage.CompileAndGetForm("otp", new Dictionary<string, string>
         {
-            { "otp", otpCode },
-            { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+            {
+                "otp", otpCode
+            },
+            {
+                "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}"
+            }
         });
 
         await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code: {otpCode}", form)

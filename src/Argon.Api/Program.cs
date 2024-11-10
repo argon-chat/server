@@ -32,7 +32,9 @@ builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddTransient<IFusionServiceContext, FusionServiceContext>();
 builder.AddOtpCodes();
+#pragma warning disable ORLEANSEXP001
 builder.AddOrleans();
+#pragma warning restore ORLEANSEXP001
 builder.AddEMailForms();
 var app = builder.Build();
 app.UseSwagger();
