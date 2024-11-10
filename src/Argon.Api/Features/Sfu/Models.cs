@@ -10,6 +10,8 @@ public partial record struct RealtimeToken(string value);
 public record struct ArgonUserId(Guid id)
 {
     public string ToRawIdentity() => id.ToString("N");
+
+    public static implicit operator ArgonUserId(Guid userId) => new(userId);
 }
 
 public record struct ArgonServerId(Guid id);

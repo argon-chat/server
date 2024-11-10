@@ -19,8 +19,6 @@
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10" />
         <PackageReference Include="ActualLab.Fusion" Version="9.5.52" />
-        <PackageReference Include="ActualLab.Fusion.EntityFramework.Npgsql" Version="9.5.52" />
-        <PackageReference Include="ActualLab.Rpc.Server" Version="9.5.52" />
         <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.10" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
@@ -44,6 +42,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Argon.Contracts\Argon.Contracts.csproj" />
+        <ProjectReference Include="..\Argon.ServerRpc\Argon.ServerRpc.csproj" />
         <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 

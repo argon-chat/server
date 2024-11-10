@@ -11,15 +11,18 @@ public interface IAuthorizationGrain : IGrainWithStringKey
     public const string DefaultId = "auth";
 }
 
-[Alias("Argon.Api.Grains.Interfaces.IUserSessionGrain")]
-public interface IUserSessionGrain : IGrainWithGuidKey
+[Alias("Argon.Api.Grains.Interfaces.IUserActiveSessionGrain")]
+public interface IUserActiveSessionGrain : IGrainWithGuidKey
 {
     [Alias("AddMachineKey")]
-    ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName);
+    ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName, string platform);
 
     [Alias("HasKeyExist")]
     ValueTask<bool> HasKeyExist(Guid issueId);
 
     [Alias("Remove")]
     ValueTask Remove(Guid issueId);
+
+    [Alias("IndicateLastActive")]
+    ValueTask IndicateLastActive(Guid issueId);
 }

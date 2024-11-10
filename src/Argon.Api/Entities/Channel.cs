@@ -49,5 +49,5 @@ public sealed partial record ChannelDto(
     Guid ServerId)
 {
     [property: DataMember(Order = 9), MemoryPackOrder(9), Id(9)]
-    public List<UsersToServerRelationDto> ConnectedUsers { get; set; } = [];
+    public Dictionary<Guid, UsersToServerRelationDto> ConnectedUsers { get; set; } = [];
 }

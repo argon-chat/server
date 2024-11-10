@@ -2,13 +2,12 @@ namespace Argon.Api.Grains;
 
 using Extensions;
 using Interfaces;
-using Microsoft.IdentityModel.Tokens;
 using Orleans.Streams;
 using R3;
 using static DeactivationReasonCode;
 using static FusionGrainEventKind;
 
-public class FusionGrain : Grain, IFusionSessionGrain
+public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrain
 {
     private IAsyncStream<FusionGrainEventKind> _stream = null!;
     private DateTimeOffset _latestSignalTime = DateTimeOffset.UtcNow;
@@ -43,13 +42,12 @@ public class FusionGrain : Grain, IFusionSessionGrain
             await _stream.OnNextAsync(CONNECTION_DESTROYED);
     }
 
-    public ValueTask BeginRealtimeSession(Guid userId, Guid machineKey)
+    public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey)
     {
         this.RegisterGrainTimer(OnValidateActiveAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30))
            .AddTo(ref disposableBag);
         this._userId = userId;
-        // todo notify latest access by machineKey
-        return ValueTask.CompletedTask;
+        await grainFactory.GetGrain<IUserActiveSessionGrain>(userId).IndicateLastActive(machineKey);
     }
 
     public ValueTask EndRealtimeSession()

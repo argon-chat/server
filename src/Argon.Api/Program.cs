@@ -23,11 +23,9 @@ builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers().AddNewtonsoftJson();
-builder.Services.AddFusion(RpcServiceMode.Server, true)
+builder.Services.AddFusion(RpcServiceMode.Server, true);
  //.Rpc.AddServer<IUserAuthorization, UserAuthorization>()
  //.AddServer<IUserInteraction, UserInteractionService>()
-.Rpc.AddClient<>()
- .AddWebSocketServer(true);
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
@@ -45,7 +43,7 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.UseWebSockets();
-// app.MapRpcWebSocketServer();
+app.MapRpcWebSocketServer();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"

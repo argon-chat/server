@@ -3,15 +3,18 @@ namespace Argon.Api.Grains;
 using Interfaces;
 using Microsoft.Extensions.Logging;
 
-public class UserSessionGrain(
+public class UserActiveSessionGrain(
     [PersistentState("userSessions", "OrleansStorage")] 
     IPersistentState<UserSessionGrainState> sessionStorage,
-    ILogger<IUserSessionGrain> logger) : Grain, IUserSessionGrain
+    ILogger<IUserActiveSessionGrain> logger) : Grain, IUserActiveSessionGrain
 {
-    public ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName)
+    public ValueTask AddMachineKey(Guid issueId, string key, string region, string hostName, string platform)
     {
         logger.LogInformation("User '{userId}' has add machine key {key}, {region}, {hostName}", this.GetPrimaryKey(), key, region, hostName);
-        sessionStorage.State.Sessions.Add(issueId, (hostName, region, key));
+        sessionStorage.State.Sessions.Add(issueId, new UserSessionMachineEntity(hostName, region, key, platform)
+        {
+            LatestAccess = DateTimeOffset.UtcNow
+        });
         return ValueTask.CompletedTask;
     }
 
@@ -21,6 +24,12 @@ public class UserSessionGrain(
     public ValueTask Remove(Guid issueId)
     {
         sessionStorage.State.Sessions.Remove(issueId);
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask IndicateLastActive(Guid issueId)
+    {
+        sessionStorage.State.Sessions[issueId].LatestAccess = DateTimeOffset.UtcNow;
         return ValueTask.CompletedTask;
     }
 
@@ -35,5 +44,10 @@ public class UserSessionGrain(
 [GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserSessionGrainState))]
 public partial class UserSessionGrainState
 {
-    public Dictionary<Guid, (string hostName, string region, string machineKey)> Sessions { get; set; } = new();
+    public Dictionary<Guid, UserSessionMachineEntity> Sessions { get; set; } = new();
+}
+
+public record UserSessionMachineEntity(string hostName, string region, string machineKey, string platform)
+{
+    public DateTimeOffset LatestAccess { get; set; }
 }

@@ -1,12 +1,13 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Contracts;
 using Entities;
 using Sfu;
 
-public interface IChannelManager : IGrainWithGuidKey
+public interface IChannelGrain : IGrainWithGuidKey
 {
     [Alias("Join")]
-    Task<RealtimeToken> Join(Guid userId);
+    Task<Maybe<RealtimeToken>> Join(Guid userId);
 
     [Alias("Leave")]
     Task Leave(Guid userId);
@@ -16,6 +17,11 @@ public interface IChannelManager : IGrainWithGuidKey
 
     [Alias("UpdateChannel")]
     Task<ChannelDto> UpdateChannel(ChannelInput input);
+
+
+    // for join\leave\mute\unmute notifications
+    public const string UserTransformNotificationStream  = $"{nameof(IChannelGrain)}.user.transform";
+    public const string ChannelMessageNotificationStream = $"{nameof(IChannelGrain)}.user.messages";
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelInput))]
