@@ -9,10 +9,11 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create()
     {
-        var grain  = grainFactory.GetGrain<ITestGrain>(Guid.NewGuid());
+        var id     = Guid.NewGuid();
+        var grain  = grainFactory.GetGrain<ITestGrain>(id);
         var input  = new SomeInput(1, "a");
         var result = await grain.CreateSomeInput(input);
-        return Ok(result);
+        return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 
     [HttpPut]
@@ -21,7 +22,7 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
         var grain  = grainFactory.GetGrain<ITestGrain>(id);
         var input  = new SomeInput(12, "a12");
         var result = await grain.UpdateSomeInput(input);
-        return Ok(result);
+        return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 
     [HttpDelete]
@@ -29,7 +30,7 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
     {
         var grain  = grainFactory.GetGrain<ITestGrain>(id);
         var result = await grain.DeleteSomeInput();
-        return Ok(result);
+        return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 
     [HttpGet("{id}")]
@@ -37,6 +38,6 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
     {
         var grain  = grainFactory.GetGrain<ITestGrain>(id);
         var result = await grain.GetSomeInput();
-        return Ok(result);
+        return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 }

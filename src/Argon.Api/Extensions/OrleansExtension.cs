@@ -53,7 +53,7 @@ public static class OrleansExtension
                     options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
                 }).AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832)
-               .AddRedisStorage("RedisStorage", options => options.DatabaseName                                          = 228);
+               .AddRedisStorage("RedisStorage", options => options.DatabaseName                                          = 0);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });

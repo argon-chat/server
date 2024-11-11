@@ -3,18 +3,42 @@ namespace Argon.Api.Features.OrleansStorageProviders;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Configuration.Overrides;
+using Orleans.Providers;
 using Orleans.Storage;
 using StackExchange.Redis;
 
-public class RedisStorage(string storageName, ClusterOptions clusterOptions, IOptions<RedisGrainStorageOptions> options)
-    : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
+public class RedisStorage : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 {
-    private readonly RedisGrainStorageOptions _options = options.Value;
+    private readonly ClusterOptions           _clusterOptions;
+    private readonly ILogger<RedisStorage>    _logger;
+    private readonly RedisGrainStorageOptions _options;
+    private readonly string                   _storageName;
     private readonly IConnectionMultiplexer   connectionMux;
+    private readonly IProviderRuntime         providerRuntime;
+
+    public RedisStorage(string storageName, ClusterOptions clusterOptions, IOptions<RedisGrainStorageOptions> options,
+        IConnectionMultiplexer connection)
+    {
+        _clusterOptions = clusterOptions;
+        _options        = options.Value;
+        _storageName    = storageName;
+        connectionMux   = connection;
+    }
+
+    public RedisStorage(ILogger<RedisStorage> logger, IProviderRuntime providerRuntime, IOptions<RedisGrainStorageOptions> options,
+        IOptions<ClusterOptions> clusterOptions, string name, IConnectionMultiplexer connection)
+    {
+        _logger              = logger;
+        this.providerRuntime = providerRuntime;
+        _options             = options.Value;
+        _clusterOptions      = clusterOptions.Value;
+        _storageName         = name;
+        connectionMux        = connection;
+    }
 
 #region Implementation of ILifecycleParticipant<ISiloLifecycle>
 
-    public void Participate(ISiloLifecycle observer) => observer.Subscribe(OptionFormattingUtilities.Name<RedisStorage>(storageName),
+    public void Participate(ISiloLifecycle observer) => observer.Subscribe(OptionFormattingUtilities.Name<RedisStorage>(_storageName),
         ServiceLifecycleStage.ApplicationServices, ct => Task.CompletedTask);
 
 #endregion
