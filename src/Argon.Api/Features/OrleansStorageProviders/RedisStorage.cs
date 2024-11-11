@@ -20,13 +20,27 @@ public class RedisStorage(
 
 #endregion
 
+    private static string GetKey(GrainId grainId, string stateName) => $"{grainId.ToString()}-{stateName}";
+
 #region Implementation of IGrainStorage
 
-    public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => throw new NotImplementedException();
+    public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+    {
+        var strData = await connectionMux.GetDatabase(_options.DatabaseName).StringGetAsync(GetKey(grainId, stateName));
+        if (strData.IsNullOrEmpty) return;
 
-    public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => throw new NotImplementedException();
+        var data = _options.GrainStorageSerializer.Deserialize<T>(strData);
+        grainState.State = data;
+    }
 
-    public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) => throw new NotImplementedException();
+    public async Task WriteStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
+    {
+        var state = _options.GrainStorageSerializer.Serialize(grainState.State);
+        await connectionMux.GetDatabase(_options.DatabaseName).StringSetAsync(GetKey(grainId, stateName), state.ToString());
+    }
+
+    public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) =>
+        await connectionMux.GetDatabase(_options.DatabaseName).KeyDeleteAsync(GetKey(grainId, stateName));
 
 #endregion
 }
@@ -36,6 +50,7 @@ public class RedisGrainStorageOptions : IStorageProviderSerializerOptions
 #region Implementation of IStorageProviderSerializerOptions
 
     public IGrainStorageSerializer GrainStorageSerializer { get; set; }
+    public int                     DatabaseName           { get; set; } = 7;
 
 #endregion
 }
