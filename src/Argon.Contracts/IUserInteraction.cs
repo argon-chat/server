@@ -22,7 +22,7 @@ public interface IServerInteraction : IRpcService
 
 public interface IEventBus : IRpcService
 {
-    ValueTask<RpcStream<IArgonEvent>> SubscribeToServerEvents<T>(Guid ServerId) where T : ArgonEvent<T>; 
+    ValueTask<RpcStream<IArgonEvent>> SubscribeToServerEvents(Guid ServerId);
 }
 
 
@@ -37,21 +37,13 @@ public enum ServerEventKind
 {
 }
 
-public interface IRawEvent;
-
-public interface IArgonEvent : IRawEvent
+public interface IArgonEvent
 {
-    public abstract static string ProviderId { get; }
-    public abstract static string Namespace  { get; }
+    public static string ProviderId => "argon.cluster.events";
+    public static string Namespace => $"@";
 }
 
-public record ArgonEvent<T> : IArgonEvent where T : ArgonEvent<T>, IArgonEvent
-{
-    public static string Namespace => $".{typeof(T).FullName}";
-    public string EventId    => T.ProviderId + T.Namespace;
-    public static string ProviderId  => "argon.cluster.events";
-}
-
+public record ArgonEvent<T> : IArgonEvent where T : ArgonEvent<T>, IArgonEvent;
 
 [MemoryPackable] public partial record JoinToServerUser(Guid userId) : ArgonEvent<JoinToServerUser>;
 [MemoryPackable] public partial record LeaveFromServerUser(Guid userId) : ArgonEvent<LeaveFromServerUser>;
@@ -61,7 +53,8 @@ public record ArgonEvent<T> : IArgonEvent where T : ArgonEvent<T>, IArgonEvent
 [MemoryPackable] public partial record ChannelModified(Guid channelId, PropertyBag bag) : ArgonEvent<ChannelModified>;
 [MemoryPackable] public partial record ChannelRemoved(Guid channelId) : ArgonEvent<ChannelRemoved>;
 [MemoryPackable] public partial record UserChangedStatus(Guid userId, UserStatus status, PropertyBag bag) : ArgonEvent<UserChangedStatus>;
- 
+[MemoryPackable] public partial record ServerModified(PropertyBag bag) : ArgonEvent<ServerModified>;
+
 
 public enum UserStatus
 {
@@ -69,6 +62,8 @@ public enum UserStatus
     Online,
     Away,
     InGame,
+    Listen,
+    TouchGrass,
     DoNotDisturb
 }
 

@@ -1,21 +1,18 @@
 namespace Argon.Api.Grains;
 
+using ActualLab.Collections;
 using Contracts;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Orleans.Streams;
 using Argon.Api.Features.Rpc;
 
 public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerGrain
 {
-    private IAsyncStream<IArgonEvent> _serverEvents;
+    private IArgonStream<IArgonEvent> _serverEvents;
 
-    public override Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        _serverEvents = this.Streams().CreateServerStream<ServerEvent>();
-        return Task.CompletedTask;
-    }
+    public async override Task OnActivateAsync(CancellationToken cancellationToken)
+        => _serverEvents = await this.Streams().CreateServerStream();
 
 
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
@@ -55,6 +52,11 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         server.AvatarUrl   = input.AvatarUrl;
         context.Servers.Update(server);
         await context.SaveChangesAsync();
+        await _serverEvents.Fire(new ServerModified(PropertyBag.Empty
+           .Set("name", input.Name)
+           .Set("description", input.Description)
+           .Set("avatarUrl", input.AvatarUrl)
+        ));
         return await Get();
     }
 
@@ -76,6 +78,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         channel.ChannelType = input.ChannelType;
         context.Channels.Update(channel);
         await context.SaveChangesAsync();
+        await _serverEvents.Fire(new ChannelCreated(channel.Id));
         return channel;
     }
 
