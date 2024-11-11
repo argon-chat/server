@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Placement.Repartitioning;
+using Orleans.Runtime.Hosting;
 using Orleans.Storage;
 
 internal class MemoryPackStorageSerializer : IGrainStorageSerializer
@@ -29,14 +30,13 @@ public static class OrleansExtension
         Action<RedisGrainStorageOptions> options)
     {
         services.AddOptions<RedisGrainStorageOptions>(providerName).Configure(options);
+        services.ConfigureNamedOptionForLogging<RedisGrainStorageOptions>(providerName);
 
         services.AddTransient<
             IPostConfigureOptions<RedisGrainStorageOptions>, DefaultStorageProviderSerializerOptionsConfigurator<RedisGrainStorageOptions>>();
 
-        return services.AddKeyedSingleton(providerName, RedisGrainStorageFactory.Create).AddKeyedSingleton(providerName,
-            (p, n) => (ILifecycleParticipant<ISiloLifecycle>)p.GetKeyedServices<IGrainStorage>(n));
+        return services.AddGrainStorage(providerName, RedisGrainStorageFactory.Create);
     }
-
 
     [Experimental("ORLEANSEXP001")]
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
