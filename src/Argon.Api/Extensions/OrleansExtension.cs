@@ -23,7 +23,7 @@ internal class Balancer : IImbalanceToleranceRule
 
 public static class OrleansExtension
 {
-    public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, Action<RedisGrainStorageOptions> options) =>
+    private static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, Action<RedisGrainStorageOptions> options) =>
         builder.ConfigureServices(services => services.AddRedisStorage(providerName, options));
 
     private static IServiceCollection AddRedisStorage(this IServiceCollection services, string providerName,
@@ -53,7 +53,7 @@ public static class OrleansExtension
                     options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
                 }).AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832)
-               .AddRedisStorage("Redis", options => options.DatabaseName                                                 = 228);
+               .AddRedisStorage("RedisStorage", options => options.DatabaseName                                          = 228);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });

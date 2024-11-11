@@ -6,13 +6,11 @@ using Orleans.Configuration.Overrides;
 using Orleans.Storage;
 using StackExchange.Redis;
 
-public class RedisStorage(
-    string storageName,
-    ClusterOptions clusterOptions,
-    IOptions<RedisGrainStorageOptions> options,
-    IConnectionMultiplexer connectionMux) : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
+public class RedisStorage(string storageName, ClusterOptions clusterOptions, IOptions<RedisGrainStorageOptions> options)
+    : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 {
     private readonly RedisGrainStorageOptions _options = options.Value;
+    private readonly IConnectionMultiplexer   connectionMux;
 
 #region Implementation of ILifecycleParticipant<ISiloLifecycle>
 
@@ -64,11 +62,5 @@ public static class RedisGrainStorageFactory
         var clusterOptions = services.GetProviderClusterOptions(name);
 
         return ActivatorUtilities.CreateInstance<RedisStorage>(services, Options.Create(optionsMonitor.Get(name)), name, clusterOptions);
-
-        // return ActivatorUtilities.CreateInstance<RedisStorage>(
-        //     services,
-        //     name,
-        //     optionsMonitor.Get(name),
-        //     services.GetProviderClusterOptions(name));
     }
 }
