@@ -2,6 +2,7 @@ namespace Argon.Api.Features.OrleansStorageProviders;
 
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
+using Orleans.Configuration.Overrides;
 using Orleans.Storage;
 using StackExchange.Redis;
 
@@ -53,4 +54,21 @@ public class RedisGrainStorageOptions : IStorageProviderSerializerOptions
     public int                     DatabaseName           { get; set; } = 7;
 
 #endregion
+}
+
+public static class RedisGrainStorageFactory
+{
+    internal static IGrainStorage Create(IServiceProvider services, string name)
+    {
+        var optionsMonitor = services.GetRequiredService<IOptionsMonitor<RedisGrainStorageOptions>>();
+        var clusterOptions = services.GetProviderClusterOptions(name);
+
+        return ActivatorUtilities.CreateInstance<RedisStorage>(services, Options.Create(optionsMonitor.Get(name)), name, clusterOptions);
+
+        // return ActivatorUtilities.CreateInstance<RedisStorage>(
+        //     services,
+        //     name,
+        //     optionsMonitor.Get(name),
+        //     services.GetProviderClusterOptions(name));
+    }
 }
