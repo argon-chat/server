@@ -17,7 +17,7 @@ public class AuthorizationController(IGrainFactory grainFactory) : ControllerBas
         var hostName = this.HttpContext.GetHostName();
 
 #if !DEBUG
-        if (string.IsNullOrEmpty(machineKey))
+        if (string.IsNullOrEmpty(hostName))
             return BadRequest();
 #endif
 
