@@ -37,10 +37,10 @@ public class AuthorizationController(IGrainFactory grainFactory) : ControllerBas
         var region     = this.HttpContext.GetRegion();
         var hostName   = this.HttpContext.GetHostName();
 
-    #if !DEBUG
-        if (string.IsNullOrEmpty(machineKey))
+#if !DEBUG
+        if (string.IsNullOrEmpty(hostName))
             return BadRequest();
-    #endif
+#endif
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
