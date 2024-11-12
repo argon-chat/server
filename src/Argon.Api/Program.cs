@@ -13,6 +13,7 @@ using Argon.Api.Migrations;
 using Argon.Api.Services;
 using Argon.Contracts;
 using Argon.Sfu;
+using AutoMapper;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,8 +26,10 @@ builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers().AddNewtonsoftJson();
 builder.Services.AddFusion(RpcServiceMode.Server, true)
-   .Rpc.AddWebSocketServer(true)
-   .Rpc.AddServer<IUserInteraction, UserInteraction>();
+   .Rpc.AddWebSocketServer(true).Rpc
+   .AddServer<IUserInteraction, UserInteraction>()
+   .AddServer<IServerInteraction, ServerInteraction>()
+   .AddServer<IEventBus, EventBusService>();
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
@@ -52,4 +55,9 @@ app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
+
+var mapper = app.Services.GetRequiredService<IMapper>();
+
+mapper.ConfigurationProvider.AssertConfigurationIsValid();
+
 await app.WarpUp<ApplicationDbContext>().RunAsync();

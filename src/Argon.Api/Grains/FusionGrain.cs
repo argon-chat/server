@@ -29,7 +29,7 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
 
         _stream = streamProvider.GetStream<FusionGrainEventKind>(
             streamId);
-
+        
         return base.OnActivateAsync(cancellationToken);
     }
 

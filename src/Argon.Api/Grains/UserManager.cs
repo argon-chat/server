@@ -44,8 +44,18 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
     }
 
     public async Task<UserDto>         GetUser() => mapper.Map<UserDto>(await Get());
-    public       Task<List<ServerDto>> GetMyServers()
-        => throw new NotImplementedException();
+
+    public async Task<List<ServerDto>> GetMyServers()
+    {
+        var user = await context.Users
+           .Include(user => user.UsersToServerRelations).ThenInclude(usersToServerRelation => usersToServerRelation.Server)
+           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+        return user.UsersToServerRelations
+           .Select(x => x.Server)
+           .ToList()
+           .Select(mapper.Map<ServerDto>)
+           .ToList();
+    }
 
     private async Task<User> Get() => await context.Users.Include(x => x.UsersToServerRelations).ThenInclude(x => x.Server)
        .ThenInclude(x => x.Channels).FirstAsync(user => user.Id == this.GetPrimaryKey());

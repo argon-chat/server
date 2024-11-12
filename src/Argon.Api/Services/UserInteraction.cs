@@ -29,7 +29,7 @@ public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionCo
     {
         var userData = await fusionContext.GetUserDataAsync();
         var servers = await grainFactory.GetGrain<IUserManager>(userData.id).GetMyServers();
-        return new List<ServerDefinition>();
+        return servers.Select(mapper.Map<ServerDefinition>).ToList();
     }
 }
 

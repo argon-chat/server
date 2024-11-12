@@ -20,7 +20,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
     {
         var server = new Server
         {
-            Id = this.GetPrimaryKey(),
+            Id          = this.GetPrimaryKey(),
             Name        = input.Name,
             Description = input.Description,
             AvatarUrl   = input.AvatarUrl,
@@ -28,8 +28,10 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
             [
                 new()
                 {
-                    UserId          = creatorId,
-                    Role            = ServerRole.Owner
+                    UserId   = creatorId,
+                    Role     = ServerRole.Owner,
+                    Joined   = DateTime.UtcNow,
+                    ServerId = this.GetPrimaryKey()
                 }
             ],
             Channels = CreateDefaultChannels(creatorId)
@@ -70,11 +72,12 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         var channel = new Channel
         {
             Name        = input.Name,
-            AccessLevel = input.AccessLevel
+            AccessLevel = input.AccessLevel,
+            ServerId    = this.GetPrimaryKey()
         };
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
-        context.Channels.Update(channel);
+        await context.Channels.AddAsync(channel);
         await context.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelCreated(channel.Id));
         return mapper.Map<ChannelDto>(channel);
