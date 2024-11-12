@@ -18,6 +18,7 @@ builder.AddJwt();
 builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
+builder.AddRedisClient("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();

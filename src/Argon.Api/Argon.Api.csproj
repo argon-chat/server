@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Aspire.StackExchange.Redis" Version="8.2.2"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
         <PackageReference Include="MemoryPack" Version="1.21.3"/>
@@ -33,6 +34,7 @@
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
         <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
