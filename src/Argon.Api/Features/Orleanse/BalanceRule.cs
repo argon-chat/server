@@ -8,10 +8,21 @@ using static SiloStatus;
 
 public static class KubeExtensions
 {
-    public static IServiceCollection AddKubeResources(this IServiceCollection services)
+    public static IServiceCollection AddKubeResources(this WebApplicationBuilder builder)
     {
+        var services = builder.Services;
+
+        if (builder.Environment.IsProduction())
+        {
+            var config = KubernetesClientConfiguration.InClusterConfig();
+            services.AddSingleton(config);
+            services.AddSingleton<IKubernetes>(new Kubernetes(config));
+        }
+
         services.AddHostedService<KubePolling>();
         services.AddSingleton<IKubeResources, KubeResources>();
+
+        //if()
         return services;
     }
 }
