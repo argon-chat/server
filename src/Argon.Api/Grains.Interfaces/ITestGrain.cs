@@ -23,4 +23,18 @@ public interface ITestGrain : IGrainWithGuidKey
     [Alias("GetSomeInput")]
     Task<SomeInput> GetSomeInput();
 }
+
+[Alias("Argon.Api.Grains.Interfaces.IStreamProducer")]
+public interface IStreamProducer : IGrainWithGuidKey
+{
+    [Alias("StartStream")]
+    Task StartStream();
+}
+
+[Alias("Argon.Api.Grains.Interfaces.IStreamConsumer")]
+public interface IStreamConsumer : IGrainWithGuidKey
+{
+    [Alias("ConsumeStream")]
+    Task ConsumeStream();
+}
 #endif
