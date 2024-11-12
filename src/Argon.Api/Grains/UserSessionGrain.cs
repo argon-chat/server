@@ -37,7 +37,9 @@ public class UserMachineSessions(
 
     public ValueTask IndicateLastActive(Guid issueId)
     {
-        sessionStorage.State.Sessions[issueId].LatestAccess = DateTimeOffset.UtcNow;
+        if (!sessionStorage.State.Sessions.TryGetValue(issueId, out var session))
+            return ValueTask.CompletedTask;
+        session.LatestAccess = DateTimeOffset.UtcNow;
         return ValueTask.CompletedTask;
     }
 
@@ -54,8 +56,8 @@ public partial class UserMachineSessionGrainState
 {
     public Dictionary<Guid, UserSessionMachineEntity> Sessions { get; set; } = new();
 }
-
-public record UserSessionMachineEntity(Guid id, string hostName, string region, string ipAddress, string platform)
+[GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserSessionMachineEntity))]
+public partial record UserSessionMachineEntity(Guid id, string hostName, string region, string ipAddress, string platform)
 {
     public DateTimeOffset LatestAccess { get; set; }
 }

@@ -7,12 +7,11 @@ using Argon.Api.Extensions;
 using Argon.Api.Features;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
-using Argon.Api.Features.Orleans;
 using Argon.Api.Features.Otp;
-using Argon.Api.Features.Rpc;
 using Argon.Api.Grains.Interfaces;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
+using Argon.Contracts;
 using Argon.Sfu;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -25,19 +24,20 @@ builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers().AddNewtonsoftJson();
-builder.Services.AddFusion(RpcServiceMode.Server, true);
- //.Rpc.AddServer<IUserAuthorization, UserAuthorization>()
- //.AddServer<IUserInteraction, UserInteractionService>()
+builder.Services.AddFusion(RpcServiceMode.Server, true)
+   .Rpc.AddWebSocketServer(true)
+   .Rpc.AddServer<IUserInteraction, UserInteraction>();
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
-builder.Services.AddTransient<IFusionServiceContext, FusionServiceContext>();
+builder.Services.AddSingleton<IFusionContext, FusionContext>();
 builder.AddOtpCodes();
-#pragma warning disable ORLEANSEXP001
 builder.AddOrleans();
-#pragma warning restore ORLEANSEXP001
 builder.AddEMailForms();
+builder.Services.AddKubeResources();
+builder.Services.AddDataProtection();
+builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();

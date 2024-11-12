@@ -6,8 +6,9 @@ using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Argon.Api.Features.Rpc;
+using AutoMapper;
 
-public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerGrain
+public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext context, IMapper mapper) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
@@ -28,9 +29,6 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
                 new()
                 {
                     UserId          = creatorId,
-                    CustomUsername  = null,
-                    AvatarUrl       = null,
-                    CustomAvatarUrl = null,
                     Role            = ServerRole.Owner
                 }
             ],
@@ -42,7 +40,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         return await GetServer();
     }
 
-    public async Task<ServerDto> GetServer() => await Get();
+    public async Task<ServerDto> GetServer() => mapper.Map<ServerDto>(await Get());
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
@@ -57,7 +55,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
            .Set("description", input.Description)
            .Set("avatarUrl", input.AvatarUrl)
         ));
-        return await Get();
+        return mapper.Map<ServerDto>(await Get());
     }
 
     public async Task DeleteServer()
@@ -79,7 +77,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         context.Channels.Update(channel);
         await context.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelCreated(channel.Id));
-        return channel;
+        return mapper.Map<ChannelDto>(channel);
     }
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId) =>

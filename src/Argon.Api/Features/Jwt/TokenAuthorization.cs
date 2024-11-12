@@ -1,7 +1,7 @@
-namespace Argon.Api.Services;
+namespace Argon.Api.Features.Jwt;
 
 using System.IdentityModel.Tokens.Jwt;
-using Argon.Contracts;
+using Contracts;
 using Microsoft.IdentityModel.Tokens;
 
 public class TokenAuthorization(TokenValidationParameters tokenValidation)
@@ -41,10 +41,3 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation)
         }
     }
 }
-
-public enum TokenValidationError
-{
-    BAD_TOKEN,
-    EXPIRED_TOKEN
-}
-public record TokenUserData(Guid id, Guid machineId);

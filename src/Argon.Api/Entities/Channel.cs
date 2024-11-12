@@ -16,9 +16,6 @@ public sealed record Channel
     public ChannelType ChannelType { get; set; } = ChannelType.Text;
     public ServerRole  AccessLevel { get; set; } = ServerRole.User;
     public Guid        ServerId    { get; set; } = Guid.Empty;
-
-    public static implicit operator ChannelDto(Channel channel) => new(channel.Id, channel.CreatedAt, channel.UpdatedAt, channel.Name,
-        channel.Description, channel.UserId, channel.ChannelType, channel.AccessLevel, channel.ServerId);
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelDto))]

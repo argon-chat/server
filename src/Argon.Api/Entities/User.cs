@@ -12,6 +12,8 @@ public sealed record User
     [MaxLength(255)]
     public string? Username { get; set; } = string.Empty;
     [MaxLength(30)]
+    public string? DisplayName { get; set; } = string.Empty;
+    [MaxLength(30)]
     public string? PhoneNumber { get; set; } = string.Empty;
     [MaxLength(511)]
     public string? PasswordDigest { get; set; } = string.Empty;
@@ -21,9 +23,20 @@ public sealed record User
     public string? OtpHash { get;                                    set; } = string.Empty;
     public DateTime?                   DeletedAt              { get; set; }
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
+}
 
-    public static implicit operator UserDto(User user) => new(user.Id, user.CreatedAt, user.UpdatedAt, user.Email, user.Username, user.PhoneNumber,
-        user.AvatarFileId, user.DeletedAt, user.UsersToServerRelations.Select(relation => (ServerDto)relation.Server).ToList());
+
+public record UserAgreements
+{
+    [Key]
+    public Guid     Id                        { get; set; } = Guid.NewGuid();
+    public bool     AllowedSendOptionalEmails { get; set; }
+    public bool     AgreeTOS                  { get; set; }
+    public DateTime CreatedAt                 { get; init; } = DateTime.UtcNow;
+    public DateTime UpdatedAt                 { get; set; }  = DateTime.UtcNow;
+
+    public virtual User User   { get; set; }
+    public         Guid UserId { get; set; }
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(UserDto))]

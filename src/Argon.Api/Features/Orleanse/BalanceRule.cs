@@ -29,20 +29,20 @@ public class KubePolling(IKubeResources resources) : BackgroundService
     }
 }
 
-public class KubeResources(IHostEnvironment env, IKubernetes client) : IKubeResources
+public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvider) : IKubeResources
 {
-    public double    AverageCpuLoad { get; private set; }
+    public double AverageCpuLoad { get; private set; } = 50;
 
     public async ValueTask FetchAsync()
-    {
-        AverageCpuLoad = await GetAvgCpu();
-    }
+        => AverageCpuLoad = await GetAvgCpu();
 
     private async Task<double> GetAvgCpu()
     {
         if (!env.IsProduction())
             return 50;
-
+        await using var
+            scope = serviceProvider.CreateAsyncScope();
+        var client    = scope.ServiceProvider.GetRequiredService<IKubernetes>();
         var metrics   = await client.GetKubernetesNodesMetricsAsync();
         var nodeCount = metrics.Items.Count();
 
@@ -54,6 +54,7 @@ public class KubeResources(IHostEnvironment env, IKubernetes client) : IKubeReso
         return totalCpu / nodeCount;
     }
 }
+
 public interface IKubeResources
 {
     double AverageCpuLoad { get; }
@@ -78,6 +79,7 @@ public class BalanceRule(ISiloStatusOracle oracle, IConfiguration config, IKubeR
         var currentTime = DateTime.UtcNow;
         if (currentTime - lastRebalanceTime < MinRebalanceInterval)
             return false;
+        lastRebalanceTime = DateTime.UtcNow;
         return imbalance <= Interlocked.Read(ref ImbalanceDelta);
     }
 

@@ -1,32 +1,24 @@
 namespace Argon.Api.Features;
 
-using System.Diagnostics.CodeAnalysis;
-using IdentityModel.Client;
+using Contracts;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Providers.Streams.Generator;
-using Orleans.Storage;
 using Orleans.Streams;
-
-internal class MemoryPackStorageSerializer : IGrainStorageSerializer
-{
-    public BinaryData Serialize<T>(T input) => new(MemoryPackSerializer.Serialize(input));
-
-    public T Deserialize<T>(BinaryData input) => MemoryPackSerializer.Deserialize<T>(input) ?? throw new InvalidOperationException();
-}
 
 public static class OrleansExtension
 {
-    [Experimental("ORLEANSEXP001")]
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
         builder.Host.UseOrleans(siloBuilder =>
         {
+        #pragma warning disable ORLEANSEXP001
             siloBuilder.Configure<ClusterOptions>(cluster =>
                 {
                     cluster.ClusterId = "argonchat";
                     cluster.ServiceId = "argonchat";
                 })
+               .AddMemoryGrainStorage("PubSubStore")
                .AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
                     options.Invariant              = "Npgsql";
@@ -34,7 +26,8 @@ public static class OrleansExtension
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
                 })
                .AddActivationRepartitioner<BalanceRule>()
-               .AddPersistentStreams(
+            #pragma warning restore ORLEANSEXP001
+               .AddPersistentStreams( // TODO
                     "default",
                     GeneratorAdapterFactory.Create,
                     b =>
@@ -43,7 +36,17 @@ public static class OrleansExtension
                         b.Configure<HashRingStreamQueueMapperOptions>(ob
                             => ob.Configure(options => options.TotalQueueCount = 16));
                         b.UseConsistentRingQueueBalancer();
-                        b.ConfigureStreamPubSub();
+                        b.ConfigureStreamPubSub(StreamPubSubType.ExplicitGrainBasedOnly);
+                    })
+               .AddPersistentStreams( // TODO
+                    IArgonEvent.ProviderId,
+                    GeneratorAdapterFactory.Create,
+                    b => {
+                        b.ConfigurePullingAgent(ob => ob.Configure(options => options.BatchContainerBatchSize = 15));
+                        b.Configure<HashRingStreamQueueMapperOptions>(ob
+                            => ob.Configure(options => options.TotalQueueCount = 16));
+                        b.UseConsistentRingQueueBalancer();
+                        b.ConfigureStreamPubSub(StreamPubSubType.ExplicitGrainBasedOnly);
                     })
                .AddMemoryGrainStorage("CacheStorage")
                .UseDashboard(o => o.Port = 22832);

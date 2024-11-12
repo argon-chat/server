@@ -28,6 +28,27 @@ public class AuthorizationController(IGrainFactory grainFactory) : ControllerBas
            .Authorize(input, connInfo);
         return Ok(result);
     }
+
+    [HttpPost("/api/register")]
+    public async Task<IActionResult> RegistrationAsync([FromBody] NewUserCredentialsInput input)
+    {
+        var clientName = this.HttpContext.GetClientName();
+        var ipAddress  = this.HttpContext.GetIpAddress();
+        var region     = this.HttpContext.GetRegion();
+        var hostName   = this.HttpContext.GetHostName();
+
+    #if !DEBUG
+        if (string.IsNullOrEmpty(machineKey))
+            return BadRequest();
+    #endif
+
+        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
+
+        var result = await grainFactory
+           .GetGrain<IAuthorizationGrain>(IAuthorizationGrain.DefaultId)
+           .Register(input, connInfo);
+        return Ok(result);
+    }
 }
 
 

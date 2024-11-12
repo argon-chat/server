@@ -1,12 +1,13 @@
 namespace Argon.Api.Grains;
 
+using AutoMapper;
 using Contracts;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
 
-public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserManager
+public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context, IMapper mapper) : Grain, IUserManager
 {
     public async Task<UserDto> CreateUser(UserCredentialsInput input)
     {
@@ -19,7 +20,7 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         };
         context.Users.Add(user);
         await context.SaveChangesAsync();
-        return user;
+        return mapper.Map<UserDto>(user);
     }
 
     public async Task<UserDto> UpdateUser(UserCredentialsInput input)
@@ -31,7 +32,7 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         user.PasswordDigest = passwordHashingService.HashPassword(input.Password) ?? user.PasswordDigest;
         context.Users.Update(user);
         await context.SaveChangesAsync();
-        return user;
+        return mapper.Map<UserDto>(user);
     }
 
     public Task DeleteUser()
@@ -42,7 +43,9 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         return context.SaveChangesAsync();
     }
 
-    public async Task<UserDto> GetUser() => await Get();
+    public async Task<UserDto>         GetUser() => mapper.Map<UserDto>(await Get());
+    public       Task<List<ServerDto>> GetMyServers()
+        => throw new NotImplementedException();
 
     private async Task<User> Get() => await context.Users.Include(x => x.UsersToServerRelations).ThenInclude(x => x.Server)
        .ThenInclude(x => x.Channels).FirstAsync(user => user.Id == this.GetPrimaryKey());

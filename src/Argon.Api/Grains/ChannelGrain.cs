@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains;
 
+using AutoMapper;
 using Contracts;
 using Entities;
 using Interfaces;
@@ -13,7 +14,8 @@ public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,
     ApplicationDbContext context,
     [PersistentState("channelGrainState", "OrleansStorage")] 
-    IPersistentState<ChannelGrainState> state) : Grain, IChannelGrain
+    IPersistentState<ChannelGrainState> state,
+    IMapper mapper) : Grain, IChannelGrain
 {
     private IAsyncStream<OnChannelUserChangedState> _userStateEmitter = null!;
 
@@ -26,7 +28,7 @@ public class ChannelGrain(
     {
         _self = await GetChannel();
 
-        var streamProvider = this.GetStreamProvider(IChannelGrain.UserTransformNotificationStream);
+        var streamProvider = this.GetStreamProvider("default");
 
         var streamId = StreamId.Create(_self.ServerId.ToString("N"), this.GetPrimaryKey());
 
@@ -44,7 +46,7 @@ public class ChannelGrain(
                .FirstAsync(x => x.Id == _self.ServerId)).UsersToServerRelations
            .First(x => x.UserId == userId);
 
-        state.State.Users.Add(userId, user);
+        state.State.Users.Add(userId, mapper.Map<UsersToServerRelationDto>(user));
         await state.WriteStateAsync();
 
         await _userStateEmitter.OnNextAsync(
@@ -63,7 +65,7 @@ public class ChannelGrain(
 
     public async Task<ChannelDto> GetChannel()
     {
-        ChannelDto channel = await Get();
+        var channel = mapper.Map<ChannelDto>(await Get());
         channel.ConnectedUsers = state.State.Users;
         return channel;
     }
@@ -77,7 +79,7 @@ public class ChannelGrain(
         channel.ChannelType = input.ChannelType;
         context.Channels.Update(channel);
         await context.SaveChangesAsync();
-        return await Get();
+        return mapper.Map<ChannelDto>(await Get());
     }
 
     private async Task<Channel> Get() => await context.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());

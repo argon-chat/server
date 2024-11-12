@@ -1,9 +1,9 @@
 namespace Argon.Api.Services;
 
+using AutoMapper;
 using Grains.Interfaces;
 using Contracts;
 using Entities;
-using MapsterMapper;
 
 public class ServerInteraction(IGrainFactory grainFactory, IFusionContext fusionContext, IMapper mapper) : IServerInteraction
 {

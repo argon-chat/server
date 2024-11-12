@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains;
 
 using Extensions;
+using Features.Jwt;
 using Interfaces;
 using Orleans.Streams;
 using R3;
@@ -22,7 +23,7 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        var streamProvider = this.GetStreamProvider(IFusionSessionGrain.StreamProviderId);
+        var streamProvider = this.GetStreamProvider("default");
 
         var streamId = StreamId.Create(IFusionSessionGrain.SelfNs, this.GetPrimaryKey());
 
@@ -38,10 +39,10 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         disposableBag.Dispose();
-        if (reason.ReasonCode == Migrating)
-            await _stream.OnNextAsync(CONNECTION_REQUIRED_MIGRATE);
-        else
-            await _stream.OnNextAsync(CONNECTION_DESTROYED);
+        //if (reason.ReasonCode == Migrating) // TODO stream is readonly
+        //    await _stream.OnNextAsync(CONNECTION_REQUIRED_MIGRATE);
+        //else
+        //    await _stream.OnNextAsync(CONNECTION_DESTROYED);
     }
 
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey)

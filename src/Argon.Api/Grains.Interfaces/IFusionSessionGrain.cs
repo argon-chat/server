@@ -1,6 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
-using Services;
+using Features.Jwt;
 
 [Alias("Argon.Api.Grains.Interfaces.IFusionSessionGrain")]
 public interface IFusionSessionGrain : IGrainWithGuidKey

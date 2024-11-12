@@ -2,13 +2,13 @@ namespace ActualLab.Rpc.Server;
 
 using System.Net;
 using System.Net.WebSockets;
+using Argon.Api.Features.Jwt;
 using Argon.Api.Grains.Interfaces;
 using Clients;
 using Collections;
 using Infrastructure;
 using WebSockets;
 using Time;
-using Argon.Api.Services;
 
 public class RpcWebSocketServer(
     RpcWebSocketServer.Options settings,

@@ -1,9 +1,10 @@
 namespace Argon.Api.Services;
 
 using ActualLab.Rpc.Infrastructure;
+using AutoMapper;
 using Grains.Interfaces;
 using Contracts;
-using MapsterMapper;
+using Features.Jwt;
 
 public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionContext, IMapper mapper) : IUserInteraction
 {
@@ -14,21 +15,21 @@ public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionCo
         return mapper.Map<UserResponse>(user);
     }
 
-    public async Task<ServerResponse> CreateServer(CreateServerRequest request)
+    public async Task<ServerDefinition> CreateServer(CreateServerRequest request)
     {
         var userData = await fusionContext.GetUserDataAsync();
         var serverId = Guid.NewGuid();
         var server   = await grainFactory
            .GetGrain<IServerGrain>(serverId)
            .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarUrl), userData.id);
-        return mapper.Map<ServerResponse>(server);
+        return mapper.Map<ServerDefinition>(server);
     }
 
-    public async Task<List<ServerResponse>> GetServers()
+    public async Task<List<ServerDefinition>> GetServers()
     {
         var userData = await fusionContext.GetUserDataAsync();
         var servers = await grainFactory.GetGrain<IUserManager>(userData.id).GetMyServers();
-        return mapper.Map<List<ServerResponse>>(servers);
+        return new List<ServerDefinition>();
     }
 }
 

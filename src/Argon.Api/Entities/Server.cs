@@ -15,10 +15,6 @@ public sealed record Server
     public string? AvatarUrl { get;                                  set; } = string.Empty;
     public List<Channel>               Channels               { get; set; } = new();
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
-
-    public static implicit operator ServerDto(Server server) => new(server.Id, server.CreatedAt, server.UpdatedAt, server.Name, server.Description,
-        server.AvatarUrl, server.Channels.Select(channel => (ChannelDto)channel).ToList(),
-        server.UsersToServerRelations.Select(relation => (UsersToServerRelationDto)relation).ToList());
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerDto))]

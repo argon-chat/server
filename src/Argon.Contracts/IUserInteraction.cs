@@ -9,8 +9,8 @@ using MessagePack;
 public interface IUserInteraction : IRpcService
 {
     Task<UserResponse>         GetMe();
-    Task<ServerResponse>       CreateServer(CreateServerRequest request);
-    Task<List<ServerResponse>> GetServers();
+    Task<ServerDefinition>       CreateServer(CreateServerRequest request);
+    Task<List<ServerDefinition>> GetServers();
 }
 
 public interface IServerInteraction : IRpcService
@@ -69,12 +69,17 @@ public enum UserStatus
 
 [MemoryPackable]
 public sealed partial record ServerDetailsRequest(Guid ServerId);
+[MemoryPackable]
+public sealed partial record ServerUser(
+    UserResponse user,
+    string Role);
 
 [MemoryPackable]
 public sealed partial record UserResponse(
     Guid Id,
     string Username,
     string AvatarUrl,
+    string DisplayName,
     DateTime CreatedAt,
     DateTime UpdatedAt);
 
@@ -85,18 +90,18 @@ public sealed partial record CreateServerRequest(
     string AvatarUrl);
 
 [MemoryPackable]
-public sealed partial record ServerResponse(
+public sealed partial record ServerDefinition(
     Guid Id,
     string Name,
     string Description,
     string AvatarUrl,
-    List<ServerDetailsResponse> Channels,
+    List<ChannelDefinition> Channels,
     DateTime CreatedAt,
     DateTime UpdatedAt
 );
 
 [MemoryPackable]
-public sealed partial record ServerDetailsResponse(
+public sealed partial record ChannelDefinition(
     Guid Id,
     string Name,
     string Description,

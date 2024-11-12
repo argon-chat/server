@@ -8,6 +8,9 @@ public interface IAuthorizationGrain : IGrainWithStringKey
     [Alias("Authorize")]
     Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
+    [Alias("Register")]
+    Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
+
     public const string DefaultId = "auth";
 }
 
