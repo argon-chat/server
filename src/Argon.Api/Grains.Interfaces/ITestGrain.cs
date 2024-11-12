@@ -1,6 +1,6 @@
 namespace Argon.Api.Grains.Interfaces;
 
-#if DEBUG
+// #if DEBUG
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(SomeInput))]
 public sealed partial record SomeInput(
     [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0), Id(0)]
@@ -23,4 +23,4 @@ public interface ITestGrain : IGrainWithGuidKey
     [Alias("GetSomeInput")]
     Task<SomeInput> GetSomeInput();
 }
-#endif
+// #endif

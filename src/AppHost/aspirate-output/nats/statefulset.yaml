@@ -1,0 +1,42 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats
+  labels:
+    app: nats
+spec:
+  serviceName: "nats"
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  template:
+    metadata:
+      labels:
+        app: nats
+    spec:
+      containers:
+        - name: nats
+          image: docker.io/library/nats:2.10
+          imagePullPolicy: IfNotPresent
+          args:
+            - '-js'
+            - '-sd'
+            - '/var/lib/nats'
+          ports:
+            - containerPort: 4222
+          envFrom:
+            - configMapRef:
+                name: nats-env
+          volumeMounts:
+            - name: apphost-nats-data
+              mountPath: /var/lib/nats
+  volumeClaimTemplates:
+    - metadata:
+        name: apphost-nats-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
