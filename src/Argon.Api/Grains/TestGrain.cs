@@ -46,12 +46,10 @@ public class StreamProducer : Grain, IStreamProducer
     [Obsolete("Obsolete")]
     public Task StartStream()
     {
-        var streamProvider = this.GetStreamProvider("default");
-        var streamId       = StreamId.Create("@", Guid.Empty);
+        var streamProvider = this.GetStreamProvider("TestProvider");
+        var streamId       = StreamId.Create("@", Guid.Parse("3dc47106-3ca0-47a0-9be1-4891885b3f0d"));
         var stream         = streamProvider.GetStream<SomeInput>(streamId);
-
-        RegisterTimer(_ => stream.OnNextAsync(new SomeInput(Random.Shared.Next(), "anus")), null, TimeSpan.FromMilliseconds(1_000),
-            TimeSpan.FromMilliseconds(1_000));
+        stream.OnNextAsync(new SomeInput(Random.Shared.Next(), "test"));
         return Task.CompletedTask;
     }
 
@@ -65,9 +63,9 @@ public class StreamConsumer(ILogger<StreamConsumer> logger) : Grain, IStreamCons
 
     public async Task ConsumeStream()
     {
-        var streamProvider = this.GetStreamProvider("default");
+        var streamProvider = this.GetStreamProvider("TestProvider");
 
-        var streamId = StreamId.Create("@", Guid.Empty);
+        var streamId = StreamId.Create("@", Guid.Parse("3dc47106-3ca0-47a0-9be1-4891885b3f0d"));
         var stream   = streamProvider.GetStream<SomeInput>(streamId);
         await stream.SubscribeAsync(async observer =>
         {
