@@ -2,13 +2,13 @@ name: Production
 
 on:
   push:
-    branches: [ "production" ]
+    branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
       - 'src/Argon.Contracts/**'
       - 'src/ServiceDefaults/**'
   pull_request:
-    branches: [ "production" ]
+    branches: [ "master" ]
     paths:
       - 'src/Argon.Api/**'
       - 'src/Argon.Contracts/**'
@@ -20,7 +20,7 @@ jobs:
     uses: ./.github/workflows/tests.yml
   build:
     needs: [ qa ]
-    if: github.ref == 'refs/heads/production'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
