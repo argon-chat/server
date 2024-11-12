@@ -9,6 +9,7 @@ using Orleans.Placement.Repartitioning;
 using Orleans.Providers.Streams.Generator;
 using Orleans.Runtime.Hosting;
 using Orleans.Storage;
+using Orleans.Streams;
 
 internal class MemoryPackStorageSerializer : IGrainStorageSerializer
 {
@@ -60,7 +61,7 @@ public static class OrleansExtension
                         b.ConfigurePullingAgent(ob => ob.Configure(options => options.BatchContainerBatchSize               = 15));
                         b.Configure<HashRingStreamQueueMapperOptions>(ob => ob.Configure(options => options.TotalQueueCount = 16));
                         b.UseConsistentRingQueueBalancer();
-                        b.ConfigureStreamPubSub();
+                        b.ConfigureStreamPubSub(StreamPubSubType.ExplicitGrainBasedOnly);
                     });
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
