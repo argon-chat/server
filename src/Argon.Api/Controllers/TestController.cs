@@ -3,7 +3,6 @@ namespace Argon.Api.Controllers;
 #if DEBUG
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
 [ApiController, Route("api/[controller]")]
 public class TestController(IGrainFactory grainFactory) : ControllerBase
 {
