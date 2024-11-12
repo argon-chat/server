@@ -1,31 +1,48 @@
 namespace Argon.Contracts;
 
-using System.Runtime.Serialization;
-using ActualLab.Rpc;
 using MemoryPack;
-using MessagePack;
+using Orleans;
 
-public interface IUserAuthorization : IRpcService
-{
-    Task<AuthorizeResponse> AuthorizeAsync(AuthorizeRequest request);
-}
+[MemoryPackable, Serializable, GenerateSerializer, Alias(nameof(UserCredentialsInput))]
+public sealed partial record UserCredentialsInput(
+    [field: Id(0)]
+    string Email,
+    [field: Id(1)]
+    string? Username,
+    [field: Id(2)]
+    string? PhoneNumber,
+    [field: Id(3)]
+    string? Password,
+    [field: Id(4)]
+    string? OtpCode);
 
-[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
-public sealed partial record AuthorizeRequest(
-    [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
-    string? username,
-    [property: DataMember(Order = 1), MemoryPackOrder(1), Key(1)]
-    string password,
-    [property: DataMember(Order = 2), MemoryPackOrder(2), Key(2)]
-    string? machineKey,
-    [property: DataMember(Order = 3), MemoryPackOrder(3), Key(3)]
-    string email,
-    [property: DataMember(Order = 4), MemoryPackOrder(4), Key(4)]
-    string? phoneNumber,
-    [property: DataMember(Order = 5), MemoryPackOrder(5), Key(5)]
-    bool generateOtp = false);
+[MemoryPackable, Serializable, GenerateSerializer, Alias(nameof(NewUserCredentialsInput))]
+public sealed partial record NewUserCredentialsInput(
+    [field: Id(0)]
+    string Email,
+    [field: Id(1)]
+    string Username,
+    [field: Id(2)]
+    string? PhoneNumber,
+    [field: Id(3)]
+    string Password,
+    [field: Id(4)]
+    string DisplayName,
+    [field: Id(5)]
+    DateTime BirthDate,
+    [field: Id(6)]
+    bool AgreeTos,
+    [field: Id(7)]
+    bool AgreeOptionalEmails);
 
-[DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject]
-public sealed partial record AuthorizeResponse(
-    [property: DataMember(Order = 0), MemoryPackOrder(0), Key(0)]
-    string token);
+
+[MemoryPackable, Serializable, GenerateSerializer, Alias(nameof(UserConnectionInfo))]
+public sealed partial record UserConnectionInfo(
+    [field: Id(0)]
+    string Region,
+    [field: Id(1)]
+    string IpAddress,
+    [field: Id(2)]
+    string ClientName,
+    [field: Id(3)]
+    string HostName);

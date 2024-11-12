@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Migrations;
+namespace Argon.Api.Migrations;
 
 using Microsoft.EntityFrameworkCore;
 
