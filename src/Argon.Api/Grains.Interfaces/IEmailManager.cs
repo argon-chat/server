@@ -11,6 +11,5 @@ public record SmtpConfig
 
 public interface IEmailManager : IGrainWithGuidKey
 {
-    Task SendEmailAsync(string email, string subject, string message, string template = "none");
     Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity);
 }

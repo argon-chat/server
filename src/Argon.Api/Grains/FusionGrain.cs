@@ -1,37 +1,79 @@
-﻿namespace Argon.Api.Grains;
+namespace Argon.Api.Grains;
 
-using System.IdentityModel.Tokens.Jwt;
-using Microsoft.IdentityModel.Tokens;
-using Persistence.States;
+using Extensions;
+using Features.Jwt;
+using Interfaces;
+using Orleans.Streams;
+using R3;
+using Services;
+using static DeactivationReasonCode;
+using static FusionGrainEventKind;
 
-public class FusionGrain(
-    [PersistentState("sessions", "OrleansStorage")] IPersistentState<FusionSession> sessionStorage,
-    TokenValidationParameters JwtParameters) : Grain, IFusionSession
+public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrain
 {
-    public async ValueTask<bool> AuthorizeAsync(string token)
-    {
-        var tokenHandler = new JwtSecurityTokenHandler();
-        tokenHandler.ValidateToken(token, JwtParameters, out var validatedToken);
-        var jwt = (JwtSecurityToken)validatedToken;
+    private IAsyncStream<FusionGrainEventKind> _stream = null!;
+    private DateTimeOffset _latestSignalTime = DateTimeOffset.UtcNow;
+    private DisposableBag disposableBag;
+    private Guid _userId;
+    private Guid _macineId;
 
-        sessionStorage.State.Id           = Guid.Parse(jwt.Id);
-        sessionStorage.State.IsAuthorized = true;
-        await sessionStorage.WriteStateAsync();
-        return true;
+    public async ValueTask SelfDestroy()
+        => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
+
+
+    public override Task OnActivateAsync(CancellationToken cancellationToken)
+    {
+        var streamProvider = this.GetStreamProvider("default");
+
+        var streamId = StreamId.Create(IFusionSessionGrain.SelfNs, this.GetPrimaryKey());
+
+        _stream = streamProvider.GetStream<FusionGrainEventKind>(
+            streamId);
+        
+        return base.OnActivateAsync(cancellationToken);
     }
 
-    public async ValueTask<FusionSession> GetState()
+    private Task OnValidateActiveAsync(CancellationToken arg)
+        => _latestSignalTime.WhenAsync(x => DateTimeOffset.UtcNow - x > TimeSpan.FromMinutes(1), SelfDestroy);
+
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        await sessionStorage.ReadStateAsync();
-        return sessionStorage.State;
+        disposableBag.Dispose();
+        //if (reason.ReasonCode == Migrating) // TODO stream is readonly
+        //    await _stream.OnNextAsync(CONNECTION_REQUIRED_MIGRATE);
+        //else
+        //    await _stream.OnNextAsync(CONNECTION_DESTROYED);
     }
+
+    public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey)
+    {
+        this.RegisterGrainTimer(OnValidateActiveAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30))
+           .AddTo(ref disposableBag);
+        this._userId   = userId;
+        this._macineId = machineKey;
+        await grainFactory.GetGrain<IUserMachineSessions>(userId).IndicateLastActive(machineKey);
+    }
+
+    public ValueTask EndRealtimeSession()
+        => SelfDestroy();
+
+    public ValueTask<bool> HasSessionActive()
+        => new(_userId != default);
+
+    public ValueTask Signal()
+    {
+        _latestSignalTime = DateTimeOffset.UtcNow;
+        return ValueTask.CompletedTask;
+    }
+
+    public ValueTask<TokenUserData> GetTokenUserData()
+        => new(new TokenUserData(_userId, _macineId));
 }
 
-public interface IFusionSession : IGrainWithGuidKey
-{
-    [Alias("AuthorizeAsync")]
-    ValueTask<bool> AuthorizeAsync(string token);
 
-    [Alias("GetState")]
-    ValueTask<FusionSession> GetState();
+public enum FusionGrainEventKind
+{
+    CONNECTION_ESTABLISHED,
+    CONNECTION_REQUIRED_MIGRATE,
+    CONNECTION_DESTROYED
 }
