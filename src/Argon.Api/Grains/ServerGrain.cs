@@ -1,39 +1,48 @@
 namespace Argon.Api.Grains;
 
+using ActualLab.Collections;
+using Contracts;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
+using Argon.Api.Features.Rpc;
+using AutoMapper;
 
-public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext context) : Grain, IServerManager
+public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext context, IMapper mapper) : Grain, IServerGrain
 {
+    private IArgonStream<IArgonEvent> _serverEvents;
+
+    public async override Task OnActivateAsync(CancellationToken cancellationToken)
+        => _serverEvents = await this.Streams().CreateServerStream();
+
+
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
     {
-        var user = await grainFactory.GetGrain<IUserManager>(creatorId).GetUser();
         var server = new Server
         {
+            Id          = this.GetPrimaryKey(),
             Name        = input.Name,
             Description = input.Description,
             AvatarUrl   = input.AvatarUrl,
-            UsersToServerRelations = new List<UsersToServerRelation>
-            {
+            UsersToServerRelations =
+            [
                 new()
                 {
-                    UserId          = creatorId,
-                    CustomUsername  = user.Username ?? user.Email,
-                    AvatarUrl       = user.AvatarUrl,
-                    CustomAvatarUrl = user.AvatarUrl,
-                    Role            = ServerRole.Owner
+                    UserId   = creatorId,
+                    Role     = ServerRole.Owner,
+                    Joined   = DateTime.UtcNow,
+                    ServerId = this.GetPrimaryKey()
                 }
-            },
+            ],
             Channels = CreateDefaultChannels(creatorId)
         };
 
         context.Servers.Add(server);
         await context.SaveChangesAsync();
-        return await grainFactory.GetGrain<IServerManager>(server.Id).GetServer();
+        return await GetServer();
     }
 
-    public async Task<ServerDto> GetServer() => await Get();
+    public async Task<ServerDto> GetServer() => mapper.Map<ServerDto>(await Get());
 
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
@@ -43,7 +52,12 @@ public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext cont
         server.AvatarUrl   = input.AvatarUrl;
         context.Servers.Update(server);
         await context.SaveChangesAsync();
-        return await Get();
+        await _serverEvents.Fire(new ServerModified(PropertyBag.Empty
+           .Set("name", input.Name)
+           .Set("description", input.Description)
+           .Set("avatarUrl", input.AvatarUrl)
+        ));
+        return mapper.Map<ServerDto>(await Get());
     }
 
     public async Task DeleteServer()
@@ -51,6 +65,22 @@ public class ServerManager(IGrainFactory grainFactory, ApplicationDbContext cont
         var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
         context.Servers.Remove(server);
         await context.SaveChangesAsync();
+    }
+
+    public async Task<ChannelDto> CreateChannel(ChannelInput input)
+    {
+        var channel = new Channel
+        {
+            Name        = input.Name,
+            AccessLevel = input.AccessLevel,
+            ServerId    = this.GetPrimaryKey()
+        };
+        channel.Description = input.Description ?? channel.Description;
+        channel.ChannelType = input.ChannelType;
+        await context.Channels.AddAsync(channel);
+        await context.SaveChangesAsync();
+        await _serverEvents.Fire(new ChannelCreated(channel.Id));
+        return mapper.Map<ChannelDto>(channel);
     }
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId) =>

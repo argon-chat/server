@@ -109,6 +109,10 @@ namespace Argon.Api.Migrations
                     b.Property<DateTime?>("DeletedAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("DisplayName")
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
@@ -138,45 +142,44 @@ namespace Argon.Api.Migrations
                     b.ToTable("Users");
                 });
 
+            modelBuilder.Entity("Argon.Api.Entities.UserAgreements", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("AgreeTOS")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("AllowedSendOptionalEmails")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserAgreements");
+                });
+
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AvatarUrl")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("BanReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("BannedUntil")
-                        .HasColumnType("timestamp with time zone");
-
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<string>("CustomAvatarUrl")
-                        .HasColumnType("text");
-
-                    b.Property<string>("CustomUsername")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<bool>("IsBanned")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsMuted")
-                        .HasColumnType("boolean");
-
                     b.Property<DateTime>("Joined")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("MuteReason")
-                        .HasColumnType("text");
-
-                    b.Property<DateTime?>("MutedUntil")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Role")
@@ -207,6 +210,17 @@ namespace Argon.Api.Migrations
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Argon.Api.Entities.UserAgreements", b =>
+                {
+                    b.HasOne("Argon.Api.Entities.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Argon.Api.Entities.UsersToServerRelation", b =>

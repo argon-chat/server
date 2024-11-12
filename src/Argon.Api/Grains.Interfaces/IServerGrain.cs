@@ -2,7 +2,8 @@ namespace Argon.Api.Grains.Interfaces;
 
 using Entities;
 
-public interface IServerManager : IGrainWithGuidKey
+[Alias("Argon.Api.Grains.Interfaces.IServerGrain")]
+public interface IServerGrain : IGrainWithGuidKey
 {
     [Alias("CreateServer")]
     Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
@@ -15,6 +16,12 @@ public interface IServerManager : IGrainWithGuidKey
 
     [Alias("DeleteServer")]
     Task DeleteServer();
+
+    [Alias("CreateChannel")]
+    Task<ChannelDto> CreateChannel(ChannelInput input);
+
+    public const string ProviderId = "argon.server.grain.stream";
+    public const string EventNamespace = "@";
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerInput))]
