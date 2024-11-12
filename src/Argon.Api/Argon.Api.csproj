@@ -66,9 +66,4 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="Features\Otp\"/>
-    </ItemGroup>
-
 </Project>
