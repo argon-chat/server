@@ -6,6 +6,10 @@ using Sfu;
 
 public interface IChannelGrain : IGrainWithGuidKey
 {
+    // for join\leave\mute\unmute notifications
+    public const string UserTransformNotificationStream  = $"{nameof(IChannelGrain)}.user.transform";
+    public const string ChannelMessageNotificationStream = $"{nameof(IChannelGrain)}.user.messages";
+
     [Alias("Join")]
     Task<Maybe<RealtimeToken>> Join(Guid userId);
 
@@ -17,11 +21,6 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias("UpdateChannel")]
     Task<ChannelDto> UpdateChannel(ChannelInput input);
-
-
-    // for join\leave\mute\unmute notifications
-    public const string UserTransformNotificationStream  = $"{nameof(IChannelGrain)}.user.transform";
-    public const string ChannelMessageNotificationStream = $"{nameof(IChannelGrain)}.user.messages";
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ChannelInput))]

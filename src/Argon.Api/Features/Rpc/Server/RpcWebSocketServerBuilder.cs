@@ -4,16 +4,15 @@ using DependencyInjection;
 
 public readonly struct RpcWebSocketServerBuilder
 {
-    public RpcBuilder Rpc { get; }
+    public RpcBuilder         Rpc      { get; }
     public IServiceCollection Services => Rpc.Services;
 
-    internal RpcWebSocketServerBuilder(
-        RpcBuilder rpc,
-        Action<RpcWebSocketServerBuilder>? configure)
+    internal RpcWebSocketServerBuilder(RpcBuilder rpc, Action<RpcWebSocketServerBuilder>? configure)
     {
         Rpc = rpc;
         var services = Services;
-        if (services.HasService<RpcWebSocketServer>()) {
+        if (services.HasService<RpcWebSocketServer>())
+        {
             configure?.Invoke(this);
             return;
         }

@@ -20,4 +20,3 @@ public interface IUserManager : IGrainWithGuidKey
     [Alias("GetMyServers")]
     Task<List<ServerDto>> GetMyServers();
 }
-

@@ -25,11 +25,10 @@ public sealed record User
     public List<UsersToServerRelation> UsersToServerRelations { get; set; } = new();
 }
 
-
 public record UserAgreements
 {
     [Key]
-    public Guid     Id                        { get; set; } = Guid.NewGuid();
+    public Guid Id { get;                            set; } = Guid.NewGuid();
     public bool     AllowedSendOptionalEmails { get; set; }
     public bool     AgreeTOS                  { get; set; }
     public DateTime CreatedAt                 { get; init; } = DateTime.UtcNow;
@@ -43,17 +42,10 @@ public record UserAgreements
 public partial record UserDto
 {
     [MemoryPackConstructor]
-    public UserDto()  { }
+    public UserDto() { }
 
-    public UserDto(Guid Id,
-        DateTime CreatedAt,
-        DateTime UpdatedAt,
-        string Email,
-        string? Username,
-        string? PhoneNumber,
-        string? AvatarUrl,
-        DateTime? DeletedAt,
-        List<ServerDto> Servers)
+    public UserDto(Guid Id, DateTime CreatedAt, DateTime UpdatedAt, string Email, string? Username, string? PhoneNumber, string? AvatarUrl,
+        DateTime? DeletedAt, List<ServerDto> Servers)
     {
         this.Id          = Id;
         this.CreatedAt   = CreatedAt;
@@ -67,7 +59,7 @@ public partial record UserDto
     }
 
     [DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
-    public Guid Id { get;            set; }
+    public Guid Id { get; set; }
     [DataMember(Order = 1), MemoryPackOrder(1), Id(1)]
     public DateTime CreatedAt { get; set; }
     [DataMember(Order = 2), MemoryPackOrder(2), Id(2)]

@@ -20,25 +20,18 @@ public static class OrleansExtension
                 {
                     cluster.ClusterId = "argonchat";
                     cluster.ServiceId = "argonchat";
-                })
-               .AddAdoNetGrainStorage("PubSubStore", options =>
+                }).AddAdoNetGrainStorage("PubSubStore", options =>
                 {
-                    options.Invariant              = "Npgsql";
-                    options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
-               .AddAdoNetGrainStorage("OrleansStorage", options =>
+                    options.Invariant        = "Npgsql";
+                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                }).AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
                     options.Invariant              = "Npgsql";
                     options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-                })
-               .AddActivationRepartitioner<BalanceRule>()
-               .AddStreaming()
-               .AddMemoryStreams("default")
-               .AddMemoryStreams(IArgonEvent.ProviderId)
+                }).AddActivationRepartitioner<BalanceRule>().AddStreaming().AddMemoryStreams("default").AddMemoryStreams(IArgonEvent.ProviderId)
             #pragma warning restore ORLEANSEXP001
-               .AddMemoryGrainStorage("CacheStorage")
-               .UseDashboard(o => o.Port = 22832);
+               .AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
             if (builder.Environment.IsDevelopment())
                 siloBuilder.UseLocalhostClustering();
             else

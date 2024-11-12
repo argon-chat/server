@@ -43,18 +43,13 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         return context.SaveChangesAsync();
     }
 
-    public async Task<UserDto>         GetUser() => mapper.Map<UserDto>(await Get());
+    public async Task<UserDto> GetUser() => mapper.Map<UserDto>(await Get());
 
     public async Task<List<ServerDto>> GetMyServers()
     {
-        var user = await context.Users
-           .Include(user => user.UsersToServerRelations).ThenInclude(usersToServerRelation => usersToServerRelation.Server)
-           .FirstAsync(u => u.Id == this.GetPrimaryKey());
-        return user.UsersToServerRelations
-           .Select(x => x.Server)
-           .ToList()
-           .Select(mapper.Map<ServerDto>)
-           .ToList();
+        var user = await context.Users.Include(user => user.UsersToServerRelations)
+           .ThenInclude(usersToServerRelation => usersToServerRelation.Server).FirstAsync(u => u.Id == this.GetPrimaryKey());
+        return user.UsersToServerRelations.Select(x => x.Server).ToList().Select(mapper.Map<ServerDto>).ToList();
     }
 
     private async Task<User> Get() => await context.Users.Include(x => x.UsersToServerRelations).ThenInclude(x => x.Server)

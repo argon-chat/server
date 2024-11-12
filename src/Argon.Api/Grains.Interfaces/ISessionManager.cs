@@ -2,7 +2,6 @@ namespace Argon.Api.Grains.Interfaces;
 
 using Entities;
 
-
 [Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
 public interface ISessionManager : IGrainWithGuidKey
 {

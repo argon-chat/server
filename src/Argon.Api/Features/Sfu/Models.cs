@@ -2,7 +2,7 @@ namespace Argon.Sfu;
 
 using LiveKit.Proto;
 
-public partial record struct EphemeralChannelInfo(ArgonChannelId channelId, string sid, Room room);
+public record struct EphemeralChannelInfo(ArgonChannelId channelId, string sid, Room room);
 
 [Serializable, GenerateSerializer, MemoryPackable, Alias(nameof(RealtimeToken))]
 public partial record struct RealtimeToken([field: Id(0)] string value);

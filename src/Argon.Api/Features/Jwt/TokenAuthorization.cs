@@ -8,10 +8,7 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation)
 {
     public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token)
     {
-        if (string.IsNullOrEmpty(token))
-        {
-            return TokenValidationError.BAD_TOKEN;
-        }
+        if (string.IsNullOrEmpty(token)) return TokenValidationError.BAD_TOKEN;
 
         var tokenHandler = new JwtSecurityTokenHandler();
         try
@@ -24,8 +21,7 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation)
             var idClaim        = principal.FindFirst("id");
             var machineIdClaim = principal.FindFirst("machineId");
 
-            if (idClaim != null && machineIdClaim != null &&
-                Guid.TryParse(idClaim.Value, out var id) &&
+            if (idClaim != null && machineIdClaim != null && Guid.TryParse(idClaim.Value, out var id) &&
                 Guid.TryParse(machineIdClaim.Value, out var machineId))
                 return new TokenUserData(id, machineId);
 

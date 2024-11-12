@@ -8,9 +8,9 @@ spec:
   selector:
     app: smtpdev
   ports:
-  - name: http
-    port: 3080
-    targetPort: 80
-  - name: tcp
-    port: 2525
-    targetPort: 25
+    - name: http
+      port: 3080
+      targetPort: 80
+    - name: tcp
+      port: 2525
+      targetPort: 25

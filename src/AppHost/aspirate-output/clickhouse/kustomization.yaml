@@ -1,17 +1,17 @@
 resources:
-- statefulset.yaml
-- service.yaml
+  - statefulset.yaml
+  - service.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
-- name: clickhouse-env
-  literals:
-    - CLICKHOUSE_USER=poxuy
-    - CLICKHOUSE_PASSWORD=poxuy
-    - CLICKHOUSE_DB=poxuy
-    - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
-    - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
-    - OTEL_SERVICE_NAME=clickhouse
+  - name: clickhouse-env
+    literals:
+      - CLICKHOUSE_USER=poxuy
+      - CLICKHOUSE_PASSWORD=poxuy
+      - CLICKHOUSE_DB=poxuy
+      - CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT=1
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=clickhouse
 

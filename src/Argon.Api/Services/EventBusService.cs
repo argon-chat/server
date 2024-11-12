@@ -12,4 +12,3 @@ public class EventBusService(IClusterClient clusterClient) : IEventBus
         return stream.AsRpcStream();
     }
 }
-

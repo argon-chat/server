@@ -1,15 +1,15 @@
 resources:
-- statefulset.yaml
-- service.yaml
+  - statefulset.yaml
+  - service.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
-- name: rmq-env
-  literals:
-    - RABBITMQ_DEFAULT_USER=poxuy
-    - RABBITMQ_DEFAULT_PASS=poxuy
-    - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
-    - OTEL_SERVICE_NAME=rmq
+  - name: rmq-env
+    literals:
+      - RABBITMQ_DEFAULT_USER=poxuy
+      - RABBITMQ_DEFAULT_PASS=poxuy
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=rmq
 

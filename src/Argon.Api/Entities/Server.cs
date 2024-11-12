@@ -21,15 +21,9 @@ public sealed record Server
 public partial record ServerDto
 {
     [MemoryPackConstructor]
-    public ServerDto() {}
+    public ServerDto() { }
 
-    public ServerDto(Guid Id,
-        DateTime CreatedAt,
-        DateTime UpdatedAt,
-        string Name,
-        string? Description,
-        string? AvatarUrl,
-        List<ChannelDto> Channels,
+    public ServerDto(Guid Id, DateTime CreatedAt, DateTime UpdatedAt, string Name, string? Description, string? AvatarUrl, List<ChannelDto> Channels,
         List<UsersToServerRelationDto> Users)
     {
         this.Id          = Id;
@@ -43,7 +37,7 @@ public partial record ServerDto
     }
 
     [DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
-    public Guid Id { get;            set; }
+    public Guid Id { get; set; }
     [DataMember(Order = 1), MemoryPackOrder(1), Id(1)]
     public DateTime CreatedAt { get; set; }
     [DataMember(Order = 2), MemoryPackOrder(2), Id(2)]

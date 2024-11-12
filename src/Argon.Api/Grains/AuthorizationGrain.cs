@@ -35,8 +35,7 @@ public class AuthorizationGrain(
             context.Users.Update(user);
             await context.SaveChangesAsync();
             // TODO check latest send otp time (evade ddos)
-            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
-               .SendOtpCodeAsync(user.Email, otp.Code, TimeSpan.FromMinutes(15));
+            await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid()).SendOtpCodeAsync(user.Email, otp.Code, TimeSpan.FromMinutes(15));
             return AuthorizationError.REQUIRED_OTP;
         }
 
@@ -87,7 +86,7 @@ public class AuthorizationGrain(
             try
             {
                 var userId = Guid.NewGuid();
-                user = new User()
+                user = new User
                 {
                     AvatarFileId   = null,
                     CreatedAt      = DateTime.UtcNow,
@@ -95,11 +94,11 @@ public class AuthorizationGrain(
                     Id             = userId,
                     Username       = input.Username,
                     PasswordDigest = passwordHashingService.HashPassword(input.Password),
-                    PhoneNumber    = input.PhoneNumber,
+                    PhoneNumber    = input.PhoneNumber
                 };
                 await context.Users.AddAsync(user);
 
-                var agreements = new UserAgreements()
+                var agreements = new UserAgreements
                 {
                     AgreeTOS                  = input.AgreeTos,
                     AllowedSendOptionalEmails = input.AgreeOptionalEmails,

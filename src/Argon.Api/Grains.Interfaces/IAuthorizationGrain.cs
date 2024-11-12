@@ -5,13 +5,13 @@ using Contracts;
 [Alias("Argon.Api.Grains.Interfaces.IAuthorizationGrain")]
 public interface IAuthorizationGrain : IGrainWithStringKey
 {
+    public const string DefaultId = "auth";
+
     [Alias("Authorize")]
     Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
     [Alias("Register")]
     Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
-
-    public const string DefaultId = "auth";
 }
 
 [Alias("Argon.Api.Grains.Interfaces.IUserMachineSessions")]

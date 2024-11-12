@@ -33,7 +33,7 @@ spec:
     - metadata:
         name: apphost-rmq-data
       spec:
-        accessModes: ["ReadWriteOnce"]
+        accessModes: [ "ReadWriteOnce" ]
         resources:
           requests:
             storage: 1Gi

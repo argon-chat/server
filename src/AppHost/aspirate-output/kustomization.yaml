@@ -1,15 +1,15 @@
 namespace: argon
 
 resources:
-- nats
-- cache
-- rmq
-- pg
-- clickhouse
-- smtpdev
-- argon-api
-- namespace.yaml
-- dashboard.yaml
+  - nats
+  - cache
+  - rmq
+  - pg
+  - clickhouse
+  - smtpdev
+  - argon-api
+  - namespace.yaml
+  - dashboard.yaml
 
 generatorOptions:
   disableNameSuffixHash: true

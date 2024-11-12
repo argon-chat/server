@@ -1,34 +1,34 @@
 resources:
-- deployment.yaml
-- service.yaml
+  - deployment.yaml
+  - service.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
-- name: argon-api-env
-  literals:
-    - OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES=true
-    - OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES=true
-    - OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY=in_memory
-    - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
-    - HTTP_PORTS=8080
-    - sfu__url=poxuy
-    - sfu__clientId=poxuy
-    - sfu__clientSecret=poxuy
-    - Jwt__Issuer=Argon
-    - Jwt__Audience=Argon
-    - Smtp__Host=poxuy
-    - Smtp__Port=poxuy
-    - Smtp__User=poxuy
-    - Smtp__Password=poxuy
-    - Jwt__Key=poxuy
-    - Jwt__Expire=228
-    - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
-    - OTEL_SERVICE_NAME=argon-api
-    - ASPNETCORE_URLS=http://+:8080;
+  - name: argon-api-env
+    literals:
+      - OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES=true
+      - OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES=true
+      - OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY=in_memory
+      - ASPNETCORE_FORWARDEDHEADERS_ENABLED=true
+      - HTTP_PORTS=8080
+      - sfu__url=poxuy
+      - sfu__clientId=poxuy
+      - sfu__clientSecret=poxuy
+      - Jwt__Issuer=Argon
+      - Jwt__Audience=Argon
+      - Smtp__Host=poxuy
+      - Smtp__Port=poxuy
+      - Smtp__User=poxuy
+      - Smtp__Password=poxuy
+      - Jwt__Key=poxuy
+      - Jwt__Expire=228
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=argon-api
+      - ASPNETCORE_URLS=http://+:8080;
 
 secretGenerator:
-- name: argon-api-secrets
-  envs:
-  - .argon-api.secrets
+  - name: argon-api-secrets
+    envs:
+      - .argon-api.secrets

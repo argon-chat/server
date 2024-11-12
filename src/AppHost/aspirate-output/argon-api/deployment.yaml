@@ -19,17 +19,17 @@ spec:
         app: argon-api
     spec:
       containers:
-      - name: argon-api
-        image: argon-api:latest
-        imagePullPolicy: IfNotPresent
-        ports:
-        - name: http
-          containerPort: 8080
-        - name: https
-          containerPort: 8443
-        envFrom:
-        - configMapRef:
-            name: argon-api-env
-        - secretRef:
-            name: argon-api-secrets
+        - name: argon-api
+          image: argon-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          envFrom:
+            - configMapRef:
+                name: argon-api-env
+            - secretRef:
+                name: argon-api-secrets
       terminationGracePeriodSeconds: 180

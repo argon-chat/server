@@ -8,6 +8,6 @@ spec:
   selector:
     app: pg
   ports:
-  - name: tcp
-    port: 5432
-    targetPort: 5432
+    - name: tcp
+      port: 5432
+      targetPort: 5432

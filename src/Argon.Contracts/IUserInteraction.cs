@@ -1,10 +1,8 @@
 namespace Argon.Contracts;
 
-using System.Runtime.Serialization;
 using ActualLab.Collections;
 using ActualLab.Rpc;
 using MemoryPack;
-using MessagePack;
 using Orleans;
 
 public interface IUserInteraction : IRpcService
@@ -40,7 +38,7 @@ public enum ServerEventKind
 public interface IArgonEvent
 {
     public static string ProviderId => "argon.cluster.events";
-    public static string Namespace  => $"@";
+    public static string Namespace  => "@";
 }
 
 [MemoryPackable, GenerateSerializer]
@@ -89,18 +87,10 @@ public enum UserStatus
 public sealed partial record ServerDetailsRequest(Guid ServerId);
 
 [MemoryPackable]
-public sealed partial record ServerUser(
-    UserResponse user,
-    string Role);
+public sealed partial record ServerUser(UserResponse user, string Role);
 
 [MemoryPackable]
-public sealed partial record UserResponse(
-    Guid Id,
-    string Username,
-    string AvatarUrl,
-    string DisplayName,
-    DateTime CreatedAt,
-    DateTime UpdatedAt)
+public sealed partial record UserResponse(Guid Id, string Username, string AvatarUrl, string DisplayName, DateTime CreatedAt, DateTime UpdatedAt)
 {
     public Guid     Id          { get; set; } = Id;
     public string   Username    { get; set; } = Username;
@@ -111,10 +101,7 @@ public sealed partial record UserResponse(
 }
 
 [MemoryPackable]
-public sealed partial record CreateServerRequest(
-    string Name,
-    string Description,
-    string AvatarUrl);
+public sealed partial record CreateServerRequest(string Name, string Description, string AvatarUrl);
 
 [MemoryPackable]
 public sealed partial record ServerDefinition(
@@ -157,10 +144,7 @@ public sealed partial record ChannelDefinition(
 }
 
 [MemoryPackable]
-public sealed partial record ChannelJoinRequest(
-    Guid ServerId,
-    Guid ChannelId);
+public sealed partial record ChannelJoinRequest(Guid ServerId, Guid ChannelId);
 
 [MemoryPackable]
-public sealed partial record ChannelJoinResponse(
-    string Token);
+public sealed partial record ChannelJoinResponse(string Token);

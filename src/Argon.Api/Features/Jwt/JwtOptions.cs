@@ -1,8 +1,5 @@
 namespace Argon.Api.Features.Jwt;
 
-using Argon.Api.Services;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-
 public record JwtOptions
 {
     public required string Issuer { get; set; }

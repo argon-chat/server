@@ -5,6 +5,9 @@ using Features.Jwt;
 [Alias("Argon.Api.Grains.Interfaces.IFusionSessionGrain")]
 public interface IFusionSessionGrain : IGrainWithGuidKey
 {
+    public const string StreamProviderId = "FusionSessionStream";
+    public const string SelfNs           = "@";
+
     [Alias("BeginRealtimeSession")]
     ValueTask BeginRealtimeSession(Guid userId, Guid machineKey);
 
@@ -19,7 +22,4 @@ public interface IFusionSessionGrain : IGrainWithGuidKey
 
     [Alias("GetTokenUserData")]
     ValueTask<TokenUserData> GetTokenUserData();
-
-    public const string StreamProviderId = "FusionSessionStream";
-    public const string SelfNs = "@";
 }

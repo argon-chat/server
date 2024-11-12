@@ -5,6 +5,9 @@ using Entities;
 [Alias("Argon.Api.Grains.Interfaces.IServerGrain")]
 public interface IServerGrain : IGrainWithGuidKey
 {
+    public const string ProviderId     = "argon.server.grain.stream";
+    public const string EventNamespace = "@";
+
     [Alias("CreateServer")]
     Task<ServerDto> CreateServer(ServerInput input, Guid creatorId);
 
@@ -19,9 +22,6 @@ public interface IServerGrain : IGrainWithGuidKey
 
     [Alias("CreateChannel")]
     Task<ChannelDto> CreateChannel(ChannelInput input);
-
-    public const string ProviderId = "argon.server.grain.stream";
-    public const string EventNamespace = "@";
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject, Serializable, GenerateSerializer, Alias(nameof(ServerInput))]

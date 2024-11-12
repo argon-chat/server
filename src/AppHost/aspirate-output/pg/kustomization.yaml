@@ -1,20 +1,20 @@
 resources:
-- statefulset.yaml
-- service.yaml
+  - statefulset.yaml
+  - service.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
 
 configMapGenerator:
-- name: pg-env
-  literals:
-    - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
-    - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
-    - POSTGRES_USER=poxuy
-    - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
-    - OTEL_SERVICE_NAME=pg
+  - name: pg-env
+    literals:
+      - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256 --auth-local=scram-sha-256
+      - POSTGRES_USER=poxuy
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=pg
 
 secretGenerator:
-- name: pg-secrets
-  envs:
-  - .pg.secrets
+  - name: pg-secrets
+    envs:
+      - .pg.secrets

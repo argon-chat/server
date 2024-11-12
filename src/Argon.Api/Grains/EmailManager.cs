@@ -18,12 +18,6 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         Credentials           = new NetworkCredential(smtpOptions.Value.User, smtpOptions.Value.Password)
     };
 
-    public Task SendEmailAsync(string email, string subject, string message, string template = "none") =>
-        Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, subject, message)
-        {
-            IsBodyHtml = true
-        });
-
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
         var form = formStorage.CompileAndGetForm("otp", new Dictionary<string, string>
@@ -41,4 +35,10 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             IsBodyHtml = true
         });
     }
+
+    public Task SendEmailAsync(string email, string subject, string message, string template = "none") =>
+        Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, subject, message)
+        {
+            IsBodyHtml = true
+        });
 }

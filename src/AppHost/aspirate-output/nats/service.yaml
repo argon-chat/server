@@ -8,6 +8,6 @@ spec:
   selector:
     app: nats
   ports:
-  - name: tcp
-    port: 4222
-    targetPort: 4222
+    - name: tcp
+      port: 4222
+      targetPort: 4222

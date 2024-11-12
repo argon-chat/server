@@ -28,11 +28,8 @@ builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddControllers().AddNewtonsoftJson();
-builder.Services.AddFusion(RpcServiceMode.Server, true)
-   .Rpc.AddWebSocketServer(true).Rpc
-   .AddServer<IUserInteraction, UserInteraction>()
-   .AddServer<IServerInteraction, ServerInteraction>()
-   .AddServer<IEventBus, EventBusService>();
+builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc.AddWebSocketServer(true).Rpc.AddServer<IUserInteraction, UserInteraction>()
+   .AddServer<IServerInteraction, ServerInteraction>().AddServer<IEventBus, EventBusService>();
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddAuthorization();
 builder.AddSelectiveForwardingUnit();

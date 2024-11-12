@@ -1,19 +1,16 @@
 namespace Argon.Api.Grains;
 
 using ActualLab.Collections;
+using AutoMapper;
 using Contracts;
 using Entities;
+using Features.Rpc;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
-using Argon.Api.Features.Rpc;
-using AutoMapper;
 
 public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext context, IMapper mapper) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
-
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
-        => _serverEvents = await this.Streams().CreateServerStream();
 
 
     public async Task<ServerDto> CreateServer(ServerInput input, Guid creatorId)
@@ -26,7 +23,7 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
             AvatarUrl   = input.AvatarUrl,
             UsersToServerRelations =
             [
-                new()
+                new UsersToServerRelation
                 {
                     UserId   = creatorId,
                     Role     = ServerRole.Owner,
@@ -52,11 +49,8 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         server.AvatarUrl   = input.AvatarUrl;
         context.Servers.Update(server);
         await context.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified(PropertyBag.Empty
-           .Set("name", input.Name)
-           .Set("description", input.Description)
-           .Set("avatarUrl", input.AvatarUrl)
-        ));
+        await _serverEvents.Fire(new ServerModified(PropertyBag.Empty.Set("name", input.Name).Set("description", input.Description)
+           .Set("avatarUrl", input.AvatarUrl)));
         return mapper.Map<ServerDto>(await Get());
     }
 
@@ -82,6 +76,8 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
         await _serverEvents.Fire(new ChannelCreated(channel.Id));
         return mapper.Map<ChannelDto>(channel);
     }
+
+    public async override Task OnActivateAsync(CancellationToken cancellationToken) => _serverEvents = await this.Streams().CreateServerStream();
 
     private List<Channel> CreateDefaultChannels(Guid CreatorId) =>
     [
