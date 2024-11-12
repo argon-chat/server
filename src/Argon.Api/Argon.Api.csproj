@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Aspire.NATS.Net" Version="8.2.2"/>
         <PackageReference Include="Aspire.StackExchange.Redis" Version="8.2.2"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>

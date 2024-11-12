@@ -13,6 +13,7 @@ var smtpHost = builder.AddParameter("smtp-host", true);
 var smtpPort = builder.AddParameter("smtp-port", true);
 var smtpUser = builder.AddParameter("smtp-user", true);
 var smtpPassword = builder.AddParameter("smtp-password", true);
+var nats = builder.AddNats("nats", 4222).WithJetStream().WithDataVolume();
 var cache = builder.AddRedis("cache", 6379);
 var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: password).WithDataVolume(isReadOnly: false).WithManagementPlugin();
 var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
@@ -32,7 +33,7 @@ var api = builder.AddProject<Argon_Api>("argon-api").WithReference(apiDb, "Defau
    .WithReference(rmq).WithEnvironment("sfu__url", sfuUrl).WithEnvironment("sfu__clientId", sfuClientId)
    .WithEnvironment("sfu__clientSecret", sfuClientSecret).WithEnvironment("Jwt__Issuer", "Argon").WithEnvironment("Jwt__Audience", "Argon")
    .WithEnvironment("Smtp__Host", smtpHost).WithEnvironment("Smtp__Port", smtpPort).WithEnvironment("Smtp__User", smtpUser)
-   .WithEnvironment("Smtp__Password", smtpPassword).WithEnvironment("Jwt__Key", jwtKey).WithEnvironment("Jwt__Expire", "228")
+   .WithEnvironment("Smtp__Password", smtpPassword).WithEnvironment("Jwt__Key", jwtKey).WithEnvironment("Jwt__Expire", "228").WithReference(nats)
    .WithExternalHttpEndpoints();
 
 builder.Build().Run();
