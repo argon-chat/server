@@ -1,7 +1,6 @@
 namespace Argon.Api.Grains;
 
 using Interfaces;
-using Orleans.Streams;
 
 #if DEBUG
 
@@ -34,45 +33,6 @@ public class TestGrain([PersistentState("input", "RedisStorage")] IPersistentSta
     {
         await inputStore.ReadStateAsync();
         return inputStore.State;
-    }
-
-#endregion
-}
-
-public class StreamProducer : Grain, IStreamProducer
-{
-#region Implementation of IStreamProducer
-
-    [Obsolete("Obsolete")]
-    public Task StartStream()
-    {
-        var streamProvider = this.GetStreamProvider("default");
-        var streamId       = StreamId.Create("@", Guid.Empty);
-        var stream         = streamProvider.GetStream<SomeInput>(streamId);
-
-        RegisterTimer(_ => stream.OnNextAsync(new SomeInput(Random.Shared.Next(), "anus")), null, TimeSpan.FromMilliseconds(1_000),
-            TimeSpan.FromMilliseconds(1_000));
-        return Task.CompletedTask;
-    }
-
-#endregion
-}
-
-[ImplicitStreamSubscription("@")]
-public class StreamConsumer(ILogger<StreamConsumer> logger) : Grain, IStreamConsumer
-{
-#region Implementation of IStreamConsumer
-
-    public async Task ConsumeStream()
-    {
-        var streamProvider = this.GetStreamProvider("default");
-
-        var streamId = StreamId.Create("@", Guid.Empty);
-        var stream   = streamProvider.GetStream<SomeInput>(streamId);
-        await stream.SubscribeAsync(async observer =>
-        {
-            foreach (var sequentialItem in observer) logger.LogInformation($"Received: {sequentialItem.Item}");
-        });
     }
 
 #endregion

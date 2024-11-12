@@ -40,20 +40,4 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
         var result = await grain.GetSomeInput();
         return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
-
-    [HttpPost("stream")]
-    public async Task<IActionResult> StartStream()
-    {
-        var grain = grainFactory.GetGrain<IStreamProducer>(Guid.Empty);
-        await grain.StartStream();
-        return Ok();
-    }
-
-    [HttpPost("consume")]
-    public async Task<IActionResult> ConsumeStream()
-    {
-        var grain = grainFactory.GetGrain<IStreamConsumer>(Guid.Empty);
-        await grain.ConsumeStream();
-        return Ok();
-    }
 }

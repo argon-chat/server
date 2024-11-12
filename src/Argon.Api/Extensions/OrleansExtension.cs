@@ -6,7 +6,6 @@ using Microsoft.Extensions.Options;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Placement.Repartitioning;
-using Orleans.Providers.Streams.Generator;
 using Orleans.Runtime.Hosting;
 using Orleans.Storage;
 
@@ -50,18 +49,11 @@ public static class OrleansExtension
                     cluster.ServiceId = "argonchat";
                 }).AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
-                    options.Invariant = "Npgsql";
-                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                    options.Invariant              = "Npgsql";
+                    options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
                 }).AddActivationRepartitioner<Balancer>().AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832)
-               .AddRedisStorage("PubSubStore", options => options.DatabaseName = 0).AddPersistentStreams( // TODO
-                    "default", GeneratorAdapterFactory.Create, b =>
-                    {
-                        b.ConfigurePullingAgent(ob => ob.Configure(options => options.BatchContainerBatchSize               = 15));
-                        b.Configure<HashRingStreamQueueMapperOptions>(ob => ob.Configure(options => options.TotalQueueCount = 16));
-                        b.UseConsistentRingQueueBalancer();
-                        b.ConfigureStreamPubSub();
-                    });
+               .AddRedisStorage("RedisStorage", options => options.DatabaseName                                          = 0);
             if (builder.Environment.IsDevelopment()) siloBuilder.UseLocalhostClustering();
             else siloBuilder.UseKubeMembership();
         });
