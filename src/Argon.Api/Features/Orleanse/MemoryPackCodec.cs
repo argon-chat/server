@@ -215,8 +215,10 @@ public class MemoryPackCodec : IGeneralizedCodec, IGeneralizedCopier, ITypeFilte
         if (CommonCodecTypeFilter.IsAbstractOrFrameworkType(type)) return false;
 
         foreach (var selector in _serializableTypeSelectors)
+        {
             if (selector.IsSupportedType(type))
                 return true;
+        }
 
         if (_options.IsSerializableType?.Invoke(type) is bool value) return value;
 
@@ -251,8 +253,10 @@ public class MemoryPackCodec : IGeneralizedCodec, IGeneralizedCopier, ITypeFilte
         if (CommonCodecTypeFilter.IsAbstractOrFrameworkType(type)) return false;
 
         foreach (var selector in _copyableTypeSelectors)
+        {
             if (selector.IsSupportedType(type))
                 return true;
+        }
 
         if (_options.IsCopyableType?.Invoke(type) is bool value) return value;
 

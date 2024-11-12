@@ -69,6 +69,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <Folder Include="Features\OrleansStreamingProviders\"/>
         <Folder Include="Features\Otp\"/>
     </ItemGroup>
 

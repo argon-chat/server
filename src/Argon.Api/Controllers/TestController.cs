@@ -1,5 +1,6 @@
 namespace Argon.Api.Controllers;
 
+#if DEBUG
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -41,3 +42,4 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
         return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 }
+#endif

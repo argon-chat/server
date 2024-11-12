@@ -2,7 +2,7 @@ namespace Argon.Api.Grains;
 
 using Interfaces;
 
-// #if DEBUG
+#if DEBUG
 
 public class TestGrain([PersistentState("input", "RedisStorage")] IPersistentState<SomeInput> inputStore) : Grain, ITestGrain
 {
@@ -38,4 +38,4 @@ public class TestGrain([PersistentState("input", "RedisStorage")] IPersistentSta
 #endregion
 }
 
-// #endif
+#endif
