@@ -10,6 +10,7 @@
 
     <ItemGroup>
         <PackageReference Include="Aspire.NATS.Net" Version="8.2.2"/>
+        <PackageReference Include="AutoMapper" Version="13.0.1"/>
         <PackageReference Include="Aspire.StackExchange.Redis" Version="8.2.2"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
@@ -20,9 +21,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.10"/>
-        <PackageReference Include="ActualLab.Fusion" Version="9.5.52"/>
-        <PackageReference Include="ActualLab.Fusion.EntityFramework.Npgsql" Version="9.5.52"/>
-        <PackageReference Include="ActualLab.Rpc.Server" Version="9.5.52"/>
+        <PackageReference Include="ActualLab.Fusion" Version="9.5.59"/>
         <PackageReference Include="Argon.Sfu.Protocol" Version="1.26.0"/>
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="8.0.10"/>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="8.0.10">
@@ -35,14 +34,15 @@
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
         <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
         <PackageReference Include="Otp.NET" Version="1.4.0"/>
         <PackageReference Include="R3" Version="1.2.9"/>
-        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.4.0"/>
+        <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0"/>
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.9.0"/>
-        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.1.2"/>
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.0"/>
     </ItemGroup>
 
     <ItemGroup>
@@ -67,9 +67,4 @@
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
     </ItemGroup>
-
-    <ItemGroup>
-        <Folder Include="Features\Otp\"/>
-    </ItemGroup>
-
 </Project>
