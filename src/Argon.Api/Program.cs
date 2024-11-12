@@ -39,7 +39,7 @@ builder.Services.AddSingleton<IFusionContext, FusionContext>();
 builder.AddOtpCodes();
 builder.AddOrleans();
 builder.AddEMailForms();
-builder.Services.AddKubeResources();
+builder.AddKubeResources();
 builder.Services.AddDataProtection();
 builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
 var app = builder.Build();
