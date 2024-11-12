@@ -34,6 +34,7 @@
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
         <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
