@@ -2,7 +2,7 @@ namespace Argon.Api.Controllers;
 
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
-
+#if DEBUG
 [ApiController, Route("api/[controller]")]
 public class TestController(IGrainFactory grainFactory) : ControllerBase
 {
@@ -41,3 +41,4 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
         return Ok(new Tuple<Guid, SomeInput>(id, result));
     }
 }
+#endif
