@@ -1,6 +1,7 @@
 namespace Argon.Api.Features;
 
 using System.Collections.Concurrent;
+using System.Globalization;
 using k8s;
 using Orleans.Placement.Repartitioning;
 using static Math;
@@ -22,7 +23,6 @@ public static class KubeExtensions
         services.AddHostedService<KubePolling>();
         services.AddSingleton<IKubeResources, KubeResources>();
 
-        //if()
         return services;
     }
 }
@@ -42,7 +42,7 @@ public class KubePolling(IKubeResources resources) : BackgroundService
 
 public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvider) : IKubeResources
 {
-    public double AverageCpuLoad { get; private set; } = 50;
+    public double AverageCpuLoad { get; private set; } = 10;
 
     public async ValueTask FetchAsync()
         => AverageCpuLoad = await GetAvgCpu();
@@ -50,7 +50,7 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
     private async Task<double> GetAvgCpu()
     {
         if (!env.IsProduction())
-            return 50;
+            return 10;
         await using var
             scope = serviceProvider.CreateAsyncScope();
         var client    = scope.ServiceProvider.GetRequiredService<IKubernetes>();
@@ -59,10 +59,23 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
 
         var totalCpu = metrics.Items
            .Select(node => node.Usage["cpu"])
-           .Select(cpuUsageStr => int.Parse((string)cpuUsageStr.Value.Replace("m", "")))
-           .Aggregate<int, double>(0, (current, cpuUsage) => current + cpuUsage);
+           .Select(cpuUsageStr => ParseCpuUsage(cpuUsageStr.Value))
+           .Aggregate<double, double>(0, (current, cpuUsage) => current + cpuUsage);
 
         return totalCpu / nodeCount;
+    }
+
+    static double ParseCpuUsage(string cpuUsageStr)
+    {
+        if (cpuUsageStr.EndsWith("n"))
+        {
+            var nanoCores = double.Parse(cpuUsageStr.Replace("n", ""), CultureInfo.InvariantCulture);
+            return nanoCores / 1_000_000;
+        }
+        if (cpuUsageStr.EndsWith("m"))
+            return double.Parse(cpuUsageStr.Replace("m", ""), CultureInfo.InvariantCulture);
+        var cores = double.Parse(cpuUsageStr, CultureInfo.InvariantCulture);
+        return cores * 1000;
     }
 }
 
