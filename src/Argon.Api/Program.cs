@@ -24,7 +24,7 @@ builder.AddRedisClient("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-if (builder.Environment.IsProduction())
+if (!builder.Environment.IsProduction())
 {
     builder.AddJwt();
     builder.Services.AddControllers().AddNewtonsoftJson();
@@ -47,7 +47,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
 var app = builder.Build();
 
-if (builder.Environment.IsProduction())
+if (!builder.Environment.IsProduction())
 {
     app.UseWebSockets();
     app.MapRpcWebSocketServer();
