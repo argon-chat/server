@@ -3,15 +3,13 @@ namespace Argon.Api.Grains.Interfaces;
 using Contracts;
 
 [Alias("Argon.Api.Grains.Interfaces.IAuthorizationGrain")]
-public interface IAuthorizationGrain : IGrainWithStringKey
+public interface IAuthorizationGrain : IGrainWithGuidKey
 {
     [Alias("Authorize")]
     Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
     [Alias("Register")]
     Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
-
-    public const string DefaultId = "auth";
 }
 
 [Alias("Argon.Api.Grains.Interfaces.IUserMachineSessions")]

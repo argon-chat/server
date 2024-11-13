@@ -24,7 +24,7 @@ public class AuthorizationController(IGrainFactory grainFactory) : ControllerBas
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
         var result = await grainFactory
-           .GetGrain<IAuthorizationGrain>(IAuthorizationGrain.DefaultId)
+           .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Authorize(input, connInfo);
         return Ok(result);
     }
@@ -45,7 +45,7 @@ public class AuthorizationController(IGrainFactory grainFactory) : ControllerBas
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
         var result = await grainFactory
-           .GetGrain<IAuthorizationGrain>(IAuthorizationGrain.DefaultId)
+           .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
         return Ok(result);
     }
