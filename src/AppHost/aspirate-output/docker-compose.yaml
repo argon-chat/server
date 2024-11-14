@@ -1,0 +1,145 @@
+services:
+  aspire-dashboard:
+    container_name: "aspire-dashboard"
+    image: "mcr.microsoft.com/dotnet/aspire-dashboard:8.0"
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+    - target: 18888
+      published: 18888
+    restart: unless-stopped
+  cache:
+    container_name: "cache"
+    image: "docker.io/eqalpha/keydb:latest"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "cache"
+    volumes:
+    - "apphost-feed4158f1-cache-data:/data"
+    ports:
+    - target: 6379
+      published: 6379
+    command:
+    - "--save"
+    - "60"
+    - "1"
+    restart: unless-stopped
+  nats:
+    container_name: "nats"
+    image: "docker.io/library/nats:2.10"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "nats"
+    volumes:
+    - "apphost-feed4158f1-nats-data:/var/lib/nats"
+    ports:
+    - target: 4222
+      published: 4222
+    command:
+    - "-sd"
+    - "/var/lib/nats"
+    - "-js"
+    restart: unless-stopped
+  pg:
+    container_name: "pg"
+    image: "docker.io/library/postgres:17.0"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "pg"
+    volumes:
+    - "apphost-feed4158f1-pg-data:/var/lib/postgresql/data"
+    ports:
+    - target: 5432
+      published: 5432
+    restart: unless-stopped
+  clickhouse:
+    container_name: "clickhouse"
+    image: "clickhouse/clickhouse-server:latest"
+    environment:
+      CLICKHOUSE_USER: "postgres"
+      CLICKHOUSE_PASSWORD: "postgres"
+      CLICKHOUSE_DB: "postgres"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "clickhouse"
+    volumes:
+    - "clickhouse-data:/var/lib/clickhouse"
+    - "logs:/var/log/clickhouse-server"
+    ports:
+    - target: 8123
+      published: 8123
+    - target: 9000
+      published: 9000
+    restart: unless-stopped
+  smtpdev:
+    container_name: "smtpdev"
+    image: "rnwood/smtp4dev:latest"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "smtpdev"
+    ports:
+    - target: 80
+      published: 3080
+    - target: 25
+      published: 2525
+    restart: unless-stopped
+#  argon-api:
+#    container_name: "argon-api"
+#    image: "argon-api:latest"
+#    environment:
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+#      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+#      HTTP_PORTS: "8080"
+#      ConnectionStrings__DefaultConnection: "Host=pg;Port=5432;Username=postgres;Password=postgres;Database=apiDb"
+#      ConnectionStrings__cache: "cache:6379"
+#      ConnectionStrings__clickhouse: "http://postgres:postgres@clickhouse:8123"
+#      ConnectionStrings__nats: "nats://nats:4222"
+#      sfu__url: "https://nonexistant.com"
+#      sfu__clientId: "anon"
+#      sfu__clientSecret: "d62d6ac2e492a53373b8d0f3293161bb18314332aa6fb81f363f154be49e0126d5092d20eaf2772b31995a00b6cbfcdace5ce1ea9cca5dded477cf0e63c64bab90ed6dc05fa2483085ccc858919200a9f578ffe7bda48867cc69e96a684216e631271f56e25f49fb3c11310a1b95b7927ae1bade964e28d6c53740d0cfb0543e"
+#      Jwt__Issuer: "Argon"
+#      Jwt__Audience: "Argon"
+#      Smtp__Host: "localhost"
+#      Smtp__Port: "2525"
+#      Smtp__User: "noreply@argon.gl"
+#      Smtp__Password: "Placeholder"
+#      Jwt__Key: "5d456e57b6fad40e2d171ffdb4535116596c3b543bf8cfafe6369845cf86a801"
+#      Jwt__Expire: "228"
+#      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+#      OTEL_SERVICE_NAME: "argon-api"
+#    ports:
+#    - target: 8080
+#      published: 10000
+#    - target: 8443
+#      published: 10001
+#    restart: unless-stopped
+#  argon-entry:
+#    container_name: "argon-entry"
+#    image: "argon-entry:latest"
+#    environment:
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
+#      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
+#      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+#      HTTP_PORTS: "8080"
+#      services__argon-api__http__0: "http://argon-api:8080"
+#      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+#      OTEL_SERVICE_NAME: "argon-entry"
+#    ports:
+#    - target: 8080
+#      published: 10002
+#    - target: 8443
+#      published: 10003
+#    restart: unless-stopped
+volumes:
+  apphost-feed4158f1-cache-data: {}
+  apphost-feed4158f1-nats-data: {}
+  apphost-feed4158f1-pg-data: {}
+  clickhouse-data: {}
+  logs: {}
