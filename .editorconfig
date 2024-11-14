@@ -15,6 +15,14 @@ ij_smart_tabs = false
 ij_visual_guides = 
 ij_wrap_on_typing = false
 
+[*.{csproj}]
+charset = utf-8-bom
+indent_style = space
+indent_size = 4
+tab_width = 4
+xml_space_after_last_attribute = false
+xml_space_before_self_closing = false
+
 # Microsoft .NET properties
 csharp_preferred_modifier_order = public, required, protected, internal, file, new, private, abstract, virtual, async, sealed, override, extern, unsafe, volatile, static, readonly:suggestion
 csharp_style_expression_bodied_accessors = true:suggestion
