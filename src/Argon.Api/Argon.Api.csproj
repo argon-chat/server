@@ -10,7 +10,7 @@
 
     <ItemGroup>
         <PackageReference Include="AutoMapper" Version="13.0.1"/>
-        <PackageReference Include="Aspire.StackExchange.Redis" Version="8.2.2"/>
+        <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
         <PackageReference Include="MemoryPack" Version="1.21.3"/>

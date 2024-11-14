@@ -35,6 +35,6 @@ var api = builder.AddProject<Argon_Api>("argon-api").WithReference(apiDb, "Defau
    .WithEnvironment("Smtp__Password", smtpPassword).WithEnvironment("Jwt__Key", jwtKey).WithEnvironment("Jwt__Expire", "228")
    .WithExternalHttpEndpoints();
 
-builder.AddProject<Projects.Argon_Entry>("argon-entry");
+builder.AddProject<Argon_Entry>("argon-entry");
 
 builder.Build().Run();
