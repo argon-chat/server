@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Argon.Api\Argon.Api.csproj"/>
+        <ProjectReference Include="..\Argon.Entry\Argon.Entry.csproj"/>
     </ItemGroup>
 
     <ItemGroup>
