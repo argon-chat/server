@@ -4,6 +4,7 @@ using Contracts;
 using global::Orleans.Clustering.Kubernetes;
 using global::Orleans.Configuration;
 using global::Orleans.Serialization;
+using OrleansStreamingProviders;
 
 public static class OrleansExtension
 {
@@ -29,7 +30,8 @@ public static class OrleansExtension
                     options.Invariant              = "Npgsql";
                     options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-                }).AddActivationRepartitioner<BalanceRule>().AddStreaming().AddMemoryStreams("default").AddMemoryStreams(IArgonEvent.ProviderId)
+                }).AddActivationRepartitioner<BalanceRule>().AddStreaming().AddPersistentStreams("default", NatsAdapterFactory.Create, config => { })
+               .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, config => { })
             #pragma warning restore ORLEANSEXP001
                .AddMemoryGrainStorage("CacheStorage").UseDashboard(o => o.Port = 22832);
             if (builder.Environment.IsDevelopment())
