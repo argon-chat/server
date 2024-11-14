@@ -11,7 +11,7 @@ public static class OrleansExtension
     {
         builder.Services.AddSerializer(x =>
         {
-            SerializationHostingExtensions.AddMemoryPackSerializer(x);
+            x.AddMemoryPackSerializer();
         });
         builder.Host.UseOrleans(siloBuilder =>
         {
