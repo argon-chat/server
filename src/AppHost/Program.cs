@@ -14,7 +14,7 @@ var smtpPort        = builder.AddParameter("smtp-port", true);
 var smtpUser        = builder.AddParameter("smtp-user", true);
 var smtpPassword    = builder.AddParameter("smtp-password", true);
 var cache           = builder.AddRedis("cache", 6379);
-var nats            = builder.AddNats("nats").WithDataVolume().WithJetStream();
+var nats            = builder.AddNats("nats", 4222).WithDataVolume().WithJetStream();
 var db              = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
 
 var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);

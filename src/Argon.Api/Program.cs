@@ -21,21 +21,20 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-builder.AddRabbitMQClient("rmq");
+builder.AddNatsClient("nats");
+builder.AddNatsJetStream();
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 if (!builder.Environment.IsProduction())
 {
     builder.AddJwt();
     builder.Services.AddControllers().AddNewtonsoftJson();
-    builder.Services.AddFusion(RpcServiceMode.Server, true)
-       .Rpc.AddWebSocketServer(true).Rpc
-       .AddServer<IUserInteraction, UserInteraction>()
-       .AddServer<IServerInteraction, ServerInteraction>()
-       .AddServer<IEventBus, EventBusService>();
+    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc.AddWebSocketServer(true).Rpc.AddServer<IUserInteraction, UserInteraction>()
+       .AddServer<IServerInteraction, ServerInteraction>().AddServer<IEventBus, EventBusService>();
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
 }
+
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddSingleton<IFusionContext, FusionContext>();
