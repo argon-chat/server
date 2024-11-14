@@ -50,12 +50,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="GitVersion.MsBuild" Version="5.12">
             <PrivateAssets>All</PrivateAssets>
         </PackageReference>
@@ -65,5 +59,11 @@
         <None Update="Resources\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 </Project>

@@ -13,7 +13,7 @@ var smtpHost        = builder.AddParameter("smtp-host", true);
 var smtpPort        = builder.AddParameter("smtp-port", true);
 var smtpUser        = builder.AddParameter("smtp-user", true);
 var smtpPassword    = builder.AddParameter("smtp-password", true);
-var cache           = builder.AddRedis("cache", 6379);
+var cache           = builder.AddRedis("cache", 6379).WithImage("eqalpha/keydb").WithDataVolume();
 var nats            = builder.AddNats("nats", 4222).WithDataVolume().WithJetStream();
 var db              = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
 
@@ -35,6 +35,6 @@ var api = builder.AddProject<Argon_Api>("argon-api").WithReference(apiDb, "Defau
    .WithEnvironment("Smtp__Password", smtpPassword).WithEnvironment("Jwt__Key", jwtKey).WithEnvironment("Jwt__Expire", "228")
    .WithExternalHttpEndpoints().WaitFor(cache).WaitFor(apiDb).WaitFor(clickhouse).WaitFor(nats);
 
-builder.AddProject<Argon_Entry>("argon-entry");
+builder.AddProject<Argon_Entry>("argon-entry").WithReference(api).WaitFor(api);
 
 builder.Build().Run();
