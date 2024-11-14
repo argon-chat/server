@@ -1,0 +1,63 @@
+{
+  "projectPath": ".",
+  "outputPath": "aspirate-output",
+  "containerImageTags": [
+    "latest"
+  ],
+  "containerBuilder": "docker",
+  "outputFormat": "compose",
+  "privateRegistryEmail": "aspir8@aka.ms",
+  "includeDashboard": true,
+  "secrets": {
+    "salt": "vI/FmQe\u002BjdvLfWWO",
+    "hash": "UBDcoexBxQO1xZzEW5AvIRSrULbVLs/qy7v4Pf9V/nA=",
+    "secrets": {
+      "username": {
+        "value": "vI/FmQe\u002BjdvLfWWOzcdqbnz4hLMiOVMPqiHj9PswWRLnZWZh"
+      },
+      "password": {
+        "value": "vI/FmQe\u002BjdvLfWWOzcdqbnz4hLMiOVMPqiHj9PswWRLnZWZh"
+      },
+      "sfu-url": {
+        "value": "vI/FmQe\u002BjdvLfWWOGqtO2vZZpfuiek5hGy3LbOMrXhbzLSw9cXbjPyvyvO2LIhlA4FbX"
+      },
+      "sfu-client-id": {
+        "value": "vI/FmQe\u002BjdvLfWWOPbTr8PWw0f0NYBUpvyGC/eoxRQg="
+      },
+      "sfu-client-secret": {
+        "value": "vI/FmQe\u002BjdvLfWWOoVXpCEW/tzbAwkH2z0KHp\u002B9pGAK2dmAgei20aDKu/Krdfw9W5wnctHQ6uO2fEqyyxSLh0f6SYT\u002BI43HubTS9GqT4VUBZgLL8P0ifr3LOMrlEJ/mKfXPWaT5bAW9lFI9T4odjNdeyDRYfFs23UOUZbR0diQm9CebYZE2hTu8nJvM2BMuOO5qswytxPA3JHlRrgZLDGFca0agHr/4lYqj5bqnu088rOo2OSejyeQosZjfkMuK2Im8JQ/U3TWW9AFBa\u002BnVKbm2872CneX2U1l7fzJhuRrFR/p9zwcaFmKUA5TJol9jbKIqK\u002BIeey0pBjKkmZs35TiBDUyY65ydUb5eHDznI7JIZJl4HG8QODFgph4I="
+      },
+      "jwt-key": {
+        "value": "vI/FmQe\u002BjdvLfWWOokDbo3CieKeHmvl7tthr\u002Br47HlO2cjYlfS/rOzev//zYKFxZsl/c4yQ3vu\u002BcEv/mwSPkg/nDZzna4CGwbGrtGvL4VRBRjbKrORqe/CPHML4="
+      },
+      "smtp-host": {
+        "value": "vI/FmQe\u002BjdvLfWWOPCUiVlxS1Hqz4irZhHr0DecwSQfsf2xhaw=="
+      },
+      "smtp-port": {
+        "value": "vI/FmQe\u002BjdvLfWWOXCnATIh\u002BUdbZnkYHtVLmmblqGFM="
+      },
+      "smtp-user": {
+        "value": "vI/FmQe\u002BjdvLfWWOwRQU2idEfggMlRKzOLzbyeUwWAPwe3pSfmvqNT21qPU="
+      },
+      "smtp-password": {
+        "value": "vI/FmQe\u002BjdvLfWWOSzIN\u002BU526Uihw7nQ\u002BnZsA9szSwXlf2x\u002Be3z/"
+      },
+      "cache": {},
+      "nats": {},
+      "pg": {
+        "POSTGRES_PASSWORD": "vI/FmQe\u002BjdvLfWWOzcdqbnz4hLMiOVMPqiHj9PswWRLnZWZh"
+      },
+      "clickhouse": {},
+      "smtpdev": {},
+      "apiDb": {},
+      "argon-api": {
+        "ConnectionStrings__DefaultConnection": "vI/FmQe\u002BjdvLfWWOhtVwhYfRO0h/rt4e7s1MKMMwWRK9Z2QpT3b/Lm6u\u002B6rYdzgd5kvU5itmtqzGULq3hn\u002Bh25rAIX6e7TXsMnzjD\u002BOpFEMbjsL/Lh3EqzGaPe5Qe43R",
+        "ConnectionStrings__cache": "vI/FmQe\u002BjdvLfWWOUi82BRxkY2Fh4uz4vvxe/\u002Bg\u002BSQ7lLTUhKCA=",
+        "ConnectionStrings__clickhouse": "vI/FmQe\u002BjdvLfWWO2XnRO\u002BuuOr68QvFeVHrDSeMrXha6OCxicGr5PSH\u002BvKOaIx4a5Evf9AZg57XKSKa/gWm32vKQYD4=",
+        "ConnectionStrings__nats": "vI/FmQe\u002BjdvLfWWOcp\u002Bx\u002BDnjLhHSI/\u002B5EfsTD\u002BU\u002BXhW6OCx8fm3\u002BYGep/as="
+      },
+      "argon-entry": {}
+    }
+  },
+  "processAllComponents": true
+}
