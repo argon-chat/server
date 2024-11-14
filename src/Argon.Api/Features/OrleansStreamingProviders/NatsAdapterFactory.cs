@@ -163,6 +163,7 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         {
             if (eventData is null) continue;
             var subject = $"{IArgonEvent.ProviderId}/{streamId}";
+            logger.LogCritical("IM PUSHIIIIIIIING AAAAHHH ONI CHAAAAN");
             await connection.PublishAsync(subject, eventData);
         }
     }

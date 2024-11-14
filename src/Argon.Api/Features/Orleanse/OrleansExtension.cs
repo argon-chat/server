@@ -27,7 +27,8 @@ public static class OrleansExtension
                     options.Invariant              = "Npgsql";
                     options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-                }).AddActivationRepartitioner<BalanceRule>().AddStreaming().AddMemoryStreams("default")
+                }).AddActivationRepartitioner<BalanceRule>().AddStreaming()
+               .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
                .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { }).UseDashboard(o => o.Port = 22832);
         #pragma warning restore ORLEANSEXP001
 
