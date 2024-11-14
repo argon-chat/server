@@ -1,4 +1,4 @@
-namespace Argon.Sfu;
+namespace Argon.Api.Features.Sfu;
 
 using System.IdentityModel.Tokens.Jwt;
 using Flurl.Http;

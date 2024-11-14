@@ -1,6 +1,7 @@
-namespace ActualLab.Rpc.Server;
+namespace Argon.Api.Features.Rpc.Server;
 
-using DependencyInjection;
+using ActualLab.DependencyInjection;
+using ActualLab.Rpc;
 
 public readonly struct RpcWebSocketServerBuilder
 {

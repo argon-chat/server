@@ -2,6 +2,7 @@ namespace Argon.Api.Features.Jwt;
 
 using System.IdentityModel.Tokens.Jwt;
 using Contracts;
+using Contracts.etc;
 using Microsoft.IdentityModel.Tokens;
 
 public class TokenAuthorization(TokenValidationParameters tokenValidation)

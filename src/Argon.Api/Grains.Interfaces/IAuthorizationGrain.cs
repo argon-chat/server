@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains.Interfaces;
 
 using Contracts;
+using Contracts.etc;
 
 [Alias("Argon.Api.Grains.Interfaces.IAuthorizationGrain")]
 public interface IAuthorizationGrain : IGrainWithStringKey

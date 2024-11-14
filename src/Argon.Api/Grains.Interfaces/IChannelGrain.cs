@@ -1,8 +1,9 @@
 namespace Argon.Api.Grains.Interfaces;
 
 using Contracts;
+using Contracts.etc;
 using Entities;
-using Sfu;
+using RealtimeToken = Features.Sfu.RealtimeToken;
 
 public interface IChannelGrain : IGrainWithGuidKey
 {

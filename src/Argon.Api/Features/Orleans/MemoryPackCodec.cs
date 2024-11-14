@@ -1,15 +1,16 @@
-namespace Orleans.Serialization;
+namespace Argon.Api.Features.Orleans;
 
 using System.Collections.Concurrent;
 using System.Reflection;
-using Buffers;
-using Buffers.Adaptors;
-using Cloning;
-using Codecs;
+using global::Orleans.Serialization;
+using global::Orleans.Serialization.Buffers;
+using global::Orleans.Serialization.Buffers.Adaptors;
+using global::Orleans.Serialization.Cloning;
+using global::Orleans.Serialization.Codecs;
+using global::Orleans.Serialization.Serializers;
+using global::Orleans.Serialization.Utilities.Internal;
+using global::Orleans.Serialization.WireProtocol;
 using Microsoft.Extensions.Options;
-using Serializers;
-using Utilities.Internal;
-using WireProtocol;
 
 public static class SerializationHostingExtensions
 {

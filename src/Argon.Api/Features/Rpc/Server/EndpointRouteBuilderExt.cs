@@ -1,4 +1,4 @@
-namespace ActualLab.Rpc.Server;
+namespace Argon.Api.Features.Rpc.Server;
 
 public static class EndpointRouteBuilderExt
 {

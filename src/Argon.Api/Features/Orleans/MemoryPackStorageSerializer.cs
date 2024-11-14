@@ -1,9 +1,9 @@
-namespace Argon.Api.Features;
+namespace Argon.Api.Features.Orleans;
 
 using System.Runtime.CompilerServices;
+using global::Orleans.Storage;
+using global::Orleans.Streams;
 using Newtonsoft.Json;
-using Orleans.Storage;
-using Orleans.Streams;
 
 internal class MemoryPackStorageSerializer : IGrainStorageSerializer
 {

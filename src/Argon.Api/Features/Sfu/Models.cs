@@ -1,4 +1,4 @@
-namespace Argon.Sfu;
+namespace Argon.Api.Features.Sfu;
 
 using LiveKit.Proto;
 

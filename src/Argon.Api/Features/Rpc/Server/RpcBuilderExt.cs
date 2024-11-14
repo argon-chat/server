@@ -1,4 +1,6 @@
-namespace ActualLab.Rpc.Server;
+namespace Argon.Api.Features.Rpc.Server;
+
+using ActualLab.Rpc;
 
 public static class RpcBuilderExt
 {

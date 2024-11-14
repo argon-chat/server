@@ -2,13 +2,17 @@ namespace Argon.Api.Grains;
 
 using AutoMapper;
 using Contracts;
+using Contracts.etc;
 using Entities;
+using Features.Sfu;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Streams;
 using Persistence.States;
-using Sfu;
 using static ChannelUserChangedStateEvent;
+using ArgonChannelId = Features.Sfu.ArgonChannelId;
+using ArgonServerId = Features.Sfu.ArgonServerId;
+using RealtimeToken = Features.Sfu.RealtimeToken;
 
 public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,

@@ -1,10 +1,10 @@
-namespace Argon.Api.Extensions;
+namespace Argon.Api.Features.Orleans;
 
-using Features.OrleansStorageProviders;
+using Argon.Api.Features.OrleansStorageProviders;
+using global::Orleans.Configuration;
+using global::Orleans.Runtime.Hosting;
+using global::Orleans.Storage;
 using Microsoft.Extensions.Options;
-using Orleans.Configuration;
-using Orleans.Runtime.Hosting;
-using Orleans.Storage;
 
 public static class RedisExtensions
 {
@@ -19,6 +19,6 @@ public static class RedisExtensions
         services.AddTransient<
             IPostConfigureOptions<RedisGrainStorageOptions>, DefaultStorageProviderSerializerOptionsConfigurator<RedisGrainStorageOptions>>();
 
-        return services.AddGrainStorage(providerName, RedisGrainStorageFactory.Create);
+        return services.AddGrainStorage<IGrainStorage>(providerName, RedisGrainStorageFactory.Create);
     }
 }

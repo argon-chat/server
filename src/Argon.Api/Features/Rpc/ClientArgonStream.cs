@@ -3,7 +3,7 @@ namespace Argon.Api.Features.Rpc;
 using System.Threading.Channels;
 using ActualLab.Rpc;
 using Contracts;
-using Orleans.Streams;
+using global::Orleans.Streams;
 
 public interface IArgonStream<T> : IAsyncObserver<T>, IAsyncEnumerable<T>, IAsyncDisposable where T : IArgonEvent
 {

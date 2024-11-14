@@ -1,14 +1,16 @@
-namespace ActualLab.Rpc.Server;
+namespace Argon.Api.Features.Rpc.Server;
 
 using System.Net;
 using System.Net.WebSockets;
+using ActualLab;
+using ActualLab.Collections;
+using ActualLab.Rpc;
+using ActualLab.Rpc.Clients;
+using ActualLab.Rpc.Infrastructure;
+using ActualLab.Rpc.WebSockets;
+using ActualLab.Time;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Grains.Interfaces;
-using Clients;
-using Collections;
-using Infrastructure;
-using Time;
-using WebSockets;
 
 public class RpcWebSocketServer(
     RpcWebSocketServer.Options settings,

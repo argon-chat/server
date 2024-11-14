@@ -1,8 +1,8 @@
-namespace Argon.Api.Features;
+namespace Argon.Api.Features.Orleans;
 
 using System.Collections.Concurrent;
+using global::Orleans.Placement.Repartitioning;
 using k8s;
-using Orleans.Placement.Repartitioning;
 using static Math;
 using static SiloStatus;
 

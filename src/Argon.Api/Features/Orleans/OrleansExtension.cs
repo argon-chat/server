@@ -1,9 +1,9 @@
-namespace Argon.Api.Features;
+namespace Argon.Api.Features.Orleans;
 
 using Contracts;
-using Orleans.Clustering.Kubernetes;
-using Orleans.Configuration;
-using Orleans.Serialization;
+using global::Orleans.Clustering.Kubernetes;
+using global::Orleans.Configuration;
+using global::Orleans.Serialization;
 
 public static class OrleansExtension
 {
@@ -11,7 +11,7 @@ public static class OrleansExtension
     {
         builder.Services.AddSerializer(x =>
         {
-            x.AddMemoryPackSerializer();
+            SerializationHostingExtensions.AddMemoryPackSerializer(x);
         });
         builder.Host.UseOrleans(siloBuilder =>
         {

@@ -1,4 +1,4 @@
-namespace Argon;
+namespace Argon.Contracts;
 
 using Orleans;
 
