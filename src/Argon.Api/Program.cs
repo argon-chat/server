@@ -3,7 +3,6 @@ using ActualLab.Rpc;
 using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
-using Argon.Api.Features;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Orleans;
@@ -43,6 +42,7 @@ builder.AddEMailForms();
 builder.Services.AddKubeResources();
 builder.Services.AddDataProtection();
 builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
+builder.Services.AddHostedService<R1>();
 var app = builder.Build();
 app.UseSwagger();
 app.UseSwaggerUI();

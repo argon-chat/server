@@ -3,6 +3,7 @@ namespace Argon.Api.Controllers;
 #if DEBUG
 using Grains.Interfaces;
 using Microsoft.AspNetCore.Mvc;
+
 [ApiController, Route("api/[controller]")]
 public class TestController(IGrainFactory grainFactory) : ControllerBase
 {
@@ -39,6 +40,22 @@ public class TestController(IGrainFactory grainFactory) : ControllerBase
         var grain  = grainFactory.GetGrain<ITestGrain>(id);
         var result = await grain.GetSomeInput();
         return Ok(new Tuple<Guid, SomeInput>(id, result));
+    }
+
+    [HttpPost("produce")]
+    public async Task<IActionResult> Produce()
+    {
+        var grain = grainFactory.GetGrain<IStreamProducerGrain>(Guid.Empty);
+        await grain.Produce();
+        return Ok();
+    }
+
+    [HttpPost("consume")]
+    public async Task<IActionResult> Consume()
+    {
+        var grain = grainFactory.GetGrain<IStreamConsumerGrain>(Guid.Empty);
+        await grain.Consume();
+        return Ok();
     }
 }
 #endif

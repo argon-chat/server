@@ -1,0 +1,105 @@
+services:
+  aspire-dashboard:
+    container_name: "aspire-dashboard"
+    image: "mcr.microsoft.com/dotnet/aspire-dashboard:8.0"
+    environment:
+      DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS: "true"
+    ports:
+    - target: 18888
+      published: 18888
+    restart: unless-stopped
+  nats:
+    container_name: "nats"
+    image: "docker.io/library/nats:2.10"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "nats"
+    volumes:
+    - "apphost-nats-data:/var/lib/nats"
+    ports:
+    - target: 4222
+      published: 4222
+    command:
+    - "-js"
+    - "-sd"
+    - "/var/lib/nats"
+    restart: unless-stopped
+  cache:
+    container_name: "cache"
+    image: "docker.io/library/redis:7.4"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "cache"
+    ports:
+    - target: 6379
+      published: 6379
+    restart: unless-stopped
+  rmq:
+    container_name: "rmq"
+    image: "docker.io/library/rabbitmq:4.0-management"
+    environment:
+      RABBITMQ_DEFAULT_USER: "postgres"
+      RABBITMQ_DEFAULT_PASS: "postgres"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "rmq"
+    volumes:
+    - "apphost-rmq-data:/var/lib/rabbitmq"
+    ports:
+    - target: 5672
+      published: 5672
+    - target: 15672
+      published: 15672
+    restart: unless-stopped
+  pg:
+    container_name: "pg"
+    image: "docker.io/library/postgres:17.0"
+    environment:
+      POSTGRES_HOST_AUTH_METHOD: "scram-sha-256"
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=scram-sha-256"
+      POSTGRES_USER: "postgres"
+      POSTGRES_PASSWORD: "postgres"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "pg"
+    volumes:
+    - "apphost-pg-data:/var/lib/postgresql/data"
+    ports:
+    - target: 5432
+      published: 5432
+    restart: unless-stopped
+  clickhouse:
+    container_name: "clickhouse"
+    image: "clickhouse/clickhouse-server:latest"
+    environment:
+      CLICKHOUSE_USER: "postgres"
+      CLICKHOUSE_PASSWORD: "postgres"
+      CLICKHOUSE_DB: "postgres"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "clickhouse"
+    volumes:
+    - "clickhouse-data:/var/lib/clickhouse"
+    - "logs:/var/log/clickhouse-server"
+    ports:
+    - target: 8123
+      published: 8123
+    - target: 9000
+      published: 9000
+    restart: unless-stopped
+  smtpdev:
+    container_name: "smtpdev"
+    image: "rnwood/smtp4dev:latest"
+    environment:
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
+      OTEL_SERVICE_NAME: "smtpdev"
+    ports:
+    - target: 80
+      published: 3080
+    - target: 25
+      published: 2525
+    restart: unless-stopped
+volumes:
+  apphost-nats-data: {}
+  apphost-rmq-data: {}
+  apphost-pg-data: {}
+  clickhouse-data: {}
+  logs: {}

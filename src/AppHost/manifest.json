@@ -142,7 +142,7 @@
     "rmq": {
       "type": "container.v0",
       "connectionString": "amqp://{username.value}:{password.value}@{rmq.bindings.tcp.host}:{rmq.bindings.tcp.port}",
-      "image": "docker.io/library/rabbitmq:3.13-management",
+      "image": "docker.io/library/rabbitmq:4.0-management",
       "volumes": [
         {
           "name": "AppHost-rmq-data",
@@ -172,7 +172,7 @@
     "pg": {
       "type": "container.v0",
       "connectionString": "Host={pg.bindings.tcp.host};Port={pg.bindings.tcp.port};Username={username.value};Password={password.value}",
-      "image": "docker.io/library/postgres:16.4",
+      "image": "docker.io/library/postgres:17.0",
       "volumes": [
         {
           "name": "AppHost-pg-data",

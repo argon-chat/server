@@ -2,13 +2,16 @@ namespace Argon.Api.Features.OrleansStreamingProviders;
 
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Contracts;
 using global::Orleans.Configuration;
 using global::Orleans.Providers;
 using global::Orleans.Providers.Streams.Common;
 using global::Orleans.Providers.Streams.Generator;
 using global::Orleans.Serialization;
 using global::Orleans.Streams;
+using global::Orleans.Streams.Kafka.Core;
 using NATS.Client.Core;
+using Rpc;
 
 public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAdapterCache, IControllable
 {
@@ -20,12 +23,14 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private readonly IServiceProvider                                              serviceProvider;
     private readonly StreamStatisticOptions                                        statisticOptions;
     private          BlockPoolMonitorDimensions                                    blockPoolMonitorDimensions;
-    protected        Func<BlockPoolMonitorDimensions, IBlockPoolMonitor>           BlockPoolMonitorFactory;
-    private          IObjectPool<FixedSizeBuffer>                                  bufferPool;
-    protected        Func<CacheMonitorDimensions, ICacheMonitor>                   CacheMonitorFactory;
+    private          Func<BlockPoolMonitorDimensions, IBlockPoolMonitor>           BlockPoolMonitorFactory;
+    private          IObjectPool<FixedSizeBuffer>?                                 bufferPool;
+    private          Func<CacheMonitorDimensions, ICacheMonitor>                   CacheMonitorFactory;
     private          IStreamGeneratorConfig?                                       generatorConfig;
-    protected        Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
+    private          Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
     private          ConcurrentDictionary<QueueId, Receiver>                       receivers;
+    private          IStreamFailureHandler?                                        streamFailureHandler;
+    private          IStreamQueueMapper?                                           streamQueueMapper;
 
     public NatsAdapterFactory(string providerName, HashRingStreamQueueMapperOptions queueMapperOptions, StreamStatisticOptions statisticOptions,
         IServiceProvider serviceProvider, Serializer serializer, ILoggerFactory loggerFactory, INatsConnection connection)
@@ -43,13 +48,16 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
 
 #region Implementation of IControllable
 
-    public async Task<object> ExecuteCommand(int command, object arg) => throw new NotImplementedException();
+    public async Task<object> ExecuteCommand(int command, object arg)
+    {
+        ArgumentNullException.ThrowIfNull(arg);
+        generatorConfig = arg as IStreamGeneratorConfig;
+        if (generatorConfig == null) throw new ArgumentOutOfRangeException(nameof(arg), "Arg must by of type IStreamGeneratorConfig");
 
-#endregion
+        foreach (var receiver in receivers) SetGeneratorOnReceiver(receiver.Value);
 
-#region Implementation of IQueueAdapterCache
-
-    public IQueueCache CreateQueueCache(QueueId queueId) => throw new NotImplementedException();
+        return Task.FromResult<object>(true);
+    }
 
 #endregion
 
@@ -77,24 +85,14 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         }
     }
 
-    private void SetGeneratorOnReceiver(Receiver receiver)
-    {
-        if (generatorConfig == null) return;
-        var generator = (IStreamGenerator)(serviceProvider.GetService(generatorConfig.StreamGeneratorType) ??
-                                           Activator.CreateInstance(generatorConfig.StreamGeneratorType))!;
-        if (generator == null) throw new OrleansException($"StreamGenerator type not supported: {generatorConfig.StreamGeneratorType}");
-        generator.Configure(serviceProvider, generatorConfig);
-        receiver.QueueGenerator = generator;
-    }
-
-    private class Receiver(IQueueAdapterReceiverMonitor receiverMonitor) : IQueueAdapterReceiver
+    private class Receiver(IQueueAdapterReceiverMonitor receiverMonitor, INatsConnection connection) : IQueueAdapterReceiver
     {
         private const int              MaxDelayMs = 20;
         public        IStreamGenerator QueueGenerator { private get; set; }
 
         public Task Initialize(TimeSpan timeout)
         {
-            receiverMonitor?.TrackInitialization(true, TimeSpan.MinValue, null);
+            receiverMonitor.TrackInitialization(true, TimeSpan.MinValue, null);
             return Task.CompletedTask;
         }
 
@@ -104,8 +102,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             await Task.Delay(Random.Shared.Next(1, MaxDelayMs));
             if (!QueueGenerator.TryReadEvents(DateTime.UtcNow, maxCount, out List<IBatchContainer> batches)) return new List<IBatchContainer>();
             watch.Stop();
-            receiverMonitor?.TrackRead(true, watch.Elapsed, null);
-            if (batches.Count <= 0) return batches;
+            receiverMonitor.TrackRead(true, watch.Elapsed, null);
+            if (batches.Count == 0) return batches;
             var oldestMessage = batches[0] as GeneratedBatchContainer;
             var newestMessage = batches[^1] as GeneratedBatchContainer;
             receiverMonitor?.TrackMessagesReceived(batches.Count, oldestMessage?.EnqueueTimeUtc, newestMessage?.EnqueueTimeUtc);
@@ -121,38 +119,87 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         }
     }
 
-#region Implementation of IQueueAdapterFactory
+#region Implementation of IQueueAdapterCache
 
-    public async Task<IQueueAdapter> CreateAdapter()
+    public IQueueCache CreateQueueCache(QueueId queueId)
     {
-        
+        CreateBufferPoolIfNotCreatedYet();
+        var dimensions   = new CacheMonitorDimensions(queueId.ToString(), blockPoolMonitorDimensions.BlockPoolId);
+        var cacheMonitor = CacheMonitorFactory(dimensions);
+        return new GeneratorPooledCache(bufferPool, loggerFactory.CreateLogger($"{typeof(GeneratorPooledCache).FullName}.{Name}.{queueId}"),
+            serializer, cacheMonitor, statisticOptions.StatisticMonitorWriteInterval);
     }
 
-    public IQueueAdapterCache GetQueueAdapterCache() => throw new NotImplementedException();
+    private void CreateBufferPoolIfNotCreatedYet()
+    {
+        if (bufferPool != null) return;
+        blockPoolMonitorDimensions = new BlockPoolMonitorDimensions($"BlockPool-{Guid.NewGuid()}");
+        var oneMb             = 1 << 20;
+        var objectPoolMonitor = new ObjectPoolMonitorBridge(BlockPoolMonitorFactory(blockPoolMonitorDimensions), oneMb);
+        bufferPool = new ObjectPool<FixedSizeBuffer>(() => new FixedSizeBuffer(oneMb), objectPoolMonitor,
+            statisticOptions.StatisticMonitorWriteInterval);
+    }
 
-    public IStreamQueueMapper GetStreamQueueMapper() => throw new NotImplementedException();
+#endregion
 
-    public async Task<IStreamFailureHandler> GetDeliveryFailureHandler(QueueId queueId) => throw new NotImplementedException();
+#region Implementation of IQueueAdapterFactory
+
+    public Task<IQueueAdapter> CreateAdapter()        => Task.FromResult<IQueueAdapter>(this);
+    public IQueueAdapterCache  GetQueueAdapterCache() => this;
+
+    public IStreamQueueMapper GetStreamQueueMapper() =>
+        streamQueueMapper ??= new HashRingBasedStreamQueueMapper(queueMapperOptions, Name);
+
+
+    public Task<IStreamFailureHandler> GetDeliveryFailureHandler(QueueId queueId) =>
+        Task.FromResult(streamFailureHandler ??= new NoOpStreamDeliveryFailureHandler());
 
 #endregion
 
 #region Implementation of IQueueAdapter
 
     public async Task QueueMessageBatchAsync<T>(StreamId streamId, IEnumerable<T> events, StreamSequenceToken token,
-        Dictionary<string, object> requestContext) => throw new NotImplementedException();
+        Dictionary<string, object> requestContext)
+    {
+        foreach (var eventData in events)
+        {
+            if (eventData is null) continue;
+            var subject = $"{IArgonEvent.ProviderId}/{streamId}";
+            await connection.PublishAsync(subject, eventData);
+        }
+    }
 
     public IQueueAdapterReceiver CreateReceiver(QueueId queueId)
     {
+        // var client            = serviceProvider.GetRequiredService<IClusterClient>();
+        // var guid              = Guid.Parse("d97e7fb1-e2f6-4803-b66c-965bc5d1d099");
+        // var clientArgonStream = new ClientArgonStream<long>();
+        // var provider          = client.GetStreamProvider(IArgonEvent.ProviderId);
+        // var stream            = provider.GetStream<long>(StreamId.Create(IArgonEvent.Namespace, guid));
+        // var bound             = clientArgonStream.BindClient(stream).Result;
+
+        // foreach (var argonEvent in bound.AsRpcStream()) logger.LogCritical(argonEvent.ToString());
         if (!receivers.TryGetValue(queueId, out var receiver))
         {
             var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
             var receiverMonitor = ReceiverMonitorFactory(dimensions);
-            receiver = receivers.GetOrAdd(queueId, new Receiver(receiverMonitor));
+            receiver = receivers.GetOrAdd(queueId, new Receiver(receiverMonitor, connection));
         }
 
         SetGeneratorOnReceiver(receiver);
         return receiver;
     }
+
+    private void SetGeneratorOnReceiver(Receiver receiver)
+    {
+        if (generatorConfig == null) return;
+        var generator = (IStreamGenerator)(serviceProvider.GetService(generatorConfig.StreamGeneratorType) ??
+                                           Activator.CreateInstance(generatorConfig.StreamGeneratorType))!;
+        if (generator == null) throw new OrleansException($"StreamGenerator type not supported: {generatorConfig.StreamGeneratorType}");
+        generator.Configure(serviceProvider, generatorConfig);
+        receiver.QueueGenerator = generator;
+    }
+
 
     public string                  Name         { get; }
     public bool                    IsRewindable => false;

@@ -37,6 +37,7 @@
         <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
         <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0"/>
+        <PackageReference Include="Orleans.Streams.Kafkav2" Version="2.0.0"/>
         <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
         <PackageReference Include="Otp.NET" Version="1.4.0"/>
         <PackageReference Include="R3" Version="1.2.9"/>

@@ -5,7 +5,7 @@ using ActualLab.Rpc;
 using Contracts;
 using global::Orleans.Streams;
 
-public interface IArgonStream<T> : IAsyncObserver<T>, IAsyncEnumerable<T>, IAsyncDisposable where T : IArgonEvent
+public interface IArgonStream<T> : IAsyncObserver<T>, IAsyncEnumerable<T>, IAsyncDisposable
 {
     public RpcStream<T> AsRpcStream() => new(this);
     ValueTask           Fire(T ev);
@@ -41,7 +41,7 @@ public readonly struct StreamForClusterClientExtension(IClusterClient? client) :
            .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, primary)));
 }
 
-public sealed class ClientArgonStream<T> : IArgonStream<T> where T : IArgonEvent
+public sealed class ClientArgonStream<T> : IArgonStream<T>
 {
     private StreamSubscriptionHandle<T> clientHandler { get; set; }
     private Channel<T>                  channel       { get; } = Channel.CreateUnbounded<T>();

@@ -1,68 +1,56 @@
 {
   "projectPath": ".",
   "outputPath": "aspirate-output",
-  "namespace": "argon",
   "containerImageTags": [
     "latest"
   ],
-  "imagePullPolicy": "IfNotPresent",
   "containerBuilder": "docker",
-  "outputFormat": "kustomize",
-  "skipFinalKustomizeGeneration": false,
+  "outputFormat": "compose",
   "privateRegistryEmail": "aspir8@aka.ms",
   "includeDashboard": true,
-  "useCustomNamespace": true,
   "secrets": {
-    "salt": "sG\u002BH/dOohr14R8U7",
-    "hash": "TpxtfFkUXHmeR0y2GOFyFKjvXzVeww3gOrCbz3fM2PA=",
+    "salt": "AntZ\u002Bk\u002BOv0HjTcHs",
+    "hash": "JqBRjrcD8hmhTjSbMWQ7oOwsoqzo6zPxUANJgimWxHA=",
     "secrets": {
       "username": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsdj8SaYazrO6xn/M4fw2Vl2fPIX\u002B92aak"
       },
       "password": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsdj8SaYazrO6xn/M4fw2Vl2fPIX\u002B92aak"
       },
       "sfu-url": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "sfu-client-id": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "sfu-client-secret": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "jwt-key": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "smtp-host": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "smtp-port": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "smtp-user": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "smtp-password": {
-        "value": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "value": "AntZ\u002Bk\u002BOv0HjTcHsbFr1S/QSSiaxLCTKo\u002Bll8GfPKn6j"
       },
       "nats": {},
       "cache": {},
       "rmq": {},
       "pg": {
-        "POSTGRES_PASSWORD": "sG\u002BH/dOohr14R8U72yyTQTPa1AoOjcFpx7ejN4zOuZdt"
+        "POSTGRES_PASSWORD": "AntZ\u002Bk\u002BOv0HjTcHsdj8SaYazrO6xn/M4fw2Vl2fPIX\u002B92aak"
       },
       "clickhouse": {},
       "smtpdev": {},
-      "apiDb": {},
-      "argon-api": {
-        "ConnectionStrings__DefaultConnection": "sG\u002BH/dOohr14R8U7oIJtgRVpmPSUZRw4501KcrTOspYpPVvkxMsLpijXDUE/qQT/eqgO3kCWO3Pu/b3lvaGG5Jx6U82j\u002B/ZUpddxf0uIah\u002BAlbxKg9XfRWqr",
-        "ConnectionStrings__cache": "sG\u002BH/dOohr14R8U7evQO6AjfAnNXCJGitGGdCJ/Aoopxdwrso50=",
-        "ConnectionStrings__clickhouse": "sG\u002BH/dOohr14R8U7DQxeR89HDCkBegrYxQ0V85TVtZIuYhOv\u002B9wMqy\u002BSVgp46xHvc7MD1EWcc3Dkv/CttMI=",
-        "ConnectionStrings__rmq": "sG\u002BH/dOohr14R8U7Vaj8Vr\u002BJ/tMsZXwZoJm6\u002BJ3MsJIuYhOv\u002B9wMqy\u002BSVgp46xH\u002BcqtaihvENA==",
-        "ConnectionStrings__nats": "sG\u002BH/dOohr14R8U7GfrcgaFSig2brvPf6TOxtJLAtZEuYhOx9dAK6CHQC0A="
-      }
+      "apiDb": {}
     }
-  },
-  "processAllComponents": true
+  }
 }
