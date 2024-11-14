@@ -10,13 +10,19 @@ services:
     restart: unless-stopped
   cache:
     container_name: "cache"
-    image: "docker.io/library/redis:7.4"
+    image: "docker.io/eqalpha/keydb:latest"
     environment:
       OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
       OTEL_SERVICE_NAME: "cache"
+    volumes:
+    - "apphost-feed4158f1-cache-data:/data"
     ports:
     - target: 6379
       published: 6379
+    command:
+    - "--save"
+    - "60"
+    - "1"
     restart: unless-stopped
   nats:
     container_name: "nats"
@@ -122,6 +128,7 @@ services:
 #      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
 #      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
 #      HTTP_PORTS: "8080"
+#      services__argon-api__http__0: "http://argon-api:8080"
 #      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
 #      OTEL_SERVICE_NAME: "argon-entry"
 #    ports:
@@ -131,6 +138,7 @@ services:
 #      published: 10003
 #    restart: unless-stopped
 volumes:
+  apphost-feed4158f1-cache-data: {}
   apphost-feed4158f1-nats-data: {}
   apphost-feed4158f1-pg-data: {}
   clickhouse-data: {}
