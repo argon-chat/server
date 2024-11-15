@@ -1,5 +1,7 @@
 namespace Argon.Api.Features;
 
+using Argon.Api.Grains.Interfaces;
+#pragma warning disable ORLEANSEXP001
 using Contracts;
 using Env;
 using Extensions;
@@ -12,31 +14,36 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSerializer(x =>
-        {
-            x.AddMemoryPackSerializer();
-        });
+        builder.Services.AddSerializer(x => x.AddMemoryPackSerializer());
         builder.Host.UseOrleans(siloBuilder =>
         {
-        #pragma warning disable ORLEANSEXP001
-            siloBuilder.Configure<ClusterOptions>(cluster =>
+            siloBuilder
+                .Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+                .AddStreaming()
+                .UseDashboard(o => o.Port = 22832)
+                .AddActivityPropagation()
+                .AddAdoNetGrainStorage("OrleansStorage", options =>
                 {
-                    cluster.ClusterId = "argonchat";
-                    cluster.ServiceId = "argonchat";
-                }).AddRedisStorage("PubSubStore", options => options.DatabaseName = 1).AddAdoNetGrainStorage("OrleansStorage", options =>
-                {
-                    options.Invariant              = "Npgsql";
-                    options.ConnectionString       = builder.Configuration.GetConnectionString("DefaultConnection");
+                    options.Invariant = "Npgsql";
+                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                     options.GrainStorageSerializer = new MemoryPackStorageSerializer();
-                }).AddActivationRepartitioner<BalanceRule>().AddStreaming()
-               .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-               .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { }).UseDashboard(o => o.Port = 22832);
-        #pragma warning restore ORLEANSEXP001
+                });
 
             if (builder.Environment.IsKube())
-                siloBuilder.UseKubeMembership();
+                siloBuilder
+                    .UseKubeMembership()
+                    .AddActivationRepartitioner<BalanceRule>()
+                    .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+                    .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+                    .AddRedisStorage("PubSubStore", 1)
+                    .AddRedisStorage(IFusionSessionGrain.StorageId, 2);
             else
-                siloBuilder.UseLocalhostClustering();
+                siloBuilder
+                    .UseLocalhostClustering()
+                    .AddMemoryStreams("default")
+                    .AddMemoryStreams(IArgonEvent.ProviderId)
+                    .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
+                    .AddMemoryGrainStorage("PubSubStore");
         });
 
         return builder;

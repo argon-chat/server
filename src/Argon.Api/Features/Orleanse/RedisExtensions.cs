@@ -10,6 +10,8 @@ public static class RedisExtensions
 {
     public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, Action<RedisGrainStorageOptions> options) =>
         builder.ConfigureServices(services => services.AddRedisStorage(providerName, options));
+    public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, int indexDb) =>
+        builder.ConfigureServices(services => services.AddRedisStorage(providerName, options => options.DatabaseName = indexDb));
 
     public static IServiceCollection AddRedisStorage(this IServiceCollection services, string providerName,
         Action<RedisGrainStorageOptions> options)

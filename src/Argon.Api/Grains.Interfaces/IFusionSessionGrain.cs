@@ -22,4 +22,5 @@ public interface IFusionSessionGrain : IGrainWithGuidKey
 
     public const string StreamProviderId = "FusionSessionStream";
     public const string SelfNs = "@";
+    public const string StorageId = "CacheStorage";
 }
