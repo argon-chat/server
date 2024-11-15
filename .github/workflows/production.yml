@@ -4,15 +4,11 @@ on:
   push:
     branches: [ "master" ]
     paths:
-      - 'src/Argon.Api/**'
-      - 'src/Argon.Contracts/**'
-      - 'src/ServiceDefaults/**'
+      - 'src/**/**
   pull_request:
     branches: [ "master" ]
     paths:
-      - 'src/Argon.Api/**'
-      - 'src/Argon.Contracts/**'
-      - 'src/ServiceDefaults/**'
+      - 'src/**/**
   workflow_dispatch:
 
 jobs:
@@ -34,10 +30,17 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.ARGON_GHCR_PAT }}
-      - name: Build and push
+      - name: Build and push api
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
           tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
+      - name: Build and push contracts
+        uses: docker/build-push-action@v2
+        with:
+          context: .
+          file: ./src/Argon.Entry/Dockerfile
+          push: true
+          tags: ghcr.io/argon-chat/entry:${{ github.run_number }}
