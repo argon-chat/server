@@ -1,6 +1,7 @@
 namespace Argon.Api.Features;
 
 using Contracts;
+using Env;
 using Extensions;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
@@ -32,10 +33,10 @@ public static class OrleansExtension
                .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { }).UseDashboard(o => o.Port = 22832);
         #pragma warning restore ORLEANSEXP001
 
-            if (builder.Environment.IsDevelopment())
-                siloBuilder.UseLocalhostClustering();
-            else
+            if (builder.Environment.IsKube())
                 siloBuilder.UseKubeMembership();
+            else
+                siloBuilder.UseLocalhostClustering();
         });
 
         return builder;
