@@ -5,6 +5,7 @@ using Argon.Api;
 using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features;
+using Argon.Api.Features.Captcha;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Env;
 using Argon.Api.Features.Jwt;
@@ -43,6 +44,7 @@ builder.AddOtpCodes();
 builder.AddOrleans();
 builder.AddEMailForms();
 builder.AddKubeResources();
+builder.AddCaptchaFeature();
 builder.Services.AddDataProtection();
 builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
 var app = builder.Build();
