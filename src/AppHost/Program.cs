@@ -3,19 +3,19 @@ using Projects;
 
 var builder = DistributedApplication.CreateBuilder(args);
 
-var username = builder.AddParameter("username", true);
-var password = builder.AddParameter("password", true);
-var sfuUrl = builder.AddParameter("sfu-url", true);
-var sfuClientId = builder.AddParameter("sfu-client-id", true);
+var username        = builder.AddParameter("username", true);
+var password        = builder.AddParameter("password", true);
+var sfuUrl          = builder.AddParameter("sfu-url", true);
+var sfuClientId     = builder.AddParameter("sfu-client-id", true);
 var sfuClientSecret = builder.AddParameter("sfu-client-secret", true);
-var jwtKey = builder.AddParameter("jwt-key", true);
-var smtpHost = builder.AddParameter("smtp-host", true);
-var smtpPort = builder.AddParameter("smtp-port", true);
-var smtpUser = builder.AddParameter("smtp-user", true);
-var smtpPassword = builder.AddParameter("smtp-password", true);
-var cache = builder.AddRedis("cache", 6379);
-var rmq = builder.AddRabbitMQ("rmq", port: 5672, userName: username, password: password).WithDataVolume(isReadOnly: false).WithManagementPlugin();
-var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
+var jwtKey          = builder.AddParameter("jwt-key", true);
+var smtpHost        = builder.AddParameter("smtp-host", true);
+var smtpPort        = builder.AddParameter("smtp-port", true);
+var smtpUser        = builder.AddParameter("smtp-user", true);
+var smtpPassword    = builder.AddParameter("smtp-password", true);
+var cache           = builder.AddRedis("cache", 6379).WithImage("eqalpha/keydb").WithDataVolume();
+var nats            = builder.AddNats("nats", 4222).WithDataVolume().WithJetStream();
+var db              = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
 
 var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
 var clickhouse = builder.AddResource(clickhouseResource).WithImage("clickhouse/clickhouse-server")
@@ -29,12 +29,12 @@ builder.AddContainer("smtpdev", "rnwood/smtp4dev").WithEndpoint(3080, 80, "http"
 var apiDb = db.AddDatabase("apiDb");
 
 var api = builder.AddProject<Argon_Api>("argon-api").WithReference(apiDb, "DefaultConnection").WithReference(cache).WithReference(clickhouse)
-   .WithReference(rmq).WithEnvironment("sfu__url", sfuUrl).WithEnvironment("sfu__clientId", sfuClientId)
+   .WithReference(nats).WithEnvironment("sfu__url", sfuUrl).WithEnvironment("sfu__clientId", sfuClientId)
    .WithEnvironment("sfu__clientSecret", sfuClientSecret).WithEnvironment("Jwt__Issuer", "Argon").WithEnvironment("Jwt__Audience", "Argon")
    .WithEnvironment("Smtp__Host", smtpHost).WithEnvironment("Smtp__Port", smtpPort).WithEnvironment("Smtp__User", smtpUser)
    .WithEnvironment("Smtp__Password", smtpPassword).WithEnvironment("Jwt__Key", jwtKey).WithEnvironment("Jwt__Expire", "228")
-   .WithExternalHttpEndpoints();
+   .WithExternalHttpEndpoints().WaitFor(cache).WaitFor(apiDb).WaitFor(clickhouse).WaitFor(nats);
 
-builder.AddProject<Projects.Argon_Entry>("argon-entry");
+builder.AddProject<Argon_Entry>("argon-entry").WithReference(api).WaitFor(api);
 
 builder.Build().Run();

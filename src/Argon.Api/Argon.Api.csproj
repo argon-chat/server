@@ -10,7 +10,7 @@
 
     <ItemGroup>
         <PackageReference Include="AutoMapper" Version="13.0.1"/>
-        <PackageReference Include="Aspire.StackExchange.Redis" Version="8.2.2"/>
+        <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1"/>
         <PackageReference Include="MemoryPack" Version="1.21.3"/>
@@ -50,12 +50,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
-    </ItemGroup>
-
-    <ItemGroup>
         <PackageReference Include="GitVersion.MsBuild" Version="5.12">
             <PrivateAssets>All</PrivateAssets>
         </PackageReference>
@@ -65,5 +59,11 @@
         <None Update="Resources\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+    </ItemGroup>
+
+    <ItemGroup>
+        <Content Include="..\..\.dockerignore">
+            <Link>.dockerignore</Link>
+        </Content>
     </ItemGroup>
 </Project>
