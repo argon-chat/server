@@ -2,6 +2,7 @@ namespace Argon.Api.Features;
 
 using System.Collections.Concurrent;
 using System.Globalization;
+using Env;
 using k8s;
 using Orleans.Placement.Repartitioning;
 using static Math;
@@ -13,7 +14,7 @@ public static class KubeExtensions
     {
         var services = builder.Services;
 
-        if (builder.Environment.IsProduction())
+        if (builder.Environment.IsKube())
         {
             var config = KubernetesClientConfiguration.InClusterConfig();
             services.AddSingleton(config);
@@ -49,7 +50,7 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
 
     private async Task<double> GetAvgCpu()
     {
-        if (!env.IsProduction())
+        if (!env.IsManaged())
             return 10;
         await using var
             scope = serviceProvider.CreateAsyncScope();

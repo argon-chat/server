@@ -1,6 +1,7 @@
 namespace Argon.Api.Features;
 
 using Contracts;
+using Env;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
@@ -39,10 +40,10 @@ public static class OrleansExtension
             #pragma warning restore ORLEANSEXP001
                .AddMemoryGrainStorage("CacheStorage")
                .UseDashboard(o => o.Port = 22832);
-            if (builder.Environment.IsDevelopment())
-                siloBuilder.UseLocalhostClustering();
-            else
+            if (builder.Environment.IsKube())
                 siloBuilder.UseKubeMembership();
+            else
+                siloBuilder.UseLocalhostClustering();
         });
 
         return builder;

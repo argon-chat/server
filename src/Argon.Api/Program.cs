@@ -6,6 +6,7 @@ using Argon.Api.Entities;
 using Argon.Api.Extensions;
 using Argon.Api.Features;
 using Argon.Api.Features.EmailForms;
+using Argon.Api.Features.Env;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Otp;
 using Argon.Api.Grains.Interfaces;
@@ -24,7 +25,7 @@ builder.AddRedisClient("cache");
 builder.AddRabbitMQClient("rmq");
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-if (!builder.Environment.IsProduction())
+if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
     builder.Services.AddControllers().AddNewtonsoftJson();
@@ -47,7 +48,7 @@ builder.Services.AddDataProtection();
 builder.Services.AddAutoMapper(typeof(User).Assembly); // TODO
 var app = builder.Build();
 
-if (!builder.Environment.IsProduction())
+if (!builder.Environment.IsManaged())
 {
     app.UseWebSockets();
     app.MapRpcWebSocketServer();
