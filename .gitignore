@@ -7,3 +7,5 @@ riderModule.iml
 .vs/
 .DS_Store
 *.user
+
+src/Argon.Api/storage/
