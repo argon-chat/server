@@ -48,7 +48,6 @@ public class StreamProducerGrain : Grain, IStreamProducerGrain
     [Obsolete("Obsolete")]
     public Task Produce()
     {
-        // Pick a GUID for a chat room grain and chat room stream
         var guid           = Guid.Parse("d97e7fb1-e2f6-4803-b66c-965bc5d1d099");
         var streamProvider = this.GetStreamProvider(IArgonEvent.ProviderId);
         var streamId       = StreamId.Create(IArgonEvent.Namespace, guid);
@@ -67,7 +66,6 @@ public class StreamProducerGrain : Grain, IStreamProducerGrain
 #endregion
 }
 
-[ImplicitStreamSubscription("@")]
 public class StreamConsumerGrain(ILogger<StreamConsumerGrain> logger) : Grain, IStreamConsumerGrain
 {
 #region Implementation of IStreamConsumerGrain
