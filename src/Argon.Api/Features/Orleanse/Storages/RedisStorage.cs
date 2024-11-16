@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.OrleansStorageProviders;
+namespace Argon.Api.Features.Orleanse.Storages;
 
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
@@ -9,43 +9,43 @@ using StackExchange.Redis;
 
 public class RedisStorage : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 {
-    private readonly ClusterOptions           _clusterOptions;
-    private readonly ILogger<RedisStorage>    _logger;
+    private readonly ClusterOptions _clusterOptions;
+    private readonly ILogger<RedisStorage> _logger;
     private readonly RedisGrainStorageOptions _options;
-    private readonly string                   _storageName;
-    private readonly IConnectionMultiplexer   connectionMux;
-    private readonly IProviderRuntime         providerRuntime;
+    private readonly string _storageName;
+    private readonly IConnectionMultiplexer connectionMux;
+    private readonly IProviderRuntime providerRuntime;
 
     public RedisStorage(string storageName, ClusterOptions clusterOptions, IOptions<RedisGrainStorageOptions> options,
         IConnectionMultiplexer connection)
     {
         _clusterOptions = clusterOptions;
-        _options        = options.Value;
-        _storageName    = storageName;
-        connectionMux   = connection;
+        _options = options.Value;
+        _storageName = storageName;
+        connectionMux = connection;
     }
 
     public RedisStorage(ILogger<RedisStorage> logger, IProviderRuntime providerRuntime, IOptions<RedisGrainStorageOptions> options,
         IOptions<ClusterOptions> clusterOptions, string name, IConnectionMultiplexer connection)
     {
-        _logger              = logger;
+        _logger = logger;
         this.providerRuntime = providerRuntime;
-        _options             = options.Value;
-        _clusterOptions      = clusterOptions.Value;
-        _storageName         = name;
-        connectionMux        = connection;
+        _options = options.Value;
+        _clusterOptions = clusterOptions.Value;
+        _storageName = name;
+        connectionMux = connection;
     }
 
-#region Implementation of ILifecycleParticipant<ISiloLifecycle>
+    #region Implementation of ILifecycleParticipant<ISiloLifecycle>
 
     public void Participate(ISiloLifecycle observer) => observer.Subscribe(OptionFormattingUtilities.Name<RedisStorage>(_storageName),
         ServiceLifecycleStage.ApplicationServices, ct => Task.CompletedTask);
 
-#endregion
+    #endregion
 
     private static string GetKey(GrainId grainId, string stateName) => $"{grainId.ToString()}-{stateName}";
 
-#region Implementation of IGrainStorage
+    #region Implementation of IGrainStorage
 
     public async Task ReadStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState)
     {
@@ -65,17 +65,17 @@ public class RedisStorage : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
     public async Task ClearStateAsync<T>(string stateName, GrainId grainId, IGrainState<T> grainState) =>
         await connectionMux.GetDatabase(_options.DatabaseName).KeyDeleteAsync(GetKey(grainId, stateName));
 
-#endregion
+    #endregion
 }
 
 public class RedisGrainStorageOptions : IStorageProviderSerializerOptions
 {
-#region Implementation of IStorageProviderSerializerOptions
+    #region Implementation of IStorageProviderSerializerOptions
 
     public IGrainStorageSerializer GrainStorageSerializer { get; set; }
-    public int                     DatabaseName           { get; set; } = 7;
+    public int DatabaseName { get; set; } = 7;
 
-#endregion
+    #endregion
 }
 
 public static class RedisGrainStorageFactory
