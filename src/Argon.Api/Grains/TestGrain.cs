@@ -2,6 +2,7 @@ namespace Argon.Api.Grains;
 
 using Contracts;
 using Interfaces;
+using Orleans.Providers.Streams.Common;
 using Orleans.Streams;
 
 #if DEBUG
@@ -57,7 +58,7 @@ public class StreamProducerGrain : Grain, IStreamProducerGrain
         {
             var unixEpochNow = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var payload      = new SomeInput(unixEpochNow, "test");
-            return stream.OnNextAsync(payload);
+            return stream.OnNextAsync(payload, new EventSequenceTokenV2());
         }, null, TimeSpan.FromMilliseconds(1_000), TimeSpan.FromMilliseconds(1_000));
 
         return Task.CompletedTask;
@@ -76,8 +77,7 @@ public class StreamConsumerGrain(ILogger<StreamConsumerGrain> logger) : Grain, I
         var guid           = Guid.Parse("d97e7fb1-e2f6-4803-b66c-965bc5d1d099");
         var streamProvider = this.GetStreamProvider(IArgonEvent.ProviderId);
         var streamId       = StreamId.Create(IArgonEvent.Namespace, guid);
-        var stream         = streamProvider.GetStream<long>(streamId);
-
+        var stream         = streamProvider.GetStream<SomeInput>(streamId);
         await stream.SubscribeAsync((data, token) =>
         {
             logger.LogCritical(data.ToString());
