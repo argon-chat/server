@@ -13,16 +13,17 @@ var smtpHost        = builder.AddParameter("smtp-host", true);
 var smtpPort        = builder.AddParameter("smtp-port", true);
 var smtpUser        = builder.AddParameter("smtp-user", true);
 var smtpPassword    = builder.AddParameter("smtp-password", true);
-var cache           = builder.AddRedis("cache", 6379).WithImage("eqalpha/keydb").WithDataVolume();
-var nats            = builder.AddNats("nats", 4222).WithDataVolume().WithJetStream();
-var db              = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume();
+
+var cache = builder.AddRedis("cache", 6379).WithImage("eqalpha/keydb").WithDataVolume().WithLifetime(ContainerLifetime.Persistent);
+var nats = builder.AddNats("nats", 4222).WithDataVolume().WithJetStream().WithLifetime(ContainerLifetime.Persistent);
+var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume().WithLifetime(ContainerLifetime.Persistent);
 
 var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
 var clickhouse = builder.AddResource(clickhouseResource).WithImage("clickhouse/clickhouse-server")
    .WithVolume("clickhouse-data", "/var/lib/clickhouse").WithVolume("logs", "/var/log/clickhouse-server")
    .WithEnvironment("CLICKHOUSE_USER", username).WithEnvironment("CLICKHOUSE_PASSWORD", password).WithEnvironment("CLICKHOUSE_DB", username)
    .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1").WithHttpEndpoint(8123, 8123) // http endpoint
-   .WithEndpoint(9000, 9000);                                                                 // native client endpoint
+   .WithEndpoint(9000, 9000).WithLifetime(ContainerLifetime.Persistent);                      // native client endpoint
 
 builder.AddContainer("smtpdev", "rnwood/smtp4dev").WithEndpoint(3080, 80, "http").WithEndpoint(2525, 25, "tcp");
 

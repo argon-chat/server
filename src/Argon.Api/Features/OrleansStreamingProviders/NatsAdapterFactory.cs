@@ -1,9 +1,8 @@
 namespace Argon.Api.Features.OrleansStreamingProviders;
 
 using System.Collections.Concurrent;
-using System.Diagnostics;
-using Contracts;
 using NATS.Client.Core;
+using Newtonsoft.Json;
 using Orleans.Configuration;
 using Orleans.Providers;
 using Orleans.Providers.Streams.Common;
@@ -29,6 +28,7 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private          ConcurrentDictionary<QueueId, Receiver>                       receivers;
     private          IStreamFailureHandler?                                        streamFailureHandler;
     private          IStreamQueueMapper?                                           streamQueueMapper;
+
 
     public NatsAdapterFactory(string providerName, HashRingStreamQueueMapperOptions queueMapperOptions, StreamStatisticOptions statisticOptions,
         IServiceProvider serviceProvider, Serializer serializer, ILoggerFactory loggerFactory, INatsConnection connection)
@@ -83,7 +83,27 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         }
     }
 
-    private class Receiver(IQueueAdapterReceiverMonitor receiverMonitor, INatsConnection connection) : IQueueAdapterReceiver
+    internal class NatsResponse : IBatchContainer, IComparable<NatsResponse>
+    {
+    #region Implementation of IComparable<in NatsResponse>
+
+        public int CompareTo(NatsResponse? other) => throw new NotImplementedException();
+
+    #endregion
+
+    #region Implementation of IBatchContainer
+
+        public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>() => throw new NotImplementedException();
+
+        public bool ImportRequestContext() => throw new NotImplementedException();
+
+        public StreamId            StreamId      { get; }
+        public StreamSequenceToken SequenceToken { get; }
+
+    #endregion
+    }
+
+    private class Receiver(string providerName, IQueueAdapterReceiverMonitor receiverMonitor, INatsConnection connection) : IQueueAdapterReceiver
     {
         private const int              MaxDelayMs = 20;
         public        IStreamGenerator QueueGenerator { private get; set; }
@@ -96,15 +116,18 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
 
         public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
         {
-            var watch = Stopwatch.StartNew();
-            await Task.Delay(Random.Shared.Next(1, MaxDelayMs));
-            if (!QueueGenerator.TryReadEvents(DateTime.UtcNow, maxCount, out List<IBatchContainer> batches)) return new List<IBatchContainer>();
-            watch.Stop();
-            receiverMonitor.TrackRead(true, watch.Elapsed, null);
-            if (batches.Count == 0) return batches;
-            var oldestMessage = batches[0] as GeneratedBatchContainer;
-            var newestMessage = batches[^1] as GeneratedBatchContainer;
-            receiverMonitor?.TrackMessagesReceived(batches.Count, oldestMessage?.EnqueueTimeUtc, newestMessage?.EnqueueTimeUtc);
+            var batches = new List<IBatchContainer>();
+
+            var subscription = connection.SubscribeAsync<string>(providerName);
+
+            await foreach (var natsMsg in subscription)
+            {
+                var data = natsMsg.Data;
+                Console.WriteLine(data);
+                batches.Add(new NatsResponse());
+                // batches.Add(new BatchContainer(natsMsg));
+            }
+
             return batches;
         }
 
@@ -162,30 +185,19 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         foreach (var eventData in events)
         {
             if (eventData is null) continue;
-            var subject = $"{IArgonEvent.ProviderId}/{streamId}";
-            logger.LogCritical("IM PUSHIIIIIIIING AAAAHHH ONI CHAAAAN");
-            await connection.PublishAsync(subject, eventData);
+            // var subject = $"{Name}/{streamId}";
+            var json = JsonConvert.SerializeObject(eventData);
+            await connection.PublishAsync(Name, json);
         }
     }
 
     public IQueueAdapterReceiver CreateReceiver(QueueId queueId)
     {
-        // var client            = serviceProvider.GetRequiredService<IClusterClient>();
-        // var guid              = Guid.Parse("d97e7fb1-e2f6-4803-b66c-965bc5d1d099");
-        // var clientArgonStream = new ClientArgonStream<long>();
-        // var provider          = client.GetStreamProvider(IArgonEvent.ProviderId);
-        // var stream            = provider.GetStream<long>(StreamId.Create(IArgonEvent.Namespace, guid));
-        // var bound             = clientArgonStream.BindClient(stream).Result;
+        if (receivers.TryGetValue(queueId, out var receiver)) return receiver;
+        var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
+        var receiverMonitor = ReceiverMonitorFactory(dimensions);
+        receiver = receivers.GetOrAdd(queueId, new Receiver(Name, receiverMonitor, connection));
 
-        // foreach (var argonEvent in bound.AsRpcStream()) logger.LogCritical(argonEvent.ToString());
-        if (!receivers.TryGetValue(queueId, out var receiver))
-        {
-            var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
-            var receiverMonitor = ReceiverMonitorFactory(dimensions);
-            receiver = receivers.GetOrAdd(queueId, new Receiver(receiverMonitor, connection));
-        }
-
-        SetGeneratorOnReceiver(receiver);
         return receiver;
     }
 

@@ -51,12 +51,13 @@ public class StreamProducerGrain : Grain, IStreamProducerGrain
         var guid           = Guid.Parse("d97e7fb1-e2f6-4803-b66c-965bc5d1d099");
         var streamProvider = this.GetStreamProvider(IArgonEvent.ProviderId);
         var streamId       = StreamId.Create(IArgonEvent.Namespace, guid);
-        var stream         = streamProvider.GetStream<long>(streamId);
+        var stream         = streamProvider.GetStream<SomeInput>(streamId);
 
         RegisterTimer(_ =>
         {
             var unixEpochNow = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            return stream.OnNextAsync(unixEpochNow);
+            var payload      = new SomeInput(unixEpochNow, "test");
+            return stream.OnNextAsync(payload);
         }, null, TimeSpan.FromMilliseconds(1_000), TimeSpan.FromMilliseconds(1_000));
 
         return Task.CompletedTask;
