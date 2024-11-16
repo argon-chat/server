@@ -50,7 +50,7 @@ public static class CdnFeatureExtensions
     public static IServiceCollection AddS3Storage(this WebApplicationBuilder builder, StorageKind keyName, StorageOptions options)
     {
         var storageContainer = new ServiceCollection();
-        var coreBuilder      = SimpleS3CoreServices.AddSimpleS3Core(builder.Services);
+        var coreBuilder      = SimpleS3CoreServices.AddSimpleS3Core(storageContainer);
 
         coreBuilder.UseGenericS3(config =>
         {
