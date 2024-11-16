@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Your OTP Code</title>
+    <title>Login to Your Account</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,18 +36,6 @@
             margin-bottom: 20px;
             line-height: 1.5;
         }
-		
-		.otp-code {
-            display: inline-block;
-            font-size: 28px;
-            font-weight: bold;
-            padding: 10px 20px;
-            color: #ffffff;
-            background-color: #6200ea;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-bottom: 20px;
-        }
 
         .button {
             display: inline-block;
@@ -71,17 +59,21 @@
 </head>
 <body>
 <div class="container">
-    <div class="header">Your OTP Code</div>
+    <div class="header">Login to Argon</div>
     <div class="message">
         Hello,<br><br>
-        Your one-time password for accessing the system is:
+        You have successfully logged in to your account. Your session details are as follows:
     </div>
     <div style="text-align: center;">
-        <span class="otp-code">{{otp}}</span>
+        <div class="message">
+            IP: <strong>{{ user_ip }}</strong><br>
+			Region: <strong>{{ user_region }}</strong><br>
+			Host: <strong>{{ user_host }}</strong><br>
+            Login Time: <strong>{{ login_time }}</strong>
+        </div>
     </div>
     <div class="message">
-        Please use this code within {{validity}} minutes. If you did not request this code, you can safely ignore this
-        email.
+        If this login was not made by you, please contact our support team immediately.
     </div>
     <div class="footer">
         Thank you,<br>
