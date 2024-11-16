@@ -2,9 +2,12 @@ namespace Argon.Api.Features.MediaStorage;
 
 using Storages;
 using Genbox.SimpleS3.Core.Abstracts.Clients;
+using Genbox.SimpleS3.Core.Abstracts.Enums;
 using Genbox.SimpleS3.Core.Common.Authentication;
 using Genbox.SimpleS3.Core.Extensions;
 using Genbox.SimpleS3.Extensions.GenericS3.Extensions;
+using Genbox.SimpleS3.Core.Abstracts.Request;
+using Genbox.SimpleS3.Extensions.HttpClient.Extensions;
 
 public static class CdnFeatureExtensions
 {
@@ -51,19 +54,20 @@ public static class CdnFeatureExtensions
     {
         var storageContainer = new ServiceCollection();
         var coreBuilder      = SimpleS3CoreServices.AddSimpleS3Core(storageContainer);
-
+        coreBuilder.UseHttpClient();
         coreBuilder.UseGenericS3(config =>
         {
             config.Endpoint    = options.BaseUrl;
             config.RegionCode  = options.Region;
             config.Credentials = new StringAccessKey(options.Login, options.Password);
+            config.NamingMode  = NamingMode.PathStyle;
         });
 
         var storageServices = storageContainer.BuildServiceProvider();
 
         builder.Services.AddKeyedSingleton<IServiceProvider>($"{keyName}:container", storageServices);
         builder.Services.AddKeyedSingleton<IObjectClient>($"{keyName}:client", (services, o)
-            => services.GetRequiredKeyedService<IServiceProvider>($"{keyName}:container").GetRequiredService<IObjectClient>());
+            => storageServices.GetRequiredService<IObjectClient>());
 
         return builder.Services;
     }

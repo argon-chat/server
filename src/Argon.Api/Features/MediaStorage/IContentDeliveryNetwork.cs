@@ -8,7 +8,7 @@ public interface IContentDeliveryNetwork
 
     ValueTask<Maybe<UploadError>> CreateAssetAsync(StorageNameSpace ns, AssetId asset, IFormFile file)
     {
-        using var memory = file.OpenReadStream();
+        var memory = file.OpenReadStream();
         return CreateAssetAsync(ns, asset, memory);
     }
 
