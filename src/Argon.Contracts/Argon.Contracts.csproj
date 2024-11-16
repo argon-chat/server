@@ -4,8 +4,6 @@
         <TargetFramework>net8.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
-        <UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
     </PropertyGroup>
 
     <ItemGroup>
