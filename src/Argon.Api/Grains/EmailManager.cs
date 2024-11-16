@@ -2,7 +2,7 @@ namespace Argon.Api.Grains;
 
 using System.Net;
 using System.Net.Mail;
-using Features.EmailForms;
+using Features.Template;
 using Interfaces;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +26,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
-        var form = formStorage.CompileAndGetForm("otp", new Dictionary<string, string>
+        var form = formStorage.Render("otp", new Dictionary<string, string>
         {
             {
                 "otp", otpCode

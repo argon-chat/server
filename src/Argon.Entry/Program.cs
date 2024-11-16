@@ -39,10 +39,7 @@ builder.AddSwaggerWithAuthHeader();
 builder.Services.AddSerializer(x => {
     x.AddMemoryPackSerializer();
 }).AddOrleansClient(x => {
-    x.Configure<ClusterOptions>(cluster => {
-        cluster.ClusterId = "argonchat";
-        cluster.ServiceId = "argonchat";
-    }).AddStreaming();
+    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming();
     if (builder.Environment.IsProduction())
         x.UseKubeGatewayListProvider();
     else

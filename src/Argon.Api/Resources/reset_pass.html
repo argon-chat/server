@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Your OTP Code</title>
+    <title>Reset Your Password</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -36,18 +36,6 @@
             margin-bottom: 20px;
             line-height: 1.5;
         }
-		
-		.otp-code {
-            display: inline-block;
-            font-size: 28px;
-            font-weight: bold;
-            padding: 10px 20px;
-            color: #ffffff;
-            background-color: #6200ea;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-bottom: 20px;
-        }
 
         .button {
             display: inline-block;
@@ -71,17 +59,18 @@
 </head>
 <body>
 <div class="container">
-    <div class="header">Your OTP Code</div>
+    <div class="header">Reset Your Password</div>
     <div class="message">
-        Hello,<br><br>
-        Your one-time password for accessing the system is:
+        We received a request to reset your password. Please click the button below to proceed with resetting your password, or alternatively, enter the code below to reset your password:
     </div>
     <div style="text-align: center;">
-        <span class="otp-code">{{otp}}</span>
+        <a href="{{ reset_link }}" class="button">Reset Password</a>
+    </div>
+    <div class="message" style="text-align: center;">
+        Your reset code: <strong>{{ reset_code }}</strong>
     </div>
     <div class="message">
-        Please use this code within {{validity}} minutes. If you did not request this code, you can safely ignore this
-        email.
+        If you did not request a password reset, you can safely ignore this email.
     </div>
     <div class="footer">
         Thank you,<br>
