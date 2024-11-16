@@ -11,7 +11,7 @@ public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionCo
     public async Task<UserResponse> GetMe()
     {
         var userData = await fusionContext.GetUserDataAsync();
-        var user = await grainFactory.GetGrain<IUserManager>(userData.id).GetUser();
+        var user = await grainFactory.GetGrain<IUserGrain>(userData.id).GetUser();
         return mapper.Map<UserResponse>(user);
     }
 
@@ -28,7 +28,7 @@ public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionCo
     public async Task<List<ServerDefinition>> GetServers()
     {
         var userData = await fusionContext.GetUserDataAsync();
-        var servers = await grainFactory.GetGrain<IUserManager>(userData.id).GetMyServers();
+        var servers = await grainFactory.GetGrain<IUserGrain>(userData.id).GetMyServers();
         return servers.Select(mapper.Map<ServerDefinition>).ToList();
     }
 }

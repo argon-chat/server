@@ -7,7 +7,7 @@ using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
 
-public class UserManager(IPasswordHashingService passwordHashingService, ApplicationDbContext context, IMapper mapper) : Grain, IUserManager
+public class UserGrain(IPasswordHashingService passwordHashingService, ApplicationDbContext context, IMapper mapper) : Grain, IUserGrain
 {
     public async Task<UserDto> CreateUser(UserCredentialsInput input)
     {
@@ -23,13 +23,12 @@ public class UserManager(IPasswordHashingService passwordHashingService, Applica
         return mapper.Map<UserDto>(user);
     }
 
-    public async Task<UserDto> UpdateUser(UserCredentialsInput input)
+    public async Task<UserDto> UpdateUser(UserEditInput input)
     {
         var user = await Get();
-        user.Email          = input.Email;
-        user.Username       = input.Username ?? user.Username;
-        user.PhoneNumber    = input.PhoneNumber ?? user.PhoneNumber;
-        user.PasswordDigest = passwordHashingService.HashPassword(input.Password) ?? user.PasswordDigest;
+        user.Username     = input.Username ?? user.Username;
+        user.Username     = input.DisplayName ?? user.DisplayName;
+        user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         context.Users.Update(user);
         await context.SaveChangesAsync();
         return mapper.Map<UserDto>(user);

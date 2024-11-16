@@ -47,9 +47,9 @@ public class ServerGrain(IGrainFactory grainFactory, ApplicationDbContext contex
     public async Task<ServerDto> UpdateServer(ServerInput input)
     {
         var server = await Get();
-        server.Name        = input.Name;
-        server.Description = input.Description;
-        server.AvatarUrl   = input.AvatarUrl;
+        server.Name        = input.Name ?? server.Name;
+        server.Description = input.Description ?? server.Description;
+        server.AvatarUrl   = input.AvatarUrl ?? server.AvatarUrl;
         context.Servers.Update(server);
         await context.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified(PropertyBag.Empty
