@@ -7,8 +7,6 @@ using Orleans.Providers.Streams.Common;
 using Orleans.Providers.Streams.Generator;
 using Orleans.Serialization;
 using Orleans.Streams;
-using Orleans.Streams.Utils;
-using Orleans.Streams.Utils.Serialization;
 
 public static class NatsMsgExtension
 {
@@ -102,12 +100,10 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private readonly OrleansJsonSerializer                                         _serializationManager;
     private readonly ILoggerFactory                                                _loggerFactory;
     private readonly IGrainFactory                                                 _grainFactory;
-    private readonly IExternalStreamDeserializer?                                  _externalDeserializer;
     private readonly IQueueAdapterCache                                            _adapterCache;
     private readonly HashRingStreamQueueMapperOptions                              _queueMapperOptions;
     private readonly IStreamQueueMapper                                            _streamQueueMapper;
     private readonly ILogger<NatsAdapterFactory>                                   _logger;
-    private readonly IDictionary<string, QueueProperties>                          _queueProperties;
     private readonly INatsConnection                                               _connection;
     private readonly ConcurrentDictionary<QueueId, Receiver>                       _receivers;
     private readonly Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
@@ -120,7 +116,6 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         _serializationManager  = serializationManager;
         _loggerFactory         = loggerFactory;
         _grainFactory          = grainFactory;
-        _externalDeserializer  = services.GetKeyedService<IExternalStreamDeserializer>(name);
         _queueMapperOptions    = services.GetOptionsByName<HashRingStreamQueueMapperOptions>(name);
         _logger                = loggerFactory.CreateLogger<NatsAdapterFactory>();
         _adapterCache          = new SimpleQueueAdapterCache(new SimpleQueueCacheOptions(), name, loggerFactory);
