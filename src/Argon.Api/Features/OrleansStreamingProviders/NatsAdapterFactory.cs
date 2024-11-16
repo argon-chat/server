@@ -14,13 +14,14 @@ public static class NatsMsgExtension
 {
     public static ArgonEventBatch ToBatch(this NatsMsg<string> msg, OrleansJsonSerializer serializationManager)
     {
-        var data       = serializationManager.Deserialize(typeof(object), msg.Data);
-        var stream     = msg.Headers?["streamId"][0];
-        var streamId   = StreamId.Parse(Encoding.UTF8.GetBytes(stream));
-        var eventIndex = int.Parse(msg.Headers?["eventInd"][0]);
-        var seq        = int.Parse(msg.Headers?["seq"][0]);
-        var eventToken = new EventSequenceTokenV2(eventIndex, seq);
-        return new ArgonEventBatch(streamId, data, data.GetType(), eventToken);
+        var                  data       = serializationManager.Deserialize(typeof(object), msg.Data);
+        var                  stream     = msg.Headers?["streamId"][0];
+        var                  streamId   = StreamId.Parse(Encoding.UTF8.GetBytes(stream));
+        var                  eventIndex = int.TryParse(msg.Headers?["eventInd"][0], out var index);
+        var                  seq        = int.TryParse(msg.Headers?["seq"][0], out var sequence);
+        StreamSequenceToken? token      = null;
+        if (eventIndex && seq) token    = new EventSequenceTokenV2(index, sequence);
+        return new ArgonEventBatch(streamId, data, data.GetType(), token);
     }
 }
 
@@ -30,7 +31,7 @@ public class ArgonEventBatch : IBatchContainer
 
     public ArgonEventBatch() { }
 
-    public ArgonEventBatch(StreamId streamId, object data, Type getType, EventSequenceTokenV2 eventToken)
+    public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken)
     {
         dataType      = getType;
         StreamId      = streamId;
