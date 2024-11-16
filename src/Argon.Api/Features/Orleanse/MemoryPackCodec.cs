@@ -163,7 +163,7 @@ public class MemoryPackCodec : IGeneralizedCodec, IGeneralizedCopier, ITypeFilte
         var bufferWriter = new BufferWriterBox<PooledBuffer>(new());
         try
         {
-            MemoryPackSerializer.Serialize(bufferWriter, value);
+            MemoryPackSerializer.Serialize(value.GetType(), bufferWriter, value);
 
             ReferenceCodec.MarkValueField(writer.Session);
             writer.WriteFieldHeaderExpected(1, WireType.LengthPrefixed);
