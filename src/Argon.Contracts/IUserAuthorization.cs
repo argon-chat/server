@@ -16,6 +16,15 @@ public sealed partial record UserCredentialsInput(
     [field: Id(4)]
     string? OtpCode);
 
+[MemoryPackable, Serializable, GenerateSerializer, Alias(nameof(UserEditInput))]
+public sealed partial record UserEditInput(
+    [field: Id(0)]
+    string? Username,
+    [field: Id(1)]
+    string? DisplayName,
+    [field: Id(2)]
+    string? AvatarId);
+
 [MemoryPackable, Serializable, GenerateSerializer, Alias(nameof(NewUserCredentialsInput))]
 public sealed partial record NewUserCredentialsInput(
     [field: Id(0)]

@@ -9,7 +9,9 @@ using Argon.Api.Features.Captcha;
 using Argon.Api.Features.EmailForms;
 using Argon.Api.Features.Env;
 using Argon.Api.Features.Jwt;
+using Argon.Api.Features.MediaStorage;
 using Argon.Api.Features.Otp;
+using Argon.Api.Features.Pex;
 using Argon.Api.Grains.Interfaces;
 using Argon.Api.Migrations;
 using Argon.Api.Services;
@@ -30,13 +32,18 @@ builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>()
 if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
+    builder.Services.AddAuthorization();
     builder.Services.AddControllers().AddNewtonsoftJson();
-    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc.AddWebSocketServer(true).Rpc.AddServer<IUserInteraction, UserInteraction>()
-       .AddServer<IServerInteraction, ServerInteraction>().AddServer<IEventBus, EventBusService>();
+    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc
+       .AddWebSocketServer(true).Rpc
+       .AddServer<IUserInteraction, UserInteraction>()
+       .AddServer<IServerInteraction, ServerInteraction>()
+       .AddServer<IEventBus, EventBusService>();
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
+    builder.AddContentDeliveryNetwork();
 }
-
+builder.AddArgonPermissions();
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
 builder.Services.AddSingleton<IFusionContext, FusionContext>();

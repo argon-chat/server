@@ -1,5 +1,6 @@
 namespace Argon.Api.Features.Jwt;
 
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 
 public static class JwtFeature
@@ -10,7 +11,7 @@ public static class JwtFeature
 
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
-        builder.Services.AddSingleton(new TokenValidationParameters
+        var tokenValidator = new TokenValidationParameters
         {
             ValidIssuer              = jwt.Issuer,
             ValidAudience            = jwt.Audience,
@@ -20,8 +21,18 @@ public static class JwtFeature
             ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
             ClockSkew                = TimeSpan.Zero
-        });
+        };
+
+        builder.Services.AddSingleton(tokenValidator);
         builder.Services.AddSingleton<TokenAuthorization>();
+
+        builder.Services.AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
+            })
+           .AddJwtBearer((options) => options.TokenValidationParameters = tokenValidator);
+
         return builder.Services;
     }
 }

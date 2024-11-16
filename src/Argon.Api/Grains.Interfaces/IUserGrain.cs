@@ -3,13 +3,14 @@ namespace Argon.Api.Grains.Interfaces;
 using Contracts;
 using Entities;
 
-public interface IUserManager : IGrainWithGuidKey
+[Alias("Argon.Api.Grains.Interfaces.IUserGrain")]
+public interface IUserGrain : IGrainWithGuidKey
 {
     [Alias("CreateUser")]
     Task<UserDto> CreateUser(UserCredentialsInput input);
 
     [Alias("UpdateUser")]
-    Task<UserDto> UpdateUser(UserCredentialsInput input);
+    Task<UserDto> UpdateUser(UserEditInput input);
 
     [Alias("DeleteUser")]
     Task DeleteUser();

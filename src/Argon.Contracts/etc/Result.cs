@@ -104,7 +104,7 @@ public readonly partial record struct Maybe<TResult>
     private Maybe(TResult value) => _value = value;
 
     [JsonIgnore, IgnoreMember, MemoryPackIgnore]
-    public bool HasValue => _value is not null;
+    public bool HasValue => !EqualityComparer<TResult>.Default.Equals(_value, default);
 
     [JsonIgnore, IgnoreMember, MemoryPackIgnore]
     public TResult Value => HasValue ? _value! : throw new InvalidOperationException("No value available.");
