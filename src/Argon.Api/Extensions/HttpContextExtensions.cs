@@ -12,6 +12,11 @@ public static class HttpContextExtensions
             ? ctx.Request.Headers["CF-IPCountry"].ToString()
             : "unknown";
 
+    public static string GetRay(this HttpContext ctx)
+        => ctx.Request.Headers.ContainsKey("CF-Ray")
+            ? ctx.Request.Headers["CF-Ray"].ToString()
+            : $"{Guid.NewGuid()}";
+
     public static string GetClientName(this HttpContext ctx)
         => ctx.Request.Headers.ContainsKey("User-Agent")
             ? ctx.Request.Headers["User-Agent"].ToString()
