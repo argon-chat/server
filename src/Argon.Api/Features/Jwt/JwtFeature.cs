@@ -25,13 +25,20 @@ public static class JwtFeature
 
         builder.Services.AddSingleton(tokenValidator);
         builder.Services.AddSingleton<TokenAuthorization>();
-
+        builder.Services.AddAuthorization(options =>
+        {
+            options.AddPolicy(JwtBearerDefaults.AuthenticationScheme, policy =>
+            {
+                policy.AuthenticationSchemes.Add(JwtBearerDefaults.AuthenticationScheme);
+                policy.RequireAuthenticatedUser();
+            });
+        });
         builder.Services.AddAuthentication(options =>
             {
                 options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
                 options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
             })
-           .AddJwtBearer((options) => options.TokenValidationParameters = tokenValidator);
+           .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme, (options) => options.TokenValidationParameters = tokenValidator);
 
         return builder.Services;
     }

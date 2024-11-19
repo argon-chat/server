@@ -6,8 +6,9 @@ using Genbox.SimpleS3.Core.Abstracts.Enums;
 using Genbox.SimpleS3.Core.Common.Authentication;
 using Genbox.SimpleS3.Core.Extensions;
 using Genbox.SimpleS3.Extensions.GenericS3.Extensions;
-using Genbox.SimpleS3.Core.Abstracts.Request;
 using Genbox.SimpleS3.Extensions.HttpClient.Extensions;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.StaticFiles;
 
 public static class CdnFeatureExtensions
 {
@@ -20,7 +21,7 @@ public static class CdnFeatureExtensions
         var bucketOptions = new StorageOptions();
         opt.Bind(bucketOptions);
 
-
+        builder.Services.TryAddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
 
         return bucketOptions.Kind switch
         {
@@ -39,7 +40,7 @@ public static class CdnFeatureExtensions
             builder.Services.AddKeyedSingleton<IContentStorage, DiskContentStorage>(IContentStorage.DiskContentStorageKey);
             builder.Services.AddSingleton<IContentDeliveryNetwork, T>();
         }
-        if (keyName == StorageKind.GenericS3)
+        else if (keyName == StorageKind.GenericS3)
         {
             builder.Services.AddKeyedSingleton<IContentStorage, S3ContentStorage>(IContentStorage.GenericS3StorageKey);
             builder.Services.AddSingleton<IContentDeliveryNetwork, T>();

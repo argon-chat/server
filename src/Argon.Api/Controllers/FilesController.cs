@@ -1,21 +1,24 @@
 namespace Argon.Api.Controllers;
 
 using ActualLab.Collections;
-using Argon.Api.Features.MediaStorage.Storages;
+using Features.MediaStorage.Storages;
 using Contracts;
+using Extensions;
 using Features.MediaStorage;
 using Features.Pex;
 using Grains.Interfaces;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 public class FilesController(
     IOptions<CdnOptions> cdnOptions,
     IContentDeliveryNetwork cdn,
     IPermissionProvider permissions,
-    IGrainFactory grainFactory) : ControllerBase
+    IGrainFactory grainFactory,
+    IContentTypeProvider contentType) : ControllerBase
 {
     // work only when cdn\storage set local disk or in memory
     [HttpGet("/files/{nsPath}/{nsId:guid}/{kind}/{shard}/{fileId}")]
@@ -29,11 +32,13 @@ public class FilesController(
         if (cdnOptions.Value.Storage.Kind == StorageKind.GenericS3)
             return BadRequest();
 
-        var             ns      = new StorageNameSpace(nsPath, nsId);
-        var             assetId = AssetId.FromFileId(fileId);
+        var ns      = new StorageNameSpace(nsPath, nsId);
+        var assetId = AssetId.FromFileId(fileId);
         var mem     = DiskContentStorage.OpenFileRead(ns, assetId);
 
-        return File(mem, assetId.GetMime());
+        if (contentType.TryGetContentType(fileId, out var mime))
+            return File(mem, mime);
+        return File(mem, "application/octet-stream");
     }
 
     [HttpPost("/files/server/{serverId:guid}/avatar"), Authorize(JwtBearerDefaults.AuthenticationScheme)]
@@ -43,7 +48,8 @@ public class FilesController(
         if (!permissions.CanAccess("server.avatar.upload", PropertyBag.Empty.Set(serverId)))
             return StatusCode(401);
         var assetId = AssetId.Avatar();
-        var result  = await cdn.CreateAssetAsync(StorageNameSpace.ForServer(serverId), assetId, file);
+        var ns      = StorageNameSpace.ForServer(serverId);
+        var result  = await cdn.CreateAssetAsync(ns, assetId, file);
 
         if (result.HasValue)
             return Ok(result);
@@ -51,17 +57,16 @@ public class FilesController(
         await grainFactory.GetGrain<IServerGrain>(serverId)
            .UpdateServer(new ServerInput(null, null, assetId.ToFileId()));
 
-        return Ok();
+        return Ok(await cdn.GenerateAssetUrl(ns, assetId));
     }
 
-    [HttpPost("/files/user/{userId:guid}/avatar"), Authorize(JwtBearerDefaults.AuthenticationScheme)]
-    public async ValueTask<IActionResult> UploadUserAvatar([FromRoute] Guid userId, IFormFile file)
+    [HttpPost("/files/user/@me/avatar"), Authorize(JwtBearerDefaults.AuthenticationScheme)]
+    public async ValueTask<IActionResult> UploadUserAvatar(IFormFile file)
     {
-        // TODO
-        if (!permissions.CanAccess("user.avatar.upload", PropertyBag.Empty.Set(userId)))
-            return StatusCode(401);
+        var userId  = HttpContext.GetUserId();
         var assetId = AssetId.Avatar();
-        var result  = await cdn.CreateAssetAsync(StorageNameSpace.ForUser(userId), assetId, file);
+        var ns      = StorageNameSpace.ForUser(userId);
+        var result  = await cdn.CreateAssetAsync(ns, assetId, file);
 
         if (result.HasValue)
             return Ok(result);
@@ -69,6 +74,6 @@ public class FilesController(
         await grainFactory.GetGrain<IUserGrain>(userId)
            .UpdateUser(new UserEditInput(null, null, assetId.ToFileId()));
 
-        return Ok();
+        return Ok(await cdn.GenerateAssetUrl(ns, assetId));
     }
 }

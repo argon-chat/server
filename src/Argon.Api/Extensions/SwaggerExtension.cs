@@ -10,9 +10,10 @@ public static class SwaggerExtension
         {
             c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
             {
-                Name        = "x-argon-token",
                 In          = ParameterLocation.Header,
-                Description = "access token"
+                Description = "Please insert JWT with Bearer into field",
+                Name        = "Authorization",
+                Type        = SecuritySchemeType.ApiKey
             });
             c.AddSecurityRequirement(new OpenApiSecurityRequirement
             {
