@@ -4,14 +4,14 @@ using Extensions;
 using Flurl.Http;
 using Microsoft.Extensions.Options;
 
-public class CloudflareCaptcha(HttpContext httpContext, ILogger<ICaptchaFeature> logger, IOptions<CaptchaOptions> options) : ICaptchaFeature
+public class CloudflareCaptcha(IHttpContextAccessor accessor, ILogger<ICaptchaFeature> logger, IOptions<CaptchaOptions> options) : ICaptchaFeature
 {
     public async ValueTask<bool> ValidateAsync(string token)
     {
         if (string.IsNullOrEmpty(token))
             return false;
         var config   = options.Value;
-        var remoteIp = httpContext.GetIpAddress();
+        var remoteIp = accessor.HttpContext!.GetIpAddress();
         try
         {
             var response = await config.ChallengeEndpoint

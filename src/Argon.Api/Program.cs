@@ -29,6 +29,7 @@ builder.AddNatsClient("nats");
 builder.AddNatsJetStream();
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
+builder.Services.AddHttpContextAccessor();
 if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
