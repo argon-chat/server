@@ -35,11 +35,10 @@ public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.Gen
         string hostname,
         string path,
         string secret,
-        int expiryInSeconds,
-        string? ip = null)
+        int expiryInSeconds)
     {
         var expires   = DateTimeOffset.UtcNow.ToUnixTimeSeconds() + expiryInSeconds;
-        var tokenData = expires + path + (ip ?? "") + secret;
+        var tokenData = $"{expires}{path} {secret}";
 
         using var md5       = MD5.Create();
         var       hashBytes = md5.ComputeHash(Encoding.UTF8.GetBytes(tokenData));
@@ -52,10 +51,6 @@ public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.Gen
         var query = HttpUtility.ParseQueryString(string.Empty);
         query["md5"]     = token;
         query["expires"] = expires.ToString();
-        if (!string.IsNullOrEmpty(ip))
-        {
-            query["ip"] = ip;
-        }
 
         return $"{hostname}{path}?{query}";
     }

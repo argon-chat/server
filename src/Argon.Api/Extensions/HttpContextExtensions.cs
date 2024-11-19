@@ -1,5 +1,7 @@
 namespace Argon.Api.Extensions;
 
+using System.Security.Claims;
+
 public static class HttpContextExtensions
 {
     public static string GetIpAddress(this HttpContext ctx)
@@ -26,4 +28,15 @@ public static class HttpContextExtensions
         => ctx.Request.Headers.ContainsKey("X-Host-Name")
             ? ctx.Request.Headers["X-Host-Name"].ToString()
             : string.Empty;
+
+    public static Guid GetUserId(this HttpContext ctx)
+    {
+        var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        userId ??= ctx.User.FindFirstValue("id");
+
+        if (Guid.TryParse(userId, out var result))
+            return result;
+        throw new FormatException($"UserId by '{ClaimTypes.NameIdentifier} claim has value: '{userId}' - incorrect guid");
+    }
 }
