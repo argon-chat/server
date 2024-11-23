@@ -23,6 +23,7 @@ public static class NatsMsgExtension
     }
 }
 
+[Serializable, GenerateSerializer, Alias(nameof(ArgonEventBatch))]
 public class ArgonEventBatch : IBatchContainer
 {
 #region Implementation of IBatchContainer
@@ -38,11 +39,13 @@ public class ArgonEventBatch : IBatchContainer
         Event         = msg;
     }
 
-    private List<object>        Data          { get; }
-    private Type                dataType      { get; }
-    public  NatsJSMsg<string>   Event         { get; }
-    public  StreamId            StreamId      { get; }
-    public  StreamSequenceToken SequenceToken { get; }
+    [Id(0)]
+    private List<object> Data { get; }
+    private Type              dataType { get; }
+    public  NatsJSMsg<string> Event    { get; }
+    [Id(1)]
+    public StreamId StreamId { get; }
+    public StreamSequenceToken SequenceToken { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken?>> GetEvents<T>()
     {
