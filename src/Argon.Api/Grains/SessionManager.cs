@@ -1,5 +1,6 @@
 namespace Argon.Api.Grains;
 
+using Contracts.Models;
 using Entities;
 using Interfaces;
 using Microsoft.Extensions.Logging;
@@ -13,7 +14,7 @@ public class SessionManager(
     IPasswordHashingService passwordHashingService,
     ApplicationDbContext context) : Grain, ISessionManager
 {
-    public async Task<UserDto> GetUser() => await grainFactory.GetGrain<IUserGrain>(this.GetPrimaryKey()).GetUser();
+    public async Task<User> GetUser() => await grainFactory.GetGrain<IUserGrain>(this.GetPrimaryKey()).GetUser();
 
     public Task Logout() => throw new NotImplementedException();
 }

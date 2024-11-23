@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains;
 
 using Contracts;
+using Contracts.Models;
 using Entities;
 using Features.Otp;
 using Interfaces;
@@ -96,6 +97,7 @@ public class AuthorizationGrain(
                     Username       = input.Username,
                     PasswordDigest = passwordHashingService.HashPassword(input.Password),
                     PhoneNumber    = input.PhoneNumber,
+                    DisplayName    = input.DisplayName,
                 };
                 await context.Users.AddAsync(user);
 
