@@ -18,6 +18,8 @@ using Argon.Api.Services;
 using Argon.Contracts;
 using Argon.Sfu;
 using AutoMapper;
+using NATS.Client.JetStream.Models;
+using NATS.Net;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -25,21 +27,21 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-builder.AddNatsClient("nats");
-builder.AddNatsJetStream();
+// builder.AddNatsClient("nats");
+// builder.AddNatsJetStream();
 
-// var natsConnectionString = builder.Configuration.GetConnectionString("nats") ?? throw new ArgumentNullException("Nats");
-// var natsClient           = new NatsClient(natsConnectionString);
-// var natsConnection       = natsClient.Connection;
-// var js                   = natsClient.CreateJetStreamContext();
-// var stream               = await js.CreateStreamAsync(new StreamConfig("ARGON_STREAM", ["argon.streams.*"]));
-// var consumer             = await js.CreateOrUpdateConsumerAsync("ARGON_STREAM", new ConsumerConfig("streamConsoomer"));
-//
-// builder.Services.AddSingleton(natsClient);
-// builder.Services.AddSingleton(natsConnection);
-// builder.Services.AddSingleton(js);
-// builder.Services.AddSingleton(stream);
-// builder.Services.AddSingleton(consumer);
+var natsConnectionString = builder.Configuration.GetConnectionString("nats") ?? throw new ArgumentNullException("Nats");
+var natsClient           = new NatsClient(natsConnectionString);
+var natsConnection       = natsClient.Connection;
+var js                   = natsClient.CreateJetStreamContext();
+var stream               = await js.CreateStreamAsync(new StreamConfig("ARGON_STREAM", ["argon.streams.*"]));
+var consumer             = await js.CreateOrUpdateConsumerAsync("ARGON_STREAM", new ConsumerConfig("streamConsoomer"));
+
+builder.Services.AddSingleton(natsClient);
+builder.Services.AddSingleton(natsConnection);
+builder.Services.AddSingleton(js);
+builder.Services.AddSingleton(stream);
+builder.Services.AddSingleton(consumer);
 
 // builder.Services.AddSingleton<INatsJSStream>(provider =>
 // {

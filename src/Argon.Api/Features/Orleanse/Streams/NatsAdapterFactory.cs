@@ -3,7 +3,6 @@ namespace Argon.Api.Features.OrleansStreamingProviders;
 using System.Collections.Concurrent;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
-using NATS.Client.JetStream.Models;
 using Orleans.Configuration;
 using Orleans.Providers.Streams.Common;
 using Orleans.Serialization;
@@ -90,11 +89,11 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
         {
             var messages = new List<IBatchContainer>();
-            var opts = new NatsJSFetchOpts
+            var batch = consumer.FetchAsync<string>(new NatsJSFetchOpts
             {
-                MaxMsgs = maxCount
-            };
-            var batch = consumer.FetchNoWaitAsync<string>(opts);
+                MaxMsgs = maxCount,
+                Expires = TimeSpan.FromSeconds(1)
+            });
             // var consumer = await js.CreateConsumerAsync("ARGON_ORLEANS", new ConsumerConfig());
             // var batch   = consumer.Stream.Take(maxCount);
             // var batch    = _stream.Take(maxCount);
@@ -103,7 +102,6 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
                 messages.Add(natsMsg.ToBatch(serializationManager));
                 if (messages.Count >= maxCount) break;
             }
-
 
             return messages;
         }
@@ -135,7 +133,7 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
 
 
     public NatsAdapterFactory(string name, OrleansJsonSerializer serializationManager, ILoggerFactory loggerFactory, IGrainFactory grainFactory,
-        IServiceProvider services, INatsJSContext js /*, INatsJSStream stream, INatsJSConsumer consumer*/)
+        IServiceProvider services, INatsJSContext js, INatsJSStream stream, INatsJSConsumer consumer)
     {
         Name                   = name;
         _serializationManager  = serializationManager;
@@ -149,8 +147,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         ReceiverMonitorFactory = dimensions => new DefaultQueueAdapterReceiverMonitor(dimensions);
         _streamQueueMapper     = new HashRingBasedStreamQueueMapper(_queueMapperOptions, Name);
         _js                    = js;
-        // _stream                = _js.CreateStreamAsync(new StreamConfig("ARGON_STREAM", ["argon.streams.*"])).Result;
-        // _consumer              = _js.CreateOrUpdateConsumerAsync("ARGON_STREAM", new ConsumerConfig("streamConsoomer")).Result;
+        _stream                = stream;
+        _consumer              = consumer;
         _logger.LogInformation("Initializing NATS");
     }
 
@@ -184,18 +182,9 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
                 "seq", token?.SequenceNumber.ToString() ?? "0"
             }
         };
+        var name = Name.Replace(".", "_");
         foreach (var eventData in events)
-        {
-            try
-            {
-                await _js.PublishAsync($"argon.streams.{Name}", _serializationManager.Serialize(eventData, eventData.GetType()), headers: headers);
-                _logger.LogInformation("Published event to NATS");
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
-            }
-        }
+            await _js.PublishAsync($"argon.streams.{name}", _serializationManager.Serialize(eventData, eventData.GetType()), headers: headers);
         // await _js.PublishConcurrentAsync(Name, _serializationManager.Serialize(eventData, eventData.GetType()), headers: headers);
     }
 

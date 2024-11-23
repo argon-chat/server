@@ -78,7 +78,7 @@ public class StreamConsumerGrain(ILogger<StreamConsumerGrain> logger) : Grain, I
         var stream         = streamProvider.GetStream<SomeInput>(streamId);
         await stream.SubscribeAsync((data, token) =>
         {
-            logger.LogCritical(data.ToString());
+            logger.LogCritical($"{data} {token}");
             return Task.CompletedTask;
         });
     }
