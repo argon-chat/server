@@ -78,7 +78,10 @@ public class StreamConsumerGrain(ILogger<StreamConsumerGrain> logger) : Grain, I
         var stream         = streamProvider.GetStream<SomeInput>(streamId);
         await stream.SubscribeAsync((data, token) =>
         {
-            logger.LogCritical(data.ToString());
+            var eventTime = data.a;
+            var timeNow   = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            var diff      = timeNow - eventTime;
+            logger.LogCritical($"{data} {token} | took {diff} ms");
             return Task.CompletedTask;
         });
     }
