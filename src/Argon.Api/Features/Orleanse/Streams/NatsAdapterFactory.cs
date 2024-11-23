@@ -2,15 +2,16 @@ namespace Argon.Api.Features.OrleansStreamingProviders;
 
 using System.Collections.Concurrent;
 using NATS.Client.Core;
+using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 using Orleans.Configuration;
 using Orleans.Providers.Streams.Common;
-using Orleans.Providers.Streams.Generator;
 using Orleans.Serialization;
 using Orleans.Streams;
 
 public static class NatsMsgExtension
 {
-    public static ArgonEventBatch ToBatch(this NatsMsg<string> msg, OrleansJsonSerializer serializationManager)
+    public static ArgonEventBatch ToBatch(this NatsJSMsg<string> msg, OrleansJsonSerializer serializationManager)
     {
         var                  data       = serializationManager.Deserialize(typeof(object), msg.Data);
         var                  stream     = msg.Headers?["streamId"][0];
@@ -72,19 +73,40 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         OrleansJsonSerializer serializationManager,
         ILogger<Receiver> logger,
         QueueId queueId,
-        INatsConnection connection) : IQueueAdapterReceiver
+        INatsConnection connection,
+        INatsJSContext js,
+        INatsJSStream stream,
+        INatsJSConsumer consumer) : IQueueAdapterReceiver
     {
-        private const int              MaxDelayMs = 20;
-        public        IStreamGenerator QueueGenerator { private get; set; }
+        // private IAsyncEnumerable<NatsMsg<string>> _stream;
 
         public Task Initialize(TimeSpan timeout)
         {
             receiverMonitor.TrackInitialization(true, TimeSpan.MinValue, null);
+            // _stream = connection.SubscribeAsync<string>(providerName);
             return Task.CompletedTask;
         }
 
-        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount) => await connection.SubscribeAsync<string>(providerName)
-           .Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(IBatchContainer (batch) => batch).ToListAsync();
+        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
+        {
+            var messages = new List<IBatchContainer>();
+            var opts = new NatsJSFetchOpts
+            {
+                MaxMsgs = maxCount
+            };
+            var batch = consumer.FetchNoWaitAsync<string>(opts);
+            // var consumer = await js.CreateConsumerAsync("ARGON_ORLEANS", new ConsumerConfig());
+            // var batch   = consumer.Stream.Take(maxCount);
+            // var batch    = _stream.Take(maxCount);
+            await foreach (var natsMsg in batch)
+            {
+                messages.Add(natsMsg.ToBatch(serializationManager));
+                if (messages.Count >= maxCount) break;
+            }
+
+
+            return messages;
+        }
 
         public Task MessagesDeliveredAsync(IList<IBatchContainer> messages) => Task.CompletedTask;
 
@@ -107,10 +129,13 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private readonly INatsConnection                                               _connection;
     private readonly ConcurrentDictionary<QueueId, Receiver>                       _receivers;
     private readonly Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
+    private readonly INatsJSContext                                                _js;
+    private readonly INatsJSStream                                                 _stream;
+    private readonly INatsJSConsumer                                               _consumer;
 
 
     public NatsAdapterFactory(string name, OrleansJsonSerializer serializationManager, ILoggerFactory loggerFactory, IGrainFactory grainFactory,
-        IServiceProvider services)
+        IServiceProvider services, INatsJSContext js /*, INatsJSStream stream, INatsJSConsumer consumer*/)
     {
         Name                   = name;
         _serializationManager  = serializationManager;
@@ -123,6 +148,9 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         _receivers             = new ConcurrentDictionary<QueueId, Receiver>();
         ReceiverMonitorFactory = dimensions => new DefaultQueueAdapterReceiverMonitor(dimensions);
         _streamQueueMapper     = new HashRingBasedStreamQueueMapper(_queueMapperOptions, Name);
+        _js                    = js;
+        // _stream                = _js.CreateStreamAsync(new StreamConfig("ARGON_STREAM", ["argon.streams.*"])).Result;
+        // _consumer              = _js.CreateOrUpdateConsumerAsync("ARGON_STREAM", new ConsumerConfig("streamConsoomer")).Result;
         _logger.LogInformation("Initializing NATS");
     }
 
@@ -142,6 +170,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     public async Task QueueMessageBatchAsync<T>(StreamId streamId, IEnumerable<T> events, StreamSequenceToken? token,
         Dictionary<string, object> requestContext)
     {
+        // _stream = await _js.CreateStreamAsync(new StreamConfig($"{streamId.GetNamespace()}{streamId.GetKeyAsString()}", ["*"]));
+
         var headers = new NatsHeaders
         {
             {
@@ -155,7 +185,18 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             }
         };
         foreach (var eventData in events)
-            await _connection.PublishAsync(Name, _serializationManager.Serialize(eventData, eventData.GetType()), headers);
+        {
+            try
+            {
+                await _js.PublishAsync($"argon.streams.{Name}", _serializationManager.Serialize(eventData, eventData.GetType()), headers: headers);
+                _logger.LogInformation("Published event to NATS");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+        }
+        // await _js.PublishConcurrentAsync(Name, _serializationManager.Serialize(eventData, eventData.GetType()), headers: headers);
     }
 
     public IQueueAdapterReceiver CreateReceiver(QueueId queueId)
@@ -164,7 +205,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
         var receiverMonitor = ReceiverMonitorFactory(dimensions);
         receiver = _receivers.GetOrAdd(queueId,
-            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection));
+            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection, _js, _stream,
+                _consumer));
 
         return receiver;
     }

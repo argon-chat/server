@@ -27,6 +27,27 @@ builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddNatsClient("nats");
 builder.AddNatsJetStream();
+
+// var natsConnectionString = builder.Configuration.GetConnectionString("nats") ?? throw new ArgumentNullException("Nats");
+// var natsClient           = new NatsClient(natsConnectionString);
+// var natsConnection       = natsClient.Connection;
+// var js                   = natsClient.CreateJetStreamContext();
+// var stream               = await js.CreateStreamAsync(new StreamConfig("ARGON_STREAM", ["argon.streams.*"]));
+// var consumer             = await js.CreateOrUpdateConsumerAsync("ARGON_STREAM", new ConsumerConfig("streamConsoomer"));
+//
+// builder.Services.AddSingleton(natsClient);
+// builder.Services.AddSingleton(natsConnection);
+// builder.Services.AddSingleton(js);
+// builder.Services.AddSingleton(stream);
+// builder.Services.AddSingleton(consumer);
+
+// builder.Services.AddSingleton<INatsJSStream>(provider =>
+// {
+//     var config = new StreamConfig("ARGON_ORLEANS", ["streams.*"]);
+//     var stream = provider.GetRequiredService<INatsJSContext>().CreateStreamAsync(config);
+//     return stream;
+// });
+
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddHttpContextAccessor();
@@ -35,15 +56,13 @@ if (!builder.Environment.IsManaged())
     builder.AddJwt();
     builder.Services.AddAuthorization();
     builder.Services.AddControllers().AddNewtonsoftJson();
-    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc
-       .AddWebSocketServer(true).Rpc
-       .AddServer<IUserInteraction, UserInteraction>()
-       .AddServer<IServerInteraction, ServerInteraction>()
-       .AddServer<IEventBus, EventBusService>();
+    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc.AddWebSocketServer(true).Rpc.AddServer<IUserInteraction, UserInteraction>()
+       .AddServer<IServerInteraction, ServerInteraction>().AddServer<IEventBus, EventBusService>();
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
     builder.AddContentDeliveryNetwork();
 }
+
 builder.AddArgonPermissions();
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
