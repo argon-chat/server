@@ -86,25 +86,12 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             return Task.CompletedTask;
         }
 
-        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
-        {
-            var messages = new List<IBatchContainer>();
-            var batch = consumer.FetchAsync<string>(new NatsJSFetchOpts
+        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount) =>
+            await consumer.FetchAsync<string>(new NatsJSFetchOpts
             {
                 MaxMsgs = maxCount,
                 Expires = TimeSpan.FromSeconds(1)
-            });
-            // var consumer = await js.CreateConsumerAsync("ARGON_ORLEANS", new ConsumerConfig());
-            // var batch   = consumer.Stream.Take(maxCount);
-            // var batch    = _stream.Take(maxCount);
-            await foreach (var natsMsg in batch)
-            {
-                messages.Add(natsMsg.ToBatch(serializationManager));
-                if (messages.Count >= maxCount) break;
-            }
-
-            return messages;
-        }
+            }).Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(dummy => (IBatchContainer)dummy).ToListAsync();
 
         public Task MessagesDeliveredAsync(IList<IBatchContainer> messages) => Task.CompletedTask;
 
