@@ -2,12 +2,14 @@ namespace Microsoft.Extensions.Hosting;
 
 using AspNetCore.Builder;
 using AspNetCore.Diagnostics.HealthChecks;
+using AspNetCore.Hosting;
 using DependencyInjection;
 using Diagnostics.HealthChecks;
 using Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Sentry.Infrastructure;
 
 // Adds common .NET Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
 // This project should be referenced by each service project in your solution.
@@ -39,6 +41,28 @@ public static class Extensions
 
         return builder;
     }
+
+    public static IHostApplicationBuilder AddSentry(this WebApplicationBuilder builder, string? dsn)
+    {
+        if (string.IsNullOrWhiteSpace(dsn)) return builder;
+
+        builder.WebHost.UseSentry(o =>
+        {
+            o.Dsn                 = dsn;
+            o.Debug               = true;
+            o.AutoSessionTracking = true;
+            o.TracesSampleRate    = 1.0;
+            o.ProfilesSampleRate  = 1.0;
+            o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
+            o.ExperimentalMetrics = new ExperimentalMetricsOptions
+            {
+                EnableCodeLocations = true
+            };
+        });
+
+        return builder;
+    }
+
 
     public static IHostApplicationBuilder ConfigureOpenTelemetry(this IHostApplicationBuilder builder)
     {
