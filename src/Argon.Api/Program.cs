@@ -10,6 +10,7 @@ using Argon.Api.Features.EF;
 using Argon.Api.Features.Env;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.MediaStorage;
+using Argon.Api.Features.OrleansStreamingProviders;
 using Argon.Api.Features.Otp;
 using Argon.Api.Features.Pex;
 using Argon.Api.Features.Repositories;
@@ -27,6 +28,7 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
+builder.AddNatsStreaming();
 builder.Services.AddDbContext<ApplicationDbContext>(x => x
    .EnableDetailedErrors().EnableSensitiveDataLogging().UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
    .AddInterceptors(new TimeStampAndSoftDeleteInterceptor()));
