@@ -12,6 +12,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Argon.Features;
+using Contracts.Models.ArchetypeModel;
 
 public class FilesController(
     IOptions<CdnOptions> cdnOptions,
@@ -44,9 +46,11 @@ public class FilesController(
     [HttpPost("/files/server/{serverId:guid}/avatar"), Authorize(JwtBearerDefaults.AuthenticationScheme)]
     public async ValueTask<IActionResult> UploadServerAvatar([FromRoute] Guid serverId, IFormFile file)
     {
-        // TODO
-        if (!permissions.CanAccess("server.avatar.upload", PropertyBag.Empty.Set(serverId)))
+        var userId = HttpContext.GetUserId();
+
+        if (!await permissions.CanAccess(ArgonEntitlement.ManageServer, userId, serverId))
             return StatusCode(401);
+
         var assetId = AssetId.Avatar();
         var ns      = StorageNameSpace.ForServer(serverId);
         var result  = await cdn.CreateAssetAsync(ns, assetId, file);
