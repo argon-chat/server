@@ -58,7 +58,7 @@ public class StreamProducerGrain : Grain, IStreamProducerGrain
             var unixEpochNow = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             var payload      = new SomeInput(unixEpochNow, "test");
             return stream.OnNextAsync(payload, new EventSequenceTokenV2());
-        }, null, TimeSpan.FromMilliseconds(1_000), TimeSpan.FromMilliseconds(1_000));
+        }, null, TimeSpan.FromMilliseconds(50), TimeSpan.FromMilliseconds(50));
 
         return Task.CompletedTask;
     }

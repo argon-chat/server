@@ -90,7 +90,7 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount) =>
             await consumer.FetchAsync<string>(new NatsJSFetchOpts
             {
-                MaxMsgs = maxCount,
+                MaxMsgs = 1, // TODO: for later optimizations change this number
                 Expires = TimeSpan.FromSeconds(1)
             }).Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
 
