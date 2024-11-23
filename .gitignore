@@ -11,3 +11,5 @@ riderModule.iml
 src/Argon.Api/storage/
 
 secrets.json
+
+src/Argon.Api/Generated/
