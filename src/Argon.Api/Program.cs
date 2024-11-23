@@ -27,8 +27,10 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-// builder.AddNatsClient("nats");
-// builder.AddNatsJetStream();
+
+#region ToFix
+
+// TODO: Yuuki said he knows a way to make this look elegant, until then, this is the best we have
 
 var natsConnectionString = builder.Configuration.GetConnectionString("nats") ?? throw new ArgumentNullException("Nats");
 var natsClient           = new NatsClient(natsConnectionString);
@@ -43,12 +45,7 @@ builder.Services.AddSingleton(js);
 builder.Services.AddSingleton(stream);
 builder.Services.AddSingleton(consumer);
 
-// builder.Services.AddSingleton<INatsJSStream>(provider =>
-// {
-//     var config = new StreamConfig("ARGON_ORLEANS", ["streams.*"]);
-//     var stream = provider.GetRequiredService<INatsJSContext>().CreateStreamAsync(config);
-//     return stream;
-// });
+#endregion
 
 builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection");
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
