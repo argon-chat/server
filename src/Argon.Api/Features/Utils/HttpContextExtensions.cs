@@ -1,4 +1,4 @@
-namespace Argon.Api.Extensions;
+namespace Argon.Features;
 
 using System.Security.Claims;
 
