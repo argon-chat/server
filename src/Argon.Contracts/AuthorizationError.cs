@@ -1,11 +1,8 @@
 namespace Argon;
 
-using MemoryPack;
-using MessagePack;
-using Orleans;
-using System.Runtime.Serialization;
+using Reinforced.Typings.Attributes;
 
-[Alias("Argon.AuthorizationError"), GenerateSerializer]
+[TsEnum]
 public enum AuthorizationError
 {
     BAD_CREDENTIALS,
@@ -13,7 +10,7 @@ public enum AuthorizationError
     BAD_OTP
 }
 
-[Alias("Argon.RegistrationError"), GenerateSerializer]
+[TsEnum]
 public enum RegistrationError
 {
     USERNAME_ALREADY_TAKEN,

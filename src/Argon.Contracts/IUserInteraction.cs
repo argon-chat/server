@@ -1,31 +1,48 @@
 namespace Argon.Contracts;
 
-using System.Runtime.Serialization;
 using ActualLab.Collections;
 using ActualLab.Rpc;
-using MemoryPack;
 using MessagePack;
 using Orleans;
+using Reinforced.Typings.Attributes;
+using System.Reactive;
+using Models;
 
+[TsInterface]
 public interface IUserInteraction : IRpcService
 {
-    Task<UserResponse>           GetMe();
-    Task<ServerDefinition>       CreateServer(CreateServerRequest request);
-    Task<List<ServerDefinition>> GetServers();
+    Task<User>           GetMe();
+    Task<Server>       CreateServer(CreateServerRequest request);
+    Task<List<Server>> GetServers();
 }
 
+[TsInterface]
 public interface IServerInteraction : IRpcService
 {
-    ValueTask<Guid>                CreateChannel(Guid serverId, string name, ChannelType kind);
-    ValueTask                      DeleteChannel(Guid serverId, Guid channelId);
-    ValueTask<ChannelJoinResponse> JoinToVoiceChannel(Guid serverId, Guid channelId);
+    Task<CreateChannelResponse> CreateChannel(CreateChannelRequest request);
+    Task                        DeleteChannel(DeleteChannelRequest request);
+    Task<ChannelJoinResponse>   JoinToVoiceChannel(JoinToVoiceChannelRequest request);
 }
 
+[TsInterface, MessagePackObject(true)]
+public record CreateChannelRequest(Guid serverId, string name, ChannelType kind, string desc);
+
+[TsInterface, MessagePackObject(true)]
+public record CreateChannelResponse(Guid serverId, Guid channelId);
+
+[TsInterface, MessagePackObject(true)]
+public record DeleteChannelRequest(Guid serverId, Guid channelId);
+
+[TsInterface, MessagePackObject(true)]
+public record JoinToVoiceChannelRequest(Guid serverId, Guid channelId);
+
+[TsInterface]
 public interface IEventBus : IRpcService
 {
     ValueTask<RpcStream<IArgonEvent>> SubscribeToServerEvents(Guid ServerId);
 }
 
+[TsEnum]
 public enum ChannelType : ushort
 {
     Text,
@@ -33,47 +50,50 @@ public enum ChannelType : ushort
     Announcement
 }
 
+[TsEnum]
 public enum ServerEventKind
 {
 }
 
+[TsInterface]
 public interface IArgonEvent
 {
     public static string ProviderId => "argon.cluster.events";
     public static string Namespace  => $"@";
 }
 
-[MemoryPackable, GenerateSerializer]
-public partial record ArgonEvent<T> : IArgonEvent where T : ArgonEvent<T>, IArgonEvent;
+[TsInterface, MessagePackObject(true)]
+public record ArgonEvent<T> : IArgonEvent where T : ArgonEvent<T>, IArgonEvent;
 
-[MemoryPackable, GenerateSerializer]
-public partial record JoinToServerUser([property: Id(0)] Guid userId) : ArgonEvent<JoinToServerUser>;
+[TsInterface, MessagePackObject(true)]
+public record JoinToServerUser(Guid userId) : ArgonEvent<JoinToServerUser>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record LeaveFromServerUser([property: Id(0)] Guid userId) : ArgonEvent<LeaveFromServerUser>;
+[TsInterface, MessagePackObject(true)]
+public record LeaveFromServerUser(Guid userId) : ArgonEvent<LeaveFromServerUser>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record JoinedToChannelUser([property: Id(0)] Guid userId, [property: Id(1)] Guid channelId) : ArgonEvent<JoinedToChannelUser>;
+[TsInterface, MessagePackObject(true)]
+public record JoinedToChannelUser(Guid userId, Guid channelId) : ArgonEvent<JoinedToChannelUser>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record LeavedFromChannelUser([property: Id(0)] Guid userId, [property: Id(1)] Guid channelId) : ArgonEvent<LeavedFromChannelUser>;
+[TsInterface, MessagePackObject(true)]
+public record LeavedFromChannelUser(Guid userId, Guid channelId) : ArgonEvent<LeavedFromChannelUser>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record ChannelCreated([property: Id(0)] Guid channelId) : ArgonEvent<ChannelCreated>;
+[TsInterface, MessagePackObject(true)]
+public record ChannelCreated(Channel channel) : ArgonEvent<ChannelCreated>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record ChannelModified([property: Id(0)] Guid channelId, [property: Id(1)] PropertyBag bag) : ArgonEvent<ChannelModified>;
+[TsInterface, MessagePackObject(true)]
+public record ChannelModified(Guid channelId, PropertyBag bag) : ArgonEvent<ChannelModified>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record ChannelRemoved([property: Id(0)] Guid channelId) : ArgonEvent<ChannelRemoved>;
+[TsInterface, MessagePackObject(true)]
+public record ChannelRemoved(Guid channelId) : ArgonEvent<ChannelRemoved>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record UserChangedStatus([property: Id(0)] Guid userId, [property: Id(1)] UserStatus status, [property: Id(3)] PropertyBag bag)
+[TsInterface, MessagePackObject(true)]
+public record UserChangedStatus(Guid userId, UserStatus status, PropertyBag bag)
     : ArgonEvent<UserChangedStatus>;
 
-[MemoryPackable, GenerateSerializer]
-public partial record ServerModified([property: Id(0)] PropertyBag bag) : ArgonEvent<ServerModified>;
+[TsInterface, MessagePackObject(true)]
+public record ServerModified(PropertyBag bag) : ArgonEvent<ServerModified>;
 
+[TsEnum]
 public enum UserStatus
 {
     Offline,
@@ -85,82 +105,23 @@ public enum UserStatus
     DoNotDisturb
 }
 
-[MemoryPackable]
-public sealed partial record ServerDetailsRequest(Guid ServerId);
+[TsInterface, MessagePackObject(true)]
+public sealed record ServerDetailsRequest(Guid ServerId);
 
-[MemoryPackable]
-public sealed partial record ServerUser(
-    UserResponse user,
-    string Role);
-
-[MemoryPackable]
-public sealed partial record UserResponse(
-    Guid Id,
-    string Username,
-    string AvatarUrl,
-    string DisplayName,
-    DateTime CreatedAt,
-    DateTime UpdatedAt)
-{
-    public Guid     Id          { get; set; } = Id;
-    public string   Username    { get; set; } = Username;
-    public string   AvatarUrl   { get; set; } = AvatarUrl;
-    public string   DisplayName { get; set; } = DisplayName;
-    public DateTime CreatedAt   { get; set; } = CreatedAt;
-    public DateTime UpdatedAt   { get; set; } = UpdatedAt;
-}
-
-[MemoryPackable]
-public sealed partial record CreateServerRequest(
+[TsInterface, MessagePackObject(true)]
+public record CreateServerRequest(
     string Name,
     string Description,
-    string AvatarUrl);
+    string AvatarFileId);
 
-[MemoryPackable]
-public sealed partial record ServerDefinition(
-    Guid Id,
-    string Name,
-    string Description,
-    string AvatarUrl,
-    List<ChannelDefinition> Channels,
-    DateTime CreatedAt,
-    DateTime UpdatedAt)
-{
-    public Guid                    Id          { get; set; } = Id;
-    public string                  Name        { get; set; } = Name;
-    public string                  Description { get; set; } = Description;
-    public string                  AvatarUrl   { get; set; } = AvatarUrl;
-    public List<ChannelDefinition> Channels    { get; set; } = Channels;
-    public DateTime                CreatedAt   { get; set; } = CreatedAt;
-    public DateTime                UpdatedAt   { get; set; } = UpdatedAt;
-}
+[TsInterface, MessagePackObject(true)]
+public record ChannelRealtimeMember(Guid UserId);
 
-[MemoryPackable]
-public sealed partial record ChannelDefinition(
-    Guid Id,
-    string Name,
-    string Description,
-    string CreatedBy,
-    string ChannelType,
-    string AccessLevel,
-    DateTime CreatedAt,
-    DateTime UpdatedAt)
-{
-    public Guid     Id          { get; set; } = Id;
-    public string   Name        { get; set; } = Name;
-    public string   Description { get; set; } = Description;
-    public string   CreatedBy   { get; set; } = CreatedBy;
-    public string   ChannelType { get; set; } = ChannelType;
-    public string   AccessLevel { get; set; } = AccessLevel;
-    public DateTime CreatedAt   { get; set; } = CreatedAt;
-    public DateTime UpdatedAt   { get; set; } = UpdatedAt;
-}
-
-[MemoryPackable]
-public sealed partial record ChannelJoinRequest(
+[TsInterface, MessagePackObject(true)]
+public record ChannelJoinRequest(
     Guid ServerId,
     Guid ChannelId);
 
-[MemoryPackable]
-public sealed partial record ChannelJoinResponse(
+[TsInterface, MessagePackObject(true)]
+public sealed record ChannelJoinResponse(
     string Token);
