@@ -2,6 +2,7 @@ namespace Microsoft.Extensions.Hosting;
 
 using AspNetCore.Builder;
 using AspNetCore.Diagnostics.HealthChecks;
+using AspNetCore.Hosting;
 using DependencyInjection;
 using Diagnostics.HealthChecks;
 using Logging;
@@ -39,6 +40,21 @@ public static class Extensions
 
         return builder;
     }
+
+    public static IHostApplicationBuilder AddSentry(this WebApplicationBuilder builder, string? dsn)
+    {
+        if (string.IsNullOrWhiteSpace(dsn)) return builder;
+
+        builder.WebHost.UseSentry(o =>
+        {
+            o.Dsn              = dsn;
+            o.Debug            = builder.Environment.IsDevelopment();
+            o.TracesSampleRate = 1.0;
+        });
+
+        return builder;
+    }
+
 
     public static IHostApplicationBuilder ConfigureOpenTelemetry(this IHostApplicationBuilder builder)
     {
