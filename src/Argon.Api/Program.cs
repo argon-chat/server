@@ -27,16 +27,9 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-
-if (builder.Environment.IsManaged())
-    builder.AddNpgsqlDbContext<ApplicationDbContext>("DefaultConnection", null, 
-        x => x.AddInterceptors([new TimeStampAndSoftDeleteInterceptor()]));
-else
-    builder.Services.AddDbContext<ApplicationDbContext>(x => x
-       .EnableDetailedErrors()
-       .EnableSensitiveDataLogging()
-       .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-       .AddInterceptors([new TimeStampAndSoftDeleteInterceptor()]));
+builder.Services.AddDbContext<ApplicationDbContext>(x => x
+   .EnableDetailedErrors().EnableSensitiveDataLogging().UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+   .AddInterceptors(new TimeStampAndSoftDeleteInterceptor()));
 
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
 builder.Services.AddHttpContextAccessor();
