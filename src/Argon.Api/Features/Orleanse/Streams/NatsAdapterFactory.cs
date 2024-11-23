@@ -19,7 +19,7 @@ public static class NatsMsgExtension
         var                  seq        = int.TryParse(msg.Headers?["seq"][0], out var sequence);
         StreamSequenceToken? token      = null;
         if (eventIndex && seq) token    = new EventSequenceTokenV2(index, sequence);
-        return new ArgonEventBatch(streamId, data, data.GetType(), token);
+        return new ArgonEventBatch(streamId, data, data.GetType(), token, msg);
     }
 }
 
@@ -29,19 +29,20 @@ public class ArgonEventBatch : IBatchContainer
 
     public ArgonEventBatch() { }
 
-    public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken)
+    public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken, NatsJSMsg<string> msg)
     {
         dataType      = getType;
         StreamId      = streamId;
         Data          = [data];
         SequenceToken = eventToken;
+        Event         = msg;
     }
 
-    private List<object> Data     { get; }
-    private Type         dataType { get; }
-
-    public StreamId            StreamId      { get; }
-    public StreamSequenceToken SequenceToken { get; }
+    private List<object>        Data          { get; }
+    private Type                dataType      { get; }
+    public  NatsJSMsg<string>   Event         { get; }
+    public  StreamId            StreamId      { get; }
+    public  StreamSequenceToken SequenceToken { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken?>> GetEvents<T>()
     {
@@ -77,12 +78,9 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         INatsJSStream stream,
         INatsJSConsumer consumer) : IQueueAdapterReceiver
     {
-        // private IAsyncEnumerable<NatsMsg<string>> _stream;
-
         public Task Initialize(TimeSpan timeout)
         {
             receiverMonitor.TrackInitialization(true, TimeSpan.MinValue, null);
-            // _stream = connection.SubscribeAsync<string>(providerName);
             return Task.CompletedTask;
         }
 
@@ -91,9 +89,16 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             {
                 MaxMsgs = maxCount,
                 Expires = TimeSpan.FromSeconds(1)
-            }).Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(dummy => (IBatchContainer)dummy).ToListAsync();
+            }).Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
 
-        public Task MessagesDeliveredAsync(IList<IBatchContainer> messages) => Task.CompletedTask;
+        public async Task MessagesDeliveredAsync(IList<IBatchContainer> messages)
+        {
+            foreach (var iBatchContainer in messages)
+            {
+                var argonEvent = (ArgonEventBatch)iBatchContainer;
+                await argonEvent.Event.AckAsync();
+            }
+        }
 
         public Task Shutdown(TimeSpan timeout)
         {
