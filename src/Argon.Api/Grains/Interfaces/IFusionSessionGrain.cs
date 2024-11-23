@@ -1,12 +1,13 @@
 namespace Argon.Api.Grains.Interfaces;
 
+using Argon.Contracts;
 using Features.Jwt;
 
 [Alias("Argon.Api.Grains.Interfaces.IFusionSessionGrain")]
 public interface IFusionSessionGrain : IGrainWithGuidKey
 {
     [Alias("BeginRealtimeSession")]
-    ValueTask BeginRealtimeSession(Guid userId, Guid machineKey);
+    ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null);
 
     [Alias("EndRealtimeSession")]
     ValueTask EndRealtimeSession();

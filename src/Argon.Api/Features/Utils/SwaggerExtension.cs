@@ -1,6 +1,7 @@
 namespace Argon.Api.Extensions;
 
 using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 
 public static class SwaggerExtension
 {
@@ -29,8 +30,28 @@ public static class SwaggerExtension
                     []
                 }
             });
+            c.OperationFilter<AddHeaderParameterOperationFilter>();
         }).AddEndpointsApiExplorer();
 
         return builder;
+    }
+}
+
+public class AddHeaderParameterOperationFilter : IOperationFilter
+{
+    public void Apply(OpenApiOperation operation, OperationFilterContext context)
+    {
+        operation.Parameters ??= new List<OpenApiParameter>();
+        operation.Parameters.Add(new OpenApiParameter
+        {
+            Name        = "X-Host-Name",
+            In          = ParameterLocation.Header,
+            Description = "Host Name",
+            Required    = true,
+            Schema = new OpenApiSchema
+            {
+                Type = "string"
+            }
+        });
     }
 }

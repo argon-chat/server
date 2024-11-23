@@ -1,29 +1,15 @@
 namespace Argon.Api.Grains;
 
-using AutoMapper;
 using Contracts;
+using Contracts.Models;
 using Entities;
 using Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Services;
 
-public class UserGrain(IPasswordHashingService passwordHashingService, ApplicationDbContext context, IMapper mapper) : Grain, IUserGrain
+public class UserGrain(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserGrain
 {
-    public async Task<UserDto> CreateUser(UserCredentialsInput input)
-    {
-        var user = new User
-        {
-            Email          = input.Email,
-            Username       = input.Username,
-            PhoneNumber    = input.PhoneNumber,
-            PasswordDigest = passwordHashingService.HashPassword(input.Password)
-        };
-        context.Users.Add(user);
-        await context.SaveChangesAsync();
-        return mapper.Map<UserDto>(user);
-    }
-
-    public async Task<UserDto> UpdateUser(UserEditInput input)
+    public async Task<User> UpdateUser(UserEditInput input)
     {
         var user = await Get();
         user.Username     = input.Username ?? user.Username;
@@ -31,7 +17,7 @@ public class UserGrain(IPasswordHashingService passwordHashingService, Applicati
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         context.Users.Update(user);
         await context.SaveChangesAsync();
-        return mapper.Map<UserDto>(user);
+        return user;
     }
 
     public Task DeleteUser()
@@ -42,20 +28,31 @@ public class UserGrain(IPasswordHashingService passwordHashingService, Applicati
         return context.SaveChangesAsync();
     }
 
-    public async Task<UserDto>         GetUser() => mapper.Map<UserDto>(await Get());
-
-    public async Task<List<ServerDto>> GetMyServers()
+    public async Task<User> GetUser()
     {
-        var user = await context.Users
-           .Include(user => user.UsersToServerRelations).ThenInclude(usersToServerRelation => usersToServerRelation.Server)
-           .FirstAsync(u => u.Id == this.GetPrimaryKey());
-        return user.UsersToServerRelations
-           .Select(x => x.Server)
-           .ToList()
-           .Select(mapper.Map<ServerDto>)
-           .ToList();
+        var user = await Get();
+        return user;
     }
 
-    private async Task<User> Get() => await context.Users.Include(x => x.UsersToServerRelations).ThenInclude(x => x.Server)
+    public async Task<List<Server>> GetMyServers()
+    {
+        var user = await context.Users
+           .Include(user => user.ServerMembers).ThenInclude(usersToServerRelation => usersToServerRelation.Server)
+           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+        var r = user.ServerMembers
+           .Select(x => x.Server)
+           .ToList();
+        return r;
+    }
+
+    public async Task<List<Guid>> GetMyServersIds()
+    {
+        var user = await context.Users
+           .Include(user => user.ServerMembers)
+           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+        return user.ServerMembers.Select(x => x.ServerId).ToList();
+    }
+
+    private async Task<User> Get() => await context.Users.Include(x => x.ServerMembers).ThenInclude(x => x.Server)
        .ThenInclude(x => x.Channels).FirstAsync(user => user.Id == this.GetPrimaryKey());
 }

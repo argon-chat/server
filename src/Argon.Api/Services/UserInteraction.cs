@@ -1,35 +1,34 @@
 namespace Argon.Api.Services;
 
 using ActualLab.Rpc.Infrastructure;
-using AutoMapper;
 using Grains.Interfaces;
 using Contracts;
+using Contracts.Models;
 using Features.Jwt;
 
-public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionContext, IMapper mapper) : IUserInteraction
+public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionContext) : IUserInteraction
 {
-    public async Task<UserResponse> GetMe()
+    public async Task<User> GetMe()
     {
         var userData = await fusionContext.GetUserDataAsync();
-        var user = await grainFactory.GetGrain<IUserGrain>(userData.id).GetUser();
-        return mapper.Map<UserResponse>(user);
+        return await grainFactory.GetGrain<IUserGrain>(userData.id).GetUser();
     }
 
-    public async Task<ServerDefinition> CreateServer(CreateServerRequest request)
+    public async Task<Server> CreateServer(CreateServerRequest request)
     {
         var userData = await fusionContext.GetUserDataAsync();
         var serverId = Guid.NewGuid();
         var server   = await grainFactory
            .GetGrain<IServerGrain>(serverId)
-           .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarUrl), userData.id);
-        return mapper.Map<ServerDefinition>(server);
+           .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarFileId), userData.id);
+        return server.Value;
     }
 
-    public async Task<List<ServerDefinition>> GetServers()
+    public async Task<List<Server>> GetServers()
     {
         var userData = await fusionContext.GetUserDataAsync();
         var servers = await grainFactory.GetGrain<IUserGrain>(userData.id).GetMyServers();
-        return servers.Select(mapper.Map<ServerDefinition>).ToList();
+        return servers.ToList();
     }
 }
 

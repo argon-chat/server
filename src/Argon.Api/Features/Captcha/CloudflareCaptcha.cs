@@ -1,5 +1,6 @@
 namespace Argon.Api.Features.Captcha;
 
+using Argon.Features;
 using Extensions;
 using Flurl.Http;
 using Microsoft.Extensions.Options;
