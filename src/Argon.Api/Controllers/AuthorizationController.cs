@@ -2,8 +2,8 @@ namespace Argon.Api.Controllers;
 
 using Grains.Interfaces;
 using Contracts;
-using Extensions;
 using Microsoft.AspNetCore.Mvc;
+using Argon.Features;
 
 [ApiController]
 public class AuthorizationController(IGrainFactory grainFactory) : ControllerBase
