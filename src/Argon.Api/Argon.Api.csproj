@@ -5,12 +5,18 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
-        <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
         <UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
+
+        <CompilerGeneratedFilesOutputPath>Generated</CompilerGeneratedFilesOutputPath>
+        <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="AutoMapper" Version="13.0.1"/>
+        <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs"/>
+        <None Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs"/>
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0"/>
         <PackageReference Include="Fluid.Core" Version="2.12.0"/>
         <PackageReference Include="Flurl.Http" Version="4.0.2"/>
@@ -33,10 +39,12 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1"/>
+        <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0"/>
+        <PackageReference Include="Microsoft.Orleans.Serialization.MessagePack" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Server" Version="8.2.0"/>
         <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0"/>
         <PackageReference Include="Npgsql" Version="8.0.5"/>
@@ -44,6 +52,7 @@
         <PackageReference Include="OrleansDashboard" Version="8.2.0"/>
         <PackageReference Include="Otp.NET" Version="1.4.0"/>
         <PackageReference Include="R3" Version="1.2.9"/>
+        <PackageReference Include="Riok.Mapperly" Version="4.1.0"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.9.0"/>
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="6.9.0"/>
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.2.1"/>

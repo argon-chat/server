@@ -47,7 +47,6 @@ builder.Services.AddSerializer(x => {
 });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IFusionContext, FusionContext>();
-builder.Services.AddAutoMapper(typeof(User).Assembly);
 var app = builder.Build();
 
 app.UseWebSockets();
