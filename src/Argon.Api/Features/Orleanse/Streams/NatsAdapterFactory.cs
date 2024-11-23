@@ -1,6 +1,7 @@
 namespace Argon.Api.Features.OrleansStreamingProviders;
 
 using System.Collections.Concurrent;
+using Argon.Features;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using Orleans.Configuration;
@@ -123,12 +124,12 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private readonly ConcurrentDictionary<QueueId, Receiver>                       _receivers;
     private readonly Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
     private readonly INatsJSContext                                                _js;
-    private readonly INatsJSStream                                                 _stream;
-    private readonly INatsJSConsumer                                               _consumer;
+    private readonly AsyncContainer<INatsJSStream>                                      _stream;
+    private readonly AsyncContainer<INatsJSConsumer>                                    _consumer;
 
 
     public NatsAdapterFactory(string name, OrleansJsonSerializer serializationManager, ILoggerFactory loggerFactory, IGrainFactory grainFactory,
-        IServiceProvider services, INatsJSContext js, INatsJSStream stream, INatsJSConsumer consumer)
+        IServiceProvider services, INatsJSContext js, AsyncContainer<INatsJSStream> stream, AsyncContainer<INatsJSConsumer> consumer)
     {
         Name                   = name;
         _serializationManager  = serializationManager;
@@ -147,7 +148,12 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         _logger.LogInformation("Initializing NATS");
     }
 
-    public Task<IQueueAdapter> CreateAdapter() => Task.FromResult<IQueueAdapter>(this);
+    public async Task<IQueueAdapter> CreateAdapter()
+    {
+        await this._stream.DoCreateAsync();
+        await this._consumer.DoCreateAsync();
+        return this;
+    }
 
     public IQueueAdapterCache GetQueueAdapterCache() => this;
 
@@ -189,8 +195,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
         var receiverMonitor = ReceiverMonitorFactory(dimensions);
         receiver = _receivers.GetOrAdd(queueId,
-            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection, _js, _stream,
-                _consumer));
+            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection, _js, _stream.Value,
+                _consumer.Value));
 
         return receiver;
     }
