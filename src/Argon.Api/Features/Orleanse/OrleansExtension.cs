@@ -8,7 +8,6 @@ using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
-
 #pragma warning disable ORLEANSEXP001
 
 public static class OrleansExtension
@@ -39,10 +38,8 @@ public static class OrleansExtension
             }
             else
             {
-                siloBuilder.UseLocalhostClustering().AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-                    // .AddMemoryStreams("default").AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddRedisStorage(IFusionSessionGrain.StorageId, 1).AddRedisStorage("PubSubStore", 2);
+                siloBuilder.UseLocalhostClustering().AddMemoryStreams("default").AddMemoryStreams(IArgonEvent.ProviderId)
+                   .AddMemoryGrainStorage(IFusionSessionGrain.StorageId).AddMemoryGrainStorage("PubSubStore");
             }
         });
 
