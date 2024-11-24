@@ -6,14 +6,24 @@ using MessagePack;
 using Orleans;
 using Reinforced.Typings.Attributes;
 using System.Reactive;
+using ActualLab.Text;
 using Models;
 
 [TsInterface]
 public interface IUserInteraction : IRpcService
 {
-    Task<User>           GetMe();
+    Task<User>         GetMe();
     Task<Server>       CreateServer(CreateServerRequest request);
     Task<List<Server>> GetServers();
+}
+
+[TsInterface]
+public interface IUserPreferenceInteraction : IRpcService
+{
+    [Alias("SavePreferences")]
+    Task         SavePreferences(Symbol scope, string state);
+    [Alias("LoadPreferences")]
+    Task<string> LoadPreferences(Symbol scope);
 }
 
 [TsInterface]

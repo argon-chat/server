@@ -35,7 +35,8 @@ builder.Services.AddFusion(RpcServiceMode.Server, true)
    .Rpc.AddWebSocketServer(true).Rpc
    .AddServer<IUserInteraction, UserInteraction>()
    .AddServer<IServerInteraction, ServerInteraction>()
-   .AddServer<IEventBus, EventBusService>();
+   .AddServer<IEventBus, EventBusService>()
+   .AddServer<IUserPreferenceInteraction, UserPreferenceInteraction>();
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options))
    .AddOrleansClient(x => {
