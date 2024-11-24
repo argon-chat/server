@@ -69,10 +69,9 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
     static double ParseCpuUsage(string cpuUsageStr)
     {
         if (cpuUsageStr.EndsWith("n"))
-        {
-            var nanoCores = double.Parse(cpuUsageStr.Replace("n", ""), CultureInfo.InvariantCulture);
-            return nanoCores / 1_000_000;
-        }
+            return double.Parse(cpuUsageStr.Replace("n", ""), CultureInfo.InvariantCulture) / 1_000_000;
+        if (cpuUsageStr.EndsWith("u"))
+            return double.Parse(cpuUsageStr.Replace("u", ""), CultureInfo.InvariantCulture) / 1_000;
         if (cpuUsageStr.EndsWith("m"))
             return double.Parse(cpuUsageStr.Replace("m", ""), CultureInfo.InvariantCulture);
         var cores = double.Parse(cpuUsageStr, CultureInfo.InvariantCulture);
