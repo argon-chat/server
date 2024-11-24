@@ -1,6 +1,7 @@
 using ActualLab.Fusion;
 using ActualLab.Rpc;
 using ActualLab.Rpc.Server;
+using ActualLab.Serialization;
 using Argon.Api;
 using Argon.Api.Controllers;
 using Argon.Api.Entities;
@@ -36,9 +37,8 @@ builder.Services.AddFusion(RpcServiceMode.Server, true)
    .AddServer<IServerInteraction, ServerInteraction>()
    .AddServer<IEventBus, EventBusService>();
 builder.AddSwaggerWithAuthHeader();
-builder.Services.AddSerializer(x => {
-    x.AddMemoryPackSerializer();
-}).AddOrleansClient(x => {
+builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options))
+   .AddOrleansClient(x => {
     x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming();
     if (builder.Environment.IsProduction())
         x.UseKubeGatewayListProvider();
