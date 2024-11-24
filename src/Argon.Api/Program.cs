@@ -39,8 +39,12 @@ if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
     builder.Services.AddControllers().AddNewtonsoftJson();
-    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc.AddWebSocketServer(true).Rpc.AddServer<IUserInteraction, UserInteraction>()
-       .AddServer<IServerInteraction, ServerInteraction>().AddServer<IEventBus, EventBusService>();
+    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc
+       .AddWebSocketServer(true).Rpc
+       .AddServer<IUserInteraction, UserInteraction>()
+       .AddServer<IServerInteraction, ServerInteraction>()
+       .AddServer<IEventBus, EventBusService>()
+       .AddServer<IUserPreferenceInteraction, UserPreferenceInteraction>();
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
     builder.AddContentDeliveryNetwork();
