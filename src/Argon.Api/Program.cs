@@ -21,6 +21,7 @@ using Argon.Api.Services;
 using Argon.Contracts;
 using Argon.Sfu;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
@@ -38,7 +39,17 @@ builder.Services.AddHttpContextAccessor();
 if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
-    builder.Services.AddControllers().AddNewtonsoftJson();
+    builder.Services.AddControllers()
+       .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+    builder.Services.AddCors(x =>
+    {
+        x.AddDefaultPolicy(z =>
+        {
+            z.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost");
+            z.AllowAnyHeader();
+            z.AllowAnyMethod();
+        });
+    });
     builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc
        .AddWebSocketServer(true).Rpc
        .AddServer<IUserInteraction, UserInteraction>()
@@ -65,6 +76,7 @@ var app = builder.Build();
 
 if (!builder.Environment.IsManaged())
 {
+    app.UseCors();
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseWebSockets();

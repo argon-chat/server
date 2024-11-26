@@ -10,13 +10,15 @@ using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Pex;
 using Argon.Api.Services;
 using Argon.Contracts;
+using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.ConfigureKestrel(options => {
+builder.WebHost.ConfigureKestrel(options =>
+{
     options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
     options.AddServerHeader                          = false;
     options.Limits.Http2.MaxStreamsPerConnection     = 100;
@@ -30,7 +32,16 @@ builder.AddServiceDefaults();
 builder.AddJwt();
 builder.Services.AddControllers()
    .AddApplicationPart(typeof(AuthorizationController).Assembly)
-   .AddNewtonsoftJson();
+   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+builder.Services.AddCors(x =>
+{
+    x.AddDefaultPolicy(z =>
+    {
+        z.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost");
+        z.AllowAnyHeader();
+        z.AllowAnyMethod();
+    });
+});
 builder.Services.AddFusion(RpcServiceMode.Server, true)
    .Rpc.AddWebSocketServer(true).Rpc
    .AddServer<IUserInteraction, UserInteraction>()
@@ -39,17 +50,19 @@ builder.Services.AddFusion(RpcServiceMode.Server, true)
    .AddServer<IUserPreferenceInteraction, UserPreferenceInteraction>();
 builder.AddSwaggerWithAuthHeader();
 builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options))
-   .AddOrleansClient(x => {
-    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming();
-    if (builder.Environment.IsProduction())
-        x.UseKubeGatewayListProvider();
-    else
-        x.UseLocalhostClustering();
-});
+   .AddOrleansClient(x =>
+    {
+        x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming();
+        if (builder.Environment.IsProduction())
+            x.UseKubeGatewayListProvider();
+        else
+            x.UseLocalhostClustering();
+    });
 builder.Services.AddAuthorization();
 builder.Services.AddSingleton<IFusionContext, FusionContext>();
 var app = builder.Build();
 
+app.UseCors();
 app.UseWebSockets();
 app.MapRpcWebSocketServer();
 app.UseSwagger();
