@@ -5,8 +5,8 @@ using MessagePack;
 using Newtonsoft.Json;
 using Orleans;
 
-[JsonObject, MessagePackObject, MemoryPackable, Immutable, GenerateSerializer, Serializable]
-public readonly partial record struct Either<TResult, TError>
+[JsonObject, MessagePackObject(true), MemoryPackable, Immutable, GenerateSerializer, Serializable]
+public readonly partial record struct Either<TResult, TError> where TResult : class
 {
     private Either(TResult result)
     {
@@ -16,7 +16,7 @@ public readonly partial record struct Either<TResult, TError>
 
     private Either(TError error)
     {
-        _result = default;
+        _result = null;
         _error  = error;
     }
 
@@ -117,8 +117,8 @@ public readonly partial record struct Maybe<TResult>
 
 public static class Either
 {
-    public static Either<TResult, TError> Value<TResult, TError>(TResult result) => Either<TResult, TError>.Success(result);
-    public static Either<TResult, TError> Error<TResult, TError>(TError error)   => Either<TResult, TError>.Failure(error);
+    public static Either<TResult, TError> Value<TResult, TError>(TResult result) where TResult : class => Either<TResult, TError>.Success(result);
+    public static Either<TResult, TError> Error<TResult, TError>(TError error) where TResult : class   => Either<TResult, TError>.Failure(error);
 }
 
 public static class Maybe
