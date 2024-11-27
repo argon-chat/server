@@ -9,6 +9,7 @@ using Argon.Api.Extensions;
 using Argon.Api.Features.Jwt;
 using Argon.Api.Features.Pex;
 using Argon.Api.Services;
+using Argon.Api.Services.Fusion;
 using Argon.Contracts;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
@@ -16,7 +17,7 @@ using Orleans.Configuration;
 using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
