@@ -15,15 +15,19 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Channel>        Channels               { get; set; }
     public DbSet<ServerMember>   UsersToServerRelations { get; set; }
 
-    public DbSet<ServerMemberArchetype>      ServerMemberArchetypes      { get; set; }
-    public DbSet<Archetype>                  Archetypes                  { get; set; }
+    public DbSet<ServerMemberArchetype>       ServerMemberArchetypes       { get; set; }
+    public DbSet<Archetype>                   Archetypes                   { get; set; }
     public DbSet<ChannelEntitlementOverwrite> ChannelEntitlementOverwrites { get; set; }
 
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ServerMemberArchetype>()
-           .HasKey(x => new { x.ServerMemberId, x.ArchetypeId });
+           .HasKey(x => new
+            {
+                x.ServerMemberId,
+                x.ArchetypeId
+            });
 
         modelBuilder.Entity<ServerMemberArchetype>()
            .HasOne(x => x.ServerMember)
@@ -60,7 +64,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .HasForeignKey(c => c.ServerId);
 
         modelBuilder.Entity<Channel>()
-           .HasIndex(x => new { x.Id, x.ServerId });
+           .HasIndex(x => new
+            {
+                x.Id,
+                x.ServerId
+            });
 
         modelBuilder.Entity<ChannelEntitlementOverwrite>()
            .HasOne(cpo => cpo.Channel)
@@ -116,7 +124,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 IsMentionable = true,
                 IsHidden      = false,
                 Description   = "Default role for everyone in this server",
-                CreatedAt     = DateTime.UtcNow
+                CreatedAt     = new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8411)
             }
         ]);
 
@@ -133,7 +141,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 IsMentionable = false,
                 IsHidden      = true,
                 Description   = "Default role for owner in this server",
-                CreatedAt     = DateTime.UtcNow
+                CreatedAt     = new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8382)
             }
         ]);
     }
