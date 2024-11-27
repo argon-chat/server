@@ -11,7 +11,7 @@ public class UserGrain(IPasswordHashingService passwordHashingService, Applicati
 {
     public async Task<User> UpdateUser(UserEditInput input)
     {
-        var user = await Get();
+        var user = await context.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
         user.Username     = input.Username ?? user.Username;
         user.Username     = input.DisplayName ?? user.DisplayName;
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
@@ -20,39 +20,27 @@ public class UserGrain(IPasswordHashingService passwordHashingService, Applicati
         return user;
     }
 
-    public Task DeleteUser()
-    {
-        var user = context.Users.First(u => u.Id == this.GetPrimaryKey());
-        user.DeletedAt = DateTime.UtcNow;
-        context.Users.Update(user);
-        return context.SaveChangesAsync();
-    }
-
-    public async Task<User> GetUser()
-    {
-        var user = await Get();
-        return user;
-    }
+    public async Task<User> GetMe()
+        => await context.Users
+           .Include(x => x.ServerMembers)
+           .ThenInclude(x => x.Server)
+           .ThenInclude(x => x.Channels)
+           .FirstAsync(user => user.Id == this.GetPrimaryKey());
 
     public async Task<List<Server>> GetMyServers()
-    {
-        var user = await context.Users
-           .Include(user => user.ServerMembers).ThenInclude(usersToServerRelation => usersToServerRelation.Server)
-           .FirstAsync(u => u.Id == this.GetPrimaryKey());
-        var r = user.ServerMembers
+        => await context.Users
+           .Include(user => user.ServerMembers)
+           .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
+           .Where(x => x.Id == this.GetPrimaryKey())
+           .SelectMany(x => x.ServerMembers)
            .Select(x => x.Server)
-           .ToList();
-        return r;
-    }
+           .ToListAsync();
 
     public async Task<List<Guid>> GetMyServersIds()
-    {
-        var user = await context.Users
+        => await context.Users
            .Include(user => user.ServerMembers)
-           .FirstAsync(u => u.Id == this.GetPrimaryKey());
-        return user.ServerMembers.Select(x => x.ServerId).ToList();
-    }
-
-    private async Task<User> Get() => await context.Users.Include(x => x.ServerMembers).ThenInclude(x => x.Server)
-       .ThenInclude(x => x.Channels).FirstAsync(user => user.Id == this.GetPrimaryKey());
+           .Where(u => u.Id == this.GetPrimaryKey())
+           .SelectMany(x => x.ServerMembers)
+           .Select(x => x.ServerId)
+           .ToListAsync();
 }

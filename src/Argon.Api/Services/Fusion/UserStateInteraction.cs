@@ -1,4 +1,4 @@
-namespace Argon.Api.Services;
+namespace Argon.Api.Services.Fusion;
 
 using ActualLab.Text;
 using Contracts;

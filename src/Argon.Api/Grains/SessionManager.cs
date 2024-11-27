@@ -14,7 +14,7 @@ public class SessionManager(
     IPasswordHashingService passwordHashingService,
     ApplicationDbContext context) : Grain, ISessionManager
 {
-    public async Task<User> GetUser() => await grainFactory.GetGrain<IUserGrain>(this.GetPrimaryKey()).GetUser();
+    public async Task<User> GetUser() => await grainFactory.GetGrain<IUserGrain>(this.GetPrimaryKey()).GetMe();
 
     public Task Logout() => throw new NotImplementedException();
 }

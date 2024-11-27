@@ -26,4 +26,7 @@ public sealed record User : ArgonEntity
     public string? OtpHash { get; set; } = null;
     [IgnoreMember]
     public ICollection<ServerMember> ServerMembers { get; set; } = new List<ServerMember>();
+
+    public LockdownReason LockdownReason     { get; set; }
+    public DateTime?      LockDownExpiration { get; set; }
 }
