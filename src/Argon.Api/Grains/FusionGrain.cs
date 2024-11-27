@@ -3,6 +3,7 @@ namespace Argon.Api.Grains;
 using Contracts;
 using Extensions;
 using Features.Jwt;
+using Features.Rpc;
 using Interfaces;
 using R3;
 using static DeactivationReasonCode;
@@ -10,9 +11,12 @@ using static DeactivationReasonCode;
 public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrain
 {
     private DateTimeOffset _latestSignalTime = DateTimeOffset.UtcNow;
-    private DisposableBag disposableBag;
+    private DisposableBag  disposableBag;
+
     private Guid _userId;
     private Guid _machineId;
+
+    private IArgonStream<IArgonEvent> userStream;
 
     public async ValueTask SelfDestroy()
     {
@@ -23,7 +27,7 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, UserStatus.Offline);
-        _userId = default;
+        _userId    = default;
         _machineId = default;
         GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
     }
@@ -38,8 +42,11 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
     {
         this.RegisterGrainTimer(OnValidateActiveAsync, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2))
            .AddTo(ref disposableBag);
-        this._userId   = userId;
+        this._userId    = userId;
         this._machineId = machineKey;
+
+        userStream      = await this.Streams().CreateServerStreamFor(_userId);
+
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
            .IndicateLastActive(machineKey);

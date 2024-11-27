@@ -11,7 +11,7 @@ public class UserInteraction(IGrainFactory grainFactory, IFusionContext fusionCo
     public async Task<User> GetMe()
     {
         var userData = await fusionContext.GetUserDataAsync();
-        return await grainFactory.GetGrain<IUserGrain>(userData.id).GetUser();
+        return await grainFactory.GetGrain<IUserGrain>(userData.id).GetMe();
     }
 
     public async Task<Server> CreateServer(CreateServerRequest request)

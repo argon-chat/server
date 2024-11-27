@@ -6,19 +6,15 @@ using Contracts.Models;
 [Alias("Argon.Api.Grains.Interfaces.IUserGrain")]
 public interface IUserGrain : IGrainWithGuidKey
 {
-    [Alias("UpdateUser")]
+    [Alias(nameof(UpdateUser))]
     Task<User> UpdateUser(UserEditInput input);
 
-    [Alias("DeleteUser")]
-    Task DeleteUser();
+    [Alias(nameof(GetMe))]
+    Task<User> GetMe();
 
-    [Alias("GetUser")]
-    Task<User> GetUser();
-
-    [Alias("GetMyServers")]
+    [Alias(nameof(GetMyServers))]
     Task<List<Server>> GetMyServers();
 
-    [Alias("GetMyServersIds")]
+    [Alias(nameof(GetMyServersIds))]
     Task<List<Guid>> GetMyServersIds();
 }
-

@@ -3,7 +3,6 @@ namespace Argon.Api.Services;
 using Grains.Interfaces;
 using Contracts;
 using Contracts.Models;
-using Entities;
 
 public class ServerInteraction(IGrainFactory grainFactory, IFusionContext fusionContext) : IServerInteraction
 {
