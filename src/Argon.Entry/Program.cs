@@ -16,7 +16,7 @@ using Orleans.Configuration;
 using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
