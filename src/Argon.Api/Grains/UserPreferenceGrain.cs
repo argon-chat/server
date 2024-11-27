@@ -7,6 +7,8 @@ using Persistence.States;
 public class UserPreferenceGrain([PersistentState("userPreferences", "OrleansStorage")]
     IPersistentState<UserPreferencesGrainState> state) : Grain, IUserPreferenceGrain
 {
+    private const int MaxSymbolSize = 1024 * 64;
+
     public override Task OnActivateAsync(CancellationToken cancellationToken)
         => state.ReadStateAsync();
 
@@ -15,6 +17,10 @@ public class UserPreferenceGrain([PersistentState("userPreferences", "OrleansSto
 
     public Task SavePreferences(Symbol scope, string value)
     {
+        if(value.Length * 2 > MaxSymbolSize)
+            return Task.CompletedTask; // ignore
+        if (state.State.UserPreferences.Count > 10)
+            return Task.CompletedTask;
         state.State.UserPreferences[scope] = value;
         return Task.CompletedTask;
     }

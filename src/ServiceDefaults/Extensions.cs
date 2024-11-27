@@ -9,7 +9,9 @@ using Logging;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
+using Sentry.Extensibility;
 using Sentry.Infrastructure;
+using Sentry.OpenTelemetry;
 
 // Adds common .NET Aspire services: service discovery, resilience, health checks, and OpenTelemetry.
 // This project should be referenced by each service project in your solution.
@@ -58,6 +60,7 @@ public static class Extensions
             {
                 EnableCodeLocations = true
             };
+            o.UseOpenTelemetry();
         });
 
         return builder;
@@ -71,6 +74,7 @@ public static class Extensions
             logging.IncludeFormattedMessage = true;
             logging.IncludeScopes           = true;
         });
+        builder.Logging.AddSentry();
 
         builder.Services.AddOpenTelemetry().WithMetrics(metrics =>
         {
@@ -80,7 +84,8 @@ public static class Extensions
             tracing.AddAspNetCoreInstrumentation()
                 // Uncomment the following line to enable gRPC instrumentation (requires the OpenTelemetry.Instrumentation.GrpcNetClient package)
                 //.AddGrpcClientInstrumentation()
-               .AddHttpClientInstrumentation();
+               .AddHttpClientInstrumentation()
+               .AddSentry();
         });
 
         builder.AddOpenTelemetryExporters();

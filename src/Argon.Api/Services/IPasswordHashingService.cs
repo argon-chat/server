@@ -13,7 +13,8 @@ public interface IPasswordHashingService
     OtpCode      GenerateOtp(Guid userId);
 }
 
-public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.OneTimePassKey)] OtpGenerator otpGenerator) : IPasswordHashingService
+public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.OneTimePassKey)] OtpGenerator otpGenerator, 
+    ILogger<IPasswordHashingService> logger) : IPasswordHashingService
 {
     public unsafe string? HashPassword(string? password)
     {
@@ -25,7 +26,10 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
         Encoding.UTF8.GetBytes(password, source);
 
         if (!sha256.TryComputeHash(source, dest, out var written))
-            throw new InvalidOperationException("SHA256 cannot create hash");
+        {
+            logger.LogCritical($"Cannot compute sha256 hash, dropping operation..");
+            return null;
+        }
 
         return Convert.ToBase64String(dest[..written]);
     }
