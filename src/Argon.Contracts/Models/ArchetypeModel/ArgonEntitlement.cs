@@ -1,6 +1,8 @@
 namespace Argon.Contracts.Models.ArchetypeModel;
 
-[Flags]
+using Reinforced.Typings.Attributes;
+
+[Flags, TsEnum]
 public enum ArgonEntitlement : ulong
 {
     None = 0UL,

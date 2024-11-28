@@ -4,12 +4,14 @@ using System.ComponentModel.DataAnnotations;
 using ArchetypeModel;
 using MessagePack;
 using Newtonsoft.Json;
+using Reinforced.Typings.Attributes;
 
+[TsInterface]
 public record Channel : ArgonEntityWithOwnership, IArchetypeObject
 {
     public ChannelType ChannelType { get; set; }
     public Guid        ServerId    { get; set; }
-    [IgnoreMember, JsonIgnore]
+    [IgnoreMember, JsonIgnore, TsIgnore]
     public virtual Server Server { get; set; }
 
 
