@@ -2,7 +2,10 @@ namespace Argon.Contracts.Models;
 
 using ArchetypeModel;
 using System.ComponentModel.DataAnnotations;
+using MessagePack;
+using Reinforced.Typings.Attributes;
 
+[TsInterface, MessagePackObject(true)]
 public record Server : ArgonEntityWithOwnership, IArchetypeSubject
 {
     public static readonly Guid DefaultSystemServer

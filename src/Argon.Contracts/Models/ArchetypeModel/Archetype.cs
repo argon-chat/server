@@ -3,8 +3,9 @@ namespace Argon.Contracts.Models.ArchetypeModel;
 using System.ComponentModel.DataAnnotations;
 using System.Drawing;
 using MessagePack;
+using Reinforced.Typings.Attributes;
 
-[MessagePackObject(true)]
+[MessagePackObject(true), TsInterface]
 public record Archetype : ArgonEntityWithOwnership, IArchetype
 {
     public static readonly Guid DefaultArchetype_Everyone
@@ -12,8 +13,9 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     public static readonly Guid DefaultArchetype_Owner
         = Guid.Parse("11111111-4444-0000-1111-111111111111");
 
-    [IgnoreMember]
+    [IgnoreMember, TsIgnore]
     public virtual Server Server { get; set; }
+    [TsIgnore]
     public Guid ServerId { get;         set; }
 
     [MaxLength(64)]
@@ -23,8 +25,11 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
 
     public ArgonEntitlement Entitlement { get; set; }
 
+    [TsIgnore]
     public bool IsMentionable { get; set; }
+    [TsIgnore]
     public bool IsLocked      { get; set; }
+    [TsIgnore]
     public bool IsHidden      { get; set; }
 
     public Color Colour { get; set; }
@@ -35,6 +40,7 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
         = new List<ServerMemberArchetype>();
 }
 
+[TsInterface]
 public interface IArchetype
 {
     Guid   Id   { get; }

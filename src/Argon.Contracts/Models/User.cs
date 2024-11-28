@@ -3,8 +3,9 @@ namespace Argon.Contracts.Models;
 using MessagePack;
 using System.ComponentModel.DataAnnotations;
 using Newtonsoft.Json;
+using Reinforced.Typings.Attributes;
 
-[MessagePackObject(true)]
+[MessagePackObject(true), TsInterface]
 public sealed record User : ArgonEntity
 {
     public static readonly Guid SystemUser
