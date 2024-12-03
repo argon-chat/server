@@ -1,19 +1,11 @@
-namespace Argon.Api.Controllers;
+namespace Argon.Controllers;
 
-using ActualLab.Collections;
-using Features.MediaStorage.Storages;
-using Contracts;
-using Extensions;
 using Features.MediaStorage;
+using Features.MediaStorage.Storages;
 using Features.Pex;
-using Grains.Interfaces;
-using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
-using Microsoft.AspNetCore.StaticFiles;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Argon.Features;
-using Contracts.Models.ArchetypeModel;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.StaticFiles;
 
 public class FilesController(
     IOptions<CdnOptions> cdnOptions,
@@ -61,7 +53,7 @@ public class FilesController(
         await grainFactory.GetGrain<IServerGrain>(serverId)
            .UpdateServer(new ServerInput(null, null, assetId.ToFileId()));
 
-        return Ok(await cdn.GenerateAssetUrl(ns, assetId));
+        return Ok(cdn.GenerateAssetUrl(ns, assetId));
     }
 
     [HttpPost("/files/user/@me/avatar"), Authorize(JwtBearerDefaults.AuthenticationScheme)]
@@ -78,6 +70,6 @@ public class FilesController(
         await grainFactory.GetGrain<IUserGrain>(userId)
            .UpdateUser(new UserEditInput(null, null, assetId.ToFileId()));
 
-        return Ok(await cdn.GenerateAssetUrl(ns, assetId));
+        return Ok(cdn.GenerateAssetUrl(ns, assetId));
     }
 }
