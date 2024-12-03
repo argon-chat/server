@@ -1,30 +1,29 @@
-using ActualLab.Fusion;
-using ActualLab.Rpc;
-using ActualLab.Rpc.Server;
-using Argon.Api;
-using Argon.Api.Entities;
-using Argon.Api.Extensions;
-using Argon.Api.Features;
-using Argon.Api.Features.Captcha;
-using Argon.Api.Features.EF;
-using Argon.Api.Features.Env;
-using Argon.Api.Features.Jwt;
-using Argon.Api.Features.MediaStorage;
-using Argon.Api.Features.OrleansStreamingProviders;
-using Argon.Api.Features.Otp;
-using Argon.Api.Features.Pex;
-using Argon.Api.Features.Repositories;
-using Argon.Api.Features.Template;
-using Argon.Api.Grains.Interfaces;
-using Argon.Api.Migrations;
-using Argon.Api.Services;
-using Argon.Api.Services.Fusion;
-using Argon.Contracts;
+using Argon.Features.Captcha;
+using Argon.Features.EF;
+using Argon.Features.Env;
+using Argon.Features.Jwt;
+using Argon.Features.MediaStorage;
+using Argon.Features.OrleansStreamingProviders;
+using Argon.Features.Otp;
+using Argon.Features.Pex;
+using Argon.Features.Repositories;
+using Argon.Features.Template;
+using Argon.Migrations;
+using Argon.Services;
 using Argon.Sfu;
-using Microsoft.EntityFrameworkCore;
 using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.WebHost.ConfigureKestrel(options => {
+    options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
+    options.AddServerHeader                          = false;
+    options.Limits.Http2.MaxStreamsPerConnection     = 100;
+    options.Limits.Http2.InitialConnectionWindowSize = 65535;
+    options.Limits.Http2.KeepAlivePingDelay          = TimeSpan.FromSeconds(30);
+    options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(10);
+});
+
 builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
 builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
@@ -32,7 +31,9 @@ builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddNatsStreaming();
 builder.Services.AddDbContext<ApplicationDbContext>(x => x
-   .EnableDetailedErrors().EnableSensitiveDataLogging().UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+   .EnableDetailedErrors()
+   .EnableSensitiveDataLogging()
+   .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
    .AddInterceptors(new TimeStampAndSoftDeleteInterceptor()));
 
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
@@ -51,27 +52,26 @@ if (!builder.Environment.IsManaged())
             z.AllowAnyMethod();
         });
     });
-    builder.Services.AddFusion(RpcServiceMode.Server, true).Rpc
-       .AddWebSocketServer(true).Rpc
-       .AddServer<IUserInteraction, UserInteraction>()
-       .AddServer<IServerInteraction, ServerInteraction>()
-       .AddServer<IEventBus, EventBusService>()
-       .AddServer<IUserPreferenceInteraction, UserPreferenceInteraction>();
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
-    builder.AddContentDeliveryNetwork();
+    builder.AddArgonTransport(x =>
+    {
+        x.AddService<IServerInteraction, ServerInteraction>();
+        x.AddService<IUserInteraction, UserInteraction>();
+        x.AddService<IEventBus, EventBusService>();
+    });
 }
-
+builder.AddContentDeliveryNetwork();
 builder.AddArgonPermissions();
 builder.AddSelectiveForwardingUnit();
 builder.Services.AddTransient<UserManagerService>();
-builder.Services.AddSingleton<IFusionContext, FusionContext>();
 builder.AddOtpCodes();
 builder.AddOrleans();
 builder.AddTemplateEngine();
 builder.AddEfRepositories();
 builder.AddKubeResources();
 builder.AddCaptchaFeature();
+builder.Services.AddSignalR();
 builder.Services.AddDataProtection();
 var app = builder.Build();
 
@@ -81,11 +81,10 @@ if (!builder.Environment.IsManaged())
     app.UseAuthentication();
     app.UseAuthorization();
     app.UseWebSockets();
-    app.MapRpcWebSocketServer();
     app.UseSwagger();
     app.UseSwaggerUI();
-    app.UseHttpsRedirection();
     app.MapControllers();
+    app.MapArgonTransport();
 }
 
 app.MapDefaultEndpoints();
