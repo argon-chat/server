@@ -1,10 +1,5 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using Contracts;
-using Contracts.Models;
-using Entities;
-using Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Services;
 
 public class UserGrain(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserGrain
@@ -31,9 +26,15 @@ public class UserGrain(IPasswordHashingService passwordHashingService, Applicati
         => await context.Users
            .Include(user => user.ServerMembers)
            .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
+           .ThenInclude(x => x.Users)
+           .ThenInclude(x => x.User)
+           .Include(user => user.ServerMembers)
+           .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
+           .ThenInclude(x => x.Channels)
            .Where(x => x.Id == this.GetPrimaryKey())
            .SelectMany(x => x.ServerMembers)
            .Select(x => x.Server)
+           .AsSplitQuery()
            .ToListAsync();
 
     public async Task<List<Guid>> GetMyServersIds()
