@@ -1,12 +1,10 @@
-namespace Argon.Api.Grains.Interfaces;
-
-using Contracts;
+namespace Argon.Grains.Interfaces;
 
 [Alias("Argon.Api.Grains.Interfaces.IAuthorizationGrain")]
 public interface IAuthorizationGrain : IGrainWithGuidKey
 {
     [Alias("Authorize")]
-    Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
+    Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
     [Alias("Register")]
     Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
