@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>   
+        <TargetFrameworks>net8.0</TargetFrameworks>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="ActualLab.Core" Version="9.6.2" />
+        <PackageReference Include="Google.Protobuf" Version="3.29.0" />
+        <PackageReference Include="Grpc.Core" Version="2.46.6" />
+        <PackageReference Include="Grpc.Tools" Version="2.67.0">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="MessagePack" Version="2.5.192" />
+        <PackageReference Include="MessagePackAnalyzer" Version="2.5.192">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="8.0.10" />
+        <PackageReference Include="Microsoft.Orleans.Core.Abstractions" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="8.2.0" />
+        <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+        <PackageReference Include="Reinforced.Typings" Version="1.6.5" />
+        <Protobuf Include="Protos\transport.proto" GrpcServices="Server" />
+
+    </ItemGroup>
+
+</Project>
