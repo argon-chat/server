@@ -1,0 +1,32 @@
+syntax = "proto3";
+
+option csharp_namespace = "Argon.Transport";
+
+service ArgonTransport {
+  rpc Unary (RpcRequest) returns (RpcResponse);
+  rpc BroadcastSubscribe (RpcRequest) returns (stream StreamPayload);
+}
+
+enum ArgonRpcStatusCode {
+  Ok = 0;
+  InternalException = 1;
+  NotAuthorized = 2;
+  InsufficientPermission  = 3;
+}
+
+message RpcRequest {
+  string interface = 1;
+  string method = 2;
+  bytes payload = 3;
+}
+
+message RpcResponse {
+  ArgonRpcStatusCode statusCode = 1; 
+  bytes payload = 2;
+  optional string exceptionType = 3;
+  optional string errorMessage = 4;
+}
+
+message StreamPayload {
+  bytes payload = 2;
+}
