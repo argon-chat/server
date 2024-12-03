@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.MediaStorage;
+namespace Argon.Features.MediaStorage;
 
 public readonly struct AssetId(Guid assetId, AssetScope scope, AssetKind kind, string extensions)
 {
@@ -38,7 +38,7 @@ public readonly struct AssetId(Guid assetId, AssetScope scope, AssetKind kind, s
 
     public static AssetId FromFileId(string fileId)
     {
-        if (fileId.Length != 45)
+        if (fileId.Length < 46)
             throw new InvalidOperationException("Bad file id");
         var span  = fileId.AsSpan();
         var guid  = Guid.Parse(span.Slice(0, 36));

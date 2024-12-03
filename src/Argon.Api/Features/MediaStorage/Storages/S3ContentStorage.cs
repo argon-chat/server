@@ -1,8 +1,7 @@
-namespace Argon.Api.Features.MediaStorage.Storages;
+namespace Argon.Features.MediaStorage.Storages;
 
 using Genbox.SimpleS3.Core.Abstracts.Clients;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
 public class S3ContentStorage([FromKeyedServices("GenericS3:client")] IObjectClient s3Client, IOptions<StorageOptions> options, 
     ILogger<IContentStorage> logger) : IContentStorage

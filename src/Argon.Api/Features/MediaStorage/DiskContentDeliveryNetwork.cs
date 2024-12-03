@@ -1,6 +1,4 @@
-namespace Argon.Api.Features.MediaStorage;
-
-using Contracts;
+namespace Argon.Features.MediaStorage;
 
 public class DiskContentDeliveryNetwork([FromKeyedServices(IContentStorage.DiskContentStorageKey)] IContentStorage storage,
     ILogger<YandexContentDeliveryNetwork> logger) : IContentDeliveryNetwork
@@ -23,6 +21,6 @@ public class DiskContentDeliveryNetwork([FromKeyedServices(IContentStorage.DiskC
     public ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, Stream file)
         => throw new NotImplementedException();
 
-    public ValueTask<string> GenerateAssetUrl(StorageNameSpace ns, AssetId asset)
+    public string GenerateAssetUrl(StorageNameSpace ns, AssetId asset)
         => new($"/files/{ns.ToPath()}/{asset.GetFilePath()}?nocache=1");
 }

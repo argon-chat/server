@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.MediaStorage;
+namespace Argon.Features.MediaStorage;
 
 public interface IContentStorage
 {
