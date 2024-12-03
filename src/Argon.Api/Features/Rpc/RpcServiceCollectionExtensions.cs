@@ -2,6 +2,15 @@ namespace Argon.Services;
 
 public static class RpcServiceCollectionExtensions
 {
+    public static void MapArgonTransport(this WebApplication app)
+    {
+        app.MapGrpcService<ArgonTransport>().EnableGrpcWeb();
+        app.UseGrpcWeb(new GrpcWebOptions
+        {
+            DefaultEnabled = true
+        });
+    }
+
     public static void AddArgonTransport(this WebApplicationBuilder builder, Action<ITransportRegistration> onRegistration)
     {
         var col = builder.Services;
