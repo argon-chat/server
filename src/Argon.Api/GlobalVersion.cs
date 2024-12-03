@@ -1,4 +1,4 @@
-﻿namespace Argon.Api;
+﻿namespace Argon;
 
 public static class GlobalVersion
 {
