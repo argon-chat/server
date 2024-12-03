@@ -46,8 +46,6 @@ public static class Extensions
 
     public static IHostApplicationBuilder AddSentry(this WebApplicationBuilder builder, string? dsn)
     {
-        if (string.IsNullOrWhiteSpace(dsn)) return builder;
-
         builder.WebHost.UseSentry(o =>
         {
             o.Dsn                 = dsn;
