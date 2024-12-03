@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.MediaStorage;
+namespace Argon.Features.MediaStorage;
 
 using Storages;
 using Genbox.SimpleS3.Core.Abstracts.Clients;

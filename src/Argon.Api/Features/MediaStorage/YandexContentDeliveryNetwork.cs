@@ -1,8 +1,6 @@
-namespace Argon.Api.Features.MediaStorage;
+namespace Argon.Features.MediaStorage;
 
 using System.Web;
-using Contracts;
-using Microsoft.Extensions.Options;
 
 public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.GenericS3StorageKey)] IContentStorage storage,
     ILogger<YandexContentDeliveryNetwork> logger, IOptions<CdnOptions> options)
@@ -28,8 +26,8 @@ public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.Gen
     public ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, Stream file)
         => throw new NotImplementedException();
 
-    public ValueTask<string> GenerateAssetUrl(StorageNameSpace ns, AssetId asset)
-        => new(GenerateSignedLink(Config.BaseUrl,$"/{ns.ToPath()}/{asset.GetFilePath()}", Config.SignSecret, (int)Config.EntryExpire.TotalSeconds));
+    public string GenerateAssetUrl(StorageNameSpace ns, AssetId asset)
+        => GenerateSignedLink(Config.BaseUrl, $"/{ns.ToPath()}/{asset.GetFilePath()}", Config.SignSecret, (int)Config.EntryExpire.TotalSeconds);
 
     private static string GenerateSignedLink(
         string hostname,

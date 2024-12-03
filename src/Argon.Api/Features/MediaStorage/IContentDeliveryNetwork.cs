@@ -1,6 +1,4 @@
-namespace Argon.Api.Features.MediaStorage;
-
-using Contracts;
+namespace Argon.Features.MediaStorage;
 
 public interface IContentDeliveryNetwork
 {
@@ -20,5 +18,5 @@ public interface IContentDeliveryNetwork
 
     ValueTask<Maybe<UploadError>> CreateAssetAsync(StorageNameSpace ns, AssetId asset, Stream file);
     ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, Stream file);
-    ValueTask<string>             GenerateAssetUrl(StorageNameSpace ns, AssetId asset);
+    string                        GenerateAssetUrl(StorageNameSpace ns, AssetId asset);
 }
