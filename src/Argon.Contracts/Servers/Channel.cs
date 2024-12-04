@@ -39,7 +39,7 @@ public record RealtimeChannelUser
     public ChannelMemberState State { get; set; }
 }
 
-[Flags, TsEnum]
+[Flags]
 public enum ChannelMemberState
 {
     NONE                       = 0,
