@@ -18,3 +18,9 @@ public record ServerMember : ArgonEntityWithOwnership
     public ICollection<ServerMemberArchetype> ServerMemberArchetypes { get; set; }
         = new List<ServerMemberArchetype>();
 }
+[TsInterface, MessagePackObject(true)]
+public record RealtimeServerMember
+{
+    public ServerMember Member { get; set; }
+    public UserStatus   Status { get; set; }
+}
