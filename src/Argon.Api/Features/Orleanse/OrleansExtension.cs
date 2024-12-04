@@ -1,15 +1,13 @@
-namespace Argon.Api.Features;
+namespace Argon.Features;
 
 using ActualLab.Serialization;
-using Argon.Api.Features.Sentry;
-using Contracts;
 using Env;
-using Extensions;
-using Grains.Interfaces;
+using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
+using Sentry;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -17,7 +15,12 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options));
+        var options = MessagePackSerializerOptions.Standard
+           .WithResolver(CompositeResolver.Create(
+                DynamicEnumAsStringResolver.Instance, 
+                StandardResolver.Instance));
+        MessagePackSerializer.DefaultOptions = options;
+        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
@@ -42,7 +45,8 @@ public static class OrleansExtension
                    .AddActivationRepartitioner<BalanceRule>()
                    .AddRedisStorage(IFusionSessionGrain.StorageId, 2)
                    .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { });
+                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
             }
             else
             {
@@ -50,7 +54,8 @@ public static class OrleansExtension
                    .UseLocalhostClustering()
                    .AddMemoryStreams("default")
                    .AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddMemoryGrainStorage(IFusionSessionGrain.StorageId);
+                   .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
             }
         });
 

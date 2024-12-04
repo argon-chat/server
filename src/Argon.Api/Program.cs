@@ -71,7 +71,6 @@ builder.AddTemplateEngine();
 builder.AddEfRepositories();
 builder.AddKubeResources();
 builder.AddCaptchaFeature();
-builder.Services.AddSignalR();
 builder.Services.AddDataProtection();
 var app = builder.Build();
 

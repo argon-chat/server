@@ -16,11 +16,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.editorconfig = .editorconfig
 		.gitignore = .gitignore
 		.gitmodules = .gitmodules
-		GitVersion.yml = GitVersion.yml
 		src\AppHost\aspirate-output\docker-compose.yaml = src\AppHost\aspirate-output\docker-compose.yaml
+		GitVersion.yml = GitVersion.yml
 	EndProjectSection
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Contracts", "src\Argon.Contracts\Argon.Contracts.csproj", "{151002BD-57E5-440B-9CA7-C681A69CA02C}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Shared", "src\Argon.Contracts\Argon.Shared.csproj", "{151002BD-57E5-440B-9CA7-C681A69CA02C}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{90798FD4-3C62-4AE1-ADE9-F5EC4A0FD4B1}"
 EndProject
