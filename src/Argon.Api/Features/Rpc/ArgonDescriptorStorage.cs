@@ -1,6 +1,9 @@
 namespace Argon.Services;
 
-public record ArgonTransportOptions(Dictionary<Type, Type> Services);
+public record ArgonTransportOptions
+{
+    public Dictionary<Type, Type> Services { get; } = new();
+}
 
 public class ArgonDescriptorStorage
 {

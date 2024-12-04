@@ -3,6 +3,7 @@ namespace Argon.Services;
 using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Net.Client.Configuration;
+using MessagePack.Resolvers;
 using Transport;
 
 public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger) : Transport.ArgonTransport.ArgonTransportBase
