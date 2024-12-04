@@ -22,3 +22,30 @@ public record Channel : ArgonEntityWithOwnership, IArchetypeObject
         = new List<ChannelEntitlementOverwrite>();
     public ICollection<IArchetypeOverwrite> Overwrites => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();
 }
+
+[TsInterface, MessagePackObject(true)]
+public record RealtimeChannel
+{
+    public Channel Channel { get; set; }
+
+    public List<RealtimeChannelUser> Users { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record RealtimeChannelUser
+{
+    public Guid UserId { get; set; }
+
+    public ChannelMemberState State { get; set; }
+}
+
+[Flags, TsEnum]
+public enum ChannelMemberState
+{
+    NONE                       = 0,
+    MUTED                      = 1 << 1,
+    MUTED_BY_SERVER            = 1 << 2,
+    MUTED_HEADPHONES           = 1 << 3,
+    MUTED_HEADPHONES_BY_SERVER = 1 << 4,
+    STREAMING                  = 1 << 5
+}
