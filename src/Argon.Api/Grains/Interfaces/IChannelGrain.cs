@@ -18,6 +18,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("UpdateChannel")]
     Task<Channel> UpdateChannel(ChannelInput input);
 
+    [Alias("GetMembers")]
+    Task<List<RealtimeChannelUser>> GetMembers();
+
 
     // for join\leave\mute\unmute notifications
     public const string UserTransformNotificationStream  = $"{nameof(IChannelGrain)}.user.transform";

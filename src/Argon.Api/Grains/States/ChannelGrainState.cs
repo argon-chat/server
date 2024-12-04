@@ -4,7 +4,7 @@ namespace Argon.Grains.Persistence.States;
 public sealed partial record ChannelGrainState
 {
     [DataMember(Order = 0), MemoryPackOrder(0), Id(0)]
-    public Dictionary<Guid, ChannelRealtimeMember> Users { get; set; } = new();
+    public Dictionary<Guid, RealtimeChannelUser> Users { get; set; } = new();
 }
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject(true), Serializable, GenerateSerializer]

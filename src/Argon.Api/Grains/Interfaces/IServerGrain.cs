@@ -21,6 +21,12 @@ public interface IServerGrain : IGrainWithGuidKey
     [Alias("SetUserStatus")]
     ValueTask SetUserStatus(Guid userId, UserStatus status);
 
+    [Alias("GetMembers")]
+    Task<List<RealtimeServerMember>> GetMembers();
+
+    [Alias("GetChannels")]
+    Task<List<RealtimeChannel>> GetChannels();
+
     public const string ProviderId = "argon.server.grain.stream";
     public const string EventNamespace = "@";
 }
