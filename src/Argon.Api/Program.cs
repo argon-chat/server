@@ -1,3 +1,4 @@
+using Argon.Api.Migrations;
 using Argon.Features.Captcha;
 using Argon.Features.EF;
 using Argon.Features.Env;
@@ -8,7 +9,6 @@ using Argon.Features.Otp;
 using Argon.Features.Pex;
 using Argon.Features.Repositories;
 using Argon.Features.Template;
-using Argon.Migrations;
 using Argon.Services;
 using Argon.Sfu;
 using Newtonsoft.Json.Converters;
