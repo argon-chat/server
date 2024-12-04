@@ -1,4 +1,4 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
@@ -9,7 +9,7 @@ ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["src/Argon.Entry/Argon.Entry.csproj", "src/Argon.Entry/"]
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
-COPY ["src/Argon.Contracts/Argon.Contracts.csproj", "src/Argon.Contracts/"]
+COPY ["src/Argon.Contracts/Argon.Shared.csproj", "src/Argon.Contracts/"]
 COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
 RUN dotnet restore "src/Argon.Entry/Argon.Entry.csproj"
 COPY . .
