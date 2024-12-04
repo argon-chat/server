@@ -1,9 +1,4 @@
-namespace Argon.Api.Features.Pex;
-
-using ActualLab.Collections;
-using Contracts.Models.ArchetypeModel;
-using Entities;
-using Microsoft.EntityFrameworkCore;
+namespace Argon.Features.Pex;
 
 public static class PexFeature
 {

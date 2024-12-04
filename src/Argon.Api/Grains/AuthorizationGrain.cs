@@ -1,11 +1,6 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using Contracts;
-using Contracts.Models;
-using Entities;
 using Features.Otp;
-using Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Services;
 
 public class AuthorizationGrain(
@@ -15,7 +10,7 @@ public class AuthorizationGrain(
     IPasswordHashingService passwordHashingService,
     ApplicationDbContext context) : Grain, IAuthorizationGrain
 {
-    public async Task<Either<JwtToken, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
         if (user is null)
@@ -125,5 +120,5 @@ public class AuthorizationGrain(
         return Maybe<RegistrationError>.None();
     }
 
-    private async Task<JwtToken> GenerateJwt(User User, Guid machineId) => new(await managerService.GenerateJwt(User.Id, machineId));
+    private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);
 }

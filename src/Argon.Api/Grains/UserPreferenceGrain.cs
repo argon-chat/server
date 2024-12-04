@@ -1,7 +1,5 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using ActualLab.Text;
-using Interfaces;
 using Persistence.States;
 
 public class UserPreferenceGrain([PersistentState("userPreferences", "OrleansStorage")]
@@ -17,7 +15,7 @@ public class UserPreferenceGrain([PersistentState("userPreferences", "OrleansSto
 
     public Task SavePreferences(Symbol scope, string value)
     {
-        if(value.Length * 2 > MaxSymbolSize)
+        if (value.Length * 2 > MaxSymbolSize)
             return Task.CompletedTask; // ignore
         if (state.State.UserPreferences.Count > 10)
             return Task.CompletedTask;

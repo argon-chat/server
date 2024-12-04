@@ -1,7 +1,5 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using Contracts;
-using Interfaces;
 using Microsoft.Extensions.Logging;
 
 public class UserMachineSessions(

@@ -2,7 +2,6 @@
 
 using Flurl.Http;
 using Flurl.Http.Newtonsoft;
-using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Serialization;
 

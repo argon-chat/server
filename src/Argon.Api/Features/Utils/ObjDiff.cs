@@ -1,10 +1,6 @@
 namespace Argon.Features;
 
-using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Reflection;
-using ActualLab.Collections;
-using ActualLab.Text;
 
 public static class ObjDiff
 {
@@ -46,7 +42,7 @@ public static class ObjDiff
             var updatedValue = prop.GetValue(next)!;
 
             if (!IsAreEqual(prop.PropertyType, prevValue, updatedValue))
-                props.Set(new Symbol(prop.Name), updatedValue);
+                props.Set(prop.Name, updatedValue);
         }
 
         return props;

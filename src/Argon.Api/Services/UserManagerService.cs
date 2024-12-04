@@ -1,9 +1,8 @@
-namespace Argon.Api.Services;
+namespace Argon.Services;
 
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using Features.Jwt;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt, IConfiguration configuration)

@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Features.Captcha;
+﻿namespace Argon.Features.Captcha;
 
 public class CaptchaOptions
 {

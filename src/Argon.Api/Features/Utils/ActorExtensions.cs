@@ -1,4 +1,4 @@
-namespace Argon.Api.Extensions;
+namespace Argon.Extensions;
 
 public static class ActorExtensions
 {

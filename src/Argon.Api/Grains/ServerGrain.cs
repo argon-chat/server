@@ -1,15 +1,8 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using ActualLab.Collections;
-using Contracts;
-using Entities;
-using Interfaces;
-using Microsoft.EntityFrameworkCore;
-using Argon.Api.Features.Rpc;
-using Contracts.Models;
+using Argon.Features.Rpc;
+using Features.Repositories;
 using Persistence.States;
-using Argon.Api.Features.Repositories;
-using Argon.Features;
 
 public class ServerGrain(
     IGrainFactory grainFactory,

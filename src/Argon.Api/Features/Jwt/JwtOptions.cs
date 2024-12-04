@@ -1,6 +1,6 @@
-namespace Argon.Api.Features.Jwt;
+namespace Argon.Features.Jwt;
 
-using Argon.Api.Services;
+using Argon.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 
 public record JwtOptions

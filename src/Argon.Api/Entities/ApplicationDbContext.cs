@@ -1,11 +1,8 @@
-namespace Argon.Api.Entities;
+namespace Argon.Entities;
 
 using System.Drawing;
 using System.Linq.Expressions;
-using Contracts.Models;
-using Contracts.Models.ArchetypeModel;
 using Features.EF;
-using Microsoft.EntityFrameworkCore;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {

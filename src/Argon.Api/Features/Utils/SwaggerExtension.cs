@@ -1,4 +1,4 @@
-namespace Argon.Api.Extensions;
+namespace Argon.Extensions;
 
 using Microsoft.OpenApi.Models;
 using Swashbuckle.AspNetCore.SwaggerGen;

@@ -1,6 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
-[Alias("Argon.Api.Grains.Interfaces.IAuthorizationGrain")]
+[Alias("Argon.Grains.Interfaces.IAuthorizationGrain")]
 public interface IAuthorizationGrain : IGrainWithGuidKey
 {
     [Alias("Authorize")]
@@ -10,7 +10,7 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
     Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
 }
 
-[Alias("Argon.Api.Grains.Interfaces.IUserMachineSessions")]
+[Alias("Argon.Grains.Interfaces.IUserMachineSessions")]
 public interface IUserMachineSessions : IGrainWithGuidKey
 {
     [Alias("CreateMachineKey")]

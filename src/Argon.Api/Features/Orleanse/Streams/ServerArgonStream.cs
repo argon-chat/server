@@ -1,6 +1,5 @@
-namespace Argon.Api.Features.Rpc;
+namespace Argon.Features.Rpc;
 
-using Contracts;
 using Orleans.Streams;
 
 public sealed class ServerArgonStream<T>(IAsyncStream<IArgonEvent> stream) : IArgonStream<T> where T : IArgonEvent

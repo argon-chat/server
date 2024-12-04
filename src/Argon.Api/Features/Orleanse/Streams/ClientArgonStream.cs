@@ -1,8 +1,7 @@
-namespace Argon.Api.Features.Rpc;
+namespace Argon.Features.Rpc;
 
 using Orleans.Streams;
 using System.Threading.Channels;
-using Contracts;
 
 public sealed class ClientArgonStream<T> : IArgonStream<T> where T : IArgonEvent
 {

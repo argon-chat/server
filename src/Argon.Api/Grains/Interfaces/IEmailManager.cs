@@ -1,4 +1,4 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
 public record SmtpConfig
 {
@@ -9,6 +9,7 @@ public record SmtpConfig
     public bool   UseSsl   { get; set; }
 }
 
+[Alias("Argon.Grains.Interfaces.IEmailManager")]
 public interface IEmailManager : IGrainWithGuidKey
 {
     Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity);

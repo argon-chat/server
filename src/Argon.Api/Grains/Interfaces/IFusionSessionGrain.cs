@@ -1,9 +1,8 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Argon.Contracts;
 using Features.Jwt;
 
-[Alias("Argon.Api.Grains.Interfaces.IFusionSessionGrain")]
+[Alias("Argon.Grains.Interfaces.IFusionSessionGrain")]
 public interface IFusionSessionGrain : IGrainWithGuidKey
 {
     [Alias("BeginRealtimeSession")]

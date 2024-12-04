@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Sentry;
+namespace Argon.Features.Sentry;
 
 public class SentryGrainCallFilter : IIncomingGrainCallFilter
 {

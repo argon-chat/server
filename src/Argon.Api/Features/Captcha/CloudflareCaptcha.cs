@@ -1,9 +1,6 @@
-namespace Argon.Api.Features.Captcha;
+namespace Argon.Features.Captcha;
 
-using Argon.Features;
-using Extensions;
 using Flurl.Http;
-using Microsoft.Extensions.Options;
 
 public class CloudflareCaptcha(IHttpContextAccessor accessor, ILogger<ICaptchaFeature> logger, IOptions<CaptchaOptions> options) : ICaptchaFeature
 {

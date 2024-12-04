@@ -4,7 +4,6 @@ using System.IdentityModel.Tokens.Jwt;
 using Flurl.Http;
 using LiveKit.Proto;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 
 #if DEBUG
