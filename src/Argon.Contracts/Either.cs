@@ -1,7 +1,100 @@
 namespace Argon;
 
+using MessagePack.Formatters;
+using MessagePack.Resolvers;
+
+public class EitherFormatterResolver : IFormatterResolver
+{
+    public static readonly EitherFormatterResolver Instance = new();
+
+    private EitherFormatterResolver() { }
+
+    public IMessagePackFormatter<T>? GetFormatter<T>()
+    {
+        var type = typeof(T);
+        if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Either<,>))
+        {
+            var resultType = type.GetGenericArguments()[0];
+            var errorType  = type.GetGenericArguments()[1];
+
+            var formatterType = typeof(EitherFormatter<,>).MakeGenericType(resultType, errorType);
+            return (IMessagePackFormatter<T>)Activator.CreateInstance(formatterType)!;
+        }
+
+        return StandardResolver.Instance.GetFormatter<T>();
+    }
+}
+public class EitherFormatter<TResult, TError> : IMessagePackFormatter<Either<TResult, TError>>
+    where TResult : class
+{
+    public void Serialize(ref MessagePackWriter writer, Either<TResult, TError> value, MessagePackSerializerOptions options)
+    {
+        var resolver = options.Resolver;
+
+        writer.WriteMapHeader(3);
+
+        writer.Write("success");
+        writer.Write(value.IsSuccess);
+
+        writer.Write("result");
+        if (value.IsSuccess)
+            resolver.GetFormatterWithVerify<TResult>().Serialize(ref writer, value.Value, options);
+        else
+            writer.WriteNil();
+
+        writer.Write(nameof(Either<TResult, TError>.Error).ToLowerInvariant());
+        if (!value.IsSuccess)
+            resolver.GetFormatterWithVerify<TError>().Serialize(ref writer, value.Error, options);
+        else
+            writer.WriteNil();
+    }
+
+    public Either<TResult, TError> Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    {
+        var resolver = options.Resolver;
+
+        var count = reader.ReadMapHeader();
+        if (count != 3)
+            throw new InvalidOperationException("Invalid data format for Either<TResult, TError>.");
+
+        var isSuccess = false;
+        TResult? result = null;
+        TError? error = default;
+
+        for (var i = 0; i < count; i++)
+        {
+            var propertyName = reader.ReadString();
+            switch (propertyName)
+            {
+                case nameof(Either<TResult, TError>.IsSuccess):
+                isSuccess = reader.ReadBoolean();
+                break;
+                case nameof(Either<TResult, TError>.Value):
+                if (isSuccess)
+                    result = resolver.GetFormatterWithVerify<TResult>().Deserialize(ref reader, options);
+                else
+                    reader.Skip();
+                break;
+
+                case nameof(Either<TResult, TError>.Error):
+                if (!isSuccess)
+                    error = resolver.GetFormatterWithVerify<TError>().Deserialize(ref reader, options);
+                else
+                    reader.Skip();
+                break;
+
+                default:
+                reader.Skip(); 
+                break;
+            }
+        }
+        return isSuccess
+            ? Either<TResult, TError>.Success(result!)
+            : Either<TResult, TError>.Failure(error!);
+    }
+}
 [JsonObject, MessagePackObject(true), Serializable]
-public readonly record struct Either<TResult, TError> where TResult : class
+public record struct Either<TResult, TError> where TResult : class 
 {
     private Either(TResult result)
     {
@@ -21,10 +114,10 @@ public readonly record struct Either<TResult, TError> where TResult : class
         _error  = error;
     }
 
-    [JsonProperty("result"), MessagePack.Key(0)]
+    [JsonProperty("result")]
     private TResult? _result { get; init; }
 
-    [JsonProperty("error"), MessagePack.Key(1)]
+    [JsonProperty("error")]
     private TError? _error { get; init; }
 
     [JsonIgnore, IgnoreMember]
@@ -43,7 +136,7 @@ public readonly record struct Either<TResult, TError> where TResult : class
     public static implicit operator Either<TResult, TError>(TError error)   => new(error);
 }
 
-[JsonObject, MessagePackObject, Serializable]
+[JsonObject, MessagePackObject(true), Serializable]
 public readonly record struct Maybe<TResult>
 {
     [JsonProperty("value"), MessagePack.Key(0)]
