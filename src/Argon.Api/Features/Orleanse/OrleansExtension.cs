@@ -2,6 +2,7 @@ namespace Argon.Features;
 
 using ActualLab.Serialization;
 using Env;
+using MessagePack.Formatters;
 using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
@@ -17,7 +18,8 @@ public static class OrleansExtension
     {
         var options = MessagePackSerializerOptions.Standard
            .WithResolver(CompositeResolver.Create(
-                DynamicEnumAsStringResolver.Instance, 
+                DynamicEnumAsStringResolver.Instance,
+                EitherFormatterResolver.Instance,
                 StandardResolver.Instance));
         MessagePackSerializer.DefaultOptions = options;
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
