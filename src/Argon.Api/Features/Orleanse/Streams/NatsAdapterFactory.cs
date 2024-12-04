@@ -1,7 +1,5 @@
-namespace Argon.Api.Features.OrleansStreamingProviders;
+namespace Argon.Features.OrleansStreamingProviders;
 
-using System.Collections.Concurrent;
-using Argon.Features;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using Orleans.Configuration;

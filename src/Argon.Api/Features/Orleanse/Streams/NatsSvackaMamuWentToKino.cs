@@ -1,6 +1,5 @@
-namespace Argon.Api.Features.OrleansStreamingProviders;
+namespace Argon.Features.OrleansStreamingProviders;
 
-using Argon.Features;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;

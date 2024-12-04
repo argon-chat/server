@@ -1,8 +1,5 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using Contracts.Models;
-using Entities;
-using Interfaces;
 using Microsoft.Extensions.Logging;
 using Orleans;
 using Services;

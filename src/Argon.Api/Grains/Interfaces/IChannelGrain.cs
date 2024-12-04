@@ -1,10 +1,9 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Contracts;
-using Contracts.Models;
-using Entities;
 using Sfu;
+using Argon.Servers;
 
+[Alias("Argon.Grains.Interfaces.IChannelGrain")]
 public interface IChannelGrain : IGrainWithGuidKey
 {
     [Alias("Join")]

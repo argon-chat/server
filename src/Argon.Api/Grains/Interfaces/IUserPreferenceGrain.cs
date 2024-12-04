@@ -1,6 +1,4 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Contracts;
-
-[Alias("Argon.Api.Grains.Interfaces.IUserPreferenceGrain")]
+[Alias("Argon.Grains.Interfaces.IUserPreferenceGrain")]
 public interface IUserPreferenceGrain : IGrainWithGuidKey, IUserPreferenceInteraction;

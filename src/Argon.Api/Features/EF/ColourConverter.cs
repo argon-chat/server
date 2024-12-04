@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.EF;
+namespace Argon.Features.EF;
 
 using System.Drawing;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;

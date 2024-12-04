@@ -1,6 +1,4 @@
-namespace Argon.Api.Grains.Persistence.States;
-
-using ActualLab.Text;
+namespace Argon.Grains.Persistence.States;
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject(true), Serializable, GenerateSerializer]
 public sealed partial record UserPreferencesGrainState

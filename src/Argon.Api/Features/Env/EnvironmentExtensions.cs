@@ -1,4 +1,4 @@
-﻿namespace Argon.Api.Features.Env;
+﻿namespace Argon.Features.Env;
 
 using static File;
 

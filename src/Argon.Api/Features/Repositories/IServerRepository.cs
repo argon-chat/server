@@ -1,11 +1,6 @@
-namespace Argon.Api.Features.Repositories;
+namespace Argon.Features.Repositories;
 
 using System.Diagnostics;
-using Contracts.Models;
-using Contracts.Models.ArchetypeModel;
-using Entities;
-using Grains.Interfaces;
-using Microsoft.EntityFrameworkCore;
 
 public static class TemplateFeature
 {

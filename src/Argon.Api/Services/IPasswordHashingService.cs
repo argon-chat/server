@@ -1,6 +1,5 @@
-namespace Argon.Api.Services;
+namespace Argon.Services;
 
-using Contracts.Models;
 using Features.Otp;
 
 public interface IPasswordHashingService

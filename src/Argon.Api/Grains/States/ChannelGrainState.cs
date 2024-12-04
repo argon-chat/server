@@ -1,7 +1,4 @@
-namespace Argon.Api.Grains.Persistence.States;
-
-using Contracts;
-using Entities;
+namespace Argon.Grains.Persistence.States;
 
 [DataContract, MemoryPackable(GenerateType.VersionTolerant), MessagePackObject(true), Serializable, GenerateSerializer]
 public sealed partial record ChannelGrainState

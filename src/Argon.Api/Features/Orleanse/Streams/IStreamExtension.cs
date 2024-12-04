@@ -1,6 +1,4 @@
-namespace Argon.Api.Features.Rpc;
-
-using Contracts;
+namespace Argon.Features.Rpc;
 
 public interface IStreamExtension
 {

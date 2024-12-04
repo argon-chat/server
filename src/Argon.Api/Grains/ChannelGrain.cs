@@ -1,24 +1,20 @@
-namespace Argon.Api.Grains;
+namespace Argon.Grains;
 
-using Contracts;
-using Contracts.Models;
-using Entities;
 using Features.Rpc;
-using Interfaces;
-using Microsoft.EntityFrameworkCore;
 using Persistence.States;
 using Sfu;
+using Argon.Servers;
 
 public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,
     ApplicationDbContext context,
-    [PersistentState("channelGrainState", "OrleansStorage")] 
+    [PersistentState("channelGrainState", "OrleansStorage")]
     IPersistentState<ChannelGrainState> state) : Grain, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
 
-    private Channel     _self     { get; set; }
+    private Channel        _self     { get; set; }
     private ArgonServerId  ServerId  => new(_self.ServerId);
     private ArgonChannelId ChannelId => new(ServerId, this.GetPrimaryKey());
 
@@ -36,8 +32,16 @@ public class ChannelGrain(
         if (_self.ChannelType != ChannelType.Voice)
             return Maybe<RealtimeToken>.None();
 
-        state.State.Users.Add(userId, new ChannelRealtimeMember(userId));
-        await state.WriteStateAsync();
+        if (state.State.Users.ContainsKey(userId))
+        {
+            //await _userStateEmitter.Fire(
+            //    new OnChannelUserChangedState(userId, ON_LEAVED));
+        }
+        else
+        {
+            state.State.Users.Add(userId, new ChannelRealtimeMember(userId));
+            await state.WriteStateAsync();
+        }
 
         //await _userStateEmitter.Fire(
         //    new OnChannelUserChangedState(userId, ON_JOINED));

@@ -1,8 +1,6 @@
-namespace Argon.Api.Features.EF;
+namespace Argon.Features.EF;
 
-using Contracts.Models;
 using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore;
 
 public class TimeStampAndSoftDeleteInterceptor : SaveChangesInterceptor
 {

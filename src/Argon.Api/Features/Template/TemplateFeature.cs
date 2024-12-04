@@ -1,6 +1,5 @@
-namespace Argon.Api.Features.Template;
+namespace Argon.Features.Template;
 
-using System.Collections.Concurrent;
 using Fluid;
 
 public static class TemplateFeature

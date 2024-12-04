@@ -1,4 +1,4 @@
-namespace Argon.Api.Features.Jwt;
+namespace Argon.Features.Jwt;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;

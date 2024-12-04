@@ -1,7 +1,6 @@
-namespace Argon.Api.Extensions;
+namespace Argon.Extensions;
 
 using Features.Orleanse.Storages;
-using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Runtime.Hosting;
 using Orleans.Storage;

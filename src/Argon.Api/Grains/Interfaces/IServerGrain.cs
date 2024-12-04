@@ -1,9 +1,6 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Contracts;
-using Contracts.Models;
-
-[Alias("Argon.Api.Grains.Interfaces.IServerGrain")]
+[Alias("Argon.Grains.Interfaces.IServerGrain")]
 public interface IServerGrain : IGrainWithGuidKey
 {
     [Alias("CreateServer")]

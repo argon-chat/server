@@ -1,4 +1,4 @@
-namespace Argon.Api.Features;
+namespace Argon.Features;
 
 using System.Runtime.CompilerServices;
 using MemoryPack;

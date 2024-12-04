@@ -1,8 +1,6 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Contracts.Models;
-
-[Alias("Argon.Api.Grains.Interfaces.ISessionManager")]
+[Alias("Argon.Grains.Interfaces.ISessionManager")]
 public interface ISessionManager : IGrainWithGuidKey
 {
     [Alias("GetUser")]

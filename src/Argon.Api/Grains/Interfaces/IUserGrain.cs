@@ -1,9 +1,6 @@
-namespace Argon.Api.Grains.Interfaces;
+namespace Argon.Grains.Interfaces;
 
-using Contracts;
-using Contracts.Models;
-
-[Alias("Argon.Api.Grains.Interfaces.IUserGrain")]
+[Alias("Argon.Grains.Interfaces.IUserGrain")]
 public interface IUserGrain : IGrainWithGuidKey
 {
     [Alias(nameof(UpdateUser))]

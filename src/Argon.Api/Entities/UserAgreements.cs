@@ -1,7 +1,6 @@
-namespace Argon.Api.Entities;
+namespace Argon.Entities;
 
 using System.ComponentModel.DataAnnotations;
-using Contracts.Models;
 
 [MessagePackObject(true)]
 public record UserAgreements
