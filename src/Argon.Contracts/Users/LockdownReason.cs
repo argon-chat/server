@@ -1,6 +1,5 @@
 namespace Argon.Users;
 
-[TsEnum]
 public enum LockdownReason
 {
     NONE = 0,

@@ -34,7 +34,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             }
         });
 
-        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code: {otpCode}", form)
+        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code", form)
         {
             IsBodyHtml = true
         });

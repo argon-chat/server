@@ -1,6 +1,5 @@
 namespace Argon.Users;
 
-[TsEnum]
 public enum RegistrationError
 {
     USERNAME_ALREADY_TAKEN,

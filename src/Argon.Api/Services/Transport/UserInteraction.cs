@@ -1,8 +1,6 @@
 namespace Argon.Services;
 
-using Features.MediaStorage;
-
-public class UserInteraction(IGrainFactory grainFactory, IContentDeliveryNetwork cdn) : IUserInteraction
+public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
 {
     public async Task<User> GetMe()
     {
@@ -24,7 +22,7 @@ public class UserInteraction(IGrainFactory grainFactory, IContentDeliveryNetwork
     {
         var userData = this.GetUser();
         var servers  = await grainFactory.GetGrain<IUserGrain>(userData.id).GetMyServers();
-        return servers.Select(RegenerateAvatarUrl).ToList();
+        return servers;
     }
 
     [AllowAnonymous]
@@ -57,29 +55,5 @@ public class UserInteraction(IGrainFactory grainFactory, IContentDeliveryNetwork
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
         return result;
-    }
-
-    private Server RegenerateAvatarUrl(Server s)
-    {
-        if (string.IsNullOrEmpty(s.AvatarFileId))
-            return RegenerateUsersAvatars(s);
-        return RegenerateUsersAvatars(s) with
-        {
-            AvatarFileId = cdn.GenerateAssetUrl(StorageNameSpace.ForServer(s.Id), AssetId.FromFileId(s.AvatarFileId!))
-        };
-    }
-
-
-    private Server RegenerateUsersAvatars(Server s)
-    {
-        if (s.Users.Count == 0)
-            return s;
-
-        foreach (var user in s.Users.Where(x => x.User is { AvatarFileId: not null }))
-        {
-            user.User.AvatarFileId = cdn.GenerateAssetUrl(StorageNameSpace.ForUser(user.Id), AssetId.FromFileId(s.AvatarFileId!));
-        }
-
-        return s;
     }
 }

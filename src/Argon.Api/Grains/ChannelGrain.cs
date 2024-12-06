@@ -25,6 +25,9 @@ public class ChannelGrain(
         _userStateEmitter = await this.Streams().CreateServerStream();
     }
 
+    public async Task<List<RealtimeChannelUser>> GetMembers()
+        => state.State.Users.Select(x => x.Value).ToList();
+
 
     // no needed send StreamId too, id is can be computed
     public async Task<Maybe<RealtimeToken>> Join(Guid userId)
@@ -39,7 +42,11 @@ public class ChannelGrain(
         }
         else
         {
-            state.State.Users.Add(userId, new ChannelRealtimeMember(userId));
+            state.State.Users.Add(userId, new RealtimeChannelUser()
+            {
+                UserId = userId,
+                State = ChannelMemberState.NONE
+            });
             await state.WriteStateAsync();
         }
 

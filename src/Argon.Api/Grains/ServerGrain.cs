@@ -27,11 +27,13 @@ public class ServerGrain(
         return await GetServer();
     }
 
-    public Task<Server> GetServer() => GetAsync();
+    public Task<Server> GetServer() => context.Servers
+       .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
     public async Task<Server> UpdateServer(ServerInput input)
     {
-        var server = await GetAsync();
+        var server = await context.Servers
+           .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
         var copy = server with { };
         server.Name         = input.Name ?? server.Name;
@@ -40,7 +42,35 @@ public class ServerGrain(
         context.Servers.Update(server);
         await context.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified(ObjDiff.Compare(copy, server)));
-        return await GetAsync();
+        return await context.Servers
+           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+    }
+
+    public async Task<List<RealtimeServerMember>> GetMembers()
+    {
+        var members = await context.UsersToServerRelations.Where(x => x.ServerId == this.GetPrimaryKey())
+           .ToListAsync();
+
+        return members.Select(x => new RealtimeServerMember
+        {
+            Member = x,
+            Status = realtimeState.State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
+        }).ToList();
+    }
+
+    public async Task<List<RealtimeChannel>> GetChannels()
+    {
+        var channels = await context.Channels
+           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .ToListAsync();
+
+        var results = await Task.WhenAll(channels.Select(async x => new RealtimeChannel()
+        {
+            Channel = x,
+            Users   = await grainFactory.GetGrain<IChannelGrain>(x.Id).GetMembers()
+        }).ToList());
+
+        return results.ToList();
     }
 
     public async ValueTask UserJoined(Guid userId)
@@ -77,10 +107,4 @@ public class ServerGrain(
         await _serverEvents.Fire(new ChannelCreated(channel));
         return channel;
     }
-
-    private async Task<Server> GetAsync() =>
-        await context.Servers
-           .Include(x => x.Channels)
-           .Include(x => x.Users)
-           .FirstAsync(s => s.Id == this.GetPrimaryKey());
 }
