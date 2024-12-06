@@ -7,17 +7,16 @@
         <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
         <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>
         <UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
+        <DockerfileContext>..\..</DockerfileContext>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Api\Argon.Api.csproj"/>
-        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj"/>
+      <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <Content Include="..\..\.dockerignore">
-            <Link>.dockerignore</Link>
-        </Content>
+        <ProjectReference Include="..\Argon.Api\Argon.Api.csproj" />
+        <ProjectReference Include="..\ServiceDefaults\ServiceDefaults.csproj" />
     </ItemGroup>
 
 </Project>
