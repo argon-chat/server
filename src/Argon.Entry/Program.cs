@@ -24,8 +24,7 @@ builder.WebHost.ConfigureKestrel(options =>
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
 builder.AddJwt();
-builder.Services.AddControllers()
-   .AddApplicationPart(typeof(FilesController).Assembly)
+builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
    .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
 builder.Services.AddCors(x =>
 {
@@ -37,17 +36,14 @@ builder.Services.AddCors(x =>
     });
 });
 builder.AddSwaggerWithAuthHeader();
-builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options))
-   .AddOrleansClient(x =>
-    {
-        x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
-           .AddStreaming()
-           .AddBroadcastChannel(IArgonEvent.Broadcast);
-        if (builder.Environment.IsProduction())
-            x.UseKubeGatewayListProvider();
-        else
-            x.UseLocalhostClustering();
-    });
+builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options)).AddOrleansClient(x =>
+{
+    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming().AddBroadcastChannel(IArgonEvent.Broadcast);
+    if (builder.Environment.IsProduction())
+        x.UseKubeGatewayListProvider();
+    else
+        x.UseLocalhostClustering();
+});
 builder.AddArgonTransport(x =>
 {
     x.AddService<IServerInteraction, ServerInteraction>();
@@ -71,6 +67,11 @@ app.MapArgonTransport();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+});
+
+app.MapGet("/test", () => new
+{
+    path = "entry"
 });
 
 await app.RunAsync();
