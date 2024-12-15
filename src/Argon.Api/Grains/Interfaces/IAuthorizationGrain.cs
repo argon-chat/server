@@ -9,7 +9,7 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
     Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
     [Alias("Register"), AlwaysInterleave]
-    Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
+    Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
 }
 
 [Alias("Argon.Grains.Interfaces.IUserMachineSessions")]

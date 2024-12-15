@@ -7,7 +7,6 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
         var userData = this.GetUser();
         return await grainFactory.GetGrain<IUserGrain>(userData.id).GetMe();
     }
-
     public async Task<Server> CreateServer(CreateServerRequest request)
     {
         var userData = this.GetUser();
@@ -42,7 +41,7 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
     }
 
     [AllowAnonymous]
-    public async Task<Maybe<RegistrationError>> Registration(NewUserCredentialsInput input)
+    public async Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input)
     {
         var clientName = this.GetClientName();
         var ipAddress  = this.GetIpAddress();
@@ -51,9 +50,8 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
-        var result = await grainFactory
+        return await grainFactory
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
-        return result;
     }
 }

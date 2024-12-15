@@ -17,5 +17,5 @@ public interface IUserInteraction : IArgonService
     Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input);
 
     [AllowAnonymous]
-    Task<Maybe<RegistrationError>> Registration(NewUserCredentialsInput input);
+    Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input);
 }

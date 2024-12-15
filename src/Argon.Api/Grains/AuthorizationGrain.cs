@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using Features.Otp;
 using Orleans.Concurrency;
 using Services;
+using System.Reflection.PortableExecutable;
 
 [StatelessWorker]
 public class AuthorizationGrain(
@@ -59,7 +60,7 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, machineId);
     }
 
-    public async Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
         var user = await context.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
         if (user is not null)
@@ -119,7 +120,12 @@ public class AuthorizationGrain(
                 throw;
             }
         });
-        return Maybe<RegistrationError>.None();
+        if (user is null)
+            return RegistrationError.INTERNAL_ERROR;
+
+        var machineSessions = grainFactory.GetGrain<IUserMachineSessions>(user.Id);
+        var machineId = await machineSessions.CreateMachineKey(connectionInfo);
+        return await GenerateJwt(user, machineId);
     }
 
     private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);
