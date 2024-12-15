@@ -27,6 +27,9 @@ public interface IServerGrain : IGrainWithGuidKey
     [Alias("GetChannels")]
     Task<List<RealtimeChannel>> GetChannels();
 
+    [Alias("DoJoinUserAsync")]
+    ValueTask DoJoinUserAsync(Guid userId);
+
     public const string ProviderId = "argon.server.grain.stream";
     public const string EventNamespace = "@";
 }

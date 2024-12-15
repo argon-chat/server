@@ -2,19 +2,25 @@ namespace Argon.Grains;
 
 using Argon.Features.Rpc;
 using Features.Repositories;
+using Orleans.Providers;
 using Persistence.States;
 
+[StorageProvider(ProviderName = IFusionSessionGrain.StorageId)]
 public class ServerGrain(
     IGrainFactory grainFactory,
     ApplicationDbContext context,
-    [PersistentState(nameof(RealtimeServerGrainState), IFusionSessionGrain.StorageId)]
-    IPersistentState<RealtimeServerGrainState> realtimeState,
-    IServerRepository serverRepository) : Grain, IServerGrain
+    IServerRepository serverRepository) : Grain<RealtimeServerGrainState>, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
-        => _serverEvents = await this.Streams().CreateServerStream();
+    {
+        await ReadStateAsync();
+        _serverEvents = await this.Streams().CreateServerStream();
+    }
+
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+        => base.WriteStateAsync();
 
 
     public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
@@ -54,7 +60,7 @@ public class ServerGrain(
         return members.Select(x => new RealtimeServerMember
         {
             Member = x,
-            Status = realtimeState.State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
+            Status = State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
         }).ToList();
     }
 
@@ -73,6 +79,17 @@ public class ServerGrain(
         return results.ToList();
     }
 
+    public async ValueTask DoJoinUserAsync(Guid userId)
+    {
+        await context.UsersToServerRelations.AddAsync(new ServerMember
+        {
+            ServerId = this.GetPrimaryKey(),
+            UserId   = userId
+        });
+        await context.SaveChangesAsync();
+        await UserJoined(userId);
+    }
+
     public async ValueTask UserJoined(Guid userId)
     {
         await _serverEvents.Fire(new JoinToServerUser(userId));
@@ -81,7 +98,7 @@ public class ServerGrain(
 
     public async ValueTask SetUserStatus(Guid userId, UserStatus status)
     {
-        realtimeState.State.UserStatuses[userId] = status;
+        State.UserStatuses[userId] = status;
         await _serverEvents.Fire(new UserChangedStatus(userId, status, PropertyBag.Empty));
     }
 

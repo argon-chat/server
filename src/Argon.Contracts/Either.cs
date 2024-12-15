@@ -33,16 +33,16 @@ public class EitherFormatter<TResult, TError> : IMessagePackFormatter<Either<TRe
 
         writer.WriteMapHeader(3);
 
-        writer.Write("success");
+        writer.Write(nameof(value.IsSuccess));
         writer.Write(value.IsSuccess);
 
-        writer.Write("result");
+        writer.Write(nameof(value.Value));
         if (value.IsSuccess)
             resolver.GetFormatterWithVerify<TResult>().Serialize(ref writer, value.Value, options);
         else
             writer.WriteNil();
 
-        writer.Write(nameof(Either<TResult, TError>.Error).ToLowerInvariant());
+        writer.Write(nameof(Either<TResult, TError>.Error));
         if (!value.IsSuccess)
             resolver.GetFormatterWithVerify<TError>().Serialize(ref writer, value.Error, options);
         else

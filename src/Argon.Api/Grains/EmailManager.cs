@@ -3,7 +3,9 @@ namespace Argon.Grains;
 using System.Net;
 using System.Net.Mail;
 using Features.Template;
+using Orleans.Concurrency;
 
+[StatelessWorker]
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
 {
     private SmtpClient Client => new()

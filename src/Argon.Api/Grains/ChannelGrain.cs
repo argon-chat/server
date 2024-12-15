@@ -3,13 +3,11 @@ namespace Argon.Grains;
 using Features.Rpc;
 using Persistence.States;
 using Sfu;
-using Argon.Servers;
+using Servers;
 
 public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,
-    ApplicationDbContext context,
-    [PersistentState("channelGrainState", "OrleansStorage")]
-    IPersistentState<ChannelGrainState> state) : Grain, IChannelGrain
+    ApplicationDbContext context) : Grain<ChannelGrainState>, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -26,7 +24,7 @@ public class ChannelGrain(
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
-        => state.State.Users.Select(x => x.Value).ToList();
+        => State.Users.Select(x => x.Value).ToList();
 
 
     // no needed send StreamId too, id is can be computed
@@ -35,19 +33,19 @@ public class ChannelGrain(
         if (_self.ChannelType != ChannelType.Voice)
             return Maybe<RealtimeToken>.None();
 
-        if (state.State.Users.ContainsKey(userId))
+        if (State.Users.ContainsKey(userId))
         {
             //await _userStateEmitter.Fire(
             //    new OnChannelUserChangedState(userId, ON_LEAVED));
         }
         else
         {
-            state.State.Users.Add(userId, new RealtimeChannelUser()
+            State.Users.Add(userId, new RealtimeChannelUser()
             {
                 UserId = userId,
                 State = ChannelMemberState.NONE
             });
-            await state.WriteStateAsync();
+            await WriteStateAsync();
         }
 
         //await _userStateEmitter.Fire(
@@ -58,10 +56,10 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
-        state.State.Users.Remove(userId);
+        State.Users.Remove(userId);
         //await _userStateEmitter.OnNextAsync(new(userId, ON_LEAVED));
         await sfu.KickParticipantAsync(userId, ChannelId);
-        await state.WriteStateAsync();
+        await WriteStateAsync();
     }
 
     public async Task<Channel> GetChannel()

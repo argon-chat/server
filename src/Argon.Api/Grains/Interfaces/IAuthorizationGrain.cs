@@ -1,12 +1,14 @@
 namespace Argon.Grains.Interfaces;
 
-[Alias("Argon.Grains.Interfaces.IAuthorizationGrain")]
+using Orleans.Concurrency;
+
+[Alias("Argon.Grains.Interfaces.IAuthorizationGrain"), Unordered]
 public interface IAuthorizationGrain : IGrainWithGuidKey
 {
-    [Alias("Authorize")]
+    [Alias("Authorize"), AlwaysInterleave]
     Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
 
-    [Alias("Register")]
+    [Alias("Register"), AlwaysInterleave]
     Task<Maybe<RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
 }
 
