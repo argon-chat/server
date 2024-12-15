@@ -5,6 +5,8 @@ using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
 using Argon.Services;
 using Argon.Streaming;
+using MessagePack;
+using MessagePack.Resolvers;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
@@ -36,9 +38,17 @@ builder.Services.AddCors(x =>
     });
 });
 builder.AddSwaggerWithAuthHeader();
-builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackByteSerializer.Default.Options)).AddOrleansClient(x =>
+var options = MessagePackSerializerOptions.Standard
+   .WithResolver(CompositeResolver.Create(
+        DynamicEnumAsStringResolver.Instance,
+        EitherFormatterResolver.Instance,
+        StandardResolver.Instance));
+MessagePackSerializer.DefaultOptions = options;
+builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions)).AddOrleansClient(x =>
 {
-    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans")).AddStreaming().AddBroadcastChannel(IArgonEvent.Broadcast);
+    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+       .AddStreaming()
+       .AddBroadcastChannel(IArgonEvent.Broadcast);
     if (builder.Environment.IsProduction())
         x.UseKubeGatewayListProvider();
     else
