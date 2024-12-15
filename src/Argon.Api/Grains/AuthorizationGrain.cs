@@ -1,8 +1,10 @@
 namespace Argon.Grains;
 
 using Features.Otp;
+using Orleans.Concurrency;
 using Services;
 
+[StatelessWorker]
 public class AuthorizationGrain(
     IGrainFactory grainFactory,
     ILogger<AuthorizationGrain> logger,

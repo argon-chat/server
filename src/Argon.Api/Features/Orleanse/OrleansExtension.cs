@@ -6,6 +6,7 @@ using MessagePack.Formatters;
 using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
+using Orleans.Providers;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
 using Sentry;
@@ -30,14 +31,14 @@ public static class OrleansExtension
                .UseDashboard(o => o.Port = 22832)
                .AddActivityPropagation()
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-               .AddAdoNetGrainStorage("PubSubStore", options =>
+               .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME, options =>
                 {
                     options.Invariant        = "Npgsql";
                     options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                }).AddAdoNetGrainStorage("OrleansStorage", options =>
+                }).AddAdoNetGrainStorage(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME, x =>
                 {
-                    options.Invariant        = "Npgsql";
-                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                    x.Invariant        = "Npgsql";
+                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 });
 
             if (builder.Environment.IsKube())

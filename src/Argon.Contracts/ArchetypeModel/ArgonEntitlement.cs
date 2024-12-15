@@ -8,6 +8,7 @@ public enum ArgonEntitlement : ulong
     // base entitlement
     ViewChannel = 1UL << 0,
     ReadHistory = 1UL << 1,
+    JoinToVoice = 1UL << 2,
 
     Base = ViewChannel | ReadHistory,
 

@@ -2,30 +2,29 @@ namespace Argon.Grains;
 
 using Persistence.States;
 
-public class UserPreferenceGrain([PersistentState("userPreferences", "OrleansStorage")]
-    IPersistentState<UserPreferencesGrainState> state) : Grain, IUserPreferenceGrain
+public class UserPreferenceGrain : Grain<UserPreferencesGrainState>, IUserPreferenceGrain
 {
     private const int MaxSymbolSize = 1024 * 64;
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
-        => state.ReadStateAsync();
+        => ReadStateAsync();
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-        => state.WriteStateAsync();
+        => WriteStateAsync();
 
     public Task SavePreferences(Symbol scope, string value)
     {
         if (value.Length * 2 > MaxSymbolSize)
             return Task.CompletedTask; // ignore
-        if (state.State.UserPreferences.Count > 10)
+        if (State.UserPreferences.Count > 10)
             return Task.CompletedTask;
-        state.State.UserPreferences[scope] = value;
+        State.UserPreferences[scope] = value;
         return Task.CompletedTask;
     }
 
     public Task<string> LoadPreferences(Symbol scope)
     {
-        if (state.State.UserPreferences.TryGetValue(scope, out var result))
+        if (State.UserPreferences.TryGetValue(scope, out var result))
             return Task.FromResult(result);
         return Task.FromResult(string.Empty);
     }

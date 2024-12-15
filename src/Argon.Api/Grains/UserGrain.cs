@@ -1,7 +1,9 @@
 namespace Argon.Grains;
 
+using Orleans.Concurrency;
 using Services;
 
+[StatelessWorker]
 public class UserGrain(IPasswordHashingService passwordHashingService, ApplicationDbContext context) : Grain, IUserGrain
 {
     public async Task<User> UpdateUser(UserEditInput input)
