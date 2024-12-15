@@ -57,7 +57,6 @@ app.UseCors();
 app.UseWebSockets();
 app.UseSwagger();
 app.UseSwaggerUI();
-app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers();
@@ -67,11 +66,6 @@ app.MapArgonTransport();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-});
-
-app.MapGet("/test", () => new
-{
-    path = "entry"
 });
 
 await app.RunAsync();
