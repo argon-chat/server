@@ -15,7 +15,8 @@ using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.ConfigureKestrel(options => {
+builder.WebHost.ConfigureKestrel(options =>
+{
     options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
     options.AddServerHeader                          = false;
     options.Limits.Http2.MaxStreamsPerConnection     = 100;
@@ -31,9 +32,7 @@ builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddNatsStreaming();
 builder.Services.AddDbContext<ApplicationDbContext>(x => x
-   .EnableDetailedErrors()
-   .EnableSensitiveDataLogging()
-   .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
+   .EnableDetailedErrors().EnableSensitiveDataLogging().UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
    .AddInterceptors(new TimeStampAndSoftDeleteInterceptor()));
 
 builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
@@ -41,8 +40,7 @@ builder.Services.AddHttpContextAccessor();
 if (!builder.Environment.IsManaged())
 {
     builder.AddJwt();
-    builder.Services.AddControllers()
-       .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+    builder.Services.AddControllers().AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
     builder.Services.AddCors(x =>
     {
         x.AddDefaultPolicy(z =>
@@ -61,6 +59,7 @@ if (!builder.Environment.IsManaged())
         x.AddService<IEventBus, EventBusService>();
     });
 }
+
 builder.AddContentDeliveryNetwork();
 builder.AddArgonPermissions();
 builder.AddSelectiveForwardingUnit();
@@ -92,4 +91,8 @@ app.MapGet("/", () => new
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
 
+app.MapGet("/test", () => new
+{
+    path = "api"
+});
 await app.WarpUp<ApplicationDbContext>().RunAsync();
