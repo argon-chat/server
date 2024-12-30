@@ -91,8 +91,4 @@ app.MapGet("/", () => new
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
 
-app.MapGet("/test", () => new
-{
-    path = "api"
-});
 await app.WarpUp<ApplicationDbContext>().RunAsync();

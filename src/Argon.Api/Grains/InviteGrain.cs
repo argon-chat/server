@@ -14,8 +14,8 @@ public class InviteGrain : Grain<ServerInviteStorage>, IInviteGrain
         return Maybe<AcceptInviteError>.None();
     }
 
-    public async ValueTask<InviteCode> GetAsync()
-        => State.InviteCode.code;
+    public async ValueTask<InviteCodeEntity> GetAsync()
+        => State.InviteCode;
 
     public async ValueTask<bool> HasCreatedAsync()
         => State.InviteCode != default;

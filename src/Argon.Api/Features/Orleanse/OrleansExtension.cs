@@ -21,7 +21,8 @@ public static class OrleansExtension
            .WithResolver(CompositeResolver.Create(
                 DynamicEnumAsStringResolver.Instance,
                 EitherFormatterResolver.Instance,
-                StandardResolver.Instance));
+                StandardResolver.Instance,
+                ArgonEventResolver.Instance));
         MessagePackSerializer.DefaultOptions = options;
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         builder.Host.UseOrleans(siloBuilder =>

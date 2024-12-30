@@ -1,5 +1,6 @@
 namespace Argon;
 
+using Shared.Servers;
 using Users;
 
 [AttributeUsage(AttributeTargets.Method)]
@@ -18,4 +19,7 @@ public interface IUserInteraction : IArgonService
 
     [AllowAnonymous]
     Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input);
+
+
+    Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode);
 }
