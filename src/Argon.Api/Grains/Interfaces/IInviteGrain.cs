@@ -9,7 +9,7 @@ public interface IInviteGrain : IGrainWithStringKey
     ValueTask<Maybe<AcceptInviteError>> AcceptAsync(Guid userId);
 
     [Alias("GetAsync")]
-    ValueTask<InviteCode> GetAsync();
+    ValueTask<InviteCodeEntity> GetAsync();
 
     [Alias("HasCreatedAsync")]
     ValueTask<bool> HasCreatedAsync();

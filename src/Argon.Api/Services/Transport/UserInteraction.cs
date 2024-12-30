@@ -1,5 +1,7 @@
 namespace Argon.Services;
 
+using Shared.Servers;
+
 public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
 {
     public async Task<User> GetMe()
@@ -53,5 +55,19 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
         return await grainFactory
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
+    }
+
+    public async Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode)
+    {
+        var userData = this.GetUser();
+        var invite   = grainFactory.GetGrain<IInviteGrain>(inviteCode.inviteCode);
+        var result   = await invite.AcceptAsync(userData.id);
+
+        if (result.HasValue)
+            return result.Value;
+
+        var code = await invite.GetAsync();
+
+        return await grainFactory.GetGrain<IServerGrain>(code.serverId).GetServer();
     }
 }

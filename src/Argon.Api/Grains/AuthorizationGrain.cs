@@ -3,7 +3,6 @@ namespace Argon.Grains;
 using Features.Otp;
 using Orleans.Concurrency;
 using Services;
-using System.Reflection.PortableExecutable;
 
 [StatelessWorker]
 public class AuthorizationGrain(
