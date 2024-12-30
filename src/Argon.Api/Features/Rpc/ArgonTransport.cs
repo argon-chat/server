@@ -29,9 +29,25 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
             if (method.GetCustomAttribute<AllowAnonymousAttribute>() is null && !scope.IsAuthorized)
                 throw new UnauthorizedAccessException($"Not authorized to access method '{request.Method}'.");
 
-            var result = method.Invoke(service, []);
-            if (result is not IArgonStream<IArgonEvent> argonStream)
+            var parameters     = method.GetParameters();
+            var parameterTypes = parameters.Select(p => p.ParameterType).ToArray();
+
+            var arguments = MessagePackSerializer.Deserialize<object[]>(request.Payload.Memory);
+
+            if (arguments.Length != parameterTypes.Length)
+                throw new InvalidOperationException(
+                    $"Method '{method.Name}' expects {parameterTypes.Length} arguments, but received {arguments.Length}."
+                );
+
+            var typedArguments = arguments
+               .Zip(parameterTypes, (arg, type) => MessagePackSerializer.Deserialize(type, MessagePackSerializer.Serialize(arg))).ToArray();
+
+            var result = method.Invoke(service, typedArguments);
+            if (result is not Task<IArgonStream<IArgonEvent>> resultTask)
                 throw new InvalidOperationException($"Method '{request.Method}' must return IArgonStream<IArgonEvent>.");
+
+            var argonStream = await resultTask;
+
             await using var stream = argonStream;
 
             IAsyncEnumerable<IArgonEvent> enumerator = stream;
@@ -112,6 +128,9 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
             throw new InvalidOperationException($"Method '{method.Name}' does not return Task.");
 
         await task.ConfigureAwait(false);
+
+        if (method.ReturnType == typeof(Task))
+            return [];
 
         var resultProperty = task.GetType().GetProperty("Result");
         if (resultProperty == null)

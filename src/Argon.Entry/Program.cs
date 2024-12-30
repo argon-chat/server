@@ -42,7 +42,8 @@ var options = MessagePackSerializerOptions.Standard
    .WithResolver(CompositeResolver.Create(
         DynamicEnumAsStringResolver.Instance,
         EitherFormatterResolver.Instance,
-        StandardResolver.Instance));
+        StandardResolver.Instance,
+        ArgonEventResolver.Instance));
 MessagePackSerializer.DefaultOptions = options;
 builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions)).AddOrleansClient(x =>
 {
