@@ -5,6 +5,10 @@ public static class RpcServiceCollectionExtensions
     public static void MapArgonTransport(this WebApplication app)
     {
         app.MapGrpcService<ArgonTransport>();
+        app.UseGrpcWeb(new GrpcWebOptions()
+        {
+            DefaultEnabled = true
+        });
     }
 
     public static void AddArgonTransport(this WebApplicationBuilder builder, Action<ITransportRegistration> onRegistration)
