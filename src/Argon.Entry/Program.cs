@@ -32,7 +32,7 @@ builder.Services.AddCors(x =>
 {
     x.AddDefaultPolicy(z =>
     {
-        z.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost");
+        z.SetIsOriginAllowed(origin => true /*new Uri(origin).Host == "localhost"*/);
         z.AllowAnyHeader();
         z.AllowAnyMethod();
     });
