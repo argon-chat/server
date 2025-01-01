@@ -7,9 +7,6 @@ using static DeactivationReasonCode;
 
 public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrain
 {
-    private DateTimeOffset _latestSignalTime = DateTimeOffset.UtcNow;
-    private DisposableBag  disposableBag;
-
     private Guid _userId;
     private Guid _machineId;
 
@@ -29,20 +26,12 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
         GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
     }
 
-    private Task OnValidateActiveAsync(CancellationToken arg)
-        => _latestSignalTime.WhenAsync(x => DateTimeOffset.UtcNow - x > TimeSpan.FromMinutes(1), SelfDestroy);
-
-    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-        => disposableBag.Dispose();
-
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
     {
-        this.RegisterGrainTimer(OnValidateActiveAsync, TimeSpan.FromMinutes(2), TimeSpan.FromMinutes(2))
-           .AddTo(ref disposableBag);
         this._userId    = userId;
         this._machineId = machineKey;
 
-        userStream      = await this.Streams().CreateServerStreamFor(_userId);
+        userStream = await this.Streams().CreateServerStreamFor(_userId);
 
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
@@ -54,6 +43,8 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(userId, preferredStatus ?? UserStatus.Online);
+
+        await userStream.Fire(new WelcomCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 5500_00) / 100f)}\u00b0"));
     }
 
     public ValueTask EndRealtimeSession()
@@ -61,12 +52,6 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
 
     public ValueTask<bool> HasSessionActive()
         => new(_userId != default);
-
-    public ValueTask Signal()
-    {
-        _latestSignalTime = DateTimeOffset.UtcNow;
-        return ValueTask.CompletedTask;
-    }
 
     public ValueTask<TokenUserData> GetTokenUserData()
         => new(new TokenUserData(_userId, _machineId));

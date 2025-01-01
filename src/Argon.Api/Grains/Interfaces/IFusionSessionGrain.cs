@@ -14,9 +14,6 @@ public interface IFusionSessionGrain : IGrainWithGuidKey
     [Alias("HasSessionActive")]
     ValueTask<bool> HasSessionActive();
 
-    [Alias("Signal")]
-    ValueTask Signal();
-
     [Alias("GetTokenUserData")]
     ValueTask<TokenUserData> GetTokenUserData();
 
