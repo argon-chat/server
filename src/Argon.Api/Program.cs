@@ -4,6 +4,7 @@ using Argon.Features.EF;
 using Argon.Features.Env;
 using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
+using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
 using Argon.Features.Otp;
 using Argon.Features.Pex;
@@ -24,7 +25,7 @@ builder.WebHost.ConfigureKestrel(options =>
     options.Limits.Http2.KeepAlivePingDelay          = TimeSpan.FromSeconds(30);
     options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(10);
 });
-
+builder.Services.AddServerTiming();
 builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
 builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
@@ -72,7 +73,7 @@ builder.AddKubeResources();
 builder.AddCaptchaFeature();
 builder.Services.AddDataProtection();
 var app = builder.Build();
-
+app.UseServerTiming();
 if (!builder.Environment.IsManaged())
 {
     app.UseCors();

@@ -3,6 +3,7 @@ using Argon.Controllers;
 using Argon.Extensions;
 using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
+using Argon.Features.Middlewares;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
@@ -14,6 +15,7 @@ using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
+builder.Services.AddServerTiming();
 builder.WebHost.ConfigureKestrel(options =>
 {
     options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
@@ -63,7 +65,7 @@ builder.AddArgonTransport(x =>
 });
 builder.Services.AddAuthorization();
 var app = builder.Build();
-
+app.UseServerTiming();
 app.UseCors();
 app.UseWebSockets();
 app.UseSwagger();
