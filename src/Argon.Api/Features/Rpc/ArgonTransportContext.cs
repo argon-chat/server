@@ -33,10 +33,32 @@ public class ArgonTransportContext(ServerCallContext RpcContext, RpcRequest Requ
         return localScope.Value = new ArgonTransportContext(ctx, request, provider);
     }
 
+    public void SubscribeToDisconnect(Func<ValueTask> onDisconnect)
+    {
+        var r = new RegistrationScope();
+        r.refDisposable = RpcContext.CancellationToken.Register((x) =>
+        {
+            if (x is RegistrationScope scope)
+                scope.Dispose();
+            Task.Run(async () => await onDisconnect());
+        }, r);
+    }
+
+    private record RegistrationScope : IDisposable
+    {
+        public IDisposable? refDisposable;
+        public void Dispose()
+            => refDisposable?.Dispose();
+    }
+
     public bool IsAuthorized => RpcContext.UserState.ContainsKey("userToken");
 
     public TokenUserData User => RpcContext.UserState["userToken"] as TokenUserData ?? throw new InvalidOperationException();
 
     public void Dispose()
         => localScope.Value = null!;
+
+    
 }
+
+

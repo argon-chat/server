@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using Features.Middlewares;
 using Google.Protobuf;
 using Grpc.Core;
 using Transport;
@@ -7,13 +8,6 @@ using Transport;
 public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger)
     : Transport.ArgonTransport.ArgonTransportBase
 {
-    private record ArgonTransportKey(string @interface, string method);
-
-    private record ArgonTransportMethod(bool allowAnon, Type[] @params, MethodInfo method, PropertyInfo taskProp);
-
-
-    private static readonly Dictionary<ArgonTransportKey, ArgonTransportMethod> ArgonTransportMethods = new();
-
     public async override Task BroadcastSubscribe(RpcRequest request, IServerStreamWriter<StreamPayload> responseStream, ServerCallContext context)
     {
         using var scope = ArgonTransportContext.Create(context, request, provider);
@@ -52,28 +46,40 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
             IAsyncEnumerable<IArgonEvent> enumerator = stream;
 
-            await foreach (var argonEvent in enumerator.ConfigureAwait(false))
+            await foreach (var argonEvent in enumerator.ConfigureAwait(false).WithCancellation(context.CancellationToken))
             {
+                if (context.CancellationToken.IsCancellationRequested)
+                    return;
+
                 var payload = MessagePackSerializer.Serialize(argonEvent);
 
-                await responseStream.WriteAsync(new StreamPayload
+                try
                 {
-                    Payload = ByteString.CopyFrom(payload),
-                }).ConfigureAwait(false);
+                    await responseStream.WriteAsync(new StreamPayload
+                    {
+                        Payload = ByteString.CopyFrom(payload),
+                    }, context.CancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogCritical(ex, "Failed to execute write to stream");
+                }
             }
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, "Failed to execute broadcast subscription");
+            logger.LogError(e, "Failed to execute broadcast subscription");
         }
     }
 
 
     public async override Task<RpcResponse> Unary(RpcRequest request, ServerCallContext context)
     {
-        using var scope   = ArgonTransportContext.Create(context, request, provider);
-        var       key     = new ArgonTransportKey(request.Interface, request.Method);
-        var       service = storage.GetService(request.Interface);
+        await using var scope = provider.CreateAsyncScope();
+        using var _ = scope.ServiceProvider.GetRequiredService<IServerTimingRecorder>()
+           .BeginRecord($"Unary/{request.Interface}::{request.Method}");
+        using var ctx     = ArgonTransportContext.Create(context, request, provider);
+        var       service = storage.GetService(request.Interface);  
 
         try
         {
@@ -81,7 +87,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
             if (method == null)
                 throw new InvalidOperationException($"Method '{request.Method}' not found in service '{service.GetType().Name}'.");
 
-            if (method.GetCustomAttribute<AllowAnonymousAttribute>() is null && !scope.IsAuthorized)
+            if (method.GetCustomAttribute<AllowAnonymousAttribute>() is null && !ctx.IsAuthorized)
                 return new RpcResponse
                 {
                     Payload    = ByteString.Empty,
