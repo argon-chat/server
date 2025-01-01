@@ -6,4 +6,6 @@ using Streaming;
 public interface IEventBus : IArgonService
 {
     Task<IArgonStream<IArgonEvent>> SubscribeToServerEvents(Guid ServerId);
+
+    Task<IArgonStream<IArgonEvent>> SubscribeToMeEvents();
 }
