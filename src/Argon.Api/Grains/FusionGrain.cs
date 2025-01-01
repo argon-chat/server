@@ -44,7 +44,9 @@ public class FusionGrain(IGrainFactory grainFactory) : Grain, IFusionSessionGrai
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(userId, preferredStatus ?? UserStatus.Online);
 
-        await userStream.Fire(new WelcomCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 5500_00) / 100f)}\u00b0"));
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0", 
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
     }
 
     public ValueTask EndRealtimeSession()
