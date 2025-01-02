@@ -22,8 +22,8 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./Argon.Entry.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
-#ENV Kestrel__Endpoints__Https__Certificate__Path="/origin.argon.gl.pem" \
-    #Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
+ENV Kestrel__Endpoints__Https__Certificate__Path="/origin.argon.gl.pem" \
+    Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Argon.Entry.dll"]
