@@ -44,23 +44,25 @@ public static class OrleansExtension
 
             if (builder.Environment.IsKube())
             {
-                siloBuilder
-                   .UseKubeMembership()
-                   .AddActivationRepartitioner<BalanceRule>()
-                   .AddRedisStorage(IFusionSessionGrain.StorageId, 2)
-                   .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-                   .AddBroadcastChannel(IArgonEvent.Broadcast);
+                //siloBuilder
+                //   .UseKubeMembership()
+                //   .AddActivationRepartitioner<BalanceRule>()
+                //   .AddRedisStorage(IFusionSessionGrain.StorageId, 2)
+                //   .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+                //   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+                //   .AddBroadcastChannel(IArgonEvent.Broadcast);
             }
             else
             {
-                siloBuilder
-                   .UseLocalhostClustering()
-                   .AddMemoryStreams("default")
-                   .AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
-                   .AddBroadcastChannel(IArgonEvent.Broadcast);
+                
             }
+
+            siloBuilder
+               .UseLocalhostClustering()
+               .AddMemoryStreams("default")
+               .AddMemoryStreams(IArgonEvent.ProviderId)
+               .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
+               .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 
         return builder;
