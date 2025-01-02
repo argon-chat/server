@@ -58,7 +58,7 @@ public static class OrleansExtension
             }
 
             siloBuilder
-               .UseLocalhostClustering()
+               .UseKubeMembership()
                .AddMemoryStreams("default")
                .AddMemoryStreams(IArgonEvent.ProviderId)
                .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
