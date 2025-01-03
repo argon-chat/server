@@ -14,11 +14,11 @@ public sealed record User : ArgonEntity
     public required string DisplayName { get; set; }
     [MaxLength(64)]
     public string? PhoneNumber { get; set; } = null;
-    [MaxLength(512), IgnoreMember, JsonIgnore]
+    [MaxLength(512), IgnoreMember, JsonIgnore, TsIgnore]
     public string? PasswordDigest { get; set; } = null;
     [MaxLength(128)]
     public string? AvatarFileId { get; set; } = null;
-    [MaxLength(128), IgnoreMember, JsonIgnore]
+    [MaxLength(128), IgnoreMember, JsonIgnore, TsIgnore]
     public string? OtpHash { get; set; } = null;
     [IgnoreMember]
     public ICollection<ServerMember> ServerMembers { get; set; } = new List<ServerMember>();

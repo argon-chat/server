@@ -20,11 +20,13 @@ public class NullPermissionProvider : IPermissionProvider
         => new(true);
 }
 
-public class ArgonPermissionProvider(ApplicationDbContext ctx) : IPermissionProvider
+public class ArgonPermissionProvider(
+    IDbContextFactory<ApplicationDbContext> context) : IPermissionProvider
 {
     public async ValueTask<bool> CanAccess(ArgonEntitlement scope, Guid userId, Guid serverId)
     {
         // todo cache
+        await using var ctx = await context.CreateDbContextAsync();
         var serverMember = await ctx.UsersToServerRelations
            .Include(sm => sm.ServerMemberArchetypes)
            .ThenInclude(smr => smr.Archetype)

@@ -1,6 +1,6 @@
 namespace Argon.ArchetypeModel;
 
-[Flags, TsEnum]
+[Flags]
 public enum ArgonEntitlement : ulong
 {
     None = 0UL,

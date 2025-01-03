@@ -8,7 +8,7 @@ using Persistence.States;
 [StorageProvider(ProviderName = IFusionSessionGrain.StorageId)]
 public class ServerGrain(
     IGrainFactory grainFactory,
-    ApplicationDbContext context,
+    IDbContextFactory<ApplicationDbContext> context,
     IServerRepository serverRepository) : Grain<RealtimeServerGrainState>, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
@@ -33,28 +33,36 @@ public class ServerGrain(
         return await GetServer();
     }
 
-    public Task<Server> GetServer() => context.Servers
-       .FirstAsync(s => s.Id == this.GetPrimaryKey());
+    public async Task<Server> GetServer()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        return await ctx.Servers
+           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+    }
 
     public async Task<Server> UpdateServer(ServerInput input)
     {
-        var server = await context.Servers
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var server = await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
         var copy = server with { };
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
-        context.Servers.Update(server);
-        await context.SaveChangesAsync();
+        ctx.Servers.Update(server);
+        await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified(ObjDiff.Compare(copy, server)));
-        return await context.Servers
+        return await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
-        var members = await context.UsersToServerRelations.Where(x => x.ServerId == this.GetPrimaryKey())
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var members = await ctx.UsersToServerRelations.Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
         return members.Select(x => new RealtimeServerMember
@@ -66,7 +74,9 @@ public class ServerGrain(
 
     public async Task<List<RealtimeChannel>> GetChannels()
     {
-        var channels = await context.Channels
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var channels = await ctx.Channels
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
@@ -81,12 +91,14 @@ public class ServerGrain(
 
     public async ValueTask DoJoinUserAsync(Guid userId)
     {
-        await context.UsersToServerRelations.AddAsync(new ServerMember
+        await using var ctx = await context.CreateDbContextAsync();
+
+        await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });
-        await context.SaveChangesAsync();
+        await ctx.SaveChangesAsync();
         await UserJoined(userId);
     }
 
@@ -104,13 +116,17 @@ public class ServerGrain(
 
     public async Task DeleteServer()
     {
-        var server = await context.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
-        context.Servers.Remove(server);
-        await context.SaveChangesAsync();
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var server = await ctx.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
+        ctx.Servers.Remove(server);
+        await ctx.SaveChangesAsync();
     }
 
     public async Task<Channel> CreateChannel(ChannelInput input, Guid initiator)
     {
+        await using var ctx = await context.CreateDbContextAsync();
+
         var channel = new Channel
         {
             Name        = input.Name,
@@ -119,9 +135,18 @@ public class ServerGrain(
             ChannelType = input.ChannelType,
             ServerId    = this.GetPrimaryKey()
         };
-        await context.Channels.AddAsync(channel);
-        await context.SaveChangesAsync();
+        await ctx.Channels.AddAsync(channel);
+        await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelCreated(channel));
         return channel;
+    }
+
+    public async Task DeleteChannel(Guid channelId, Guid initiator)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
+        await ctx.SaveChangesAsync();
+        await _serverEvents.Fire(new ChannelRemoved(channelId));
     }
 }

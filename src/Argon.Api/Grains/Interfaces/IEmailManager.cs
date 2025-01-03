@@ -7,6 +7,7 @@ public record SmtpConfig
     public string User     { get; set; }
     public string Password { get; set; }
     public bool   UseSsl   { get; set; }
+    public bool   Enabled  { get; set; }
 }
 
 [Alias("Argon.Grains.Interfaces.IEmailManager")]

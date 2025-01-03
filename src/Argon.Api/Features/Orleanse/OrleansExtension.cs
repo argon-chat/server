@@ -10,6 +10,7 @@ using Orleans.Providers;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
 using Sentry;
+using Shared;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -17,13 +18,6 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        var options = MessagePackSerializerOptions.Standard
-           .WithResolver(CompositeResolver.Create(
-                DynamicEnumAsStringResolver.Instance,
-                EitherFormatterResolver.Instance,
-                StandardResolver.Instance,
-                ArgonEventResolver.Instance));
-        MessagePackSerializer.DefaultOptions = options;
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         builder.Host.UseOrleans(siloBuilder =>
         {

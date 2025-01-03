@@ -4,52 +4,31 @@ using Argon.Extensions;
 using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
+using Argon.Features.Web;
 using Argon.Features.OrleansStreamingProviders;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
-using MessagePack.Resolvers;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
+builder.AddSentry();
 builder.Services.AddServerTiming();
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
-    options.AddServerHeader                          = false;
-    options.Limits.Http2.MaxStreamsPerConnection     = 100;
-    options.Limits.Http2.InitialConnectionWindowSize = 65535;
-    options.Limits.Http2.KeepAlivePingDelay          = TimeSpan.FromSeconds(30);
-    options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(10);
-});
+builder.ConfigureDefaultKestrel();
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
 builder.AddNatsStreaming();
 builder.AddJwt();
 builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
    .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-builder.Services.AddCors(x =>
-{
-    x.AddDefaultPolicy(z =>
-    {
-        z.SetIsOriginAllowed(origin => true /*new Uri(origin).Host == "localhost"*/);
-        z.AllowAnyHeader();
-        z.AllowAnyMethod();
-    });
-});
+builder.AddDefaultCors();
 builder.AddSwaggerWithAuthHeader();
-var options = MessagePackSerializerOptions.Standard
-   .WithResolver(CompositeResolver.Create(
-        DynamicEnumAsStringResolver.Instance,
-        EitherFormatterResolver.Instance,
-        StandardResolver.Instance,
-        ArgonEventResolver.Instance));
-MessagePackSerializer.DefaultOptions = options;
-builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions)).AddOrleansClient(x =>
+builder.Services
+   .AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions))
+   .AddOrleansClient(x =>
 {
     x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
        .AddStreaming()

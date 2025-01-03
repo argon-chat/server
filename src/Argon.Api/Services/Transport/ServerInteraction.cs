@@ -1,5 +1,7 @@
 namespace Argon.Services;
 
+using Orleans.Runtime;
+
 public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
 {
     public async Task CreateChannel(CreateChannelRequest request)
@@ -8,7 +10,9 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
            .CreateChannel(new ChannelInput(request.name, new ChannelEntitlementOverwrite(), request.desc, request.kind), this.GetUser().id);
 
     public Task DeleteChannel(Guid serverId, Guid channelId)
-        => throw new NotImplementedException();
+        => grainFactory
+           .GetGrain<IServerGrain>(serverId)
+           .DeleteChannel(channelId, this.GetUser().id);
 
     public async Task<string> JoinToVoiceChannel(Guid serverId, Guid channelId)
     {

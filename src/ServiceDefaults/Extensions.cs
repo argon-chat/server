@@ -6,6 +6,7 @@ using AspNetCore.Hosting;
 using DependencyInjection;
 using Diagnostics.HealthChecks;
 using Logging;
+using Microsoft.Extensions.Configuration;
 using OpenTelemetry;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
@@ -44,11 +45,11 @@ public static class Extensions
         return builder;
     }
 
-    public static IHostApplicationBuilder AddSentry(this WebApplicationBuilder builder, string? dsn)
+    public static IHostApplicationBuilder AddSentry(this WebApplicationBuilder builder)
     {
         builder.WebHost.UseSentry(o =>
         {
-            o.Dsn                 = dsn;
+            o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
             o.Debug               = true;
             o.AutoSessionTracking = true;
             o.TracesSampleRate    = 1.0;

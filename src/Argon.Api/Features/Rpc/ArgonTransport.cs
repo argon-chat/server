@@ -51,7 +51,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
                 if (context.CancellationToken.IsCancellationRequested)
                     return;
 
-                var payload = MessagePackSerializer.Serialize(argonEvent);
+                var payload = MessagePackSerializer.Serialize(argonEvent, cancellationToken: context.CancellationToken);
 
                 try
                 {
@@ -65,6 +65,10 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
                     logger.LogCritical(ex, "Failed to execute write to stream");
                 }
             }
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore cancel 
         }
         catch (Exception e)
         {

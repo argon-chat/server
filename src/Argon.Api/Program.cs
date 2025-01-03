@@ -1,4 +1,5 @@
 using Argon.Api.Migrations;
+using Argon.Features.Auth;
 using Argon.Features.Captcha;
 using Argon.Features.EF;
 using Argon.Features.Env;
@@ -10,47 +11,29 @@ using Argon.Features.Otp;
 using Argon.Features.Pex;
 using Argon.Features.Repositories;
 using Argon.Features.Template;
+using Argon.Features.Web;
 using Argon.Services;
 using Argon.Sfu;
-using Newtonsoft.Json.Converters;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.WebHost.ConfigureKestrel(options =>
-{
-    options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
-    options.AddServerHeader                          = false;
-    options.Limits.Http2.MaxStreamsPerConnection     = 100;
-    options.Limits.Http2.InitialConnectionWindowSize = 65535;
-    options.Limits.Http2.KeepAlivePingDelay          = TimeSpan.FromSeconds(30);
-    options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(10);
-});
+builder.ConfigureDefaultKestrel();
 builder.Services.AddServerTiming();
-builder.AddSentry(builder.Configuration.GetConnectionString("Sentry"));
+builder.AddSentry();
 builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddNatsStreaming();
-builder.Services.AddDbContext<ApplicationDbContext>(x => x
-   .EnableDetailedErrors().EnableSensitiveDataLogging().UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
-   .AddInterceptors(new TimeStampAndSoftDeleteInterceptor()));
+builder.AddPooledDatabase<ApplicationDbContext>();
+builder.AddArgonAuthorization();
 
-builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-builder.Services.AddHttpContextAccessor();
 if (!builder.Environment.IsManaged())
 {
+    builder.AddDefaultCors();
     builder.AddJwt();
-    builder.Services.AddControllers().AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-    builder.Services.AddCors(x =>
-    {
-        x.AddDefaultPolicy(z =>
-        {
-            z.SetIsOriginAllowed(origin => new Uri(origin).Host == "localhost");
-            z.AllowAnyHeader();
-            z.AllowAnyMethod();
-        });
-    });
+    builder.Services.AddControllers()
+       .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
     builder.AddSwaggerWithAuthHeader();
     builder.Services.AddAuthorization();
     builder.AddArgonTransport(x =>
@@ -64,15 +47,14 @@ if (!builder.Environment.IsManaged())
 builder.AddContentDeliveryNetwork();
 builder.AddArgonPermissions();
 builder.AddSelectiveForwardingUnit();
-builder.Services.AddTransient<UserManagerService>();
 builder.AddOtpCodes();
 builder.AddOrleans();
 builder.AddTemplateEngine();
 builder.AddEfRepositories();
 builder.AddKubeResources();
 builder.AddCaptchaFeature();
-builder.Services.AddDataProtection();
 var app = builder.Build();
+
 app.UseServerTiming();
 if (!builder.Environment.IsManaged())
 {

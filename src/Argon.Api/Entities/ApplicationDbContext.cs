@@ -150,10 +150,4 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         var notDeleted        = Expression.Not(isDeletedProperty);
         return Expression.Lambda(notDeleted, parameter);
     }
-
-    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
-    {
-        optionsBuilder.AddInterceptors(new TimeStampAndSoftDeleteInterceptor());
-        base.OnConfiguring(optionsBuilder);
-    }
 }

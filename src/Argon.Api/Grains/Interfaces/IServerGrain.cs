@@ -18,6 +18,9 @@ public interface IServerGrain : IGrainWithGuidKey
     [Alias("CreateChannel")]
     Task<Channel> CreateChannel(ChannelInput input, Guid initiator);
 
+    [Alias("DeleteChannel")]
+    Task DeleteChannel(Guid channelId, Guid initiator);
+
     [Alias("SetUserStatus")]
     ValueTask SetUserStatus(Guid userId, UserStatus status);
 

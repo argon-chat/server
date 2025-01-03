@@ -14,7 +14,7 @@ public record Channel : ArgonEntityWithOwnership, IArchetypeObject
 
 
     [MaxLength(128)]
-    public required string Name { get; set; } = string.Empty;
+    public string Name { get; set; } = string.Empty;
     [MaxLength(1024)]
     public string? Description { get; set; } = null;
 

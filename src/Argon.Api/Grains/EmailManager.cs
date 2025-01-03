@@ -26,6 +26,12 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning($"[OTP CODE]: {email}, code: {otpCode}");
+            return;
+        }
+
         var form = formStorage.Render("otp", new Dictionary<string, string>
         {
             {

@@ -16,14 +16,17 @@ public interface IServerRepository
     ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator);
 }
 
-public class ServerRepository(ApplicationDbContext context) : IServerRepository
+public class ServerRepository(
+    IDbContextFactory<ApplicationDbContext> context) : IServerRepository
 {
     public async ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator)
     {
-        var strategy = context.Database.CreateExecutionStrategy();
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var strategy = ctx.Database.CreateExecutionStrategy();
         return await strategy.ExecuteAsync(async () =>
         {
-            await using var transaction = await context.Database.BeginTransactionAsync();
+            await using var transaction = await ctx.Database.BeginTransactionAsync();
             try
             {
                 var server = new Server()
@@ -35,9 +38,9 @@ public class ServerRepository(ApplicationDbContext context) : IServerRepository
                     Name         = data.Name!
                 };
 
-                var e = await context.Servers.AddAsync(server);
+                var e = await ctx.Servers.AddAsync(server);
 
-                await context.SaveChangesAsync();
+                await ctx.SaveChangesAsync();
 
                 var sm = new ServerMember()
                 {
@@ -47,9 +50,9 @@ public class ServerRepository(ApplicationDbContext context) : IServerRepository
                     CreatorId = initiator,
                 };
 
-                await context.UsersToServerRelations.AddAsync(sm);
+                await ctx.UsersToServerRelations.AddAsync(sm);
 
-                await context.SaveChangesAsync();
+                await ctx.SaveChangesAsync();
 
                 await CloneArchetypesAsync(e.Entity.Id, sm.Id);
 
@@ -68,8 +71,10 @@ public class ServerRepository(ApplicationDbContext context) : IServerRepository
 
     private async ValueTask CloneArchetypesAsync(Guid serverId, Guid initiator)
     {
-        var everyone = await context.Archetypes.FindAsync(Archetype.DefaultArchetype_Everyone);
-        var owner    = await context.Archetypes.FindAsync(Archetype.DefaultArchetype_Owner);
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var everyone = await ctx.Archetypes.FindAsync(Archetype.DefaultArchetype_Everyone);
+        var owner    = await ctx.Archetypes.FindAsync(Archetype.DefaultArchetype_Owner);
 
         owner!.Id               = Guid.NewGuid();
         owner.CreatorId         = initiator;
@@ -83,10 +88,10 @@ public class ServerRepository(ApplicationDbContext context) : IServerRepository
         everyone.Server            = null!;
         everyone.ServerMemberRoles = new List<ServerMemberArchetype>();
 
-        await context.Archetypes.AddAsync(everyone);
-        await context.Archetypes.AddAsync(owner);
+        await ctx.Archetypes.AddAsync(everyone);
+        await ctx.Archetypes.AddAsync(owner);
 
-        Debug.Assert(await context.SaveChangesAsync() == 2);
+        Debug.Assert(await ctx.SaveChangesAsync() == 2);
 
         var e = new ServerMemberArchetype()
         {
@@ -94,8 +99,8 @@ public class ServerRepository(ApplicationDbContext context) : IServerRepository
             ServerMemberId = initiator
         };
 
-        await context.ServerMemberArchetypes.AddAsync(e);
+        await ctx.ServerMemberArchetypes.AddAsync(e);
 
-        Debug.Assert(await context.SaveChangesAsync() == 1);
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
     }
 }

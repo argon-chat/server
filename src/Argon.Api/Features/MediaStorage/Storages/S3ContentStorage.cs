@@ -9,28 +9,25 @@ public class S3ContentStorage([FromKeyedServices("GenericS3:client")] IObjectCli
     public ValueTask<StorageSpace> GetStorageStats()
         => new(new StorageSpace(0, 0, 0));
 
-    public async ValueTask UploadFile(StorageNameSpace block, AssetId assetId, Stream data)
+    public async ValueTask UploadFile(AssetId assetId, Stream data)
     {
         var config = options.Value;
         logger.LogInformation("Begin upload file to s3 storage, '{bucketName}' to '{path}'", 
-            config.BucketName, $"{block.ToPath()}/{assetId.GetFilePath()}");
-        var result = await s3Client.PutObjectAsync(config.BucketName, $"{block.ToPath()}/{assetId.GetFilePath()}", data, request => {
-            foreach (var (key, value) in assetId.GetTags(block))
-                request.Tags.Add(key, value);
-        });
+            config.BucketName, $"{assetId.GetFilePath()}");
+        var result = await s3Client.PutObjectAsync(config.BucketName, $"{assetId.GetFilePath()}", data);
 
         if (!result.IsSuccess)
         {
             logger.LogCritical("Failed upload file to s3 storage, '{bucketName}' to '{path}', errorCode: {errorCode}, errorMessage: {errorMessage}",
-                config.BucketName, $"{block.ToPath()}/{assetId.GetFilePath()}", result.Error?.Code, result.Error?.Message);
+                config.BucketName, $"{assetId.GetFilePath()}", result.Error?.Code, result.Error?.Message);
             throw new InvalidOperationException();
         }
     }
 
-    public async ValueTask DeleteFile(StorageNameSpace block, AssetId assetId)
+    public async ValueTask DeleteFile(AssetId assetId)
     {
         var config = options.Value;
-        var result = await s3Client.DeleteObjectAsync(config.BucketName, $"/{block.ToPath()}/{assetId.GetFilePath()}");
+        var result = await s3Client.DeleteObjectAsync(config.BucketName, $"{assetId.GetFilePath()}");
 
         if (!result.IsSuccess)
             throw new InvalidOperationException();

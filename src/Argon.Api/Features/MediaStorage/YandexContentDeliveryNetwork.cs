@@ -9,11 +9,11 @@ public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.Gen
     public IContentStorage Storage { get; } = storage;
     public CdnOptions      Config  => options.Value;
 
-    public async ValueTask<Maybe<UploadError>> CreateAssetAsync(StorageNameSpace ns, AssetId asset, Stream file)
+    public async ValueTask<Maybe<UploadError>> CreateAssetAsync(AssetId asset, Stream file)
     {
         try
         {
-            await Storage.UploadFile(ns, asset, file);
+            await Storage.UploadFile(asset, file);
             return Maybe<UploadError>.None();
         }
         catch (Exception e)
@@ -23,11 +23,11 @@ public class YandexContentDeliveryNetwork([FromKeyedServices(IContentStorage.Gen
         }
     }
 
-    public ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, Stream file)
+    public ValueTask<Maybe<UploadError>> ReplaceAssetAsync(AssetId asset, Stream file)
         => throw new NotImplementedException();
 
-    public string GenerateAssetUrl(StorageNameSpace ns, AssetId asset)
-        => GenerateSignedLink(Config.BaseUrl, $"/{ns.ToPath()}/{asset.GetFilePath()}", Config.SignSecret, (int)Config.EntryExpire.TotalSeconds);
+    public string GenerateAssetUrl(AssetId asset)
+        => GenerateSignedLink(Config.BaseUrl, $"{asset.GetFilePath()}", Config.SignSecret, (int)Config.EntryExpire.TotalSeconds);
 
     private static string GenerateSignedLink(
         string hostname,

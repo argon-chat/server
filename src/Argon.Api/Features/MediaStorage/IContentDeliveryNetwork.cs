@@ -4,19 +4,19 @@ public interface IContentDeliveryNetwork
 {
     IContentStorage Storage { get; }
 
-    ValueTask<Maybe<UploadError>> CreateAssetAsync(StorageNameSpace ns, AssetId asset, IFormFile file)
+    ValueTask<Maybe<UploadError>> CreateAssetAsync(AssetId asset, IFormFile file)
     {
         var memory = file.OpenReadStream();
-        return CreateAssetAsync(ns, asset, memory);
+        return CreateAssetAsync(asset, memory);
     }
 
-    ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, IFormFile file)
+    ValueTask<Maybe<UploadError>> ReplaceAssetAsync(AssetId asset, IFormFile file)
     {
         using var memory = file.OpenReadStream();
-        return ReplaceAssetAsync(ns, asset, memory);
+        return ReplaceAssetAsync(asset, memory);
     }
 
-    ValueTask<Maybe<UploadError>> CreateAssetAsync(StorageNameSpace ns, AssetId asset, Stream file);
-    ValueTask<Maybe<UploadError>> ReplaceAssetAsync(StorageNameSpace ns, AssetId asset, Stream file);
-    string                        GenerateAssetUrl(StorageNameSpace ns, AssetId asset);
+    ValueTask<Maybe<UploadError>> CreateAssetAsync(AssetId asset, Stream file);
+    ValueTask<Maybe<UploadError>> ReplaceAssetAsync(AssetId asset, Stream file);
+    string                        GenerateAssetUrl(AssetId asset);
 }

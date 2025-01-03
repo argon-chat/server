@@ -35,7 +35,7 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
                 continue;
             writer.Write(prop.Name);
             var propValue = prop.GetValue(value);
-            MessagePackSerializer.Serialize(ref writer, propValue, options);
+            MessagePackSerializer.Serialize(prop.PropertyType, ref writer, propValue, options);
         }
 
     }

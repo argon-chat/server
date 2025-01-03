@@ -7,7 +7,7 @@ using Servers;
 
 public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,
-    ApplicationDbContext context) : Grain<ChannelGrainState>, IChannelGrain
+    IDbContextFactory<ApplicationDbContext> context) : Grain<ChannelGrainState>, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -71,16 +71,23 @@ public class ChannelGrain(
 
     public async Task<Channel> UpdateChannel(ChannelInput input)
     {
+        await using var ctx = await context.CreateDbContextAsync();
+
         var channel = await Get();
         channel.Name        = input.Name;
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
-        context.Channels.Update(channel);
-        await context.SaveChangesAsync();
+        ctx.Channels.Update(channel);
+        await ctx.SaveChangesAsync();
         return (await Get());
     }
 
-    private async Task<Channel> Get() => await context.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
+    private async Task<Channel> Get()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
+    }
 }
 
 public enum ChannelUserChangedStateEvent

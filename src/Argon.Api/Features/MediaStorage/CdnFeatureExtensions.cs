@@ -62,6 +62,7 @@ public static class CdnFeatureExtensions
             config.RegionCode  = options.Region;
             config.Credentials = new StringAccessKey(options.Login, options.Password);
             config.NamingMode  = NamingMode.PathStyle;
+            config.PayloadSignatureMode = SignatureMode.FullSignature;
         });
 
         var storageServices = storageContainer.BuildServiceProvider();
