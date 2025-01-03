@@ -40,6 +40,10 @@ public static class OrleansExtension
                 {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                })
+               .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x => {
+                    x.Invariant        = "Npgsql";
+                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 });
 
             if (builder.Environment.IsKube())
@@ -59,9 +63,8 @@ public static class OrleansExtension
 
             siloBuilder
                .UseKubeMembership()
-               .AddMemoryStreams("default")
-               .AddMemoryStreams(IArgonEvent.ProviderId)
-               .AddMemoryGrainStorage(IFusionSessionGrain.StorageId)
+               .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+               .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
                .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 
