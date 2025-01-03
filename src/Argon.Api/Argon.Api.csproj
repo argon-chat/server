@@ -42,6 +42,7 @@
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="8.0.1" />
         <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="8.2.0" />
+        <PackageReference Include="Microsoft.Orleans.Reminders.AdoNet" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="8.2.0" />
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="8.2.0" />

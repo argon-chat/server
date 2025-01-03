@@ -20,8 +20,9 @@ public static class OrleansExtension
         {
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
                .AddStreaming()
-               .UseDashboard(o => o.Port = 22832)
                .AddActivityPropagation()
+               .AddReminders()
+               .UseDashboard(o => o.Port = 22832)
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
                .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME, options =>
                 {
@@ -34,6 +35,11 @@ public static class OrleansExtension
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 })
                .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x =>
+                {
+                    x.Invariant        = "Npgsql";
+                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                })
+               .UseAdoNetReminderService(x =>
                 {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
