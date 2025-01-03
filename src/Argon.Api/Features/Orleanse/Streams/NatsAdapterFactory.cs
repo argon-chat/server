@@ -23,7 +23,6 @@ public class ArgonEventBatch : IBatchContainer
         Data             = [data];
         SequenceToken    = eventToken;
         Event            = msg;
-        IsCalledFromCtor = true;
     }
 
     [Id(0)]
@@ -32,16 +31,16 @@ public class ArgonEventBatch : IBatchContainer
     public  NatsJSMsg<string> Event    { get; }
     [Id(1)]
     public StreamId StreamId { get; }
+    [Id(2)]
     public StreamSequenceToken SequenceToken    { get; }
-    public bool                IsCalledFromCtor { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>()
     {
         if (SequenceToken is null)
-            throw new Exception($"SequenceToken is null, and IsCalledFromCtor: {IsCalledFromCtor}");
+            throw new Exception($"SequenceToken is null");
 
         if (SequenceToken is not EventSequenceTokenV2 sequenceTokenV2)
-            throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}, and IsCalledFromCtor: {IsCalledFromCtor}");
+            throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}");
 
         return Data.OfType<T>().ToList().Select((@event, i) => Tuple.Create<T, StreamSequenceToken>(@event, sequenceTokenV2.CreateSequenceTokenForEvent(i)));
     }
