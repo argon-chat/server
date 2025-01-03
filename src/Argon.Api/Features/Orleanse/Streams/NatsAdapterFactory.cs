@@ -7,33 +7,14 @@ using Orleans.Providers.Streams.Common;
 using Orleans.Serialization;
 using Orleans.Streams;
 
-public static class NatsMsgExtension
-{
-    public static ArgonEventBatch ToBatch(this NatsJSMsg<string> msg, ILogger logger, OrleansJsonSerializer serializationManager)
-    {
-        if (msg.Headers is null)
-            throw new NullReferenceException($"СУКА Я СВОЮ МАТЬ ЕБАЛ ЗА ТАКУЮ ХУЙНЮ");
-
-        foreach (var natsHeader in msg.Headers)
-            logger.LogError($"natsHeader: {natsHeader.Key}:{natsHeader.Value}");
-
-        var                  data       = serializationManager.Deserialize(typeof(object), msg.Data);
-        var                  stream     = msg.Headers?["streamId"][0];
-        var                  streamId   = StreamId.Parse(Encoding.UTF8.GetBytes(stream));
-        var                  eventIndex = int.TryParse(msg.Headers?["eventInd"][0], out var index);
-        var                  seq        = int.TryParse(msg.Headers?["seq"][0], out var sequence);
-        StreamSequenceToken? token      = null;
-        if (eventIndex && seq) token    = new EventSequenceTokenV2(index, sequence);
-        return new ArgonEventBatch(streamId, data, data.GetType(), token, msg);
-    }
-}
-
 [Serializable, GenerateSerializer, Alias(nameof(ArgonEventBatch))]
 public class ArgonEventBatch : IBatchContainer
 {
 #region Implementation of IBatchContainer
 
-    public ArgonEventBatch() { }
+    public ArgonEventBatch()
+    {
+    }
 
     public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken, NatsJSMsg<string> msg)
     {
@@ -107,7 +88,28 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             {
                 MaxMsgs = 1, // TODO: for later optimizations change this number
                 Expires = TimeSpan.FromSeconds(1)
-            }).Select(natsMsg => natsMsg.ToBatch(logger, serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
+            }).Select(natsMsg => ToBatch(natsMsg, serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
+
+        private ArgonEventBatch ToBatch(NatsJSMsg<string> msg, OrleansJsonSerializer serializationManager)
+        {
+            if (msg.Headers is null)
+                throw new NullReferenceException($"msg.Headers is null");
+            if (!msg.Headers.TryGetValue("streamId", out var stream))
+                throw new KeyNotFoundException($"streamId suka not found");
+            if (!msg.Headers.TryGetValue("eventInd", out var eventIndexStr))
+                throw new KeyNotFoundException($"eventInd suka not found");
+            if (!msg.Headers.TryGetValue("seq", out var seqStr))
+                throw new KeyNotFoundException($"seq suka not found");
+            if (!int.TryParse(eventIndexStr, out var eventIndex))
+                throw new Exception($"eventIndex failed to parse suka '{eventIndexStr}'");
+            if (!int.TryParse(seqStr, out var seq))
+                throw new Exception($"seq failed to parse suka '{seqStr}'");
+
+
+            var streamId = StreamId.Parse(Encoding.UTF8.GetBytes(stream));
+            var data     = serializationManager.Deserialize(typeof(object), msg.Data);
+            return new ArgonEventBatch(streamId, data, data.GetType(), new EventSequenceTokenV2(eventIndex, seq), msg);
+        }
 
         public async Task MessagesDeliveredAsync(IList<IBatchContainer> messages)
         {
@@ -138,8 +140,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
     private readonly ConcurrentDictionary<QueueId, Receiver>                       _receivers;
     private readonly Func<ReceiverMonitorDimensions, IQueueAdapterReceiverMonitor> ReceiverMonitorFactory;
     private readonly INatsJSContext                                                _js;
-    private readonly AsyncContainer<INatsJSStream>                                      _stream;
-    private readonly AsyncContainer<INatsJSConsumer>                                    _consumer;
+    private readonly AsyncContainer<INatsJSStream>                                 _stream;
+    private readonly AsyncContainer<INatsJSConsumer>                               _consumer;
 
 
     public NatsAdapterFactory(string name, OrleansJsonSerializer serializationManager, ILoggerFactory loggerFactory, IGrainFactory grainFactory,
@@ -209,7 +211,8 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
         var dimensions      = new ReceiverMonitorDimensions(queueId.ToString());
         var receiverMonitor = ReceiverMonitorFactory(dimensions);
         receiver = _receivers.GetOrAdd(queueId,
-            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection, _js, _stream.Value,
+            new Receiver(Name, receiverMonitor, _serializationManager, _loggerFactory.CreateLogger<Receiver>(), queueId, _connection, _js,
+                _stream.Value,
                 _consumer.Value));
 
         return receiver;
