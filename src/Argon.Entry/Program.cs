@@ -4,6 +4,7 @@ using Argon.Extensions;
 using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
+using Argon.Features.OrleansStreamingProviders;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
@@ -27,6 +28,7 @@ builder.WebHost.ConfigureKestrel(options =>
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
+builder.AddNatsStreaming();
 builder.AddJwt();
 builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
    .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
@@ -51,6 +53,8 @@ builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, Messa
 {
     x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
        .AddStreaming()
+       .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+       .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
        .AddBroadcastChannel(IArgonEvent.Broadcast);
     if (builder.Environment.IsProduction())
         x.UseKubeGatewayListProvider();
