@@ -9,8 +9,14 @@ using Orleans.Streams;
 
 public static class NatsMsgExtension
 {
-    public static ArgonEventBatch ToBatch(this NatsJSMsg<string> msg, OrleansJsonSerializer serializationManager)
+    public static ArgonEventBatch ToBatch(this NatsJSMsg<string> msg, ILogger logger, OrleansJsonSerializer serializationManager)
     {
+        if (msg.Headers is null)
+            throw new NullReferenceException($"СУКА Я СВОЮ МАТЬ ЕБАЛ ЗА ТАКУЮ ХУЙНЮ");
+
+        foreach (var natsHeader in msg.Headers)
+            logger.LogError($"natsHeader: {natsHeader.Key}:{natsHeader.Value}");
+
         var                  data       = serializationManager.Deserialize(typeof(object), msg.Data);
         var                  stream     = msg.Headers?["streamId"][0];
         var                  streamId   = StreamId.Parse(Encoding.UTF8.GetBytes(stream));
@@ -101,7 +107,7 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             {
                 MaxMsgs = 1, // TODO: for later optimizations change this number
                 Expires = TimeSpan.FromSeconds(1)
-            }).Select(natsMsg => natsMsg.ToBatch(serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
+            }).Select(natsMsg => natsMsg.ToBatch(logger, serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
 
         public async Task MessagesDeliveredAsync(IList<IBatchContainer> messages)
         {
