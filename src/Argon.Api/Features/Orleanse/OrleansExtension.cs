@@ -1,9 +1,6 @@
 namespace Argon.Features;
 
-using ActualLab.Serialization;
 using Env;
-using MessagePack.Formatters;
-using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Hosting;
@@ -11,7 +8,6 @@ using Orleans.Providers;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
 using Sentry;
-using Shared;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -31,7 +27,8 @@ public static class OrleansExtension
                 {
                     options.Invariant        = "Npgsql";
                     options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                }).AddAdoNetGrainStorage(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME, x =>
+                })
+               .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME, x =>
                 {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -60,7 +57,7 @@ public static class OrleansExtension
             }
             else
                 siloBuilder
-                   .UseKubeMembership()
+                   .UseLocalhostClustering()
                    .AddMemoryStreams("default")
                    .AddMemoryStreams(IArgonEvent.ProviderId)
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
