@@ -33,21 +33,15 @@ public class ArgonEventBatch : IBatchContainer
     public StreamId StreamId { get; }
     public StreamSequenceToken SequenceToken { get; }
 
-    public IEnumerable<Tuple<T, StreamSequenceToken?>> GetEvents<T>()
+    public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>()
     {
-        var sequenceToken = (EventSequenceTokenV2)SequenceToken;
+        if (SequenceToken is null)
+            throw new Exception($"SequenceToken is null");
 
-        if (sequenceToken is null)
-            throw new NullReferenceException($"Fucking mom of sequenceToken null, original '{SequenceToken.GetType().FullName}'");
-        if (Data is null)
-            throw new NullReferenceException($"Fucking mom of Data null");
+        if (SequenceToken is not EventSequenceTokenV2 sequenceTokenV2)
+            throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}");
 
-        var eta = Data.OfType<T>().ToList();
-        if (eta is null)
-            throw new NullReferenceException($"Fucking mom of eta null");
-
-
-        return eta.Select((@event, i) => Tuple.Create<T, StreamSequenceToken?>(@event, sequenceToken.CreateSequenceTokenForEvent(i)));
+        return Data.OfType<T>().ToList().Select((@event, i) => Tuple.Create<T, StreamSequenceToken>(@event, sequenceTokenV2.CreateSequenceTokenForEvent(i)));
     }
 
     public bool ImportRequestContext() => false;
