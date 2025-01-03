@@ -18,4 +18,5 @@ public interface IServerInteraction : IArgonService
 
 
     Task<List<InviteCodeEntity>> GetInviteCodes(Guid serverId);
+    Task<InviteCode>             CreateInviteCode(Guid serverId, TimeSpan expiration);
 }

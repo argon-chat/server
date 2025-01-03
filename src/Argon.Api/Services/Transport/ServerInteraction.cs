@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using Grpc.Core;
 using Orleans.Runtime;
 using Shared.Servers;
 
@@ -38,4 +39,12 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
         => grainFactory
            .GetGrain<IServerInvitesGrain>(serverId)
            .GetInviteCodes();
+
+    public Task<InviteCode> CreateInviteCode(Guid serverId, TimeSpan expiration)
+    {
+        var user = this.GetUser();
+        return grainFactory
+           .GetGrain<IServerInvitesGrain>(serverId)
+           .CreateInviteLinkAsync(user.id, expiration);
+    }
 }
