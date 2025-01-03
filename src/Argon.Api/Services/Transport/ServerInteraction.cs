@@ -1,6 +1,7 @@
 namespace Argon.Services;
 
 using Orleans.Runtime;
+using Shared.Servers;
 
 public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
 {
@@ -32,4 +33,9 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
         => grainFactory
            .GetGrain<IServerGrain>(serverId)
            .GetMembers();
+
+    public Task<List<InviteCodeEntity>> GetInviteCodes(Guid serverId)
+        => grainFactory
+           .GetGrain<IServerInvitesGrain>(serverId)
+           .GetInviteCodes();
 }

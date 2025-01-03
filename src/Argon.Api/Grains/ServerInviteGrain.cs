@@ -23,7 +23,7 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger) : Grain<Serv
             await this.UnregisterReminder(_reminder);
     }
 
-    public async ValueTask<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
+    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
     {
         var inviteCode  = GenerateInviteCode();
         var inviteGrain = base.GrainFactory.GetGrain<IInviteGrain>(inviteCode);

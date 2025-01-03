@@ -4,6 +4,7 @@ using Argon.Features.Rpc;
 using Features.Repositories;
 using Orleans.Providers;
 using Persistence.States;
+using Shared.Servers;
 
 [StorageProvider(ProviderName = IFusionSessionGrain.StorageId)]
 public class ServerGrain(
