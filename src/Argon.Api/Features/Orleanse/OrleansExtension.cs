@@ -6,6 +6,7 @@ using MessagePack.Formatters;
 using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
+using Orleans.Hosting;
 using Orleans.Providers;
 using Orleans.Serialization;
 using OrleansStreamingProviders;
@@ -35,13 +36,20 @@ public static class OrleansExtension
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 })
-               .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x => {
+               .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x =>
+                {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 });
 
             if (builder.Environment.IsKube())
             {
+                siloBuilder
+                   .AddActivationRepartitioner<BalanceRule>()
+                   .UseKubeMembership()
+                   .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
                 //siloBuilder
                 //   .UseKubeMembership()
                 //   .AddActivationRepartitioner<BalanceRule>()
@@ -51,15 +59,11 @@ public static class OrleansExtension
                 //   .AddBroadcastChannel(IArgonEvent.Broadcast);
             }
             else
-            {
-                
-            }
-
-            siloBuilder
-               .UseKubeMembership()
-               .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-               .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-               .AddBroadcastChannel(IArgonEvent.Broadcast);
+                siloBuilder
+                   .UseKubeMembership()
+                   .AddMemoryStreams("default")
+                   .AddMemoryStreams(IArgonEvent.ProviderId)
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 
         return builder;
