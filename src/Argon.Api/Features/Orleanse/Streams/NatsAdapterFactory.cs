@@ -18,11 +18,12 @@ public class ArgonEventBatch : IBatchContainer
 
     public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken, NatsJSMsg<string> msg)
     {
-        dataType      = getType;
-        StreamId      = streamId;
-        Data          = [data];
-        SequenceToken = eventToken;
-        Event         = msg;
+        dataType         = getType;
+        StreamId         = streamId;
+        Data             = [data];
+        SequenceToken    = eventToken;
+        Event            = msg;
+        IsCalledFromCtor = true;
     }
 
     [Id(0)]
@@ -31,15 +32,16 @@ public class ArgonEventBatch : IBatchContainer
     public  NatsJSMsg<string> Event    { get; }
     [Id(1)]
     public StreamId StreamId { get; }
-    public StreamSequenceToken SequenceToken { get; }
+    public StreamSequenceToken SequenceToken    { get; }
+    public bool                IsCalledFromCtor { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>()
     {
         if (SequenceToken is null)
-            throw new Exception($"SequenceToken is null");
+            throw new Exception($"SequenceToken is null, and IsCalledFromCtor: {IsCalledFromCtor}");
 
         if (SequenceToken is not EventSequenceTokenV2 sequenceTokenV2)
-            throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}");
+            throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}, and IsCalledFromCtor: {IsCalledFromCtor}");
 
         return Data.OfType<T>().ToList().Select((@event, i) => Tuple.Create<T, StreamSequenceToken>(@event, sequenceTokenV2.CreateSequenceTokenForEvent(i)));
     }
