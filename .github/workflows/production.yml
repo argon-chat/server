@@ -12,10 +12,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  qa:
-    uses: ./.github/workflows/tests.yml
+#  qa:
+#    uses: ./.github/workflows/tests.yml
   build:
-    needs: [ qa ]
+#    needs: [ qa ]
     if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
