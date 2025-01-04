@@ -29,6 +29,9 @@ public interface IServerInvitesGrain : IGrainWithGuidKey, IRemindable
 
     [Alias("GetInviteCodes")]
     Task<List<InviteCodeEntity>> GetInviteCodes();
+
+
+    public const string StorageId = $"{nameof(IServerInvitesGrain)}";
 }
 
 [Alias("Argon.Grains.Interfaces.ServerInvitesStorage")]

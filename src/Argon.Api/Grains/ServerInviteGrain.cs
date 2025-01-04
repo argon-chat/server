@@ -1,7 +1,9 @@
 namespace Argon.Grains;
 
+using Orleans.Providers;
 using Shared.Servers;
 
+[StorageProvider(ProviderName = IServerInvitesGrain.StorageId)]
 public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger) : Grain<ServerInvitesStorage>, IServerInvitesGrain
 {
     private IGrainReminder? _reminder;
