@@ -47,4 +47,8 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
            .GetGrain<IServerInvitesGrain>(serverId)
            .CreateInviteLinkAsync(user.id, expiration);
     }
+
+    // TODO use access key
+    public Task<User> PrefetchUser(Guid serverId, Guid userId)
+        => grainFactory.GetGrain<IUserGrain>(userId).GetMe();
 }

@@ -2,6 +2,7 @@ namespace Argon;
 
 using Argon.Shared.Servers;
 using Streaming.Events;
+using Users;
 
 [TsInterface]
 public interface IServerInteraction : IArgonService
@@ -19,4 +20,6 @@ public interface IServerInteraction : IArgonService
 
     Task<List<InviteCodeEntity>> GetInviteCodes(Guid serverId);
     Task<InviteCode>             CreateInviteCode(Guid serverId, TimeSpan expiration);
+
+    Task<User> PrefetchUser(Guid serverId, Guid userId);
 }
