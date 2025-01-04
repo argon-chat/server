@@ -24,21 +24,12 @@ public static class OrleansExtension
                .AddReminders()
                .UseDashboard(o => o.Port = 22832)
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-               .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME, options =>
-                {
-                    options.Invariant        = "Npgsql";
-                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
-               .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME, x =>
-                {
-                    x.Invariant        = "Npgsql";
-                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
-               .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x =>
-                {
-                    x.Invariant        = "Npgsql";
-                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
+               .UseStorages([
+                    ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
+                    ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME,
+                    IFusionSessionGrain.StorageId,
+                    IServerInvitesGrain.StorageId,
+                ], "Npgsql", "DefaultConnection")
                .UseAdoNetReminderService(x =>
                 {
                     x.Invariant        = "Npgsql";
@@ -68,6 +59,21 @@ public static class OrleansExtension
                    .AddMemoryStreams(IArgonEvent.ProviderId)
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
+
+        return builder;
+    }
+
+
+    public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
+    {
+        foreach (var key in keys)
+        {
+            builder.AddAdoNetGrainStorage(key, x =>
+            {
+                x.Invariant        = invariant;
+                x.ConnectionString = builder.Configuration.GetConnectionString(connString);
+            });
+        }
 
         return builder;
     }
