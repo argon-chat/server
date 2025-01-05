@@ -62,7 +62,10 @@ public class ServerGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var members = await ctx.UsersToServerRelations.Where(x => x.ServerId == this.GetPrimaryKey())
+        var members = await ctx
+           .UsersToServerRelations
+           .Include(x => x.User)
+           .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
         return members.Select(x => new RealtimeServerMember
