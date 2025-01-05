@@ -21,7 +21,8 @@ public class ArgonSfuTestController : ControllerBase
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
-    [FromKeyedServices(SfuFeature.HttpClientKey)] IFlurlClient httpClient) : IArgonSelectiveForwardingUnit
+    [FromKeyedServices(SfuFeature.HttpClientKey)] IFlurlClient httpClient,
+    ILogger<IArgonSelectiveForwardingUnit> logger) : IArgonSelectiveForwardingUnit
 {
     private const string pkg    = "livekit";
     private const string prefix = "/twirp";
@@ -38,17 +39,26 @@ public class ArgonSelectiveForwardingUnit(
     // TODO
     public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId)
     {
-        await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
+        try
         {
-            Identity = userId.ToRawIdentity(),
-            Room     = channelId.ToRawRoomId()
-        }, new Dictionary<string, string>
-        {
+            await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
-            }
-        });
-        return true;
+                Identity = userId.ToRawIdentity(),
+                Room     = channelId.ToRawRoomId()
+            }, new Dictionary<string, string>
+            {
+                {
+                    "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                }
+            });
+            return true;
+
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, $"Failed kick user");
+            return false;
+        }
     }
 
     public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId, uint maxParticipants)
