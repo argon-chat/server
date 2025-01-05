@@ -25,6 +25,14 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
         return result.Value.value;
     }
 
+    public async Task DisconnectFromVoiceChannel(Guid serverId, Guid channelId)
+    {
+        var user = this.GetUser();
+        await grainFactory
+           .GetGrain<IChannelGrain>(channelId)
+           .Leave(user.id);
+    }
+
     public Task<List<RealtimeChannel>> GetChannels(Guid serverId)
         => grainFactory
            .GetGrain<IServerGrain>(serverId)
