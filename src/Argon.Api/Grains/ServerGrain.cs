@@ -5,7 +5,7 @@ using Features.Repositories;
 using Persistence.States;
 
 public class ServerGrain(
-    [PersistentState("realtime-server", IFusionSessionGrain.StorageId)] 
+    [PersistentState("realtime-server", IFusionSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
@@ -47,7 +47,9 @@ public class ServerGrain(
         var server = await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
-        var copy = server with { };
+        var copy = server with
+        {
+        };
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
@@ -98,6 +100,7 @@ public class ServerGrain(
 
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
+            Id       = userId,
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });

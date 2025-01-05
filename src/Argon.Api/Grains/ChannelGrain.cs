@@ -23,14 +23,14 @@ public class ChannelGrain(
     {
         _self = await GetChannel();
 
-        _userStateEmitter = await this.Streams().CreateServerStream();
+        _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
 
 
-    public async Task<Maybe<RealtimeToken>> Join(Guid userId)
+    public async Task<Maybe<RealtimeToken>> Join(Guid userId, Guid sessionId)
     {
         if (_self.ChannelType != ChannelType.Voice)
             return Maybe<RealtimeToken>.None();
@@ -48,6 +48,8 @@ public class ChannelGrain(
         }
 
         await _userStateEmitter.Fire(new JoinedToChannelUser(userId, this.GetPrimaryKey()));
+
+        await GrainFactory.GetGrain<IFusionSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
 
         return await sfu.IssueAuthorizationTokenAsync(userId, ChannelId, SfuPermission.DefaultUser);
     }
@@ -83,6 +85,7 @@ public class ChannelGrain(
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 }
+
 
 public enum ChannelUserChangedStateEvent
 {

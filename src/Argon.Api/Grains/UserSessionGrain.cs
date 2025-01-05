@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Microsoft.Extensions.Logging;
+using Orleans.BroadcastChannel;
 
 public class UserMachineSessions(
     ILogger<IUserMachineSessions> logger) : Grain<UserMachineSessionGrainState>, IUserMachineSessions

@@ -1,7 +1,5 @@
 namespace Argon.Services;
 
-using Grpc.Core;
-using Orleans.Runtime;
 using Shared.Servers;
 
 public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
@@ -21,7 +19,7 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
         var user = this.GetUser();
         var result = await grainFactory
            .GetGrain<IChannelGrain>(channelId)
-           .Join(user.id);
+           .Join(user.id, user.machineId);
         return result.Value.value;
     }
 
