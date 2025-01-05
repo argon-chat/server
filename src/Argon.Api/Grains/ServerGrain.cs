@@ -2,26 +2,25 @@ namespace Argon.Grains;
 
 using Argon.Features.Rpc;
 using Features.Repositories;
-using Orleans.Providers;
 using Persistence.States;
-using Shared.Servers;
 
-[StorageProvider(ProviderName = IFusionSessionGrain.StorageId)]
 public class ServerGrain(
+    [PersistentState("realtime-server", IFusionSessionGrain.StorageId)] 
+    IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
-    IServerRepository serverRepository) : Grain<RealtimeServerGrainState>, IServerGrain
+    IServerRepository serverRepository) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        await ReadStateAsync();
+        await state.ReadStateAsync();
         _serverEvents = await this.Streams().CreateServerStream();
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-        => base.WriteStateAsync();
+        => state.WriteStateAsync();
 
 
     public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
@@ -69,7 +68,7 @@ public class ServerGrain(
         return members.Select(x => new RealtimeServerMember
         {
             Member = x,
-            Status = State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
         }).ToList();
     }
 
@@ -111,7 +110,7 @@ public class ServerGrain(
 
     public async ValueTask SetUserStatus(Guid userId, UserStatus status)
     {
-        State.UserStatuses[userId] = status;
+        state.State.UserStatuses[userId] = status;
         await _serverEvents.Fire(new UserChangedStatus(userId, status, PropertyBag.Empty));
     }
 
