@@ -28,11 +28,11 @@ builder.AddRedisClient("cache");
 builder.AddNatsStreaming();
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
+builder.AddJwt();
 
 if (!builder.Environment.IsManaged())
 {
     builder.AddDefaultCors();
-    builder.AddJwt();
     builder.Services.AddControllers()
        .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
     builder.AddSwaggerWithAuthHeader();
