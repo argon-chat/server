@@ -10,6 +10,6 @@ public static class KestrelFeature
             options.Limits.Http2.MaxStreamsPerConnection     = 100;
             options.Limits.Http2.InitialConnectionWindowSize = 65535;
             options.Limits.Http2.KeepAlivePingDelay          = TimeSpan.FromSeconds(30);
-            options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(10);
+            options.Limits.Http2.KeepAlivePingTimeout        = TimeSpan.FromSeconds(5);
         });
 }

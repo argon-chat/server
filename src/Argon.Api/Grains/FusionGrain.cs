@@ -40,7 +40,7 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         this._machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, TimeSpan.FromSeconds(10), TimeSpan.FromMinutes(1));
+        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
 
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
