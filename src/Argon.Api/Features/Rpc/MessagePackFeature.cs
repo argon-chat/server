@@ -1,13 +1,11 @@
-namespace Argon.Shared;
+namespace Argon.Services;
 
-using System.Runtime.CompilerServices;
-using Streaming;
 using MessagePack.Resolvers;
+using Orleans.Serialization;
 
-public static class MsgPackIniter
+public static class MessagePackFeature
 {
-    [ModuleInitializer]
-    public static void Init()
+    public static void UseMessagePack(this WebApplicationBuilder builder)
     {
         var options = MessagePackSerializerOptions.Standard
            .WithResolver(CompositeResolver.Create(
@@ -15,5 +13,10 @@ public static class MsgPackIniter
                 EitherFormatterResolver.Instance,
                 ArgonEventResolver.Instance));
         MessagePackSerializer.DefaultOptions = options;
+        builder.Services.AddSingleton(options);
+        builder.Services.AddSerializer(x =>
+        {
+            x.AddMessagePackSerializer(null, null, options);
+        });
     }
 }

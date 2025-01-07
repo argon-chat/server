@@ -15,6 +15,8 @@ using Orleans.Configuration;
 using Orleans.Serialization;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.UseMessagePack();
 builder.AddSentry();
 builder.Services.AddServerTiming();
 builder.ConfigureDefaultKestrel();

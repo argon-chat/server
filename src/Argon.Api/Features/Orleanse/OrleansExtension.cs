@@ -15,7 +15,6 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))

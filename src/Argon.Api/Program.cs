@@ -17,6 +17,7 @@ using Argon.Sfu;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.UseMessagePack();
 builder.ConfigureDefaultKestrel();
 builder.Services.AddServerTiming();
 builder.AddSentry();
