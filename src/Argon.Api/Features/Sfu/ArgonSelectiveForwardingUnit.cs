@@ -21,7 +21,8 @@ public class ArgonSfuTestController : ControllerBase
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
-    [FromKeyedServices(SfuFeature.HttpClientKey)] IFlurlClient httpClient,
+    [FromKeyedServices(SfuFeature.HttpClientKey)]
+    IFlurlClient httpClient,
     ILogger<IArgonSelectiveForwardingUnit> logger) : IArgonSelectiveForwardingUnit
 {
     private const string pkg    = "livekit";
@@ -29,8 +30,8 @@ public class ArgonSelectiveForwardingUnit(
 
     private static readonly Guid SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
 
-    public ValueTask<RealtimeToken> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission) =>
-        new(CreateJwt(channelId, userId, permission, settings));
+    public ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission) =>
+        new (CreateJwt(channelId, userId, permission, settings));
 
     // TODO check validity
     public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId) =>
@@ -48,11 +49,10 @@ public class ArgonSelectiveForwardingUnit(
             }, new Dictionary<string, string>
             {
                 {
-                    "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                    "Authorization", $"Bearer {CreateSystemToken(channelId)}"
                 }
             });
             return true;
-
         }
         catch (Exception e)
         {
@@ -74,7 +74,7 @@ public class ArgonSelectiveForwardingUnit(
         }, new Dictionary<string, string>
         {
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                "Authorization", $"Bearer {CreateSystemToken(channelId)}"
             }
         });
 
@@ -89,16 +89,16 @@ public class ArgonSelectiveForwardingUnit(
         }, new Dictionary<string, string>
         {
             {
-                "Authorization", $"Bearer {CreateSystemToken(channelId).value}"
+                "Authorization", $"Bearer {CreateSystemToken(channelId)}"
             }
         });
         return true;
     }
 
-    private RealtimeToken CreateSystemToken(ArgonChannelId channelId) =>
+    private string CreateSystemToken(ArgonChannelId channelId) =>
         CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
-    private static RealtimeToken CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
+    private static string CreateJwt(ArgonChannelId roomName, ArgonUserId identity, SfuPermission permissions,
         IOptions<SfuFeatureSettings> settings)
     {
         var       now     = DateTime.UtcNow;
@@ -127,7 +127,7 @@ public class ArgonSelectiveForwardingUnit(
         };
 
         JwtSecurityToken token = new(headers, payload);
-        return new RealtimeToken(new JwtSecurityTokenHandler().WriteToken(token));
+        return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
     public async ValueTask<TResp> RequestAsync<TReq, TResp>(string service, string method, TReq data, Dictionary<string, string> headers,

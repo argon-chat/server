@@ -7,7 +7,7 @@ using Argon.Servers;
 public interface IChannelGrain : IGrainWithGuidKey
 {
     [Alias("Join")]
-    Task<Maybe<RealtimeToken>> Join(Guid userId, Guid sessionId);
+    Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId);
 
     [Alias("Leave")]
     Task Leave(Guid userId);

@@ -49,3 +49,10 @@ public enum ChannelMemberState
     MUTED_HEADPHONES_BY_SERVER = 1 << 4,
     STREAMING                  = 1 << 5
 }
+
+
+public enum JoinToChannelError
+{
+    NONE,
+    CHANNEL_IS_NOT_VOICE
+}

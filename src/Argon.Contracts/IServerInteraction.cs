@@ -15,8 +15,9 @@ public interface IServerInteraction : IArgonService
 
     Task<List<RealtimeServerMember>> GetMembers(Guid serverId);
 
-    Task<string> JoinToVoiceChannel(Guid serverId, Guid channelId);
-    Task         DisconnectFromVoiceChannel(Guid serverId, Guid channelId);
+    Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId);
+
+    Task DisconnectFromVoiceChannel(Guid serverId, Guid channelId);
 
 
     Task<List<InviteCodeEntity>> GetInviteCodes(Guid serverId);

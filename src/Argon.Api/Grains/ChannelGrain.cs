@@ -30,10 +30,10 @@ public class ChannelGrain(
         => state.State.Users.Select(x => x.Value).ToList();
 
 
-    public async Task<Maybe<RealtimeToken>> Join(Guid userId, Guid sessionId)
+    public async Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId)
     {
         if (_self.ChannelType != ChannelType.Voice)
-            return Maybe<RealtimeToken>.None();
+            return JoinToChannelError.CHANNEL_IS_NOT_VOICE;
 
         if (state.State.Users.ContainsKey(userId))
             await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));

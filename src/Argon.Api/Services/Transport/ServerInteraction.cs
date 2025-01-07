@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using Sfu;
 using Shared.Servers;
 
 public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
@@ -14,13 +15,13 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
            .GetGrain<IServerGrain>(serverId)
            .DeleteChannel(channelId, this.GetUser().id);
 
-    public async Task<string> JoinToVoiceChannel(Guid serverId, Guid channelId)
+    public async Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId)
     {
         var user = this.GetUser();
         var result = await grainFactory
            .GetGrain<IChannelGrain>(channelId)
            .Join(user.id, user.machineId);
-        return result.Value.value;
+        return result;
     }
 
     public async Task DisconnectFromVoiceChannel(Guid serverId, Guid channelId)
