@@ -49,7 +49,7 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
 
     private async Task<double> GetAvgCpu()
     {
-        if (!env.IsManaged())
+        if (!env.IsKube())
             return 10;
         await using var
             scope = serviceProvider.CreateAsyncScope();
