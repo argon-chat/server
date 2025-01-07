@@ -5,6 +5,7 @@ option csharp_namespace = "Argon.Transport";
 service ArgonTransport {
   rpc Unary (RpcRequest) returns (RpcResponse);
   rpc BroadcastSubscribe (RpcRequest) returns (stream StreamPayload);
+  rpc BiDirectSubscribe (stream RpcRequest) returns (stream StreamPayload);
 }
 
 enum ArgonRpcStatusCode {

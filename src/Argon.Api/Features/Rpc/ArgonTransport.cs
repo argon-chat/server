@@ -8,6 +8,18 @@ using Transport;
 public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger)
     : Transport.ArgonTransport.ArgonTransportBase
 {
+    public async override Task BiDirectSubscribe(IAsyncStreamReader<RpcRequest> requestStream, IServerStreamWriter<StreamPayload> responseStream,
+        ServerCallContext context)
+    {
+        while (await requestStream.MoveNext())
+        {
+            await responseStream.WriteAsync(new StreamPayload()
+            {
+                Payload = requestStream.Current.Payload
+            });
+        }
+    }
+
     public async override Task BroadcastSubscribe(RpcRequest request, IServerStreamWriter<StreamPayload> responseStream, ServerCallContext context)
     {
         using var scope = ArgonTransportContext.Create(context, request, provider);
