@@ -5,7 +5,7 @@ using System.Security.Claims;
 using Features.Jwt;
 using Microsoft.IdentityModel.Tokens;
 
-public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt, IConfiguration configuration)
+public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt)
 {
     public Task<string> GenerateJwt(Guid id, Guid machineId)
     {
