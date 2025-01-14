@@ -43,7 +43,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<Archetype>()
            .Property(x => x.Colour)
-           .HasConversion<ColourConverter>();
+           .HasConversion<Features.EF.ColorConverter>();
 
         modelBuilder.Entity<ServerMember>()
            .HasOne(x => x.Server)
