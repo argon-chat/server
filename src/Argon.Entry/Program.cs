@@ -64,12 +64,14 @@ app.MapArgonTransport();
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
     x.Use(async (context, func) => {
+    #pragma warning disable CA2252
         var wt = context.Features.Get<IHttpWebTransportFeature>();
 
         if (wt is null)
             return;
 
         var session = await wt.AcceptAsync();
+    #pragma warning restore CA2252
 
         await func(context);
     });

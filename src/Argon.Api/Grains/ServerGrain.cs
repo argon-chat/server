@@ -31,7 +31,7 @@ public class ServerGrain(
         await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId);
         await UserJoined(creatorId);
         return await GetServer();
-    }
+    }   
 
     public async Task<Server> GetServer()
     {
