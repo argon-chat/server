@@ -20,7 +20,7 @@ var nats = builder.AddNats("nats", 4222).WithImage("nats").WithHttpEndpoint(8222
 var db = builder.AddPostgres("pg", port: 5432, userName: username, password: password).WithDataVolume().WithLifetime(ContainerLifetime.Persistent);
 
 var clickhouseResource = new ClickhouseBuilderExtension("clickhouse", username, password);
-var clickhouse = builder.AddResource(clickhouseResource).WithImage("clickhouse/clickhouse-server")
+var clickhouse = builder.AddResource(clickhouseResource).WithImage("clickhouse/clickhouse-server").WithTag("23")
    .WithVolume("clickhouse-data", "/var/lib/clickhouse").WithVolume("logs", "/var/log/clickhouse-server")
    .WithEnvironment("CLICKHOUSE_USER", username).WithEnvironment("CLICKHOUSE_PASSWORD", password).WithEnvironment("CLICKHOUSE_DB", username)
    .WithEnvironment("CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT", "1").WithHttpEndpoint(8123, 8123) // http endpoint
