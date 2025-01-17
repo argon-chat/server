@@ -123,7 +123,7 @@ public class ServerGrain(
     public async Task DeleteServer()
     {
         await using var ctx = await context.CreateDbContextAsync();
-        await ctx.Servers.DeleteByKeyAsync(this.GetPrimaryKey());
+        //await ctx.Servers.DeleteByKeyAsync(this.GetPrimaryKey());
         await ctx.SaveChangesAsync();
     }
 
