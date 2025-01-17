@@ -1,9 +1,9 @@
-FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Directory.Build.props", "."]
@@ -21,8 +21,8 @@ RUN dotnet publish "./Argon.Api.csproj" -c $BUILD_CONFIGURATION -o /app/publish 
 COPY src/Argon.Api/Migrations/*.sql /app/publish/Migrations/
 
 FROM base AS final
-ENV Kestrel__Endpoints__Https__Certificate__Path="/origin.argon.gl.pem" \
-    Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
+#ENV Kestrel__Endpoints__Https__Certificate__Path="/origin.argon.gl.pem" \
+#    Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Argon.Api.dll"]
