@@ -4,6 +4,7 @@ using Argon.Features.Captcha;
 using Argon.Features.EF;
 using Argon.Features.Env;
 using Argon.Features.Jwt;
+using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
@@ -15,9 +16,11 @@ using Argon.Features.Web;
 using Argon.Services;
 using Argon.Sfu;
 using Microsoft.AspNetCore.Http.Features;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddLogging();
 builder.UseMessagePack();
 builder.ConfigureDefaultKestrel();
 builder.Services.AddServerTiming();
@@ -58,6 +61,7 @@ builder.AddCaptchaFeature();
 var app = builder.Build();
 
 app.UseServerTiming();
+
 if (!builder.Environment.IsManaged())
 {
     app.UseCors();
@@ -69,23 +73,24 @@ if (!builder.Environment.IsManaged())
     app.MapControllers();
     app.MapArgonTransport();
 }
+else
+    app.UseSerilogRequestLogging();
 
-app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
-{
-    x.Use(async (context, func) =>
-    {
-    #pragma warning disable CA2252
-        var wt = context.Features.Get<IHttpWebTransportFeature>();
 
-        if (wt is null)
-            return;
+app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
+        x.Use(async (context, func) => {
+#pragma warning disable CA2252
+            var wt = context.Features.Get<IHttpWebTransportFeature>();
 
-        var session = await wt.AcceptAsync();
-    #pragma warning restore CA2252
+            if (wt is null)
+                return;
 
-        await func(context);
+            var session = await wt.AcceptAsync();
+#pragma warning restore CA2252
+
+            await func(context);
+        });
     });
-});
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new

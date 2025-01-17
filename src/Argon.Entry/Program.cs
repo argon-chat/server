@@ -1,7 +1,9 @@
 using Argon;
 using Argon.Controllers;
 using Argon.Extensions;
+using Argon.Features.Env;
 using Argon.Features.Jwt;
+using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.Web;
@@ -14,9 +16,11 @@ using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using Microsoft.AspNetCore.Http.Features;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
 builder.Services.AddServerTiming();
@@ -61,6 +65,9 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.MapArgonTransport();
+
+if (builder.Environment.IsKube())
+    app.UseSerilogRequestLogging();
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
     x.Use(async (context, func) => {

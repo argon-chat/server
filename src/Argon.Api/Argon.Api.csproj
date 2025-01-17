@@ -19,6 +19,7 @@
 
     <ItemGroup>
         <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+        <Compile Remove="Features\NewFolder\**" />
         <None Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
     </ItemGroup>
 
@@ -62,6 +63,7 @@
         <PackageReference Include="Otp.NET" Version="1.4.0" />
         <PackageReference Include="R3" Version="1.2.9" />
         <PackageReference Include="Riok.Mapperly" Version="4.1.1" />
+        <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
         <PackageReference Include="Swashbuckle.AspNetCore" Version="7.2.0" />
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="7.2.0" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
