@@ -2,25 +2,25 @@ namespace Argon.Grains;
 
 using Argon.Features.Rpc;
 using Features.Repositories;
-using Orleans.Providers;
 using Persistence.States;
 
-[StorageProvider(ProviderName = IFusionSessionGrain.StorageId)]
 public class ServerGrain(
+    [PersistentState("realtime-server", IFusionSessionGrain.StorageId)]
+    IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
-    IServerRepository serverRepository) : Grain<RealtimeServerGrainState>, IServerGrain
+    IServerRepository serverRepository) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        await ReadStateAsync();
+        await state.ReadStateAsync();
         _serverEvents = await this.Streams().CreateServerStream();
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-        => base.WriteStateAsync();
+        => state.WriteStateAsync();
 
 
     public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
@@ -47,13 +47,15 @@ public class ServerGrain(
         var server = await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
-        var copy = server with { };
+        var copy = server with
+        {
+        };
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
         ctx.Servers.Update(server);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified(ObjDiff.Compare(copy, server)));
+        await _serverEvents.Fire(new ServerModified(/*ObjDiff.Compare(copy, server)*/[]));
         return await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
@@ -62,13 +64,16 @@ public class ServerGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var members = await ctx.UsersToServerRelations.Where(x => x.ServerId == this.GetPrimaryKey())
+        var members = await ctx
+           .UsersToServerRelations
+           .Include(x => x.User)
+           .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
         return members.Select(x => new RealtimeServerMember
         {
             Member = x,
-            Status = State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
         }).ToList();
     }
 
@@ -95,6 +100,7 @@ public class ServerGrain(
 
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
+            Id       = userId,
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });
@@ -110,16 +116,14 @@ public class ServerGrain(
 
     public async ValueTask SetUserStatus(Guid userId, UserStatus status)
     {
-        State.UserStatuses[userId] = status;
-        await _serverEvents.Fire(new UserChangedStatus(userId, status, PropertyBag.Empty));
+        state.State.UserStatuses[userId] = status;
+        await _serverEvents.Fire(new UserChangedStatus(userId, status, []));
     }
 
     public async Task DeleteServer()
     {
         await using var ctx = await context.CreateDbContextAsync();
-
-        var server = await ctx.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
-        ctx.Servers.Remove(server);
+        await ctx.Servers.DeleteByKeyAsync(this.GetPrimaryKey());
         await ctx.SaveChangesAsync();
     }
 

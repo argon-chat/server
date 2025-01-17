@@ -17,6 +17,9 @@ public interface IFusionSessionGrain : IGrainWithGuidKey
     [Alias("GetTokenUserData")]
     ValueTask<TokenUserData> GetTokenUserData();
 
+    [Alias("SetActiveChannelConnection")]
+    ValueTask SetActiveChannelConnection(Guid channelId);
+
     public const string StreamProviderId = "FusionSessionStream";
     public const string SelfNs = "@";
     public const string StorageId = "CacheStorage";

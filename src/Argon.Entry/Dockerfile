@@ -1,10 +1,10 @@
-FROM ghcr.io/argon-chat/secrets:4 AS base
+FROM mcr.microsoft.com/dotnet/runtime:9.0 AS base
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 COPY ["Directory.Build.props", "."]
@@ -22,8 +22,8 @@ ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./Argon.Entry.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
-ENV Kestrel__Endpoints__Https__Certificate__Path="/origin.argon.gl.pem" \
-    Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
+ENV Kestrel__Endpoints__Https__Certificate__Path="/etc/tls/tls.crt" \
+    Kestrel__Endpoints__Https__Certificate__KeyPath="/etc/tls/key.crt"
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENTRYPOINT ["dotnet", "Argon.Entry.dll"]

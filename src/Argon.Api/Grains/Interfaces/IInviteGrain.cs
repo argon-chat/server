@@ -25,7 +25,13 @@ public interface IInviteGrain : IGrainWithStringKey
 public interface IServerInvitesGrain : IGrainWithGuidKey, IRemindable
 {
     [Alias("CreateInviteLinkAsync")]
-    ValueTask<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration);
+    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration);
+
+    [Alias("GetInviteCodes")]
+    Task<List<InviteCodeEntity>> GetInviteCodes();
+
+
+    public const string StorageId = $"{nameof(IServerInvitesGrain)}";
 }
 
 [Alias("Argon.Grains.Interfaces.ServerInvitesStorage")]

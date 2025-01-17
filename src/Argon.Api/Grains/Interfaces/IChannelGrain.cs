@@ -1,13 +1,12 @@
 namespace Argon.Grains.Interfaces;
 
-using Sfu;
 using Argon.Servers;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
 public interface IChannelGrain : IGrainWithGuidKey
 {
     [Alias("Join")]
-    Task<Maybe<RealtimeToken>> Join(Guid userId);
+    Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId);
 
     [Alias("Leave")]
     Task Leave(Guid userId);

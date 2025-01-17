@@ -10,13 +10,12 @@ public class EventBusService(IClusterClient clusterClient) : IEventBus
     public async Task<IArgonStream<IArgonEvent>> SubscribeToMeEvents()
     {
         var user      = this.GetUser();
-        var sessionId = Guid.NewGuid();
 
-        await clusterClient.GetGrain<IFusionSessionGrain>(sessionId)
+        await clusterClient.GetGrain<IFusionSessionGrain>(user.machineId)
            .BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
 
         ArgonTransportContext.Current.SubscribeToDisconnect(
-            async () => await clusterClient.GetGrain<IFusionSessionGrain>(sessionId).EndRealtimeSession());
+            async () => await clusterClient.GetGrain<IFusionSessionGrain>(user.machineId).EndRealtimeSession());
 
         return await clusterClient.Streams().CreateClientStream(user.id);
     }

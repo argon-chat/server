@@ -2,13 +2,15 @@ namespace Argon.Grains;
 
 using Shared.Servers;
 
-public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger) : Grain<ServerInvitesStorage>, IServerInvitesGrain
+public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger,
+    [PersistentState("server-invites-store", IServerInvitesGrain.StorageId)]
+    IPersistentState<ServerInvitesStorage> state) : Grain, IServerInvitesGrain
 {
     private IGrainReminder? _reminder;
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        await ReadStateAsync();
+        await state.ReadStateAsync();
         if (_reminder is not null)
             return;
         _reminder = await this.RegisterOrUpdateReminder($"server-invites-{this.GetPrimaryKey()}", 
@@ -18,31 +20,32 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger) : Grain<Serv
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        await WriteStateAsync();
+        await state.WriteStateAsync();
         if (_reminder is not null)
             await this.UnregisterReminder(_reminder);
     }
 
-    public async ValueTask<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
+    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
     {
         var inviteCode  = GenerateInviteCode();
         var inviteGrain = base.GrainFactory.GetGrain<IInviteGrain>(inviteCode);
         if (await inviteGrain.HasCreatedAsync())
             throw new InvalidOperationException($"InviteCode already created");
         var code = await inviteGrain.EnsureAsync(this.GetPrimaryKey(), issuer, expiration);
-        State.Entities.Add(inviteCode, new InviteCodeEntity(code, this.GetPrimaryKey(), issuer, DateTime.UtcNow + expiration, 0));
+        state.State.Entities.Add(inviteCode, new InviteCodeEntity(code, this.GetPrimaryKey(), issuer, DateTime.UtcNow + expiration, 0));
+        await state.WriteStateAsync();
         return code;
     }
 
     public async Task InviteUsed(Guid userId, InviteCode code)
     {
-        if (!State.Entities.TryGetValue(code.inviteCode, out var result))
+        if (!state.State.Entities.TryGetValue(code.inviteCode, out var result))
             return;
-        State.Entities[code.inviteCode] = result with { used = result.used++ };
+        state.State.Entities[code.inviteCode] = result with { used = result.used++ };
     }
 
     public async Task<List<InviteCodeEntity>> GetInviteCodes()
-        => State.Entities.Values.ToList();
+        => state.State.Entities.Values.ToList();
 
 
     private unsafe static string GenerateInviteCode(int length = 6)
@@ -61,10 +64,10 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger) : Grain<Serv
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
     {
-        foreach (var (code, _) in State.Entities.Where(x => x.Value.HasExpired()))
+        foreach (var (code, _) in state.State.Entities.Where(x => x.Value.HasExpired()))
         {
             logger.LogInformation("Remove expired invite code '{code}' from '{serverId}' server", code, this.GetPrimaryKey());
-            State.Entities.Remove(code);
+            state.State.Entities.Remove(code);
             await GrainFactory.GetGrain<IInviteGrain>(code).DropInviteCodeAsync();
         }
     }

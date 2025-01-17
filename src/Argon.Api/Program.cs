@@ -14,9 +14,11 @@ using Argon.Features.Template;
 using Argon.Features.Web;
 using Argon.Services;
 using Argon.Sfu;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.UseMessagePack();
 builder.ConfigureDefaultKestrel();
 builder.Services.AddServerTiming();
 builder.AddSentry();
@@ -27,11 +29,11 @@ builder.AddRedisClient("cache");
 builder.AddNatsStreaming();
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
+builder.AddJwt();
 
 if (!builder.Environment.IsManaged())
 {
     builder.AddDefaultCors();
-    builder.AddJwt();
     builder.Services.AddControllers()
        .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
     builder.AddSwaggerWithAuthHeader();
@@ -67,6 +69,21 @@ if (!builder.Environment.IsManaged())
     app.MapControllers();
     app.MapArgonTransport();
 }
+
+app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
+{
+    x.Use(async (context, func) =>
+    {
+        var wt = context.Features.Get<IHttpWebTransportFeature>();
+
+        if (wt is null)
+            return;
+
+        var session = await wt.AcceptAsync();
+
+        await func(context);
+    });
+});
 
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new

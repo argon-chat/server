@@ -1,13 +1,16 @@
 namespace Argon.Grains;
 
 using Features.Rpc;
+using Orleans.Providers;
 using Persistence.States;
 using Sfu;
 using Servers;
 
 public class ChannelGrain(
+    [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
+    IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
-    IDbContextFactory<ApplicationDbContext> context) : Grain<ChannelGrainState>, IChannelGrain
+    IDbContextFactory<ApplicationDbContext> context) : Grain, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -20,54 +23,47 @@ public class ChannelGrain(
     {
         _self = await GetChannel();
 
-        _userStateEmitter = await this.Streams().CreateServerStream();
+        _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
-        => State.Users.Select(x => x.Value).ToList();
+        => state.State.Users.Select(x => x.Value).ToList();
 
 
-    // no needed send StreamId too, id is can be computed
-    public async Task<Maybe<RealtimeToken>> Join(Guid userId)
+    public async Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId)
     {
         if (_self.ChannelType != ChannelType.Voice)
-            return Maybe<RealtimeToken>.None();
+            return JoinToChannelError.CHANNEL_IS_NOT_VOICE;
 
-        if (State.Users.ContainsKey(userId))
-        {
-            //await _userStateEmitter.Fire(
-            //    new OnChannelUserChangedState(userId, ON_LEAVED));
-        }
+        if (state.State.Users.ContainsKey(userId))
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
         else
         {
-            State.Users.Add(userId, new RealtimeChannelUser()
+            state.State.Users.Add(userId, new RealtimeChannelUser()
             {
                 UserId = userId,
                 State = ChannelMemberState.NONE
             });
-            await WriteStateAsync();
+            await state.WriteStateAsync();
         }
 
-        //await _userStateEmitter.Fire(
-        //    new OnChannelUserChangedState(userId, ON_JOINED));
+        await _userStateEmitter.Fire(new JoinedToChannelUser(userId, this.GetPrimaryKey()));
+
+        await GrainFactory.GetGrain<IFusionSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
 
         return await sfu.IssueAuthorizationTokenAsync(userId, ChannelId, SfuPermission.DefaultUser);
     }
 
     public async Task Leave(Guid userId)
     {
-        State.Users.Remove(userId);
-        //await _userStateEmitter.OnNextAsync(new(userId, ON_LEAVED));
+        state.State.Users.Remove(userId);
+        await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
         await sfu.KickParticipantAsync(userId, ChannelId);
-        await WriteStateAsync();
+        await state.WriteStateAsync();
     }
 
     public async Task<Channel> GetChannel()
-    {
-        var channel = await Get();
-        //channel.ConnectedUsers = state.State.Users;
-        return channel;
-    }
+        => await Get();
 
     public async Task<Channel> UpdateChannel(ChannelInput input)
     {
@@ -90,6 +86,7 @@ public class ChannelGrain(
     }
 }
 
+
 public enum ChannelUserChangedStateEvent
 {
     ON_JOINED,
@@ -102,5 +99,5 @@ public enum ChannelUserChangedStateEvent
     ON_DISABLED_STREAMING
 }
 
-[MemoryPackable, GenerateSerializer]
+[GenerateSerializer, MessagePackObject(true)]
 public partial record OnChannelUserChangedState([property: Id(0)] Guid userId, [property: Id(1)] ChannelUserChangedStateEvent eventKind);

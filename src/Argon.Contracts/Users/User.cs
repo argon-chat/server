@@ -12,7 +12,7 @@ public sealed record User : ArgonEntity
     public required string Username { get; set; }
     [MaxLength(64)]
     public required string DisplayName { get; set; }
-    [MaxLength(64)]
+    [MaxLength(64), IgnoreMember, JsonIgnore, TsIgnore]
     public string? PhoneNumber { get; set; } = null;
     [MaxLength(512), IgnoreMember, JsonIgnore, TsIgnore]
     public string? PasswordDigest { get; set; } = null;

@@ -1,16 +1,12 @@
 namespace Argon.Features;
 
-using ActualLab.Serialization;
 using Env;
-using MessagePack.Formatters;
-using MessagePack.Resolvers;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
+using Orleans.Hosting;
 using Orleans.Providers;
-using Orleans.Serialization;
 using OrleansStreamingProviders;
 using Sentry;
-using Shared;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -18,30 +14,34 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         builder.Host.UseOrleans(siloBuilder =>
         {
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
                .AddStreaming()
-               .UseDashboard(o => o.Port = 22832)
                .AddActivityPropagation()
+               .AddReminders()
+               .UseDashboard(o => o.Port = 22832)
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-               .AddAdoNetGrainStorage(ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME, options =>
+               .UseStorages([
+                    ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
+                    ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME,
+                    IFusionSessionGrain.StorageId,
+                    IServerInvitesGrain.StorageId,
+                ], "Npgsql", "DefaultConnection")
+               .UseAdoNetReminderService(x =>
                 {
-                    options.Invariant        = "Npgsql";
-                    options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                }).AddAdoNetGrainStorage(ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME, x =>
-                {
-                    x.Invariant        = "Npgsql";
-                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
-               .AddAdoNetGrainStorage(IFusionSessionGrain.StorageId, x => {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                 });
 
             if (builder.Environment.IsKube())
             {
+                siloBuilder
+                   .AddActivationRepartitioner<BalanceRule>()
+                   .UseKubeMembership()
+                   .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+                   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
                 //siloBuilder
                 //   .UseKubeMembership()
                 //   .AddActivationRepartitioner<BalanceRule>()
@@ -51,16 +51,27 @@ public static class OrleansExtension
                 //   .AddBroadcastChannel(IArgonEvent.Broadcast);
             }
             else
-            {
-                
-            }
-
-            siloBuilder
-               .UseKubeMembership()
-               .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-               .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-               .AddBroadcastChannel(IArgonEvent.Broadcast);
+                siloBuilder
+                   .UseLocalhostClustering()
+                   .AddMemoryStreams("default")
+                   .AddMemoryStreams(IArgonEvent.ProviderId)
+                   .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
+
+        return builder;
+    }
+
+
+    public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
+    {
+        foreach (var key in keys)
+        {
+            builder.AddAdoNetGrainStorage(key, x =>
+            {
+                x.Invariant        = invariant;
+                x.ConnectionString = builder.Configuration.GetConnectionString(connString);
+            });
+        }
 
         return builder;
     }

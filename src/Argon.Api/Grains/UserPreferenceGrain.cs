@@ -12,7 +12,7 @@ public class UserPreferenceGrain : Grain<UserPreferencesGrainState>, IUserPrefer
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
         => WriteStateAsync();
 
-    public Task SavePreferences(Symbol scope, string value)
+    public Task SavePreferences(string scope, string value)
     {
         if (value.Length * 2 > MaxSymbolSize)
             return Task.CompletedTask; // ignore
@@ -22,7 +22,7 @@ public class UserPreferenceGrain : Grain<UserPreferencesGrainState>, IUserPrefer
         return Task.CompletedTask;
     }
 
-    public Task<string> LoadPreferences(Symbol scope)
+    public Task<string> LoadPreferences(string scope)
     {
         if (State.UserPreferences.TryGetValue(scope, out var result))
             return Task.FromResult(result);

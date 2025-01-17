@@ -1,11 +1,8 @@
 namespace Argon.Services;
 
 using Features.Jwt;
-using Genbox.SimpleS3.Core.Abstracts.Request;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
-using k8s.KubeConfigModels;
-using Orleans.Runtime;
 
 public class AuthInterceptor(TokenAuthorization tokenAuthorization, ILogger<AuthInterceptor> logger) : Interceptor
 {

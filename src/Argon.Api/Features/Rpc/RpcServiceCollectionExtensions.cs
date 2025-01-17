@@ -9,7 +9,15 @@ public static class RpcServiceCollectionExtensions
         {
             DefaultEnabled = true
         });
+        app.Map("/$wt", x =>
+        {
+            x.Use((ctx, req) =>
+            {
+                return req(ctx);
+            });
+        });
     }
+
 
     public static void AddArgonTransport(this WebApplicationBuilder builder, Action<ITransportRegistration> onRegistration)
     {

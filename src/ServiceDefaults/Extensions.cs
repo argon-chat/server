@@ -55,10 +55,6 @@ public static class Extensions
             o.TracesSampleRate    = 1.0;
             o.ProfilesSampleRate  = 1.0;
             o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
-            o.ExperimentalMetrics = new ExperimentalMetricsOptions
-            {
-                EnableCodeLocations = true
-            };
             o.UseOpenTelemetry();
         });
 

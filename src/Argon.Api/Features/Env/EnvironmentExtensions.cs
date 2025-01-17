@@ -1,4 +1,4 @@
-﻿namespace Argon.Features.Env;
+namespace Argon.Features.Env;
 
 using static File;
 
@@ -18,6 +18,9 @@ public static class EnvironmentExtensions
 
     public static ArgonEnvironmentKind Determine(this IHostEnvironment _)
     {
+        if (Environment.GetEnvironmentVariable("ENV_PROC_OVERRIDE") is { } newEnv)
+            return Enum.Parse<ArgonEnvironmentKind>(newEnv);
+
         if (Environment.GetEnvironmentVariable("KUBERNETES_SERVICE_HOST") != null)
             return ArgonEnvironmentKind.Kubernetes;
         if (Exists("/.dockerenv") || Directory.Exists("/proc/self/cgroup") &&

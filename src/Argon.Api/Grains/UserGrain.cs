@@ -39,7 +39,6 @@ public class UserGrain(IPasswordHashingService passwordHashingService,
            .Include(user => user.ServerMembers)
            .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
            .ThenInclude(x => x.Users)
-           .ThenInclude(x => x.User)
            .Include(user => user.ServerMembers)
            .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
            .ThenInclude(x => x.Channels)

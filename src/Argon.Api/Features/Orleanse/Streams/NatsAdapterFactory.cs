@@ -18,11 +18,11 @@ public class ArgonEventBatch : IBatchContainer
 
     public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken, NatsJSMsg<string> msg)
     {
-        dataType      = getType;
-        StreamId      = streamId;
-        Data          = [data];
-        SequenceToken = eventToken;
-        Event         = msg;
+        dataType         = getType;
+        StreamId         = streamId;
+        Data             = [data];
+        SequenceToken    = eventToken;
+        Event            = msg;
     }
 
     [Id(0)]
@@ -31,7 +31,8 @@ public class ArgonEventBatch : IBatchContainer
     public  NatsJSMsg<string> Event    { get; }
     [Id(1)]
     public StreamId StreamId { get; }
-    public StreamSequenceToken SequenceToken { get; }
+    [Id(2)]
+    public StreamSequenceToken SequenceToken    { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>()
     {
@@ -77,12 +78,19 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             return Task.CompletedTask;
         }
 
-        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount) =>
-            await consumer.FetchAsync<string>(new NatsJSFetchOpts
+        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
+        {
+            var result = new List<IBatchContainer>();
+
+            await foreach (var natsMsg in consumer.FetchAsync<string>(new NatsJSFetchOpts
             {
                 MaxMsgs = 1, // TODO: for later optimizations change this number
                 Expires = TimeSpan.FromSeconds(1)
-            }).Select(natsMsg => ToBatch(natsMsg, serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
+            }))
+                result.Add(ToBatch(natsMsg, serializationManager));
+
+            return result;
+        }
 
         private ArgonEventBatch ToBatch(NatsJSMsg<string> msg, OrleansJsonSerializer serializationManager)
         {

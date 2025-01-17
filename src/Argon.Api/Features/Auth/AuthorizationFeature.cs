@@ -8,7 +8,7 @@ public static class AuthorizationFeature
     {
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
-        builder.Services.AddTransient<UserManagerService>();
+        builder.Services.AddSingleton<UserManagerService>();
         builder.Services.AddDataProtection();
     }
 }
