@@ -28,23 +28,23 @@ public static class ObjDiff
     }
 
 
-    public static PropertyBag Compare<T>(T prev, T next)
-    {
-        if (EqualityComparer<T>.Default.Equals(prev, next))
-            return PropertyBag.Empty;
+    //public static PropertyBag Compare<T>(T prev, T next)
+    //{
+    //    if (EqualityComparer<T>.Default.Equals(prev, next))
+    //        return PropertyBag.Empty;
 
-        var props      = PropertyBag.Empty;
-        var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
+    //    var props      = PropertyBag.Empty;
+    //    var properties = typeof(T).GetProperties(BindingFlags.Public | BindingFlags.Instance);
 
-        foreach (var prop in properties)
-        {
-            var prevValue    = prop.GetValue(prev)!;
-            var updatedValue = prop.GetValue(next)!;
+    //    foreach (var prop in properties)
+    //    {
+    //        var prevValue    = prop.GetValue(prev)!;
+    //        var updatedValue = prop.GetValue(next)!;
 
-            if (!IsAreEqual(prop.PropertyType, prevValue, updatedValue))
-                props.Set(prop.Name, updatedValue);
-        }
+    //        if (!IsAreEqual(prop.PropertyType, prevValue, updatedValue))
+    //            props.Set(prop.Name, updatedValue);
+    //    }
 
-        return props;
-    }
+    //    return props;
+    //}
 }

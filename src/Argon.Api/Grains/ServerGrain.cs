@@ -55,7 +55,7 @@ public class ServerGrain(
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
         ctx.Servers.Update(server);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified(ObjDiff.Compare(copy, server)));
+        await _serverEvents.Fire(new ServerModified(/*ObjDiff.Compare(copy, server)*/[]));
         return await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
@@ -117,15 +117,13 @@ public class ServerGrain(
     public async ValueTask SetUserStatus(Guid userId, UserStatus status)
     {
         state.State.UserStatuses[userId] = status;
-        await _serverEvents.Fire(new UserChangedStatus(userId, status, PropertyBag.Empty));
+        await _serverEvents.Fire(new UserChangedStatus(userId, status, []));
     }
 
     public async Task DeleteServer()
     {
         await using var ctx = await context.CreateDbContextAsync();
-
-        var server = await ctx.Servers.FirstAsync(s => s.Id == this.GetPrimaryKey());
-        ctx.Servers.Remove(server);
+        await ctx.Servers.DeleteByKeyAsync(this.GetPrimaryKey());
         await ctx.SaveChangesAsync();
     }
 

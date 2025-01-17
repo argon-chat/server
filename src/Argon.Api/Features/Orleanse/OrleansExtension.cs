@@ -5,7 +5,6 @@ using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
-using Orleans.Serialization;
 using OrleansStreamingProviders;
 using Sentry;
 

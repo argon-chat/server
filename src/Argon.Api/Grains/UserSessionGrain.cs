@@ -1,7 +1,6 @@
 namespace Argon.Grains;
 
 using Microsoft.Extensions.Logging;
-using Orleans.BroadcastChannel;
 
 public class UserMachineSessions(
     ILogger<IUserMachineSessions> logger) : Grain<UserMachineSessionGrainState>, IUserMachineSessions
@@ -48,12 +47,12 @@ public class UserMachineSessions(
 }
 
 // state to pgsql!!!
-[GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserMachineSessionGrainState))]
+[GenerateSerializer, Serializable, Alias(nameof(UserMachineSessionGrainState))]
 public partial class UserMachineSessionGrainState
 {
     public Dictionary<Guid, UserSessionMachineEntity> Sessions { get; set; } = new();
 }
-[GenerateSerializer, Serializable, MemoryPackable, Alias(nameof(UserSessionMachineEntity))]
+[GenerateSerializer, Serializable, Alias(nameof(UserSessionMachineEntity))]
 public partial record UserSessionMachineEntity(Guid id, string hostName, string region, string ipAddress, string platform)
 {
     public DateTimeOffset LatestAccess { get; set; }

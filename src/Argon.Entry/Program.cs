@@ -13,6 +13,7 @@ using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
+using Microsoft.AspNetCore.Http.Features;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -60,6 +61,20 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapDefaultEndpoints();
 app.MapArgonTransport();
+
+app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
+    x.Use(async (context, func) => {
+        var wt = context.Features.Get<IHttpWebTransportFeature>();
+
+        if (wt is null)
+            return;
+
+        var session = await wt.AcceptAsync();
+
+        await func(context);
+    });
+});
+
 
 app.MapGet("/", () => new
 {

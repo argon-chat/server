@@ -1,6 +1,5 @@
 namespace Argon.Grains.Interfaces;
 
-using Sfu;
 using Argon.Servers;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]

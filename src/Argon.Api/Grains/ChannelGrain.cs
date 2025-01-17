@@ -99,5 +99,5 @@ public enum ChannelUserChangedStateEvent
     ON_DISABLED_STREAMING
 }
 
-[MemoryPackable, GenerateSerializer]
+[GenerateSerializer, MessagePackObject(true)]
 public partial record OnChannelUserChangedState([property: Id(0)] Guid userId, [property: Id(1)] ChannelUserChangedStateEvent eventKind);

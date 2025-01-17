@@ -78,12 +78,19 @@ public class NatsAdapterFactory : IQueueAdapterFactory, IQueueAdapter, IQueueAda
             return Task.CompletedTask;
         }
 
-        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount) =>
-            await consumer.FetchAsync<string>(new NatsJSFetchOpts
+        public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
+        {
+            var result = new List<IBatchContainer>();
+
+            await foreach (var natsMsg in consumer.FetchAsync<string>(new NatsJSFetchOpts
             {
                 MaxMsgs = 1, // TODO: for later optimizations change this number
                 Expires = TimeSpan.FromSeconds(1)
-            }).Select(natsMsg => ToBatch(natsMsg, serializationManager)).Select(IBatchContainer (dummy) => dummy).ToListAsync();
+            }))
+                result.Add(ToBatch(natsMsg, serializationManager));
+
+            return result;
+        }
 
         private ArgonEventBatch ToBatch(NatsJSMsg<string> msg, OrleansJsonSerializer serializationManager)
         {

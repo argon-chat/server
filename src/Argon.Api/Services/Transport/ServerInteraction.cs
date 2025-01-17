@@ -1,6 +1,5 @@
 namespace Argon.Services;
 
-using Sfu;
 using Shared.Servers;
 
 public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
