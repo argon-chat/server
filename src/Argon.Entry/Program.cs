@@ -11,6 +11,7 @@ using Argon.Features.OrleansStreamingProviders;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
+using Microsoft.AspNetCore.Connections;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
@@ -78,8 +79,24 @@ app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
             return;
 
         var session = await wt.AcceptAsync();
-    #pragma warning restore CA2252
+#pragma warning restore CA2252
 
+
+        var stream = await session.AcceptStreamAsync();
+
+        var index = 1;
+        while (true)
+        {
+            await stream.Transport.Output.WriteAsync(new ReadOnlyMemory<byte>([0, 0, 1, 2, 3, 4, 5, 6, 7]), CancellationToken.None)
+                ;
+            await Task.Delay(50);
+            index++;
+            if (index > 10)
+            {
+                stream.Abort(new ConnectionAbortedException("Ya ebal steklo"));
+                return;
+            }
+        }
         await func(context);
     });
 });
