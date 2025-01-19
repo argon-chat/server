@@ -84,6 +84,12 @@ app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
             return;
         }
 
+        if (!wt.IsWebTransportRequest)
+        {
+            app.Logger.LogCritical($"was not web transport request");
+            return;
+        }
+
         app.Logger.LogCritical($"wt omai wa no accepted");
 
         var session = await wt.AcceptAsync();
