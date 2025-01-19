@@ -6,17 +6,17 @@ using Argon.Features.Jwt;
 using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
-using Argon.Features.Web;
 using Argon.Features.OrleansStreamingProviders;
+using Argon.Features.Web;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Http.Features;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
-using Microsoft.AspNetCore.Http.Features;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -72,13 +72,25 @@ if (builder.Environment.IsKube())
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
     x.Use(async (context, func) => {
+
+
+        app.Logger.LogCritical($"Ya ebal steklo enter to subscribe wt");
     #pragma warning disable CA2252
         var wt = context.Features.Get<IHttpWebTransportFeature>();
 
         if (wt is null)
+        {
+            app.Logger.LogCritical($"wt is null, dropping");
             return;
+        }
+
+        app.Logger.LogCritical($"wt omai wa no accepted");
 
         var session = await wt.AcceptAsync();
+
+        app.Logger.LogCritical($"ofc");
+
+
 #pragma warning restore CA2252
 
 
