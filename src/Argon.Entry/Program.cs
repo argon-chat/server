@@ -118,8 +118,8 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.MapArgonTransport();
 
-if (builder.Environment.IsKube())
-    app.UseSerilogRequestLogging();
+//if (builder.Environment.IsKube())
+//    app.UseSerilogRequestLogging();
 
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
