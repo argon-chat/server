@@ -13,6 +13,8 @@ using Argon.Streaming;
 using MessagePack;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.Quic;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
@@ -25,7 +27,16 @@ builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
 builder.Services.AddServerTiming();
-builder.ConfigureDefaultKestrel();
+builder.WebHost.ConfigureKestrel(options =>
+{
+    options.ListenAnyIP(5002, listenOptions =>
+    {
+        listenOptions.UseHttps();
+        listenOptions.UseConnectionLogging();
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+    });
+    options.AllowAlternateSchemes = true;
+});
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
 builder.AddNatsStreaming();
@@ -37,17 +48,17 @@ builder.AddSwaggerWithAuthHeader();
 builder.Services
    .AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions))
    .AddOrleansClient(x =>
-{
-    x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
-       .AddStreaming()
-       .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-       .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-       .AddBroadcastChannel(IArgonEvent.Broadcast);
-    if (builder.Environment.IsProduction())
-        x.UseKubeGatewayListProvider();
-    else
-        x.UseLocalhostClustering();
-});
+    {
+        x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+           .AddStreaming()
+           .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+           .AddBroadcastChannel(IArgonEvent.Broadcast);
+        if (builder.Environment.IsProduction())
+            x.UseKubeGatewayListProvider();
+        else
+            x.UseLocalhostClustering();
+    });
 builder.AddArgonTransport(x =>
 {
     x.AddService<IServerInteraction, ServerInteraction>();
@@ -70,10 +81,10 @@ app.MapArgonTransport();
 if (builder.Environment.IsKube())
     app.UseSerilogRequestLogging();
 
-app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
-    x.Use(async (context, func) => {
-
-
+app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
+{
+    x.Use(async (context, func) =>
+    {
         app.Logger.LogCritical($"Ya ebal steklo enter to subscribe wt");
     #pragma warning disable CA2252
         var wt = context.Features.Get<IHttpWebTransportFeature>();
@@ -97,7 +108,7 @@ app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
         app.Logger.LogCritical($"ofc");
 
 
-#pragma warning restore CA2252
+    #pragma warning restore CA2252
 
 
         var stream = await session.AcceptStreamAsync();
@@ -115,6 +126,7 @@ app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
                 return;
             }
         }
+
         await func(context);
     });
 });
