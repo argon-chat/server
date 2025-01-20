@@ -1,20 +1,23 @@
-using System;
-using System.Net.Security;
 using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Controllers;
 using Argon.Extensions;
-using Argon.Features.Env;
 using Argon.Features.Jwt;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
 using Argon.Features.Web;
 using Argon.Services;
+using Argon.Streaming;
+using MessagePack;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Newtonsoft.Json.Converters;
+using Orleans.Clustering.Kubernetes;
+using Orleans.Configuration;
+using Orleans.Serialization;
+
 var builder = WebApplication.CreateBuilder(args);
 
 //builder.AddLogging();
@@ -77,26 +80,24 @@ builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Ass
    .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
 builder.AddDefaultCors();
 builder.AddSwaggerWithAuthHeader();
-//builder.Services
-//   .AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions))
-//   .AddOrleansClient(x =>
-//    {
-//        x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
-//           .AddStreaming()
-//           .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-//           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-//           .AddBroadcastChannel(IArgonEvent.Broadcast);
-//        if (builder.Environment.IsProduction())
-//            x.UseKubeGatewayListProvider();
-//        else
-//            x.UseLocalhostClustering();
-//    });
-//builder.AddArgonTransport(x =>
-//{
-//    x.AddService<IServerInteraction, ServerInteraction>();
-//    x.AddService<IUserInteraction, UserInteraction>();
-//    x.AddService<IEventBus, EventBusService>();
-//});
+builder.Services
+   .AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions))
+   .AddOrleansClient(x => {
+       x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+          .AddStreaming()
+          .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+          .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+          .AddBroadcastChannel(IArgonEvent.Broadcast);
+       if (builder.Environment.IsProduction())
+           x.UseKubeGatewayListProvider();
+       else
+           x.UseLocalhostClustering();
+   });
+builder.AddArgonTransport(x => {
+    x.AddService<IServerInteraction, ServerInteraction>();
+    x.AddService<IUserInteraction, UserInteraction>();
+    x.AddService<IEventBus, EventBusService>();
+});
 builder.Services.AddAuthorization();
 var app = builder.Build();
 app.UseServerTiming();
