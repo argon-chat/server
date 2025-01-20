@@ -57,25 +57,25 @@ builder.WebHost.ConfigureKestrel(options =>
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
     options.AllowAlternateSchemes = true;
-    //options.ListenAnyIP(5003, listenOptions => {
-    //    listenOptions.UseHttps(x => {
-    //        //x.ServerCertificate = X509Certificate2.CreateFromPemFile(
-    //        //    "tls.crt",
-    //        //    "tls.key"
-    //        //);
-    //        //x.OnAuthenticate = (_, sslOptions) => {
-    //        //    sslOptions.ApplicationProtocols =
-    //        //    [
-    //        //        SslApplicationProtocol.Http3,
-    //        //        SslApplicationProtocol.Http2,
-    //        //        SslApplicationProtocol.Http11,
-    //        //    ];
-    //        //};
-    //    });
-    //    listenOptions.DisableAltSvcHeader = false;
-    //    listenOptions.UseConnectionLogging();
-    //    listenOptions.Protocols = HttpProtocols.Http3;
-    //});
+    options.ListenAnyIP(5003, listenOptions => {
+        listenOptions.UseHttps(x => {
+            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                "/etc/tls/tls.crt",
+                "/etc/tls/tls.key"
+            );
+            //x.OnAuthenticate = (_, sslOptions) => {
+            //    sslOptions.ApplicationProtocols =
+            //    [
+            //        SslApplicationProtocol.Http3,
+            //        SslApplicationProtocol.Http2,
+            //        SslApplicationProtocol.Http11,
+            //    ];
+            //};
+        });
+        listenOptions.DisableAltSvcHeader = false;
+        listenOptions.UseConnectionLogging();
+        listenOptions.Protocols = HttpProtocols.Http3;
+    });
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
