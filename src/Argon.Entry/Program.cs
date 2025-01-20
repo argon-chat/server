@@ -26,7 +26,7 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddLogging();
+//builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
 builder.Services.AddServerTiming();
