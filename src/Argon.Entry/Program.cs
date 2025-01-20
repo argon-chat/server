@@ -48,10 +48,30 @@ builder.WebHost.ConfigureKestrel(options =>
                 ];
             };
         });
+        listenOptions.DisableAltSvcHeader = false;
         listenOptions.UseConnectionLogging();
-        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
     });
     options.AllowAlternateSchemes = true;
+    options.ListenAnyIP(5003, listenOptions => {
+        listenOptions.UseHttps(x => {
+            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                "/etc/tls/tls.crt",
+                "/etc/tls/tls.key"
+            );
+            x.OnAuthenticate = (_, sslOptions) => {
+                sslOptions.ApplicationProtocols =
+                [
+                    SslApplicationProtocol.Http3,
+                    SslApplicationProtocol.Http2,
+                    SslApplicationProtocol.Http11,
+                ];
+            };
+        });
+        listenOptions.DisableAltSvcHeader = false;
+        listenOptions.UseConnectionLogging();
+        listenOptions.Protocols = HttpProtocols.Http3;
+    });
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
@@ -97,10 +117,6 @@ app.MapArgonTransport();
 if (builder.Environment.IsKube())
     app.UseSerilogRequestLogging();
 
-app.Use(async (context, next) => {
-    context.Response.Headers["Alt-Svc"] = "h3=\":443\"; ma=2592000";
-    await next.Invoke();
-});
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
 {
