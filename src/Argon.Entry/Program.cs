@@ -1,3 +1,5 @@
+using System.Net.Security;
+using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Controllers;
 using Argon.Extensions;
@@ -31,7 +33,21 @@ builder.WebHost.ConfigureKestrel(options =>
 {
     options.ListenAnyIP(5002, listenOptions =>
     {
-        listenOptions.UseHttps();
+        listenOptions.UseHttps(x =>
+        {
+            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                "/etc/tls/tls.crt",
+                "/etc/tls/tls.key"
+            );
+            x.OnAuthenticate = (_, sslOptions) => {
+                sslOptions.ApplicationProtocols =
+                [
+                    SslApplicationProtocol.Http3,
+                    SslApplicationProtocol.Http2,
+                    SslApplicationProtocol.Http11
+                ];
+            };
+        });
         listenOptions.UseConnectionLogging();
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
