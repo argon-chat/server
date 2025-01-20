@@ -8,14 +8,14 @@ public static class KestrelFeature
     public static void ConfigureDefaultKestrel(this WebApplicationBuilder builder)
         => builder.WebHost.ConfigureKestrel(options =>
         {
-            #if DEBUG
-            options.ListenAnyIP(5001, listenOptions =>
-            {
-                listenOptions.UseHttps(GenerateManualCertificate());
-                listenOptions.UseConnectionLogging();
-                listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
-            });
-            #endif
+            //#if DEBUG
+            //options.ListenAnyIP(5001, listenOptions =>
+            //{
+            //    listenOptions.UseHttps(GenerateManualCertificate());
+            //    listenOptions.UseConnectionLogging();
+            //    listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+            //});
+            //#endif
             options.Limits.KeepAliveTimeout                  = TimeSpan.FromSeconds(400);
             options.AddServerHeader                          = false;
             options.Limits.Http2.MaxStreamsPerConnection     = 100;
