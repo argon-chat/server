@@ -51,26 +51,26 @@ builder.WebHost.ConfigureKestrel(options =>
         listenOptions.UseConnectionLogging();
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
-    options.AllowAlternateSchemes = true;
-    options.ListenAnyIP(5003, listenOptions => {
-        listenOptions.UseHttps(x => {
-            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
-                "/etc/tls/tls.crt",
-                "/etc/tls/tls.key"
-            );
-            //x.OnAuthenticate = (_, sslOptions) => {
-            //    sslOptions.ApplicationProtocols =
-            //    [
-            //        SslApplicationProtocol.Http3,
-            //        SslApplicationProtocol.Http2,
-            //        SslApplicationProtocol.Http11,
-            //    ];
-            //};
-        });
-        listenOptions.DisableAltSvcHeader = false;
-        listenOptions.UseConnectionLogging();
-        listenOptions.Protocols = HttpProtocols.Http3;
-    });
+    //options.AllowAlternateSchemes = true;
+    //options.ListenAnyIP(5003, listenOptions => {
+    //    listenOptions.UseHttps(x => {
+    //        x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+    //            "/etc/tls/tls.crt",
+    //            "/etc/tls/tls.key"
+    //        );
+    //        //x.OnAuthenticate = (_, sslOptions) => {
+    //        //    sslOptions.ApplicationProtocols =
+    //        //    [
+    //        //        SslApplicationProtocol.Http3,
+    //        //        SslApplicationProtocol.Http2,
+    //        //        SslApplicationProtocol.Http11,
+    //        //    ];
+    //        //};
+    //    });
+    //    listenOptions.DisableAltSvcHeader = false;
+    //    listenOptions.UseConnectionLogging();
+    //    listenOptions.Protocols = HttpProtocols.Http3;
+    //});
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
@@ -82,18 +82,20 @@ builder.AddDefaultCors();
 builder.AddSwaggerWithAuthHeader();
 builder.Services
    .AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions))
-   .AddOrleansClient(x => {
-       x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
-          .AddStreaming()
-          .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-          .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-          .AddBroadcastChannel(IArgonEvent.Broadcast);
-       if (builder.Environment.IsProduction())
-           x.UseKubeGatewayListProvider();
-       else
-           x.UseLocalhostClustering();
-   });
-builder.AddArgonTransport(x => {
+   .AddOrleansClient(x =>
+    {
+        x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+           .AddStreaming()
+           .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+           .AddBroadcastChannel(IArgonEvent.Broadcast);
+        if (builder.Environment.IsProduction())
+            x.UseKubeGatewayListProvider();
+        else
+            x.UseLocalhostClustering();
+    });
+builder.AddArgonTransport(x =>
+{
     x.AddService<IServerInteraction, ServerInteraction>();
     x.AddService<IUserInteraction, UserInteraction>();
     x.AddService<IEventBus, EventBusService>();
