@@ -43,12 +43,13 @@ builder.WebHost.ConfigureKestrel(options =>
                 sslOptions.ApplicationProtocols =
                 [
                     SslApplicationProtocol.Http3,
-                    SslApplicationProtocol.Http2
+                    SslApplicationProtocol.Http2,
+                    SslApplicationProtocol.Http11, 
                 ];
             };
         });
         listenOptions.UseConnectionLogging();
-        listenOptions.Protocols = HttpProtocols.Http2 | HttpProtocols.Http3;
+        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
     options.AllowAlternateSchemes = true;
 });
@@ -95,6 +96,11 @@ app.MapArgonTransport();
 
 if (builder.Environment.IsKube())
     app.UseSerilogRequestLogging();
+
+app.Use(async (context, next) => {
+    context.Response.Headers["Alt-Svc"] = "h3=\":443\"; ma=2592000";
+    await next.Invoke();
+});
 
 app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
 {
