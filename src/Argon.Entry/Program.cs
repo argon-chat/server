@@ -43,13 +43,12 @@ builder.WebHost.ConfigureKestrel(options =>
                 sslOptions.ApplicationProtocols =
                 [
                     SslApplicationProtocol.Http3,
-                    SslApplicationProtocol.Http2,
-                    SslApplicationProtocol.Http11
+                    SslApplicationProtocol.Http2
                 ];
             };
         });
         listenOptions.UseConnectionLogging();
-        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+        listenOptions.Protocols = HttpProtocols.Http2 | HttpProtocols.Http3;
     });
     options.AllowAlternateSchemes = true;
 });
