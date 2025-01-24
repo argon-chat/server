@@ -2,63 +2,68 @@ namespace Argon.Services;
 
 using Features.Jwt;
 using Grpc.Core;
+using System;
 using Transport;
 
-public class ArgonTransportContext(ServerCallContext RpcContext, RpcRequest Request, IServiceProvider provider) : IDisposable
+public interface IArgonTransportAuthorizationContext
+{
+    bool          IsAuthorized { get; }
+    TokenUserData User         { get; }
+}
+
+public class ArgonTransportContext(HttpContext RpcContext, IServiceProvider provider, IArgonTransportAuthorizationContext authCtx) : IDisposable
 {
     private static readonly AsyncLocal<ArgonTransportContext> localScope = new();
 
     public string GetIpAddress()
-        => RpcContext.GetHttpContext().GetIpAddress();
+        => RpcContext.GetIpAddress();
 
     public string GetRegion()
-        => RpcContext.GetHttpContext().GetRegion();
+        => RpcContext.GetRegion();
 
     public string GetRay()
-        => RpcContext.GetHttpContext().GetRay();
+        => RpcContext.GetRay();
 
     public string GetClientName()
-        => RpcContext.GetHttpContext().GetClientName();
+        => RpcContext.GetClientName();
 
     public string GetHostName()
-        => RpcContext.GetHttpContext().GetHostName();
+        => RpcContext.GetHostName();
 
     public static ArgonTransportContext Current
         => localScope.Value ?? throw new InvalidOperationException($"No active transport context");
 
-    public static ArgonTransportContext Create(ServerCallContext ctx, RpcRequest request, IServiceProvider provider)
+    public static ArgonTransportContext CreateGrpc(ServerCallContext ctx, IServiceProvider provider)
     {
         if (localScope.Value is not null)
             throw new InvalidAsynchronousStateException($"AsyncLocal of ArgonTransportContext already active");
-        return localScope.Value = new ArgonTransportContext(ctx, request, provider);
+        return localScope.Value = new ArgonTransportContext(ctx.GetHttpContext(), provider, new GrpcArgonTransportAuthorizationContext(ctx));
     }
 
-    public void SubscribeToDisconnect(Func<ValueTask> onDisconnect)
+    public static ArgonTransportContext CreateWt(HttpContext ctx, TransportClientId clientId, IServiceProvider provider)
     {
-        var r = new RegistrationScope();
-        r.refDisposable = RpcContext.CancellationToken.Register((x) =>
-        {
-            if (x is RegistrationScope scope)
-                scope.Dispose();
-            Task.Run(async () => await onDisconnect());
-        }, r);
+        if (localScope.Value is not null)
+            throw new InvalidAsynchronousStateException($"AsyncLocal of ArgonTransportContext already active");
+        return localScope.Value = new ArgonTransportContext(ctx, provider, new WtAuthorizationContext(ctx, clientId));
     }
 
-    private record RegistrationScope : IDisposable
-    {
-        public IDisposable? refDisposable;
-        public void Dispose()
-            => refDisposable?.Dispose();
-    }
 
-    public bool IsAuthorized => RpcContext.UserState.ContainsKey("userToken");
+    public bool IsAuthorized => authCtx.IsAuthorized; // RpcContext.UserState.ContainsKey("userToken");
 
-    public TokenUserData User => RpcContext.UserState["userToken"] as TokenUserData ?? throw new InvalidOperationException();
+    public TokenUserData User => authCtx.User; //RpcContext.UserState["userToken"] as TokenUserData ?? throw new InvalidOperationException();
 
     public void Dispose()
         => localScope.Value = null!;
-
-    
 }
 
+public class GrpcArgonTransportAuthorizationContext(ServerCallContext RpcContext) : IArgonTransportAuthorizationContext
+{
+    public bool          IsAuthorized => RpcContext.UserState.ContainsKey("userToken");
+    public TokenUserData User         => RpcContext.UserState["userToken"] as TokenUserData ?? throw new InvalidOperationException();
+}
 
+public class WtAuthorizationContext(HttpContext ctx, TransportClientId id) : IArgonTransportAuthorizationContext
+{
+    public bool          IsAuthorized => true;
+    public TokenUserData User         => new(id.userId, Guid.Empty);
+}
