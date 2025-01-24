@@ -21,8 +21,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddLogging();
 builder.UseMessagePack();
-builder.ConfigureDefaultKestrel();
-builder.Services.AddServerTiming();
 builder.AddSentry();
 builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
 builder.AddServiceDefaults();
@@ -36,6 +34,8 @@ builder.AddRewrites();
 
 if (!builder.Environment.IsManaged())
 {
+    builder.Services.AddServerTiming();
+    builder.ConfigureDefaultKestrel();
     builder.AddDefaultCors();
     builder.Services.AddControllers()
        .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
@@ -72,10 +72,10 @@ if (!builder.Environment.IsManaged())
     app.UseSwaggerUI();
     app.MapControllers();
     app.MapArgonTransport();
+    app.UseRewrites();
 }
 else
     app.UseSerilogRequestLogging();
-app.UseRewrites();
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new
 {
