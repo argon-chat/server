@@ -19,5 +19,11 @@ public static class CorsFeature
                     uri.Scheme.Equals(w.scheme, StringComparison.InvariantCulture));
             })
            .AllowAnyHeader()
-           .AllowAnyMethod()));
+           .AllowAnyMethod()
+           .WithExposedHeaders("X-Wt-Upgrade", "X-Wt-Fingerprint", "X-Wt-AAT")));
 }
+
+/*context.Response.Headers.TryAdd("X-Wt-Upgrade", opt.Value.Upgrade);
+if (!string.IsNullOrEmpty(opt.Value.CertificateFingerprint))
+    context.Response.Headers.TryAdd("X-Wt-Fingerprint", opt.Value.CertificateFingerprint);
+context.Response.Headers.TryAdd("X-Wt-AAT", aat.ToString());*/
