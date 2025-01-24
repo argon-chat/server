@@ -2,7 +2,9 @@ using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Controllers;
 using Argon.Extensions;
+using Argon.Features.Env;
 using Argon.Features.Jwt;
+using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
@@ -10,72 +12,42 @@ using Argon.Features.Web;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
-using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Newtonsoft.Json.Converters;
 using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Serialization;
+using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
-//builder.AddLogging();
+builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
 builder.Services.AddServerTiming();
 builder.WebHost.UseQuic();
-builder.WebHost.ConfigureKestrel(options =>
-{
+builder.AddRedisClient("cache");
+builder.AddRedisOutputCache("cache");
+builder.WebHost.ConfigureKestrel(options => {
     options.ListenAnyIP(5002, listenOptions =>
     {
         listenOptions.UseHttps(x =>
         {
-            //x.ServerCertificate = KestrelFeature.GenerateManualCertificate();
             x.ServerCertificate = X509Certificate2.CreateFromPemFile(
                 "/etc/tls/tls.crt",
                 "/etc/tls/tls.key"
             );
-            //x.OnAuthenticate = (_, sslOptions) => {
-            //    sslOptions.ApplicationProtocols =
-            //    [
-            //        SslApplicationProtocol.Http3,
-            //        SslApplicationProtocol.Http2,
-            //        SslApplicationProtocol.Http11,
-            //    ];
-
-            //    sslOptions.RemoteCertificateValidationCallback = (sender, certificate, chain, errors) => true;
-            //};
         });
         listenOptions.DisableAltSvcHeader = false;
         listenOptions.UseConnectionLogging();
         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
     });
-    //options.AllowAlternateSchemes = true;
-    //options.ListenAnyIP(5003, listenOptions => {
-    //    listenOptions.UseHttps(x => {
-    //        x.ServerCertificate = X509Certificate2.CreateFromPemFile(
-    //            "/etc/tls/tls.crt",
-    //            "/etc/tls/tls.key"
-    //        );
-    //        //x.OnAuthenticate = (_, sslOptions) => {
-    //        //    sslOptions.ApplicationProtocols =
-    //        //    [
-    //        //        SslApplicationProtocol.Http3,
-    //        //        SslApplicationProtocol.Http2,
-    //        //        SslApplicationProtocol.Http11,
-    //        //    ];
-    //        //};
-    //    });
-    //    listenOptions.DisableAltSvcHeader = false;
-    //    listenOptions.UseConnectionLogging();
-    //    listenOptions.Protocols = HttpProtocols.Http3;
-    //});
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
 builder.AddNatsStreaming();
 builder.AddJwt();
+builder.AddRewrites();
 builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
    .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
 builder.AddDefaultCors();
@@ -104,7 +76,6 @@ builder.Services.AddAuthorization();
 var app = builder.Build();
 app.UseServerTiming();
 app.UseCors();
-app.UseWebSockets();
 app.UseSwagger();
 app.UseSwaggerUI();
 app.UseAuthentication();
@@ -113,61 +84,10 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.MapArgonTransport();
 
-//if (builder.Environment.IsKube())
-//    app.UseSerilogRequestLogging();
+if (builder.Environment.IsKube())
+    app.UseSerilogRequestLogging();
 
-
-app.Map("/IEventBus/SubscribeToMeEvents.wt", x =>
-{
-    x.Use(async (context, func) =>
-    {
-        app.Logger.LogCritical($"Ya ebal steklo enter to subscribe wt");
-    #pragma warning disable CA2252
-        var wt = context.Features.Get<IHttpWebTransportFeature>();
-
-        if (wt is null)
-        {
-            app.Logger.LogCritical($"wt is null, dropping");
-            return;
-        }
-
-        if (!wt.IsWebTransportRequest)
-        {
-            app.Logger.LogCritical($"was not web transport request");
-            return;
-        }
-
-        app.Logger.LogCritical($"wt omai wa no accepted");
-
-        var session = await wt.AcceptAsync();
-
-        app.Logger.LogCritical($"ofc");
-
-
-    #pragma warning restore CA2252
-
-
-        var stream = await session.AcceptStreamAsync();
-
-        var index = 1;
-        while (true)
-        {
-            await stream.Transport.Output.WriteAsync(new ReadOnlyMemory<byte>([0, 0, 1, 2, 3, 4, 5, 6, 7]), CancellationToken.None)
-                ;
-            await Task.Delay(50);
-            index++;
-            if (index > 10)
-            {
-                stream.Abort(new ConnectionAbortedException("Ya ebal steklo"));
-                return;
-            }
-        }
-
-        await func(context);
-    });
-});
-
-
+app.UseRewrites();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
