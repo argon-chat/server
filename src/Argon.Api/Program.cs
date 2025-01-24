@@ -15,8 +15,6 @@ using Argon.Features.Template;
 using Argon.Features.Web;
 using Argon.Services;
 using Argon.Sfu;
-using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Http.Features;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -34,6 +32,7 @@ builder.AddNatsStreaming();
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();
+builder.AddRewrites();
 
 if (!builder.Environment.IsManaged())
 {
@@ -76,38 +75,7 @@ if (!builder.Environment.IsManaged())
 }
 else
     app.UseSerilogRequestLogging();
-
-app.Map("/IEventBus/SubscribeToMeEvents.wt", x => {
-    x.Use(async (context, func) => {
-    #pragma warning disable CA2252
-        var wt = context.Features.Get<IHttpWebTransportFeature>();
-
-        if (wt is null)
-            return;
-
-        var session = await wt.AcceptAsync();
-    #pragma warning restore CA2252
-
-
-        var stream = await session.AcceptStreamAsync();
-
-        var index = 1;
-        while (true)
-        {
-            await stream.Transport.Output.WriteAsync(new ReadOnlyMemory<byte>([0, 0, 1, 2, 3, 4, 5, 6, 7]), CancellationToken.None)
-                ;
-            await Task.Delay(50);
-            index++;
-            if (index > 10)
-            {
-                stream.Abort(new ConnectionAbortedException("Ya ebal steklo"));
-                return;
-            }
-        }
-        await func(context);
-    });
-});
-
+app.UseRewrites();
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new
 {
