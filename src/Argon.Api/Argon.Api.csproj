@@ -19,7 +19,6 @@
 
     <ItemGroup>
         <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
-        <Compile Remove="Features\NewFolder\**" />
         <None Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
     </ItemGroup>
 
@@ -70,6 +69,7 @@
         <PackageReference Include="Swashbuckle.AspNetCore.Annotations" Version="7.2.0" />
         <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.0" />
         <PackageReference Include="Ulid" Version="1.3.4" />
+        <PackageReference Include="VaultSharp" Version="1.17.5.1" />
     </ItemGroup>
 
     <ItemGroup>

@@ -8,6 +8,7 @@ using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
+using Argon.Features.Vault;
 using Argon.Features.Web;
 using Argon.Services;
 using Argon.Streaming;
@@ -20,6 +21,7 @@ using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.AddVaultConfiguration();
 builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();

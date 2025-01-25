@@ -12,13 +12,14 @@ using Argon.Features.Otp;
 using Argon.Features.Pex;
 using Argon.Features.Repositories;
 using Argon.Features.Template;
+using Argon.Features.Vault;
 using Argon.Features.Web;
 using Argon.Services;
 using Argon.Sfu;
 using Serilog;
 
 var builder = WebApplication.CreateBuilder(args);
-
+builder.AddVaultConfiguration();
 builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
