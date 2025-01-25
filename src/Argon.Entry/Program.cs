@@ -62,7 +62,14 @@ builder.Services
            .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
         if (builder.Environment.IsProduction())
-            x.UseKubeGatewayListProvider();
+        {
+            x.UseAdoNetClustering(z =>
+            {
+                z.Invariant        = "Npgsql";
+                z.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            });
+        }
+            //x.UseKubeGatewayListProvider();
         else
             x.UseLocalhostClustering();
     });
