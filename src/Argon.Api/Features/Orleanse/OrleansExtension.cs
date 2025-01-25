@@ -1,7 +1,6 @@
 namespace Argon.Features;
 
 using Env;
-using Orleans.Clustering.Kubernetes;
 using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
