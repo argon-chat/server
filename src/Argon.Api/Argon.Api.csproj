@@ -48,6 +48,7 @@
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="9.0.1" />
         <PackageReference Include="Microsoft.Extensions.Caching.Memory" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="9.0.1" />
+        <PackageReference Include="Microsoft.Orleans.Clustering.AdoNet" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.Persistence.AdoNet" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.Reminders.AdoNet" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="9.0.1" />
