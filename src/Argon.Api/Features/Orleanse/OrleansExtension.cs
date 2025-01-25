@@ -38,12 +38,7 @@ public static class OrleansExtension
             {
                 siloBuilder
                    .AddActivationRepartitioner<BalanceRule>()
-                   .UseAdoNetClustering(x =>
-                    {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                    })
-                   //.UseKubeMembership()
+                   .UseKubernetesHosting()
                    .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
                    .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);

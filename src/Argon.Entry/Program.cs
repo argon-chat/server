@@ -61,24 +61,18 @@ builder.Services
            .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
            .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
-        if (builder.Environment.IsProduction())
-        {
-            x.UseAdoNetClustering(z =>
-            {
-                z.Invariant        = "Npgsql";
-                z.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            });
-        }
-            //x.UseKubeGatewayListProvider();
-        else
+        if (!builder.Environment.IsProduction())
             x.UseLocalhostClustering();
     });
+builder.Services.UseKubernetesHosting();
 builder.AddArgonTransport(x =>
 {
     x.AddService<IServerInteraction, ServerInteraction>();
     x.AddService<IUserInteraction, UserInteraction>();
     x.AddService<IEventBus, EventBusService>();
 });
+if (builder.Environment.IsKube())
+    builder.Services.UseKubernetesHosting();
 builder.Services.AddAuthorization();
 var app = builder.Build();
 app.UseServerTiming();

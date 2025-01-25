@@ -23,26 +23,37 @@ public static class RpcServiceCollectionExtensions
 
     private async static Task HandleWt(HttpContext ctx)
     {
-        var wt = ctx.Features.Get<IHttpWebTransportFeature>();
+        var wt     = ctx.Features.Get<IHttpWebTransportFeature>();
+        var logger = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebTransportFeature>>();
+
 
         if (wt is null)
+        {
+            logger.LogCritical("Failed getting asp feature {featureName}", nameof(IHttpWebTransportFeature));
             throw new InvalidOperationException(nameof(IHttpWebTransportFeature));
+        }
 
         if (!wt.IsWebTransportRequest)
         {
+            logger.LogCritical("Request is not web transport type");
             ctx.Response.StatusCode = (int)HttpStatusCode.UpgradeRequired;
             return;
         }
 
         if (!ctx.Request.Query.TryGetValue("aat", out var attToken))
         {
+            logger.LogCritical("aat query in web transport request not found");
             ctx.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
             return;
         }
 
         var session = await wt.AcceptAsync();
 
+        logger.LogInformation("Web Transport session accepted, {wtSessionId}", session.SessionId);
+
         var conn = await session.AcceptStreamAsync(ctx.RequestAborted);
+
+        logger.LogInformation("Web Transport stream created, {wtSessionId}", session.SessionId);
 
         if (conn is null)
         {
@@ -56,41 +67,94 @@ public static class RpcServiceCollectionExtensions
 
         if (!token.IsSuccess)
         {
+            logger.LogWarning("Web Transport failed exchange token, {wtSessionId}, {aat}, {wtExchangeError}", session.SessionId, attToken,
+                token.Error);
             ctx.Response.Headers.TryAdd("X-Wt-Status", token.Error.ToString());
             ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
             return;
         }
 
+        logger.LogInformation("Web Transport token exchanged, {wtSessionId}, {aat}", session.SessionId, attToken);
+
+
         using var scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
 
-        var logger        = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebTransportFeature>>();
         var clusterClient = ctx.RequestServices.GetRequiredService<IClusterClient>();
 
         var user = scope.User;
 
-        var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(user.machineId);
-        await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-        var stream = await clusterClient.Streams().CreateClientStream(user.id);
+        if (ctx.Request.Query.TryGetValue("srv", out var srvId) )
+        {
+            if (!Guid.TryParse(srvId, out var serverId))
+            {
+                conn.Abort(new ConnectionAbortedException("srv incorrect format"));
+                return;
+            }
 
+            logger.LogInformation("Web Transport handled server stream, {wtSessionId}, {serverId}", session.SessionId, serverId);
+            var stream = await clusterClient.Streams().CreateClientStream(serverId);
+            await HandleLoopAsync(stream, conn, logger);
+        }
+        else
+        {
+            logger.LogInformation("Web Transport handled user stream, {wtSessionId}, {serverId}", session.SessionId, user.id);
+            var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(user.machineId);
+            await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
+            var stream = await clusterClient.Streams().CreateClientStream(user.id);
+            await HandleLoopAsync(stream, conn, logger);
+            await sessionGrain.EndRealtimeSession();
+        }
+    }
+
+
+    private async static ValueTask HandleLoopAsync(IArgonStream<IArgonEvent> stream, ConnectionContext ctx, ILogger<IHttpWebTransportFeature> logger)
+    {
         try
         {
-            await foreach (var item in stream.WithCancellation(conn.ConnectionClosed))
+            await foreach (var item in stream.WithCancellation(ctx.ConnectionClosed))
             {
                 var msg    = MessagePackSerializer.Serialize(item.GetType(), item);
-                var result = conn.Transport.Output.WriteAsync(msg);
+                var result = ctx.Transport.Output.WriteAsync(msg);
                 if (result.IsCompletedSuccessfully)
                     continue;
                 break;
             }
         }
-        catch (OperationCanceledException) { } // its ok 
+        catch (OperationCanceledException)
+        {
+            logger.LogInformation("Web Transport closed, {wtConnectionId}", ctx.ConnectionId);
+
+        } // its ok 
         catch (Exception e)
         {
-            conn.Abort(new ConnectionAbortedException("failed write pkg", e));
+            logger.LogCritical(e, "Web Transport closed with exception, {wtConnectionId}, {e}", ctx.ConnectionId, e);
+            ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
         }
-        await sessionGrain.EndRealtimeSession();
     }
 
+
+    // todo
+    async static IAsyncEnumerable<T> CombineAsyncEnumerators<T>(params IAsyncEnumerable<T>[] enums)
+    {
+        var channel = System.Threading.Channels.Channel.CreateUnbounded<T>();
+        var tasks = enums.Select(async enumerable =>
+        {
+            await foreach (var item in enumerable)
+            {
+                await channel.Writer.WriteAsync(item);
+            }
+        }).ToList();
+
+        _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete());
+
+        while (await channel.Reader.WaitToReadAsync())
+        {
+            while (channel.Reader.TryRead(out var item))
+            {
+                yield return item;
+            }
+        }
+    }
 
 
     private async static Task Handler(HttpContext context)

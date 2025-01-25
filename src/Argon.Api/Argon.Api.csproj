@@ -57,9 +57,9 @@
         <PackageReference Include="Microsoft.Orleans.Serialization.MessagePack" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.Server" Version="9.0.1" />
         <PackageReference Include="Microsoft.Orleans.Streaming" Version="9.0.1" />
+        <PackageReference Include="Microsoft.Orleans.Hosting.Kubernetes" Version="9.0.1" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.0" />
         <PackageReference Include="Npgsql" Version="9.0.2" />
-        <PackageReference Include="Orleans.Clustering.Kubernetes" Version="8.2.0" />
         <PackageReference Include="OrleansDashboard" Version="8.2.0" />
         <PackageReference Include="Otp.NET" Version="1.4.0" />
         <PackageReference Include="PPioli.Certes.AOT" Version="3.0.1" />
