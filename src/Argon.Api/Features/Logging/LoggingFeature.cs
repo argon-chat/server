@@ -12,7 +12,7 @@ public static class LoggingFeature
         {
             Log.Logger = new LoggerConfiguration()
                .Enrich.FromLogContext()
-               .WriteTo.Console(new JsonFormatter())
+               .WriteTo.Console(new JsonFormatter(renderMessage: true))
                .CreateLogger();
 
             builder.Logging
