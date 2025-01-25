@@ -34,21 +34,16 @@ public static class OrleansExtension
                 });
 
             if (builder.Environment.IsKube())
-            {
                 siloBuilder
                    .AddActivationRepartitioner<BalanceRule>()
-                   .UseKubernetesHosting()
+                   .UseAdoNetClustering(x =>
+                    {
+                        x.Invariant        = "Npgsql";
+                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                    })
                    .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
                    .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
-                //siloBuilder
-                //   .UseKubeMembership()
-                //   .AddActivationRepartitioner<BalanceRule>()
-                //   .AddRedisStorage(IFusionSessionGrain.StorageId, 2)
-                //   .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-                //   .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
-                //   .AddBroadcastChannel(IArgonEvent.Broadcast);
-            }
             else
                 siloBuilder
                    .UseLocalhostClustering()

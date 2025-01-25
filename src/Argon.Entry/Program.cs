@@ -58,9 +58,15 @@ builder.Services
         x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
            .AddStreaming()
            .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, options => { })
+           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
-        if (!builder.Environment.IsProduction())
+        if (builder.Environment.IsProduction())
+            x.UseAdoNetClustering(x =>
+            {
+                x.Invariant        = "Npgsql";
+                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+            });
+        else
             x.UseLocalhostClustering();
     });
 builder.Services.UseKubernetesHosting();
