@@ -40,7 +40,7 @@ public class KubePolling(IKubeResources resources) : BackgroundService
     }
 }
 
-public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvider) : IKubeResources
+public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvider, ILogger<IKubeResources> logger) : IKubeResources
 {
     public double AverageCpuLoad { get; private set; } = 10;
 
@@ -61,6 +61,9 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
            .Select(node => node.Usage["cpu"])
            .Select(cpuUsageStr => ParseCpuUsage(cpuUsageStr.Value))
            .Aggregate<double, double>(0, (current, cpuUsage) => current + cpuUsage);
+
+
+        logger.LogInformation("Silo usable '{totalCpu}' cpu", totalCpu);
 
         return totalCpu / nodeCount;
     }
@@ -86,7 +89,7 @@ public interface IKubeResources
     ValueTask FetchAsync();
 }
 
-public class BalanceRule(ISiloStatusOracle oracle, IConfiguration config, IKubeResources kubeResources) :
+public class BalanceRule(ISiloStatusOracle oracle, IConfiguration config, IKubeResources kubeResources, ILogger<IImbalanceToleranceRule> logger) :
     IImbalanceToleranceRule, ILifecycleParticipant<ISiloLifecycle>, ILifecycleObserver, ISiloStatusListener
 {
     private readonly object                                        guarder = new();
@@ -103,7 +106,10 @@ public class BalanceRule(ISiloStatusOracle oracle, IConfiguration config, IKubeR
         if (currentTime - lastRebalanceTime < MinRebalanceInterval)
             return false;
         lastRebalanceTime = DateTime.UtcNow;
-        return imbalance <= Interlocked.Read(ref ImbalanceDelta);
+        var delta  = Interlocked.Read(ref ImbalanceDelta);
+        var result = imbalance <= delta;
+        logger.LogInformation("Imbalance value '{imbalance}' <= '{imbalanceDelta}'", result, delta);
+        return result;
     }
 
     public void SiloStatusChangeNotification(SiloAddress updatedSilo, SiloStatus status)

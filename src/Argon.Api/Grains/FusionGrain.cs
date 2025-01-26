@@ -25,12 +25,12 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, UserStatus.Offline);
-        if (_activeChannelId != default)
+        if (_activeChannelId != Guid.Empty)
             await grainFactory
                .GetGrain<IChannelGrain>(_activeChannelId)
                .Leave(_userId);
-        _userId    = default;
-        _machineId = default;
+        _userId    = Guid.Empty;
+        _machineId = Guid.Empty;
         GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
     }
 

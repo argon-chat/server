@@ -25,7 +25,7 @@ public readonly struct StreamForGrainExtension<T>(T grain) : IStreamExtension<T>
 
     public async ValueTask<IArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
         => new ServerArgonStream<IArgonEvent>(grain.GetStreamProvider(IArgonEvent.ProviderId)
-           .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, targetId)));
+           .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, targetId)), grain.GrainContext.ActivationServices.GetRequiredService<ILogger<IArgonStream<IArgonEvent>>>());
 }
 
 public readonly struct StreamForClusterClientExtension(IClusterClient? client) : IStreamExtension

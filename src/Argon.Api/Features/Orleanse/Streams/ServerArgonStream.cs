@@ -2,7 +2,7 @@ namespace Argon.Features.Rpc;
 
 using Orleans.Streams;
 
-public sealed class ServerArgonStream<T>(IAsyncStream<IArgonEvent> stream) : IArgonStream<T> where T : IArgonEvent
+public sealed class ServerArgonStream<T>(IAsyncStream<IArgonEvent> stream, ILogger<IArgonStream<T>> logger) : IArgonStream<T> where T : IArgonEvent
 {
     public Task OnNextAsync(T item, StreamSequenceToken? token = null)
         => stream.OnNextAsync(item, token);
@@ -15,8 +15,12 @@ public sealed class ServerArgonStream<T>(IAsyncStream<IArgonEvent> stream) : IAr
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken ct = default)
         => throw new NotImplementedException($"Server stream cannot create async enumerator");
 
-    public async ValueTask DisposeAsync() {} // nothing any to dispose
+    public async ValueTask DisposeAsync()
+        => await stream.OnCompletedAsync();
 
     public async ValueTask Fire(T ev)
-        => await OnNextAsync(ev);
+    {
+        logger.LogInformation("Success write '{eventName}' to orleans stream", ev.GetType().Name);
+        await OnNextAsync(ev);
+    }
 }
