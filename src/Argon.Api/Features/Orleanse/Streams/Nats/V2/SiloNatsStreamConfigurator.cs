@@ -68,66 +68,47 @@ public class ClusterClientNatsStreamConfigurator : ClusterClientPersistentStream
     }
 }
 
-public class NatsQueueAdapterReceiver : IQueueAdapterReceiver
+public class NatsQueueAdapterReceiver(Serializer<NatsBatchContainer> serializationManager, IJetStream jetStream, string stream, ILogger<IQueueAdapterReceiver> logger)
+    : IQueueAdapterReceiver
 {
-    private readonly string _stream;
-
-    private readonly IJetStream _jetStream;
-
-    private readonly Serializer<NatsBatchContainer> _serializationManager;
-
-    private TimeSpan _timeout;
+    private TimeSpan _timeout = TimeSpan.FromSeconds(1);
 
     private long _lastReadMessage;
 
     private IJetStreamPullSubscription _subscription;
 
-    public NatsQueueAdapterReceiver(Serializer<NatsBatchContainer> serializationManager, IJetStream jetStream, string stream)
-    {
-        if (stream == null)
-        {
-            throw new ArgumentException(nameof(stream));
-        }
-
-        if (jetStream == null)
-        {
-            throw new ArgumentException(nameof(jetStream));
-        }
-
-        _stream = stream;
-        _jetStream = jetStream;
-        _timeout = TimeSpan.FromSeconds(1);
-        _serializationManager = serializationManager;
-    }
-
-    public Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
+    public async Task<IList<IBatchContainer>> GetQueueMessagesAsync(int maxCount)
     {
         const int MaxNumberOfMessagesToPeek = 256;
 
-        IList<IBatchContainer> result = new List<IBatchContainer>();
-
-        int count = maxCount < 0 || maxCount == QueueAdapterConstants.UNLIMITED_GET_QUEUE_MSG ?
+        var count = maxCount < 0 ?
                MaxNumberOfMessagesToPeek : Math.Min(maxCount, MaxNumberOfMessagesToPeek);
+
+        logger.LogWarning("GetQueueMessagesAsync called, {maxCount}, {count}", maxCount, count);
+
+        if (_subscription is null)
+        {
+            logger.LogWarning("IJetStreamPullSubscription NOT inited in GetQueueMessagesAsync");
+
+            return new List<IBatchContainer>();
+        }
 
         var fetched = _subscription.Fetch(count, (int)_timeout.TotalMilliseconds);
 
-        foreach (var message in fetched)
-        {
-            result.Add(NatsBatchContainer.FromNatsMessage(_serializationManager, message, _lastReadMessage++));
-        }
+        IList<IBatchContainer> result = fetched.Select(message => NatsBatchContainer.FromNatsMessage(serializationManager, message, _lastReadMessage++)).Cast<IBatchContainer>().ToList();
 
-        return Task.FromResult(result);
+        return result;
     }
 
     public Task Initialize(TimeSpan timeout)
     {
-        var cc = Nats.GetConsumer(_stream);
+        var cc = Nats.GetConsumer(stream);
         var options = PullSubscribeOptions.Builder()
                                           .WithConfiguration(cc)
                                           .Build();
 
         _timeout = timeout;
-        _subscription = _jetStream.PullSubscribe($"{_stream}.request", options);
+        _subscription = jetStream.PullSubscribe($"{stream}.request", options);
 
         return Task.CompletedTask;
     }
@@ -136,11 +117,10 @@ public class NatsQueueAdapterReceiver : IQueueAdapterReceiver
     {
         foreach (var message in messages.OfType<NatsBatchContainer>())
         {
-            if (message.Message != null)
-            {
-                message.Message.Ack();
-                message.Message = null;
-            }
+            if (message.Message == null) 
+                continue;
+            message.Message.Ack();
+            message.Message = null;
         }
 
         return Task.CompletedTask;
@@ -149,9 +129,7 @@ public class NatsQueueAdapterReceiver : IQueueAdapterReceiver
     public Task Shutdown(TimeSpan timeout)
     {
         if (_subscription != null)
-        {
             _subscription.Dispose();
-        }
 
         return Task.CompletedTask;
     }
