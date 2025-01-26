@@ -1,11 +1,10 @@
 namespace Argon.Features;
 
-using Argon.Api.Features.Orleanse;
 using Env;
 using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
-using OrleansStreamingProviders;
+using OrleansStreamingProviders.V2;
 using Sentry;
 
 #pragma warning disable ORLEANSEXP001
@@ -16,23 +15,12 @@ public static class OrleansExtension
     {
         builder.Host.UseOrleans(siloBuilder =>
         {
-            var section = builder.Configuration.GetSection("ClusterSettings");
-
-            var opt = new OrleansOptions();
-
-            section.Bind(opt);
-
-
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
                .AddStreaming()
                .AddActivityPropagation()
                .AddReminders()
                .UseDashboard(o => o.Port = 22832)
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-               .When(_ => opt.UseInMemoryStreams, (x) => x.AddMemoryStreams(IArgonEvent.ProviderId))
-               .When(_ => opt.UseInMemoryStreams, (x) => x.AddMemoryStreams("default"))
-               .When(_ => !opt.UseInMemoryStreams, (x) => x.AddPersistentStreams("default", NatsAdapterFactory.Create, _ => { }))
-               .When(_ => !opt.UseInMemoryStreams, (x) => x.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { }))
                .UseStorages([
                     ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
                     ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME,
@@ -47,7 +35,16 @@ public static class OrleansExtension
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                   //.AddActivationRepartitioner<BalanceRule>()
+                   .AddActivationRepartitioner<BalanceRule>()
+                   .AddNatsStreams("default", x =>
+                    {
+                        x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+                    })
+                   .AddNatsStreams(IArgonEvent.ProviderId, x => {
+                        x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+                    })
+                   //.AddPersistentStreams("default", NatsAdapterFactory.Create, _ => { })
+                   //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
                    .UseAdoNetClustering(x =>
                     {
                         x.Invariant        = "Npgsql";
@@ -57,6 +54,8 @@ public static class OrleansExtension
             else
                 siloBuilder
                    .UseLocalhostClustering()
+                   .AddMemoryStreams(IArgonEvent.ProviderId)
+                   .AddMemoryStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 

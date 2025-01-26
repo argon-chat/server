@@ -9,9 +9,9 @@ using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
+using Argon.Features.OrleansStreamingProviders.V2;
 using Argon.Features.Vault;
 using Argon.Features.Web;
-using Argon.Grains;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
@@ -20,20 +20,6 @@ using Newtonsoft.Json.Converters;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using Serilog;
-
-
-if (Environment.GetEnvironmentVariable("HAS_SINGLE_SILO") is not null)
-{
-    var task = typeof(ChannelGrain).Assembly.EntryPoint.Invoke(null, [args]);
-
-    if (task is Task t)
-        await t;
-    if (task is ValueTask vt)
-        await vt;
-
-    return;
-}
-
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -62,7 +48,7 @@ builder.WebHost.ConfigureKestrel(options => {
 });
 builder.AddContentDeliveryNetwork();
 builder.AddServiceDefaults();
-builder.AddNatsStreaming();
+//builder.AddNatsStreaming();
 builder.AddJwt();
 builder.AddRewrites();
 builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
@@ -75,8 +61,16 @@ builder.Services
     {
         x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
            .AddStreaming()
-           .AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-           .AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
+           .AddNatsStreams("default", options =>
+            {
+                options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+            })
+           .AddNatsStreams(IArgonEvent.ProviderId, options => {
+                options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+            })
+
+           //.AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
+           //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
         if (builder.Environment.IsProduction())
             x.UseAdoNetClustering(x =>

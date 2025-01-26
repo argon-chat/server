@@ -11,6 +11,7 @@
         <EmitCompilerGeneratedFiles>true</EmitCompilerGeneratedFiles>
         <DockerfileContext>..\..</DockerfileContext>
         <EnablePreviewFeatures>true</EnablePreviewFeatures>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
     </PropertyGroup>
 
     <ItemGroup>
@@ -23,6 +24,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="NATS.Client" Version="1.1.7-pre1" />
         <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0" />
         <PackageReference Include="Fluid.Core" Version="2.19.0" />
         <PackageReference Include="Flurl.Http" Version="4.0.2" />

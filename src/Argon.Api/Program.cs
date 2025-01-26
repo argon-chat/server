@@ -7,7 +7,6 @@ using Argon.Features.Jwt;
 using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
-using Argon.Features.OrleansStreamingProviders;
 using Argon.Features.Otp;
 using Argon.Features.Pex;
 using Argon.Features.Repositories;
@@ -27,13 +26,13 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-builder.AddNatsStreaming();
+//builder.AddNatsStreaming();
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();
 builder.AddRewrites();
 
-//if (!builder.Environment.IsManaged())
+if (!builder.Environment.IsManaged())
 {
     builder.Services.AddServerTiming();
     builder.ConfigureDefaultKestrel();
@@ -63,7 +62,7 @@ var app = builder.Build();
 
 app.UseServerTiming();
 
-//if (!builder.Environment.IsManaged())
+if (!builder.Environment.IsManaged())
 {
     app.UseCors();
     app.UseAuthentication();
@@ -75,7 +74,7 @@ app.UseServerTiming();
     app.MapArgonTransport();
     app.UseRewrites();
 }
-//else
+else
     app.UseSerilogRequestLogging();
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new

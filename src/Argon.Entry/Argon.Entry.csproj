@@ -9,6 +9,7 @@
         <UserSecretsId>b90ebea2-7ea4-447f-b92f-46da1cfd6437</UserSecretsId>
         <DockerfileContext>..\..</DockerfileContext>
         <EnablePreviewFeatures>true</EnablePreviewFeatures>
+        <ServerGarbageCollection>true</ServerGarbageCollection>
     </PropertyGroup>
 
     <ItemGroup>
