@@ -31,6 +31,7 @@ public class KubePolling(IKubeResources resources) : BackgroundService
 {
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        return; // todo
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Yield();
