@@ -19,8 +19,8 @@ public class SiloNatsStreamConfigurator : SiloPersistentStreamConfigurator
         ConfigureDelegate(services =>
         {
             services.ConfigureNamedOptionForLogging<NatsOptions>(name)
-                    .ConfigureNamedOptionForLogging<SimpleQueueCacheOptions>(name)
-                    .ConfigureNamedOptionForLogging<HashRingStreamQueueMapperOptions>(name);
+               .ConfigureNamedOptionForLogging<SimpleQueueCacheOptions>(name)
+               .ConfigureNamedOptionForLogging<HashRingStreamQueueMapperOptions>(name);
         });
     }
 
@@ -47,13 +47,11 @@ public class ClusterClientNatsStreamConfigurator : ClusterClientPersistentStream
 {
     public ClusterClientNatsStreamConfigurator(string name, IClientBuilder builder)
         : base(name, builder, NatsQueueAdapterFactory.Create)
-    {
-        builder.ConfigureServices(services =>
+        => builder.ConfigureServices(services =>
         {
             services.ConfigureNamedOptionForLogging<NatsOptions>(name)
-                    .ConfigureNamedOptionForLogging<HashRingStreamQueueMapperOptions>(name);
+               .ConfigureNamedOptionForLogging<HashRingStreamQueueMapperOptions>(name);
         });
-    }
 
     public ClusterClientNatsStreamConfigurator ConfigureNats(Action<OptionsBuilder<NatsOptions>> configureOptions)
     {
@@ -68,7 +66,11 @@ public class ClusterClientNatsStreamConfigurator : ClusterClientPersistentStream
     }
 }
 
-public class NatsQueueAdapterReceiver(Serializer<NatsBatchContainer> serializationManager, IJetStream jetStream, string stream, ILogger<IQueueAdapterReceiver> logger)
+public class NatsQueueAdapterReceiver(
+    Serializer<NatsBatchContainer> serializationManager,
+    IJetStream jetStream,
+    string stream,
+    ILogger<IQueueAdapterReceiver> logger)
     : IQueueAdapterReceiver
 {
     private TimeSpan _timeout = TimeSpan.FromSeconds(1);
@@ -81,33 +83,37 @@ public class NatsQueueAdapterReceiver(Serializer<NatsBatchContainer> serializati
     {
         const int MaxNumberOfMessagesToPeek = 256;
 
-        var count = maxCount < 0 ?
-               MaxNumberOfMessagesToPeek : Math.Min(maxCount, MaxNumberOfMessagesToPeek);
+        var count = maxCount < 0 ? MaxNumberOfMessagesToPeek : Math.Min(maxCount, MaxNumberOfMessagesToPeek);
 
         logger.LogWarning("GetQueueMessagesAsync called, {maxCount}, {count}", maxCount, count);
 
         if (_subscription is null)
         {
             logger.LogWarning("IJetStreamPullSubscription NOT inited in GetQueueMessagesAsync");
-
+            await Initialize(TimeSpan.FromMinutes(15));
             return new List<IBatchContainer>();
         }
 
         var fetched = _subscription.Fetch(count, (int)_timeout.TotalMilliseconds);
 
-        IList<IBatchContainer> result = fetched.Select(message => NatsBatchContainer.FromNatsMessage(serializationManager, message, _lastReadMessage++)).Cast<IBatchContainer>().ToList();
+        IList<IBatchContainer> result = fetched
+           .Select(message => NatsBatchContainer.FromNatsMessage(serializationManager, message, _lastReadMessage++)).Cast<IBatchContainer>()
+           .ToList();
 
         return result;
     }
 
     public Task Initialize(TimeSpan timeout)
     {
-        var cc = Nats.GetConsumer(stream);
-        var options = PullSubscribeOptions.Builder()
-                                          .WithConfiguration(cc)
-                                          .Build();
+        logger.LogWarning("IQueueAdapterReceiver called Initialize");
 
-        _timeout = timeout;
+        var cc = Nats.GetConsumer(stream);
+        var options = PullSubscribeOptions
+           .Builder()
+           .WithConfiguration(cc)
+           .Build();
+
+        _timeout      = timeout;
         _subscription = jetStream.PullSubscribe($"{stream}.request", options);
 
         return Task.CompletedTask;
@@ -117,7 +123,7 @@ public class NatsQueueAdapterReceiver(Serializer<NatsBatchContainer> serializati
     {
         foreach (var message in messages.OfType<NatsBatchContainer>())
         {
-            if (message.Message == null) 
+            if (message.Message == null)
                 continue;
             message.Message.Ack();
             message.Message = null;
@@ -156,60 +162,51 @@ public class NatsQueueAdapterFactory : IQueueAdapterFactory
     private readonly HashRingBasedStreamQueueMapper _streamQueueMapper;
 
     public NatsQueueAdapterFactory(string name,
-                                   IJetStream jetStream,
-                                   HashRingStreamQueueMapperOptions queueMapperOptions,
-                                   SimpleQueueCacheOptions cacheOptions,
-                                   IServiceProvider serviceProvider,
-                                   IOptions<ClusterOptions> clusterOptions,
-                                   Serializer serializer,
-                                   ILoggerFactory loggerFactory)
+        IJetStream jetStream,
+        HashRingStreamQueueMapperOptions queueMapperOptions,
+        SimpleQueueCacheOptions cacheOptions,
+        IServiceProvider serviceProvider,
+        IOptions<ClusterOptions> clusterOptions,
+        Serializer serializer,
+        ILoggerFactory loggerFactory)
     {
-        _name = name;
-        _jetStream = jetStream;
-        _serializer = serializer;
-        _cacheOptions = cacheOptions;
-        _loggerFactory = loggerFactory;
-        _clusterOptions = clusterOptions;
-        _serviceProvider = serviceProvider;
+        _name              = name;
+        _jetStream         = jetStream;
+        _serializer        = serializer;
+        _cacheOptions      = cacheOptions;
+        _loggerFactory     = loggerFactory;
+        _clusterOptions    = clusterOptions;
+        _serviceProvider   = serviceProvider;
         _streamQueueMapper = new HashRingBasedStreamQueueMapper(queueMapperOptions, _name);
-        _adapterCache = new SimpleQueueAdapterCache(cacheOptions, _name, _loggerFactory);
+        _adapterCache      = new SimpleQueueAdapterCache(cacheOptions, _name, _loggerFactory);
     }
 
     public static NatsQueueAdapterFactory Create(IServiceProvider services, string name)
     {
-        var clusterOptions = services.GetProviderClusterOptions(name);
-        var natsOptions = services.GetOptionsByName<NatsOptions>(name);
-        var cacheOptions = services.GetOptionsByName<SimpleQueueCacheOptions>(name);
+        var clusterOptions     = services.GetProviderClusterOptions(name);
+        var natsOptions        = services.GetOptionsByName<NatsOptions>(name);
+        var cacheOptions       = services.GetOptionsByName<SimpleQueueCacheOptions>(name);
         var queueMapperOptions = services.GetOptionsByName<HashRingStreamQueueMapperOptions>(name);
 
-        var cf = new ConnectionFactory();
-        var qr = cf.CreateConnection(natsOptions.ConnectionString);
+        var cf        = new ConnectionFactory();
+        var qr        = cf.CreateConnection(natsOptions.ConnectionString);
         var jetStream = qr.CreateJetStreamContext();
 
-        return ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(services, name, jetStream, queueMapperOptions, cacheOptions, services, clusterOptions);
+        return ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(services, name, jetStream, queueMapperOptions, cacheOptions, services,
+            clusterOptions);
     }
 
     public Task<IQueueAdapter> CreateAdapter()
-    {
-        var adapter = new NatsQueueAdapter(_serializer, _streamQueueMapper, _loggerFactory, _jetStream, _name);
-
-        return Task.FromResult<IQueueAdapter>(adapter);
-    }
+        => Task.FromResult<IQueueAdapter>(new NatsQueueAdapter(_serializer, _streamQueueMapper, _loggerFactory, _jetStream, _name));
 
     public Task<IStreamFailureHandler> GetDeliveryFailureHandler(QueueId queueId)
-    {
-        return Task.FromResult<IStreamFailureHandler>(new NoOpStreamDeliveryFailureHandler());
-    }
+        => Task.FromResult<IStreamFailureHandler>(new NoOpStreamDeliveryFailureHandler());
 
     public IQueueAdapterCache GetQueueAdapterCache()
-    {
-        return _adapterCache;
-    }
+        => _adapterCache;
 
     public IStreamQueueMapper GetStreamQueueMapper()
-    {
-        return _streamQueueMapper;
-    }
+        => _streamQueueMapper;
 }
 
 public class NatsQueueAdapter(
@@ -228,16 +225,24 @@ public class NatsQueueAdapter(
 
     public StreamProviderDirection Direction => StreamProviderDirection.ReadWrite;
 
-    public IQueueAdapterReceiver CreateReceiver(QueueId queueId) => new NatsQueueAdapterReceiver(_serializer, jetStream, queueId.ToString(), loggerFactory.CreateLogger<IQueueAdapterReceiver>());
+    public IQueueAdapterReceiver CreateReceiver(QueueId queueId)
+    {
+        var rec = new NatsQueueAdapterReceiver(_serializer, jetStream, queueId.ToString(), loggerFactory.CreateLogger<IQueueAdapterReceiver>());
 
-    public async Task QueueMessageBatchAsync<T>(StreamId streamId, IEnumerable<T> events, StreamSequenceToken token, Dictionary<string, object> requestContext)
+        //rec.Initialize(TimeSpan.FromMinutes(1)).Wait();
+
+        return rec;
+    }
+
+    public async Task QueueMessageBatchAsync<T>(StreamId streamId, IEnumerable<T> events, StreamSequenceToken token,
+        Dictionary<string, object> requestContext)
     {
         var queueId = streamQueueMapper.GetQueueForStream(streamId);
         var message = NatsBatchContainer.ToMessage(_serializer, streamId, events, requestContext);
         var builder = PublishOptions.Builder()
-                                    .WithTimeout(5000)
-                                    .WithStream(queueId.ToString())
-                                    .WithMessageId(Guid.NewGuid().ToString());
+           .WithTimeout(5000)
+           .WithStream(queueId.ToString())
+           .WithMessageId(Guid.NewGuid().ToString());
 
         var ack = await jetStream.PublishAsync($"{queueId}.request", message.Data, builder.Build());
     }
@@ -273,22 +278,22 @@ public class NatsBatchContainer : IBatchContainer
 
     [JsonConstructor]
     private NatsBatchContainer(StreamId streamId,
-                               List<object> events,
-                               Dictionary<string, object> requestContext,
-                               EventSequenceTokenV2 sequenceToken)
+        List<object> events,
+        Dictionary<string, object> requestContext,
+        EventSequenceTokenV2 sequenceToken)
         : this(streamId, events, requestContext)
     {
         _sequenceToken = sequenceToken;
     }
 
     private NatsBatchContainer(StreamId streamId,
-                               List<object> events,
-                               Dictionary<string, object> requestContext)
+        List<object> events,
+        Dictionary<string, object> requestContext)
     {
         StreamId = streamId;
 
         _requestContext = requestContext;
-        _events = events ?? throw new ArgumentNullException(nameof(events), "Message contains no events");
+        _events         = events ?? throw new ArgumentNullException(nameof(events), "Message contains no events");
     }
 
     [Id(3)]
@@ -317,29 +322,32 @@ public class NatsBatchContainer : IBatchContainer
         return string.Format($"[{nameof(NatsBatchContainer)}:Stream={0},#Items={1}]", StreamId, _events.Count);
     }
 
-    internal static Msg ToMessage<T>(Serializer<NatsBatchContainer> serializer, StreamId streamId, IEnumerable<T> events, Dictionary<string, object> requestContext)
+    internal static Msg ToMessage<T>(Serializer<NatsBatchContainer> serializer, StreamId streamId, IEnumerable<T> events,
+        Dictionary<string, object> requestContext)
     {
         var batchMessage = new NatsBatchContainer(streamId, events.Cast<object>().ToList(), requestContext);
-        var rawBytes = serializer.SerializeToArray(batchMessage);
+        var rawBytes     = serializer.SerializeToArray(batchMessage);
         var payload = new JObject
+        {
             {
-                { "payload", JToken.FromObject(rawBytes) }
-            };
+                "payload", JToken.FromObject(rawBytes)
+            }
+        };
 
         return new Msg(Encoding.Default.GetString(streamId.Namespace.ToArray()), Encoding.Default.GetBytes(payload.ToString()));
     }
 
     internal static NatsBatchContainer FromNatsMessage(Serializer<NatsBatchContainer> serializer, Msg msg, long sequenceId)
     {
-        var json = JObject.Parse(Encoding.Default.GetString(msg.Data));
+        var json    = JObject.Parse(Encoding.Default.GetString(msg.Data));
         var payload = json["payload"];
 
         if (payload != null)
         {
-            var data = payload.ToObject<byte[]>();
+            var data  = payload.ToObject<byte[]>();
             var batch = serializer.Deserialize(data);
 
-            batch.Message = msg;
+            batch.Message        = msg;
             batch._sequenceToken = new EventSequenceTokenV2(sequenceId);
 
             return batch;
@@ -363,11 +371,11 @@ public static class Nats
     public static StreamConfiguration GetStream(string stream, StorageType storageType)
     {
         return StreamConfiguration.Builder()
-                                  .WithName(stream)
-                                  .WithStorageType(storageType)
-                                  .WithRetentionPolicy(NATS.Client.JetStream.RetentionPolicy.WorkQueue)
-                                  .WithSubjects($"{stream}.*")
-                                  .Build();
+           .WithName(stream)
+           .WithStorageType(storageType)
+           .WithRetentionPolicy(NATS.Client.JetStream.RetentionPolicy.WorkQueue)
+           .WithSubjects($"{stream}.*")
+           .Build();
     }
 
     /// <summary>
@@ -378,9 +386,9 @@ public static class Nats
     public static ConsumerConfiguration GetConsumer(string stream)
     {
         return ConsumerConfiguration.Builder()
-                                    .WithDurable($"{stream}")
-                                    .WithFilterSubject($"{stream}.request")
-                                    .Build();
+           .WithDurable($"{stream}")
+           .WithFilterSubject($"{stream}.request")
+           .Build();
     }
 
     /// <summary>
@@ -464,7 +472,6 @@ public static class Nats
         }
     }
 }
-
 
 public static class SiloBuilderExtensions
 {
