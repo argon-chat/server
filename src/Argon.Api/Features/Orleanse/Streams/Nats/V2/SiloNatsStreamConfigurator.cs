@@ -212,49 +212,34 @@ public class NatsQueueAdapterFactory : IQueueAdapterFactory
     }
 }
 
-public class NatsQueueAdapter : IQueueAdapter
+public class NatsQueueAdapter(
+    Serializer serializer,
+    IConsistentRingStreamQueueMapper streamQueueMapper,
+    ILoggerFactory loggerFactory,
+    IJetStream jetStream,
+    string providerName)
+    : IQueueAdapter
 {
-    private readonly IJetStream _jetStream;
-
-    private readonly string _providerName;
-
-    private readonly ILoggerFactory _loggerFactory;
-
-    private readonly Serializer<NatsBatchContainer> _serializer;
-
-    private readonly IConsistentRingStreamQueueMapper _streamQueueMapper;
-
-    public NatsQueueAdapter(Serializer serializer,
-                            IConsistentRingStreamQueueMapper streamQueueMapper,
-                            ILoggerFactory loggerFactory,
-                            IJetStream jetStream,
-                            string providerName)
-    {
-        _jetStream = jetStream;
-        _loggerFactory = loggerFactory;
-        _streamQueueMapper = streamQueueMapper;
-        _serializer = serializer.GetSerializer<NatsBatchContainer>();
-        _providerName = providerName;
-    }
+    private readonly Serializer<NatsBatchContainer> _serializer = serializer.GetSerializer<NatsBatchContainer>();
 
     public bool IsRewindable => false;
 
-    public string Name => _providerName;
+    public string Name { get; } = providerName;
 
     public StreamProviderDirection Direction => StreamProviderDirection.ReadWrite;
 
-    public IQueueAdapterReceiver CreateReceiver(QueueId queueId) => new NatsQueueAdapterReceiver(_serializer, _jetStream, queueId.ToString());
+    public IQueueAdapterReceiver CreateReceiver(QueueId queueId) => new NatsQueueAdapterReceiver(_serializer, jetStream, queueId.ToString(), loggerFactory.CreateLogger<IQueueAdapterReceiver>());
 
     public async Task QueueMessageBatchAsync<T>(StreamId streamId, IEnumerable<T> events, StreamSequenceToken token, Dictionary<string, object> requestContext)
     {
-        var queueId = _streamQueueMapper.GetQueueForStream(streamId);
+        var queueId = streamQueueMapper.GetQueueForStream(streamId);
         var message = NatsBatchContainer.ToMessage(_serializer, streamId, events, requestContext);
         var builder = PublishOptions.Builder()
                                     .WithTimeout(5000)
                                     .WithStream(queueId.ToString())
                                     .WithMessageId(Guid.NewGuid().ToString());
 
-        var ack = await _jetStream.PublishAsync($"{queueId}.request", message.Data, builder.Build());
+        var ack = await jetStream.PublishAsync($"{queueId}.request", message.Data, builder.Build());
     }
 }
 
