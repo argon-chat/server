@@ -7,6 +7,12 @@ public static class ActorExtensions
         if (filter(t)) on();
     }
 
+    public static T When<T>(this T t, Func<T, bool> filter, Action<T> on)
+    {
+        if (filter(t)) on(t);
+        return t;
+    }
+
     public async static Task WhenAsync<T>(this T t, Func<T, bool> filter, Func<ValueTask> on)
     {
         if (filter(t)) await on();

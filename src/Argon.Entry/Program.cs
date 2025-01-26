@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Controllers;
@@ -10,6 +11,7 @@ using Argon.Features.Middlewares;
 using Argon.Features.OrleansStreamingProviders;
 using Argon.Features.Vault;
 using Argon.Features.Web;
+using Argon.Grains;
 using Argon.Services;
 using Argon.Streaming;
 using MessagePack;
@@ -18,6 +20,20 @@ using Newtonsoft.Json.Converters;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using Serilog;
+
+
+if (Environment.GetEnvironmentVariable("HAS_SINGLE_SILO") is not null)
+{
+    var task = typeof(ChannelGrain).Assembly.EntryPoint.Invoke(null, [args]);
+
+    if (task is Task t)
+        await t;
+    if (task is ValueTask vt)
+        await vt;
+
+    return;
+}
+
 
 var builder = WebApplication.CreateBuilder(args);
 

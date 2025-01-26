@@ -18,11 +18,11 @@ public class ArgonEventBatch : IBatchContainer
 
     public ArgonEventBatch(StreamId streamId, object data, Type getType, StreamSequenceToken? eventToken, NatsJSMsg<string> msg)
     {
-        dataType         = getType;
-        StreamId         = streamId;
-        Data             = [data];
-        SequenceToken    = eventToken;
-        Event            = msg;
+        dataType      = getType;
+        StreamId      = streamId;
+        Data          = [data];
+        SequenceToken = eventToken;
+        Event         = msg;
     }
 
     [Id(0)]
@@ -32,7 +32,7 @@ public class ArgonEventBatch : IBatchContainer
     [Id(1)]
     public StreamId StreamId { get; }
     [Id(2)]
-    public StreamSequenceToken SequenceToken    { get; }
+    public StreamSequenceToken SequenceToken { get; }
 
     public IEnumerable<Tuple<T, StreamSequenceToken>> GetEvents<T>()
     {
@@ -42,7 +42,8 @@ public class ArgonEventBatch : IBatchContainer
         if (SequenceToken is not EventSequenceTokenV2 sequenceTokenV2)
             throw new Exception($"SequenceToken is not EventSequenceTokenV2, {SequenceToken.GetType()}");
 
-        return Data.OfType<T>().ToList().Select((@event, i) => Tuple.Create<T, StreamSequenceToken>(@event, sequenceTokenV2.CreateSequenceTokenForEvent(i)));
+        return Data.OfType<T>().ToList()
+           .Select((@event, i) => Tuple.Create<T, StreamSequenceToken>(@event, sequenceTokenV2.CreateSequenceTokenForEvent(i)));
     }
 
     public bool ImportRequestContext() => false;
