@@ -33,7 +33,7 @@ builder.AddArgonAuthorization();
 builder.AddJwt();
 builder.AddRewrites();
 
-if (!builder.Environment.IsManaged())
+//if (!builder.Environment.IsManaged())
 {
     builder.Services.AddServerTiming();
     builder.ConfigureDefaultKestrel();
@@ -63,7 +63,7 @@ var app = builder.Build();
 
 app.UseServerTiming();
 
-if (!builder.Environment.IsManaged())
+//if (!builder.Environment.IsManaged())
 {
     app.UseCors();
     app.UseAuthentication();
@@ -75,7 +75,7 @@ if (!builder.Environment.IsManaged())
     app.MapArgonTransport();
     app.UseRewrites();
 }
-else
+//else
     app.UseSerilogRequestLogging();
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new
