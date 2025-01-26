@@ -47,7 +47,7 @@ public static class OrleansExtension
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                   .AddActivationRepartitioner<BalanceRule>()
+                   //.AddActivationRepartitioner<BalanceRule>()
                    .UseAdoNetClustering(x =>
                     {
                         x.Invariant        = "Npgsql";
