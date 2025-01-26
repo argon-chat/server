@@ -36,13 +36,51 @@ public static class OrleansExtension
             if (builder.Environment.IsKube())
                 siloBuilder
                    .AddActivationRepartitioner<BalanceRule>()
-                   .AddNatsStreams("default", x =>
-                    {
-                        x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-                    })
-                   .AddNatsStreams(IArgonEvent.ProviderId, x => {
-                        x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-                    })
+                   //.AddEventHubStreams("default", (configurator) =>
+                   // {
+                   //     configurator.ConfigureEventHub(q => q.Configure(options =>
+                   //     {
+                   //         options.ConfigureEventHubConnection(
+                   //             builder.Configuration.GetConnectionString("azure-hub"),
+                   //             "default",
+                   //             "default");
+                   //     }));
+                   //     configurator.UseAzureTableCheckpointer(
+                   //         e => e.Configure(options =>
+                   //         {
+                   //             options.ConfigureTableServiceClient(builder.Configuration.GetConnectionString("azure-hub"));
+                   //             options.PersistInterval = TimeSpan.FromSeconds(10);
+                   //         }));
+                   // })
+                   //.AddEventHubStreams(IArgonEvent.ProviderId, (configurator) => {
+                   //     configurator.ConfigureEventHub(q => q.Configure(options => {
+                   //         options.ConfigureEventHubConnection(
+                   //             builder.Configuration.GetConnectionString("azure-hub"),
+                   //             IArgonEvent.ProviderId,
+                   //             IArgonEvent.ProviderId);
+                   //     }));
+                   //     configurator.UseAzureTableCheckpointer(
+                   //         e => e.Configure(options => {
+                   //             options.ConfigureTableServiceClient(builder.Configuration.GetConnectionString("azure-hub"));
+                   //             options.PersistInterval = TimeSpan.FromSeconds(10);
+                   //         }));
+                   // })
+                   .AddAdoNetStreams("default", x => {
+                       x.Invariant = "Npgsql";
+                       x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                   })
+                   .AddAdoNetStreams(IArgonEvent.ProviderId, x => {
+                       x.Invariant = "Npgsql";
+                       x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                   })
+                   //.AddNatsStreams("default", x =>
+                   // {
+                   //     x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+                   // })
+                   //.AddNatsStreams(IArgonEvent.ProviderId, x => {
+                   //     x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+                   // })
+
                    //.AddPersistentStreams("default", NatsAdapterFactory.Create, _ => { })
                    //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
                    .UseAdoNetClustering(x =>

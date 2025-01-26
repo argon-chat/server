@@ -61,13 +61,22 @@ builder.Services
     {
         x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
            .AddStreaming()
-           .AddNatsStreams("default", options =>
-            {
-                options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+           .AddAdoNetStreams("default", x => {
+                x.Invariant        = "Npgsql";
+                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             })
-           .AddNatsStreams(IArgonEvent.ProviderId, options => {
-                options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+           .AddAdoNetStreams(IArgonEvent.ProviderId, x => {
+                x.Invariant        = "Npgsql";
+                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             })
+
+           //.AddNatsStreams("default", options =>
+           // {
+           //     options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+           // })
+           //.AddNatsStreams(IArgonEvent.ProviderId, options => {
+           //     options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
+           // })
 
            //.AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
            //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
