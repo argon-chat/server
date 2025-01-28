@@ -3,6 +3,7 @@ namespace Argon.Services;
 using System.Net;
 using Argon.Features.Rpc;
 using Features.Jwt;
+using Grpc.Core;
 using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Net.Http.Headers;
@@ -11,7 +12,26 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
 {
     public async Task HandleTransportRequest(HttpContext ctx, ConnectionContext conn, ArgonTransportContext scope)
     {
-        var user = scope.User;
+        var user     = scope.User;
+        var sequence = -1L;
+        var eventId  = -1;
+
+        if (ctx.Request.Query.TryGetValue("sequence", out var sequenceStr))
+        {
+            if (!long.TryParse(sequenceStr.ToString(), out sequence))
+            {
+                sequence = -1;
+                logger.LogInformation("Failed to read sequence number, string value: {sequence}", sequenceStr);
+            }
+        }
+        if (ctx.Request.Query.TryGetValue("eventId", out var eventIdStr))
+        {
+            if (!int.TryParse(eventIdStr.ToString(), out eventId))
+            {
+                eventId = -1;
+                logger.LogInformation("Failed to read eventId number, string value: {eventId}", eventIdStr);
+            }
+        }
 
         if (ctx.Request.Query.TryGetValue("srv", out var srvId))
         {
@@ -22,7 +42,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
             }
 
             logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
-            var stream = await clusterClient.Streams().CreateClientStream(serverId);
+            var stream = await clusterClient.Streams().CreateClientStream(serverId, sequence, eventId);
             await HandleLoopAsync(stream, conn);
         }
         else
@@ -30,7 +50,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
             logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
             var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(user.machineId);
             await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-            var stream = await clusterClient.Streams().CreateClientStream(user.id);
+            var stream = await clusterClient.Streams().CreateClientStream(user.id, sequence, eventId);
             await HandleLoopAsync(stream, conn);
             await sessionGrain.EndRealtimeSession();
         }

@@ -9,11 +9,13 @@ public interface IArgonEvent
     [TsIgnore]
     public static string ProviderId => "argon.cluster.events";
     [TsIgnore]
-    public static string Namespace  => $"@";
+    public static string Namespace => $"@";
     [TsIgnore]
-    public static string Broadcast  => $"argon.cluster.events.broadcast";
+    public static string Broadcast => $"argon.cluster.events.broadcast";
 
     public string EventKey { get; init; }
+    public long?  Sequence { get; set; }
+    public int?   EventId  { get; set; }
 }
 
 public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
@@ -31,13 +33,12 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
 
         foreach (var prop in type.GetProperties())
         {
-            if (!prop.CanRead || prop is { GetMethod.IsStatic: true }) 
+            if (!prop.CanRead || prop is { GetMethod.IsStatic: true })
                 continue;
             writer.Write(prop.Name);
             var propValue = prop.GetValue(value);
             MessagePackSerializer.Serialize(prop.PropertyType, ref writer, propValue, options);
         }
-
     }
 
     public IArgonEvent Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
@@ -48,7 +49,9 @@ public class ArgonEventResolver : IFormatterResolver
 {
     public static readonly ArgonEventResolver Instance = new();
 
-    private ArgonEventResolver() { }
+    private ArgonEventResolver()
+    {
+    }
 
     public IMessagePackFormatter<T> GetFormatter<T>()
     {
