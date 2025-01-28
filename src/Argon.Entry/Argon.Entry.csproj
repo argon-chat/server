@@ -10,6 +10,7 @@
         <DockerfileContext>..\..</DockerfileContext>
         <EnablePreviewFeatures>true</EnablePreviewFeatures>
         <ServerGarbageCollection>true</ServerGarbageCollection>
+        <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
     </PropertyGroup>
 
     <ItemGroup>
