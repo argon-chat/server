@@ -24,6 +24,14 @@ public class ChannelGrain(
         _self = await GetChannel();
 
         _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
+
+        await state.ReadStateAsync();
+    }
+
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    {
+        await _userStateEmitter.DisposeAsync();
+        await state.ClearStateAsync();
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
