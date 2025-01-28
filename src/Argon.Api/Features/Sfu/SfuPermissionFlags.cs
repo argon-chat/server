@@ -1,4 +1,4 @@
-﻿namespace Argon.Sfu;
+namespace Argon.Sfu;
 
 using LiveKit.Proto;
 using Microsoft.OpenApi.Extensions;
@@ -32,17 +32,15 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
 {
     public static readonly SfuPermission DefaultUser = new(
         SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH | SfuPermissionFlags.ROOM_JOIN,
-        [TrackSource.Microphone, TrackSource.Microphone]);
+        [TrackSource.Microphone, TrackSource.Camera, TrackSource.ScreenShare, TrackSource.ScreenShareAudio]);
 
     public static readonly SfuPermission DefaultSystem = new(SfuPermissionFlags.ALL, []);
 
     public Dictionary<string, object> ToDictionary(ArgonChannelId channelId)
     {
-        var dict = new Dictionary<string, object>();
-        foreach (var key in flags.ToList())
-            dict.Add(key, true);
+        var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
         dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
-        dict.Add("room", $"{channelId.serverId.id:N}:{channelId.channelId:N}");
+        dict.Add("room", $"{channelId.serverId.id}-{channelId.channelId}");
         return dict;
     }
 }
