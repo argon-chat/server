@@ -16,6 +16,7 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
 
     public async ValueTask SelfDestroy()
     {
+        this.DelayDeactivation(TimeSpan.MinValue);
         if (refreshTimer is not null)
             refreshTimer.Dispose();
         var servers = await grainFactory
@@ -56,6 +57,8 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
             preferredStatus ?? UserStatus.Online,
             new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+
+        this.DelayDeactivation(TimeSpan.MaxValue);
     }
 
     private async Task RefreshUserStatus(CancellationToken arg)

@@ -59,6 +59,9 @@ public class ChannelGrain(
 
         await GrainFactory.GetGrain<IFusionSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
 
+        if (state.State.Users.Count > 0)
+            this.DelayDeactivation(TimeSpan.FromDays(1));
+
         return await sfu.IssueAuthorizationTokenAsync(userId, ChannelId, SfuPermission.DefaultUser);
     }
 
@@ -68,6 +71,9 @@ public class ChannelGrain(
         await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
         await sfu.KickParticipantAsync(userId, ChannelId);
         await state.WriteStateAsync();
+
+        if (state.State.Users.Count == 0)
+            this.DelayDeactivation(TimeSpan.MinValue);
     }
 
     public async Task<Channel> GetChannel()
