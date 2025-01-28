@@ -8,7 +8,7 @@ public record EphemeralChannelInfo(ArgonChannelId channelId, string sid, Room ro
 [MessagePackObject(true)]
 public record ArgonUserId([field: Id(0)] Guid id)
 {
-    public string ToRawIdentity() => id.ToString("N");
+    public string ToRawIdentity() => id.ToString();
 
     public static implicit operator ArgonUserId(Guid userId) => new(userId);
 }
@@ -18,5 +18,5 @@ public record ArgonServerId([field: Id(0)] Guid id);
 [MessagePackObject(true)]
 public record ArgonChannelId([field: Id(0)] ArgonServerId serverId, [field: Id(1)] Guid channelId)
 {
-    public string ToRawRoomId() => $"{serverId.id:N}:{channelId:N}";
+    public string ToRawRoomId() => $"{serverId.id}-{channelId}";
 }
