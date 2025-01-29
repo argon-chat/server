@@ -11,8 +11,8 @@ public sealed class ClientArgonStream<T> : IArgonStream<T> where T : IArgonEvent
     {
         if (token is not null)
         {
-            item.Sequence = token.SequenceNumber;
-            item.EventId = token.EventIndex;
+            item.Sequence = token.SequenceNumber == 0 ? null : token.SequenceNumber;
+            item.EventId  = token.EventIndex == 0 ? null : token.EventIndex;
         }
 
         await channel.Writer.WriteAsync(item);
