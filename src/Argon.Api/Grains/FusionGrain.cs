@@ -16,7 +16,6 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
 
     public async ValueTask SelfDestroy()
     {
-        this.DelayDeactivation(TimeSpan.MinValue);
         if (refreshTimer is not null)
             refreshTimer.Dispose();
         var servers = await grainFactory
@@ -41,7 +40,11 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         this._machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
+        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10))
+        {
+            KeepAlive = true,
+        });
+        
 
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
@@ -57,8 +60,6 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
             preferredStatus ?? UserStatus.Online,
             new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
-
-        this.DelayDeactivation(TimeSpan.MaxValue);
     }
 
     private async Task RefreshUserStatus(CancellationToken arg)
@@ -76,7 +77,7 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         => SelfDestroy();
 
     public ValueTask<bool> HasSessionActive()
-        => new(_userId != default);
+        => new(_userId != Guid.Empty);
 
     public ValueTask<TokenUserData> GetTokenUserData()
         => new(new TokenUserData(_userId, _machineId));
