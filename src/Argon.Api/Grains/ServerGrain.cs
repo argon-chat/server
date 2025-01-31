@@ -13,13 +13,16 @@ public class ServerGrain(
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
+    public async override Task OnActivateAsync(CancellationToken ct)
     {
         await state.ReadStateAsync();
+        state.State.UserStatuses.Clear();
+        await state.WriteStateAsync();
+
         _serverEvents = await this.Streams().CreateServerStream();
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
         => state.WriteStateAsync();
 
 
