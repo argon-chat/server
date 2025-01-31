@@ -15,6 +15,9 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
     private IGrainTimer? refreshTimer;
 
     public async ValueTask SelfDestroy()
+        => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
+
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         if (refreshTimer is not null)
             refreshTimer.Dispose();
@@ -31,7 +34,6 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
                .Leave(_userId);
         _userId    = Guid.Empty;
         _machineId = Guid.Empty;
-        GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
     }
 
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
@@ -42,10 +44,9 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         userStream = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10))
         {
-            KeepAlive = true,
+            //KeepAlive = true,
         });
         
-
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
            .IndicateLastActive(machineKey);
