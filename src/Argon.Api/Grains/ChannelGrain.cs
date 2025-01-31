@@ -25,9 +25,7 @@ public class ChannelGrain(
 
         _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
 
-        await state.ReadStateAsync();
         await state.ClearStateAsync();
-        await state.ReadStateAsync();
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
