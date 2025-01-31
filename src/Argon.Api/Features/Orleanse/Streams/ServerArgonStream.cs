@@ -15,8 +15,7 @@ public sealed class ServerArgonStream<T>(IAsyncStream<IArgonEvent> stream, ILogg
     public IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken ct = default)
         => throw new NotImplementedException($"Server stream cannot create async enumerator");
 
-    public async ValueTask DisposeAsync()
-        => await stream.OnCompletedAsync();
+    public async ValueTask DisposeAsync() { }
 
     public async ValueTask Fire(T ev)
     {
