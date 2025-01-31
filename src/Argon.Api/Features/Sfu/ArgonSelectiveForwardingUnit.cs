@@ -151,5 +151,5 @@ public class ArgonSelectiveForwardingUnit(
             throw new SfuRPCExceptions(response.StatusCode, await response.GetStringAsync());
     }
 
-    private class SfuRPCExceptions(int statusCode, string message) : Exception;
+    private class SfuRPCExceptions(int statusCode, string message) : Exception($"{message}, statusCode: {statusCode}");
 }
