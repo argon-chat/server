@@ -61,10 +61,10 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
 
     public async Task<MembershipTableData> ReadAll()
     {
-        var services = await client.Agent.Services(new TagsSelector(string.Empty).Contains("silo"));
+        var services = await client.Health.Service("Silo", "silo", true);
 
-        var list = services.Response.Select(x => x.Value)
-           .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x), ""))
+        var list = services.Response
+           .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), ""))
            .ToList();
 
         return new MembershipTableData(list, await GetTableVersion());
@@ -75,7 +75,7 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
     {
         var service = new AgentServiceRegistration()
         {
-            Name    = entry.SiloName,
+            Name    = "Silo",
             Address = entry.SiloAddress.Endpoint.Address.ToString(),
             Port    = entry.SiloAddress.Endpoint.Port,
             ID      = entry.SiloAddress.ToString(),
