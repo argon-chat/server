@@ -1,0 +1,63 @@
+{
+  "projectPath": ".",
+  "outputPath": "aspirate-output",
+  "containerImageTags": [
+    "latest"
+  ],
+  "containerBuilder": "docker",
+  "outputFormat": "compose",
+  "privateRegistryEmail": "aspir8@aka.ms",
+  "includeDashboard": true,
+  "secrets": {
+    "salt": "1scSWVZ9YGqydhO8",
+    "hash": "YTsJQDgpd\u002B520hT07XRrK4269kZwdZDuAt//AaqYjTM=",
+    "secrets": {
+      "username": {
+        "value": "1scSWVZ9YGqydhO8y\u002BC5B2CBsgxAeSMM86u5H16nyohVvr20"
+      },
+      "password": {
+        "value": "1scSWVZ9YGqydhO8y\u002BC5B2CBsgxAeSMM86u5H16nyohVvr20"
+      },
+      "sfu-url": {
+        "value": "1scSWVZ9YGqydhO84ySDj/cRCrn/WYgwCEJRqUq91JFL"
+      },
+      "sfu-client-id": {
+        "value": "1scSWVZ9YGqydhO84ySDj/cRCrn/WYgwCEJRqUq91JFL"
+      },
+      "sfu-client-secret": {
+        "value": "1scSWVZ9YGqydhO84ySDj/cRCrn/WYgwCEJRqUq91JFL"
+      },
+      "jwt-key": {
+        "value": "1scSWVZ9YGqydhO8cj76s9Ctudt5gUsRgWAB3B/7j88G9er\u002Bg5Hcryr81zjgHzrcmfxxGVckQUQ34/pmQgvctBDq0YXRHdUB/WYsmdybo8Ubz\u002BR7hoPwVIyGg7UdvWmVHAcmbZu3JLT4se0Cmq2v6gMeFowGI1noDJcwC/4e1DEyZTzTkxGOgWME3dr5xCKcHsful7zfGQTe96XEPRuH4oHjBDcVXkXQ3MQ5DE8pTJATMHp\u002BgTvwN8Q1g0S85H1jkyAzO//PtLtD95D7uu/28vpvWjTlEyJzY1orW1k53acZpgAg8CiQSv5JNub\u002BqNmtCUcAGW86ggOKy2jVA2eAAb4ulk\u002BsnMDCaQUs9Qz0zBrqfnhUZie0BLa5Wkg="
+      },
+      "smtp-host": {
+        "value": "1scSWVZ9YGqydhO8TdrZR35APJCDvFhCdaZgb0Kn2p1epLe0lQ=="
+      },
+      "smtp-port": {
+        "value": "1scSWVZ9YGqydhO8gq7IEiIl1l6jQMO8zpMGCRz9i8k="
+      },
+      "smtp-user": {
+        "value": "1scSWVZ9YGqydhO84ySDj/cRCrn/WYgwCEJRqUq91JFL"
+      },
+      "smtp-password": {
+        "value": "1scSWVZ9YGqydhO84ySDj/cRCrn/WYgwCEJRqUq91JFL"
+      },
+      "cache": {},
+      "nats": {},
+      "pg": {
+        "POSTGRES_PASSWORD": "1scSWVZ9YGqydhO8y\u002BC5B2CBsgxAeSMM86u5H16nyohVvr20"
+      },
+      "clickhouse": {},
+      "smtpdev": {},
+      "apiDb": {},
+      "argon-api": {
+        "ConnectionStrings__DefaultConnection": "1scSWVZ9YGqydhO8FV\u002BQmae09PWk8PwnrxMe7manyogPvL/8scqf7C6ogTPrFlvNyrsrGwwlHwxg9Lg1VAjN7Xe7lZCQQ5FS83R605vOtZhewMF4ltqqUZmHjLdYsE/P",
+        "ConnectionStrings__cache": "1scSWVZ9YGqydhO8\u002BNl/Kz5TEFL2zXR87evme02p2pRX9u701pw=",
+        "ConnectionStrings__clickhouse": "1scSWVZ9YGqydhO8\u002BrcicnHHgadyWei5C72Atka8zYwI4/e3jtaZ/2H4xjqpQn3KyLsgCSEjThVs7KQ9Ux7b7B/r1NA=",
+        "ConnectionStrings__nats": "1scSWVZ9YGqydhO8R3NM/DWjJ\u002BakuGKUSqlxFUCpzY8I4/epgNGeoievhzI="
+      },
+      "argon-entry": {}
+    }
+  },
+  "processAllComponents": true
+}
