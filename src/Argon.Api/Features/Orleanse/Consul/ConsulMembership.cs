@@ -77,7 +77,7 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
         {
             Name    = "Silo",
             Address = entry.SiloAddress.Endpoint.Address.ToString(),
-            Port    = entry.SiloAddress.Endpoint.Port,
+            Port    = entry.ProxyPort,
             ID      = entry.SiloAddress.ToString(),
             Tags    = [entry.HostName, entry.RoleName, entry.SiloName, "silo"],
             Meta    = GenerateMeta(entry),
@@ -141,6 +141,9 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
             },
             {
                 "addr", JsonSerializer.Serialize(entry.SiloAddress, opt)
+            },
+            {
+                "proxy-port", entry.ProxyPort.ToString()
             }
         };
 }

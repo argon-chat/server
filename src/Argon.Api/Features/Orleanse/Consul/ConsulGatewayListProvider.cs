@@ -19,7 +19,7 @@ public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayLis
 
         var gateways = services
            .Response
-           .Select(s => EjectEntry(s.Service).SiloAddress.ToGatewayUri())
+           .Select(s => createSiloAddress(s).ToGatewayUri())
            .ToList();
 
         logger.LogInformation("Found {Count} gateways in Consul", gateways.Count);
@@ -29,15 +29,11 @@ public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayLis
     }
 
 
-    private MembershipEntry EjectEntry(AgentService service)
+    private SiloAddress createSiloAddress(ServiceEntry entry)
     {
-        if (service.Meta.TryGetValue("json", out var json))
-        {
-            var s = JsonSerializer.Deserialize<MembershipEntry>(json)!;
-            s.IAmAliveTime = DateTime.Now - TimeSpan.FromSeconds(10);
-            return s;
-        }
-        throw new InvalidOperationException($"AgentService do not contains json meta");
+        if (!entry.Service.Meta.TryGetValue("gen", out var genStr))
+            throw new InvalidOperationException($"No 'gen' field in ServiceEntry on Consul registered");
+        return SiloAddress.New(IPAddress.Parse(entry.Service.Address), entry.Service.Port, int.Parse(genStr));
     }
 
     public TimeSpan MaxStaleness => TimeSpan.FromSeconds(30);
