@@ -93,7 +93,7 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
                 new AgentServiceCheck
                 {
                     CheckID                        = $"UpdateIAmAlive.{entry.SiloAddress}",
-                    TTL                            = TimeSpan.FromSeconds(30),
+                    TTL                            = TimeSpan.FromSeconds(15),
                     DeregisterCriticalServiceAfter = TimeSpan.FromSeconds(15)
                 }
             ]
@@ -122,7 +122,11 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
     private MembershipEntry EjectEntry(AgentService service)
     {
         if (service.Meta.TryGetValue("json", out var json))
-            return JsonSerializer.Deserialize<MembershipEntry>(json, opt)!;
+        {
+            var s = JsonSerializer.Deserialize<MembershipEntry>(json, opt)!;
+            s.IAmAliveTime = DateTime.Now - TimeSpan.FromSeconds(10);
+            return s;
+        }
         throw new InvalidOperationException($"AgentService do not contains json meta");
     }
 
