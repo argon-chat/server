@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations: {}
+  labels:
+    app: cache
+  name: cache
+spec:
+  ports:
+  - name: tcp
+    port: 6379
+    targetPort: 0
+  selector:
+    app: cache
+  type: ClusterIP

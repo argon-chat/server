@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  annotations: {}
+  labels:
+    app: nats
+  name: nats
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats
+  serviceName: nats
+  template:
+    metadata:
+      annotations: {}
+      labels:
+        app: nats
+    spec:
+      containers:
+      - args:
+        - -sd
+        - /var/lib/nats
+        - -js
+        envFrom:
+        - configMapRef:
+            name: nats
+        image: '{{ .Values.images.nats }}'
+        imagePullPolicy: IfNotPresent
+        name: nats
+        ports:
+        - containerPort: 4222
+          name: tcp
+        - containerPort: 8222
+          name: http
+        volumeMounts:
+        - mountPath: /var/lib/nats
+          name: apphost-feed4158f1-nats-data
+      terminationGracePeriodSeconds: 180
+  volumeClaimTemplates:
+  - metadata:
+      name: apphost-feed4158f1-nats-data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 1Gi
