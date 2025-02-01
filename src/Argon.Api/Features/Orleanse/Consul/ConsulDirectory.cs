@@ -21,10 +21,25 @@ public class ConsulDirectory(IConsulClient client, IOptions<ConsulDirectoryOptio
 
     private readonly ConcurrentDictionary<SiloAddress, string> Sessions = new();
 
-    private async Task<string> EnsureSiloSession(SiloAddress address)
+    private async Task<string> EnsureSiloSession(SiloAddress address, bool useGlobalSearch = false)
     {
         if (Sessions.TryGetValue(address, out var session))
             return session;
+
+        if (useGlobalSearch)
+        {
+            var sessions = await client.Session.List();
+
+            if (sessions.StatusCode != HttpStatusCode.OK)
+                throw new Exception($"Cannot create Silo Session [globalSearch]");
+
+            foreach (var se in sessions.Response)
+            {
+                if (se.Name.Equals(address.ToString()))
+                    return se.ID;
+            }
+            // not found, go create
+        }
 
         var s = await client.Session.Create(new SessionEntry()
         {
@@ -61,6 +76,27 @@ public class ConsulDirectory(IConsulClient client, IOptions<ConsulDirectoryOptio
         };
         await client.KV.Acquire(kvPair);
         return address;
+    }
+
+    public async Task<GrainAddress?> Register(GrainAddress address, GrainAddress? previousAddress)
+    {
+        if (previousAddress is null)
+            return await Register(address);
+
+        if (address.SiloAddress is null || previousAddress.SiloAddress is null)
+            throw new InvalidOperationException($"Cannot release and migrate grain, Register pass null silo address");
+
+        if (address.SiloAddress.Equals(previousAddress.SiloAddress)) // same silo
+            return await Register(address);
+
+
+        var prevKey = ToPath(previousAddress.GrainId);
+        var trx = await client.KV.Txn([new KVTxnOp(prevKey, KVTxnVerb.Unlock), new KVTxnOp(prevKey, KVTxnVerb.Delete)]);
+
+        if (trx.StatusCode != HttpStatusCode.OK || !trx.Response.Success)
+            throw new InvalidOperationException($"Cannot release and migrate grain, consul Txn return error");
+
+        return await Register(address);
     }
 
     public Task Unregister(GrainAddress address)
