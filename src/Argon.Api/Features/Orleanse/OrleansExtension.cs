@@ -36,6 +36,10 @@ public static class OrleansExtension
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
                     options.LivenessEnabled             = false;
+                })
+               .Configure<GrainCollectionOptions>(options =>
+                {
+                    options.CollectionAge = TimeSpan.FromMinutes(2);
                 });
 
             if (builder.Environment.IsKube())
