@@ -1,10 +1,7 @@
 namespace Argon.Api.Features.Orleans.Consul;
 
-using System.Text.Json;
 using global::Consul;
 using global::Orleans.Messaging;
-using global::Orleans.Runtime.Membership;
-using OtpNet;
 
 public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayListProvider> logger) : IGatewayListProvider
 {

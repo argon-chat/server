@@ -37,14 +37,11 @@ public static class OrleansExtension
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
                     options.LivenessEnabled             = false;
                 })
-               .Configure<GrainCollectionOptions>(options =>
-                {
-                    options.CollectionAge = TimeSpan.FromMinutes(2);
-                });
+               .Configure<GrainCollectionOptions>(options => { options.CollectionAge = TimeSpan.FromMinutes(2); });
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                   //.AddActivationRepartitioner<BalanceRule>()
+                    //.AddActivationRepartitioner<BalanceRule>()
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
@@ -63,9 +60,10 @@ public static class OrleansExtension
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
-                   .AddConsulClustering()
-                   .AddConsulGrainDirectory("servers")
-                   .AddConsulGrainDirectory("channels")
+                    //.AddConsulClustering()
+                    //.AddConsulGrainDirectory("servers")
+                    //.AddConsulGrainDirectory("channels")
+                   .UseLocalhostClustering()
                    .AddMemoryStreams(IArgonEvent.ProviderId)
                    .AddMemoryStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
