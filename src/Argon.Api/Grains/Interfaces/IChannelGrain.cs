@@ -1,6 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
 using Argon.Servers;
+using Orleans.Concurrency;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
 public interface IChannelGrain : IGrainWithGuidKey
@@ -19,6 +20,9 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();
+
+    [OneWay, Alias("ClearChannel")]
+    Task ClearChannel();
 }
 
 [MessagePackObject(true)]

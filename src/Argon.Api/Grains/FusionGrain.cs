@@ -37,8 +37,7 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         userStream = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10))
         {
-            KeepAlive = true,
-            Interleave = true
+            KeepAlive = true
         });
 
 

@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Features.Rpc;
+using Orleans.Concurrency;
 using Orleans.GrainDirectory;
 using Orleans.Providers;
 using Persistence.States;
@@ -35,10 +36,20 @@ public class ChannelGrain(
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-        => await _userStateEmitter.DisposeAsync();
+    {
+        await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
+        await _userStateEmitter.DisposeAsync();
+    }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
+
+    [OneWay]
+    public Task ClearChannel()
+    {
+        GrainContext.Deactivate(new DeactivationReason(DeactivationReasonCode.None, ""));
+        return Task.CompletedTask;
+    }
 
 
     public async Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId)
