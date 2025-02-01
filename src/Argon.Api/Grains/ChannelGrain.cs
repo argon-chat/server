@@ -70,6 +70,9 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
+        if (userId == Guid.Empty)
+            throw new InvalidOperationException($"Leave Guid Empty");
+
         state.State.Users.Remove(userId);
         await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
         await sfu.KickParticipantAsync(userId, ChannelId);

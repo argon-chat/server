@@ -36,7 +36,7 @@ public class ServerGrain(
         await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId);
         await UserJoined(creatorId);
         return await GetServer();
-    }   
+    }
 
     public async Task<Server> GetServer()
     {
@@ -60,7 +60,7 @@ public class ServerGrain(
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
         ctx.Servers.Update(server);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified(/*ObjDiff.Compare(copy, server)*/[]));
+        await _serverEvents.Fire(new ServerModified( /*ObjDiff.Compare(copy, server)*/[]));
         return await ctx.Servers
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
@@ -78,7 +78,9 @@ public class ServerGrain(
         return members.Select(x => new RealtimeServerMember
         {
             Member = x,
-            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var status) ? status : UserStatus.Offline
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 10 ? item.Status : UserStatus.Offline
+                : UserStatus.Offline
         }).ToList();
     }
 
@@ -116,12 +118,12 @@ public class ServerGrain(
     public async ValueTask UserJoined(Guid userId)
     {
         await _serverEvents.Fire(new JoinToServerUser(userId));
-        await SetUserStatus(userId, UserStatus.Offline);
+        await SetUserStatus(userId, UserStatus.Online);
     }
 
     public async ValueTask SetUserStatus(Guid userId, UserStatus status)
     {
-        state.State.UserStatuses[userId] = status;
+        state.State.UserStatuses[userId] = (DateTime.UtcNow, status);
         await _serverEvents.Fire(new UserChangedStatus(userId, status, []));
     }
 

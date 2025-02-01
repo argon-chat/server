@@ -1,5 +1,6 @@
 namespace Argon.Api.Features.Orleans.Consul;
 
+using System.Linq;
 using System.Text.Json;
 using global::Consul;
 using global::Consul.Filtering;
@@ -62,12 +63,12 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
     public async Task<MembershipTableData> ReadAll()
     {
         var services = await client.Health.Service("Silo", "silo", true);
-
+        var table    = await GetTableVersion();
         var list = services.Response
-           .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), ""))
+           .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), table.VersionEtag))
            .ToList();
 
-        return new MembershipTableData(list, await GetTableVersion());
+        return new MembershipTableData(list, table);
     }
 
 

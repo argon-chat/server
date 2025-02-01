@@ -11,5 +11,5 @@ public sealed partial record ChannelGrainState
 public sealed partial record RealtimeServerGrainState
 {
     [DataMember(Order = 0), Id(0)]
-    public Dictionary<Guid, UserStatus> UserStatuses { get; set; } = new();
+    public Dictionary<Guid, (DateTime lastSetStatus, UserStatus Status)> UserStatuses { get; set; } = new();
 }
