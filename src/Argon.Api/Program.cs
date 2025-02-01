@@ -1,3 +1,4 @@
+using Argon.Api.Features.Orleans.Consul;
 using Argon.Api.Migrations;
 using Argon.Features.Auth;
 using Argon.Features.Captcha;
@@ -26,7 +27,7 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-//builder.AddNatsStreaming();
+builder.AddConsul();
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();

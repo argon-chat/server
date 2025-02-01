@@ -1,11 +1,13 @@
 namespace Argon.Grains;
 
 using Features.Rpc;
+using Orleans.GrainDirectory;
 using Orleans.Providers;
 using Persistence.States;
 using Sfu;
 using Servers;
 
+[GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,

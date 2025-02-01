@@ -1,11 +1,10 @@
 namespace Argon.Features;
 
+using Api.Features.Orleans.Consul;
 using Env;
 using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
-using Orleans.Streams;
-using OrleansStreamingProviders.V2;
 using Sentry;
 
 #pragma warning disable ORLEANSEXP001
@@ -32,41 +31,19 @@ public static class OrleansExtension
                 {
                     x.Invariant        = "Npgsql";
                     x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+                })
+               .Configure<ClusterMembershipOptions>(options =>
+                {
+                    options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(15);
                 });
 
             if (builder.Environment.IsKube())
                 siloBuilder
                    .AddActivationRepartitioner<BalanceRule>()
-                    //.AddEventHubStreams("default", (configurator) =>
-                    // {
-                    //     configurator.ConfigureEventHub(q => q.Configure(options =>
-                    //     {
-                    //         options.ConfigureEventHubConnection(
-                    //             builder.Configuration.GetConnectionString("azure-hub"),
-                    //             "default",
-                    //             "default");
-                    //     }));
-                    //     configurator.UseAzureTableCheckpointer(
-                    //         e => e.Configure(options =>
-                    //         {
-                    //             options.ConfigureTableServiceClient(builder.Configuration.GetConnectionString("azure-hub"));
-                    //             options.PersistInterval = TimeSpan.FromSeconds(10);
-                    //         }));
-                    // })
-                    //.AddEventHubStreams(IArgonEvent.ProviderId, (configurator) => {
-                    //     configurator.ConfigureEventHub(q => q.Configure(options => {
-                    //         options.ConfigureEventHubConnection(
-                    //             builder.Configuration.GetConnectionString("azure-hub"),
-                    //             IArgonEvent.ProviderId,
-                    //             IArgonEvent.ProviderId);
-                    //     }));
-                    //     configurator.UseAzureTableCheckpointer(
-                    //         e => e.Configure(options => {
-                    //             options.ConfigureTableServiceClient(builder.Configuration.GetConnectionString("azure-hub"));
-                    //             options.PersistInterval = TimeSpan.FromSeconds(10);
-                    //         }));
-                    // })
-                   .AddAdoNetStreams("default", (AdoNetStreamOptions x) =>
+                   .AddConsulGrainDirectory("servers")
+                   .AddConsulGrainDirectory("channels")
+                   .AddConsulClustering()
+                   .AddAdoNetStreams("default", x =>
                     {
                         x.Invariant        = "Npgsql";
                         x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -78,25 +55,12 @@ public static class OrleansExtension
                         x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                         x.MaxAttempts      = 1;
                     })
-                    //.AddNatsStreams("default", x =>
-                    // {
-                    //     x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-                    // })
-                    //.AddNatsStreams(IArgonEvent.ProviderId, x => {
-                    //     x.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-                    // })
-
-                    //.AddPersistentStreams("default", NatsAdapterFactory.Create, _ => { })
-                    //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
-                   .UseAdoNetClustering(x =>
-                    {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                    })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
-                   .UseLocalhostClustering()
+                   .AddConsulClustering()
+                   .AddConsulGrainDirectory("servers")
+                   .AddConsulGrainDirectory("channels")
                    .AddMemoryStreams(IArgonEvent.ProviderId)
                    .AddMemoryStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);

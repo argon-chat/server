@@ -2,8 +2,10 @@ namespace Argon.Grains;
 
 using Argon.Features.Rpc;
 using Features.Repositories;
+using Orleans.GrainDirectory;
 using Persistence.States;
 
+[GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
     [PersistentState("realtime-server", IFusionSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,

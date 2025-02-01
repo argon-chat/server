@@ -1,6 +1,7 @@
 using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Argon;
+using Argon.Api.Features.Orleans.Consul;
 using Argon.Controllers;
 using Argon.Extensions;
 using Argon.Features.Env;
@@ -27,6 +28,7 @@ builder.AddVaultConfiguration();
 builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
+builder.AddConsul();
 builder.Services.AddServerTiming();
 builder.WebHost.UseQuic();
 builder.AddRedisClient("cache");
@@ -69,24 +71,9 @@ builder.Services
                 x.Invariant        = "Npgsql";
                 x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
             })
-
-           //.AddNatsStreams("default", options =>
-           // {
-           //     options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-           // })
-           //.AddNatsStreams(IArgonEvent.ProviderId, options => {
-           //     options.ConnectionString = builder.Configuration.GetConnectionString("nats")!;
-           // })
-
-           //.AddPersistentStreams("default", NatsAdapterFactory.Create, options => { })
-           //.AddPersistentStreams(IArgonEvent.ProviderId, NatsAdapterFactory.Create, _ => { })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
         if (builder.Environment.IsProduction())
-            x.UseAdoNetClustering(x =>
-            {
-                x.Invariant        = "Npgsql";
-                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            });
+            x.AddConsulClustering();
         else
             x.UseLocalhostClustering();
     });
