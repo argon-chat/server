@@ -48,7 +48,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
         else
         {
             logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-            var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(user.machineId);
+            var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(Guid.NewGuid());
             await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
             var stream = await clusterClient.Streams().CreateClientStream(user.id, sequence, eventId);
             await HandleLoopAsync(stream, conn);

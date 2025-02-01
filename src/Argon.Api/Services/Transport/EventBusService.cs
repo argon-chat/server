@@ -11,7 +11,7 @@ public class EventBusService(IClusterClient clusterClient) : IEventBus
     {
         var user      = this.GetUser();
 
-        await clusterClient.GetGrain<IFusionSessionGrain>(user.machineId)
+        await clusterClient.GetGrain<IFusionSessionGrain>(Guid.NewGuid())
            .BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
 
         //ArgonTransportContext.Current.SubscribeToDisconnect(
