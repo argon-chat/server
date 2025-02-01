@@ -21,13 +21,6 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
     {
         if (refreshTimer is not null)
             refreshTimer.Dispose();
-        var servers = await grainFactory
-           .GetGrain<IUserGrain>(_userId)
-           .GetMyServersIds();
-        foreach (var server in servers)
-            await grainFactory
-               .GetGrain<IServerGrain>(server)
-               .SetUserStatus(_userId, UserStatus.Offline);
         if (_activeChannelId != Guid.Empty)
             await grainFactory
                .GetGrain<IChannelGrain>(_activeChannelId)
@@ -45,8 +38,10 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10))
         {
             KeepAlive = true,
+            Interleave = true
         });
-        
+
+
         await grainFactory
            .GetGrain<IUserMachineSessions>(userId)
            .IndicateLastActive(machineKey);
