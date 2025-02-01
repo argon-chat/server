@@ -59,7 +59,7 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
 
         var totalCpu = metrics.Items
            .Select(node => node.Usage["cpu"])
-           .Select(cpuUsageStr => ParseCpuUsage(cpuUsageStr.Value))
+           .Select(cpuUsageStr => ParseCpuUsage(cpuUsageStr.Value) / 1000)
            .Aggregate<double, double>(0, (current, cpuUsage) => current + cpuUsage);
 
 

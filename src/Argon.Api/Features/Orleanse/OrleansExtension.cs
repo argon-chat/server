@@ -40,7 +40,7 @@ public static class OrleansExtension
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                   .AddActivationRepartitioner<BalanceRule>()
+                   //.AddActivationRepartitioner<BalanceRule>()
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()

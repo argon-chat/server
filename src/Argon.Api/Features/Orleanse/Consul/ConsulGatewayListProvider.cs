@@ -1,8 +1,10 @@
 namespace Argon.Api.Features.Orleans.Consul;
 
+using System.Text.Json;
 using global::Consul;
 using global::Orleans.Messaging;
 using global::Orleans.Runtime.Membership;
+using OtpNet;
 
 public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayListProvider> logger) : IGatewayListProvider
 {
@@ -17,7 +19,7 @@ public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayLis
 
         var gateways = services
            .Response
-           .Select(s => createSiloAddress(s).ToGatewayUri())
+           .Select(s => EjectEntry(s.Service).SiloAddress.ToGatewayUri())
            .ToList();
 
         logger.LogInformation("Found {Count} gateways in Consul", gateways.Count);
@@ -27,11 +29,15 @@ public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayLis
     }
 
 
-    private SiloAddress createSiloAddress(ServiceEntry entry)
+    private MembershipEntry EjectEntry(AgentService service)
     {
-        if (!entry.Service.Meta.TryGetValue("gen", out var genStr))
-            throw new InvalidOperationException($"No 'gen' field in ServiceEntry on Consul registered");
-        return SiloAddress.New(IPAddress.Parse(entry.Service.Address), entry.Service.Port, int.Parse(genStr));
+        if (service.Meta.TryGetValue("json", out var json))
+        {
+            var s = JsonSerializer.Deserialize<MembershipEntry>(json)!;
+            s.IAmAliveTime = DateTime.Now - TimeSpan.FromSeconds(10);
+            return s;
+        }
+        throw new InvalidOperationException($"AgentService do not contains json meta");
     }
 
     public TimeSpan MaxStaleness => TimeSpan.FromSeconds(30);
