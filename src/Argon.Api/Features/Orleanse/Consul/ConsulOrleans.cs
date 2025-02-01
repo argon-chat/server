@@ -3,14 +3,14 @@ namespace Argon.Api.Features.Orleans.Consul;
 using global::Consul;
 using global::Orleans.Messaging;
 using global::Orleans.Runtime.Hosting;
-using global::Orleans.Runtime.Membership;
+using Microsoft.Extensions.DependencyInjection;
 
 public static class ConsulOrleans
 {
     public static WebApplicationBuilder AddConsul(this WebApplicationBuilder builder)
     {
-        
-        builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient());
+        builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection("Consul"));
+        builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
         return builder;
     }
 
