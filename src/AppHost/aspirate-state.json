@@ -5,7 +5,7 @@
     "latest"
   ],
   "containerBuilder": "docker",
-  "outputFormat": "helm",
+  "outputFormat": "compose",
   "privateRegistryEmail": "aspir8@aka.ms",
   "includeDashboard": true,
   "secrets": {
