@@ -27,7 +27,7 @@ builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"))
 builder.AddServiceDefaults();
 builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
-builder.AddConsul();
+builder.AddConsul("SiloConsul");
 builder.AddPooledDatabase<ApplicationDbContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();

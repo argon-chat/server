@@ -7,9 +7,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 public static class ConsulOrleans
 {
-    public static WebApplicationBuilder AddConsul(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddConsul(this WebApplicationBuilder builder, string key)
     {
-        builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection("Consul"));
+        builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
         builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
         return builder;
     }

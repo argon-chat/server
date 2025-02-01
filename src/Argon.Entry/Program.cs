@@ -28,7 +28,7 @@ builder.AddVaultConfiguration();
 builder.AddLogging();
 builder.UseMessagePack();
 builder.AddSentry();
-builder.AddConsul();
+builder.AddConsul("ClusterConsul");
 builder.Services.AddServerTiming();
 builder.WebHost.UseQuic();
 builder.AddRedisClient("cache");

@@ -35,6 +35,7 @@ public static class OrleansExtension
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
+                    options.LivenessEnabled             = false;
                 });
 
             if (builder.Environment.IsKube())
