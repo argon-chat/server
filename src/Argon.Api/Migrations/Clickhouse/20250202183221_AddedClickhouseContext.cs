@@ -136,30 +136,36 @@ namespace Argon.Api.Migrations.Clickhouse
                         principalColumn: "Id");
                 });
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Documents_CreatorId",
-                table: "Documents",
-                column: "CreatorId");
+            // migrationBuilder.CreateIndex(
+            //     name: "IX_Documents_CreatorId",
+            //     table: "Documents",
+            //     column: "CreatorId");
+            //
+            // migrationBuilder.CreateIndex(
+            //     name: "IX_Entities_CreatorId",
+            //     table: "Entities",
+            //     column: "CreatorId");
+            //
+            // migrationBuilder.CreateIndex(
+            //     name: "IX_Images_CreatorId",
+            //     table: "Images",
+            //     column: "CreatorId");
+            //
+            // migrationBuilder.CreateIndex(
+            //     name: "IX_Messages_CreatorId",
+            //     table: "Messages",
+            //     column: "CreatorId");
+            //
+            // migrationBuilder.CreateIndex(
+            //     name: "IX_Stickers_CreatorId",
+            //     table: "Stickers",
+            //     column: "CreatorId");
+            migrationBuilder.Sql("CREATE INDEX IX_Documents_CreatorId ON Documents (CreatorId) TYPE hash");
+            migrationBuilder.Sql("CREATE INDEX IX_Entities_CreatorId ON Entities (CreatorId) TYPE hash");
+            migrationBuilder.Sql("CREATE INDEX IX_Images_CreatorId ON Images (CreatorId) TYPE hash");
+            migrationBuilder.Sql("CREATE INDEX IX_Messages_CreatorId ON Messages (CreatorId) TYPE hash");
+            migrationBuilder.Sql("CREATE INDEX IX_Stickers_CreatorId ON Stickers (CreatorId) TYPE hash");
 
-            migrationBuilder.CreateIndex(
-                name: "IX_Entities_CreatorId",
-                table: "Entities",
-                column: "CreatorId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Images_CreatorId",
-                table: "Images",
-                column: "CreatorId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Messages_CreatorId",
-                table: "Messages",
-                column: "CreatorId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Stickers_CreatorId",
-                table: "Stickers",
-                column: "CreatorId");
         }
 
         /// <inheritdoc />
