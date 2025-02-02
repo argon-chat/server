@@ -42,9 +42,27 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
-    public Task<List<ArgonMessage>> GetMessages(int count, int offset)
+    public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
     {
-        
+        await using var ctx   = await click.CreateDbContextAsync();
+        await using var pgCtx = await context.CreateDbContextAsync();
+        var messages = await ctx.Messages
+           .Where(m => m.ChannelId == this.GetPrimaryKey())
+           .OrderByDescending(m => m.CreatedAt)
+           .Skip(offset)
+           .Take(count)
+           .Include(m => m.Document)
+           .Include(m => m.Image)
+           .Include(m => m.Sticker)
+           .Include(m => m.Entities)
+           .ToListAsync();
+
+        foreach (var message in messages)
+        {
+            message.UserName = (await pgCtx.Users.FirstOrDefaultAsync(y => y.Id == message.CreatorId))?.DisplayName ?? "Deleted user";
+        }
+
+        return messages;
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
@@ -115,8 +133,20 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public Task<ArgonMessage> SendMessage(ArgonMessage message)
-        => throw new NotImplementedException();
+    public async Task<ArgonMessage> SendMessage(ArgonMessage message)
+    {
+        await using var ctx = await click.CreateDbContextAsync();
+
+        message.Id        = Guid.NewGuid();
+        message.ChannelId = this.GetPrimaryKey();
+        message.CreatedAt = DateTime.UtcNow;
+        message.UpdatedAt = DateTime.UtcNow;
+
+        await ctx.Messages.AddAsync(message);
+        await ctx.SaveChangesAsync();
+
+        return message;
+    }
 
     private async Task<Channel> Get()
     {

@@ -20,9 +20,8 @@ public enum EntityType : ushort
 }
 
 [TsInterface, MessagePackObject(true)]
-public record Entity : ArgonEntityWithOwnership, IArchetypeObject
+public record MessageEntity : ArgonEntityWithOwnership
 {
-    public ICollection<IArchetypeOverwrite> Overwrites { get; }
     public Guid                             MessageId  { get; set; }
     public EntityType                       Type       { get; set; }
     public int                              Offset     { get; set; }
@@ -33,9 +32,8 @@ public record Entity : ArgonEntityWithOwnership, IArchetypeObject
 }
 
 [TsInterface, MessagePackObject(true)]
-public record Sticker : ArgonEntityWithOwnership, IArchetypeObject
+public record Sticker : ArgonEntityWithOwnership
 {
-    public ICollection<IArchetypeOverwrite> Overwrites { get; }
     public Guid                             MessageId  { get; set; }
     public bool                             IsAnimated { get; set; }
     public string                           Emoji      { get; set; }
@@ -45,9 +43,8 @@ public record Sticker : ArgonEntityWithOwnership, IArchetypeObject
 }
 
 [TsInterface, MessagePackObject(true)]
-public record Document : ArgonEntityWithOwnership, IArchetypeObject
+public record MessageDocument : ArgonEntityWithOwnership
 {
-    public ICollection<IArchetypeOverwrite> Overwrites { get; }
     public Guid                             MessageId  { get; set; }
     public string                           FileName   { get; set; }
     public string                           MimeType   { get; set; }
@@ -58,9 +55,8 @@ public record Document : ArgonEntityWithOwnership, IArchetypeObject
 }
 
 [TsInterface, MessagePackObject(true)]
-public record Image : ArgonEntityWithOwnership, IArchetypeObject
+public record MessageImage : ArgonEntityWithOwnership
 {
-    public ICollection<IArchetypeOverwrite> Overwrites { get; }
     public Guid                             MessageId  { get; set; }
     public string                           FileName   { get; set; }
     public string                           MimeType   { get; set; }
@@ -74,9 +70,8 @@ public record Image : ArgonEntityWithOwnership, IArchetypeObject
 }
 
 [TsInterface, MessagePackObject(true)]
-public record ArgonMessage : ArgonEntityWithOwnership, IArchetypeObject
+public record ArgonMessage : ArgonEntityWithOwnership
 {
-    public ICollection<IArchetypeOverwrite> Overwrites { get; }
 
     public Guid ChannelId      { get; set; }
     public Guid ReplyToMessage { get; set; }
@@ -85,10 +80,10 @@ public record ArgonMessage : ArgonEntityWithOwnership, IArchetypeObject
     public string Text { get; set; }
     [NotMapped]
     public string? UserName { get;      set; }
-    public Document?    Document { get; set; }
-    public List<Image>? Image    { get; set; } = new();
+    public MessageDocument?    Document { get; set; }
+    public List<MessageImage>? Image    { get; set; } = new();
     public Sticker?     Sticker  { get; set; }
-    public List<Entity> Entities { get; set; } = new();
+    public List<MessageEntity> Entities { get; set; } = new();
 
     public bool IsEmpty() => string.IsNullOrEmpty(Text) && string.IsNullOrWhiteSpace(Text) && Document is null
                              && Image is null && Sticker is null && Entities.Count == 0;
