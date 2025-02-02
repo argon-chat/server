@@ -39,8 +39,9 @@ public record Sticker : ArgonEntityWithOwnership, IArchetypeObject
     public Guid                             MessageId  { get; set; }
     public bool                             IsAnimated { get; set; }
     public string                           Emoji      { get; set; }
+    public Guid                             FileId     { get; set; }
     [JsonIgnore, TsIgnore, ForeignKey(nameof(MessageId))]
-    public Guid FileId { get; set; }
+    public ArgonMessage ArgonMessage { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]
@@ -50,9 +51,10 @@ public record Document : ArgonEntityWithOwnership, IArchetypeObject
     public Guid                             MessageId  { get; set; }
     public string                           FileName   { get; set; }
     public string                           MimeType   { get; set; }
+    public ulong                            FileSize   { get; set; }
     public Guid                             FileId     { get; set; }
     [JsonIgnore, TsIgnore, ForeignKey(nameof(MessageId))]
-    public ulong FileSize { get; set; }
+    public ArgonMessage ArgonMessage { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]
@@ -66,8 +68,9 @@ public record Image : ArgonEntityWithOwnership, IArchetypeObject
     public Guid                             FileId     { get; set; }
     public int                              Width      { get; set; }
     public int                              Height     { get; set; }
+    public ulong                            FileSize   { get; set; }
     [JsonIgnore, TsIgnore, ForeignKey(nameof(MessageId))]
-    public ulong FileSize { get; set; }
+    public ArgonMessage ArgonMessage { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]
