@@ -72,9 +72,8 @@ public record MessageImage : ArgonEntityWithOwnership
 [TsInterface, MessagePackObject(true)]
 public record ArgonMessage : ArgonEntityWithOwnership
 {
-
     public Guid ChannelId      { get; set; }
-    public Guid ReplyToMessage { get; set; }
+    public Guid? ReplyToMessage { get; set; }
 
     [MaxLength(1024)]
     public string Text { get; set; }
