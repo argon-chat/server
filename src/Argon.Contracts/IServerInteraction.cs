@@ -12,6 +12,8 @@ public interface IServerInteraction : IArgonService
     Task                        DeleteChannel(Guid serverId, Guid channelId);
     Task<List<RealtimeChannel>> GetChannels(Guid serverId);
 
+    Task<List<ArgonMessage>> GetMessages(Guid channelId, int count, int offset);
+    Task                     SendMessage(ArgonMessage message);
 
     Task<List<RealtimeServerMember>> GetMembers(Guid serverId);
 

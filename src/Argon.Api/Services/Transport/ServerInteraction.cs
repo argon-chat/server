@@ -54,6 +54,14 @@ public class ServerInteraction(IGrainFactory grainFactory) : IServerInteraction
            .CreateInviteLinkAsync(user.id, expiration);
     }
 
+    public Task SendMessage(ArgonMessage message) => grainFactory
+       .GetGrain<IChannelGrain>(message.ChannelId)
+       .SendMessage(message);
+
+    public Task<List<ArgonMessage>> GetMessages(Guid channelId, int count, int offset) => grainFactory
+       .GetGrain<IChannelGrain>(channelId)
+       .GetMessages(count, offset);
+
     // TODO use access key
     public Task<User> PrefetchUser(Guid serverId, Guid userId)
         => grainFactory.GetGrain<IUserGrain>(userId).GetMe();

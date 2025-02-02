@@ -20,7 +20,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Channel> UpdateChannel(ChannelInput input);
 
     [Alias(nameof(SendMessage))]
-    Task<ArgonMessage> SendMessage(ArgonMessage message);
+    Task SendMessage(ArgonMessage message);
 
     [Alias(nameof(GetMessages))]
     Task<List<ArgonMessage>> GetMessages(int count, int offset);

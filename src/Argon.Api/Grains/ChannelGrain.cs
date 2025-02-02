@@ -44,8 +44,7 @@ public class ChannelGrain(
 
     public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
     {
-        await using var ctx   = await click.CreateDbContextAsync();
-        await using var pgCtx = await context.CreateDbContextAsync();
+        await using var ctx = await click.CreateDbContextAsync();
         var messages = await ctx.Messages
            .Where(m => m.ChannelId == this.GetPrimaryKey())
            .OrderByDescending(m => m.CreatedAt)
@@ -56,11 +55,6 @@ public class ChannelGrain(
            .Include(m => m.Sticker)
            .Include(m => m.Entities)
            .ToListAsync();
-
-        foreach (var message in messages)
-        {
-            message.UserName = (await pgCtx.Users.FirstOrDefaultAsync(y => y.Id == message.CreatorId))?.DisplayName ?? "Deleted user";
-        }
 
         return messages;
     }
@@ -133,19 +127,18 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task<ArgonMessage> SendMessage(ArgonMessage message)
+    public async Task SendMessage(ArgonMessage message)
     {
-        await using var ctx = await click.CreateDbContextAsync();
+        if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
 
+        await using var ctx = await click.CreateDbContextAsync();
         message.Id        = Guid.NewGuid();
         message.ChannelId = this.GetPrimaryKey();
-        message.CreatedAt = DateTime.UtcNow;
-        message.UpdatedAt = DateTime.UtcNow;
 
-        await ctx.Messages.AddAsync(message);
+        var e = await ctx.Messages.AddAsync(message);
         await ctx.SaveChangesAsync();
 
-        return message;
+        await _userStateEmitter.Fire(new MessageSent(e.Entity));
     }
 
     private async Task<Channel> Get()
