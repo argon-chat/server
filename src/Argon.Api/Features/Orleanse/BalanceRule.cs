@@ -15,13 +15,13 @@ public static class KubeExtensions
 
         if (builder.Environment.IsKube())
         {
-            var config = KubernetesClientConfiguration.InClusterConfig();
-            services.AddSingleton(config);
-            services.AddSingleton<IKubernetes>(new Kubernetes(config));
+            //    var config = KubernetesClientConfiguration.InClusterConfig();
+            //    services.AddSingleton(config);
+            //    services.AddSingleton<IKubernetes>(new Kubernetes(config));
         }
 
-        services.AddHostedService<KubePolling>();
-        services.AddSingleton<IKubeResources, KubeResources>();
+        //services.AddHostedService<KubePolling>();
+        //services.AddSingleton<IKubeResources, KubeResources>();
 
         return services;
     }
