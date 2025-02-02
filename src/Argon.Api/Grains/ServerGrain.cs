@@ -5,7 +5,7 @@ using Features.Repositories;
 using Orleans.GrainDirectory;
 using Persistence.States;
 
-[GrainDirectory(GrainDirectoryName = "servers")]
+// [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
     [PersistentState("realtime-server", IUserSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,

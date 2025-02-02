@@ -8,7 +8,7 @@ using Persistence.States;
 using Sfu;
 using Servers;
 
-[GrainDirectory(GrainDirectoryName = "channels")]
+// [GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
@@ -40,6 +40,9 @@ public class ChannelGrain(
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
         await _userStateEmitter.DisposeAsync();
     }
+
+    public Task<List<ArgonMessage>> GetMessages(int count, int offset)
+        => throw new NotImplementedException();
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
@@ -108,6 +111,9 @@ public class ChannelGrain(
         await ctx.SaveChangesAsync();
         return (await Get());
     }
+
+    public Task<ArgonMessage> SendMessage(ArgonMessage message)
+        => throw new NotImplementedException();
 
     private async Task<Channel> Get()
     {
