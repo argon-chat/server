@@ -13,7 +13,8 @@ public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
-    IDbContextFactory<ApplicationDbContext> context) : Grain, IChannelGrain
+    IDbContextFactory<ApplicationDbContext> context,
+    IDbContextFactory<ClickhouseContext> click) : Grain, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -42,7 +43,9 @@ public class ChannelGrain(
     }
 
     public Task<List<ArgonMessage>> GetMessages(int count, int offset)
-        => throw new NotImplementedException();
+    {
+        
+    }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
@@ -67,7 +70,7 @@ public class ChannelGrain(
             state.State.Users.Add(userId, new RealtimeChannelUser()
             {
                 UserId = userId,
-                State = ChannelMemberState.NONE
+                State  = ChannelMemberState.NONE
             });
             await state.WriteStateAsync();
         }
@@ -122,7 +125,6 @@ public class ChannelGrain(
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 }
-
 
 public enum ChannelUserChangedStateEvent
 {

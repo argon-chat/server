@@ -82,7 +82,9 @@ public record ArgonMessage : ArgonEntityWithOwnership, IArchetypeObject
     public Guid ReplyToMessage { get; set; }
 
     [MaxLength(1024)]
-    public string Text { get;           set; }
+    public string Text { get; set; }
+    [NotMapped]
+    public string? UserName { get;      set; }
     public Document?    Document { get; set; }
     public List<Image>? Image    { get; set; } = new();
     public Sticker?     Sticker  { get; set; }
