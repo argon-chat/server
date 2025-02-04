@@ -4,7 +4,7 @@ using Features.Jwt;
 using Features.Rpc;
 using static DeactivationReasonCode;
 
-public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClient) : Grain, IFusionSessionGrain
+public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClient, ILogger<IFusionSessionGrain> logger) : Grain, IFusionSessionGrain
 {
     private Guid _userId;
     private Guid _machineId;
@@ -19,6 +19,10 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        if (reason.ReasonCode != ApplicationRequested)
+            logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
+
+        logger.LogWarning("Deactivated user session grain!, {reason}", reason);
         if (refreshTimer is not null)
             refreshTimer.Dispose();
         if (_activeChannelId != Guid.Empty)
