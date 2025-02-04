@@ -1,10 +1,12 @@
 namespace Argon.Services;
 
+using System.IO;
 using System.Net;
 using Argon.Features.Rpc;
 using Features.Jwt;
 using Grpc.Core;
 using Microsoft.AspNetCore.Connections;
+using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Net.Http.Headers;
 
@@ -68,8 +70,10 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
                 var msg    = MessagePackSerializer.Serialize(evType, item);
                 try
                 {
-                    var result = ctx.Transport.Output.WriteAsync(msg);
-                    if (result.IsCompletedSuccessfully)
+                    var result = ctx.Transport.Output.WriteAsync(msg, ctx.ConnectionClosed);
+
+                    var flushResult = await ctx.Transport.Output.FlushAsync(ctx.ConnectionClosed);
+                    if (result.IsCompletedSuccessfully && flushResult.IsCompleted)
                         continue;
                     break;
                 }
@@ -164,11 +168,11 @@ public static class RpcServiceCollectionExtensions
             return;
         }
 
-        var session = await wt.AcceptAsync();
+        var session = await wt.AcceptAsync(ctx.RequestAborted);
 
         logger.LogInformation("Web Transport session accepted");
-
         var conn = await session.AcceptStreamAsync(ctx.RequestAborted);
+
 
         logger.LogInformation("Web Transport stream created");
 

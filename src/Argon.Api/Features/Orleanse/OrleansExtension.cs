@@ -39,7 +39,7 @@ public static class OrleansExtension
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
-                    options.CollectionAge = TimeSpan.FromMinutes(2);
+                    options.CollectionAge = TimeSpan.FromMinutes(4);
                     options.CollectionQuantum = TimeSpan.FromMinutes(2);
                 });
 
