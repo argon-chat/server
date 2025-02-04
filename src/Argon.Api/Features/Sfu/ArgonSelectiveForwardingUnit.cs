@@ -42,6 +42,7 @@ public class ArgonSelectiveForwardingUnit(
     {
         try
         {
+            logger.LogInformation("Goto kick '{userId}' from '{channelId}' channel in '{serverId}' server", userId.id, channelId.channelId, channelId.serverId);
             await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
             {
                 Identity = userId.ToRawIdentity(),
@@ -56,7 +57,8 @@ public class ArgonSelectiveForwardingUnit(
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, $"Failed kick user");
+            logger.LogCritical(e, "Failed kick user from '{userId}' from '{channelId}' channel in '{serverId}' server", 
+                userId.id, channelId.channelId, channelId.serverId);
             return false;
         }
     }
