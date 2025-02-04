@@ -8,18 +8,22 @@ public static class LoggingFeature
 {
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsKube())
-        {
-            Log.Logger = new LoggerConfiguration()
-               .Enrich.FromLogContext()
-               .WriteTo.Console(new JsonFormatter(renderMessage: true))
-               .CreateLogger();
+        if (!builder.Environment.IsKube()) 
+            return builder;
 
-            builder.Logging
-               .AddSerilog();
-            builder.Services
-               .AddSerilog();
-        }
+        Log.Logger = new LoggerConfiguration()
+           .Enrich.FromLogContext()
+           .WriteTo.Console(new JsonFormatter(renderMessage: true))
+           .CreateLogger();
+
+
+        AppDomain.CurrentDomain.UnhandledException += (_, args) 
+            => Log.Logger.Error(args.ExceptionObject as Exception, "App Crashed");
+
+        builder.Logging
+           .AddSerilog();
+        builder.Services
+           .AddSerilog();
 
         return builder;
     }
