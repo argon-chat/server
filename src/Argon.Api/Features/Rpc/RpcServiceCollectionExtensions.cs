@@ -72,8 +72,8 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClien
                 {
                     var result = ctx.Transport.Output.WriteAsync(msg, ctx.ConnectionClosed);
 
-                    var flushResult = await ctx.Transport.Output.FlushAsync(ctx.ConnectionClosed);
-                    if (result.IsCompletedSuccessfully && flushResult.IsCompleted)
+                    await ctx.Transport.Output.FlushAsync(ctx.ConnectionClosed);
+                    if (result.IsCompletedSuccessfully)
                         continue;
                     break;
                 }
