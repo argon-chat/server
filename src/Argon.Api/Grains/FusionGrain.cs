@@ -70,7 +70,7 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, UserStatus.Online);
-        await this.GrainFactory.GetGrain<IFusionSessionGrain>(this.GetPrimaryKey()).HasSessionActive();
+        this.DelayDeactivation(TimeSpan.FromMinutes(5));
     }
 
     public ValueTask EndRealtimeSession()
