@@ -52,13 +52,10 @@ public class AuthorizationGrain(
             return AuthorizationError.BAD_OTP;
         }
 
-        var machineSessions = grainFactory.GetGrain<IUserMachineSessions>(user.Id);
-        var machineId       = await machineSessions.CreateMachineKey(connectionInfo);
-
         user.OtpHash = null;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
-        return await GenerateJwt(user, machineId);
+        return await GenerateJwt(user, Guid.NewGuid());
     }
 
     public async Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
@@ -126,9 +123,7 @@ public class AuthorizationGrain(
         if (user is null)
             return RegistrationError.INTERNAL_ERROR;
 
-        var machineSessions = grainFactory.GetGrain<IUserMachineSessions>(user.Id);
-        var machineId = await machineSessions.CreateMachineKey(connectionInfo);
-        return await GenerateJwt(user, machineId);
+        return await GenerateJwt(user, Guid.NewGuid());
     }
 
     private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);

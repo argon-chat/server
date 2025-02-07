@@ -1,40 +1,37 @@
 namespace Argon.Grains.Interfaces;
 
-[Alias("Argon.Grains.Interfaces.IServerGrain")]
+[Alias($"Argon.Grains.Interfaces.{nameof(IServerGrain)}")]
 public interface IServerGrain : IGrainWithGuidKey
 {
-    [Alias("CreateServer")]
+    [Alias(nameof(CreateServer))]
     Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId);
 
-    [Alias("GetServer")]
+    [Alias(nameof(GetServer))]
     Task<Server> GetServer();
 
-    [Alias("UpdateServer")]
+    [Alias(nameof(UpdateServer))]
     Task<Server> UpdateServer(ServerInput input);
 
-    [Alias("DeleteServer")]
+    [Alias(nameof(DeleteServer))]
     Task DeleteServer();
 
-    [Alias("CreateChannel")]
+    [Alias(nameof(CreateChannel))]
     Task<Channel> CreateChannel(ChannelInput input, Guid initiator);
 
-    [Alias("DeleteChannel")]
+    [Alias(nameof(DeleteChannel))]
     Task DeleteChannel(Guid channelId, Guid initiator);
 
-    [Alias("SetUserStatus")]
+    [Alias(nameof(SetUserStatus))]
     ValueTask SetUserStatus(Guid userId, UserStatus status);
 
-    [Alias("GetMembers")]
+    [Alias(nameof(GetMembers))]
     Task<List<RealtimeServerMember>> GetMembers();
 
-    [Alias("GetChannels")]
+    [Alias(nameof(GetChannels))]
     Task<List<RealtimeChannel>> GetChannels();
 
-    [Alias("DoJoinUserAsync")]
+    [Alias(nameof(DoJoinUserAsync))]
     ValueTask DoJoinUserAsync(Guid userId);
-
-    public const string ProviderId = "argon.server.grain.stream";
-    public const string EventNamespace = "@";
 }
 
 public enum ServerCreationError
@@ -43,7 +40,7 @@ public enum ServerCreationError
 }
 
 [MessagePackObject(true)]
-public sealed partial record ServerInput(
+public sealed record ServerInput(
     string? Name,
     string? Description,
     string? AvatarUrl);

@@ -7,7 +7,7 @@ using Persistence.States;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
-    [PersistentState("realtime-server", IFusionSessionGrain.StorageId)]
+    [PersistentState("realtime-server", IUserSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,

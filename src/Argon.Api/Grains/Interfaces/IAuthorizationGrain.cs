@@ -11,22 +11,3 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
     [Alias("Register"), AlwaysInterleave]
     Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
 }
-
-[Alias("Argon.Grains.Interfaces.IUserMachineSessions")]
-public interface IUserMachineSessions : IGrainWithGuidKey
-{
-    [Alias("CreateMachineKey")]
-    ValueTask<Guid> CreateMachineKey(UserConnectionInfo connectionInfo);
-
-    [Alias("HasKeyExist")]
-    ValueTask<bool> HasKeyExist(Guid issueId);
-
-    [Alias("Remove")]
-    ValueTask Remove(Guid issueId);
-
-    [Alias("GetAllSessions")]
-    ValueTask<List<UserSessionMachineEntity>> GetAllSessions();
-
-    [Alias("IndicateLastActive")]
-    ValueTask IndicateLastActive(Guid issueId);
-}

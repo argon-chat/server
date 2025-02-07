@@ -46,7 +46,7 @@ public class ArgonSelectiveForwardingUnit(
             await RequestAsync("RoomService", "RemoveParticipant", new RoomParticipantIdentity
             {
                 Identity = userId.ToRawIdentity(),
-                Room     = channelId.ToRawRoomId()
+                Room     = channelId.ToRawRoomId(),
             }, new Dictionary<string, string>
             {
                 {

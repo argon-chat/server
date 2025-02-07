@@ -71,7 +71,7 @@ public class ChannelGrain(
 
         await _userStateEmitter.Fire(new JoinedToChannelUser(userId, this.GetPrimaryKey()));
 
-        await GrainFactory.GetGrain<IFusionSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
+        //await GrainFactory.GetGrain<IUserSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));

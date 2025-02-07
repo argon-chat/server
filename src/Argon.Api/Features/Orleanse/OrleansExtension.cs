@@ -1,5 +1,6 @@
 namespace Argon.Features;
 
+using Api.Features;
 using Api.Features.Orleans.Consul;
 using Env;
 using Orleans.Configuration;
@@ -24,7 +25,7 @@ public static class OrleansExtension
                .UseStorages([
                     ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
                     ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME,
-                    IFusionSessionGrain.StorageId,
+                    IUserSessionGrain.StorageId,
                     IServerInvitesGrain.StorageId,
                 ], "Npgsql", "DefaultConnection")
                .UseAdoNetReminderService(x =>
@@ -41,6 +42,11 @@ public static class OrleansExtension
                 {
                     options.CollectionAge = TimeSpan.FromMinutes(4);
                     options.CollectionQuantum = TimeSpan.FromMinutes(2);
+                })
+               .Configure<SchedulingOptions>(options =>
+                {
+                    options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
+                    options.TurnWarningLengthThreshold = TimeSpan.FromSeconds(10);
                 });
 
             if (builder.Environment.IsKube())
@@ -64,9 +70,8 @@ public static class OrleansExtension
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
-                    //.AddConsulClustering()
-                    //.AddConsulGrainDirectory("servers")
-                    //.AddConsulGrainDirectory("channels")
+                   .AddInMemoryGrainDirectory("servers")
+                   .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
                    .AddMemoryStreams(IArgonEvent.ProviderId)
                    .AddMemoryStreams("default")

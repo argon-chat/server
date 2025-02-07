@@ -1,132 +1,10 @@
 namespace Argon.Services;
 
-using System.IO;
 using System.Net;
-using Argon.Features.Rpc;
 using Features.Jwt;
-using Grpc.Core;
-using Microsoft.AspNetCore.Connections;
-using Microsoft.AspNetCore.Connections.Features;
 using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.WebSockets;
 using Microsoft.Net.Http.Headers;
-
-public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClient clusterClient) : IArgonWebTransport
-{
-    public async Task HandleTransportRequest(HttpContext ctx, ConnectionContext conn, ArgonTransportContext scope)
-    {
-        var user     = scope.User;
-        var sequence = -1L;
-        var eventId  = -1;
-
-        if (ctx.Request.Query.TryGetValue("sequence", out var sequenceStr))
-        {
-            if (!long.TryParse(sequenceStr.ToString(), out sequence))
-            {
-                sequence = -1;
-                logger.LogInformation("Failed to read sequence number, string value: {sequence}", sequenceStr);
-            }
-        }
-        if (ctx.Request.Query.TryGetValue("eventId", out var eventIdStr))
-        {
-            if (!int.TryParse(eventIdStr.ToString(), out eventId))
-            {
-                eventId = -1;
-                logger.LogInformation("Failed to read eventId number, string value: {eventId}", eventIdStr);
-            }
-        }
-
-        if (ctx.Request.Query.TryGetValue("srv", out var srvId))
-        {
-            if (!Guid.TryParse(srvId, out var serverId))
-            {
-                conn.Abort(new ConnectionAbortedException("srv incorrect format"));
-                return;
-            }
-
-            logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
-            var stream = await clusterClient.Streams().CreateClientStream(serverId, sequence, eventId);
-            await HandleLoopAsync(stream, conn);
-        }
-        else
-        {
-            logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-            var sessionGrain = clusterClient.GetGrain<IFusionSessionGrain>(Guid.NewGuid());
-            await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-            var stream = await clusterClient.Streams().CreateClientStream(user.id, sequence, eventId);
-            await HandleLoopAsync(stream, conn);
-            await sessionGrain.EndRealtimeSession();
-        }
-    }
-
-
-    private async ValueTask HandleLoopAsync(IArgonStream<IArgonEvent> stream, ConnectionContext ctx)
-    {
-        try
-        {
-            await foreach (var item in stream.WithCancellation(ctx.ConnectionClosed))
-            {
-                var evType = item.GetType();
-                logger.LogInformation("Success write event '{eventType}'", evType.Name);
-                var msg    = MessagePackSerializer.Serialize(evType, item);
-                try
-                {
-                    var result = ctx.Transport.Output.WriteAsync(msg, ctx.ConnectionClosed);
-
-                    await ctx.Transport.Output.FlushAsync(ctx.ConnectionClosed);
-                    if (result.IsCompletedSuccessfully)
-                        continue;
-                    break;
-                }
-                catch (Exception e)
-                {
-                    logger.LogCritical(e, "Failed write '{eventType}' event to web transport stream", evType.Name);
-
-                    if (ctx.ConnectionClosed.IsCancellationRequested)
-                        break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            logger.LogInformation("Web Transport closed, {wtConnectionId}", ctx.ConnectionId);
-
-        } // its ok 
-        catch (Exception e)
-        {
-            logger.LogCritical(e, "Web Transport closed with exception, {wtConnectionId}, {e}", ctx.ConnectionId, e);
-            ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
-        }
-
-        logger.LogInformation("Web transport stream is ended");
-        await stream.DisposeAsync();
-    }
-
-    public async IAsyncEnumerable<T> CombineAsyncEnumerators<T>(params IAsyncEnumerable<T>[] enums)
-    {
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<T>();
-        var tasks = enums.Select(async enumerable => {
-            await foreach (var item in enumerable)
-            {
-                await channel.Writer.WriteAsync(item);
-            }
-        }).ToList();
-
-        _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete());
-
-        while (await channel.Reader.WaitToReadAsync())
-        {
-            while (channel.Reader.TryRead(out var item))
-            {
-                yield return item;
-            }
-        }
-    }
-}
-
-public interface IArgonWebTransport
-{
-    Task HandleTransportRequest(HttpContext ctx, ConnectionContext conn, ArgonTransportContext scope);
-}
 
 public static class RpcServiceCollectionExtensions
 {
@@ -137,10 +15,51 @@ public static class RpcServiceCollectionExtensions
         {
             DefaultEnabled = true
         });
-        app.MapGet("/$wt", Handler);
-        app.Map("/transport.wt", HandleWt);
+        app.Map("/$at.http", Handler);
+        app.Map("/$at.wt", HandleWt);
+        app.Map("/$at.ws", HandleWs);
+        app.UseWebSockets();
     }
 
+    private async static Task HandleWs(HttpContext ctx)
+    {
+        var logger      = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebSocketFeature>>();
+        var wtCollector = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
+
+        if (!ctx.WebSockets.IsWebSocketRequest)
+        {
+            logger.LogCritical("Request is not web socket type");
+            ctx.Response.StatusCode = (int)HttpStatusCode.UpgradeRequired;
+            return;
+        }
+
+        if (!ctx.Request.Query.TryGetValue("aat", out var attToken))
+        {
+            logger.LogCritical("aat query in web transport request not found");
+            ctx.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+            return;
+        }
+
+        var socket    = await ctx.WebSockets.AcceptWebSocketAsync();
+        var exchanger = ctx.RequestServices.GetRequiredService<ITransportExchange>();
+        var token     = await exchanger.ExchangeToken(attToken.ToString(), ctx);
+
+        if (!token.IsSuccess)
+        {
+            logger.LogWarning("WebSocket failed exchange token, {aat}, {wtExchangeError}", attToken,
+                token.Error);
+            ctx.Response.Headers.TryAdd("X-Wt-Status", token.Error.ToString());
+            ctx.Response.StatusCode = (int)HttpStatusCode.BadRequest;
+            return;
+        }
+
+        logger.LogInformation("WebSocket token exchanged, {aat}", attToken);
+
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
+        await using var pipe  = ArgonTransportFeaturePipe.CreateForWs(socket);
+
+        await wtCollector.HandleTransportRequest(ctx, pipe, scope);
+    }
 
     private async static Task HandleWt(HttpContext ctx)
     {
@@ -196,14 +115,12 @@ public static class RpcServiceCollectionExtensions
         }
 
 
-
         logger.LogInformation("Web Transport token exchanged, {aat}", attToken);
 
 
-        using var scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
-
-        await wtCollector.HandleTransportRequest(ctx, conn, scope);
-
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
+        await using var pipe  = ArgonTransportFeaturePipe.CreateForWt(conn);
+        await wtCollector.HandleTransportRequest(ctx, pipe, scope);
     }
 
     private async static Task Handler(HttpContext context)
@@ -253,6 +170,7 @@ public static class RpcServiceCollectionExtensions
         var reg = new ArgonDescriptorRegistration(col);
         onRegistration(reg);
         col.AddGrpc(x => { x.Interceptors.Add<AuthInterceptor>(); });
+        col.AddWebSockets(_ => { });
     }
 
 

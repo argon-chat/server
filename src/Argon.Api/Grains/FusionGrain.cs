@@ -4,11 +4,10 @@ using Features.Jwt;
 using Features.Rpc;
 using static DeactivationReasonCode;
 
-public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClient, ILogger<IFusionSessionGrain> logger) : Grain, IFusionSessionGrain
+public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient clusterClient, ILogger<IUserSessionGrain> logger) : Grain, IUserSessionGrain
 {
     private Guid _userId;
     private Guid _machineId;
-    private Guid _activeChannelId;
 
     private IArgonStream<IArgonEvent> userStream;
 
@@ -22,15 +21,15 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
 
-        logger.LogWarning("Deactivated user session grain!, {reason}", reason);
-        if (refreshTimer is not null)
-            refreshTimer.Dispose();
-        if (_activeChannelId != Guid.Empty)
+        var servers = await grainFactory
+           .GetGrain<IUserGrain>(_userId)
+           .GetMyServersIds();
+        foreach (var server in servers)
             await grainFactory
-               .GetGrain<IChannelGrain>(_activeChannelId)
-               .Leave(_userId);
-        _userId    = Guid.Empty;
-        _machineId = Guid.Empty;
+               .GetGrain<IServerGrain>(server)
+               .SetUserStatus(_userId, UserStatus.Offline);
+
+        refreshTimer?.Dispose();
     }
 
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
@@ -39,15 +38,13 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         this._machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions(TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10))
+        refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions
         {
+            DueTime = TimeSpan.FromSeconds(2),
+            Period = TimeSpan.FromSeconds(30),
             KeepAlive = true
         });
 
-
-        await grainFactory
-           .GetGrain<IUserMachineSessions>(userId)
-           .IndicateLastActive(machineKey);
         var servers = await grainFactory
            .GetGrain<IUserGrain>(userId)
            .GetMyServersIds();
@@ -59,16 +56,10 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
         await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
             preferredStatus ?? UserStatus.Online,
             new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
-
-
     }
-
-
 
     private async Task RefreshUserStatus(CancellationToken arg)
     {
-        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
-            UserStatus.Online, new UserNotificationSnapshot(new List<UserNotificationItem>())));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
@@ -76,21 +67,9 @@ public class FusionGrain(IGrainFactory grainFactory, IClusterClient clusterClien
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, UserStatus.Online);
-        this.DelayDeactivation(TimeSpan.FromMinutes(5));
+        this.DelayDeactivation(TimeSpan.FromMinutes(1));
     }
 
     public ValueTask EndRealtimeSession()
         => SelfDestroy();
-
-    public ValueTask<bool> HasSessionActive()
-        => new(_userId != Guid.Empty);
-
-    public ValueTask<TokenUserData> GetTokenUserData()
-        => new(new TokenUserData(_userId, _machineId));
-
-    public ValueTask SetActiveChannelConnection(Guid channelId)
-    {
-        _activeChannelId = channelId;
-        return ValueTask.CompletedTask;
-    }
 }
