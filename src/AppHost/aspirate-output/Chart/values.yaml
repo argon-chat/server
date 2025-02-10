@@ -1,9 +1,0 @@
-images:
-  cache: docker.io/eqalpha/keydb:latest
-  nats: docker.io/nats:latest
-  pg: docker.io/library/postgres:17.0
-  clickhouse: clickhouse/clickhouse-server:23
-  smtpdev: rnwood/smtp4dev:latest
-  argonapi: argon-api:latest
-  argonentry: argon-entry:latest
-  aspiredashboard: mcr.microsoft.com/dotnet/aspire-dashboard:8.0
