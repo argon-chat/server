@@ -8,7 +8,6 @@ public enum EntityType : ushort
     Hashtag,
     Mention,
     Email,
-    PhoneNumber,
     Url,
     Monospace,
     Quote,

@@ -8,7 +8,7 @@ using Persistence.States;
 using Sfu;
 using Servers;
 
-// [GrainDirectory(GrainDirectoryName = "channels")]
+[GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
