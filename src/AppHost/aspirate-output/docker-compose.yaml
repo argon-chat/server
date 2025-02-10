@@ -89,56 +89,6 @@ services:
     - target: 25
       published: 2525
     restart: unless-stopped
-  argon-api:
-    container_name: "argon-api"
-    image: "argon-api:latest"
-    environment:
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
-      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      Kestrel__Endpoints__http__Url: "http://*:5001"
-      ConnectionStrings__DefaultConnection: "Host=pg;Port=5432;Username=postgres;Password=postgres;Database=apiDb"
-      ConnectionStrings__cache: "cache:6379"
-      ConnectionStrings__clickhouse: "http://postgres:postgres@clickhouse:8123"
-      ConnectionStrings__nats: "nats://nats:4222"
-      sfu__url: "dummy"
-      sfu__clientId: "dummy"
-      sfu__clientSecret: "dummy"
-      Jwt__Issuer: "Argon"
-      Jwt__Audience: "Argon"
-      Smtp__Host: "localhost"
-      Smtp__Port: "2525"
-      Smtp__User: "dummy"
-      Smtp__Password: "dummy"
-      Jwt__Key: "13634929b4179ab8924b654c6dc88d64dfbb707f61673b9932d864abd88dfd2c5db8f70ced5e39066bcdf09b74c79b489f04d649dd0ca6a7d9f78a364e0a4a31d07857417a873d9d14234344a917fb2250263b1a5637ecb090181bcacd2446da20dbbca21fec878a96257a04864542931d2aaa46811b5ec4792b530c334e02ee"
-      Jwt__Expire: "228"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "argon-api"
-    ports:
-    - target: 5001
-      published: 10000
-    - target: 5001
-      published: 10001
-    restart: unless-stopped
-  argon-entry:
-    container_name: "argon-entry"
-    image: "argon-entry:latest"
-    environment:
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EXCEPTION_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_EMIT_EVENT_LOG_ATTRIBUTES: "true"
-      OTEL_DOTNET_EXPERIMENTAL_OTLP_RETRY: "in_memory"
-      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
-      HTTP_PORTS: "8080"
-      services__argon-api__http__0: "http://argon-api:5001"
-      OTEL_EXPORTER_OTLP_ENDPOINT: "http://aspire-dashboard:18889"
-      OTEL_SERVICE_NAME: "argon-entry"
-    ports:
-    - target: 8080
-      published: 10002
-    - target: 8443
-      published: 10003
-    restart: unless-stopped
 volumes:
   apphost-feed4158f1-cache-data: {}
   apphost-feed4158f1-nats-data: {}
