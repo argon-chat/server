@@ -124,7 +124,7 @@ public class ConsulMembership(
 
     public async Task UpdateIAmAlive(MembershipEntry entry)
     {
-        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", "Silo answered correctly!", ToStatus(entry));
+        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
 
 
         if (entry.Status is not SiloStatus.Active)
@@ -154,7 +154,7 @@ public class ConsulMembership(
             return;
         }
 
-        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", "Silo answered correctly!", ToStatus(entry));
+        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
     }
 
 
