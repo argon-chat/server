@@ -25,7 +25,9 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="ClickHouse.Client" Version="7.10.0" />
         <PackageReference Include="Consul" Version="1.7.14.7" />
+        <PackageReference Include="EntityFrameworkCore.ClickHouse" Version="1.0.1" />
         <PackageReference Include="Microsoft.Orleans.GrainDirectory.Redis" Version="9.0.1" />
         <PackageReference Include="NATS.Client" Version="1.1.7-pre1" />
         <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0" />

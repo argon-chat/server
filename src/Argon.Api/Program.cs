@@ -29,6 +29,7 @@ builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddConsul("SiloConsul");
 builder.AddPooledDatabase<ApplicationDbContext>();
+builder.AddPooledClickhouse<ClickhouseContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();
 builder.AddRewrites();
@@ -77,10 +78,11 @@ if (!builder.Environment.IsManaged())
 }
 else
     app.UseSerilogRequestLogging();
+
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
 
-await app.WarpUp<ApplicationDbContext>().RunAsync();
+await app.WarpUp<ApplicationDbContext>().WarpUp<ClickhouseContext>().RunAsync();

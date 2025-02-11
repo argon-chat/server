@@ -13,7 +13,8 @@ public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
-    IDbContextFactory<ApplicationDbContext> context) : Grain, IChannelGrain
+    IDbContextFactory<ApplicationDbContext> context,
+    IDbContextFactory<ClickhouseContext> click) : Grain, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -41,6 +42,23 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
+    public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
+    {
+        await using var ctx = await click.CreateDbContextAsync();
+        var messages = await ctx.Messages
+           .Where(m => m.ChannelId == this.GetPrimaryKey())
+           .OrderByDescending(m => m.CreatedAt)
+           .Skip(offset)
+           .Take(count)
+           .Include(m => m.Document)
+           .Include(m => m.Image)
+           .Include(m => m.Sticker)
+           .Include(m => m.Entities)
+           .ToListAsync();
+
+        return messages;
+    }
+
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
 
@@ -64,7 +82,7 @@ public class ChannelGrain(
             state.State.Users.Add(userId, new RealtimeChannelUser()
             {
                 UserId = userId,
-                State = ChannelMemberState.NONE
+                State  = ChannelMemberState.NONE
             });
             await state.WriteStateAsync();
         }
@@ -109,6 +127,20 @@ public class ChannelGrain(
         return (await Get());
     }
 
+    public async Task SendMessage(ArgonMessage message)
+    {
+        if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+
+        await using var ctx = await click.CreateDbContextAsync();
+        message.Id        = Guid.NewGuid();
+        message.ChannelId = this.GetPrimaryKey();
+
+        var e = await ctx.Messages.AddAsync(message);
+        await ctx.SaveChangesAsync();
+
+        await _userStateEmitter.Fire(new MessageSent(e.Entity));
+    }
+
     private async Task<Channel> Get()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -116,7 +148,6 @@ public class ChannelGrain(
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 }
-
 
 public enum ChannelUserChangedStateEvent
 {

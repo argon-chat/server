@@ -50,7 +50,6 @@ public enum ChannelMemberState
     STREAMING                  = 1 << 5
 }
 
-
 public enum JoinToChannelError
 {
     NONE,
