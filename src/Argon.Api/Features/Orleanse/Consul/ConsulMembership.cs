@@ -19,6 +19,7 @@ public class ConsulMembership(
     IOptions<ConsulMembershipOptions> membershipOptions,
     IHostApplicationLifetime lifetime) : IMembershipTable
 {
+    private DateTime StartTime { get; set; } = DateTime.Now;
     private readonly JsonSerializerOptions opt = new(JsonSerializerOptions.Web)
     {
         IncludeFields = true
@@ -127,6 +128,9 @@ public class ConsulMembership(
 
 
         if (entry.Status is not SiloStatus.Active)
+            return;
+
+        if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
             return;
 
         var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
