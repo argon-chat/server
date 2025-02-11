@@ -126,7 +126,7 @@ public class ConsulMembership(
         await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", "Silo answered correctly!", ToStatus(entry));
 
 
-        if (entry.Status is SiloStatus.Dead or SiloStatus.ShuttingDown or SiloStatus.Stopping or SiloStatus.Created or SiloStatus.Joining)
+        if (entry.Status is not SiloStatus.Active)
             return;
 
         var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
