@@ -128,31 +128,31 @@ public class ConsulMembership(
         await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
 
 
-        if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
-            return;
+        //if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
+        //    return;
 
-        var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
+        //var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
 
-        if (services.StatusCode != HttpStatusCode.OK)
-        {
-            logger.LogCritical("Alert, requested silo registration status failed, query '{consulQuery}' returned '{statusCode}'",
-                entry.ToString(),
-                services.StatusCode);
-            lifetime.StopApplication();
-            return;
-        }
+        //if (services.StatusCode != HttpStatusCode.OK)
+        //{
+        //    logger.LogCritical("Alert, requested silo registration status failed, query '{consulQuery}' returned '{statusCode}'",
+        //        entry.ToString(),
+        //        services.StatusCode);
+        //    lifetime.StopApplication();
+        //    return;
+        //}
 
 
-        if (services.Response.Count == 0)
-        {
-            logger.LogCritical(
-                "Alert, requested silo registration status failed, query '{consulQuery}' returned not found registered silo, maybe already dead",
-                entry.ToString());
-            lifetime.StopApplication();
-            return;
-        }
+        //if (services.Response.Count == 0)
+        //{
+        //    logger.LogCritical(
+        //        "Alert, requested silo registration status failed, query '{consulQuery}' returned not found registered silo, maybe already dead",
+        //        entry.ToString());
+        //    lifetime.StopApplication();
+        //    return;
+        //}
 
-        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
+        //await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
     }
 
 
@@ -160,10 +160,10 @@ public class ConsulMembership(
         => entry.Status switch
         {
             SiloStatus.None                                => TTLStatus.Pass,
-            SiloStatus.Created or SiloStatus.Joining       => TTLStatus.Warn,
+            SiloStatus.Created or SiloStatus.Joining       => TTLStatus.Pass,
             SiloStatus.Active                              => TTLStatus.Pass,
-            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
-            SiloStatus.Dead                                => TTLStatus.Critical,
+            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Pass,
+            SiloStatus.Dead                                => TTLStatus.Pass,
             _                                              => throw new ArgumentOutOfRangeException()
         };
 
