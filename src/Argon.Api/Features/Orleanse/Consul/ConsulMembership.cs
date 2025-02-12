@@ -122,13 +122,11 @@ public class ConsulMembership(
     public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
         => InsertRow(entry, tableVersion);
 
+
     public async Task UpdateIAmAlive(MembershipEntry entry)
     {
         await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
 
-
-        if (entry.Status is not SiloStatus.Active)
-            return;
 
         if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
             return;
@@ -161,11 +159,12 @@ public class ConsulMembership(
     private TTLStatus ToStatus(MembershipEntry entry)
         => entry.Status switch
         {
-            SiloStatus.None or SiloStatus.Created or SiloStatus.Joining => TTLStatus.Warn,
-            SiloStatus.Active                                           => TTLStatus.Pass,
-            SiloStatus.ShuttingDown or SiloStatus.Stopping              => TTLStatus.Warn,
-            SiloStatus.Dead                                             => TTLStatus.Critical,
-            _                                                           => throw new ArgumentOutOfRangeException()
+            SiloStatus.None                                => TTLStatus.Pass,
+            SiloStatus.Created or SiloStatus.Joining       => TTLStatus.Warn,
+            SiloStatus.Active                              => TTLStatus.Pass,
+            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
+            SiloStatus.Dead                                => TTLStatus.Critical,
+            _                                              => throw new ArgumentOutOfRangeException()
         };
 
     private MembershipEntry EjectEntry(AgentService service)
