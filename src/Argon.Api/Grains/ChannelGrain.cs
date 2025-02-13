@@ -54,6 +54,7 @@ public class ChannelGrain(
            .Include(m => m.Image)
            .Include(m => m.Sticker)
            .Include(m => m.Entities)
+           .AsNoTracking()
            .ToListAsync();
 
         return messages;
