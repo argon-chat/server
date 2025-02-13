@@ -6,8 +6,20 @@ using global::Consul;
 using global::Consul.Filtering;
 using global::Orleans.Configuration;
 
-public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> logger, IOptions<ClusterOptions> clusterOptions) : IMembershipTable
+public class ConsulMembershipOptions
 {
+    public TimeSpan TTL            { get; set; } = TimeSpan.FromSeconds(15);
+    public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
+}
+
+public class ConsulMembership(
+    IConsulClient client,
+    ILogger<IMembershipTable> logger,
+    IOptions<ClusterOptions> clusterOptions,
+    IOptions<ConsulMembershipOptions> membershipOptions,
+    IHostApplicationLifetime lifetime) : IMembershipTable
+{
+    private DateTime StartTime { get; set; } = DateTime.Now;
     private readonly JsonSerializerOptions opt = new(JsonSerializerOptions.Web)
     {
         IncludeFields = true
@@ -86,16 +98,9 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
             [
                 new AgentServiceCheck
                 {
-                    TCP                            = entry.SiloAddress.Endpoint.ToString(),
-                    Name                           = "tcp silo check",
-                    Interval                       = TimeSpan.FromSeconds(15),
-                    DeregisterCriticalServiceAfter = TimeSpan.FromSeconds(15)
-                },
-                new AgentServiceCheck
-                {
                     CheckID                        = $"UpdateIAmAlive.{entry.SiloAddress}",
-                    TTL                            = TimeSpan.FromSeconds(15),
-                    DeregisterCriticalServiceAfter = TimeSpan.FromSeconds(15)
+                    TTL                            = membershipOptions.Value.TTL,
+                    DeregisterCriticalServiceAfter = membershipOptions.Value.DestroyTimeout
                 }
             ]
         };
@@ -117,8 +122,50 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
     public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
         => InsertRow(entry, tableVersion);
 
+
     public async Task UpdateIAmAlive(MembershipEntry entry)
-        => await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", "Silo answered correctly!", TTLStatus.Pass);
+    {
+        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
+
+
+        //if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
+        //    return;
+
+        //var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
+
+        //if (services.StatusCode != HttpStatusCode.OK)
+        //{
+        //    logger.LogCritical("Alert, requested silo registration status failed, query '{consulQuery}' returned '{statusCode}'",
+        //        entry.ToString(),
+        //        services.StatusCode);
+        //    lifetime.StopApplication();
+        //    return;
+        //}
+
+
+        //if (services.Response.Count == 0)
+        //{
+        //    logger.LogCritical(
+        //        "Alert, requested silo registration status failed, query '{consulQuery}' returned not found registered silo, maybe already dead",
+        //        entry.ToString());
+        //    lifetime.StopApplication();
+        //    return;
+        //}
+
+        //await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
+    }
+
+
+    private TTLStatus ToStatus(MembershipEntry entry)
+        => entry.Status switch
+        {
+            SiloStatus.None                                => TTLStatus.Pass,
+            SiloStatus.Created or SiloStatus.Joining       => TTLStatus.Pass,
+            SiloStatus.Active                              => TTLStatus.Pass,
+            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Pass,
+            SiloStatus.Dead                                => TTLStatus.Pass,
+            _                                              => throw new ArgumentOutOfRangeException()
+        };
 
     private MembershipEntry EjectEntry(AgentService service)
     {
@@ -128,6 +175,7 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
             s.IAmAliveTime = DateTime.Now - TimeSpan.FromSeconds(10);
             return s;
         }
+
         throw new InvalidOperationException($"AgentService do not contains json meta");
     }
 
@@ -145,6 +193,9 @@ public class ConsulMembership(IConsulClient client, ILogger<IMembershipTable> lo
             },
             {
                 "proxy-port", entry.ProxyPort.ToString()
+            },
+            {
+                "update-zone", entry.UpdateZone.ToString()
             }
         };
 }
