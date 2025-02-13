@@ -18,6 +18,9 @@ public static class KestrelFeature
 
     private static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
     {
+        if (!File.Exists("localhost.pfx"))
+            throw new Exception("Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
+
         var cert = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
 
         var hash    = SHA256.HashData(cert.RawData);
