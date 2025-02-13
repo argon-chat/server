@@ -13,3 +13,5 @@ src/Argon.Api/storage/
 secrets.json
 
 src/Argon.Api/Generated/
+
+src/Argon.Api/localhost.pfx
