@@ -13,8 +13,7 @@ public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
-    IDbContextFactory<ApplicationDbContext> context,
-    IDbContextFactory<ClickhouseContext> click) : Grain, IChannelGrain
+    IDbContextFactory<ApplicationDbContext> context) : Grain, IChannelGrain
 {
     private IArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -44,16 +43,12 @@ public class ChannelGrain(
 
     public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
     {
-        await using var ctx = await click.CreateDbContextAsync();
+        await using var ctx = await context.CreateDbContextAsync();
         var messages = await ctx.Messages
            .Where(m => m.ChannelId == this.GetPrimaryKey())
            .OrderByDescending(m => m.CreatedAt)
            .Skip(offset)
            .Take(count)
-           .Include(m => m.Document)
-           .Include(m => m.Image)
-           .Include(m => m.Sticker)
-           .Include(m => m.Entities)
            .AsNoTracking()
            .ToListAsync();
 
@@ -132,9 +127,9 @@ public class ChannelGrain(
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
 
-        await using var ctx = await click.CreateDbContextAsync();
-        message.Id        = Guid.NewGuid();
+        await using var ctx = await context.CreateDbContextAsync();
         message.ChannelId = this.GetPrimaryKey();
+        message.ServerId  = _self.ServerId;
 
         var e = await ctx.Messages.AddAsync(message);
         await ctx.SaveChangesAsync();

@@ -2,8 +2,6 @@ namespace Argon.Api.Migrations;
 
 using System.Data;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations.Internal;
@@ -17,10 +15,21 @@ public static class WarpUpExtension
         var       factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<T>>();
         using var db      = factory.CreateDbContext();
         if (isMigrate)
-            db.Database.Migrate();
+            Migrate(db, scope.ServiceProvider.GetRequiredService<ILogger<T>>());
         else
             db.Database.EnsureCreated();
         return app;
+    }
+
+    private static void Migrate<T>(T dbCtx, ILogger<T> logger) where T : DbContext
+    {
+        var migrations = dbCtx.Database.GetPendingMigrations().ToList();
+        foreach (var migration in migrations)
+        {
+            logger.LogInformation($"Applying migration: {migration}");
+            dbCtx.Database.Migrate(migration);
+            logger.LogInformation($"Migration applied: {migration}");
+        }
     }
 }
 

@@ -1,18 +1,14 @@
 namespace Argon.Entities;
 
+using Features.EF;
+using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using System.Data.Common;
 using System.Drawing;
 using System.Linq.Expressions;
-using Features.EF;
 
-public class ApplicationDbContext : DbContext
+public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
-    {
-        this.Database.SetCommandTimeout(50);
-        this.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
-    }
-
-
     public DbSet<User>           Users                  { get; set; }
     public DbSet<UserAgreements> UserAgreements         { get; set; }
     public DbSet<Server>         Servers                { get; set; }
@@ -23,8 +19,28 @@ public class ApplicationDbContext : DbContext
     public DbSet<Archetype>                   Archetypes                   { get; set; }
     public DbSet<ChannelEntitlementOverwrite> ChannelEntitlementOverwrites { get; set; }
 
+    public DbSet<ServerInvite> ServerInvites { get; set; }
+
+    public DbSet<ArgonMessage> Messages { get; set; }
+
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<ArgonMessage>()
+           .HasKey(m => new { m.ServerId, m.ChannelId, m.MessageId });
+
+        modelBuilder.Entity<ArgonMessage>()
+           .HasIndex(m => new { m.ServerId, m.ChannelId, m.MessageId })
+           .IsUnique();
+
+        modelBuilder.Entity<ArgonMessage>()
+           .Property(m => m.MessageId)
+           .ValueGeneratedOnAdd();
+
+        modelBuilder.Entity<ArgonMessage>()
+           .Property(m => m.Entities)
+           .HasColumnType("jsonb");
+
         modelBuilder.Entity<ServerMemberArchetype>()
            .HasKey(x => new
             {
@@ -60,6 +76,14 @@ public class ApplicationDbContext : DbContext
            .HasOne(x => x.User)
            .WithMany(x => x.ServerMembers)
            .HasForeignKey(x => x.UserId);
+
+        modelBuilder.Entity<ServerInvite>()
+           .HasOne(c => c.Server)
+           .WithMany(s => s.ServerInvites)
+           .HasForeignKey(c => c.ServerId);
+
+        modelBuilder.Entity<ServerInvite>()
+           .HasKey(x => x.Id);
 
         modelBuilder.Entity<Channel>()
            .HasOne(c => c.Server)
@@ -156,4 +180,10 @@ public class ApplicationDbContext : DbContext
         var notDeleted        = Expression.Not(isDeletedProperty);
         return Expression.Lambda(notDeleted, parameter);
     }
+}
+
+public class Int : DbCommandInterceptor
+{
+    public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
+        => base.NonQueryExecuted(command, eventData, result);
 }

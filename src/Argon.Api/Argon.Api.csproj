@@ -25,6 +25,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
         <PackageReference Include="ClickHouse.Client" Version="7.10.0" />
         <PackageReference Include="Consul" Version="1.7.14.7" />
         <PackageReference Include="EntityFrameworkCore.ClickHouse" Version="1.0.1" />

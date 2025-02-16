@@ -63,11 +63,9 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
         var invite   = grainFactory.GetGrain<IInviteGrain>(inviteCode.inviteCode);
         var result   = await invite.AcceptAsync(userData.id);
 
-        if (result.HasValue)
-            return result.Value;
+        if (result.Item2 != AcceptInviteError.NONE)
+            return result.Item2;
 
-        var code = await invite.GetAsync();
-
-        return await grainFactory.GetGrain<IServerGrain>(code.serverId).GetServer();
+        return await grainFactory.GetGrain<IServerGrain>(result.Item1).GetServer();
     }
 }

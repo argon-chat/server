@@ -19,14 +19,18 @@ public enum EntityType : ushort
 }
 
 [TsInterface, MessagePackObject(true)]
-public record MessageEntity : ArgonEntityWithOwnership
+public record MessageEntity
 {
-    public Guid       MessageId { get; set; }
-    public EntityType Type      { get; set; }
-    public int        Offset    { get; set; }
-    public int        Length    { get; set; }
-    public string?    UrlMask   { get; set; }
-    [JsonIgnore, TsIgnore, ForeignKey(nameof(MessageId))]
+    public ulong MessageId { get; set; }
+    public Guid  ChannelId { get; set; }
+
+
+    public EntityType Type    { get; set; }
+    public int        Offset  { get; set; }
+    public int        Length  { get; set; }
+    public string?    UrlMask { get; set; }
+
+    [JsonIgnore, TsIgnore]
     public ArgonMessage ArgonMessage { get; set; }
 }
 
@@ -69,18 +73,14 @@ public record MessageImage : ArgonEntityWithOwnership
 }
 
 [TsInterface, MessagePackObject(true)]
-public record ArgonMessage : ArgonEntityWithOwnership
+public record ArgonMessage : ArgonEntityWithOwnershipNoKey
 {
-    public Guid  ChannelId      { get; set; }
-    public Guid? ReplyToMessage { get; set; }
+    [Required, DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    public uint  MessageId { get; set; }
+    public Guid  ServerId  { get; set; }
+    public Guid  ChannelId { get; set; }
+    public uint? Reply     { get; set; }
 
-    [MaxLength(1024)]
-    public string Text { get;                  set; }
-    public MessageDocument?    Document { get; set; }
-    public List<MessageImage>? Image    { get; set; } = new();
-    public Sticker?            Sticker  { get; set; }
+    [Column(TypeName = "jsonb")]
     public List<MessageEntity> Entities { get; set; } = new();
-
-    public bool IsEmpty() => string.IsNullOrEmpty(Text) && string.IsNullOrWhiteSpace(Text) && Document is null
-                             && Image is null && Sticker is null && Entities.Count == 0;
 }

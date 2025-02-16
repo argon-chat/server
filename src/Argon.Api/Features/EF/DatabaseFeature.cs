@@ -14,11 +14,11 @@ public static class DatabaseFeature
                .EnableSensitiveDataLogging()
                .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), opt =>
                 {
-                    opt.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery);
-                    opt.MaxBatchSize(1);
+                    //opt.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery);
+                    //opt.MaxBatchSize(1);
                 })
                .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>()
-               .ReplaceService<IMigrationCommandExecutor, NoTransactionMigrationCommandExecutor>()
+               //.ReplaceService<IMigrationCommandExecutor, NoTransactionMigrationCommandExecutor>()
                .AddInterceptors(new TimeStampAndSoftDeleteInterceptor());
         });
 

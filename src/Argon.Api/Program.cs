@@ -29,7 +29,6 @@ builder.AddRedisOutputCache("cache");
 builder.AddRedisClient("cache");
 builder.AddConsul("SiloConsul");
 builder.AddPooledDatabase<ApplicationDbContext>();
-builder.AddPooledClickhouse<ClickhouseContext>();
 builder.AddArgonAuthorization();
 builder.AddJwt();
 builder.AddRewrites();

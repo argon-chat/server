@@ -1,56 +1,44 @@
 namespace Argon.Grains;
 
+using Orleans.Concurrency;
 using Shared.Servers;
 
-public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger,
-    [PersistentState("server-invites-store", IServerInvitesGrain.StorageId)]
-    IPersistentState<ServerInvitesStorage> state) : Grain, IServerInvitesGrain
+[StatelessWorker]
+public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFactory<ApplicationDbContext> context) : Grain, IServerInvitesGrain
 {
-    private IGrainReminder? _reminder;
-
-    public async override Task OnActivateAsync(CancellationToken cancellationToken)
-    {
-        await state.ReadStateAsync();
-        if (_reminder is not null)
-            return;
-        _reminder = await this.RegisterOrUpdateReminder($"server-invites-{this.GetPrimaryKey()}", 
-            TimeSpan.FromDays(1), 
-            TimeSpan.FromDays(30));
-    }
-
-    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
-    {
-        await state.WriteStateAsync();
-        if (_reminder is not null)
-            await this.UnregisterReminder(_reminder);
-    }
-
     public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
     {
-        var inviteCode  = GenerateInviteCode();
-        var inviteGrain = base.GrainFactory.GetGrain<IInviteGrain>(inviteCode);
-        if (await inviteGrain.HasCreatedAsync())
-            throw new InvalidOperationException($"InviteCode already created");
-        var code = await inviteGrain.EnsureAsync(this.GetPrimaryKey(), issuer, expiration);
-        state.State.Entities.Add(inviteCode, new InviteCodeEntity(code, this.GetPrimaryKey(), issuer, DateTime.UtcNow + expiration, 0));
-        await state.WriteStateAsync();
-        return code;
-    }
+        await using var db         = await context.CreateDbContextAsync();
+        var             inviteCode = GenerateInviteCode();
 
-    public async Task InviteUsed(Guid userId, InviteCode code)
-    {
-        if (!state.State.Entities.TryGetValue(code.inviteCode, out var result))
-            return;
-        state.State.Entities[code.inviteCode] = result with { used = result.used++ };
+        await db.ServerInvites.AddAsync(new ServerInvite
+        {
+            Id        = EncodeToUlong(inviteCode),
+            CreatedAt = DateTime.Now,
+            CreatorId = issuer,
+            Expired   = DateTime.UtcNow + expiration,
+            ServerId  = this.GetPrimaryKey(),
+        });
+        await db.SaveChangesAsync();
+        return new InviteCode(inviteCode);
     }
 
     public async Task<List<InviteCodeEntity>> GetInviteCodes()
-        => state.State.Entities.Values.ToList();
+    {
+        await using var db = await context.CreateDbContextAsync();
+
+        var list = await db.ServerInvites
+           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .AsNoTracking()
+           .ToListAsync();
+        return list.Select(x => new InviteCodeEntity(new InviteCode(DecodeFromUlong(x.Id)), x.ServerId, x.CreatorId, x.Expired, 0)).ToList();
+    }
 
 
-    private unsafe static string GenerateInviteCode(int length = 6)
+    private unsafe static string GenerateInviteCode(int length = 9)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        const int    Base  = 62;
         Span<byte>   bytes = stackalloc byte[length];
         using (var rng = RandomNumberGenerator.Create())
             rng.GetBytes(bytes);
@@ -62,13 +50,57 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger,
         return new string(result);
     }
 
-    public async Task ReceiveReminder(string reminderName, TickStatus status)
+    private static string FormatWithSeparators(string code, int every, char separator)
     {
-        foreach (var (code, _) in state.State.Entities.Where(x => x.Value.HasExpired()))
+        var        extra     = (code.Length - 1) / every;
+        Span<char> formatted = stackalloc char[code.Length + extra];
+
+        var j = 0;
+        for (var i = 0; i < code.Length; i++)
         {
-            logger.LogInformation("Remove expired invite code '{code}' from '{serverId}' server", code, this.GetPrimaryKey());
-            state.State.Entities.Remove(code);
-            await GrainFactory.GetGrain<IInviteGrain>(code).DropInviteCodeAsync();
+            if (i > 0 && i % every == 0)
+                formatted[j++] = separator;
+
+            formatted[j++] = code[i];
         }
+
+        return new string(formatted);
+    }
+
+    public static string RemoveSeparators(string inviteCode, char separator = '-')
+        => inviteCode.Replace(separator.ToString(), "");
+
+    public static ulong EncodeToUlong(string inviteCode)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        const int    Base  = 62;
+
+        var   cleanCode = RemoveSeparators(inviteCode);
+        ulong result    = 0;
+        foreach (var c in cleanCode)
+        {
+            var index = chars.IndexOf(c);
+            if (index == -1)
+                throw new ArgumentException($"Invalid character '{c}' in invite code.");
+
+            result = (result * (ulong)Base) + (ulong)index;
+        }
+
+        return result;
+    }
+
+    public static string DecodeFromUlong(ulong number, int length = 9, int separatorEvery = 3, char separator = '-')
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        const int    Base  = 62;
+
+        Span<char> buffer = stackalloc char[length];
+        for (var i = length - 1; i >= 0; i--)
+        {
+            buffer[i] =  chars[(int)(number % Base)];
+            number    /= Base;
+        }
+
+        return FormatWithSeparators(new string(buffer), separatorEvery, separator);
     }
 }
