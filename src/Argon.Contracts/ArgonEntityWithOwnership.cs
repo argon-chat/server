@@ -19,6 +19,5 @@ public abstract record ArgonEntityWithOwnership<T> : ArgonEntity<T>
 [MessagePackObject(true), Index("CreatorId"), TsInterface]
 public abstract record ArgonEntityWithOwnershipNoKey : ArgonEntityNoKey
 {
-    [TsIgnore]
     public Guid CreatorId { get; set; }
 }

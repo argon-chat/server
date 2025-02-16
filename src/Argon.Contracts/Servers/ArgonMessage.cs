@@ -21,17 +21,10 @@ public enum EntityType : ushort
 [TsInterface, MessagePackObject(true)]
 public record MessageEntity
 {
-    public ulong MessageId { get; set; }
-    public Guid  ChannelId { get; set; }
-
-
     public EntityType Type    { get; set; }
     public int        Offset  { get; set; }
     public int        Length  { get; set; }
     public string?    UrlMask { get; set; }
-
-    [JsonIgnore, TsIgnore]
-    public ArgonMessage ArgonMessage { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]
@@ -80,6 +73,9 @@ public record ArgonMessage : ArgonEntityWithOwnershipNoKey
     public Guid  ServerId  { get; set; }
     public Guid  ChannelId { get; set; }
     public uint? Reply     { get; set; }
+
+    [MaxLength(2048)]
+    public string Text { get; set; }
 
     [Column(TypeName = "jsonb")]
     public List<MessageEntity> Entities { get; set; } = new();
