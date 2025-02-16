@@ -4,8 +4,15 @@ using System.Drawing;
 using System.Linq.Expressions;
 using Features.EF;
 
-public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
+public class ApplicationDbContext : DbContext
 {
+    public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
+    {
+        this.Database.SetCommandTimeout(50);
+        this.Database.AutoTransactionBehavior = AutoTransactionBehavior.Never;
+    }
+
+
     public DbSet<User>           Users                  { get; set; }
     public DbSet<UserAgreements> UserAgreements         { get; set; }
     public DbSet<Server>         Servers                { get; set; }
@@ -15,7 +22,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ServerMemberArchetype>       ServerMemberArchetypes       { get; set; }
     public DbSet<Archetype>                   Archetypes                   { get; set; }
     public DbSet<ChannelEntitlementOverwrite> ChannelEntitlementOverwrites { get; set; }
-
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

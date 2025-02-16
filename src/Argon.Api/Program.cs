@@ -85,4 +85,4 @@ app.MapGet("/", () => new
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
 
-await app.WarpUp<ApplicationDbContext>().WarpUp<ClickhouseContext>().RunAsync();
+await app.WarpUp<ApplicationDbContext>()/*.WarpUp<ClickhouseContext>()*/.RunAsync();
