@@ -11,9 +11,9 @@
         public async Task<ActionResult<List<ArgonMessage>>> GetMessages(Guid channelId, int count, int offset)
             => await grainFactory.GetGrain<IChannelGrain>(channelId).GetMessages(count, offset);
 
-        [HttpPost("{userId:guid}/{channelId:guid}")]
-        public async Task SendMessage(Guid userId, Guid channelId, ArgonMessage message)
-            => await grainFactory.GetGrain<IChannelGrain>(channelId).SendMessage(message);
+        //[HttpPost("{userId:guid}/{channelId:guid}")]
+        //public async Task SendMessage(Guid userId, Guid channelId, ArgonMessage message)
+        //    => await grainFactory.GetGrain<IChannelGrain>(channelId).SendMessage(message.Text);
     }
 
 #endif

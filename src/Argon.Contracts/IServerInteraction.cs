@@ -13,7 +13,7 @@ public interface IServerInteraction : IArgonService
     Task<List<RealtimeChannel>> GetChannels(Guid serverId);
 
     Task<List<ArgonMessage>> GetMessages(Guid channelId, int count, int offset);
-    Task                     SendMessage(ArgonMessage message);
+    Task                     SendMessage(Guid channelId, string text, List<MessageEntity> entities);
 
     Task<List<RealtimeServerMember>> GetMembers(Guid serverId);
 

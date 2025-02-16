@@ -123,13 +123,20 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task SendMessage(ArgonMessage message)
+    public async Task SendMessage(Guid senderId, string text, List<MessageEntity> entities)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
 
         await using var ctx = await context.CreateDbContextAsync();
-        message.ChannelId = this.GetPrimaryKey();
-        message.ServerId  = _self.ServerId;
+
+        var message = new ArgonMessage()
+        {
+            ServerId  = _self.ServerId,
+            ChannelId = this.GetPrimaryKey(),
+            CreatorId = senderId,
+            Entities  = entities,
+            Text      = text,
+        };
 
         var e = await ctx.Messages.AddAsync(message);
         await ctx.SaveChangesAsync();
