@@ -40,8 +40,8 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
         userStream = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions
         {
-            DueTime = TimeSpan.FromSeconds(2),
-            Period = TimeSpan.FromSeconds(30),
+            DueTime = TimeSpan.FromSeconds(1),
+            Period = TimeSpan.FromSeconds(1),
             KeepAlive = true
         });
 

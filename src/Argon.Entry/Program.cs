@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Api.Features.Orleans.Consul;
+using Argon.Api.Features.Orleans.Streams.Nats;
 using Argon.Controllers;
 using Argon.Extensions;
 using Argon.Features.Env;
@@ -63,10 +64,7 @@ builder.Services
     {
         x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
            .AddStreaming()
-           .AddAdoNetStreams("default", x => {
-                x.Invariant        = "Npgsql";
-                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-            })
+           .AddNatsStreaming("default")
            .AddAdoNetStreams(IArgonEvent.ProviderId, x => {
                 x.Invariant        = "Npgsql";
                 x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");

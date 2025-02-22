@@ -7,6 +7,7 @@ using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
 using Sentry;
+using Api.Features.Orleans.Streams.Nats;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -40,13 +41,13 @@ public static class OrleansExtension
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
-                    options.CollectionAge = TimeSpan.FromMinutes(4);
+                    options.CollectionAge     = TimeSpan.FromMinutes(4);
                     options.CollectionQuantum = TimeSpan.FromMinutes(2);
                 })
                .Configure<SchedulingOptions>(options =>
                 {
                     options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
-                    options.TurnWarningLengthThreshold = TimeSpan.FromSeconds(10);
+                    options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                 });
 
             if (builder.Environment.IsKube())
@@ -55,26 +56,16 @@ public static class OrleansExtension
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
-                   .AddAdoNetStreams("default", x =>
-                    {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                        x.MaxAttempts      = 1;
-                    })
-                   .AddAdoNetStreams(IArgonEvent.ProviderId, x =>
-                    {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                        x.MaxAttempts      = 1;
-                    })
+                   .AddNatsStreaming("default")
+                   .AddNatsStreaming(IArgonEvent.ProviderId)
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
-                   .AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddMemoryStreams("default")
+                   .AddNatsStreaming(IArgonEvent.ProviderId)
+                   .AddNatsStreaming("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 
