@@ -21,7 +21,7 @@ public class ServerGrain(
         state.State.UserStatuses.Clear();
         await state.WriteStateAsync(ct);
 
-        _serverEvents = await this.Streams().CreateServerStream();
+        _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)

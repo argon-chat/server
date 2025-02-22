@@ -1,10 +1,11 @@
 namespace Argon.Grains;
 
-using Features.Jwt;
 using Features.Rpc;
+using Orleans.Streams;
 using static DeactivationReasonCode;
 
-public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient clusterClient, ILogger<IUserSessionGrain> logger) : Grain, IUserSessionGrain
+public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient clusterClient, ILogger<IUserSessionGrain> logger)
+    : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
     private Guid _userId;
     private Guid _machineId;
@@ -20,7 +21,6 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
     {
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
-
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
@@ -40,8 +40,8 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
         userStream = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(RefreshUserStatus, new GrainTimerCreationOptions
         {
-            DueTime = TimeSpan.FromSeconds(1),
-            Period = TimeSpan.FromSeconds(1),
+            DueTime   = TimeSpan.FromSeconds(10),
+            Period    = TimeSpan.FromSeconds(30),
             KeepAlive = true
         });
 
@@ -49,9 +49,12 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
            .GetGrain<IUserGrain>(userId)
            .GetMyServersIds();
         foreach (var server in servers)
+        {
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(userId, preferredStatus ?? UserStatus.Online);
+        }
+
         await Task.Delay(100);
         await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
             preferredStatus ?? UserStatus.Online,
@@ -72,4 +75,10 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
 
     public ValueTask EndRealtimeSession()
         => SelfDestroy();
+
+    public async Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
+        => await userStream.Fire(item);
+
+    public Task OnErrorAsync(Exception ex)
+        => Task.CompletedTask;
 }

@@ -7,7 +7,7 @@ using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
 using Sentry;
-using Api.Features.Orleans.Streams.Nats;
+using NatsStreaming;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -52,20 +52,31 @@ public static class OrleansExtension
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                    //.AddActivationRepartitioner<BalanceRule>()
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
-                   .AddNatsStreaming("default")
-                   .AddNatsStreaming(IArgonEvent.ProviderId)
+                   .AddNatsStreams("default", c =>
+                    {
+                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                        {
+                            Url = builder.Configuration.GetConnectionString("nats")!
+                        })));
+                    })
+                   .AddNatsStreams(IArgonEvent.ProviderId, c =>
+                    {
+                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                        {
+                            Url = builder.Configuration.GetConnectionString("nats")!
+                        })));
+                    })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
-                   .AddNatsStreaming(IArgonEvent.ProviderId)
-                   .AddNatsStreaming("default")
+                   .AddNatsStreams(IArgonEvent.ProviderId)
+                   .AddNatsStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 

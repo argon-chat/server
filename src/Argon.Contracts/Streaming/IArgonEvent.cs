@@ -7,9 +7,9 @@ using MessagePack.Formatters;
 public interface IArgonEvent
 {
     [TsIgnore]
-    public static string ProviderId => "argon_events";
+    public static string ProviderId => "events";
     [TsIgnore]
-    public static string Namespace => $"@";
+    public static string Namespace => $"argon";
     [TsIgnore]
     public static string Broadcast => $"argon.cluster.events.broadcast";
 

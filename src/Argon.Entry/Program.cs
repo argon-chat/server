@@ -2,7 +2,6 @@ using System.Reflection;
 using System.Security.Cryptography.X509Certificates;
 using Argon;
 using Argon.Api.Features.Orleans.Consul;
-using Argon.Api.Features.Orleans.Streams.Nats;
 using Argon.Controllers;
 using Argon.Extensions;
 using Argon.Features.Env;
@@ -10,8 +9,6 @@ using Argon.Features.Jwt;
 using Argon.Features.Logging;
 using Argon.Features.MediaStorage;
 using Argon.Features.Middlewares;
-using Argon.Features.OrleansStreamingProviders;
-using Argon.Features.OrleansStreamingProviders.V2;
 using Argon.Features.Vault;
 using Argon.Features.Web;
 using Argon.Services;
@@ -20,6 +17,7 @@ using MessagePack;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Newtonsoft.Json.Converters;
 using Orleans.Configuration;
+using Argon.Features.NatsStreaming;
 using Orleans.Serialization;
 using Serilog;
 
@@ -64,10 +62,19 @@ builder.Services
     {
         x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
            .AddStreaming()
-           .AddNatsStreaming("default")
-           .AddAdoNetStreams(IArgonEvent.ProviderId, x => {
-                x.Invariant        = "Npgsql";
-                x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+           .AddNatsStreams("default", c =>
+            {
+                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                {
+                    Url = builder.Configuration.GetConnectionString("nats")!
+                })));
+            })
+           .AddNatsStreams(IArgonEvent.ProviderId, c =>
+            {
+                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                {
+                    Url = builder.Configuration.GetConnectionString("nats")!
+                })));
             })
            .AddBroadcastChannel(IArgonEvent.Broadcast);
         if (builder.Environment.IsProduction())
