@@ -1,12 +1,12 @@
-name: Production
+name: Canary
 
 on:
   push:
-    branches: [ "release" ]
+    branches: [ "master" ]
     paths:
       - 'src/**/**'
   pull_request:
-    branches: [ "release" ]
+    branches: [ "master" ]
     paths:
       - 'src/**/**'
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
 #    uses: ./.github/workflows/tests.yml
   build:
 #    needs: [ qa ]
-    if: github.ref == 'refs/heads/release'
+    if: github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -36,11 +36,11 @@ jobs:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          tags: ghcr.io/argon-chat/orleans-nightly:${{ github.run_number }}
       - name: Build and push contracts
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Entry/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/entry:${{ github.run_number }}
+          tags: ghcr.io/argon-chat/entry-nightly:${{ github.run_number }}
