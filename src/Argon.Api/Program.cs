@@ -77,10 +77,11 @@ if (!builder.Environment.IsManaged())
 }
 else
     app.UseSerilogRequestLogging();
+
 app.MapDefaultEndpoints();
 app.MapGet("/", () => new
 {
     version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
 });
 
-await app.WarpUp<ApplicationDbContext>().RunAsync();
+await app.WarpUp<ApplicationDbContext>()/*.WarpUp<ClickhouseContext>()*/.RunAsync();

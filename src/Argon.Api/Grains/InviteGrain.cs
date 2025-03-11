@@ -1,35 +1,28 @@
 namespace Argon.Grains;
 
+using Orleans.Concurrency;
 using Shared.Servers;
 
-public class InviteGrain(
-    [PersistentState("invites-store", IServerInvitesGrain.StorageId)]
-    IPersistentState<ServerInviteStorage> state) : Grain, IInviteGrain
+[StatelessWorker]
+public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grain, IInviteGrain
 {
-    public async ValueTask<Maybe<AcceptInviteError>> AcceptAsync(Guid userId)
+    public async ValueTask<(Guid, AcceptInviteError)> AcceptAsync(Guid userId)
     {
-        await state.ReadStateAsync();
-        if (state.State.InviteCode == default)
-            return AcceptInviteError.NOT_FOUND;
-        if (state.State.InviteCode.HasExpired())
-            return AcceptInviteError.EXPIRED;
-        await GrainFactory.GetGrain<IServerGrain>(state.State.InviteCode.serverId).DoJoinUserAsync(userId);
-        return Maybe<AcceptInviteError>.None();
+        await using var db = await context.CreateDbContextAsync();
+        
+        var e = await db.ServerInvites.FirstOrDefaultAsync(x => x.Id == ServerInviteGrain.EncodeToUlong(this.GetPrimaryKeyString()));
+
+        if (e is null)
+            return (Guid.Empty, AcceptInviteError.NOT_FOUND); // TODO
+        if (e.Expired < DateTime.Now)
+            return (Guid.Empty, AcceptInviteError.EXPIRED);
+        await GrainFactory.GetGrain<IServerGrain>(e.ServerId).DoJoinUserAsync(userId);
+        return (e.ServerId, AcceptInviteError.NONE);
     }
-
-    public async ValueTask<InviteCodeEntity> GetAsync()
-        => state.State.InviteCode;
-
-    public async ValueTask<bool> HasCreatedAsync()
-        => state.State.InviteCode != default;
 
     public async ValueTask DropInviteCodeAsync()
-        => await state.ClearStateAsync();
-
-    public async ValueTask<InviteCode> EnsureAsync(Guid serverId, Guid issuer, TimeSpan expiration)
     {
-        state.State.InviteCode = new InviteCodeEntity(new InviteCode(this.GetPrimaryKeyString()), serverId, issuer, DateTime.UtcNow + expiration, 0);
-        await state.WriteStateAsync();
-        return state.State.InviteCode.code;
+        // TODO
     }
+
 }

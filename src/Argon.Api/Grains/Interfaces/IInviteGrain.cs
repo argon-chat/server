@@ -6,23 +6,14 @@ using Shared.Servers;
 public interface IInviteGrain : IGrainWithStringKey
 {
     [Alias("AcceptAsync")]
-    ValueTask<Maybe<AcceptInviteError>> AcceptAsync(Guid userId);
-
-    [Alias("GetAsync")]
-    ValueTask<InviteCodeEntity> GetAsync();
-
-    [Alias("HasCreatedAsync")]
-    ValueTask<bool> HasCreatedAsync();
-
-    [Alias("EnsureAsync")]
-    ValueTask<InviteCode> EnsureAsync(Guid serverId, Guid issuer, TimeSpan expiration);
+    ValueTask<(Guid, AcceptInviteError)> AcceptAsync(Guid userId);
 
     [Alias("DropInviteCodeAsync")]
     ValueTask DropInviteCodeAsync();
 }
 
 [Alias("Argon.Grains.Interfaces.IServerInvitesGrain")]
-public interface IServerInvitesGrain : IGrainWithGuidKey, IRemindable
+public interface IServerInvitesGrain : IGrainWithGuidKey
 {
     [Alias("CreateInviteLinkAsync")]
     Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration);

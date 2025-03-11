@@ -7,6 +7,7 @@ using Orleans.Configuration;
 using Orleans.Hosting;
 using Orleans.Providers;
 using Sentry;
+using NatsStreaming;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -40,32 +41,33 @@ public static class OrleansExtension
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
-                    options.CollectionAge = TimeSpan.FromMinutes(4);
+                    options.CollectionAge     = TimeSpan.FromMinutes(4);
                     options.CollectionQuantum = TimeSpan.FromMinutes(2);
                 })
                .Configure<SchedulingOptions>(options =>
                 {
                     options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
-                    options.TurnWarningLengthThreshold = TimeSpan.FromSeconds(10);
+                    options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                 });
 
             if (builder.Environment.IsKube())
                 siloBuilder
-                    //.AddActivationRepartitioner<BalanceRule>()
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
-                   .AddAdoNetStreams("default", x =>
+                   .AddNatsStreams("default", c =>
                     {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                        x.MaxAttempts      = 1;
+                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                        {
+                            Url = builder.Configuration.GetConnectionString("nats")!
+                        })));
                     })
-                   .AddAdoNetStreams(IArgonEvent.ProviderId, x =>
+                   .AddNatsStreams(IArgonEvent.ProviderId, c =>
                     {
-                        x.Invariant        = "Npgsql";
-                        x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                        x.MaxAttempts      = 1;
+                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                        {
+                            Url = builder.Configuration.GetConnectionString("nats")!
+                        })));
                     })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
@@ -73,8 +75,8 @@ public static class OrleansExtension
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
-                   .AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddMemoryStreams("default")
+                   .AddNatsStreams(IArgonEvent.ProviderId)
+                   .AddNatsStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 

@@ -1,0 +1,60 @@
+namespace Argon.Features.NatsStreaming;
+
+using Microsoft.Extensions.Logging.Abstractions;
+using NATS.Client.Core;
+using NATS.Client.JetStream;
+using Orleans.Configuration;
+using Orleans.Providers.Streams.Common;
+using Orleans.Streams;
+
+public class NatsQueueAdapterFactory(
+    string name,
+    HashRingStreamQueueMapperOptions queueMapperOptions,
+    NatsConfiguration natsConfiguration,
+    INatsMessageBodySerializer serializer,
+    ILogger<NatsQueueAdapterFactory> logger)
+    : IQueueAdapterFactory, IQueueAdapterCache
+{
+    private readonly HashRingBasedStreamQueueMapper _mapper = new(queueMapperOptions, name);
+
+    public string Name { get; set; } = name;
+
+    public async Task<IQueueAdapter> CreateAdapter()
+    {
+        try
+        {
+            var natsOptions = NatsOpts.Default;
+            natsOptions = natsConfiguration.Configure(natsOptions);
+            var connection = new NatsConnection(natsOptions);
+            await connection.ConnectAsync();
+            var context = new NatsJSContext(connection);
+            return new NatsAdaptor(context, Name, serializer, _mapper, logger);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create adapter {Exception}", ex);
+            throw;
+        }
+    }
+
+    public IQueueAdapterCache GetQueueAdapterCache()
+        => this;
+
+    public IStreamQueueMapper GetStreamQueueMapper()
+        => _mapper;
+
+    public async Task<IStreamFailureHandler> GetDeliveryFailureHandler(QueueId queueId)
+        => new NoOpStreamDeliveryFailureHandler();
+
+    public IQueueCache CreateQueueCache(QueueId queueId)
+        => new SimpleQueueCache(1024 * 4, NullLogger.Instance);
+
+    public static NatsQueueAdapterFactory Create(IServiceProvider services, string name)
+    {
+        var queueMapperOptions = services.GetOptionsByName<HashRingStreamQueueMapperOptions>(name);
+        var natsOpts = services.GetOptionsByName<NatsConfiguration>(name);
+        var serializer = services.GetRequiredKeyedService<INatsMessageBodySerializer>(name);
+        var factory = ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(services, name, queueMapperOptions, natsOpts, serializer);
+        return factory;
+    }
+}

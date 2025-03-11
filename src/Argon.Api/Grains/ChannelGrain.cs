@@ -41,6 +41,20 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
+    public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var messages = await ctx.Messages
+           .Where(m => m.ChannelId == this.GetPrimaryKey())
+           .OrderByDescending(m => m.CreatedAt)
+           .Skip(offset)
+           .Take(count)
+           .AsNoTracking()
+           .ToListAsync();
+
+        return messages;
+    }
+
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
 
@@ -64,7 +78,7 @@ public class ChannelGrain(
             state.State.Users.Add(userId, new RealtimeChannelUser()
             {
                 UserId = userId,
-                State = ChannelMemberState.NONE
+                State  = ChannelMemberState.NONE
             });
             await state.WriteStateAsync();
         }
@@ -109,6 +123,27 @@ public class ChannelGrain(
         return (await Get());
     }
 
+    public async Task SendMessage(Guid senderId, string text, List<MessageEntity> entities)
+    {
+        if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var message = new ArgonMessage()
+        {
+            ServerId  = _self.ServerId,
+            ChannelId = this.GetPrimaryKey(),
+            CreatorId = senderId,
+            Entities  = entities,
+            Text      = text,
+        };
+
+        var e = await ctx.Messages.AddAsync(message);
+        await ctx.SaveChangesAsync();
+
+        await _userStateEmitter.Fire(new MessageSent(e.Entity));
+    }
+
     private async Task<Channel> Get()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -116,7 +151,6 @@ public class ChannelGrain(
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 }
-
 
 public enum ChannelUserChangedStateEvent
 {

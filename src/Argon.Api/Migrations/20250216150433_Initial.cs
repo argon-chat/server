@@ -1,5 +1,8 @@
-using System;
+﻿using System;
+using System.Collections.Generic;
+using Argon;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -8,13 +11,31 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Argon.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            var sql = System.IO.File.ReadAllText("Migrations/orleans_up.sql");
-            migrationBuilder.Sql(sql);
+            migrationBuilder.CreateTable(
+                name: "Messages",
+                columns: table => new
+                {
+                    MessageId = table.Column<long>(type: "bigint", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    ServerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    ChannelId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Reply = table.Column<long>(type: "bigint", nullable: true),
+                    Entities = table.Column<List<MessageEntity>>(type: "jsonb", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Messages", x => new { x.ServerId, x.ChannelId, x.MessageId });
+                });
 
             migrationBuilder.CreateTable(
                 name: "Servers",
@@ -24,6 +45,7 @@ namespace Argon.Api.Migrations
                     Name = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     Description = table.Column<string>(type: "character varying(1024)", maxLength: 1024, nullable: true),
                     AvatarFileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    TopBannedFileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -47,6 +69,8 @@ namespace Argon.Api.Migrations
                     PasswordDigest = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
                     AvatarFileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     OtpHash = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    LockdownReason = table.Column<int>(type: "integer", nullable: false),
+                    LockDownExpiration = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
@@ -108,6 +132,30 @@ namespace Argon.Api.Migrations
                     table.PrimaryKey("PK_Channels", x => x.Id);
                     table.ForeignKey(
                         name: "FK_Channels_Servers_ServerId",
+                        column: x => x.ServerId,
+                        principalTable: "Servers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ServerInvites",
+                columns: table => new
+                {
+                    Id = table.Column<decimal>(type: "numeric(20,0)", nullable: false),
+                    Expired = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    ServerId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CreatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    DeletedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false),
+                    CreatorId = table.Column<Guid>(type: "uuid", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ServerInvites", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_ServerInvites_Servers_ServerId",
                         column: x => x.ServerId,
                         principalTable: "Servers",
                         principalColumn: "Id",
@@ -233,21 +281,21 @@ namespace Argon.Api.Migrations
 
             migrationBuilder.InsertData(
                 table: "Servers",
-                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "CreatorId", "DeletedAt", "Description", "IsDeleted", "Name", "UpdatedAt" },
-                values: new object[] { new Guid("11111111-0000-1111-1111-111111111111"), "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new Guid("11111111-2222-1111-2222-111111111111"), null, "", false, "system_server", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) });
+                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "CreatorId", "DeletedAt", "Description", "IsDeleted", "Name", "TopBannedFileId", "UpdatedAt" },
+                values: new object[] { new Guid("11111111-0000-1111-1111-111111111111"), "", new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new Guid("11111111-2222-1111-2222-111111111111"), null, "", false, "system_server", null, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) });
 
             migrationBuilder.InsertData(
                 table: "Users",
-                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "DeletedAt", "DisplayName", "Email", "IsDeleted", "OtpHash", "PasswordDigest", "PhoneNumber", "UpdatedAt", "Username" },
-                values: new object[] { new Guid("11111111-2222-1111-2222-111111111111"), null, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, "System", "system@argon.gl", false, null, null, null, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "system" });
+                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "DeletedAt", "DisplayName", "Email", "IsDeleted", "LockDownExpiration", "LockdownReason", "OtpHash", "PasswordDigest", "PhoneNumber", "UpdatedAt", "Username" },
+                values: new object[] { new Guid("11111111-2222-1111-2222-111111111111"), null, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), null, "System", "system@argon.gl", false, null, 0, null, null, null, new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), "system" });
 
             migrationBuilder.InsertData(
                 table: "Archetypes",
                 columns: new[] { "Id", "Colour", "CreatedAt", "CreatorId", "DeletedAt", "Description", "Entitlement", "IconFileId", "IsDeleted", "IsHidden", "IsLocked", "IsMentionable", "Name", "ServerId", "UpdatedAt" },
                 values: new object[,]
                 {
-                    { new Guid("11111111-3333-0000-1111-111111111111"), -8355712, new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8382), new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for everyone in this server", 15760355m, null, false, false, false, true, "everyone", new Guid("11111111-0000-1111-1111-111111111111"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) },
-                    { new Guid("11111111-4444-0000-1111-111111111111"), -8355712, new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8411), new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for owner in this server", -1m, null, false, true, true, false, "owner", new Guid("11111111-0000-1111-1111-111111111111"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) }
+                    { new Guid("11111111-3333-0000-1111-111111111111"), -8355712, new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8411), new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for everyone in this server", 15760355m, null, false, false, false, true, "everyone", new Guid("11111111-0000-1111-1111-111111111111"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) },
+                    { new Guid("11111111-4444-0000-1111-111111111111"), -8355712, new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8382), new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for owner in this server", -1m, null, false, true, true, false, "owner", new Guid("11111111-0000-1111-1111-111111111111"), new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified) }
                 });
 
             migrationBuilder.CreateIndex(
@@ -296,6 +344,27 @@ namespace Argon.Api.Migrations
                 column: "ServerId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_Messages_CreatorId",
+                table: "Messages",
+                column: "CreatorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Messages_ServerId_ChannelId_MessageId",
+                table: "Messages",
+                columns: new[] { "ServerId", "ChannelId", "MessageId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ServerInvites_CreatorId",
+                table: "ServerInvites",
+                column: "CreatorId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ServerInvites_ServerId",
+                table: "ServerInvites",
+                column: "ServerId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ServerMemberArchetypes_ArchetypeId",
                 table: "ServerMemberArchetypes",
                 column: "ArchetypeId");
@@ -329,11 +398,14 @@ namespace Argon.Api.Migrations
         /// <inheritdoc />
         protected override void Down(MigrationBuilder migrationBuilder)
         {
-            var sql = System.IO.File.ReadAllText("Migrations/orleans_down.sql");
-            migrationBuilder.Sql(sql);
-
             migrationBuilder.DropTable(
                 name: "ChannelEntitlementOverwrites");
+
+            migrationBuilder.DropTable(
+                name: "Messages");
+
+            migrationBuilder.DropTable(
+                name: "ServerInvites");
 
             migrationBuilder.DropTable(
                 name: "ServerMemberArchetypes");

@@ -2,6 +2,7 @@ namespace Argon.Grains.Interfaces;
 
 using Argon.Servers;
 using Orleans.Concurrency;
+using System.Threading.Tasks;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
 public interface IChannelGrain : IGrainWithGuidKey
@@ -17,6 +18,12 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias("UpdateChannel")]
     Task<Channel> UpdateChannel(ChannelInput input);
+
+    [Alias(nameof(SendMessage))]
+    Task SendMessage(Guid senderId, string text, List<MessageEntity> entities);
+
+    [Alias(nameof(GetMessages))]
+    Task<List<ArgonMessage>> GetMessages(int count, int offset);
 
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();

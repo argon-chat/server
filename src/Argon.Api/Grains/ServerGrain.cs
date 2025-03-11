@@ -17,15 +17,15 @@ public class ServerGrain(
 
     public async override Task OnActivateAsync(CancellationToken ct)
     {
-        await state.ReadStateAsync();
+        await state.ReadStateAsync(ct);
         state.State.UserStatuses.Clear();
-        await state.WriteStateAsync();
+        await state.WriteStateAsync(ct);
 
-        _serverEvents = await this.Streams().CreateServerStream();
+        _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
-        => state.WriteStateAsync();
+        => state.WriteStateAsync(ct);
 
 
     public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
