@@ -7,6 +7,7 @@ using Certes.Acme.Resource;
 using Env;
 using k8s;
 using k8s.Models;
+using Services;
 using StackExchange.Redis;
 
 public class AcmeChallengeMiddleware(RequestDelegate next, IServiceProvider provider)
@@ -27,15 +28,14 @@ public class AcmeChallengeMiddleware(RequestDelegate next, IServiceProvider prov
 
         await using var scope = provider.CreateAsyncScope();
 
-        var redis = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
-        var db    = redis.GetDatabase();
+        var db = scope.ServiceProvider.GetRequiredService<IArgonCacheDatabase>();
 
         var token   = context.Request.Path.Value.Split('/').Last();
         var keyAuth = await db.StringGetAsync(token);
 
         if (!string.IsNullOrEmpty(keyAuth))
         {
-            await context.Response.WriteAsync(keyAuth.ToString());
+            await context.Response.WriteAsync(keyAuth);
             return;
         }
 
@@ -53,12 +53,11 @@ public class AcmeChallenge(IServiceProvider provider, ILogger<AcmeChallenge> log
 {
     public async Task ConfigureAcmeChallenge()
     {
-        if (!env.IsKube())
+        if (env.IsSingleInstance())
             return;
         await using var scope = provider.CreateAsyncScope();
 
-        var redis   = scope.ServiceProvider.GetRequiredService<IConnectionMultiplexer>();
-        var db      = redis.GetDatabase();
+        var db      = scope.ServiceProvider.GetRequiredService<IArgonCacheDatabase>();
         var acme    = new AcmeContext(WellKnownServers.LetsEncryptV2);
         var account = await acme.NewAccount(options.Value.EMails, true);
 
@@ -112,8 +111,12 @@ public class AcmeChallenge(IServiceProvider provider, ILogger<AcmeChallenge> log
             Type = "kubernetes.io/tls",
             Data = new Dictionary<string, byte[]>
             {
-                { "tls.crt", Encoding.UTF8.GetBytes(certPem) },
-                { "tls.key", Encoding.UTF8.GetBytes(keyPem) }
+                {
+                    "tls.crt", Encoding.UTF8.GetBytes(certPem)
+                },
+                {
+                    "tls.key", Encoding.UTF8.GetBytes(keyPem)
+                }
             }
         };
 
