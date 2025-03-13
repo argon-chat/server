@@ -89,8 +89,8 @@ builder.AddArgonTransport(x =>
     x.AddService<IUserInteraction, UserInteraction>();
     x.AddService<IEventBus, EventBusService>();
 });
-if (builder.Environment.IsKube())
-    builder.Services.UseKubernetesHosting();
+//if (builder.Environment.IsKube())
+//    builder.Services.UseKubernetesHosting();
 builder.Services.AddAuthorization();
 var app = builder.Build();
 app.UseServerTiming();
@@ -103,8 +103,8 @@ app.MapControllers();
 app.MapDefaultEndpoints();
 app.MapArgonTransport();
 
-if (builder.Environment.IsKube())
-    app.UseSerilogRequestLogging();
+//if (builder.Environment.IsKube())
+//    app.UseSerilogRequestLogging();
 
 app.UseRewrites();
 app.MapGet("/", () => new
