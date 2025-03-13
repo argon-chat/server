@@ -12,10 +12,7 @@ on:
   workflow_dispatch:
 
 jobs:
-#  qa:
-#    uses: ./.github/workflows/tests.yml
   build:
-#    needs: [ qa ]
     if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
     steps:
@@ -24,23 +21,36 @@ jobs:
           fetch-depth: 0
           submodules: 'recursive'
           token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Log in to GitHub Docker Registry
         uses: docker/login-action@v1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.ARGON_GHCR_PAT }}
+      
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+      
       - name: Build and push api
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          tags: |
+            ghcr.io/argon-chat/orleans:${{ github.run_number }}
+            argonchat/argon-server:${{ github.run_number }}
+            argonchat/argon-server:latest
+      
       - name: Build and push contracts
         uses: docker/build-push-action@v2
         with:
           context: .
           file: ./src/Argon.Entry/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/entry:${{ github.run_number }}
+          tags: |
+            ghcr.io/argon-chat/entry:${{ github.run_number }}
