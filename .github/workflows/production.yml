@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-ghcr:
-    if: github.ref == 'refs/heads/release'
+    if: github.ref == 'refs/heads/release_DISABLED'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
