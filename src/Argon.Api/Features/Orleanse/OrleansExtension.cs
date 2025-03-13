@@ -50,7 +50,7 @@ public static class OrleansExtension
                     options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                 });
 
-            if (builder.Environment.IsKube())
+            if (builder.Environment.IsMultiRegion() || builder.Environment.IsSingleRegion())
                 siloBuilder
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")

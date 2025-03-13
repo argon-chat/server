@@ -13,7 +13,7 @@ public static class KubeExtensions
     {
         var services = builder.Services;
 
-        if (builder.Environment.IsKube())
+        //if (builder.Environment.IsKube())
         {
             //    var config = KubernetesClientConfiguration.InClusterConfig();
             //    services.AddSingleton(config);
@@ -49,7 +49,7 @@ public class KubeResources(IHostEnvironment env, IServiceProvider serviceProvide
 
     private async Task<double> GetAvgCpu()
     {
-        if (!env.IsKube())
+        if (env.IsSingleInstance())
             return 10;
         await using var
             scope = serviceProvider.CreateAsyncScope();
