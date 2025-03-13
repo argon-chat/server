@@ -8,7 +8,7 @@ public static class LoggingFeature
 {
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
-        if (!builder.Environment.IsKube()) 
+        if (builder.Environment.IsSingleInstance()) 
             return builder;
 
         Log.Logger = new LoggerConfiguration()
