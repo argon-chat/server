@@ -15,6 +15,8 @@ public static class VaultFeature
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(space))
             throw new Exception($"No url or token for vault defined");
 
+        Console.WriteLine($"Setup vault @@ {url} {space} {token} @@");
+
         builder.AddVaultConfiguration(
             () => new VaultOptions(
             url, token, insecureConnection: false),
@@ -29,7 +31,7 @@ public static class VaultFeature
         if (Environment.GetEnvironmentVariable("ARGON_VAULT_TOKEN") is { } str)
             return str;
         if (Environment.GetEnvironmentVariable("VAULT_TOKEN_FILE") is { } fileToken)
-            return File.ReadAllText(fileToken);
+            return File.ReadAllText(fileToken).TrimEnd();
         throw new NotSupportedException("Vault not defined authorization method");
     }
 }
