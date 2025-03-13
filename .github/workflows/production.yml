@@ -3,8 +3,6 @@ name: Production
 on:
   push:
     branches: [ "release" ]
-    paths:
-      - 'src/**/**'
   workflow_dispatch:
 
 jobs:
