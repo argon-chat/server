@@ -6,6 +6,7 @@ public static class TemplateFeature
 {
     public static IServiceCollection AddTemplateEngine(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<SmtpConfig>(builder.Configuration.GetSection("Smtp"));
         builder.Services.AddSingleton<FluidParser>();
         builder.Services.AddHostedService<EMailFormLoader>();
         builder.Services.AddSingleton<EMailFormStorage>();

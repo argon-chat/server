@@ -4,7 +4,9 @@
       "commandName": "Project",
       "launchUrl": "swagger",
       "environmentVariables": {
-        "ASPNETCORE_ENVIRONMENT": "Development"
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ARGON_ROLE": "Hybrid",
+        "ARGON_MODE": "SingleInstance"
       },
       "dotnetRunMessages": true
     },

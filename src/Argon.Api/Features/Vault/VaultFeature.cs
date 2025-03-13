@@ -6,7 +6,7 @@ public static class VaultFeature
 {
     public static void AddVaultConfiguration(this WebApplicationBuilder builder)
     {
-        if (!builder.Environment.IsKube())
+        if (builder.Environment.IsSingleInstance())
             return;
         var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
         var token = Environment.GetEnvironmentVariable("ARGON_VAULT_TOKEN");
