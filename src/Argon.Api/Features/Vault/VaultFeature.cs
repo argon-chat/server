@@ -1,12 +1,12 @@
 namespace Argon.Features.Vault;
 
-using Env;
+using System.Diagnostics;
 
 public static class VaultFeature
 {
     public static void AddVaultConfiguration(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsSingleInstance())
+        if (Debugger.IsAttached)
             return;
         var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
         var token = Environment.GetEnvironmentVariable("ARGON_VAULT_TOKEN");
