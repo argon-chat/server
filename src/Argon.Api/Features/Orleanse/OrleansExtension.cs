@@ -75,8 +75,8 @@ public static class OrleansExtension
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
-                   .AddNatsStreams(IArgonEvent.ProviderId)
-                   .AddNatsStreams("default")
+                   .AddMemoryStreams(IArgonEvent.ProviderId)
+                   .AddMemoryStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 
