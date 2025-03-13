@@ -87,7 +87,6 @@ public static class HostModeExtensions
             builder.Services.AddAuthorization();
         }
 
-        builder.AddVaultConfiguration();
         if (builder.Environment.IsGateway())
             builder.AddConsul("SiloConsul");
         if (builder.Environment.IsEntryPoint())
@@ -103,6 +102,7 @@ public static class HostModeExtensions
 
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
+        builder.AddVaultConfiguration();
         builder.AddArgonCacheDatabase();
         builder.Services.AddServerTiming();
         builder.WebHost.UseQuic();
