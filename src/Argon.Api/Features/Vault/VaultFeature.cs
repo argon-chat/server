@@ -9,17 +9,27 @@ public static class VaultFeature
         if (Debugger.IsAttached)
             return;
         var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
-        var token = Environment.GetEnvironmentVariable("ARGON_VAULT_TOKEN");
+        var space = Environment.GetEnvironmentVariable("ARGON_VAULT_SPACE") ?? "argon";
+        var token = ReadToken();
 
-
-        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token))
+        if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(space))
             throw new Exception($"No url or token for vault defined");
 
         builder.AddVaultConfiguration(
             () => new VaultOptions(
             url, token, insecureConnection: false),
-            "@", "argon");
+            "@", space);
 
         builder.Services.AddHostedService<VaultChangeWatcher>();
+    }
+
+
+    private static string ReadToken()
+    {
+        if (Environment.GetEnvironmentVariable("ARGON_VAULT_TOKEN") is { } str)
+            return str;
+        if (Environment.GetEnvironmentVariable("VAULT_TOKEN_FILE") is { } fileToken)
+            return File.ReadAllText(fileToken);
+        throw new NotSupportedException("Vault not defined authorization method");
     }
 }
