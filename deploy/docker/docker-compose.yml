@@ -82,6 +82,7 @@ services:
     ports:
       - "5002:5002"
     environment:
+      - USE_VAULT=true
       - ARGON_MODE=SingleInstance
       - ARGON_ROLE=Hybrid
       - ConnectionStrings__DefaultConnection=Host=yugabyte;Port=5433;Username=yugabyte;Database=apiDb

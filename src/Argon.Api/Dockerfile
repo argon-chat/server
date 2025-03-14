@@ -3,6 +3,18 @@ USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 
+RUN apt-get update && apt-get install -y \
+    curl \
+    apt-transport-https \
+    gnupg \
+    && curl -fsSL https://packages.microsoft.com/config/debian/12/packages-microsoft-prod.deb -o packages-microsoft-prod.deb \
+    && dpkg -i packages-microsoft-prod.deb \
+    && apt-get update && apt-get install -y \
+    libmsquic \
+    libssl-dev \
+    ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
@@ -25,4 +37,7 @@ FROM base AS final
 #    Kestrel__Endpoints__Https__Certificate__KeyPath="/origin.argon.gl.key"
 WORKDIR /app
 COPY --from=publish /app/publish .
+ENV DOTNET_ENABLE_HTTP3="true"
+EXPOSE 5001
+EXPOSE 5001/udp
 ENTRYPOINT ["dotnet", "Argon.Api.dll"]
