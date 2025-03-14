@@ -120,7 +120,11 @@ public static class HostModeExtensions
         builder.AddOtpCodes();
         builder.AddEfRepositories();
         builder.AddCaptchaFeature();
-        builder.AddOrleans();
+
+        if (builder.IsEntryPointRole())
+            builder.AddOrleans();
+        else
+            builder.AddOrleans();
 
         return builder;
     }

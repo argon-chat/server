@@ -13,6 +13,35 @@ using NatsStreaming;
 
 public static class OrleansExtension
 {
+
+    public static WebApplicationBuilder AddOrleansClient(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddOrleansClient(x =>
+        {
+            x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+               .AddStreaming()
+               .AddNatsStreams("default", c =>
+                {
+                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                    {
+                        Url = builder.Configuration.GetConnectionString("nats")!
+                    })));
+                })
+               .AddNatsStreams(IArgonEvent.ProviderId, c =>
+                {
+                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                    {
+                        Url = builder.Configuration.GetConnectionString("nats")!
+                    })));
+                })
+               .AddBroadcastChannel(IArgonEvent.Broadcast);
+            if (!builder.Environment.IsSingleInstance())
+                x.AddConsulClustering();
+            else
+                x.UseLocalhostClustering();
+        });
+        return builder;
+    }
     public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
     {
         builder.Host.UseOrleans(siloBuilder =>
