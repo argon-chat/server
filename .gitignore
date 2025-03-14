@@ -15,3 +15,7 @@ secrets.json
 src/Argon.Api/Generated/
 
 src/Argon.Api/localhost.pfx
+
+deploy/docker/vault_tokens/
+
+deploy/docker/argon_vault/
