@@ -20,21 +20,24 @@ public static class OrleansExtension
         {
             x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
                .AddStreaming()
-               .AddNatsStreams("default", c =>
-                {
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = builder.Configuration.GetConnectionString("nats")!
-                    })));
-                })
-               .AddNatsStreams(IArgonEvent.ProviderId, c =>
-                {
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = builder.Configuration.GetConnectionString("nats")!
-                    })));
-                })
                .AddBroadcastChannel(IArgonEvent.Broadcast);
+
+            if (builder.Environment.IsSingleInstance())
+                x.AddMemoryStreams("default")
+                   .AddMemoryStreams(IArgonEvent.ProviderId);
+            else 
+                x.AddNatsStreams("default", c => {
+                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                    {
+                        Url = builder.Configuration.GetConnectionString("nats")!
+                    })));
+                })
+                .AddNatsStreams(IArgonEvent.ProviderId, c => {
+                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                    {
+                        Url = builder.Configuration.GetConnectionString("nats")!
+                    })));
+                });
             if (!builder.Environment.IsSingleInstance())
                 x.AddConsulClustering();
             else

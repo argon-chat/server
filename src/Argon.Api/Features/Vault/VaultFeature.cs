@@ -15,8 +15,6 @@ public static class VaultFeature
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(space))
             throw new Exception($"No url or token for vault defined");
 
-        Console.WriteLine($"Setup vault @@ {url} {space} {token} @@");
-
         builder.AddVaultConfiguration(
             () => new VaultOptions(
             url, token, insecureConnection: false),

@@ -122,7 +122,7 @@ public static class HostModeExtensions
         builder.AddCaptchaFeature();
 
         if (builder.IsEntryPointRole())
-            builder.AddOrleans();
+            builder.AddOrleansClient();
         else
             builder.AddOrleans();
 
