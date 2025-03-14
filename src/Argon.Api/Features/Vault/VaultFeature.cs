@@ -1,10 +1,8 @@
 namespace Argon.Features.Vault;
 
-using System.Diagnostics;
-
 public static class VaultFeature
 {
-    public static void AddVaultConfiguration(this WebApplicationBuilder builder)
+    public static void AddVaultConfiguration(this WebApplicationBuilder builder, bool includeWatcher = true)
     {
         if (Environment.GetEnvironmentVariable("USE_VAULT") is null)
             return;
@@ -17,10 +15,11 @@ public static class VaultFeature
 
         builder.AddVaultConfiguration(
             () => new VaultOptions(
-            url, token, insecureConnection: false),
+                url, token, insecureConnection: false),
             "@", space);
 
-        builder.Services.AddHostedService<VaultChangeWatcher>();
+        if (includeWatcher)
+            builder.Services.AddHostedService<VaultChangeWatcher>();
     }
 
 

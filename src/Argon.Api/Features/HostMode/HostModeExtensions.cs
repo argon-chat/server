@@ -20,8 +20,7 @@ using Sfu;
 using Serilog;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
-using Controllers;
-using Orleans.Serialization;
+using global::Orleans.Serialization;
 
 public static class HostModeExtensions
 {
@@ -36,19 +35,17 @@ public static class HostModeExtensions
         if (builder.IsEntryPointRole())
         {
             builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5002, listenOptions =>
-                {
+                options.ListenAnyIP(5002, listenOptions => {
                     if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
                     {
-                        listenOptions.UseHttps(x =>
-                        {
+                        listenOptions.UseHttps(x => {
                             x.ServerCertificate = X509Certificate2.CreateFromPemFile(
                                 "/etc/tls/tls.crt",
                                 "/etc/tls/tls.key"
                             );
                         });
                         listenOptions.DisableAltSvcHeader = false;
-                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
+                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
                     }
                     else
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
@@ -65,14 +62,12 @@ public static class HostModeExtensions
             builder.AddSwaggerWithAuthHeader();
             builder.Services.AddAuthorization();
             builder.AddDefaultCors();
+            builder.AddArgonTransport(x => {
+                x.AddService<IServerInteraction, ServerInteraction>();
+                x.AddService<IUserInteraction, UserInteraction>();
+                x.AddService<IEventBus, EventBusService>();
+            });
         }
-
-        builder.AddArgonTransport(x =>
-        {
-            x.AddService<IServerInteraction, ServerInteraction>();
-            x.AddService<IUserInteraction, UserInteraction>();
-            x.AddService<IEventBus, EventBusService>();
-        });
 
         return builder;
     }
@@ -82,10 +77,16 @@ public static class HostModeExtensions
         builder.AddDefaultWorkloadServices();
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
-            builder.Services.AddControllers().AddApplicationPart(typeof(FilesController).Assembly)
+            builder.Services.AddControllers()
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.AddSwaggerWithAuthHeader();
             builder.Services.AddAuthorization();
+            builder.AddDefaultCors();
+            builder.AddArgonTransport(x => {
+                x.AddService<IServerInteraction, ServerInteraction>();
+                x.AddService<IUserInteraction, UserInteraction>();
+                x.AddService<IEventBus, EventBusService>();
+            });
         }
 
         if (builder.Environment.IsGateway())
@@ -138,7 +139,7 @@ public static class RunHostModeExtensions
     public static WebApplication UseSingleInstanceWorkloads(this WebApplication app)
     {
         app.UseServerTiming();
-        
+
         if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
@@ -151,7 +152,7 @@ public static class RunHostModeExtensions
             app.MapArgonTransport();
             app.MapDefaultEndpoints();
         }
-        
+
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
