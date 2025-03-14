@@ -6,7 +6,7 @@ public static class VaultFeature
 {
     public static void AddVaultConfiguration(this WebApplicationBuilder builder)
     {
-        if (Debugger.IsAttached)
+        if (Environment.GetEnvironmentVariable("USE_VAULT") is null)
             return;
         var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
         var space = Environment.GetEnvironmentVariable("ARGON_VAULT_SPACE") ?? "argon";

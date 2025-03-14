@@ -21,6 +21,7 @@ using Serilog;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
 using Controllers;
+using Orleans.Serialization;
 
 public static class HostModeExtensions
 {
@@ -120,6 +121,7 @@ public static class HostModeExtensions
         builder.AddOtpCodes();
         builder.AddEfRepositories();
         builder.AddCaptchaFeature();
+        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
         if (builder.IsEntryPointRole())
             builder.AddOrleansClient();
@@ -136,15 +138,20 @@ public static class RunHostModeExtensions
     public static WebApplication UseSingleInstanceWorkloads(this WebApplication app)
     {
         app.UseServerTiming();
-        app.UseCors();
-        app.UseSwagger();
-        app.UseSwaggerUI();
-        app.UseAuthentication();
-        app.UseAuthorization();
-        app.MapControllers();
-        app.MapDefaultEndpoints();
-        app.MapArgonTransport();
-        app.MapDefaultEndpoints();
+        
+        if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
+        {
+            app.UseCors();
+            app.UseSwagger();
+            app.UseSwaggerUI();
+            app.UseAuthentication();
+            app.UseAuthorization();
+            app.MapControllers();
+            app.MapDefaultEndpoints();
+            app.MapArgonTransport();
+            app.MapDefaultEndpoints();
+        }
+        
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
@@ -156,7 +163,7 @@ public static class RunHostModeExtensions
     {
         app.UseServerTiming();
 
-        if (app.Environment.IsEntryPoint())
+        if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
             app.UseSwagger();
