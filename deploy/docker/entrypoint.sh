@@ -1,4 +1,5 @@
 #!/bin/sh
+
 echo "Creating Vault config..."
 set -e
 
@@ -19,5 +20,10 @@ echo "Unsealing Vault..."
 vault operator unseal $(cat /vault/unseal-1)
 vault operator unseal $(cat /vault/unseal-2)
 
+if [ -f /vault/token ]; then
+  chmod 644 /vault/token
+fi
+
 echo "Vault is ready."
+
 sleep infinity

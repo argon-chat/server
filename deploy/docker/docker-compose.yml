@@ -5,40 +5,26 @@ networks:
 services:
   yugabyte:
     image: yugabytedb/yugabyte:latest
+    restart: on-failure
     container_name: argon-db
     command: ["bin/yugabyted", "start", "--daemon=false"] 
     volumes:
-      - ./argon_db_data:/mnt
+      - argon_db_data:/mnt
     networks:
       - argon_network
 
   keydb:
     image: eqalpha/keydb
     container_name: argon-cache
+    restart: on-failure
     command: ["keydb-server"]
     networks:
       - argon_network
 
-  db:
-    image: mysql
-    container_name: argon-secrets-db
-    environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=vault
-      - MYSQL_USER=vault
-      - MYSQL_PASSWORD=password
-    volumes:
-      - mysql_data:/var/lib/mysql
-    networks:
-      - argon_network
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u vault -ppassword"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
   vault:
     image: hashicorp/vault
+    platform: linux/amd64
+    restart: on-failure
     user: root
     container_name: argon-secrets
     ports:
@@ -46,24 +32,28 @@ services:
     cap_add:
       - IPC_LOCK  
     environment:
-      - VAULT_LOCAL_CONFIG={"storage":{"mysql":{"username":"vault","password":"password","address":"db:3306","database":"vault","tls_ca":"","tls_cert":"","tls_key":""}},"listener":[{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}}],"ui":true}
       - SKIP_CHOWN=true
+      - VAULT_LOCAL_CONFIG={"storage":{"file":{"path":"/vault/data"}},"listener":[{"tcp":{"address":"0.0.0.0:8200","tls_disable":true}}],"ui":true}
     command: server
-    healthcheck:
-      retries: 5
     networks:
       - argon_network
-    depends_on:
-      db:
-        condition: service_healthy
+    volumes:
+      - vault_data:/vault
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "http://127.0.0.1:8200/v1/sys/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   vault_unseal:
     image: hashicorp/vault
     container_name: argon-secrets-unsealer
+    platform: linux/amd64
     entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    restart: on-failure
     volumes:
-      - ./vault_tokens:/vault
-      - ./entrypoint.sh:/entrypoint.sh
+      - vault_tokens:/vault
+      - ./entrypoint.sh:/entrypoint.sh:ro
     environment:
       - VAULT_ADDR=http://vault:8200
     networks:
@@ -79,6 +69,7 @@ services:
   argon-server:
     image: argonchat/argon-server
     container_name: argon-server
+    restart: on-failure
     ports:
       - "5002:5002"
     environment:
@@ -89,17 +80,21 @@ services:
       - ARGON_VAULT_URL=http://vault:8200
       - VAULT_TOKEN_FILE=/vault/token
     volumes:
-      - ./vault_tokens:/vault:ro
+      - vault_tokens:/vault:ro
     depends_on:
       yugabyte:
         condition: service_started
       keydb:
         condition: service_started
-      vault_unseal:
+      vault:
         condition: service_healthy
     networks:
       - argon_network
       
 
 volumes:
-  mysql_data:
+  mysql_data: {}
+  vault_data: {}
+  vault_tokens: {}
+  argon_db_data: {}
+  vault_config: {}
