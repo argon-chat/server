@@ -2,6 +2,7 @@ namespace Argon.Api.Features.Orleans.Consul;
 
 using System.Linq;
 using System.Text.Json;
+using Argon.Features.Env;
 using global::Consul;
 using global::Consul.Filtering;
 using global::Orleans.Configuration;
@@ -12,14 +13,23 @@ public class ConsulMembershipOptions
     public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }
 
+public interface IArgonUnitMembership : IMembershipTable
+{
+    public const string ArgonServiceName = "Argon Unit";
+    public const string ArgonNameSpace   = "argon-unit";
+    public const string WorkerUnit       = "compute-unit";
+    public const string GatewayUnit      = "edge-unit";
+    public const string LoopBackHealth   = "LoopBackHealth";
+}
+
 public class ConsulMembership(
     IConsulClient client,
     ILogger<IMembershipTable> logger,
     IOptions<ClusterOptions> clusterOptions,
     IOptions<ConsulMembershipOptions> membershipOptions,
-    IHostApplicationLifetime lifetime) : IMembershipTable
+    IHostApplicationLifetime lifetime,
+    IHostEnvironment hostEnvironment) : IArgonUnitMembership
 {
-    private DateTime StartTime { get; set; } = DateTime.Now;
     private readonly JsonSerializerOptions opt = new(JsonSerializerOptions.Web)
     {
         IncludeFields = true
@@ -74,7 +84,7 @@ public class ConsulMembership(
 
     public async Task<MembershipTableData> ReadAll()
     {
-        var services = await client.Health.Service("Silo", "silo", true);
+        var services = await client.Health.Service(IArgonUnitMembership.ArgonServiceName, IArgonUnitMembership.ArgonNameSpace, true);
         var table    = await GetTableVersion();
         var list = services.Response
            .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), table.VersionEtag))
@@ -88,21 +98,25 @@ public class ConsulMembership(
     {
         var service = new AgentServiceRegistration()
         {
-            Name    = "Silo",
+            Name    = IArgonUnitMembership.ArgonServiceName,
             Address = entry.SiloAddress.Endpoint.Address.ToString(),
             Port    = entry.ProxyPort,
             ID      = entry.SiloAddress.ToString(),
-            Tags    = [entry.HostName, entry.RoleName, entry.SiloName, "silo"],
             Meta    = GenerateMeta(entry),
             Checks =
             [
                 new AgentServiceCheck
                 {
-                    CheckID                        = $"UpdateIAmAlive.{entry.SiloAddress}",
+                    CheckID                        = $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
                     TTL                            = membershipOptions.Value.TTL,
                     DeregisterCriticalServiceAfter = membershipOptions.Value.DestroyTimeout
                 }
-            ]
+            ],
+            Tags =
+            [
+                IArgonUnitMembership.ArgonNameSpace,
+                hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.WorkerUnit
+            ],
         };
 
 
@@ -124,36 +138,10 @@ public class ConsulMembership(
 
 
     public async Task UpdateIAmAlive(MembershipEntry entry)
-    {
-        await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
-
-
-        //if (DateTime.Now - StartTime < TimeSpan.FromMinutes(1))
-        //    return;
-
-        //var services = await client.Agent.Services(new StringFieldSelector("ID") == entry.ToString());
-
-        //if (services.StatusCode != HttpStatusCode.OK)
-        //{
-        //    logger.LogCritical("Alert, requested silo registration status failed, query '{consulQuery}' returned '{statusCode}'",
-        //        entry.ToString(),
-        //        services.StatusCode);
-        //    lifetime.StopApplication();
-        //    return;
-        //}
-
-
-        //if (services.Response.Count == 0)
-        //{
-        //    logger.LogCritical(
-        //        "Alert, requested silo registration status failed, query '{consulQuery}' returned not found registered silo, maybe already dead",
-        //        entry.ToString());
-        //    lifetime.StopApplication();
-        //    return;
-        //}
-
-        //await client.Agent.UpdateTTL($"UpdateIAmAlive.{entry.SiloAddress}", $"Silo answered correctly! Status: {entry}", ToStatus(entry));
-    }
+        => await client.Agent.UpdateTTL(
+            $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
+            $"Unit answered correctly!",
+            ToStatus(entry));
 
 
     private TTLStatus ToStatus(MembershipEntry entry)
