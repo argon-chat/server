@@ -13,8 +13,12 @@ using NatsStreaming;
 
 public static class OrleansExtension
 {
+    public static WebApplicationBuilder AddMultiOrleansClient(this WebApplicationBuilder builder)
+    {
 
-    public static WebApplicationBuilder AddOrleansClient(this WebApplicationBuilder builder)
+    }
+
+    public static WebApplicationBuilder AddSingleOrleansClient(this WebApplicationBuilder builder)
     {
         builder.Services.AddOrleansClient(x =>
         {
@@ -45,15 +49,21 @@ public static class OrleansExtension
         });
         return builder;
     }
-    public static WebApplicationBuilder AddOrleans(this WebApplicationBuilder builder)
+    public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
     {
         builder.Host.UseOrleans(siloBuilder =>
         {
+            if (builder.IsGatewayRole())
+                siloBuilder.ConfigureEndpoints(11111, 30000).UseDashboard(o => o.Port = 22832);
+            else if (builder.IsWorkerRole())
+                siloBuilder.ConfigureEndpoints(11111, 0);
+            else
+                throw new InvalidOperationException("Cannot determine configuration for worker silo");
+
             siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
                .AddStreaming()
                .AddActivityPropagation()
                .AddReminders()
-               .UseDashboard(o => o.Port = 22832)
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
                .UseStorages([
                     ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
