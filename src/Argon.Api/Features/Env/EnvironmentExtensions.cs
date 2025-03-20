@@ -14,10 +14,20 @@ public static class EnvironmentExtensions
     public static bool IsRegionalMode(this IHostEnvironment env)
         => env.IsSingleInstance() || env.IsMultiRegion();
 
+
+    public static bool IsMultiRegion(this WebApplicationBuilder env)
+        => env.Environment.IsMultiRegion();
+    public static bool IsSingleRegion(this WebApplicationBuilder env)
+        => env.Environment.IsSingleRegion();
+    public static bool IsSingleInstance(this WebApplicationBuilder env)
+        => env.Environment.IsSingleInstance();
+    public static bool IsRegionalMode(this WebApplicationBuilder env)
+        => env.Environment.IsRegionalMode();
+
     public static ArgonEnvironmentKind Determine(this IHostEnvironment _)
     {
-        if (Debugger.IsAttached)
-            return ArgonEnvironmentKind.SingleInstance;
+        //if (Debugger.IsAttached)
+        //    return ArgonEnvironmentKind.SingleInstance;
 
         if (Environment.GetEnvironmentVariable("ARGON_MODE") is { } newEnv)
             return Enum.Parse<ArgonEnvironmentKind>(newEnv);
