@@ -10,7 +10,8 @@ public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayLis
 
     public async Task<IList<Uri>> GetGateways()
     {
-        var services = await client.Health.Service("Silo", "silo", true);
+        var services = await client.Health.Service(IArgonUnitMembership.ArgonServiceName, IArgonUnitMembership.GatewayUnit, true);
+
         if (services.StatusCode != HttpStatusCode.OK)
             throw new Exception($"Cannot listen online gateways");
 
