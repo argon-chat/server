@@ -6,15 +6,7 @@ using global::Orleans.GrainDirectory;
 using global::Orleans.Runtime;
 using Microsoft.Extensions.Options;
 
-public static class ConsulEx
-{
-    public static void Assert(this WriteResult result)
-    {
-        if (result.StatusCode != HttpStatusCode.OK)
-            throw new Exception();
-    }
-}
-
+// TODO multi regional checks
 public class ConsulDirectory(IConsulClient client, IOptions<ConsulDirectoryOptions> opt, ILogger<IGrainDirectory> logger) : IGrainDirectory
 {
     private const string ConsulPrefix = "orleans/grains/{0}/{1}";
@@ -43,9 +35,9 @@ public class ConsulDirectory(IConsulClient client, IOptions<ConsulDirectoryOptio
 
         var s = await client.Session.Create(new SessionEntry()
         {
-            Name     = address.ToString(),
-            Behavior = SessionBehavior.Delete,
-            Checks = [$"UpdateIAmAlive.{address}", "serfHealth"],
+            Name      = address.ToString(),
+            Behavior  = SessionBehavior.Delete,
+            Checks    = [$"{IArgonUnitMembership.LoopBackHealth}.{address}", "serfHealth"],
             LockDelay = TimeSpan.Zero
         });
 
