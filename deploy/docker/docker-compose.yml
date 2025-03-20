@@ -19,23 +19,36 @@ services:
     networks:
       - argon_network
 
-  db:
-    image: mysql
-    container_name: argon-secrets-db
+  argon-server:
+    image: argonchat/argon-server
+    container_name: argon-server
+    ports:
+      - "5002:5002"
     environment:
-      - MYSQL_ROOT_PASSWORD=rootpassword
-      - MYSQL_DATABASE=vault
-      - MYSQL_USER=vault
-      - MYSQL_PASSWORD=password
+      - USE_VAULT=true
+      - ARGON_MODE=SingleInstance
+      - ARGON_ROLE=Hybrid
+      - ConnectionStrings__DefaultConnection=Host=yugabyte;Port=5433;Username=yugabyte;Database=apiDb
+      - ARGON_VAULT_URL=http://vault:8200
+      - VAULT_TOKEN_FILE=/vault/token
+      - Cdn__Storage__Kind=GenericS3
+      - Cdn__Storage__BaseUrl=http://seaweedfs:9321
+      - Cdn__Storage__Login=argon
+      - Cdn__Storage__Password=argon
     volumes:
-      - mysql_data:/var/lib/mysql
+      - ./vault_tokens:/vault:ro
+    depends_on:
+      yugabyte:
+        condition: service_started
+      keydb:
+        condition: service_started
+      vault_unseal:
+        condition: service_healthy
+      seaweedfs:
+        condition: service_healthy
     networks:
       - argon_network
-    healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u vault -ppassword"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
+      
 
   vault:
     image: hashicorp/vault
@@ -95,37 +108,23 @@ services:
       retries: 3
       start_period: 5s
 
-
-  argon-server:
-    image: argonchat/argon-server
-    container_name: argon-server
-    ports:
-      - "5002:5002"
+  db:
+    image: mysql
+    container_name: argon-secrets-db
     environment:
-      - USE_VAULT=true
-      - ARGON_MODE=SingleInstance
-      - ARGON_ROLE=Hybrid
-      - ConnectionStrings__DefaultConnection=Host=yugabyte;Port=5433;Username=yugabyte;Database=apiDb
-      - ARGON_VAULT_URL=http://vault:8200
-      - VAULT_TOKEN_FILE=/vault/token
-      - Cdn__Storage__Kind=GenericS3
-      - Cdn__Storage__BaseUrl=http://seaweedfs:9321
-      - Cdn__Storage__Login=argon
-      - Cdn__Storage__Password=argon
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=vault
+      - MYSQL_USER=vault
+      - MYSQL_PASSWORD=password
     volumes:
-      - ./vault_tokens:/vault:ro
-    depends_on:
-      yugabyte:
-        condition: service_started
-      keydb:
-        condition: service_started
-      vault_unseal:
-        condition: service_healthy
-      seaweedfs:
-        condition: service_healthy
+      - mysql_data:/var/lib/mysql
     networks:
       - argon_network
-      
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u vault -ppassword"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
 volumes:
   mysql_data:
