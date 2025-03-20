@@ -20,6 +20,7 @@ using Sfu;
 using Serilog;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
+using GeoIP;
 using global::Orleans.Serialization;
 
 public static class HostModeExtensions
@@ -75,6 +76,7 @@ public static class HostModeExtensions
     public static WebApplicationBuilder AddSingleRegionWorkloads(this WebApplicationBuilder builder)
     {
         builder.AddDefaultWorkloadServices();
+        builder.AddGeoIpSupport();
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
             builder.Services.AddControllers()
@@ -100,7 +102,11 @@ public static class HostModeExtensions
     }
 
     public static WebApplicationBuilder AddMultiRegionWorkloads(this WebApplicationBuilder builder)
-        => throw new InvalidOperationException();
+    {
+        builder.AddSingleRegionWorkloads();
+        // TODO
+        return builder;
+    }
 
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
@@ -124,10 +130,23 @@ public static class HostModeExtensions
         builder.AddCaptchaFeature();
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
-        if (builder.IsEntryPointRole())
-            builder.AddOrleansClient();
+        if (builder.IsHybridRole())
+        {
+            if (!builder.IsSingleInstance())
+                throw new InvalidOperationException("Hybrid role is only allowed in single instance mode");
+            builder.AddWorkerOrleans();
+        }
+        else if (builder.IsEntryPointRole())
+        {
+            if (builder.IsSingleRegion())
+                builder.AddSingleOrleansClient();
+            else if (builder.IsMultiRegion())
+                builder.AddMultiOrleansClient();
+            else
+                throw new InvalidOperationException("Cannot determine configuration for entry point role");
+        }
         else
-            builder.AddOrleans();
+            builder.AddWorkerOrleans();
 
         return builder;
     }
