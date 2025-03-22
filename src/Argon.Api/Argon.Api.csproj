@@ -67,6 +67,7 @@
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.21.2" />
         <PackageReference Include="NATS.Net" Version="2.5.8" />
         <PackageReference Include="Npgsql" Version="9.0.2" />
+        <PackageReference Include="ObservableCollections.R3" Version="3.3.3" />
         <PackageReference Include="OrleansDashboard" Version="8.2.0" />
         <PackageReference Include="Otp.NET" Version="1.4.0" />
         <PackageReference Include="PPioli.Certes.AOT" Version="3.0.1" />

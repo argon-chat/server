@@ -1,8 +1,11 @@
 using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
+using Argon.Features.RegionalUnit;
 
-var builder = WebApplication.CreateBuilder(args);
+
+var builder = await RegionalUnitApp.CreateBuilder(args);
+
 if (builder.Environment.IsSingleInstance())
     builder.AddSingleInstanceWorkload();
 else if (builder.Environment.IsSingleRegion())

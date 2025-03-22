@@ -2,18 +2,18 @@ namespace Argon.Services;
 
 using Shared.Servers;
 
-public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
+public class UserInteraction : IUserInteraction
 {
     public async Task<User> GetMe()
     {
         var userData = this.GetUser();
-        return await grainFactory.GetGrain<IUserGrain>(userData.id).GetMe();
+        return await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMe();
     }
     public async Task<Server> CreateServer(CreateServerRequest request)
     {
         var userData = this.GetUser();
         var serverId = Guid.NewGuid();
-        var server   = await grainFactory
+        var server   = await this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
            .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarFileId), userData.id);
         return server.Value;
@@ -22,7 +22,7 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
     public async Task<List<Server>> GetServers()
     {
         var userData = this.GetUser();
-        var servers  = await grainFactory.GetGrain<IUserGrain>(userData.id).GetMyServers();
+        var servers  = await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMyServers();
         return servers;
     }
 
@@ -36,7 +36,7 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
-        var result = await grainFactory
+        var result = await this.GetGrainFactory()
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Authorize(input, connInfo);
         return result;
@@ -52,7 +52,7 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
 
-        return await grainFactory
+        return await this.GetGrainFactory()
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
     }
@@ -60,12 +60,12 @@ public class UserInteraction(IGrainFactory grainFactory) : IUserInteraction
     public async Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode)
     {
         var userData = this.GetUser();
-        var invite   = grainFactory.GetGrain<IInviteGrain>(inviteCode.inviteCode);
+        var invite   = this.GetGrainFactory().GetGrain<IInviteGrain>(inviteCode.inviteCode);
         var result   = await invite.AcceptAsync(userData.id);
 
         if (result.Item2 != AcceptInviteError.NONE)
             return result.Item2;
 
-        return await grainFactory.GetGrain<IServerGrain>(result.Item1).GetServer();
-    }
+        return await this.GetGrainFactory().GetGrain<IServerGrain>(result.Item1).GetServer();
+    }   
 }
