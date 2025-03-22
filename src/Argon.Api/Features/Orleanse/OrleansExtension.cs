@@ -1,5 +1,6 @@
 namespace Argon.Features;
 
+using System.Diagnostics.CodeAnalysis;
 using Api.Features;
 using Api.Features.Orleans.Consul;
 using Env;
@@ -8,47 +9,35 @@ using Orleans.Hosting;
 using Orleans.Providers;
 using Sentry;
 using NatsStreaming;
+using System.Net;
+using System;
+using System.Text;
 
 #pragma warning disable ORLEANSEXP001
+
+public interface IRegionalClusterClient : IClusterClient
+{
+}
 
 public static class OrleansExtension
 {
     public static WebApplicationBuilder AddMultiOrleansClient(this WebApplicationBuilder builder)
     {
-
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+        builder.Services.AddHostedService<DcWatcherService>();
+        builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
+        return builder;
     }
 
     public static WebApplicationBuilder AddSingleOrleansClient(this WebApplicationBuilder builder)
     {
-        builder.Services.AddOrleansClient(x =>
-        {
-            x.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
-               .AddStreaming()
-               .AddBroadcastChannel(IArgonEvent.Broadcast);
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+        builder.Services.AddHostedService<DcWatcherService>();
+        builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
 
-            if (builder.Environment.IsSingleInstance())
-                x.AddMemoryStreams("default")
-                   .AddMemoryStreams(IArgonEvent.ProviderId);
-            else 
-                x.AddNatsStreams("default", c => {
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = builder.Configuration.GetConnectionString("nats")!
-                    })));
-                })
-                .AddNatsStreams(IArgonEvent.ProviderId, c => {
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = builder.Configuration.GetConnectionString("nats")!
-                    })));
-                });
-            if (!builder.Environment.IsSingleInstance())
-                x.AddConsulClustering();
-            else
-                x.UseLocalhostClustering();
-        });
         return builder;
     }
+
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
     {
         builder.Host.UseOrleans(siloBuilder =>
@@ -60,7 +49,13 @@ public static class OrleansExtension
             else
                 throw new InvalidOperationException("Cannot determine configuration for worker silo");
 
-            siloBuilder.Configure<ClusterOptions>(builder.Configuration.GetSection("Orleans"))
+            siloBuilder.Configure<ClusterOptions>(q =>
+            {
+                q.ClusterId = "argon-cluster";
+                q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
+            });
+
+            siloBuilder
                .AddStreaming()
                .AddActivityPropagation()
                .AddReminders()
@@ -79,7 +74,7 @@ public static class OrleansExtension
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                    options.LivenessEnabled             = false;
+                    options.LivenessEnabled             = false; // TODO
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
