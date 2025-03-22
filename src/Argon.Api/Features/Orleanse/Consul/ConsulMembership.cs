@@ -13,15 +13,6 @@ public class ConsulMembershipOptions
     public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
 }
 
-public interface IArgonUnitMembership : IMembershipTable
-{
-    public const string ArgonServiceName = "Argon Unit";
-    public const string ArgonNameSpace   = "argon-unit";
-    public const string WorkerUnit       = "compute-unit";
-    public const string GatewayUnit      = "edge-unit";
-    public const string LoopBackHealth   = "LoopBackHealth";
-}
-
 public class ConsulMembership(
     IConsulClient client,
     ILogger<IMembershipTable> logger,
