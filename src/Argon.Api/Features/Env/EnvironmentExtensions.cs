@@ -63,6 +63,28 @@ public static class EnvironmentRoleExtensions
     public static bool IsHybridRole(this WebApplicationBuilder env)
         => env.Environment.DetermineRole() == ArgonRoleKind.Hybrid;
 
+
+    public static void SetDatacenter(this WebApplicationBuilder builder, string dc)
+        => builder.Host.Properties.Add("dc", dc);
+    public static string GetDatacenter(this WebApplicationBuilder builder)
+        => builder.Host.Properties["dc"].As<object, string>();
+
+    public static string DetermineClientSpace(this IHostEnvironment env)
+    {
+        if (env.IsEntryPoint())
+            return "entry";
+        if (env.IsGateway())
+            return "gateway";
+        if (env.IsWorker())
+            return "worker";
+        if (env.IsHybrid() && (env.IsMultiRegion() || env.IsSingleRegion()))
+            throw new InvalidOperationException($"Multi Regional or Single Regional unit cannot be assign to Hybrid role!");
+        if (env.IsHybrid())
+            return "entry";
+        throw new InvalidOperationException("Cannot determine consul client role");
+    }
+
+
     public static ArgonRoleKind DetermineRole(this IHostEnvironment _)
     {
         if (Environment.GetEnvironmentVariable("ARGON_ROLE") is { } newEnv)
