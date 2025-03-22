@@ -10,7 +10,8 @@ public static class LoggingFeature
     {
         if (builder.Environment.IsSingleInstance()) 
             return builder;
-
+        if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is not null)
+            return builder;
         Log.Logger = new LoggerConfiguration()
            .Enrich.FromLogContext()
            .WriteTo.Console(new JsonFormatter(renderMessage: true))

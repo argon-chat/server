@@ -1,6 +1,5 @@
 namespace Argon.Features.HostMode;
 
-using Argon.Api.Features.Orleans.Consul;
 using Auth;
 using EF;
 using Jwt;
@@ -22,6 +21,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
 using GeoIP;
 using global::Orleans.Serialization;
+using RegionalUnit;
 
 public static class HostModeExtensions
 {
@@ -75,6 +75,7 @@ public static class HostModeExtensions
 
     public static WebApplicationBuilder AddSingleRegionWorkloads(this WebApplicationBuilder builder)
     {
+        builder.Services.AddSingleton<IArgonRegionalBus, ArgonRegionalBus>();
         builder.AddDefaultWorkloadServices();
         builder.AddGeoIpSupport();
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
@@ -91,10 +92,6 @@ public static class HostModeExtensions
             });
         }
 
-        if (builder.Environment.IsGateway())
-            builder.AddConsul("SiloConsul");
-        if (builder.Environment.IsEntryPoint())
-            builder.AddConsul("ClusterConsul");
         builder.AddKubeResources();
         builder.AddTemplateEngine();
 
@@ -194,7 +191,8 @@ public static class RunHostModeExtensions
             app.MapDefaultEndpoints();
             app.MapArgonTransport();
             app.MapDefaultEndpoints();
-            app.UseSerilogRequestLogging();
+            if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
+                app.UseSerilogRequestLogging();
             app.UseRewrites();
         }
 
