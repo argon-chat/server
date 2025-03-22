@@ -7,6 +7,11 @@ public static class ArgonRpcExtensions
     public static TokenUserData GetUser(this IArgonService argonService)
         => ArgonTransportContext.Current.User;
 
+    public static IGrainFactory GetGrainFactory(this IArgonService appService)
+        => throw new NotImplementedException();
+    public static IClusterClient GetClusterClient(this IArgonService appService)
+        => throw new NotImplementedException();
+
 
     public static string GetClientName(this IArgonService argonService)
         => ArgonTransportContext.Current.GetClientName();

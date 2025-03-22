@@ -6,6 +6,9 @@ using Orleans.Serialization;
 public static class MessagePackFeature
 {
     public static void UseMessagePack(this WebApplicationBuilder builder)
+        => builder.Services.UseOrleansMessagePack();
+
+    public static void UseOrleansMessagePack(this IServiceCollection collection)
     {
         var options = MessagePackSerializerOptions.Standard
            .WithResolver(CompositeResolver.Create(
@@ -13,9 +16,8 @@ public static class MessagePackFeature
                 EitherFormatterResolver.Instance,
                 ArgonEventResolver.Instance));
         MessagePackSerializer.DefaultOptions = options;
-        builder.Services.AddSingleton(options);
-        builder.Services.AddSerializer(x =>
-        {
+        collection.AddSingleton(options);
+        collection.AddSerializer(x => {
             x.AddMessagePackSerializer(null, null, options);
         });
     }

@@ -5,13 +5,14 @@ using System.Net.WebSockets;
 using Features.Rpc;
 using Microsoft.AspNetCore.Connections;
 
-public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IClusterClient clusterClient) : IArgonWebTransport
+public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTransport
 {
     public async Task HandleTransportRequest(HttpContext ctx, ArgonTransportFeaturePipe conn, ArgonTransportContext scope)
     {
-        var user     = scope.User;
-        var sequence = -1L;
-        var eventId  = -1;
+        var user          = scope.User;
+        var sequence      = -1L;
+        var eventId       = -1;
+        var clusterClient = ctx.RequestServices.GetRequiredService<IRegionalClusterClient>();
 
         if (ctx.Request.Query.TryGetValue("sequence", out var sequenceStr))
         {
