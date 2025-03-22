@@ -3,27 +3,47 @@ namespace Argon.Api.Features.Orleans.Consul;
 using global::Consul;
 using global::Orleans.Messaging;
 
-public class ConsulGatewayListProvider(IConsulClient client, ILogger<IGatewayListProvider> logger) : IGatewayListProvider
+public class ConsulGatewayListProvider(
+    IConsulClient client,
+    ILogger<IGatewayListProvider> logger,
+    [FromKeyedServices("dc")] string dc) : IGatewayListProvider
 {
     public Task InitializeGatewayListProvider()
         => Task.CompletedTask;
 
     public async Task<IList<Uri>> GetGateways()
     {
-        var services = await client.Health.Service(IArgonUnitMembership.ArgonServiceName, IArgonUnitMembership.GatewayUnit, true);
+        try
+        {
+            var queryOptions = new QueryOptions
+            {
+                Datacenter = dc,
+            };
 
-        if (services.StatusCode != HttpStatusCode.OK)
-            throw new Exception($"Cannot listen online gateways");
+            var services = await client.Health.Service(
+                IArgonUnitMembership.ArgonServiceName, 
+                IArgonUnitMembership.GatewayUnit, 
+                true,
+                queryOptions);
 
-        var gateways = services
-           .Response
-           .Select(s => createSiloAddress(s).ToGatewayUri())
-           .ToList();
+            if (services.StatusCode != HttpStatusCode.OK)
+                throw new Exception($"Cannot listen online gateways, httpStatus: {services.StatusCode}");
 
-        logger.LogInformation("Found {Count} gateways in Consul", gateways.Count);
-        foreach (var uri in gateways)
-            logger.LogInformation("Gateway '{gatewayUri}' found.", uri);
-        return gateways;
+            var gateways = services
+               .Response
+               .Where(x => x.Node.Datacenter.Equals(dc)) // TODO filter with datacenter
+               .Select(s => createSiloAddress(s).ToGatewayUri())
+               .ToList();
+
+            foreach (var uri in gateways)
+                logger.LogDebug("Gateway '{gatewayUri}' found for '{dc}'.", uri, dc);
+            return gateways;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "failed list gateways, maybe consul is unavailable");
+            return new List<Uri>();
+        }
     }
 
 
