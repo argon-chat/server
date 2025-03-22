@@ -3,6 +3,7 @@ namespace Argon.Features;
 using System.Diagnostics.CodeAnalysis;
 using ObservableCollections;
 using R3;
+using static Api.Features.Orleans.Client.ArgonDataCenterStatus;
 
 public interface IArgonDcRegistry
 {
@@ -48,7 +49,7 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
         using var _ = guarder.EnterScope();
 
         _items[item.dc] = item;
-        if (item.status is ArgonDataCenterStatus.ADDED)
+        if (item.status is ADDED)
             onAddedNew.OnNext(item);
     }
 
@@ -63,7 +64,7 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
         using var _ = guarder.EnterScope();
         return _items
            .Select(x => x.Value)
-           .Where(x => x.status == ArgonDataCenterStatus.ONLINE)
+           .Where(x => x.status == ONLINE)
            .OrderByDescending(x => x.effectivity)
            .FirstOrDefault();
     }

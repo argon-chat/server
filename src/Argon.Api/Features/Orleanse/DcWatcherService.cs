@@ -2,6 +2,7 @@ namespace Argon.Features;
 
 using RegionalUnit;
 using Systems;
+using static Api.Features.Orleans.Client.ArgonDataCenterStatus;
 
 public sealed class DcWatcherService(
     ILogger<DcWatcherService> logger,
@@ -30,7 +31,7 @@ public sealed class DcWatcherService(
             {
                 var eff = await router.ComputeEffectivity(dc);
                 var sp  = await clusterClientFactory.CreateClusterClient(dc, ct);
-                registry.Upsert(new(dc, eff, sp, DateTime.Now, ArgonDataCenterStatus.ADDED, new()));
+                registry.Upsert(new(dc, eff, sp, DateTime.Now, ADDED, new()));
                 logger.LogInformation("DC [{dc}] added with effectivity {effectivity}", dc, eff);
             }
             else
@@ -41,7 +42,7 @@ public sealed class DcWatcherService(
         }
 
         foreach (var kv in registry.GetAll()
-                    .Where(x => x.Value.status is ArgonDataCenterStatus.OFFLINE)
+                    .Where(x => x.Value.status is OFFLINE)
                     .Where(x => DateTime.UtcNow - x.Value.lastSeen > _gcTimeout))
         {
             logger.LogWarning("DC [{dc}] removed after stale timeout", kv.Key);

@@ -1,5 +1,7 @@
 namespace Argon.Features;
 
+using static Api.Features.Orleans.Client.ArgonDataCenterStatus;
+
 public class DataCenterConnectionService(IArgonDcRegistry registry, ILogger<DataCenterConnectionService> logger)
     : BackgroundService
 {
@@ -9,7 +11,7 @@ public class DataCenterConnectionService(IArgonDcRegistry registry, ILogger<Data
         {
             foreach (var kv in registry.GetAll())
             {
-                if (kv.Value.status == ArgonDataCenterStatus.ONLINE)
+                if (kv.Value.status == ONLINE)
                     continue;
                 //Task.Run(async () =>
                 //{
@@ -40,7 +42,7 @@ public class DataCenterConnectionService(IArgonDcRegistry registry, ILogger<Data
                     logger.LogInformation($"DC [{kv.Key}] marked ONLINE");
                     registry.Upsert(kv.Value with
                     {
-                        status = ArgonDataCenterStatus.ONLINE
+                        status = ONLINE
                     });
                 }
                 catch (Exception e)
@@ -48,7 +50,7 @@ public class DataCenterConnectionService(IArgonDcRegistry registry, ILogger<Data
                     logger.LogDebug(e, "Failed to start cluster client");
                     registry.Upsert(kv.Value with
                     {
-                        status = ArgonDataCenterStatus.OFFLINE
+                        status = OFFLINE
                     });
                     logger.LogWarning($"DC [{kv.Key}] connect failed, will retry");
                 }
