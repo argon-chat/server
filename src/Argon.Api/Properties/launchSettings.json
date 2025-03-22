@@ -6,7 +6,8 @@
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
         "ARGON_ROLE": "EntryPoint",
-        "ARGON_MODE": "SingleInstance"
+        "ARGON_MODE": "SingleRegion",
+        "NO_STRUCTURED_LOGS": "true"
       },
       "dotnetRunMessages": true
     },

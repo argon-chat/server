@@ -17,4 +17,11 @@ public static class ActorExtensions
     {
         if (filter(t)) await on();
     }
+
+    public static E As<T, E>(this T t)
+    {
+        if (t is E e)
+            return e;
+        throw new InvalidCastException();
+    }
 }

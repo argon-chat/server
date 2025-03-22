@@ -1,6 +1,7 @@
 namespace Argon.Api.Migrations;
 
 using System.Data;
+using Argon.Features.Env;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -10,6 +11,9 @@ public static class WarpUpExtension
 {
     public static WebApplication WarpUp<T>(this WebApplication app, bool isMigrate = true) where T : DbContext
     {
+        if (app.Environment.IsEntryPoint())
+            return app;
+
         using var scope = app.Services.CreateScope();
 
         var       factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<T>>();
