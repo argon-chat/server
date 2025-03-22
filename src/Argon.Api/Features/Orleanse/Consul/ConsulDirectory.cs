@@ -7,7 +7,10 @@ using global::Orleans.Runtime;
 using Microsoft.Extensions.Options;
 
 // TODO multi regional checks
-public class ConsulDirectory(IConsulClient client, IOptions<ConsulDirectoryOptions> opt, ILogger<IGrainDirectory> logger) : IGrainDirectory
+public class ConsulDirectory(
+    IConsulClient client, 
+    IOptions<ConsulDirectoryOptions> opt, 
+    ILogger<IGrainDirectory> logger) : IGrainDirectory
 {
     private const string ConsulPrefix = "orleans/grains/{0}/{1}";
 
