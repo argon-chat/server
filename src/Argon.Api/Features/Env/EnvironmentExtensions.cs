@@ -72,15 +72,15 @@ public static class EnvironmentRoleExtensions
     public static string DetermineClientSpace(this IHostEnvironment env)
     {
         if (env.IsEntryPoint())
-            return "entry";
+            return "EntryPoint";
         if (env.IsGateway())
-            return "gateway";
+            return "Gateway";
         if (env.IsWorker())
-            return "worker";
+            return "Worker";
         if (env.IsHybrid() && (env.IsMultiRegion() || env.IsSingleRegion()))
             throw new InvalidOperationException($"Multi Regional or Single Regional unit cannot be assign to Hybrid role!");
         if (env.IsHybrid())
-            return "entry";
+            return "EntryPoint";
         throw new InvalidOperationException("Cannot determine consul client role");
     }
 
