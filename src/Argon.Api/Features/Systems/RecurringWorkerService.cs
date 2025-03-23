@@ -18,6 +18,12 @@ public abstract class RecurringWorkerService<T>(ILogger<T> logger) : BackgroundS
         }
     }
 
+    public sealed override Task StartAsync(CancellationToken cancellationToken)
+        => base.StartAsync(cancellationToken);
+
+    public sealed override Task StopAsync(CancellationToken cancellationToken)
+        => base.StopAsync(cancellationToken);
+
 
     protected virtual Task OnCreateAsync(CancellationToken ct = default) => Task.CompletedTask;
     protected abstract Task RunAsync(CancellationToken ct = default);
