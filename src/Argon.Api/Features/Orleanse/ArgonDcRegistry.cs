@@ -14,6 +14,7 @@ public interface IArgonDcRegistry
     void Remove(string region);
 
     ArgonDcClusterInfo? GetNearestDc();
+    IClusterClient?     GetNearestClusterClient();
 
     Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync);
 }
@@ -21,7 +22,7 @@ public interface IArgonDcRegistry
 public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 {
     private readonly ILogger<IArgonDcRegistry> _logger;
-    private readonly System.Threading.Lock     guarder = new();
+    private readonly Lock     guarder = new();
 
     private readonly ObservableDictionary<string, ArgonDcClusterInfo> _items = new();
 
@@ -67,6 +68,13 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
            .Where(x => x.status == ONLINE)
            .OrderByDescending(x => x.effectivity)
            .FirstOrDefault();
+    }
+
+    public IClusterClient? GetNearestClusterClient()
+    {
+        var nearest = GetNearestDc();
+
+        return nearest?.serviceProvider.GetRequiredService<IClusterClient>();
     }
 
     public Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync)
