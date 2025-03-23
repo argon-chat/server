@@ -12,7 +12,18 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         var user          = scope.User;
         var sequence      = -1L;
         var eventId       = -1;
-        var clusterClient = ctx.RequestServices.GetRequiredService<IRegionalClusterClient>();
+        var dcRegistry    = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
+        var clusterClient = dcRegistry.GetNearestClusterClient();
+
+        if (clusterClient is null)
+        {
+            ctx.Response.StatusCode = 423;
+            await ctx.Response.WriteAsJsonAsync(new
+            {
+                message = "region offline"
+            });
+            return;
+        }
 
         if (ctx.Request.Query.TryGetValue("sequence", out var sequenceStr))
         {
