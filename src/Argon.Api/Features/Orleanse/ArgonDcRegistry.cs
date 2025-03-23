@@ -16,13 +16,16 @@ public interface IArgonDcRegistry
     ArgonDcClusterInfo? GetNearestDc();
     IClusterClient?     GetNearestClusterClient();
 
+    int GetDcCount();
+
     Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync);
 }
 
 public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 {
     private readonly ILogger<IArgonDcRegistry> _logger;
-    private readonly Lock     guarder = new();
+    private readonly string                    _currentDc;
+    private readonly Lock                      guarder = new();
 
     private readonly ObservableDictionary<string, ArgonDcClusterInfo> _items = new();
 
@@ -30,14 +33,16 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 
     public IReadOnlyDictionary<string, ArgonDcClusterInfo> GetAll() => _items.AsReadOnly();
 
-    public ArgonDcRegistry(ILogger<IArgonDcRegistry> logger)
+    public ArgonDcRegistry(ILogger<IArgonDcRegistry> logger, [FromKeyedServices("dc")] string currentDc)
     {
-        _logger = logger;
+        _logger    = logger;
+        _currentDc = currentDc;
         _items.ObserveChanged().Subscribe(State);
     }
 
     private void State(CollectionChangedEvent<KeyValuePair<string, ArgonDcClusterInfo>> obj)
-        => _logger.LogWarning("Registry changed, {action}, dc: {key}, {status}", obj.Action, obj.NewItem.Key, obj.NewItem.Value.status);
+        => _logger.LogWarning("Registry changed, {action}, dc: {key}, {status}, effectivity: {effectivity}", obj.Action, obj.NewItem.Key,
+            obj.NewItem.Value.status, obj.NewItem.Value.effectivity);
 
     public bool TryGet(string dc, [NotNullWhen(true)] out ArgonDcClusterInfo? item)
     {
@@ -49,9 +54,18 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
     {
         using var _ = guarder.EnterScope();
 
-        _items[item.dc] = item;
-        if (item.status is ADDED)
+        if (item.status is CREATED)
+        {
+            _items[item.dc] = item with
+            {
+                status = WAIT_CONNECT,
+                effectivity = item.dc.Equals(_currentDc) ? float.PositiveInfinity : item.effectivity
+            };
             onAddedNew.OnNext(item);
+            return;
+        }
+
+        _items[item.dc] = item;
     }
 
     public void Remove(string dc)
@@ -76,6 +90,9 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 
         return nearest?.serviceProvider.GetRequiredService<IClusterClient>();
     }
+
+    public int GetDcCount()
+        => _items.Count;
 
     public Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync)
     {
