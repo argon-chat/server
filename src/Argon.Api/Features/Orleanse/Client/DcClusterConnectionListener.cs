@@ -5,7 +5,8 @@ using Argon.Features;
 
 public enum ArgonDataCenterStatus
 {
-    ADDED,
+    CREATED,
+    WAIT_CONNECT,
     OFFLINE,
     ONLINE,
     MAINTENANCE
