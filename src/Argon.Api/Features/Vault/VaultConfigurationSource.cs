@@ -1,5 +1,6 @@
 namespace Argon.Features.Vault;
 
+using Serilog;
 using VaultSharp.V1.SecretsEngines;
 
 /// <summary>
@@ -28,6 +29,7 @@ public sealed class VaultConfigurationSource : IConfigurationSource
         this.Options    = options;
         this.BasePath   = basePath;
         this.MountPoint = mountPoint ?? SecretsEngineMountPoints.Defaults.KeyValueV2;
+        Log.Logger.Information($"ctor VaultConfigurationSource");
     }
 
     /// <summary>
@@ -50,5 +52,10 @@ public sealed class VaultConfigurationSource : IConfigurationSource
     /// </summary>
     /// <param name="builder">Configuration builder.</param>
     /// <returns>Instance of <see cref="IConfigurationProvider"/>.</returns>
-    public IConfigurationProvider Build(IConfigurationBuilder builder) => new VaultConfigurationProvider(this);
+    public IConfigurationProvider Build(IConfigurationBuilder builder)
+    {
+        Log.Logger.Information($"ctor VaultConfigurationSource:IConfigurationProvider:Build");
+
+        return new VaultConfigurationProvider(this);
+    }
 }

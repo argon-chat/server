@@ -1,5 +1,7 @@
 namespace Argon.Features.Vault;
 
+using Serilog;
+
 public static class VaultFeature
 {
     public static IConfigurationBuilder AddVaultConfiguration(this WebApplicationBuilder builder, bool includeWatcher = true)
@@ -12,7 +14,7 @@ public static class VaultFeature
 
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(space))
             throw new Exception($"No url or token for vault defined");
-
+        Log.Logger.Information($"AddVaultConfiguration");
         var cfg = builder.AddVaultConfiguration(
             () => new VaultOptions(
                 url, token, insecureConnection: false),

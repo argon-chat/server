@@ -29,6 +29,7 @@ public class VaultConfigurationProvider : ConfigurationProvider
     {
         this.ConfigurationSource = source ?? throw new ArgumentNullException(nameof(source));
         this.versionsCache = new Dictionary<string, int>();
+        Log.Logger.Information($"ctor VaultConfigurationProvider");
     }
 
     /// <summary>
@@ -41,6 +42,8 @@ public class VaultConfigurationProvider : ConfigurationProvider
     {
         try
         {
+            Log.Logger.Information($"Load");
+
             if (this.vaultClient == null)
             {
                 IAuthMethodInfo authMethod;
@@ -106,7 +109,7 @@ public class VaultConfigurationProvider : ConfigurationProvider
         var hasChanges = false;
         await foreach (var secretData in this.ReadKeysAsync(vaultClient, this.ConfigurationSource.BasePath))
         {
-            Log.Logger.Debug($"VaultConfigurationProvider: got Vault data with key `{secretData.Key}`");
+            Log.Logger.Information($"VaultConfigurationProvider: got Vault data with key `{secretData.Key}`");
 
             var key = secretData.Key;
             var len = this.ConfigurationSource.BasePath.TrimStart('/').Length;
@@ -132,7 +135,7 @@ public class VaultConfigurationProvider : ConfigurationProvider
             {
                 shouldSetValue = secretData.SecretData.Metadata.Version > currentVersion;
                 var keyMsg = shouldSetValue ? "has new version" : "is outdated";
-                Log.Logger.Debug($"{nameof(VaultConfigurationProvider)}: Data for key `{secretData.Key}` {keyMsg}");
+                Log.Logger.Information($"{nameof(VaultConfigurationProvider)}: Data for key `{secretData.Key}` {keyMsg}");
             }
 
             if (!shouldSetValue) continue;
