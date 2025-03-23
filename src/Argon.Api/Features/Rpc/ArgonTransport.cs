@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using Api.Features.Orleans.Client;
 using Features.Middlewares;
 using Google.Protobuf;
 using Grpc.Core;
@@ -11,9 +12,27 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
     public async override Task<RpcResponse> Unary(RpcRequest request, ServerCallContext context)
     {
         await using var scope = provider.CreateAsyncScope();
+
+        var registry = scope.ServiceProvider.GetRequiredService<IArgonDcRegistry>();
+
+
+        var nearestDc = registry.GetNearestDc();
+
+        if (nearestDc is null || nearestDc.status != ArgonDataCenterStatus.ONLINE)
+        {
+            context.Status = new Status(StatusCode.FailedPrecondition, "no dc online found");
+            return new RpcResponse
+            {
+                Payload      = ByteString.Empty,
+                StatusCode   = ArgonRpcStatusCode.Ok,
+                ErrorMessage = "no dc online found"
+            };
+        }
+
+
         using var _ = scope.ServiceProvider.GetRequiredService<IServerTimingRecorder>()
            .BeginRecord($"Unary/{request.Interface}::{request.Method}");
-        using var ctx     = ArgonTransportContext.CreateGrpc(context, provider);
+        using var ctx     = ArgonTransportContext.CreateGrpc(context, provider, registry);
         var       service = storage.GetService(request.Interface);  
 
         try
