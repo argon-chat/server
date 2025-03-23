@@ -44,6 +44,8 @@ public class RegionalUnitApp
 
         var app = entryBuilder.Build();
 
+        await Task.Delay(1000);
+
         var unitContainer = app.Services;
 
         var consul = unitContainer.GetRequiredService<IConsulClient>();
