@@ -6,6 +6,7 @@ using Vault;
 using Consul;
 using Logging;
 using Newtonsoft.Json;
+using Serilog;
 
 public class RegionalUnitApp
 {
@@ -42,6 +43,13 @@ public class RegionalUnitApp
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
         var app           = entryBuilder.Build();
+
+
+        Log.Logger.Warning($"Orleans:{key}");
+        foreach (var v in app.Configuration.AsEnumerable())
+        {
+            Log.Logger.Warning($"kv: {v.Key} -> {v.Value}");
+        }
         var unitContainer = app.Services;
 
         var consul = unitContainer.GetRequiredService<IConsulClient>();
