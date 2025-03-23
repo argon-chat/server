@@ -8,9 +8,10 @@ public static class ArgonRpcExtensions
         => ArgonTransportContext.Current.User;
 
     public static IGrainFactory GetGrainFactory(this IArgonService appService)
-        => throw new NotImplementedException();
+        => appService.GetClusterClient();
+
     public static IClusterClient GetClusterClient(this IArgonService appService)
-        => throw new NotImplementedException();
+        => ArgonTransportContext.Current.GetClusterClient();
 
 
     public static string GetClientName(this IArgonService argonService)
