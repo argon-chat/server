@@ -29,7 +29,6 @@ public sealed class VaultConfigurationSource : IConfigurationSource
         this.Options    = options;
         this.BasePath   = basePath;
         this.MountPoint = mountPoint ?? SecretsEngineMountPoints.Defaults.KeyValueV2;
-        Log.Logger.Information($"ctor VaultConfigurationSource");
     }
 
     /// <summary>
@@ -53,9 +52,5 @@ public sealed class VaultConfigurationSource : IConfigurationSource
     /// <param name="builder">Configuration builder.</param>
     /// <returns>Instance of <see cref="IConfigurationProvider"/>.</returns>
     public IConfigurationProvider Build(IConfigurationBuilder builder)
-    {
-        Log.Logger.Information($"ctor VaultConfigurationSource:IConfigurationProvider:Build");
-
-        return new VaultConfigurationProvider(this);
-    }
+        => new VaultConfigurationProvider(this);
 }

@@ -29,7 +29,6 @@ public class VaultConfigurationProvider : ConfigurationProvider
     {
         this.ConfigurationSource = source ?? throw new ArgumentNullException(nameof(source));
         this.versionsCache = new Dictionary<string, int>();
-        Log.Logger.Information($"ctor VaultConfigurationProvider");
     }
 
     /// <summary>
@@ -42,8 +41,6 @@ public class VaultConfigurationProvider : ConfigurationProvider
     {
         try
         {
-            Log.Logger.Information($"Load");
-
             if (this.vaultClient == null)
             {
                 IAuthMethodInfo authMethod;
