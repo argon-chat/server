@@ -4,6 +4,7 @@ using System;
 using Env;
 using Vault;
 using Consul;
+using Logging;
 using Newtonsoft.Json;
 
 public class RegionalUnitApp
@@ -32,6 +33,7 @@ public class RegionalUnitApp
 
         var entryBuilder = WebApplication.CreateBuilder(args);
 
+        entryBuilder.AddLogging();
         entryBuilder.AddVaultConfiguration(false);
 
         var key = entryBuilder.Environment.DetermineClientSpace();
