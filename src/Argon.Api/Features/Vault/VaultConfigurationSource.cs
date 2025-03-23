@@ -24,7 +24,7 @@ public sealed class VaultConfigurationSource : IConfigurationSource
     /// <param name="options">Vault options.</param>
     /// <param name="basePath">Base path.</param>
     /// <param name="mountPoint">Mounting point.</param>
-    public VaultConfigurationSource(VaultOptions options, string basePath, string? mountPoint = null, ILogger? logger = null)
+    public VaultConfigurationSource(VaultOptions options, string basePath, string? mountPoint = null)
     {
         this.Options    = options;
         this.BasePath   = basePath;

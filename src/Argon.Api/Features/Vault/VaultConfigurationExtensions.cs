@@ -57,7 +57,7 @@ public static class VaultConfigurationExtensions
             Environment.GetEnvironmentVariable(VaultEnvironmentVariableNames.Secret),
             Environment.GetEnvironmentVariable(VaultEnvironmentVariableNames.RoleId),
             insecureOk && insecure);
-        configuration.Add(new VaultConfigurationSource(vaultOptions, basePath, mountPoint, logger));
+        configuration.Add(new VaultConfigurationSource(vaultOptions, basePath, mountPoint));
         return configuration;
     }
 }
