@@ -11,7 +11,7 @@ public sealed class DcWatcherService(
     IArgonClusterRouter router,
     IClusterClientFactory clusterClientFactory) : RecurringWorkerService<DcWatcherService>(logger)
 {
-    private readonly TimeSpan _gcTimeout = TimeSpan.FromMinutes(15);
+    private readonly TimeSpan _gcTimeout = TimeSpan.FromMinutes(3);
 
     protected override Task OnCreateAsync(CancellationToken ct = default)
         => registry.SubscribeToNewClient(OnClusterRegistered);
@@ -31,10 +31,10 @@ public sealed class DcWatcherService(
             {
                 var eff = await router.ComputeEffectivity(dc);
                 var sp  = await clusterClientFactory.CreateClusterClient(dc, ct);
-                registry.Upsert(new(dc, eff, sp, DateTime.Now, ADDED, new()));
+                registry.Upsert(new(dc, eff, sp, DateTime.Now, CREATED, new()));
                 logger.LogInformation("DC [{dc}] added with effectivity {effectivity}", dc, eff);
             }
-            else
+            else if (existing.status is ONLINE)
                 registry.Upsert(existing with
                 {
                     lastSeen = DateTime.UtcNow

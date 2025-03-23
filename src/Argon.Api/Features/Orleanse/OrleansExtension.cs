@@ -1,23 +1,16 @@
 namespace Argon.Features;
 
-using System.Diagnostics.CodeAnalysis;
+using System;
 using Api.Features;
 using Api.Features.Orleans.Consul;
+using EntryPoint;
 using Env;
-using Orleans.Configuration;
-using Orleans.Hosting;
-using Orleans.Providers;
-using Sentry;
+using global::Orleans.Providers;
 using NatsStreaming;
-using System.Net;
-using System;
-using System.Text;
+using Orleans.Configuration;
+using Sentry;
 
 #pragma warning disable ORLEANSEXP001
-
-public interface IRegionalClusterClient : IClusterClient
-{
-}
 
 public static class OrleansExtension
 {
@@ -26,6 +19,7 @@ public static class OrleansExtension
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
         builder.Services.AddHostedService<DcWatcherService>();
         builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
+        builder.Services.AddHostedService<EntryPointWatcher>();
         return builder;
     }
 
@@ -34,6 +28,7 @@ public static class OrleansExtension
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
         builder.Services.AddHostedService<DcWatcherService>();
         builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
+        builder.Services.AddHostedService<EntryPointWatcher>();
 
         return builder;
     }
