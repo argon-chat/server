@@ -7,7 +7,6 @@ using Consul;
 using Logging;
 using Newtonsoft.Json;
 using Serilog;
-using Microsoft.Extensions.DependencyInjection;
 
 public class RegionalUnitApp
 {
@@ -40,13 +39,8 @@ public class RegionalUnitApp
 
         var key = entryBuilder.Environment.DetermineClientSpace();
 
-        entryBuilder.Services.AddSingleton<IConsulClient>(q =>
-        {
-            return new ConsulClient(configuration =>
-            {
-                configuration.Address = new Uri(q.GetRequiredService<IConfiguration>().GetSection($"Orleans:{key}:Address").Value!);
-            });
-        });
+        entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
+        entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
         var app = entryBuilder.Build();
 
@@ -54,11 +48,6 @@ public class RegionalUnitApp
         await Task.Delay(1000);
         await app.StopAsync();
 
-        Log.Logger.Warning($"Orleans:{key}");
-        foreach (var v in app.Configuration.AsEnumerable())
-        {
-            Log.Logger.Warning($"kv: {v.Key} -> {v.Value}");
-        }
         var unitContainer = app.Services;
 
         var consul = unitContainer.GetRequiredService<IConsulClient>();
