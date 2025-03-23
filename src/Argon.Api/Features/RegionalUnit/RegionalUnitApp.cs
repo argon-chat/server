@@ -42,8 +42,11 @@ public class RegionalUnitApp
         entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
-        var app           = entryBuilder.Build();
+        var app = entryBuilder.Build();
 
+        app.StartAsync().ConfigureAwait(false);
+        await Task.Delay(1000);
+        await app.StopAsync();
 
         Log.Logger.Warning($"Orleans:{key}");
         foreach (var v in app.Configuration.AsEnumerable())
