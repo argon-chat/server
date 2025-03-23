@@ -25,6 +25,7 @@ public static class RpcServiceCollectionExtensions
     {
         var logger      = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebSocketFeature>>();
         var wtCollector = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
+        var registry    = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
 
         if (!ctx.WebSockets.IsWebSocketRequest)
         {
@@ -55,7 +56,7 @@ public static class RpcServiceCollectionExtensions
 
         logger.LogInformation("WebSocket token exchanged, {aat}", attToken);
 
-        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, registry);
         await using var pipe  = ArgonTransportFeaturePipe.CreateForWs(socket);
 
         await wtCollector.HandleTransportRequest(ctx, pipe, scope);
@@ -66,6 +67,7 @@ public static class RpcServiceCollectionExtensions
         var wt          = ctx.Features.Get<IHttpWebTransportFeature>();
         var logger      = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebTransportFeature>>();
         var wtCollector = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
+        var registry    = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
 
         if (wt is null)
         {
@@ -118,7 +120,7 @@ public static class RpcServiceCollectionExtensions
         logger.LogInformation("Web Transport token exchanged, {aat}", attToken);
 
 
-        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices);
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, registry);
         await using var pipe  = ArgonTransportFeaturePipe.CreateForWt(conn);
         await wtCollector.HandleTransportRequest(ctx, pipe, scope);
     }
@@ -136,6 +138,7 @@ public static class RpcServiceCollectionExtensions
         var opt       = scope.ServiceProvider.GetRequiredService<IOptions<TransportOptions>>();
         var auth      = scope.ServiceProvider.GetRequiredService<TokenAuthorization>();
         var exchanger = scope.ServiceProvider.GetRequiredService<ITransportExchange>();
+
         var result    = await auth.AuthorizeByToken(token.ToString());
 
         if (!result.IsSuccess)

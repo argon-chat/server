@@ -6,7 +6,6 @@ using Vault;
 using Consul;
 using Logging;
 using Newtonsoft.Json;
-using Serilog;
 
 public class RegionalUnitApp
 {
