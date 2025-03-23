@@ -34,7 +34,7 @@ public class RegionalUnitApp
 
         var key = entryBuilder.Environment.DetermineClientSpace();
 
-        entryBuilder.AddVaultConfiguration(false);
+        entryBuilder.AddVaultConfiguration(true);
         entryBuilder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
