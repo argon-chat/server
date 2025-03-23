@@ -38,7 +38,8 @@ public class RegionalUnitApp
         entryBuilder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
-        var unitContainer = entryBuilder.Services.BuildServiceProvider();
+        var app           = entryBuilder.Build();
+        var unitContainer = app.Services;
 
         var consul = unitContainer.GetRequiredService<IConsulClient>();
 
@@ -47,7 +48,7 @@ public class RegionalUnitApp
         var dc = agent.Response["Config"]["Datacenter"] as string ?? 
             throw new InvalidOperationException($"Invalid response from consul");
 
-        builder.Services.AddKeyedSingleton<IServiceProvider>(UNIT_DI_CONTAINER, unitContainer);
+        builder.Services.AddKeyedSingleton(UNIT_DI_CONTAINER, unitContainer);
         builder.Services.Add(new ServiceDescriptor(typeof(IConsulClient), _ => unitContainer.GetRequiredService<IConsulClient>(), ServiceLifetime.Singleton));
         builder.Services.AddSingleton<IArgonClusterRouter, ClusterRouter>();
         builder.SetDatacenter(dc);
