@@ -2,10 +2,10 @@ namespace Argon.Features.Vault;
 
 public static class VaultFeature
 {
-    public static void AddVaultConfiguration(this WebApplicationBuilder builder, bool includeWatcher = true)
+    public static IConfigurationBuilder AddVaultConfiguration(this WebApplicationBuilder builder, bool includeWatcher = true)
     {
         if (Environment.GetEnvironmentVariable("USE_VAULT") is null)
-            return;
+            return builder.Configuration;
         var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
         var space = Environment.GetEnvironmentVariable("ARGON_VAULT_SPACE") ?? "argon";
         var token = ReadToken();
@@ -13,13 +13,15 @@ public static class VaultFeature
         if (string.IsNullOrEmpty(url) || string.IsNullOrEmpty(token) || string.IsNullOrEmpty(space))
             throw new Exception($"No url or token for vault defined");
 
-        builder.AddVaultConfiguration(
+        var cfg = builder.AddVaultConfiguration(
             () => new VaultOptions(
                 url, token, insecureConnection: false),
             "@", space);
 
         if (includeWatcher)
             builder.Services.AddHostedService<VaultChangeWatcher>();
+
+        return cfg;
     }
 
 

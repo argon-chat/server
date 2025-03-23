@@ -14,7 +14,7 @@ public class RegionalUnitApp
     {
         var builder = WebApplication.CreateBuilder(args);
 
-        // аor compatibility, it is overwritten to correct value when necessary
+        // for compatibility, it is overwritten to correct value when necessary
         if (builder.IsEntryPointRole())
             builder.WebHost.UseUrls("http://localhost:7829");
         else if (builder.IsGatewayRole())
@@ -32,10 +32,11 @@ public class RegionalUnitApp
 
         var entryBuilder = WebApplication.CreateBuilder(args);
 
+        entryBuilder.AddVaultConfiguration(false);
+
         var key = entryBuilder.Environment.DetermineClientSpace();
 
-        entryBuilder.AddVaultConfiguration(true);
-        entryBuilder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
+        entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
         var app           = entryBuilder.Build();
