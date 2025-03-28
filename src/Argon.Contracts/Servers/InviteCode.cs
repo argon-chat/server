@@ -22,7 +22,7 @@ public record struct InviteCodeEntity(InviteCode code, Guid serverId, Guid issue
     public bool HasExpired() => DateTime.UtcNow > expireTime;
 
 
-    private unsafe static string GenerateInviteCode(int length = 9)
+    public unsafe static string GenerateInviteCode(int length = 9)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         const int Base = 62;
