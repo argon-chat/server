@@ -33,6 +33,12 @@ public class ArgonSelectiveForwardingUnit(
     public ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission) =>
         new (CreateJwt(channelId, userId, permission, settings));
 
+    public ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ArgonChannelId channelId, SfuPermission permission) =>
+        new(CreateMeetJwt(channelId, userName, permission, settings));
+
+    public ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, Guid sharedId, SfuPermission permission) =>
+        new (CreateMeetJwt(sharedId, userName, permission, settings));
+
     // TODO check validity
     public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId) =>
         throw new NotImplementedException();
@@ -122,6 +128,70 @@ public class ArgonSelectiveForwardingUnit(
             },
             {
                 "name", identity.ToRawIdentity()
+            },
+            {
+                "video", permissions.ToDictionary(roomName)
+            }
+        };
+
+        JwtSecurityToken token = new(headers, payload);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private static string CreateMeetJwt(ArgonChannelId roomName, string identity, SfuPermission permissions,
+        IOptions<SfuFeatureSettings> settings)
+    {
+        var       now     = DateTime.UtcNow;
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
+
+        JwtPayload payload = new()
+        {
+            {
+                "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
+            },
+            {
+                "iss", settings.Value.ClientId
+            },
+            {
+                "nbf", 0
+            },
+            {
+                "sub", Guid.NewGuid().ToString()
+            },
+            {
+                "name", identity
+            },
+            {
+                "video", permissions.ToDictionary(roomName)
+            }
+        };
+
+        JwtSecurityToken token = new(headers, payload);
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
+        IOptions<SfuFeatureSettings> settings)
+    {
+        var       now     = DateTime.UtcNow;
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
+
+        JwtPayload payload = new()
+        {
+            {
+                "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
+            },
+            {
+                "iss", settings.Value.ClientId
+            },
+            {
+                "nbf", 0
+            },
+            {
+                "sub", Guid.NewGuid().ToString()
+            },
+            {
+                "name", identity
             },
             {
                 "video", permissions.ToDictionary(roomName)

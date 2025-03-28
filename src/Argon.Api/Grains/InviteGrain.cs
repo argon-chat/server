@@ -10,7 +10,7 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
     {
         await using var db = await context.CreateDbContextAsync();
         
-        var e = await db.ServerInvites.FirstOrDefaultAsync(x => x.Id == ServerInviteGrain.EncodeToUlong(this.GetPrimaryKeyString()));
+        var e = await db.ServerInvites.FirstOrDefaultAsync(x => x.Id == InviteCodeEntity.EncodeToUlong(this.GetPrimaryKeyString()));
 
         if (e is null)
             return (Guid.Empty, AcceptInviteError.NOT_FOUND); // TODO

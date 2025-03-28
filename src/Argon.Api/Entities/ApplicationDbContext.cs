@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Data.Common;
 using System.Drawing;
 using System.Linq.Expressions;
+using Shared.Servers;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
@@ -23,6 +24,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<ArgonMessage> Messages { get; set; }
 
+
+    public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -83,6 +86,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .HasForeignKey(c => c.ServerId);
 
         modelBuilder.Entity<ServerInvite>()
+           .HasKey(x => x.Id);
+
+        modelBuilder.Entity<MeetSingleInviteLink>()
            .HasKey(x => x.Id);
 
         modelBuilder.Entity<Channel>()

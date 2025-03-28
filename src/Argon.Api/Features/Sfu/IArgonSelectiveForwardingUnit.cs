@@ -19,6 +19,10 @@ public interface IArgonSelectiveForwardingUnit
     /// </returns>
     ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission);
 
+
+    ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ArgonChannelId channelId, SfuPermission permission);
+    ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, Guid sharedId, SfuPermission permission);
+
     /// <summary>
     ///     Set mute or unmute for participant
     /// </summary>

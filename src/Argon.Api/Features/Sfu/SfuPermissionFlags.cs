@@ -43,6 +43,14 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
         dict.Add("room", $"{channelId.serverId.id}-{channelId.channelId}");
         return dict;
     }
+
+    public Dictionary<string, object> ToDictionary(Guid sharedId)
+    {
+        var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
+        dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
+        dict.Add("room", $"shared-meet-{sharedId}");
+        return dict;
+    }
 }
 
 [AttributeUsage(AttributeTargets.Field)]
