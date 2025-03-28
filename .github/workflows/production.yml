@@ -2,12 +2,11 @@ name: Production
 
 on:
   push:
-    branches: [ "release" ]
+    branches: [ "release/v*" ]
   workflow_dispatch:
 
 jobs:
   build-ghcr:
-    if: github.ref == 'refs/heads/release_DISABLED'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +31,6 @@ jobs:
           tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
 
   build-dockerhub:
-    if: github.ref == 'refs/heads/release'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
