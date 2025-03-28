@@ -2,7 +2,7 @@ name: Production
 
 on:
   push:
-    branches: [ "release/v*" ]
+    branches: [ "releases/v*" ]
   workflow_dispatch:
 
 jobs:
