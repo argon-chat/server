@@ -42,8 +42,11 @@ public class RegionalUnitApp
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
         var app = entryBuilder.Build();
+        await app.RunAsync();
 
         await Task.Delay(1000);
+
+        await app.StopAsync();
 
         var unitContainer = app.Services;
 

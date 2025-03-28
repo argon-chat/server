@@ -115,7 +115,11 @@ public static class HostModeExtensions
         builder.UseMessagePack();
         builder.AddSentry();
         builder.AddServiceDefaults();
-        builder.AddPooledDatabase<ApplicationDbContext>();
+        if (!builder.IsEntryPointRole())
+        {
+            builder.AddPooledDatabase<ApplicationDbContext>();
+            builder.AddEfRepositories();
+        }
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();
@@ -123,7 +127,6 @@ public static class HostModeExtensions
         builder.AddArgonPermissions();
         builder.AddSelectiveForwardingUnit();
         builder.AddOtpCodes();
-        builder.AddEfRepositories();
         builder.AddCaptchaFeature();
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
