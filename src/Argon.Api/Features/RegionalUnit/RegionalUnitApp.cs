@@ -46,8 +46,6 @@ public class RegionalUnitApp
 
         await Task.Delay(1000);
 
-        await app.StopAsync();
-
         var unitContainer = app.Services;
 
         var consul = unitContainer.GetRequiredService<IConsulClient>();
