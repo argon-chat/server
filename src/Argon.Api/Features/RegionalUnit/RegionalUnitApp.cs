@@ -44,6 +44,9 @@ public class RegionalUnitApp
         entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
         entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
+        builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
+        builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
+
         var app = entryBuilder.Build();
         app.RunAsync();
 
@@ -59,7 +62,6 @@ public class RegionalUnitApp
             throw new InvalidOperationException($"Invalid response from consul");
 
         builder.Services.AddKeyedSingleton(UNIT_DI_CONTAINER, unitContainer);
-        builder.Services.Add(new ServiceDescriptor(typeof(IConsulClient), _ => unitContainer.GetRequiredService<IConsulClient>(), ServiceLifetime.Singleton));
         builder.Services.AddSingleton<IArgonClusterRouter, ClusterRouter>();
         builder.SetDatacenter(dc);
         builder.Services.AddKeyedSingleton("dc", dc);
