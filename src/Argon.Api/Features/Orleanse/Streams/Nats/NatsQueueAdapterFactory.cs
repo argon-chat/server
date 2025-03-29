@@ -23,10 +23,15 @@ public class NatsQueueAdapterFactory(
     {
         try
         {
-            var natsOptions = NatsOpts.Default;
+            var natsOptions = NatsOpts.Default with
+            {
+                ConnectTimeout = TimeSpan.FromMinutes(2),
+                CommandTimeout = TimeSpan.FromMinutes(2),
+                RequestTimeout = TimeSpan.FromMinutes(2)
+            };
             natsOptions = natsConfiguration.Configure(natsOptions);
             var connection = new NatsConnection(natsOptions);
-            var context = new NatsJSContext(connection);
+            var context    = new NatsJSContext(connection);
             return new NatsAdaptor(context, Name, serializer, _mapper, logger);
         }
         catch (Exception ex)
