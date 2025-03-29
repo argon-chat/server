@@ -21,7 +21,7 @@ public class SiloNatsStreamConfigurator<TSerializer> : SiloRecoverableStreamConf
 
             services.ConfigureNamedOptionForLogging<HashRingStreamQueueMapperOptions>(name);
 
-            services.AddKeyedSingleton<IQueueAdapterFactory, NatsQueueAdapterFactory>(name);
+            services.AddKeyedSingleton<IQueueAdapterFactory, NatsQueueAdapterFactory>(name, (provider, key) => ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(provider, key as string));
         });
 }
 
