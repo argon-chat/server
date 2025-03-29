@@ -63,6 +63,8 @@ public static class EnvironmentRoleExtensions
     public static bool IsHybridRole(this WebApplicationBuilder env)
         => env.Environment.DetermineRole() == ArgonRoleKind.Hybrid;
 
+    public static bool IsUseLocalHostCerts(this WebApplicationBuilder _)
+        => Environment.GetEnvironmentVariable("USE_LOCALHOST_CERTS") is not null;
 
     public static void SetDatacenter(this WebApplicationBuilder builder, string dc)
         => builder.Host.Properties.Add("dc", dc);

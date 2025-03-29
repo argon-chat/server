@@ -31,14 +31,31 @@ public static class HostModeExtensions
         builder.AddDefaultWorkloadServices();
         builder.Services.AddServerTiming();
 
-        if (builder.Environment.IsSingleInstance() && builder.Environment.IsDevelopment())
-            builder.ConfigureDefaultKestrel();
-
         if (builder.IsEntryPointRole())
         {
             builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5002, listenOptions => {
-                    if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
+                options.ListenAnyIP(5001, listenOptions => {
+                    if (builder.IsUseLocalHostCerts())
+                    {
+                        static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
+                        {
+                            if (!File.Exists("localhost.pfx"))
+                                throw new Exception("Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
+
+                            var cert = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
+
+                            var hash    = SHA256.HashData(cert.RawData);
+                            var certStr = Convert.ToBase64String(hash);
+
+                            builder.Configuration["Transport:CertificateFingerprint"] = certStr;
+
+                            return cert;
+                        }
+
+                        listenOptions.UseHttps(LoadLocalhostCerts(builder));
+                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+                    }
+                    else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
                     {
                         listenOptions.UseHttps(x => {
                             x.ServerCertificate = X509Certificate2.CreateFromPemFile(
@@ -47,7 +64,7 @@ public static class HostModeExtensions
                             );
                         });
                         listenOptions.DisableAltSvcHeader = false;
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
                     }
                     else
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
@@ -83,8 +100,28 @@ public static class HostModeExtensions
         {
             builder.AddDefaultCors();
             builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5002, listenOptions => {
-                    if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
+                options.ListenAnyIP(5001, listenOptions => {
+                    if (builder.IsUseLocalHostCerts())
+                    {
+                        static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
+                        {
+                            if (!File.Exists("localhost.pfx"))
+                                throw new Exception("Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
+
+                            var cert = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
+
+                            var hash    = SHA256.HashData(cert.RawData);
+                            var certStr = Convert.ToBase64String(hash);
+
+                            builder.Configuration["Transport:CertificateFingerprint"] = certStr;
+
+                            return cert;
+                        }
+
+                        listenOptions.UseHttps(LoadLocalhostCerts(builder));
+                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+                    }
+                    else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
                     {
                         listenOptions.UseHttps(x => {
                             x.ServerCertificate = X509Certificate2.CreateFromPemFile(
@@ -120,6 +157,7 @@ public static class HostModeExtensions
 
     public static WebApplicationBuilder AddMultiRegionWorkloads(this WebApplicationBuilder builder)
     {
+        throw null;
         builder.AddSingleRegionWorkloads();
         // TODO
         return builder;
