@@ -36,6 +36,10 @@ FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
 ENV DOTNET_ENABLE_HTTP3="true"
+EXPOSE 5002
+EXPOSE 5002/udp
 EXPOSE 5001
 EXPOSE 5001/udp
+EXPOSE 5000
+EXPOSE 5000/udp
 ENTRYPOINT ["dotnet", "Argon.Api.dll"]

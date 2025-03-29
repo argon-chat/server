@@ -17,11 +17,11 @@ public class RegionalUnitApp
 
         // for compatibility, it is overwritten to correct value when necessary
         if (builder.IsEntryPointRole())
-            builder.WebHost.UseUrls("http://localhost:5001");
+            builder.WebHost.UseUrls("http://localhost:5002");
         else if (builder.IsGatewayRole())
             builder.WebHost.UseUrls("http://localhost:5000");
         else
-            builder.WebHost.UseUrls("http://localhost:5002");
+            builder.WebHost.UseUrls("http://localhost:5001");
 
         if (builder.Environment.IsSingleInstance()) 
         {

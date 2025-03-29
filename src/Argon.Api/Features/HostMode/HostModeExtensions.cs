@@ -34,7 +34,7 @@ public static class HostModeExtensions
         if (builder.IsEntryPointRole())
         {
             builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5001, listenOptions => {
+                options.ListenAnyIP(5002, listenOptions => {
                     if (builder.IsUseLocalHostCerts())
                     {
                         static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
@@ -100,7 +100,7 @@ public static class HostModeExtensions
         {
             builder.AddDefaultCors();
             builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5001, listenOptions => {
+                options.ListenAnyIP(5002, listenOptions => {
                     if (builder.IsUseLocalHostCerts())
                     {
                         static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
