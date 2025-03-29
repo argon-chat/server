@@ -20,7 +20,6 @@ public static class SiloBuilderNatsStreamExtensions
             configureDelegate => builder.ConfigureServices(configureDelegate)
         );
         configure?.Invoke(natsStreamConfigurator);
-        builder.Services.AddKeyedSingleton<IStreamQueueMapper, HashRingBasedStreamQueueMapper>(name);
         return builder;
     }
 
@@ -31,8 +30,6 @@ public static class SiloBuilderNatsStreamExtensions
         var natsStreamConfigurator = new SiloNatsStreamConfigurator<TSerializer>(name,
             configureDelegate => builder.ConfigureServices(configureDelegate)
         );
-        builder.Services.AddKeyedSingleton<IStreamQueueMapper, HashRingBasedStreamQueueMapper>(name);
-
         configure?.Invoke(natsStreamConfigurator);
         return builder;
     }
