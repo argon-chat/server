@@ -26,7 +26,6 @@ public class NatsQueueAdapterFactory(
             var natsOptions = NatsOpts.Default;
             natsOptions = natsConfiguration.Configure(natsOptions);
             var connection = new NatsConnection(natsOptions);
-            await connection.ConnectAsync();
             var context = new NatsJSContext(connection);
             return new NatsAdaptor(context, Name, serializer, _mapper, logger);
         }
