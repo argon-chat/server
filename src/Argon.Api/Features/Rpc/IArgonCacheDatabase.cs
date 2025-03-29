@@ -70,7 +70,6 @@ public static class ArgonCacheDatabaseFeature
         else
         {
             builder.Services.AddSingleton<IArgonCacheDatabase, RedisArgonCacheDatabase>();
-            builder.AddRedisOutputCache("cache");
             builder.AddRedisClient("cache");
         }
 

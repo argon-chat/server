@@ -21,6 +21,7 @@ using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
 using GeoIP;
 using global::Orleans.Serialization;
+using global::Sentry.Infrastructure;
 using RegionalUnit;
 
 public static class HostModeExtensions
@@ -113,8 +114,14 @@ public static class HostModeExtensions
         builder.WebHost.UseQuic();
         builder.AddLogging();
         builder.UseMessagePack();
-        builder.AddSentry();
-        builder.AddServiceDefaults();
+        builder.WebHost.UseSentry(o => {
+            o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
+            o.Debug               = true;
+            o.AutoSessionTracking = true;
+            o.TracesSampleRate    = 1.0;
+            o.ProfilesSampleRate  = 1.0;
+            o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
+        });
         if (!builder.IsEntryPointRole())
         {
             builder.AddPooledDatabase<ApplicationDbContext>();
@@ -167,9 +174,7 @@ public static class RunHostModeExtensions
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
-            app.MapDefaultEndpoints();
             app.MapArgonTransport();
-            app.MapDefaultEndpoints();
         }
 
         app.MapGet("/", () => new {
@@ -191,9 +196,7 @@ public static class RunHostModeExtensions
             app.UseAuthentication();
             app.UseAuthorization();
             app.MapControllers();
-            app.MapDefaultEndpoints();
             app.MapArgonTransport();
-            app.MapDefaultEndpoints();
             if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
                 app.UseSerilogRequestLogging();
             app.UseRewrites();
