@@ -1,5 +1,7 @@
 namespace Argon.Features.NatsStreaming;
 
+using Orleans.Streams;
+
 public static class SiloBuilderNatsStreamExtensions
 {
     public static ISiloBuilder AddNatsStreams(this ISiloBuilder builder, string name,
@@ -18,6 +20,7 @@ public static class SiloBuilderNatsStreamExtensions
             configureDelegate => builder.ConfigureServices(configureDelegate)
         );
         configure?.Invoke(natsStreamConfigurator);
+        builder.Services.AddKeyedSingleton<IStreamQueueMapper, HashRingBasedStreamQueueMapper>(name);
         return builder;
     }
 
@@ -28,6 +31,8 @@ public static class SiloBuilderNatsStreamExtensions
         var natsStreamConfigurator = new SiloNatsStreamConfigurator<TSerializer>(name,
             configureDelegate => builder.ConfigureServices(configureDelegate)
         );
+        builder.Services.AddKeyedSingleton<IStreamQueueMapper, HashRingBasedStreamQueueMapper>(name);
+
         configure?.Invoke(natsStreamConfigurator);
         return builder;
     }

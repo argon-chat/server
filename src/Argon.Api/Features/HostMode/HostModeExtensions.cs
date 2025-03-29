@@ -59,11 +59,11 @@ public static class HostModeExtensions
 
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
+            builder.AddDefaultCors();
             builder.Services.AddControllers()
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.AddSwaggerWithAuthHeader();
             builder.Services.AddAuthorization();
-            builder.AddDefaultCors();
             builder.AddArgonTransport(x => {
                 x.AddService<IServerInteraction, ServerInteraction>();
                 x.AddService<IUserInteraction, UserInteraction>();
@@ -81,6 +81,7 @@ public static class HostModeExtensions
         builder.AddGeoIpSupport();
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
+            builder.AddDefaultCors();
             builder.WebHost.ConfigureKestrel(options => {
                 options.ListenAnyIP(5002, listenOptions => {
                     if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
@@ -104,7 +105,6 @@ public static class HostModeExtensions
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.AddSwaggerWithAuthHeader();
             builder.Services.AddAuthorization();
-            builder.AddDefaultCors();
             builder.AddArgonTransport(x => {
                 x.AddService<IServerInteraction, ServerInteraction>();
                 x.AddService<IUserInteraction, UserInteraction>();
