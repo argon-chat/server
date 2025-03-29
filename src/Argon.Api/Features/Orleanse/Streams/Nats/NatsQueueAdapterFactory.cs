@@ -1,5 +1,6 @@
 namespace Argon.Features.NatsStreaming;
 
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -9,13 +10,13 @@ using Orleans.Streams;
 
 public class NatsQueueAdapterFactory(
     string name,
-    HashRingStreamQueueMapperOptions queueMapperOptions,
     NatsConfiguration natsConfiguration,
     INatsMessageBodySerializer serializer,
-    ILogger<NatsQueueAdapterFactory> logger)
+    ILogger<NatsQueueAdapterFactory> logger,
+    IServiceProvider serviceProvider)
     : IQueueAdapterFactory, IQueueAdapterCache
 {
-    private readonly HashRingBasedStreamQueueMapper _mapper = new(queueMapperOptions, name);
+    private HashRingBasedStreamQueueMapper _mapper => new(serviceProvider.GetRequiredKeyedService<HashRingStreamQueueMapperOptions>(name), name);
 
     public string Name { get; set; } = name;
 
