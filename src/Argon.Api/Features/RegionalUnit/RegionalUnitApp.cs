@@ -32,7 +32,7 @@ public class RegionalUnitApp
         }
 
         var entryBuilder = WebApplication.CreateBuilder(args);
-
+        entryBuilder.WebHost.UseUrls("http://127.0.0.1:0");
         entryBuilder.AddLogging();
         entryBuilder.AddVaultConfiguration(false);
 

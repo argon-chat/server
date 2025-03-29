@@ -145,12 +145,12 @@ public static class HostModeExtensions
         {
             builder.AddPooledDatabase<ApplicationDbContext>();
             builder.AddEfRepositories();
+            builder.AddArgonPermissions();
         }
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();
         builder.AddContentDeliveryNetwork();
-        builder.AddArgonPermissions();
         builder.AddSelectiveForwardingUnit();
         builder.AddOtpCodes();
         builder.AddCaptchaFeature();

@@ -4,19 +4,21 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
+using Orleans;
 using Orleans.Configuration;
 using Orleans.Providers.Streams.Common;
 using Orleans.Streams;
 
 public class NatsQueueAdapterFactory(
     string name,
-    NatsConfiguration natsConfiguration,
-    INatsMessageBodySerializer serializer,
     ILogger<NatsQueueAdapterFactory> logger,
     IServiceProvider serviceProvider)
     : IQueueAdapterFactory, IQueueAdapterCache
 {
-    private HashRingBasedStreamQueueMapper _mapper => new(serviceProvider.GetRequiredKeyedService<HashRingStreamQueueMapperOptions>(name), name);
+    private Lazy<HashRingBasedStreamQueueMapper> _mapper
+        => new(() => new(new HashRingStreamQueueMapperOptions(), name));
+    private Lazy<INatsMessageBodySerializer> Serializer 
+        => new(() => serviceProvider.GetRequiredKeyedService<INatsMessageBodySerializer>(name));
 
     public string Name { get; set; } = name;
 
@@ -30,10 +32,10 @@ public class NatsQueueAdapterFactory(
                 CommandTimeout = TimeSpan.FromMinutes(2),
                 RequestTimeout = TimeSpan.FromMinutes(2)
             };
-            natsOptions = natsConfiguration.Configure(natsOptions);
+            natsOptions = serviceProvider.GetOptionsByName<NatsConfiguration>(name).Configure(natsOptions);
             var connection = new NatsConnection(natsOptions);
             var context    = new NatsJSContext(connection);
-            return new NatsAdaptor(context, Name, serializer, _mapper, logger);
+            return new NatsAdaptor(context, Name, Serializer.Value, _mapper.Value, logger);
         }
         catch (Exception ex)
         {
@@ -46,7 +48,7 @@ public class NatsQueueAdapterFactory(
         => this;
 
     public IStreamQueueMapper GetStreamQueueMapper()
-        => _mapper;
+        => _mapper.Value;
 
     public async Task<IStreamFailureHandler> GetDeliveryFailureHandler(QueueId queueId)
         => new NoOpStreamDeliveryFailureHandler();
