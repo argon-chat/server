@@ -81,6 +81,25 @@ public static class HostModeExtensions
         builder.AddGeoIpSupport();
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
+            builder.WebHost.ConfigureKestrel(options => {
+                options.ListenAnyIP(5002, listenOptions => {
+                    if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
+                    {
+                        listenOptions.UseHttps(x => {
+                            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                                "/etc/tls/tls.crt",
+                                "/etc/tls/tls.key"
+                            );
+                        });
+                        listenOptions.DisableAltSvcHeader = false;
+                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
+                    }
+                    else
+                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
+
+                    listenOptions.UseConnectionLogging();
+                });
+            });
             builder.Services.AddControllers()
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.AddSwaggerWithAuthHeader();
