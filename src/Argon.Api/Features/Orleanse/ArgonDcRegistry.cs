@@ -65,7 +65,8 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
             return;
         }
 
-        _items[item.dc] = item;
+        if (_items.TryGetValue(item.dc, out var result) && result != item)
+            _items[item.dc] = item;
     }
 
     public void Remove(string dc)

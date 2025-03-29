@@ -6,6 +6,7 @@ using Api.Features.Orleans.Consul;
 using EntryPoint;
 using Env;
 using global::Orleans.Providers;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
 using Orleans.Configuration;
 using Sentry;
@@ -25,12 +26,13 @@ public static class OrleansExtension
 
     public static WebApplicationBuilder AddSingleOrleansClient(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-        builder.Services.AddHostedService<DcWatcherService>();
-        builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
-        builder.Services.AddHostedService<EntryPointWatcher>();
-
+        builder.AddMultiOrleansClient();
         return builder;
+
+        //builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+        //builder.Services.AddHostedService<EntryPointWatcher>();
+        //builder.Services.AddOrleansClient(q => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
+        //return builder;
     }
 
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
@@ -49,7 +51,6 @@ public static class OrleansExtension
                 q.ClusterId = "argon-cluster";
                 q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
             });
-
             siloBuilder
                .AddStreaming()
                .AddActivityPropagation()

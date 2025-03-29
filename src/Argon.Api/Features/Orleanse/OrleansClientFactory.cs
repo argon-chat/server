@@ -12,7 +12,6 @@ using Orleans.Serialization.Configuration;
 using Orleans.Streams;
 using Services;
 
-
 public interface IClusterClientFactory
 {
     Task<IServiceProvider> CreateClusterClient(string dc, CancellationToken ct = default);
@@ -54,41 +53,39 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         return services.BuildServiceProvider(true);
     }
 
-    private static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
+    public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
     {
         x.Configure<ClusterOptions>(q =>
-            {
-                q.ClusterId = "argon-cluster";
-                q.ServiceId = $"argon-region-{region}";
-            })
-           .AddStreaming()
-           .AddBroadcastChannel(IArgonEvent.Broadcast);
-
+        {
+            q.ClusterId = "argon-cluster";
+            q.ServiceId = $"argon-region-{region}";
+        });
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
-
         x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
         x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
-
+        x.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         if (env.IsSingleInstance())
             x.AddMemoryStreams("default")
                .AddMemoryStreams(IArgonEvent.ProviderId);
         else
-            x.AddNatsStreams("default", c =>
+            x
+               .AddStreaming()
+               .AddNatsStreams("default", c =>
+            {
+                //c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
+                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
                 {
-                    c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = config.GetConnectionString("nats")!
-                    })));
-                })
-               .AddNatsStreams(IArgonEvent.ProviderId, c =>
+                    Url = config.GetConnectionString("nats")!
+                })));
+            })
+           .AddNatsStreams(IArgonEvent.ProviderId, c =>
+            {
+                //c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
+                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
                 {
-                    c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
-                    c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                    {
-                        Url = config.GetConnectionString("nats")!
-                    })));
-                });
+                    Url = config.GetConnectionString("nats")!
+                })));
+            });
         if (!env.IsSingleInstance())
             x.AddConsulClustering();
         else
