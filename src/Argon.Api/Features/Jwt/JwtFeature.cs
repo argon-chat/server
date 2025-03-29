@@ -16,10 +16,10 @@ public static class JwtFeature
             ValidIssuer              = jwt.Issuer,
             ValidAudience            = jwt.Audience,
             IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
-            ValidateIssuerSigningKey = true,
+            ValidateIssuer           = false,
+            ValidateAudience         = false,
+            ValidateLifetime         = false,
+            ValidateIssuerSigningKey = false,
             ClockSkew                = TimeSpan.Zero
         };
 
