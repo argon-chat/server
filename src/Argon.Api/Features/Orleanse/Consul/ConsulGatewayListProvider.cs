@@ -31,7 +31,7 @@ public class ConsulGatewayListProvider(
 
             var gateways = services
                .Response
-               .Where(x => x.Node.Datacenter.Equals(dc)) // TODO filter with datacenter
+               //.Where(x => x.Node.Datacenter.Equals(dc)) // TODO filter with datacenter
                .Select(s => createSiloAddress(s).ToGatewayUri())
                .ToList();
 
