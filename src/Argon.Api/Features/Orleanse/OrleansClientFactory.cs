@@ -68,24 +68,17 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
             x.AddMemoryStreams("default")
                .AddMemoryStreams(IArgonEvent.ProviderId);
         else
-            x
-               .AddStreaming()
-               .AddNatsStreams("default", c =>
-            {
-                //c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
-                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+            x.AddStreaming()
+               .AddAdoNetStreams("default", options =>
                 {
-                    Url = config.GetConnectionString("nats")!
-                })));
-            })
-           .AddNatsStreams(IArgonEvent.ProviderId, c =>
-            {
-                //c.Configure<StreamPubSubOptions>(builder => builder.Configure(options => options.PubSubType = StreamPubSubType.ImplicitOnly));
-                c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
+                    options.Invariant        = "Npgsql";
+                    options.ConnectionString = config.GetConnectionString("DefaultConnection");
+                })
+               .AddAdoNetStreams(IArgonEvent.ProviderId, options =>
                 {
-                    Url = config.GetConnectionString("nats")!
-                })));
-            });
+                    options.Invariant = "Npgsql";
+                    options.ConnectionString = config.GetConnectionString("DefaultConnection");
+                });
         if (!env.IsSingleInstance())
             x.AddConsulClustering();
         else

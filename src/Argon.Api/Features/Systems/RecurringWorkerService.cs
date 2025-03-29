@@ -13,7 +13,7 @@ public abstract class RecurringWorkerService<T>(ILogger<T> logger) : BackgroundS
             }
             catch (Exception e)
             {
-                logger.LogWarning(e, "Failed execute recurring step");
+                logger.LogError(e, "Failed execute recurring step");
             }
         }
     }

@@ -88,19 +88,15 @@ public static class OrleansExtension
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
-                   .AddNatsStreams("default", c =>
+                   .AddAdoNetStreams("default", options =>
                     {
-                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                        {
-                            Url = builder.Configuration.GetConnectionString("nats")!
-                        })));
+                        options.Invariant        = "Npgsql";
+                        options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                     })
-                   .AddNatsStreams(IArgonEvent.ProviderId, c =>
+                   .AddAdoNetStreams(IArgonEvent.ProviderId, options =>
                     {
-                        c.Configure<NatsConfiguration>(b => b.Configure(d => d.AddConfigurator(opt => opt with
-                        {
-                            Url = builder.Configuration.GetConnectionString("nats")!
-                        })));
+                        options.Invariant        = "Npgsql";
+                        options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
                     })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else

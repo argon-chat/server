@@ -77,9 +77,13 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
                 await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
             }
         }
+        catch (WebSocketException e) when (ctx.WebSocket.CloseStatus == (WebSocketCloseStatus?)4999)
+        {
+            logger.LogInformation("Argon Transport normally closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
+        }
         catch (WebSocketException e)
         {
-            logger.LogInformation("Argon Transport reading closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
+            logger.LogError("Argon Transport reading exception failed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
         }
         catch (OperationCanceledException)
         {
