@@ -23,11 +23,14 @@ public class RegionalUnitApp
         else
             builder.WebHost.UseUrls("http://localhost:5002");
 
-        if (builder.Environment.IsSingleInstance())
+        if (builder.Environment.IsSingleInstance()) 
         {
             // set default dc for compatible reason
             builder.SetDatacenter("ru-3");
-            builder.Services.AddKeyedSingleton<string>("dc", "ru-3"); 
+            builder.Services.AddKeyedSingleton<string>("dc", "ru-3");
+            builder.AddLogging();
+            builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{builder.Environment.DetermineClientSpace()}"));
+            builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
             return builder;
         }
 
