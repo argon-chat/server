@@ -12,13 +12,8 @@ public static class DatabaseFeature
         {
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"), opt =>
-                {
-                    //opt.UseQuerySplittingBehavior(QuerySplittingBehavior.SingleQuery);
-                    //opt.MaxBatchSize(1);
-                })
+               .UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection"))
                .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>()
-               //.ReplaceService<IMigrationCommandExecutor, NoTransactionMigrationCommandExecutor>()
                .AddInterceptors(new TimeStampAndSoftDeleteInterceptor());
         });
 
