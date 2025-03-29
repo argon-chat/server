@@ -70,7 +70,7 @@ public class NatsQueueAdapterReceiver(
             var rawNamespace = Encoding.UTF8.GetBytes(rawStreamId[2]);
             var rawKey       = Encoding.UTF8.GetBytes(rawStreamId[3]);
             var batch = new NatsBatchContainer(StreamId.Create(rawNamespace, rawKey), message,
-                new NatsStreamSequenceToken(message.Metadata.Value.Sequence), serializer);
+                new NatsStreamSequenceToken(message.Metadata.Value.Sequence));
             messages.Add(batch);
         }
 

@@ -58,10 +58,7 @@ public class NatsQueueAdapterFactory(
 
     public static NatsQueueAdapterFactory Create(IServiceProvider services, string name)
     {
-        var queueMapperOptions = services.GetOptionsByName<HashRingStreamQueueMapperOptions>(name);
-        var natsOpts = services.GetOptionsByName<NatsConfiguration>(name);
-        var serializer = services.GetRequiredKeyedService<INatsMessageBodySerializer>(name);
-        var factory = ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(services, name, queueMapperOptions, natsOpts, serializer);
+        var factory = ActivatorUtilities.CreateInstance<NatsQueueAdapterFactory>(services, name);
         return factory;
     }
 }
