@@ -20,7 +20,6 @@ WORKDIR /src
 COPY ["Directory.Build.props", "."]
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/Argon.Contracts/Argon.Shared.csproj", "src/Argon.Contracts/"]
-COPY ["src/ServiceDefaults/ServiceDefaults.csproj", "src/ServiceDefaults/"]
 RUN dotnet restore "./src/Argon.Api/Argon.Api.csproj"
 COPY . .
 WORKDIR "/src/src/Argon.Api"
