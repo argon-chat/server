@@ -41,6 +41,9 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         services.Add(new ServiceDescriptor(typeof(IArgonDcRegistry), null,
             (_, _) => provider.GetRequiredService(typeof(IArgonDcRegistry)),
             ServiceLifetime.Singleton));
+        services.Add(new ServiceDescriptor(typeof(IHostApplicationLifetime), null,
+            (_, _) => provider.GetRequiredService(typeof(IHostApplicationLifetime)),
+            ServiceLifetime.Singleton));
 
         services.AddOrleansClient(q => Builder(q, env, configuration, dc));
 
