@@ -66,7 +66,6 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
         x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
         x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
-        x.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         if (env.IsSingleInstance())
             x.AddMemoryStreams("default")
                .AddMemoryStreams(IArgonEvent.ProviderId);

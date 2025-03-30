@@ -10,6 +10,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
 using Orleans.Configuration;
 using Sentry;
+using Services;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -37,6 +38,8 @@ public static class OrleansExtension
 
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
     {
+        builder.Services.UseOrleansMessagePack();
+
         builder.Host.UseOrleans(siloBuilder =>
         {
             if (builder.IsGatewayRole())
