@@ -25,6 +25,8 @@ public static class JwtFeature
             ValidateIssuerSigningKey = true,
             IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
             {
+                IdentityModelEventSource.ShowPII                     = true;
+                IdentityModelEventSource.LogCompleteSecurityArtifact = true;
                 Log.Logger.Error($"called IssuerSigningKeyResolver: {token} - {securityToken} - {kid} - {parameters}");
                 return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key))];
             },
