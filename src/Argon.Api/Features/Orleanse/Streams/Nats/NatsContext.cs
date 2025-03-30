@@ -37,7 +37,13 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
         => await OnNextAsync(ev);
 
     public async Task EnsureCreatedStream(CancellationToken ct = default)
-        => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.GetNamespace()!, [$"{streamId.GetNamespace()}.>"]), ct);
+        => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.GetNamespace()!, [$"{streamId.GetNamespace()}.>"])
+        {
+            DuplicateWindow = TimeSpan.Zero,
+            MaxAge          = TimeSpan.FromHours(1),
+            AllowDirect     = true,
+            MirrorDirect    = true
+        }, ct);
 
     public async ValueTask DisposeAsync() { }
 
@@ -66,7 +72,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig(consumerName)
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
-            DeliverPolicy = ConsumerConfigDeliverPolicy.All,
+            DeliverPolicy = ConsumerConfigDeliverPolicy.New,
             AckPolicy     = ConsumerConfigAckPolicy.Explicit
         });
     }
@@ -81,7 +87,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
-        await foreach (var msg in _consumer.FetchAsync(new NatsJSFetchOpts { MaxMsgs = 1000 }, new ArgonEventSerializer(), ct))
+        await foreach (var msg in _consumer.FetchAsync(new NatsJSFetchOpts(), new ArgonEventSerializer(), ct))
         {
             if (msg.Data is null)
                 continue;
@@ -151,7 +157,7 @@ public static class NatsExtensions
                 Name                      = $"Argon {client}",
                 Url                       = q.GetRequiredService<IConfiguration>().GetConnectionString("nats")!,
                 SerializerRegistry        = NatsClientDefaultSerializerRegistry.Default,
-                SubPendingChannelFullMode = BoundedChannelFullMode.Wait,
+                SubPendingChannelFullMode = BoundedChannelFullMode.DropOldest,
                 AuthOpts                  = new NatsAuthOpts(),
                 ConnectTimeout            = TimeSpan.FromMinutes(1),
                 RequestTimeout            = TimeSpan.FromMinutes(1),
