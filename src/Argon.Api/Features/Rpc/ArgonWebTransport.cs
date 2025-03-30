@@ -49,6 +49,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         {
             if (!Guid.TryParse(srvId, out var serverId))
             {
+                logger.LogCritical("srv incorrect format");
                 conn.Abort(new ConnectionAbortedException("srv incorrect format"));
                 return;
             }

@@ -64,7 +64,7 @@ public sealed class ArgonTransportFeaturePipe : IDisposable, IAsyncDisposable
             _webSocket!.Abort();
         else if (IsWebTransport)
             _webTransport!.Abort(exception);
-        throw new InvalidOperationException();
+        else throw new InvalidOperationException();
     }
 
     public void Dispose()
