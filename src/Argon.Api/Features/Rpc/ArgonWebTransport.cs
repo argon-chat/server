@@ -17,6 +17,8 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
 
         if (clusterClient is null)
         {
+            if (ctx.Response.HasStarted) return;
+
             ctx.Response.StatusCode = 423;
             await ctx.Response.WriteAsJsonAsync(new
             {

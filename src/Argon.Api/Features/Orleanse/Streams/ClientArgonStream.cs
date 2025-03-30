@@ -9,11 +9,11 @@ public sealed class ClientArgonStream<T> : IArgonStream<T> where T : IArgonEvent
     private Channel<T>                  channel       { get; } = Channel.CreateUnbounded<T>();
     public async Task OnNextAsync(T item, StreamSequenceToken? token = null)
     {
-        if (token is not null)
-        {
-            item.Sequence = token.SequenceNumber == 0 ? null : token.SequenceNumber;
-            item.EventId  = token.EventIndex == 0 ? null : token.EventIndex;
-        }
+        //if (token is not null)
+        //{
+        //    item.Sequence = token.SequenceNumber == 0 ? null : token.SequenceNumber;
+        //    item.EventId  = token.EventIndex == 0 ? null : token.EventIndex;
+        //}
 
         await channel.Writer.WriteAsync(item);
     }

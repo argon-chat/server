@@ -1,6 +1,6 @@
 namespace Argon.Features.Rpc;
 
-using Orleans.Providers.Streams.Common;
+using NatsStreaming;
 
 public interface IStreamExtension
 {
@@ -27,23 +27,18 @@ public readonly struct StreamForGrainExtension<T>(T grain) : IStreamExtension<T>
         => CreateServerStreamFor(grain.GetPrimaryKey());
 
     public async ValueTask<IArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
-        => new ServerArgonStream<IArgonEvent>(grain.GetStreamProvider(IArgonEvent.ProviderId)
-           .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, targetId)), grain.GrainContext.ActivationServices.GetRequiredService<ILogger<IArgonStream<IArgonEvent>>>());
+        => await grain.GrainContext.ActivationServices
+           .GetRequiredService<NatsContext>()
+           .CreateWriteStream(StreamId.Create(IArgonEvent.Namespace, targetId));
 }
 
-public readonly struct StreamForClusterClientExtension(IClusterClient? client) : IStreamExtension
+public readonly struct StreamForClusterClientExtension(IClusterClient client) : IStreamExtension
 {
-    public ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary)
-        => new ClientArgonStream<IArgonEvent>().BindClient(client
-           .GetStreamProvider(IArgonEvent.ProviderId)
-           .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, primary)));
+    public async ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary)
+        => await client.ServiceProvider
+           .GetRequiredService<NatsContext>()
+           .CreateReadStream(StreamId.Create(IArgonEvent.Namespace, primary));
 
     public ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary, long sequence, int eventId)
-    {
-        if (sequence < 0 || eventId < 0)
-            return CreateClientStream(primary);
-        return new ClientArgonStream<IArgonEvent>().BindClient(client
-           .GetStreamProvider(IArgonEvent.ProviderId)
-           .GetStream<IArgonEvent>(StreamId.Create(IArgonEvent.Namespace, primary)), new EventSequenceToken(sequence, eventId));
-    }
+        => CreateClientStream(primary);
 }

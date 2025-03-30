@@ -13,9 +13,8 @@ public interface IArgonEvent
     [TsIgnore]
     public static string Broadcast => $"argon.cluster.events.broadcast";
 
-    public string EventKey { get; init; }
-    public long?  Sequence { get; set; }
-    public int?   EventId  { get; set; }
+    [JsonIgnore]
+    public string EventKey { get; set; }
 }
 
 public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>

@@ -5,8 +5,7 @@ using Api.Features;
 using Api.Features.Orleans.Consul;
 using EntryPoint;
 using Env;
-using global::Orleans.Providers;
-using Microsoft.Extensions.DependencyInjection.Extensions;
+using Orleans.Providers;
 using NatsStreaming;
 using Orleans.Configuration;
 using Sentry;
@@ -18,6 +17,7 @@ public static class OrleansExtension
 {
     public static WebApplicationBuilder AddMultiOrleansClient(this WebApplicationBuilder builder)
     {
+        builder.AddNatsCtx();
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
         builder.Services.AddHostedService<DcWatcherService>();
         builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
@@ -38,8 +38,8 @@ public static class OrleansExtension
 
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
     {
+        builder.AddNatsCtx();
         builder.Services.UseOrleansMessagePack();
-
         builder.Host.UseOrleans(siloBuilder =>
         {
             if (builder.IsGatewayRole())
@@ -60,8 +60,6 @@ public static class OrleansExtension
                .AddReminders()
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
                .UseStorages([
-                    ProviderConstants.DEFAULT_PUBSUB_PROVIDER_NAME,
-                    ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME,
                     IUserSessionGrain.StorageId,
                     IServerInvitesGrain.StorageId,
                 ], "Npgsql", "DefaultConnection")
@@ -91,24 +89,12 @@ public static class OrleansExtension
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
                    .AddConsulClustering()
-                   .AddAdoNetStreams("default", options =>
-                    {
-                        options.Invariant        = "Npgsql";
-                        options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                    })
-                   .AddAdoNetStreams(IArgonEvent.ProviderId, options =>
-                    {
-                        options.Invariant        = "Npgsql";
-                        options.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                    })
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
             else
                 siloBuilder
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering()
-                   .AddMemoryStreams(IArgonEvent.ProviderId)
-                   .AddMemoryStreams("default")
                    .AddBroadcastChannel(IArgonEvent.Broadcast);
         });
 

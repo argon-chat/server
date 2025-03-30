@@ -9,7 +9,6 @@ using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Serialization;
 using Orleans.Serialization.Configuration;
-using Orleans.Streams;
 using Services;
 
 public interface IClusterClientFactory
@@ -22,7 +21,7 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
     public async Task<IServiceProvider> CreateClusterClient(string dc, CancellationToken ct = default)
     {
         var services = new ServiceCollection();
-
+        
         services.UseOrleansMessagePack();
         services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         services.AddKeyedSingleton("dc", dc);
@@ -43,6 +42,9 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
             ServiceLifetime.Singleton));
         services.Add(new ServiceDescriptor(typeof(IHostApplicationLifetime), null,
             (_, _) => provider.GetRequiredService(typeof(IHostApplicationLifetime)),
+            ServiceLifetime.Singleton));
+        services.Add(new ServiceDescriptor(typeof(NatsContext), null,
+            (_, _) => provider.GetRequiredService(typeof(NatsContext)),
             ServiceLifetime.Singleton));
 
         services.AddOrleansClient(q => Builder(q, env, configuration, dc));
@@ -66,21 +68,6 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
         x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
         x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
-        if (env.IsSingleInstance())
-            x.AddMemoryStreams("default")
-               .AddMemoryStreams(IArgonEvent.ProviderId);
-        else
-            x.AddStreaming()
-               .AddAdoNetStreams("default", options =>
-                {
-                    options.Invariant        = "Npgsql";
-                    options.ConnectionString = config.GetConnectionString("DefaultConnection");
-                })
-               .AddAdoNetStreams(IArgonEvent.ProviderId, options =>
-                {
-                    options.Invariant = "Npgsql";
-                    options.ConnectionString = config.GetConnectionString("DefaultConnection");
-                });
         if (!env.IsSingleInstance())
             x.AddConsulClustering();
         else
