@@ -4,6 +4,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
+using Serilog;
+using Serilog.Core;
 
 public static class JwtFeature
 {
@@ -23,6 +25,7 @@ public static class JwtFeature
             ValidateIssuerSigningKey = true,
             IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
             {
+                Log.Logger.Error($"called IssuerSigningKeyResolver: {token} - {securityToken} - {kid} - {parameters}");
                 return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key))];
             },
         };
