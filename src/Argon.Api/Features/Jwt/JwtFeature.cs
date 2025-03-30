@@ -14,14 +14,17 @@ public static class JwtFeature
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
         var tokenValidator = new TokenValidationParameters
         {
-            ValidIssuer      = jwt.Issuer,
-            ValidAudience    = jwt.Audience,
-            ValidateIssuer   = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
-            AlgorithmValidator = (algorithm, securityKey, token, parameters) =>
-                algorithm == SecurityAlgorithms.HmacSha512
+            ValidIssuer              = jwt.Issuer,
+            ValidAudience            = jwt.Audience,
+            ValidateIssuer           = true,
+            ValidateAudience         = true,
+            ValidateLifetime         = true,
+            RequireSignedTokens      = true,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
+            {
+                return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key))];
+            },
         };
         builder.Services.AddSingleton(tokenValidator);
         builder.Services.AddSingleton<TokenAuthorization>();
