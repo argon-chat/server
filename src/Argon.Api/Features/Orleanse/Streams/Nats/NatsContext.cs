@@ -41,8 +41,7 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
         {
             DuplicateWindow = TimeSpan.Zero,
             MaxAge          = TimeSpan.FromHours(1),
-            AllowDirect     = true,
-            MirrorDirect    = true
+            AllowDirect     = true
         }, ct);
 
     public async ValueTask DisposeAsync() { }
@@ -69,11 +68,15 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
     public async Task CreateSub()
     {
         var consumerName = streamId.ToString().Replace('/', '_');
-        _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig(consumerName)
+        _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig($"{consumerName}_{Guid.NewGuid():N}")
         {
-            FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
-            DeliverPolicy = ConsumerConfigDeliverPolicy.New,
-            AckPolicy     = ConsumerConfigAckPolicy.Explicit
+            FilterSubject  = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
+            DeliverPolicy  = ConsumerConfigDeliverPolicy.New,
+            AckPolicy      = ConsumerConfigAckPolicy.Explicit,
+            DeliverGroup   = null,
+            DeliverSubject = $"deliver.{Guid.NewGuid():N}",
+            MaxAckPending  = 1000,
+            ReplayPolicy   = ConsumerConfigReplayPolicy.Instant
         });
     }
 
