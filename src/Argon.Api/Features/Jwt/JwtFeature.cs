@@ -12,8 +12,6 @@ public static class JwtFeature
 
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
-        builder.Configuration.GetSection("Jwt")
-
         var tokenValidator = new TokenValidationParameters
         {
             ValidIssuer              = jwt.Issuer,
