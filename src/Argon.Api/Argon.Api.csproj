@@ -30,7 +30,6 @@
         <PackageReference Include="Consul" Version="1.7.14.7" />
         <PackageReference Include="EntityFrameworkCore.ClickHouse" Version="1.0.1" />
         <PackageReference Include="Microsoft.Orleans.GrainDirectory.Redis" Version="9.1.2" />
-        <PackageReference Include="Aspire.StackExchange.Redis" Version="9.0.0" />
         <PackageReference Include="Fluid.Core" Version="2.19.0" />
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />

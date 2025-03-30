@@ -70,7 +70,8 @@ public static class ArgonCacheDatabaseFeature
         else
         {
             builder.Services.AddSingleton<IArgonCacheDatabase, RedisArgonCacheDatabase>();
-            builder.AddRedisClient("cache");
+            builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+                ConnectionMultiplexer.Connect(builder.Configuration.GetConnectionString("cache")!));
         }
 
         return builder.Services;
