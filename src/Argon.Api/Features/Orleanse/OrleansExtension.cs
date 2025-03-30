@@ -29,7 +29,7 @@ public static class OrleansExtension
     {
         //builder.AddMultiOrleansClient();
         //return builder;
-
+        builder.AddNatsCtx();
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
         builder.Services.AddHostedService<EntryPointWatcher>();
         builder.Services.AddOrleansClient(q => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
