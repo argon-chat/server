@@ -16,7 +16,7 @@ public static class JwtFeature
         {
             ValidIssuer              = jwt.Issuer,
             ValidAudience            = jwt.Audience,
-            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)) { KeyId = "HhBH41BcKhb36Seb9X2Edo_soIOo8n1zC8W3Qo-rWyI" },
             ValidateIssuer           = true,
             ValidateAudience         = true,
             ValidateLifetime         = true,
