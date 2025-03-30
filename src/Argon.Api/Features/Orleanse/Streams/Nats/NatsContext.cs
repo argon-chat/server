@@ -30,7 +30,6 @@ public class NatsContext(INatsClient client)
     }
 }
 
-
 public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IArgonStream<IArgonEvent>
 {
     public async ValueTask Fire(IArgonEvent ev)
@@ -41,10 +40,13 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
         {
             DuplicateWindow = TimeSpan.Zero,
             MaxAge          = TimeSpan.FromHours(1),
-            AllowDirect     = true
+            AllowDirect     = true,
+            MaxBytes        = int.MaxValue / 2
         }, ct);
 
-    public async ValueTask DisposeAsync() { }
+    public async ValueTask DisposeAsync()
+    {
+    }
 
     public async Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
     {
@@ -80,7 +82,9 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         });
     }
 
-    public async ValueTask DisposeAsync() { }
+    public async ValueTask DisposeAsync()
+    {
+    }
 
     public Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
         => throw new ReadOnlyStreamException();
@@ -111,6 +115,7 @@ public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
         });
         bufferWriter.Write(Encoding.UTF8.GetBytes(json));
     }
+
     public IArgonEvent? Deserialize(in ReadOnlySequence<byte> buffer)
     {
         if (buffer.IsSingleSegment)
@@ -128,6 +133,7 @@ public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
         {
             memoryStream.Write(segment.Span);
         }
+
         memoryStream.Position = 0;
 
         using var streamReader = new StreamReader(memoryStream, Encoding.UTF8);
@@ -143,6 +149,7 @@ public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
 }
 
 public class WriteOnlyStreamException : Exception;
+
 public class ReadOnlyStreamException : Exception;
 
 public static class NatsExtensions
@@ -168,7 +175,8 @@ public static class NatsExtensions
             });
         });
 
-        builder.Services.AddSingleton<INatsJSContext>(q => {
+        builder.Services.AddSingleton<INatsJSContext>(q =>
+        {
             var client = q.GetRequiredService<INatsClient>();
             return client.CreateJetStreamContext();
         });
