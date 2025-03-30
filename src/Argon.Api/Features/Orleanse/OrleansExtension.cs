@@ -62,6 +62,7 @@ public static class OrleansExtension
                .UseStorages([
                     IUserSessionGrain.StorageId,
                     IServerInvitesGrain.StorageId,
+                    "Default"
                 ], "Npgsql", "DefaultConnection")
                .UseAdoNetReminderService(x =>
                 {

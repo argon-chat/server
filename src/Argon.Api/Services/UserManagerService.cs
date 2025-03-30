@@ -19,11 +19,12 @@ public class UserManagerService(ILogger<UserManagerService> logger, IOptions<Jwt
         var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor
         {
-            Subject            = subject,
-            Expires            = expires,
-            Issuer             = issuer,
-            Audience           = audience,
-            SigningCredentials = signingCredentials
+            Subject              = subject,
+            Expires              = expires,
+            Issuer               = issuer,
+            Audience             = audience,
+            SigningCredentials   = signingCredentials,
+            IncludeKeyIdInHeader = true
         };
 
         var tokenHandler = new JwtSecurityTokenHandler();

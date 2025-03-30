@@ -2,11 +2,6 @@ using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
-using Argon.Shared.Servers;
-using Microsoft.IdentityModel.Logging;
-
-IdentityModelEventSource.ShowPII = true;
-
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 
