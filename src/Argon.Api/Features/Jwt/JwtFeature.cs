@@ -12,11 +12,17 @@ public static class JwtFeature
 
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
 
+        builder.Configuration.GetSection("Jwt")
+
         var tokenValidator = new TokenValidationParameters
         {
             ValidIssuer              = jwt.Issuer,
             ValidAudience            = jwt.Audience,
-            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)) { KeyId = "HhBH41BcKhb36Seb9X2Edo_soIOo8n1zC8W3Qo-rWyI" },
+            IssuerSigningKeyResolver = (token, securityToken, keyIdentifier, parameters) =>
+            {
+                var jwt2 = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
+                return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt2.Key))];
+            },
             ValidateIssuer           = true,
             ValidateAudience         = true,
             ValidateLifetime         = true,
