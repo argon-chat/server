@@ -16,9 +16,9 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
         var registry = scope.ServiceProvider.GetRequiredService<IArgonDcRegistry>();
 
 
-        var nearestDc = registry.GetNearestDc();
+        var nearestDc = registry.GetNearestClusterClient();
 
-        if (nearestDc is null || nearestDc.status != ArgonDataCenterStatus.ONLINE)
+        if (nearestDc is null)
         {
             context.Status = new Status(StatusCode.FailedPrecondition, "no dc online found");
             return new RpcResponse

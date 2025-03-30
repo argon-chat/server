@@ -1,6 +1,8 @@
 namespace Argon.Features;
 
 using System.Diagnostics.CodeAnalysis;
+using Env;
+using Microsoft.Azure.Amqp.Framing;
 using ObservableCollections;
 using R3;
 using static Api.Features.Orleans.Client.ArgonDataCenterStatus;
@@ -24,6 +26,8 @@ public interface IArgonDcRegistry
 public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 {
     private readonly ILogger<IArgonDcRegistry> _logger;
+    private readonly IHostEnvironment          _env;
+    private readonly IServiceProvider          _serviceProvider;
     private readonly string                    _currentDc;
     private readonly Lock                      guarder = new();
 
@@ -33,10 +37,12 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 
     public IReadOnlyDictionary<string, ArgonDcClusterInfo> GetAll() => _items.AsReadOnly();
 
-    public ArgonDcRegistry(ILogger<IArgonDcRegistry> logger, [FromKeyedServices("dc")] string currentDc)
+    public ArgonDcRegistry(ILogger<IArgonDcRegistry> logger, IHostEnvironment env, IServiceProvider serviceProvider, [FromKeyedServices("dc")] string currentDc)
     {
-        _logger    = logger;
-        _currentDc = currentDc;
+        _logger               = logger;
+        _env                  = env;
+        _serviceProvider = serviceProvider;
+        _currentDc            = currentDc;
         _items.ObserveChanged().Subscribe(State);
     }
 
@@ -78,6 +84,7 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
     public ArgonDcClusterInfo? GetNearestDc()
     {
         using var _ = guarder.EnterScope();
+
         return _items
            .Select(x => x.Value)
            .Where(x => x.status == ONLINE)
@@ -87,6 +94,9 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 
     public IClusterClient? GetNearestClusterClient()
     {
+        if (!_env.IsMultiRegion())
+            return _serviceProvider.GetRequiredService<IClusterClient>();
+
         var nearest = GetNearestDc();
 
         return nearest?.serviceProvider.GetRequiredService<IClusterClient>();
