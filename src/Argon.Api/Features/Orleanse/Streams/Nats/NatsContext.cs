@@ -41,7 +41,8 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
             DuplicateWindow = TimeSpan.Zero,
             MaxAge          = TimeSpan.FromHours(1),
             AllowDirect     = true,
-            MaxBytes        = int.MaxValue / 2
+            MaxBytes        = int.MaxValue / 2,
+            Retention       = StreamConfigRetention.Workqueue
         }, ct);
 
     public async ValueTask DisposeAsync()
