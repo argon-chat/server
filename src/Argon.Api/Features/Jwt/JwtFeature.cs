@@ -1,6 +1,7 @@
 namespace Argon.Features.Jwt;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 
@@ -11,21 +12,14 @@ public static class JwtFeature
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
         var jwt = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
-
         var tokenValidator = new TokenValidationParameters
         {
-            ValidIssuer              = jwt.Issuer,
-            ValidAudience            = jwt.Audience,
-            IssuerSigningKeyResolver = (token, securityToken, keyIdentifier, parameters) =>
-            {
-                var jwt2 = builder.Configuration.GetSection("Jwt").Get<JwtOptions>();
-                return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt2.Key))];
-            },
-            ValidateIssuer           = true,
-            ValidateAudience         = true,
-            ValidateLifetime         = true,
-            ValidateIssuerSigningKey = true,
-            ClockSkew                = TimeSpan.Zero,
+            ValidIssuer      = jwt.Issuer,
+            ValidAudience    = jwt.Audience,
+            ValidateIssuer   = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
             AlgorithmValidator = (algorithm, securityKey, token, parameters) =>
                 algorithm == SecurityAlgorithms.HmacSha512
         };
