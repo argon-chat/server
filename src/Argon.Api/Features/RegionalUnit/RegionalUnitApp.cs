@@ -23,7 +23,7 @@ public class RegionalUnitApp
         else
             builder.WebHost.UseUrls("http://localhost:5001");
 
-        if (builder.Environment.IsSingleInstance()) 
+        if (true) // builder.Environment.IsSingleInstance() 
         {
             // set default dc for compatible reason
             builder.SetDatacenter("ru-3");

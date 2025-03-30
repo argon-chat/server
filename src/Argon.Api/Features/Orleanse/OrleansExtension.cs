@@ -27,13 +27,13 @@ public static class OrleansExtension
 
     public static WebApplicationBuilder AddSingleOrleansClient(this WebApplicationBuilder builder)
     {
-        builder.AddMultiOrleansClient();
-        return builder;
-
-        //builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-        //builder.Services.AddHostedService<EntryPointWatcher>();
-        //builder.Services.AddOrleansClient(q => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
+        //builder.AddMultiOrleansClient();
         //return builder;
+
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+        builder.Services.AddHostedService<EntryPointWatcher>();
+        builder.Services.AddOrleansClient(q => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
+        return builder;
     }
 
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
