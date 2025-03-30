@@ -72,11 +72,11 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
     {
         var consumerName = streamId.ToString().Replace('/', '_');
         _deliverSubject = $"{consumerName}_dev_{Guid.NewGuid():N}";
+        // push based consumer
         _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig($"{consumerName}_{Guid.NewGuid():N}")
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
             AckPolicy     = ConsumerConfigAckPolicy.None,
-            MaxAckPending = 1000,
             ReplayPolicy  = ConsumerConfigReplayPolicy.Instant,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New,
             DeliverSubject = _deliverSubject
