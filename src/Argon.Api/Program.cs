@@ -3,10 +3,10 @@ using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
 using Argon.Shared.Servers;
+using Microsoft.IdentityModel.Logging;
 
-var eta = InviteCodeEntity.GenerateInviteCode();
+IdentityModelEventSource.ShowPII = true;
 
-var beta = InviteCodeEntity.EncodeToUlong(eta);
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 

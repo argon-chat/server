@@ -1,6 +1,7 @@
 namespace Argon.Features.Jwt;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 
 public static class JwtFeature
@@ -20,9 +21,10 @@ public static class JwtFeature
             ValidateAudience         = true,
             ValidateLifetime         = true,
             ValidateIssuerSigningKey = true,
-            ClockSkew                = TimeSpan.Zero
+            ClockSkew                = TimeSpan.Zero,
+            AlgorithmValidator = (algorithm, securityKey, token, parameters) =>
+                algorithm == SecurityAlgorithms.HmacSha512
         };
-
         builder.Services.AddSingleton(tokenValidator);
         builder.Services.AddSingleton<TokenAuthorization>();
         builder.Services.AddAuthorization(options =>
