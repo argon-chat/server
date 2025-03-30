@@ -94,7 +94,10 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
-        await foreach (var msg in _consumer.FetchAsync(new NatsJSFetchOpts(), new ArgonEventSerializer(), ct))
+        await foreach (var msg in _consumer.FetchAsync(new NatsJSFetchOpts()
+        {
+            MaxMsgs = 1000
+        }, new ArgonEventSerializer(), ct))
         {
             if (msg.Data is null)
                 continue;
