@@ -2,6 +2,11 @@ using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
+using Argon.Shared.Servers;
+
+var eta = InviteCodeEntity.GenerateInviteCode();
+
+var beta = InviteCodeEntity.EncodeToUlong(eta);
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 

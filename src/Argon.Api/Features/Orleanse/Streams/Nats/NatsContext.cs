@@ -9,6 +9,7 @@ using Orleans.Runtime;
 using System;
 using System.Buffers;
 using System.Text.Encodings.Web;
+using System.Threading.Channels;
 using Newtonsoft.Json;
 using Orleans.Streams;
 
@@ -141,10 +142,21 @@ public static class NatsExtensions
     {
         builder.Services.AddSingleton<ArgonEventSerializer>();
 
-        builder.Services.AddSingleton<INatsClient, NatsClient>(q =>
+        builder.Services.AddSingleton<INatsClient>(q =>
         {
             var client = q.GetRequiredService<IHostEnvironment>().DetermineClientSpace();
-            return new NatsClient(q.GetRequiredService<IConfiguration>().GetConnectionString("nats")!, $"Argon {client}");
+
+            return new NatsConnection(new NatsOpts()
+            {
+                Name                      = $"Argon {client}",
+                Url                       = q.GetRequiredService<IConfiguration>().GetConnectionString("nats")!,
+                SerializerRegistry        = NatsClientDefaultSerializerRegistry.Default,
+                SubPendingChannelFullMode = BoundedChannelFullMode.Wait,
+                AuthOpts                  = new NatsAuthOpts(),
+                ConnectTimeout            = TimeSpan.FromMinutes(1),
+                RequestTimeout            = TimeSpan.FromMinutes(1),
+                CommandTimeout            = TimeSpan.FromMinutes(1),
+            });
         });
 
         builder.Services.AddSingleton<INatsJSContext>(q => {
