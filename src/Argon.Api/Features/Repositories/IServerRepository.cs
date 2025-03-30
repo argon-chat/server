@@ -17,7 +17,7 @@ public interface IServerRepository
 }
 
 public class ServerRepository(
-    IDbContextFactory<ApplicationDbContext> context) : IServerRepository
+    IDbContextFactory<ApplicationDbContext> context, ILogger<IServerRepository> logger) : IServerRepository
 {
     public async ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator)
     {
@@ -42,9 +42,9 @@ public class ServerRepository(
 
                 await ctx.SaveChangesAsync();
 
-                var sm = new ServerMember()
+                var sm = new ServerMember
                 {
-                    Id        = initiator,
+                    Id = Guid.NewGuid(),
                     ServerId  = serverId,
                     UserId    = initiator,
                     CreatorId = initiator,
@@ -54,14 +54,15 @@ public class ServerRepository(
 
                 await ctx.SaveChangesAsync();
 
-                await CloneArchetypesAsync(e.Entity.Id, sm.Id);
+                await CloneArchetypesAsync(e.Entity.Id, sm.Id, initiator);
 
                 await transaction.CommitAsync();
 
                 return e.Entity;
             }
-            catch (Exception)
+            catch (Exception e)
             {
+                logger.LogError(e, "failed apply trx");
                 await transaction.RollbackAsync();
                 throw;
             }
@@ -69,7 +70,7 @@ public class ServerRepository(
     }
 
 
-    private async ValueTask CloneArchetypesAsync(Guid serverId, Guid initiator)
+    private async ValueTask CloneArchetypesAsync(Guid serverId, Guid serverMemberId, Guid userId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -77,13 +78,13 @@ public class ServerRepository(
         var owner    = await ctx.Archetypes.FindAsync(Archetype.DefaultArchetype_Owner);
 
         owner!.Id               = Guid.NewGuid();
-        owner.CreatorId         = initiator;
+        owner.CreatorId         = userId;
         owner.Server            = null!;
         owner.ServerId          = serverId;
         owner.ServerMemberRoles = new List<ServerMemberArchetype>();
 
         everyone!.Id               = Guid.NewGuid();
-        everyone.CreatorId         = initiator;
+        everyone.CreatorId         = userId;
         everyone.ServerId          = serverId;
         everyone.Server            = null!;
         everyone.ServerMemberRoles = new List<ServerMemberArchetype>();
@@ -96,7 +97,7 @@ public class ServerRepository(
         var e = new ServerMemberArchetype()
         {
             ArchetypeId    = owner.Id,
-            ServerMemberId = initiator
+            ServerMemberId = serverMemberId
         };
 
         await ctx.ServerMemberArchetypes.AddAsync(e);

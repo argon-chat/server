@@ -107,7 +107,7 @@ public class ServerGrain(
 
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
-            Id       = userId,
+            Id       = Guid.NewGuid(),
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });
