@@ -15,7 +15,6 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation, ILogg
         var tokenHandler = new JwtSecurityTokenHandler();
         try
         {
-            return Either<TokenUserData, TokenValidationError>.Success(new TokenUserData(Guid.Parse("1bcabb9f-5403-4edd-8928-acaed7f581f0"),Guid.Parse("1bcabb9f-5403-4edd-8928-acaed7f581f0") ));
             var principal = tokenHandler.ValidateToken(token, tokenValidation, out var validatedToken);
 
             if (validatedToken is not JwtSecurityToken jwtToken ||
