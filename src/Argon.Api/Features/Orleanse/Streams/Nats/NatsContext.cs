@@ -63,7 +63,6 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
 public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IArgonStream<IArgonEvent>
 {
     private INatsJSConsumer _consumer;
-    private string          _deliverSubject;
 
     public ValueTask Fire(IArgonEvent ev)
         => throw new NotImplementedException();
@@ -71,15 +70,12 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
     public async Task CreateSub()
     {
         var consumerName = streamId.ToString().Replace('/', '_');
-        _deliverSubject = $"{consumerName}_dev_{Guid.NewGuid():N}";
         // push based consumer
         _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig($"{consumerName}_{Guid.NewGuid():N}")
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
-            AckPolicy     = ConsumerConfigAckPolicy.None,
-            ReplayPolicy  = ConsumerConfigReplayPolicy.Instant,
-            DeliverPolicy = ConsumerConfigDeliverPolicy.New,
-            DeliverSubject = _deliverSubject
+            AckPolicy     = ConsumerConfigAckPolicy.All,
+            DeliverPolicy = ConsumerConfigDeliverPolicy.New
         });
     }
 
@@ -95,15 +91,15 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
-        await foreach (var msg in js.Connection.SubscribeAsync(_deliverSubject, serializer: new ArgonEventSerializer(), opts: new NatsSubOpts()
+        await foreach (var msg in _consumer.ConsumeAsync(new ArgonEventSerializer(), new NatsJSConsumeOpts()
         {
-            MaxMsgs        = 1000,
-            StopOnEmptyMsg = false
-        }, cancellationToken: ct))
+            MaxMsgs = 1000
+        }, ct))
         {
             if (msg.Data is null)
                 continue;
             yield return msg.Data;
+            await msg.AckAsync(cancellationToken: ct);
         }
     }
 }
