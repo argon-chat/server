@@ -1,6 +1,7 @@
 namespace Argon.Features.Jwt;
 
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.JsonWebTokens;
 using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
@@ -23,15 +24,25 @@ public static class JwtFeature
             ValidateLifetime         = true,
             RequireSignedTokens      = true,
             ValidateIssuerSigningKey = true,
-            IssuerSigningKeyResolver = (token, securityToken, kid, parameters) =>
-            {
-                IdentityModelEventSource.ShowPII                     = true;
-                IdentityModelEventSource.LogCompleteSecurityArtifact = true;
-                Log.Logger.Error($"called IssuerSigningKeyResolver: {token} - {securityToken} - {kid} - {parameters}");
-                return [new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key))];
-            },
+            IssuerSigningKey         = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.Key)),
         };
-        builder.Services.AddSingleton(tokenValidator);
+        builder.Services.AddSingleton<TokenValidationParameters>(q =>
+        {
+            var jwtSection = q.GetRequiredService<IConfiguration>().GetSection("Jwt");
+            return new TokenValidationParameters
+            {
+                ValidIssuer              = jwtSection.GetValue<string>("Issuer"),
+                ValidAudience            = jwtSection.GetValue<string>("Audience"),
+                ValidateIssuer           = true,
+                ValidateAudience         = true,
+                ValidateLifetime         = true,
+                RequireSignedTokens      = true,
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(q.GetRequiredService<IConfiguration>().GetSection("Jwt").GetValue<string>("key")))
+            };
+        });
         builder.Services.AddSingleton<TokenAuthorization>();
         builder.Services.AddAuthorization(options =>
         {
