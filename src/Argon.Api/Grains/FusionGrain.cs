@@ -59,6 +59,26 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
         await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
             preferredStatus ?? UserStatus.Online,
             new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+        await Task.Delay(100);
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+        await Task.Delay(100);
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+        await Task.Delay(100);
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+        await Task.Delay(100);
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
+        await Task.Delay(100);
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
+            preferredStatus ?? UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
     }
 
     private async Task RefreshUserStatus(CancellationToken arg)
