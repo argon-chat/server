@@ -125,9 +125,6 @@ public class ServerGrain(
     {
         state.State.UserStatuses[userId] = (DateTime.UtcNow, status);
         await _serverEvents.Fire(new UserChangedStatus(userId, status, []));
-        await _serverEvents.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0",
-            UserStatus.Online,
-            new UserNotificationSnapshot([])));
     }
 
     public async Task DeleteServer()
