@@ -54,6 +54,8 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(userId, preferredStatus ?? UserStatus.Online);
         }
+        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0", UserStatus.Online,
+            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
     }
 
     private async Task RefreshUserStatus(CancellationToken arg)
@@ -66,8 +68,6 @@ public class UserSessionGrain(IGrainFactory grainFactory, IClusterClient cluster
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, UserStatus.Online);
         this.DelayDeactivation(TimeSpan.FromMinutes(1));
-        await userStream.Fire(new WelcomeCommander($"Outside temperature is {MathF.Round(Random.Shared.Next(-273_15, 45_00) / 100f)}\u00b0", UserStatus.Online,
-            new UserNotificationSnapshot(servers.Select(x => new UserNotificationItem(x, 5)).ToList())));
     }
 
     public ValueTask EndRealtimeSession()
