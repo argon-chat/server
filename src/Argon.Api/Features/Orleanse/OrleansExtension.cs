@@ -89,14 +89,12 @@ public static class OrleansExtension
                 siloBuilder
                    .AddConsulGrainDirectory("servers")
                    .AddConsulGrainDirectory("channels")
-                   .AddConsulClustering()
-                   .AddBroadcastChannel(IArgonEvent.Broadcast);
+                   .AddConsulClustering();
             else
                 siloBuilder
                    .AddInMemoryGrainDirectory("servers")
                    .AddInMemoryGrainDirectory("channels")
-                   .UseLocalhostClustering()
-                   .AddBroadcastChannel(IArgonEvent.Broadcast);
+                   .UseLocalhostClustering();
         });
 
         return builder;

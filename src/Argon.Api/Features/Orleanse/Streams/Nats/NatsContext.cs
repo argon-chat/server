@@ -8,32 +8,39 @@ using NATS.Net;
 using Orleans.Runtime;
 using System;
 using System.Buffers;
-using System.Text.Encodings.Web;
 using System.Threading.Channels;
 using Newtonsoft.Json;
-using Orleans.Streams;
 
-public class NatsContext(INatsClient client)
+public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServiceProvider provider)
 {
     public async Task<IArgonStream<IArgonEvent>> CreateWriteStream(StreamId id)
     {
-        var stream = new NatsArgonWriteOnlyStream(id, client.CreateJetStreamContext());
+        logger.LogInformation("Begin create write stream for '{streamID}'", id);
+
+        var stream = ActivatorUtilities.CreateInstance<NatsArgonWriteOnlyStream>(provider, id, client.CreateJetStreamContext());
         await stream.EnsureCreatedStream();
         return stream;
     }
 
     public async Task<IArgonStream<IArgonEvent>> CreateReadStream(StreamId id)
     {
-        var stream = new NatsArgonReadOnlyStream(id, client.CreateJetStreamContext());
+        logger.LogInformation("Begin create read stream for '{streamID}'", id);
+        var stream = ActivatorUtilities.CreateInstance<NatsArgonReadOnlyStream>(provider, id, client.CreateJetStreamContext());
         await stream.CreateSub();
         return stream;
     }
 }
 
-public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IArgonStream<IArgonEvent>
+public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILogger<NatsArgonWriteOnlyStream> logger) : IArgonStream<IArgonEvent>
 {
-    public async ValueTask Fire(IArgonEvent ev)
-        => await OnNextAsync(ev);
+    public async ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
+    {
+        var result = await js.PublishAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", ev, new ArgonEventSerializer(), cancellationToken: ct);
+
+        if (result.Error is not null)
+            logger.LogCritical("Error when publish message to nats, {errorCode}, {code}, {msg}", result.Error.ErrCode, result.Error.Code,
+                result.Error.Description);
+    }
 
     public async Task EnsureCreatedStream(CancellationToken ct = default)
         => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.GetNamespace()!, [$"{streamId.GetNamespace()}.>"])
@@ -43,20 +50,13 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
             AllowDirect     = true,
             MaxBytes        = int.MaxValue / 2,
             Retention       = StreamConfigRetention.Interest,
-            Storage         = StreamConfigStorage.File
+            Storage         = StreamConfigStorage.File,
+            Discard         = StreamConfigDiscard.Old
         }, ct);
 
     public async ValueTask DisposeAsync()
     {
     }
-
-    public async Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
-    {
-        var result = await js.PublishAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", item, new ArgonEventSerializer());
-    }
-
-    public Task OnErrorAsync(Exception ex)
-        => throw new WriteOnlyStreamException();
 
     public IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken cancellationToken = new())
         => throw new WriteOnlyStreamException();
@@ -64,38 +64,34 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
 
 public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IArgonStream<IArgonEvent>
 {
-    private INatsJSConsumer _consumer;
+    private readonly Guid _streamListenerId = Guid.NewGuid();
 
-    public ValueTask Fire(IArgonEvent ev)
+
+    private INatsJSConsumer _consumer;
+    private string          _consumerName => $"{streamId.ToString().Replace('/', '_')}_{_streamListenerId:N}";
+
+    public ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
         => throw new NotImplementedException();
 
     public async Task CreateSub()
-    {
-        var consumerName = streamId.ToString().Replace('/', '_');
-        // push based consumer
-        _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig($"{consumerName}_{Guid.NewGuid():N}")
+        => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig(_consumerName)
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
-            DeliverPolicy = ConsumerConfigDeliverPolicy.All
+            DeliverPolicy = ConsumerConfigDeliverPolicy.New,
+            AckWait       = TimeSpan.FromSeconds(1),
+            MaxAckPending = 3,
+            Direct        = false
         });
-    }
 
     public async ValueTask DisposeAsync()
-    {
-    }
-
-    public Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
-        => throw new ReadOnlyStreamException();
-
-    public Task OnErrorAsync(Exception ex)
-        => throw new ReadOnlyStreamException();
+        => await js.DeleteConsumerAsync(streamId.GetNamespace()!, _consumerName);
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
         await foreach (var msg in _consumer.ConsumeAsync(new ArgonEventSerializer(), new NatsJSConsumeOpts()
         {
-            MaxMsgs = 1000
+            MaxMsgs = 30
         }, ct))
         {
             if (msg.Data is null)
