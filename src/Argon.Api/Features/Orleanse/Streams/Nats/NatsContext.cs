@@ -39,7 +39,7 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
         => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.GetNamespace()!, [$"{streamId.GetNamespace()}.>"])
         {
             DuplicateWindow = TimeSpan.Zero,
-            MaxAge          = TimeSpan.FromHours(1),
+            MaxAge          = TimeSpan.FromSeconds(15),
             AllowDirect     = true,
             MaxBytes        = int.MaxValue / 2,
             Retention       = StreamConfigRetention.Interest,

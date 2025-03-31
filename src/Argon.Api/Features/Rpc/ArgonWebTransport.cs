@@ -17,7 +17,8 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
 
         if (clusterClient is null)
         {
-            if (ctx.Response.HasStarted) return;
+            if (ctx.Response.HasStarted)
+                throw new InvalidOperationException();
 
             ctx.Response.StatusCode = 423;
             await ctx.Response.WriteAsJsonAsync(new
@@ -55,7 +56,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
             }
 
             logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
-            var stream = await clusterClient.Streams().CreateClientStream(serverId, sequence, eventId);
+            var stream = await clusterClient.Streams().CreateClientStream(serverId);
 
             await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
         }
@@ -64,7 +65,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
             logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
             var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(Guid.NewGuid());
             await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-            var stream = await clusterClient.Streams().CreateClientStream(user.id, sequence, eventId);
+            var stream = await clusterClient.Streams().CreateClientStream(user.id);
             await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
             await sessionGrain.EndRealtimeSession();
         }
@@ -114,10 +115,6 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
                 try
                 {
                     var result = ctx.WriteAsync(msg);
-
-                    var bytes = new byte[16];
-                    var ignored = ctx.WebSocket.ReceiveAsync(bytes, CancellationToken.None);
-                    await ctx.FlushAsync();
                     if (result.IsCompletedSuccessfully)
                         continue;
                     break;
