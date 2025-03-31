@@ -42,7 +42,8 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js) : IA
             MaxAge          = TimeSpan.FromHours(1),
             AllowDirect     = true,
             MaxBytes        = int.MaxValue / 2,
-            Retention       = StreamConfigRetention.Workqueue
+            Retention       = StreamConfigRetention.Interest,
+            Storage         = StreamConfigStorage.File
         }, ct);
 
     public async ValueTask DisposeAsync()
@@ -75,7 +76,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig($"{consumerName}_{Guid.NewGuid():N}")
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
-            AckPolicy     = ConsumerConfigAckPolicy.All,
+            AckPolicy     = ConsumerConfigAckPolicy.Explicit,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New
         });
     }
