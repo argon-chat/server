@@ -77,7 +77,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         {
             FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
-            DeliverPolicy = ConsumerConfigDeliverPolicy.New
+            DeliverPolicy = ConsumerConfigDeliverPolicy.All
         });
     }
 
