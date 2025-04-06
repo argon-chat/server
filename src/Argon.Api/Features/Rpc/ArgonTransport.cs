@@ -4,6 +4,7 @@ using Api.Features.Orleans.Client;
 using Features.Middlewares;
 using Google.Protobuf;
 using Grpc.Core;
+using System.Security.AccessControl;
 using Transport;
 
 public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger)
@@ -68,21 +69,28 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
             };
         }
     }
-
     private async Task<byte[]> InvokeServiceMethod(IArgonService service, MethodInfo method, ByteString payload)
     {
         var parameters     = method.GetParameters();
         var parameterTypes = parameters.Select(p => p.ParameterType).ToArray();
 
-        var arguments = MessagePackSerializer.Deserialize<object[]>(payload.Memory);
+        var rawArguments = MessagePackSerializer.Deserialize<object[]>(payload.Memory);
 
-        if (arguments.Length != parameterTypes.Length)
+        if (rawArguments.Length != parameterTypes.Length)
             throw new InvalidOperationException(
-                $"Method '{method.Name}' expects {parameterTypes.Length} arguments, but received {arguments.Length}."
+                $"Method '{method.Name}' expects {parameterTypes.Length} arguments, but received {rawArguments.Length}."
             );
 
-        var typedArguments = arguments
-           .Zip(parameterTypes, (arg, type) => MessagePackSerializer.Deserialize(type, MessagePackSerializer.Serialize(arg))).ToArray();
+        var typedArguments = new object[parameterTypes.Length];
+
+        for (int i = 0; i < parameterTypes.Length; i++)
+        {
+            var targetType = parameterTypes[i];
+            var rawArg     = rawArguments[i];
+
+            var serializedArg = MessagePackSerializer.Serialize(rawArg);
+            typedArguments[i] = MessagePackSerializer.Deserialize(targetType, serializedArg);
+        }
 
         if (method.Invoke(service, typedArguments) is not Task task)
             throw new InvalidOperationException($"Method '{method.Name}' does not return Task.");
@@ -100,4 +108,5 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
         return MessagePackSerializer.Serialize(result);
     }
+
 }
