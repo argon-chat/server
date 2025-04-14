@@ -22,4 +22,4 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 
-await app.WarpUp<ApplicationDbContext>().RunAsync();
+await app.WarmUp<ApplicationDbContext>().RunAsync();

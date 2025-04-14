@@ -30,7 +30,7 @@ public record MessageEntity
 [TsInterface, MessagePackObject(true)]
 public record Sticker : ArgonEntityWithOwnership
 {
-    public Guid   MessageId  { get; set; }
+    public ulong  MessageId  { get; set; }
     public bool   IsAnimated { get; set; }
     public string Emoji      { get; set; }
     public string FileId     { get; set; }
@@ -41,7 +41,7 @@ public record Sticker : ArgonEntityWithOwnership
 [TsInterface, MessagePackObject(true)]
 public record MessageDocument : ArgonEntityWithOwnership
 {
-    public Guid   MessageId { get; set; }
+    public ulong  MessageId { get; set; }
     public string FileName  { get; set; }
     public string MimeType  { get; set; }
     public ulong  FileSize  { get; set; }
@@ -53,7 +53,7 @@ public record MessageDocument : ArgonEntityWithOwnership
 [TsInterface, MessagePackObject(true)]
 public record MessageImage : ArgonEntityWithOwnership
 {
-    public Guid   MessageId { get; set; }
+    public ulong  MessageId { get; set; }
     public string FileName  { get; set; }
     public string MimeType  { get; set; }
     public bool   IsVideo   { get; set; }
@@ -69,14 +69,42 @@ public record MessageImage : ArgonEntityWithOwnership
 public record ArgonMessage : ArgonEntityWithOwnershipNoKey
 {
     [Required, DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public uint  MessageId { get; set; }
-    public Guid  ServerId  { get; set; }
-    public Guid  ChannelId { get; set; }
-    public uint? Reply     { get; set; }
+    public ulong MessageId { get;  set; }
+    public Guid   ServerId  { get; set; }
+    public Guid   ChannelId { get; set; }
+    public ulong? Reply     { get; set; }
 
     [MaxLength(2048)]
     public string Text { get; set; }
 
     [Column(TypeName = "jsonb")]
     public List<MessageEntity> Entities { get; set; } = new();
+}
+
+public record ArgonMessageCounters
+{
+    public ulong NextMessageId { get; set; }
+    public Guid ServerId { get; set; }
+    public Guid ChannelId { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record ArgonMessageReaction : ArgonEntityWithOwnership
+{
+    [Required]
+    public Guid ServerId { get; set; }
+
+    [Required]
+    public Guid ChannelId { get; set; }
+
+    [Required]
+    public ulong MessageId { get; set; }
+
+    [Required]
+    public Guid UserId { get; set; }
+
+    [Required, MaxLength(32)]
+    public string Reaction { get; set; }
+
+    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
 }
