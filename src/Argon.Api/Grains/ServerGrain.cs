@@ -77,7 +77,7 @@ public class ServerGrain(
 
         return members.Select(x => new RealtimeServerMember
         {
-            Member = x,
+            Member = x.ToDto(),
             Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
                 ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 10 ? item.Status : UserStatus.Offline
                 : UserStatus.Offline

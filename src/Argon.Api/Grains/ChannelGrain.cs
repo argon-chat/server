@@ -145,7 +145,7 @@ public class ChannelGrain(
 
         await ctx.SaveChangesAsync();
 
-        await _userStateEmitter.Fire(new MessageSent(e.Entity));
+        await _userStateEmitter.Fire(new MessageSent(e.Entity.ToDto()));
     }
 
     private async Task<Channel> Get()
