@@ -26,3 +26,12 @@ public sealed record User : ArgonEntity
     public LockdownReason LockdownReason     { get; set; }
     public DateTime?      LockDownExpiration { get; set; }
 }
+
+[MessagePackObject(true), TsInterface]
+public sealed record UserDto(Guid userId, string username, string displayName, string? avatarFileId);
+
+public static class UserExtensions
+{
+    public static       UserDto       ToDto(this User user)       => new(user.Id, user.Username, user.DisplayName, user.AvatarFileId);
+    public async static Task<UserDto> ToDto(this Task<User> user) => (await user).ToDto();
+}

@@ -12,8 +12,8 @@ public interface IServerInteraction : IArgonService
     Task                        DeleteChannel(Guid serverId, Guid channelId);
     Task<List<RealtimeChannel>> GetChannels(Guid serverId);
 
-    Task<List<ArgonMessage>> GetMessages(Guid channelId, int count, int offset);
-    Task                     SendMessage(Guid channelId, string text, List<MessageEntity> entities);
+    Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset);
+    Task                        SendMessage(Guid channelId, string text, List<MessageEntity> entities);
 
     Task<List<RealtimeServerMember>> GetMembers(Guid serverId);
 
@@ -25,5 +25,5 @@ public interface IServerInteraction : IArgonService
     Task<List<InviteCodeEntity>> GetInviteCodes(Guid serverId);
     Task<InviteCode>             CreateInviteCode(Guid serverId, TimeSpan expiration);
 
-    Task<User> PrefetchUser(Guid serverId, Guid userId);
+    Task<UserDto> PrefetchUser(Guid serverId, Guid userId);
 }

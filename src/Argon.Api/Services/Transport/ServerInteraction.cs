@@ -17,10 +17,9 @@ public class ServerInteraction : IServerInteraction
     public async Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId)
     {
         var user = this.GetUser();
-        var result = await this.GetGrainFactory()
+        return await this.GetGrainFactory()
            .GetGrain<IChannelGrain>(channelId)
            .Join(user.id, user.machineId);
-        return result;
     }
 
     public async Task DisconnectFromVoiceChannel(Guid serverId, Guid channelId)
@@ -63,11 +62,12 @@ public class ServerInteraction : IServerInteraction
            .SendMessage(user.id, text, entities);
     }
 
-    public Task<List<ArgonMessage>> GetMessages(Guid channelId, int count, int offset) => this.GetGrainFactory()
+    public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) => this.GetGrainFactory()
        .GetGrain<IChannelGrain>(channelId)
-       .GetMessages(count, offset);
+       .GetMessages(count, offset)
+       .ToDto();
 
     // TODO use access key
-    public Task<User> PrefetchUser(Guid serverId, Guid userId)
-        => this.GetGrainFactory().GetGrain<IUserGrain>(userId).GetMe();
+    public Task<UserDto> PrefetchUser(Guid serverId, Guid userId)
+        => this.GetGrainFactory().GetGrain<IUserGrain>(userId).GetMe().ToDto();
 }

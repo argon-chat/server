@@ -2,6 +2,7 @@ namespace Argon;
 
 using System.ComponentModel.DataAnnotations.Schema;
 using ArchetypeModel;
+using Features.Web;
 
 public enum EntityType : ushort
 {
@@ -81,30 +82,16 @@ public record ArgonMessage : ArgonEntityWithOwnershipNoKey
     public List<MessageEntity> Entities { get; set; } = new();
 }
 
-public record ArgonMessageCounters
+[MessagePackObject(true)]
+public sealed record ArgonMessageDto(ulong MessageId, ulong? ReplyId, Guid ChannelId, Guid ServerId, string Text, List<MessageEntity> entities, long timeSent);
+
+public static class ArgonMessageExtensions
 {
-    public ulong NextMessageId { get; set; }
-    public Guid ServerId { get; set; }
-    public Guid ChannelId { get; set; }
-}
+    public static ArgonMessageDto ToDto(this ArgonMessage msg) => new(msg.MessageId, msg.Reply, msg.ChannelId, msg.ServerId, msg.Text, msg.Entities,
+        msg.CreatedAt.ToUnixTimestamp());
 
-[TsInterface, MessagePackObject(true)]
-public record ArgonMessageReaction : ArgonEntityWithOwnership
-{
-    [Required]
-    public Guid ServerId { get; set; }
+    public static List<ArgonMessageDto> ToDto(this List<ArgonMessage> msg) => msg.Select(x => x.ToDto()).ToList();
 
-    [Required]
-    public Guid ChannelId { get; set; }
-
-    [Required]
-    public ulong MessageId { get; set; }
-
-    [Required]
-    public Guid UserId { get; set; }
-
-    [Required, MaxLength(32)]
-    public string Reaction { get; set; }
-
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public async static Task<ArgonMessageDto>       ToDto(this Task<ArgonMessage> msg) => (await msg).ToDto();
+    public async static Task<List<ArgonMessageDto>> ToDto(this Task<List<ArgonMessage>> msg) => (await msg).ToDto();
 }
