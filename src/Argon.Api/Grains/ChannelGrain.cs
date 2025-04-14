@@ -129,6 +129,8 @@ public class ChannelGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
 
+        var msgId = await ctx.GenerateNextMessageId(_self.ServerId, this.GetPrimaryKey());
+
         var message = new ArgonMessage()
         {
             ServerId  = _self.ServerId,
@@ -136,9 +138,11 @@ public class ChannelGrain(
             CreatorId = senderId,
             Entities  = entities,
             Text      = text,
+            MessageId = msgId
         };
 
         var e = await ctx.Messages.AddAsync(message);
+
         await ctx.SaveChangesAsync();
 
         await _userStateEmitter.Fire(new MessageSent(e.Entity));
