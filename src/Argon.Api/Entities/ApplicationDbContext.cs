@@ -1,9 +1,6 @@
 namespace Argon.Entities;
 
 using Features.EF;
-using Microsoft.EntityFrameworkCore.Diagnostics;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using System.Data.Common;
 using System.Drawing;
 using System.Linq.Expressions;
 using Shared.Servers;
@@ -22,27 +19,54 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<ServerInvite> ServerInvites { get; set; }
 
-    public DbSet<ArgonMessage> Messages { get; set; }
+    public DbSet<ArgonMessage>         Messages { get; set; }
+    public DbSet<ArgonMessageCounters> Counters { get; set; }
+
+    public DbSet<ArgonMessageReaction> ArgonMessageReactions { get; set; }
 
 
     public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<ArgonMessage>()
-           .HasKey(m => new { m.ServerId, m.ChannelId, m.MessageId });
+        modelBuilder.Entity<ArgonMessageCounters>()
+           .ToTable("ArgonMessages_Counters")
+           .HasKey(x => new
+            {
+                x.ChannelId,
+                x.ServerId
+            });
 
         modelBuilder.Entity<ArgonMessage>()
-           .HasIndex(m => new { m.ServerId, m.ChannelId, m.MessageId })
+           .HasKey(m => new
+            {
+                m.ServerId,
+                m.ChannelId,
+                m.MessageId
+            });
+
+        modelBuilder.Entity<ArgonMessage>()
+           .HasIndex(m => new
+            {
+                m.ServerId,
+                m.ChannelId,
+                m.MessageId
+            })
            .IsUnique();
 
         modelBuilder.Entity<ArgonMessage>()
-           .Property(m => m.MessageId)
-           .ValueGeneratedOnAdd();
+           .Property(m => m.MessageId);
 
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.Entities)
            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<ArgonMessageReaction>()
+           .HasKey(r => new { r.ServerId, r.ChannelId, r.MessageId, r.UserId, r.Reaction });
+
+        modelBuilder.Entity<ArgonMessageReaction>()
+           .HasIndex(r => new { r.ServerId, r.ChannelId, r.MessageId })
+           .IsUnique();
 
         modelBuilder.Entity<ServerMemberArchetype>()
            .HasKey(x => new
@@ -186,10 +210,4 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         var notDeleted        = Expression.Not(isDeletedProperty);
         return Expression.Lambda(notDeleted, parameter);
     }
-}
-
-public class Int : DbCommandInterceptor
-{
-    public override int NonQueryExecuted(DbCommand command, CommandExecutedEventData eventData, int result)
-        => base.NonQueryExecuted(command, eventData, result);
 }
