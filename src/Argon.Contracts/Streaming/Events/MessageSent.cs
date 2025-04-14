@@ -1,4 +1,4 @@
 namespace Argon.Streaming.Events;
 
 [TsInterface, MessagePackObject(true)]
-public record MessageSent(ArgonMessage message) : ArgonEvent<MessageSent>;
+public record MessageSent(ArgonMessageDto message) : ArgonEvent<MessageSent>;
