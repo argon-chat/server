@@ -7,9 +7,9 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations.Internal;
 
-public static class WarpUpExtension
+public static class WarmUpExtension
 {
-    public static WebApplication WarpUp<T>(this WebApplication app, bool isMigrate = true) where T : DbContext
+    public static WebApplication WarmUp<T>(this WebApplication app, bool isMigrate = true) where T : DbContext
     {
         if (app.Environment.IsEntryPoint())
             return app;
@@ -30,9 +30,9 @@ public static class WarpUpExtension
         var migrations = dbCtx.Database.GetPendingMigrations().ToList();
         foreach (var migration in migrations)
         {
-            logger.LogInformation($"Applying migration: {migration}");
+            logger.LogInformation("Applying migration: {migration}", migration);
             dbCtx.Database.Migrate(migration);
-            logger.LogInformation($"Migration applied: {migration}");
+            logger.LogInformation("Migration applied: {migration}", migration);
         }
     }
 }

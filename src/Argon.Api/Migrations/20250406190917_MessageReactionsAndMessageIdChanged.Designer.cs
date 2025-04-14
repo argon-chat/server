@@ -5,6 +5,7 @@ using Argon;
 using Argon.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -13,9 +14,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250406190917_MessageReactionsAndMessageIdChanged")]
+    partial class MessageReactionsAndMessageIdChanged
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -184,22 +187,6 @@ namespace Argon.Api.Migrations
                     b.ToTable("Messages");
                 });
 
-            modelBuilder.Entity("Argon.ArgonMessageCounters", b =>
-                {
-                    b.Property<Guid>("ChannelId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ServerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("NextMessageId")
-                        .HasColumnType("numeric(20,0)");
-
-                    b.HasKey("ChannelId", "ServerId");
-
-                    b.ToTable("ArgonMessages_Counters", (string)null);
-                });
-
             modelBuilder.Entity("Argon.ArgonMessageReaction", b =>
                 {
                     b.Property<Guid>("ServerId")
@@ -243,8 +230,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId", "ChannelId", "MessageId")
-                        .IsUnique();
+                    b.HasIndex("ServerId", "ChannelId", "MessageId");
 
                     b.ToTable("ArgonMessageReactions");
                 });
