@@ -83,12 +83,12 @@ public record ArgonMessage : ArgonEntityWithOwnershipNoKey
 }
 
 [MessagePackObject(true)]
-public sealed record ArgonMessageDto(ulong MessageId, ulong? ReplyId, Guid ChannelId, Guid ServerId, string Text, List<MessageEntity> entities, long timeSent);
+public sealed record ArgonMessageDto(ulong MessageId, ulong? ReplyId, Guid ChannelId, Guid ServerId, string Text, List<MessageEntity> Entities, long TimeSent, Guid Sender);
 
 public static class ArgonMessageExtensions
 {
     public static ArgonMessageDto ToDto(this ArgonMessage msg) => new(msg.MessageId, msg.Reply, msg.ChannelId, msg.ServerId, msg.Text, msg.Entities,
-        msg.CreatedAt.ToUnixTimestamp());
+        msg.CreatedAt.ToUnixTimestamp(), msg.CreatorId);
 
     public static List<ArgonMessageDto> ToDto(this List<ArgonMessage> msg) => msg.Select(x => x.ToDto()).ToList();
 
