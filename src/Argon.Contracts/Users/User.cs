@@ -28,7 +28,7 @@ public sealed record User : ArgonEntity
 }
 
 [MessagePackObject(true), TsInterface]
-public sealed record UserDto(Guid userId, string username, string displayName, string? avatarFileId);
+public sealed record UserDto(Guid UserId, string Username, string DisplayName, string? AvatarFileId);
 
 public static class UserExtensions
 {
