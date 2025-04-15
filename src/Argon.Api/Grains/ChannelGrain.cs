@@ -138,7 +138,8 @@ public class ChannelGrain(
             CreatorId = senderId,
             Entities  = entities,
             Text      = text,
-            MessageId = msgId
+            MessageId = msgId,
+            CreatedAt = DateTime.UtcNow
         };
 
         var e = await ctx.Messages.AddAsync(message);
