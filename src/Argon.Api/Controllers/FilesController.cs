@@ -9,7 +9,7 @@ using Microsoft.AspNetCore.StaticFiles;
 public class FilesController(
     IOptions<CdnOptions> cdnOptions,
     IContentDeliveryNetwork cdn,
-    IPermissionProvider permissions,
+    //IPermissionProvider permissions,
     IGrainFactory grainFactory,
     IContentTypeProvider contentType) : ControllerBase
 {
@@ -39,8 +39,8 @@ public class FilesController(
     {
         var userId = HttpContext.GetUserId();
 
-        if (!await permissions.CanAccess(ArgonEntitlement.ManageServer, userId, serverId))
-            return StatusCode(401);
+        //if (!await permissions.CanAccess(ArgonEntitlement.ManageServer, userId, serverId))
+        //    return StatusCode(401);
 
         var assetId = AssetId.ServerFile(serverId, "png");
         var result  = await cdn.CreateAssetAsync(assetId, file);
