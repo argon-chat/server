@@ -58,7 +58,7 @@ public class FilesController(
     public async ValueTask<IActionResult> UploadUserAvatar(IFormFile file)
     {
         var userId  = HttpContext.GetUserId();
-        var assetId = AssetId.Avatar(userId);
+        var assetId = AssetId.Avatar(userId, Path.GetExtension(file.FileName)?.TrimStart('.') ?? "jpg");
         var result  = await cdn.CreateAssetAsync(assetId, file);
 
         if (result.HasValue)

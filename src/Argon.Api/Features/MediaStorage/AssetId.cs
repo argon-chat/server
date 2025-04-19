@@ -12,6 +12,9 @@ public abstract class AssetId(Guid assetId, string extensions)
     public static AssetId Avatar(Guid userId)
         => new UserAssetId(userId, Guid.NewGuid(), "png");
 
+    public static AssetId Avatar(Guid userId, string extensions)
+        => new UserAssetId(userId, Guid.NewGuid(), extensions);
+
     public static AssetId ServerFile(Guid serverId, string extension)
         => new UserAssetId(serverId, Guid.NewGuid(), extension);
 }
