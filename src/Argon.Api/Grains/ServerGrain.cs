@@ -115,6 +115,13 @@ public class ServerGrain(
         await UserJoined(userId);
     }
 
+    public async ValueTask DoUserUpdatedAsync(Guid userId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var user = await ctx.Users.FirstAsync(x => x.Id == userId);
+        await _serverEvents.Fire(new UserUpdated(user.ToDto()));
+    }
+
     public async ValueTask UserJoined(Guid userId)
     {
         await _serverEvents.Fire(new JoinToServerUser(userId));

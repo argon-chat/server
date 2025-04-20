@@ -32,6 +32,9 @@ public interface IServerGrain : IGrainWithGuidKey
 
     [Alias(nameof(DoJoinUserAsync))]
     ValueTask DoJoinUserAsync(Guid userId);
+
+    [Alias(nameof(DoUserUpdatedAsync))]
+    ValueTask DoUserUpdatedAsync(Guid userId);
 }
 
 public enum ServerCreationError

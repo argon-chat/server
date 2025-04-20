@@ -4,7 +4,8 @@ using Orleans.Concurrency;
 using Services;
 
 [StatelessWorker]
-public class UserGrain(IPasswordHashingService passwordHashingService,
+public class UserGrain(
+    IPasswordHashingService passwordHashingService,
     IDbContextFactory<ApplicationDbContext> context) : Grain, IUserGrain
 {
     public async Task<User> UpdateUser(UserEditInput input)
@@ -17,6 +18,16 @@ public class UserGrain(IPasswordHashingService passwordHashingService,
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
+
+        var userServers = await GetMyServersIds();
+
+        await Task.WhenAll(userServers
+           .Select(id => GrainFactory
+               .GetGrain<IServerGrain>(id)
+               .DoUserUpdatedAsync(this.GetPrimaryKey())
+               .AsTask())
+           .ToArray());
+
         return user;
     }
 
