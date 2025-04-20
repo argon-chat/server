@@ -13,7 +13,7 @@ public class UserGrain(IPasswordHashingService passwordHashingService,
 
         var user = await ctx.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
         user.Username     = input.Username ?? user.Username;
-        user.Username     = input.DisplayName ?? user.DisplayName;
+        user.DisplayName  = input.DisplayName ?? user.DisplayName;
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();

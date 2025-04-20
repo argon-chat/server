@@ -14,6 +14,7 @@ public static class LoggingFeature
             return builder;
         Log.Logger = new LoggerConfiguration()
            .Enrich.FromLogContext()
+           .ReadFrom.Configuration(builder.Configuration)
            .WriteTo.Console(new JsonFormatter(renderMessage: true))
            .CreateLogger();
 
