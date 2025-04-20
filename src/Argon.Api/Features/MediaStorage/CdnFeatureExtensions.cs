@@ -48,8 +48,8 @@ public static class CdnFeatureExtensions
 
     private static IServiceProvider GenerateFactoryS3Provider(IServiceProvider provider)
     {
-        var opt              = provider.GetRequiredService<IOptions<StorageOptions>>();
-        var options          = opt.Value;
+        var opt              = provider.GetRequiredService<IOptions<CdnOptions>>();
+        var options          = opt.Value.Storage;
         var storageContainer = new ServiceCollection();
         var coreBuilder      = SimpleS3CoreServices.AddSimpleS3Core(storageContainer);
         coreBuilder.UseHttpClient();
