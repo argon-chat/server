@@ -16,7 +16,7 @@ public static class CdnFeatureExtensions
     public static IServiceCollection AddContentDeliveryNetwork(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<CdnOptions>(builder.Configuration.GetSection("Cdn"));
-
+        builder.Services.Configure<StorageOptions>(builder.Configuration.GetSection("Cdn:Storage"));
 
         builder.Services.TryAddSingleton<IContentTypeProvider, FileExtensionContentTypeProvider>();
 
