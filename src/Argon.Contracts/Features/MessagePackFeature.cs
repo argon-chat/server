@@ -2,6 +2,7 @@ namespace Argon.Services;
 
 using MessagePack.Resolvers;
 using Orleans.Serialization;
+using Streaming;
 
 public static class MessagePackFeature
 {

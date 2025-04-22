@@ -1,6 +1,7 @@
 namespace Argon.Features.GeoIP;
 
 using Flurl.Http;
+using Microsoft.Extensions.Logging;
 
 public static class GeoIpFeature
 {

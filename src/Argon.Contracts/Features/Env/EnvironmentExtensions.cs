@@ -1,6 +1,7 @@
 namespace Argon.Features.Env;
 
 using System.Diagnostics;
+using Extensions;
 
 public static class EnvironmentExtensions
 {

@@ -1,6 +1,7 @@
 namespace Argon.Features.RegionalUnit;
 
 using Consul;
+using Microsoft.Extensions.DependencyInjection;
 
 public interface IArgonRegionalBus
 {

@@ -2,7 +2,7 @@ namespace Argon.Api.Features.Orleans.Consul;
 
 using global::Consul;
 
-internal static class ConsulEx
+public static class ConsulEx
 {
     public static void Assert(this WriteResult result)
     {
