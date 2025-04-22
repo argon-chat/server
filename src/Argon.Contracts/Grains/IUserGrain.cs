@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using Users;
+
 [Alias("Argon.Grains.Interfaces.IUserGrain")]
 public interface IUserGrain : IGrainWithGuidKey
 {

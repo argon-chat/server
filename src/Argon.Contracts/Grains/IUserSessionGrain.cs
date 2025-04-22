@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using Users;
+
 [Alias($"Argon.Grains.Interfaces.{nameof(IUserSessionGrain)}")]
 public interface IUserSessionGrain : IGrainWithGuidKey
 {
