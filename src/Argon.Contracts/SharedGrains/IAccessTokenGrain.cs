@@ -4,9 +4,9 @@ namespace Argon.Shared.SharedGrains;
 public interface IAccessTokenGrain : IGrainWithGuidKey
 {
     [Alias(nameof(GenerateAccessGuidAsync))]
-    Task<Guid> GenerateAccessGuidAsync(Guid userId, DateTime timestampUtc, CancellationToken ct = default);
+    Task<Guid> GenerateAccessGuidAsync(Guid userId, DateTime timestampUtc);
     [Alias(nameof(GenerateBatchAccessGuidAsync))]
-    Task<Dictionary<Guid, Guid>> GenerateBatchAccessGuidAsync(List<Guid> userIds, DateTime timestampUtc, CancellationToken ct = default);
+    Task<Dictionary<Guid, Guid>> GenerateBatchAccessGuidAsync(List<Guid> userIds, DateTime timestampUtc);
     [Alias(nameof(ValidateAccessGuid))]
-    Task<bool> ValidateAccessGuid(Guid userId, Guid accessGuid, int maxAgeSeconds = 300, CancellationToken ct = default);
+    Task<bool> ValidateAccessGuid(Guid userId, Guid accessGuid, int maxAgeSeconds = 300);
 }

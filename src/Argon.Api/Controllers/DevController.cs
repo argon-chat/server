@@ -14,7 +14,11 @@ public class DevController(IGrainFactory grainFactory) : ControllerBase
 
     [HttpGet("getAccessToken/{userId:guid}")]
     public async Task<IActionResult> GetAccessKey(Guid userId)
-        => Ok(grainFactory.GetGrain<IAccessTokenGrain>(Guid.Empty).GenerateAccessGuidAsync(userId, DateTime.Now, CancellationToken.None));
+        => Ok(new
+        {
+            accessId = await grainFactory.GetGrain<IAccessTokenGrain>(Guid.Empty).GenerateAccessGuidAsync(userId, DateTime.Now),
+            message = "I'm A Hetero Silo Yay!"
+        });
 
     //[HttpPost("{userId:guid}/{channelId:guid}")]
     //public async Task SendMessage(Guid userId, Guid channelId, ArgonMessage message)
