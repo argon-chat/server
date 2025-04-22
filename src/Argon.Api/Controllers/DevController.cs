@@ -16,7 +16,7 @@ public class DevController(IGrainFactory grainFactory) : ControllerBase
     public async Task<IActionResult> GetAccessKey(Guid userId)
         => Ok(new
         {
-            accessId = await grainFactory.GetGrain<IAccessTokenGrain>(Guid.Empty).GenerateAccessGuidAsync(userId, DateTime.Now),
+            accessId = await grainFactory.GetGrain<IAccessTokenGrain>(Guid.Empty).GenerateAccessHashAsync(userId, DateTime.Now),
             message = "I'm A Hetero Silo Yay!"
         });
 
