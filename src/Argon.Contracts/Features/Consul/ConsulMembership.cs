@@ -11,6 +11,8 @@ public class ConsulMembershipOptions
 {
     public TimeSpan TTL            { get; set; } = TimeSpan.FromSeconds(15);
     public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
+
+    public List<string>? ExtendedTags { get; set; }
 }
 
 public class ConsulMembership(
@@ -87,6 +89,8 @@ public class ConsulMembership(
 
     public async Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
     {
+        var extendedTags = membershipOptions.Value.ExtendedTags ?? new List<string>();
+
         var service = new AgentServiceRegistration()
         {
             Name    = IArgonUnitMembership.ArgonServiceName,
@@ -103,11 +107,11 @@ public class ConsulMembership(
                     DeregisterCriticalServiceAfter = membershipOptions.Value.DestroyTimeout
                 }
             ],
-            Tags =
+            Tags = extendedTags.ToArray().Concat(
             [
                 IArgonUnitMembership.ArgonNameSpace,
                 hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.WorkerUnit
-            ],
+            ]).ToArray()
         };
 
 

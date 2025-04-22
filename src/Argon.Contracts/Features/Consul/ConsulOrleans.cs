@@ -15,6 +15,13 @@ public static class ConsulOrleans
             services.AddSingleton<IMembershipTable, ConsulMembership>();
         });
 
+    public static ISiloBuilder AddConsulClustering(this ISiloBuilder builder, Action<ConsulMembershipOptions> cfg)
+        => builder.ConfigureServices(services => {
+            services.Configure<ConsulMembershipOptions>(builder.Configuration.GetSection("Orleans:Membership"));
+            services.PostConfigure(cfg);
+            services.AddSingleton<IMembershipTable, ConsulMembership>();
+        });
+
     public static ISiloBuilder AddConsulGrainDirectory(this ISiloBuilder builder, string name)
     {
         builder.Configure<ConsulDirectoryOptions>(q => { q.Directory = name; });

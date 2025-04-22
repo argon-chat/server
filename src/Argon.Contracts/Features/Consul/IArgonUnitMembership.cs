@@ -8,5 +8,6 @@ public interface IArgonUnitMembership : IMembershipTable
     public const string WorkerUnit            = "compute-unit";
     public const string GatewayUnit           = "edge-unit";
     public const string EntryUnit             = "edge-unit";
+    public const string EnterpriceEditionUnit = "ee-unit";
     public const string LoopBackHealth        = "LoopBackHealth";
 }
