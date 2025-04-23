@@ -3,7 +3,7 @@ namespace Argon.Features.Jwt;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 
-public class TokenAuthorization(TokenValidationParameters tokenValidation, ILogger<TokenAuthorization> logger)
+public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthorization> logger)
 {
     public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token)
     {
@@ -12,7 +12,10 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation, ILogg
             return TokenValidationError.BAD_TOKEN;
         }
 
-        var tokenHandler = new JwtSecurityTokenHandler();
+        await using var scope = provider.CreateAsyncScope();
+
+        var tokenValidation = scope.ServiceProvider.GetRequiredService<TokenValidationParameters>();
+        var tokenHandler    = new JwtSecurityTokenHandler();
         try
         {
             var principal = tokenHandler.ValidateToken(token, tokenValidation, out var validatedToken);

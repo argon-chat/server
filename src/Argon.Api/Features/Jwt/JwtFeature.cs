@@ -36,9 +36,6 @@ public static class JwtFeature
         builder.Services.AddScoped<IssuerSigningKeyResolver>(q => (_, _, _, _) =>
         {
             var opt    = q.GetRequiredService<IOptions<JwtOptions>>();
-            var logger = q.GetRequiredService<ILogger<IssuerSigningKeyResolver>>();
-            logger.LogCritical("LOADED '{key}' ", opt.Value.Key);
-
             var keyBytes = Encoding.UTF8.GetBytes(opt.Value.Key);
             return
             [
