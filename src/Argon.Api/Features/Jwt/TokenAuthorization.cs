@@ -8,9 +8,9 @@ public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthoriz
     public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token)
     {
         if (string.IsNullOrEmpty(token))
-        {
             return TokenValidationError.BAD_TOKEN;
-        }
+
+        logger.LogCritical($"AuthorizeByToken: {token}");
 
         await using var scope = provider.CreateAsyncScope();
 

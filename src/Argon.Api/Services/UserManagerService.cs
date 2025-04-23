@@ -1,16 +1,24 @@
 namespace Argon.Services;
 
 using System.IdentityModel.Tokens.Jwt;
+using System.IO.Hashing;
 using System.Security.Claims;
 using Features.Jwt;
 using Microsoft.IdentityModel.Tokens;
 
-public class UserManagerService(ILogger<UserManagerService> logger, IOptions<JwtOptions> jwt)
+public class UserManagerService(ILogger<UserManagerService> logger, IServiceProvider provider)
 {
-    public Task<string> GenerateJwt(Guid id, Guid machineId)
+    public async Task<string> GenerateJwt(Guid id, Guid machineId)
     {
+        await using var scope = provider.CreateAsyncScope();
+        var             jwt   = scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>();
+
         var (issuer, audience, key, exp) = jwt.Value;
-        var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(key)),
+        var keyBytes = Encoding.UTF8.GetBytes(key);
+        var signingCredentials = new SigningCredentials(new SymmetricSecurityKey(keyBytes)
+            {
+                KeyId = $"{Crc64.HashToUInt64(keyBytes):X}"
+            },
             SecurityAlgorithms.HmacSha512Signature);
         var subject = new ClaimsIdentity([
             new Claim("id", id.ToString()),
@@ -33,7 +41,7 @@ public class UserManagerService(ILogger<UserManagerService> logger, IOptions<Jwt
         if (jwtToken == null)
             throw new Exception("Failed to generate token"); // TODO: Come up with application specific errors
 
-        return Task.FromResult(jwtToken);
+        return jwtToken;
     }
 
     public async Task Validate(string username, string password)
