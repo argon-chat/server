@@ -22,6 +22,7 @@ using System.Security.Cryptography.X509Certificates;
 using GeoIP;
 using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
+using Logic;
 using RegionalUnit;
 
 public static class HostModeExtensions
@@ -192,6 +193,7 @@ public static class HostModeExtensions
         builder.AddSelectiveForwardingUnit();
         builder.AddOtpCodes();
         builder.AddCaptchaFeature();
+        builder.AddUserPresenceFeature();
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
         if (builder.IsHybridRole())
