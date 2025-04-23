@@ -35,7 +35,7 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
 {
     public async ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
     {
-        var result = await js.PublishAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", ev, new ArgonEventSerializer(), cancellationToken: ct);
+        var result = await js.PublishAsync(streamId.ToNatsStreamName(), ev, new ArgonEventSerializer(), cancellationToken: ct);
 
         if (result.Error is not null)
             logger.LogCritical("Error when publish message to nats, {errorCode}, {code}, {msg}", result.Error.ErrCode, result.Error.Code,
@@ -43,7 +43,7 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
     }
 
     public async Task EnsureCreatedStream(CancellationToken ct = default)
-        => await js.CreateOrUpdateStreamAsync(new StreamConfig($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", [])
+        => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.ToNatsStreamName(), [])
         {
             DuplicateWindow = TimeSpan.Zero,
             MaxAge          = TimeSpan.FromSeconds(30),
@@ -74,7 +74,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         => throw new NotImplementedException();
 
     public async Task CreateSub()
-        => _consumer = await js.CreateOrUpdateConsumerAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", new ConsumerConfig(_consumerName)
+        => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.ToNatsStreamName(), new ConsumerConfig(_consumerName)
         {
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New,
@@ -84,7 +84,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         });
 
     public async ValueTask DisposeAsync()
-        => await js.DeleteConsumerAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", _consumerName);
+        => await js.DeleteConsumerAsync(streamId.ToNatsStreamName(), _consumerName);
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
@@ -99,6 +99,12 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
             await msg.AckAsync(cancellationToken: ct);
         }
     }
+}
+
+public static class NatsStreamExtensions
+{
+    public static string ToNatsStreamName(this StreamId streamId)
+        => $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}".Replace(".", "_").Replace(" ", "").Replace('/', '_');
 }
 
 public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
