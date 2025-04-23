@@ -43,10 +43,10 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
     }
 
     public async Task EnsureCreatedStream(CancellationToken ct = default)
-        => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.GetNamespace()!, [$"{streamId.GetNamespace()}.>"])
+        => await js.CreateOrUpdateStreamAsync(new StreamConfig($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", [])
         {
             DuplicateWindow = TimeSpan.Zero,
-            MaxAge          = TimeSpan.FromSeconds(15),
+            MaxAge          = TimeSpan.FromSeconds(30),
             AllowDirect     = true,
             MaxBytes        = int.MaxValue / 2,
             Retention       = StreamConfigRetention.Interest,
@@ -74,9 +74,8 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         => throw new NotImplementedException();
 
     public async Task CreateSub()
-        => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.GetNamespace()!, new ConsumerConfig(_consumerName)
+        => _consumer = await js.CreateOrUpdateConsumerAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", new ConsumerConfig(_consumerName)
         {
-            FilterSubject = $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}",
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New,
             AckWait       = TimeSpan.FromSeconds(1),
@@ -85,7 +84,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
         });
 
     public async ValueTask DisposeAsync()
-        => await js.DeleteConsumerAsync(streamId.GetNamespace()!, _consumerName);
+        => await js.DeleteConsumerAsync($"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}", _consumerName);
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {

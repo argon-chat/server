@@ -19,3 +19,5 @@ src/Argon.Api/localhost.pfx
 deploy/docker/vault_tokens/
 
 deploy/docker/argon_vault/
+
+src/Argon.Contracts/Properties/launchSettings.json
