@@ -20,7 +20,7 @@ public interface IUserPresenceService
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
 {
-    private readonly TimeSpan _ttl = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(30);
 
     private static string SessionKey(Guid userId, Guid sessionId)
         => $"presence:user:{userId}:session:{sessionId}";
@@ -42,7 +42,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     public Task HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
-        return cache.StringSetAsync(key, "1", _ttl, ct);
+        return cache.StringSetAsync(key, "1", DefaultTTL, ct);
     }
 
     public async Task<bool> IsUserOnlineAsync(Guid userId, CancellationToken ct = default)

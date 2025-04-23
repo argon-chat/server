@@ -3,13 +3,15 @@ namespace Argon.Grains;
 using Features.Logic;
 using Features.Rpc;
 using Orleans.Streams;
+using Services;
 using static DeactivationReasonCode;
 
 public class UserSessionGrain(
     IGrainFactory grainFactory, 
     IClusterClient clusterClient, 
     ILogger<IUserSessionGrain> logger,
-    IUserPresenceService presenceService)
+    IUserPresenceService presenceService,
+    IArgonCacheDatabase cache)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
     private Guid _userId;
@@ -19,6 +21,11 @@ public class UserSessionGrain(
 
     private IGrainTimer? refreshTimer;
 
+    private UserStatus?       _preferedStatus;
+    private IAsyncDisposable? _cacheSubscriber;
+
+    private DateTime? _lastHeartbeatTime;
+
     public async ValueTask SelfDestroy()
         => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
 
@@ -26,42 +33,76 @@ public class UserSessionGrain(
     {
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
-        var servers = await grainFactory
-           .GetGrain<IUserGrain>(_userId)
-           .GetMyServersIds();
-        foreach (var server in servers)
-            await grainFactory
-               .GetGrain<IServerGrain>(server)
-               .SetUserStatus(_userId, UserStatus.Offline);
-
+        await (_cacheSubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
         refreshTimer?.Dispose();
+        refreshTimer = null;
     }
 
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
     {
-        this._userId    = userId;
-        this._machineId = machineKey;
+        _userId    = userId;
+        _machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
+        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+
+        if (Environment.GetEnvironmentVariable("DISABLE_KEY_LISTENER") is null) 
+            _cacheSubscriber = await cache.SubscribeToExpired(OnKeyExpired);
     }
 
-    public async ValueTask HeartBeatAsync(UserStatus status)
+    private async Task OnKeyExpired(string key)
     {
-        await presenceService.HeartbeatAsync(_userId, _machineId);
-        await RefreshUserStatus(status);
+        if (key.StartsWith($"presence:user:{_userId}:session:")) return;
+
+        refreshTimer?.Dispose();
+        refreshTimer = null;
+
+        if (!await presenceService.IsUserOnlineAsync(_userId))
+        {
+            var servers = await grainFactory
+               .GetGrain<IUserGrain>(_userId)
+               .GetMyServersIds();
+            foreach (var server in servers)
+                await grainFactory
+                   .GetGrain<IServerGrain>(server)
+                   .SetUserStatus(_userId, UserStatus.Offline);
+        }
+
+        if (_lastHeartbeatTime is null)
+        {
+            logger.LogCritical($"ALERT, detected dead session, but lastHeartbeatTime not defined");
+            await this.SelfDestroy();
+            return;
+        }
+
+        if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
+        {
+            await this.SelfDestroy();
+            return;
+        }
+        logger.LogCritical($"ALERT, detected dead session, but lastHeartbeatTime less default TTL");
+        await this.SelfDestroy();
     }
 
-    private async Task RefreshUserStatus(UserStatus status)
+    private async Task UserSessionTickAsync(CancellationToken arg)
     {
+        this.DelayDeactivation(TimeSpan.FromMinutes(1));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
         foreach (var server in servers)
             await grainFactory
                .GetGrain<IServerGrain>(server)
-               .SetUserStatus(_userId, status);
-        this.DelayDeactivation(TimeSpan.FromMinutes(1));
+               .SetUserStatus(_userId, _preferedStatus ?? UserStatus.Online);
     }
+
+    public async ValueTask HeartBeatAsync(UserStatus status)
+    {
+        _lastHeartbeatTime = DateTime.UtcNow;
+        _preferedStatus    = status;
+        await presenceService.HeartbeatAsync(_userId, _machineId);
+    }
+
 
     public ValueTask EndRealtimeSession()
         => SelfDestroy();

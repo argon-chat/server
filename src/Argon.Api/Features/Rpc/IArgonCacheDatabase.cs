@@ -14,9 +14,12 @@ public interface IArgonCacheDatabase
     Task          KeyDeleteAsync(string key, CancellationToken ct = default);
     Task<bool>    KeyExistsAsync(string key, CancellationToken ct = default);
 
-    IAsyncEnumerable<string> ScanKeysAsync(string pattern);
-}
 
+    Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default);
+
+    IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default);
+}
+ 
 public class RedisArgonCacheDatabase(IConnectionMultiplexer multiplexer, IServer server) : IArgonCacheDatabase
 {
     public Task StringSetAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default)
@@ -34,11 +37,30 @@ public class RedisArgonCacheDatabase(IConnectionMultiplexer multiplexer, IServer
     public Task<bool> KeyExistsAsync(string key, CancellationToken ct = default)
         => multiplexer.GetDatabase().KeyExistsAsync(key).WaitAsync(ct);
 
-    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern)
+    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default)
     {
         foreach (var key in server.Keys(pattern: pattern))
             yield return key;
     }
+
+    public async Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
+    {
+        var k = new RedisChannel("__keyevent@0__:expired", RedisChannel.PatternMode.Auto);
+        var s = multiplexer.GetSubscriber();
+        var e = new CacheSubscriber(k, s);
+        var w = await s.SubscribeAsync(k);
+        w.OnMessage(async message => await onKeyExpired(message.Message.ToString()));
+        return e;
+    }
+}
+
+public class CacheSubscriber(RedisChannel channelKey, ISubscriber subscriber) : IDisposable, IAsyncDisposable
+{
+    public void Dispose()
+        => subscriber.Unsubscribe(channelKey);
+
+    public async ValueTask DisposeAsync()
+        => await subscriber.UnsubscribeAsync(channelKey);
 }
 
 public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgonCacheDatabase
@@ -75,7 +97,10 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         return !string.IsNullOrEmpty(r);
     }
 
-    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern)
+    public Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default)
     {
         var regex = PatternToRegex(pattern);
 
@@ -87,7 +112,7 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         }
     }
 
-    private static Regex PatternToRegex(string pattern)
+    private static Regex PatternToRegex(string pattern, CancellationToken ct = default)
     {
         // Redis wildcard to regex: "*" => ".*", "?" => ".", "[abc]" => "[abc]"
         var escaped = Regex.Escape(pattern)
