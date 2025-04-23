@@ -1,6 +1,7 @@
 namespace Argon.Features.Jwt;
 
 using System.IdentityModel.Tokens.Jwt;
+using System.IO.Hashing;
 using k8s.KubeConfigModels;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
@@ -18,6 +19,12 @@ public class PostConfigurator(IssuerSigningKeyResolver resolverKeysStore, IOptio
         options.TokenValidationParameters.IssuerSigningKeyResolver = resolverKeysStore;
         options.TokenValidationParameters.ValidAudience            = jwtOptions.Value.Audience;
         options.TokenValidationParameters.ValidIssuer              = jwtOptions.Value.Issuer;
+
+        options.TokenValidationParameters.ValidateIssuer           = true;
+        options.TokenValidationParameters.ValidateAudience         = true;
+        options.TokenValidationParameters.ValidateLifetime         = true;
+        options.TokenValidationParameters.RequireSignedTokens      = true;
+        options.TokenValidationParameters.ValidateIssuerSigningKey = true;
     }
 }
 
@@ -28,11 +35,17 @@ public static class JwtFeature
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
         builder.Services.AddScoped<IssuerSigningKeyResolver>(q => (_, _, _, _) =>
         {
-            var opt = q.GetRequiredService<IOptions<JwtOptions>>();
+            var opt    = q.GetRequiredService<IOptions<JwtOptions>>();
+            var logger = q.GetRequiredService<ILogger<IssuerSigningKeyResolver>>();
+            logger.LogCritical("LOADED '{key}' ", opt.Value.Key);
+
+            var keyBytes = Encoding.UTF8.GetBytes(opt.Value.Key);
             return
             [
-                new SymmetricSecurityKey(
-                    Encoding.UTF8.GetBytes(opt.Value.Key))
+                new SymmetricSecurityKey(keyBytes)
+                {
+                    KeyId = $"{Crc64.HashToUInt64(keyBytes):X}"
+                }
             ];
         });
 
