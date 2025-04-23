@@ -18,7 +18,16 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         logger.LogInformation("Begin create write stream for '{streamID}'", id);
 
         var stream = ActivatorUtilities.CreateInstance<NatsArgonWriteOnlyStream>(provider, id, client.CreateJetStreamContext());
-        await stream.EnsureCreatedStream();
+        
+        try
+        {
+            await stream.EnsureCreatedStream();
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to create write stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
+            throw;
+        }
         return stream;
     }
 
@@ -26,7 +35,15 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
     {
         logger.LogInformation("Begin create read stream for '{streamID}'", id);
         var stream = ActivatorUtilities.CreateInstance<NatsArgonReadOnlyStream>(provider, id, client.CreateJetStreamContext());
-        await stream.CreateSub();
+        try
+        {
+            await stream.CreateSub();
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to create read stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
+            throw;
+        }
         return stream;
     }
 }
