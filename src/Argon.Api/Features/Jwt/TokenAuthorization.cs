@@ -10,14 +10,18 @@ public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthoriz
         if (string.IsNullOrEmpty(token))
             return TokenValidationError.BAD_TOKEN;
 
-        logger.LogCritical($"AuthorizeByToken: {token}");
-
         await using var scope = provider.CreateAsyncScope();
 
-        var tokenValidation = scope.ServiceProvider.GetRequiredService<TokenValidationParameters>();
+        var tokenValidation = scope.ServiceProvider.GetRequiredKeyedService<TokenValidationParameters>("argon-validator");
         var tokenHandler    = new JwtSecurityTokenHandler();
+
         try
         {
+            var tokenData = tokenHandler.ReadJwtToken(token);
+            var existKid  = tokenValidation.IssuerSigningKeyResolver("", null, "", null).First().KeyId;
+
+            logger.LogCritical("AuthorizeByToken: {token}, with KID: {kid} !=? '{existKid}'", token, tokenData.Header.Kid, existKid);
+            
             var principal = tokenHandler.ValidateToken(token, tokenValidation, out var validatedToken);
 
             if (validatedToken is not JwtSecurityToken jwtToken ||

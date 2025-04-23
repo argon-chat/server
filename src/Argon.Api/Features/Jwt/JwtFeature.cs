@@ -46,7 +46,7 @@ public static class JwtFeature
             ];
         });
 
-        builder.Services.AddScoped<TokenValidationParameters>(q =>
+        builder.Services.AddKeyedScoped<TokenValidationParameters>("argon-validator", (q, _) =>
         {
             var jwtSection       = q.GetRequiredService<IOptions<JwtOptions>>();
             var resolverKeyStore = q.GetRequiredService<IssuerSigningKeyResolver>();
