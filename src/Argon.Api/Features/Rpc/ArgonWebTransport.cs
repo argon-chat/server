@@ -63,7 +63,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         else
         {
             logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-            var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(Guid.NewGuid());
+            var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(scope.GetSessionId());
             await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
             var stream = await clusterClient.Streams().CreateClientStream(user.id);
             await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
@@ -78,7 +78,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         {
             while (!ctx.ConnectionClosed.IsCancellationRequested)
             {
-                await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
+                var readResult = await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
             }
         }
         catch (WebSocketException e) when (ctx.WebSocket.CloseStatus == (WebSocketCloseStatus?)4999)

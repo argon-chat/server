@@ -33,6 +33,9 @@ public class ArgonTransportContext(
     public string GetHostName()
         => RpcContext.GetHostName();
 
+    public Guid GetSessionId()
+        => RpcContext.GetSessionId();
+
     public static ArgonTransportContext Current
         => localScope.Value ?? throw new InvalidOperationException($"No active transport context");
 

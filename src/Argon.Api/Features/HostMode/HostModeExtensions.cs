@@ -194,6 +194,7 @@ public static class HostModeExtensions
         builder.AddOtpCodes();
         builder.AddCaptchaFeature();
         builder.AddUserPresenceFeature();
+        builder.AddEventCollectorFeature(EventConfigurator.Configure);
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
         if (builder.IsHybridRole())
@@ -236,6 +237,7 @@ public static class RunHostModeExtensions
             app.MapArgonTransport();
         }
 
+        app.UseEventCollectorFeature();
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
@@ -260,7 +262,7 @@ public static class RunHostModeExtensions
                 app.UseSerilogRequestLogging();
             app.UseRewrites();
         }
-
+        app.UseEventCollectorFeature();
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });

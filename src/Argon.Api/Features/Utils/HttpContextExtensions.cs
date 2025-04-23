@@ -29,6 +29,13 @@ public static class HttpContextExtensions
             ? ctx.Request.Headers["X-Host-Name"].ToString()
             : string.Empty;
 
+    public static Guid GetSessionId(this HttpContext ctx)
+        => ctx.Request.Headers.ContainsKey("Sec-Ref")
+            ? (Guid.TryParse(ctx.Request.Headers["Sec-Ref"].ToString(), out var sid)
+                ? sid
+                : throw new InvalidOperationException("SessionId invalid"))
+            : throw new InvalidOperationException($"SessionId is not defined");
+
     public static Guid GetUserId(this HttpContext ctx)
     {
         var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);

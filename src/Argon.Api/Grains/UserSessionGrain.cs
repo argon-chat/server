@@ -48,6 +48,7 @@ public class UserSessionGrain(
 
         if (Environment.GetEnvironmentVariable("DISABLE_KEY_LISTENER") is null) 
             _cacheSubscriber = await cache.SubscribeToExpired(OnKeyExpired);
+        _lastHeartbeatTime = DateTime.UtcNow;
     }
 
     private async Task OnKeyExpired(string key)
