@@ -94,6 +94,18 @@ public class UserSessionGrain(
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, _preferedStatus ?? UserStatus.Online);
+
+        if (!await presenceService.IsUserOnlineAsync(_userId, arg))
+        {
+            foreach (var server in servers)
+                await grainFactory
+                   .GetGrain<IServerGrain>(server)
+                   .SetUserStatus(_userId, UserStatus.Offline);
+            refreshTimer?.Dispose();
+            refreshTimer = null;
+            await SelfDestroy();
+            return;
+        }
     }
 
     public async ValueTask HeartBeatAsync(UserStatus status)
