@@ -1,9 +1,9 @@
 namespace Argon.Services;
 
-public record TransportClientId(Ulid id, Guid userId, string hash)
+public record TransportClientId(Ulid id, Guid userId, string hash, Guid sessionId)
 {
     public override string ToString()
-        => $"{userId:N}.{id}.{hash}";
+        => $"{userId:N}.{id}.{hash}.{sessionId}";
 }
 
 public class TransportExchangeOptions
@@ -29,6 +29,6 @@ public enum ExchangeTokenError
 
 public interface ITransportExchange
 {
-    ValueTask<TransportClientId>  CreateExchangeKey(string token, Guid userId, Guid machineId);
+    ValueTask<TransportClientId>  CreateExchangeKey(string token, Guid userId, Guid machineId, Guid sessionId);
     ValueTask<Either<TransportClientId, ExchangeTokenError>> ExchangeToken(string token, HttpContext httpContext);
 }

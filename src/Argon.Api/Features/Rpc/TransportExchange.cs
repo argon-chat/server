@@ -3,13 +3,13 @@ namespace Argon.Services;
 public class TransportExchange(IOptions<TransportOptions> options, IArgonCacheDatabase db, IServiceProvider provider)
     : ITransportExchange
 {
-    public async ValueTask<TransportClientId> CreateExchangeKey(string token, Guid userId, Guid machineId)
+    public async ValueTask<TransportClientId> CreateExchangeKey(string token, Guid userId, Guid machineId, Guid sessionId)
     {
         var id = Ulid.NewUlid();
 
         await db.StringSetAsync(id.ToString(), token, TimeSpan.FromSeconds(60));
 
-        return new TransportClientId(id, userId, GenerateHash(id, userId));
+        return new TransportClientId(id, userId, GenerateHash(id, userId), sessionId);
     }
 
 
@@ -25,12 +25,12 @@ public class TransportExchange(IOptions<TransportOptions> options, IArgonCacheDa
     {
         var keys = token.Split('.');
 
-        if (keys.Length != 3)
+        if (keys.Length != 4)
             return ExchangeTokenError.BAD_KEY;
 
-        var (uid, id, hash) = (keys[0], keys[1], keys[2]);
+        var (uid, id, hash, sid) = (keys[0], keys[1], keys[2], keys[3]);
 
-        if (!Ulid.TryParse(id, out var tokenId) || !Guid.TryParse(uid, out var userId))
+        if (!Ulid.TryParse(id, out var tokenId) || !Guid.TryParse(uid, out var userId) || !Guid.TryParse(sid, out var sessionID))
             return ExchangeTokenError.BAD_KEY;
         if (!GenerateHash(tokenId, userId).Equals(hash))
             return ExchangeTokenError.INTEGRITY_FAILED;
@@ -40,6 +40,6 @@ public class TransportExchange(IOptions<TransportOptions> options, IArgonCacheDa
 
         await db.KeyDeleteAsync(tokenId.ToString());
 
-        return new TransportClientId(tokenId, userId, hash);
+        return new TransportClientId(tokenId, userId, hash, sessionID);
     }
 }

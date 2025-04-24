@@ -150,8 +150,8 @@ public static class RpcServiceCollectionExtensions
             });
             return;
         }
-
-        var aat = await exchanger.CreateExchangeKey(token.ToString(), result.Value.id, result.Value.machineId);
+        
+        var aat = await exchanger.CreateExchangeKey(token.ToString(), result.Value.id, result.Value.machineId, context.GetSessionId());
 
         context.Response.StatusCode = (int)HttpStatusCode.OK;
         context.Response.Headers.TryAdd("X-Wt-Upgrade", opt.Value.Upgrade);
