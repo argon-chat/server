@@ -95,7 +95,7 @@ public class ConsulMembership(
         {
             Name    = IArgonUnitMembership.ArgonServiceName,
             Address = entry.SiloAddress.Endpoint.Address.ToString(),
-            Port    = entry.ProxyPort,
+            Port    = entry.SiloAddress.Endpoint.Port,
             ID      = entry.SiloAddress.ToString(),
             Meta    = GenerateMeta(entry),
             Checks =
