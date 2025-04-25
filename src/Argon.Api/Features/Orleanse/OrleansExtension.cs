@@ -72,7 +72,7 @@ public static class OrleansExtension
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                    options.LivenessEnabled             = false; // TODO
+                    //options.LivenessEnabled             = false; // TODO
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
