@@ -13,7 +13,7 @@ public static class ConsulOrleans
     {
         builder.AddStartupTask(async (x, _) => 
             await x.GetRequiredService<ConsulMembership>()
-               .RegisterOnShutdownRules());
+               .RegisterOnShutdownRules(), ServiceLifecycleStage.Last);
         return builder.ConfigureServices(services =>
         {
             services.Configure<ConsulMembershipOptions>(builder.Configuration.GetSection("Orleans:Membership"));
@@ -27,7 +27,7 @@ public static class ConsulOrleans
         {
             var consulProvider = x.GetRequiredService<ConsulMembership>();
             await consulProvider.RegisterOnShutdownRules();
-        });
+        }, ServiceLifecycleStage.Last);
         return builder.ConfigureServices(services =>
         {
             services.Configure<ConsulMembershipOptions>(builder.Configuration.GetSection("Orleans:Membership"));
