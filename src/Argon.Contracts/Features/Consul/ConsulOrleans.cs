@@ -11,23 +11,20 @@ public static class ConsulOrleans
         => builder.ConfigureServices(services => services.AddSingleton<IGatewayListProvider, ConsulGatewayListProvider>());
     public static ISiloBuilder AddConsulClustering(this ISiloBuilder builder)
     {
-        builder.AddStartupTask(async (x, _) => 
-            await x.GetRequiredService<ConsulMembership>()
-               .RegisterOnShutdownRules(), ServiceLifecycleStage.Last);
+        builder.AddStartupTask(async (x, _) => await x.GetRequiredService<ConsulMembership>()
+           .RegisterOnShutdownRules(), ServiceLifecycleStage.First);
         return builder.ConfigureServices(services =>
         {
             services.Configure<ConsulMembershipOptions>(builder.Configuration.GetSection("Orleans:Membership"));
-            services.AddSingleton<IMembershipTable, ConsulMembership>();
+            services.AddSingleton<ConsulMembership>();
+            services.AddSingleton<IMembershipTable>(x => x.GetRequiredService<ConsulMembership>());
         });
     }
 
     public static ISiloBuilder AddConsulClustering(this ISiloBuilder builder, Action<ConsulMembershipOptions> cfg)
     {
-        builder.AddStartupTask(async (x, y) =>
-        {
-            var consulProvider = x.GetRequiredService<ConsulMembership>();
-            await consulProvider.RegisterOnShutdownRules();
-        }, ServiceLifecycleStage.Last);
+        builder.AddStartupTask(async (x, _) => await x.GetRequiredService<ConsulMembership>()
+           .RegisterOnShutdownRules(), ServiceLifecycleStage.First);
         return builder.ConfigureServices(services =>
         {
             services.Configure<ConsulMembershipOptions>(builder.Configuration.GetSection("Orleans:Membership"));
@@ -45,3 +42,4 @@ public static class ConsulOrleans
         return builder.AddGrainDirectory(name, (q, w) => q.GetRequiredService<ConsulDirectory>());
     }
 }
+
