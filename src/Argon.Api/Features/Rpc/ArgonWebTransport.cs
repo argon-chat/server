@@ -5,7 +5,7 @@ using System.Net.WebSockets;
 using Features.Rpc;
 using Microsoft.AspNetCore.Connections;
 
-public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTransport
+public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollector eventCollector) : IArgonWebTransport
 {
     public async Task HandleTransportRequest(HttpContext ctx, ArgonTransportFeaturePipe conn, ArgonTransportContext scope)
     {
@@ -90,11 +90,21 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
     private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx)
     {
         using var mem = MemoryPool<byte>.Shared.Rent(4096);
+        
         try
         {
             while (!ctx.ConnectionClosed.IsCancellationRequested)
             {
                 var readResult = await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
+                try
+                {
+                    var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
+                    await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
+                }
+                catch (Exception e)
+                {
+                    logger.LogInformation(e, "Failed write event from user");
+                }
             }
         }
         catch (WebSocketException e) when (ctx.WebSocket.CloseStatus == (WebSocketCloseStatus?)4999)
