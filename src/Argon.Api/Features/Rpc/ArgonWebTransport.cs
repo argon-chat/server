@@ -107,7 +107,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("Argon Transport reading closed, {ConnectionId}", ctx.ConnectionId);
+            logger.LogWarning("Argon Transport reading closed, {ConnectionId}", ctx.ConnectionId);
         } // its ok 
         catch (Exception e)
         {
@@ -133,6 +133,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
                     var result = ctx.WriteAsync(msg);
                     if (result.IsCompletedSuccessfully)
                         continue;
+                    logger.LogCritical("Package write '{eventType}' failed, not completed", evType.Name);
                     break;
                 }
                 catch (Exception e)
@@ -146,11 +147,11 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         }
         catch (WebSocketException e)
         {
-            logger.LogInformation("Argon Transport writer closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
+            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException e)
         {
-            logger.LogInformation("Argon Transport writer closed, {ConnectionId}", ctx.ConnectionId);
+            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}", ctx.ConnectionId);
         } // its ok 
         catch (Exception e)
         {
