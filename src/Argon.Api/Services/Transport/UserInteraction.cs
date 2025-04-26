@@ -60,6 +60,7 @@ public class UserInteraction : IUserInteraction
            .Register(input, connInfo);
     }
 
+    [AllowAnonymous]
     public Task<bool> BeginResetPassword(string email)
     {
         var clientName = this.GetClientName();
@@ -75,6 +76,7 @@ public class UserInteraction : IUserInteraction
            .BeginResetPass(email, connInfo);
     }
 
+    [AllowAnonymous]
     public async Task<Either<string, AuthorizationError>> ResetPassword(UserResetPassInput input)
     {
         var clientName = this.GetClientName();
