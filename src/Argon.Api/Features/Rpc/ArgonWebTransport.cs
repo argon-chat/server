@@ -48,26 +48,42 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
 
         if (ctx.Request.Query.TryGetValue("srv", out var srvId))
         {
-            if (!Guid.TryParse(srvId, out var serverId))
+            try
             {
-                logger.LogCritical("srv incorrect format");
-                conn.Abort(new ConnectionAbortedException("srv incorrect format"));
-                return;
+                if (!Guid.TryParse(srvId, out var serverId))
+                {
+                    logger.LogCritical("srv incorrect format");
+                    conn.Abort(new ConnectionAbortedException("srv incorrect format"));
+                    return;
+                }
+
+                logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
+                var stream = await clusterClient.Streams().CreateClientStream(serverId);
+
+                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
             }
-
-            logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
-            var stream = await clusterClient.Streams().CreateClientStream(serverId);
-
-            await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed execute server transport");
+                conn.Abort(new ConnectionAbortedException("Exception when activate server transport"));
+            }
         }
         else
         {
-            logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-            var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(scope.GetSessionId());
-            await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-            var stream = await clusterClient.Streams().CreateClientStream(user.id);
-            await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
-            await sessionGrain.EndRealtimeSession();
+            try
+            {
+                logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
+                var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(scope.GetSessionId());
+                await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
+                var stream = await clusterClient.Streams().CreateClientStream(user.id);
+                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
+                await sessionGrain.EndRealtimeSession();
+            }
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed execute transport for user");
+                conn.Abort(new ConnectionAbortedException("Exception when activate user transport"));
+            }
         }
     }
 

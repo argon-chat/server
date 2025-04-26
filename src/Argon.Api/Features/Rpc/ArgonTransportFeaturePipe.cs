@@ -61,7 +61,13 @@ public sealed class ArgonTransportFeaturePipe : IDisposable, IAsyncDisposable
     public void Abort(ConnectionAbortedException exception)
     {
         if (IsWebSocket)
-            _webSocket!.Abort();
+        {
+            _webSocket.CloseAsync(
+                WebSocketCloseStatus.InternalServerError,
+                exception.Message,
+                CancellationToken.None
+            ).Wait();
+        }
         else if (IsWebTransport)
             _webTransport!.Abort(exception);
         else throw new InvalidOperationException();

@@ -2,7 +2,6 @@ namespace Argon.Grains;
 
 using Features.Otp;
 using Orleans.Concurrency;
-using OtpNet;
 using Services;
 
 [StatelessWorker]
@@ -139,7 +138,7 @@ public class AuthorizationGrain(
             return true;
         }
         var otp = passwordHashingService.GenerateOtp(user.Id);
-        await cache.StringSetAsync($"otp_reset:{user.Id}", otp.Hashed);
+        await cache.StringSetAsync($"otp_reset:{user.Id}", otp.Hashed, TimeSpan.FromMinutes(3));
         await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
            .SendResetCodeAsync(email, otp.Code, TimeSpan.FromHours(1));
         return true;
