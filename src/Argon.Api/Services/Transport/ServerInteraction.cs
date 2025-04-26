@@ -14,7 +14,7 @@ public class ServerInteraction : IServerInteraction
            .GetGrain<IServerGrain>(serverId)
            .DeleteChannel(channelId, this.GetUser().id);
 
-    public Task<RealtimeServerMember> GetMembers(Guid serverId, Guid userId)
+    public Task<RealtimeServerMember> GetMember(Guid serverId, Guid userId)
         => this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
            .GetMember(userId);

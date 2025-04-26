@@ -15,7 +15,7 @@ public interface IServerInteraction : IArgonService
     Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset);
     Task                        SendMessage(Guid channelId, string text, List<MessageEntity> entities);
 
-    Task<List<RealtimeServerMember>> GetMembers(Guid serverId);
+    Task<List<RealtimeServerMember>> GetMember(Guid serverId);
     Task<RealtimeServerMember>       GetMembers(Guid serverId, Guid userId);
 
     Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId);
