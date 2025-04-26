@@ -18,7 +18,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         logger.LogInformation("Begin create write stream for '{streamID}'", id);
 
         var stream = ActivatorUtilities.CreateInstance<NatsArgonWriteOnlyStream>(provider, id, client.CreateJetStreamContext());
-        
+
         try
         {
             await stream.EnsureCreatedStream();
@@ -28,6 +28,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
             logger.LogCritical(e, "Failed to create write stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
+
         return stream;
     }
 
@@ -44,6 +45,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
             logger.LogCritical(e, "Failed to create read stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
+
         return stream;
     }
 }
@@ -63,12 +65,13 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
         => await js.CreateOrUpdateStreamAsync(new StreamConfig(streamId.ToNatsStreamName(), [])
         {
             DuplicateWindow = TimeSpan.Zero,
-            MaxAge          = TimeSpan.FromSeconds(30),
+            MaxAge          = TimeSpan.FromMinutes(1),
             AllowDirect     = true,
             MaxBytes        = int.MaxValue / 2,
-            Retention       = StreamConfigRetention.Interest,
+            Retention       = StreamConfigRetention.Limits,
             Storage         = StreamConfigStorage.File,
-            Discard         = StreamConfigDiscard.Old
+            Discard         = StreamConfigDiscard.Old,
+            AllowRollupHdrs = false,
         }, ct);
 
     public async ValueTask DisposeAsync()
@@ -93,9 +96,9 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
     public async Task CreateSub()
         => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.ToNatsStreamName(), new ConsumerConfig(_consumerName)
         {
-            AckPolicy     = ConsumerConfigAckPolicy.Explicit,
+            AckPolicy     = ConsumerConfigAckPolicy.None,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New,
-            AckWait       = TimeSpan.FromSeconds(1),
+            AckWait       = TimeSpan.Zero,
             MaxAckPending = 3,
             Direct        = false
         });
