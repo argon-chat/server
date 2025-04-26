@@ -40,11 +40,9 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
 
     public IArgonEvent Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
     {
-        // Считываем заголовок
         var    mapCount   = reader.ReadMapHeader();
         string eventKey   = null;
         var    properties = new Dictionary<string, object>();
-        // Проходим по всем полям карты
         for (var i = 0; i < mapCount; i++)
         {
             var key = reader.ReadString()!;
@@ -83,16 +81,14 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
         var parameters = constructor.GetParameters()
            .Select(param =>
             {
-                if (!properties.TryGetValue(param.Name!, out var value) || value == null)
-                {
-                    if (param.HasDefaultValue)
-                        return param.DefaultValue;
-                    if (IsNullable(param.ParameterType))
-                        return null;
-                    throw new InvalidOperationException($"Missing required parameter '{param.Name}' for constructor of '{type.Name}'.");
-                }
+                if (properties.TryGetValue(param.Name!, out var value) && value != null) 
+                    return ChangeType(value, param.ParameterType);
+                if (param.HasDefaultValue)
+                    return param.DefaultValue;
+                if (IsNullable(param.ParameterType))
+                    return null;
+                throw new InvalidOperationException($"Missing required parameter '{param.Name}' for constructor of '{type.Name}'.");
 
-                return ChangeType(value, param.ParameterType);
             })
            .ToArray();
 
