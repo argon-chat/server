@@ -9,9 +9,9 @@ public class AllowAnonymousAttribute : Attribute;
 [TsInterface]
 public interface IUserInteraction : IArgonService
 {
-    Task<User>         GetMe();
-    Task<Server>       CreateServer(CreateServerRequest request);
-    Task<List<Server>> GetServers();
+    Task<User>            GetMe();
+    Task<ServerDto>       CreateServer(CreateServerRequest request);
+    Task<List<ServerDto>> GetServers();
 
 
     [AllowAnonymous]
