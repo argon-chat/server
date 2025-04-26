@@ -51,7 +51,7 @@ public class UserSessionGrain(
         _machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
+        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromMinutes(3), TimeSpan.FromMinutes(3));
 
         _cacheSubscriber   = await cache.SubscribeToExpired(OnKeyExpired);
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -103,7 +103,7 @@ public class UserSessionGrain(
 
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
-        this.DelayDeactivation(TimeSpan.FromMinutes(1));
+        this.DelayDeactivation(TimeSpan.FromMinutes(5));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
@@ -128,8 +128,13 @@ public class UserSessionGrain(
     public async ValueTask HeartBeatAsync(UserStatus status)
     {
         _lastHeartbeatTime = DateTime.UtcNow;
-        _preferedStatus    = status;
         await presenceService.HeartbeatAsync(_userId, _machineId);
+
+        if (_preferedStatus != status)
+        {
+            _preferedStatus = status;
+            await UserSessionTickAsync(CancellationToken.None);
+        }
     }
 
 
