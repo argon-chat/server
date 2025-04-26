@@ -9,21 +9,21 @@ public class UserInteraction : IUserInteraction
         var userData = this.GetUser();
         return await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMe();
     }
-    public async Task<Server> CreateServer(CreateServerRequest request)
+    public async Task<ServerDto> CreateServer(CreateServerRequest request)
     {
         var userData = this.GetUser();
         var serverId = Guid.NewGuid();
         var server   = await this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
            .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarFileId), userData.id);
-        return server.Value;
+        return server.Value.ToDto();
     }
 
-    public async Task<List<Server>> GetServers()
+    public async Task<List<ServerDto>> GetServers()
     {
         var userData = this.GetUser();
         var servers  = await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMyServers();
-        return servers;
+        return servers.ToDto();
     }
 
     [AllowAnonymous]
