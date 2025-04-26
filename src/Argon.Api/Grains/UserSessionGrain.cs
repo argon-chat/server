@@ -5,6 +5,7 @@ using Features.Rpc;
 using Orleans.Streams;
 using Services;
 using static DeactivationReasonCode;
+using static LiveKit.Proto.RequestResponse.Types;
 
 public class UserSessionGrain(
     IGrainFactory grainFactory, 
@@ -40,15 +41,28 @@ public class UserSessionGrain(
 
     public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
     {
+        if (_userId != Guid.Empty && _machineId != Guid.Empty)
+        {
+            logger.LogWarning("Trying activate session, but session already active, {sessionId}, {userId}", this.GetPrimaryKey(), _userId);
+            return;
+        }
+
         _userId    = userId;
         _machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
 
-        if (Environment.GetEnvironmentVariable("DISABLE_KEY_LISTENER") is null) 
-            _cacheSubscriber = await cache.SubscribeToExpired(OnKeyExpired);
+        _cacheSubscriber   = await cache.SubscribeToExpired(OnKeyExpired);
         _lastHeartbeatTime = DateTime.UtcNow;
+        var servers = await grainFactory
+           .GetGrain<IUserGrain>(_userId)
+           .GetMyServersIds();
+        await presenceService.HeartbeatAsync(_userId, _machineId);
+        foreach (var server in servers)
+            await grainFactory
+               .GetGrain<IServerGrain>(server)
+               .SetUserStatus(_userId, _preferedStatus ?? UserStatus.Online);
     }
 
     private async Task OnKeyExpired(string key)
@@ -67,6 +81,8 @@ public class UserSessionGrain(
                 await grainFactory
                    .GetGrain<IServerGrain>(server)
                    .SetUserStatus(_userId, UserStatus.Offline);
+            await this.SelfDestroy();
+            return;
         }
 
         if (_lastHeartbeatTime is null)
