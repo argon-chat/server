@@ -29,6 +29,9 @@ public interface IServerGrain : IGrainWithGuidKey
     [Alias(nameof(GetMembers))]
     Task<List<RealtimeServerMember>> GetMembers();
 
+    [Alias(nameof(GetMember))]
+    Task<RealtimeServerMember> GetMember(Guid userId);
+
     [Alias(nameof(GetChannels))]
     Task<List<RealtimeChannel>> GetChannels();
 

@@ -14,6 +14,11 @@ public class ServerInteraction : IServerInteraction
            .GetGrain<IServerGrain>(serverId)
            .DeleteChannel(channelId, this.GetUser().id);
 
+    public Task<RealtimeServerMember> GetMembers(Guid serverId, Guid userId)
+        => this.GetGrainFactory()
+           .GetGrain<IServerGrain>(serverId)
+           .GetMember(userId);
+
     public async Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId)
     {
         var user = this.GetUser();

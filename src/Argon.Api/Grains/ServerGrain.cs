@@ -65,6 +65,26 @@ public class ServerGrain(
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
+    public async Task<RealtimeServerMember> GetMember(Guid userId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var x = await ctx
+           .UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(x => x.UserId == userId)
+           .Include(x => x.User)
+           .FirstAsync();
+
+        return new RealtimeServerMember
+        {
+            Member = x.ToDto(),
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 2 ? item.Status : UserStatus.Offline
+                : UserStatus.Offline
+        };
+    }
+
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();
