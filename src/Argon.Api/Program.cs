@@ -22,4 +22,7 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 
+var bytes = MessagePackSerializer.Serialize(new HeartBeatEvent(UserStatus.Online));
+
+var heatBeeat = MessagePackSerializer.Deserialize<IArgonEvent>(bytes);
 await app.WarmUp<ApplicationDbContext>().RunAsync();

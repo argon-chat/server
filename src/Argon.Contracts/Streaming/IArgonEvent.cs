@@ -44,7 +44,6 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
         var    mapCount   = reader.ReadMapHeader();
         string eventKey   = null;
         var    properties = new Dictionary<string, object>();
-
         // Проходим по всем полям карты
         for (var i = 0; i < mapCount; i++)
         {
@@ -68,7 +67,7 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
 
         foreach (var prop in eventType.GetProperties())
             if (properties.TryGetValue(prop.Name, out var value))
-                prop.SetValue(eventInstance, Convert.ChangeType(value, prop.PropertyType));
+                prop.SetValue(eventInstance, ChangeType(value, prop.PropertyType));
 
         return (IArgonEvent)eventInstance;
     }
@@ -82,10 +81,60 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
             throw new InvalidOperationException($"No suitable constructor found for type {type.Name}");
 
         var parameters = constructor.GetParameters()
-           .Select(param => properties.TryGetValue(param.Name!, out var property) ? property : null)
+           .Select(param =>
+            {
+                if (!properties.TryGetValue(param.Name!, out var value) || value == null)
+                {
+                    if (param.HasDefaultValue)
+                        return param.DefaultValue;
+                    if (IsNullable(param.ParameterType))
+                        return null;
+                    throw new InvalidOperationException($"Missing required parameter '{param.Name}' for constructor of '{type.Name}'.");
+                }
+
+                return ChangeType(value, param.ParameterType);
+            })
            .ToArray();
+
         return constructor.Invoke(parameters);
     }
+
+    private bool IsNullable(Type type)
+        => !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
+
+    private object? ChangeType(object? value, Type targetType)
+    {
+        if (value == null)
+            return null;
+
+        var underlyingType = Nullable.GetUnderlyingType(targetType) ?? targetType;
+
+        if (underlyingType.IsEnum)
+        {
+            if (value is string stringValue)
+                return Enum.Parse(underlyingType, stringValue, ignoreCase: true);
+
+            if (IsNumericType(value.GetType()))
+                return Enum.ToObject(underlyingType, value);
+
+            throw new InvalidCastException($"Cannot convert type '{value.GetType()}' to enum '{underlyingType}'.");
+        }
+
+        if (underlyingType == typeof(Guid))
+            return value is Guid g ? g : Guid.Parse(value.ToString()!);
+
+        if (underlyingType == typeof(DateTimeOffset))
+            return value is DateTimeOffset dto ? dto : DateTimeOffset.Parse(value.ToString()!);
+
+        return Convert.ChangeType(value, underlyingType);
+    }
+
+    private bool IsNumericType(Type type)
+        => type == typeof(byte)
+           || type == typeof(sbyte)
+           || type == typeof(short) || type == typeof(ushort)
+           || type == typeof(int) || type == typeof(uint)
+           || type == typeof(long) || type == typeof(ulong);
 
 
     private object ReadPropertyValue(ref MessagePackReader reader, MessagePackSerializerOptions options)
@@ -123,7 +172,10 @@ public class IArgonEvent_Resolver : IMessagePackFormatter<IArgonEvent>
             var types = assembly.GetTypes();
             foreach (var type in types)
             {
-                if (!type.IsGenericType || type.GetGenericTypeDefinition() != typeof(ArgonEvent<>)) 
+                if (type.BaseType is null) continue;
+                if (!type.BaseType.IsGenericType)
+                    continue;
+                if (type.BaseType.GetGenericTypeDefinition() != typeof(ArgonEvent<>))
                     continue;
                 var eventKeyValue = type.Name;
 
