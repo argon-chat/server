@@ -33,8 +33,10 @@ public class UserInteraction : IUserInteraction
         var ipAddress  = this.GetIpAddress();
         var region     = this.GetRegion();
         var hostName   = this.GetHostName();
+        var machineId  = this.TryGetMachineId();
 
-        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
+
+        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
 
         var result = await this.GetGrainFactory()
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
@@ -49,12 +51,43 @@ public class UserInteraction : IUserInteraction
         var ipAddress  = this.GetIpAddress();
         var region     = this.GetRegion();
         var hostName   = this.GetHostName();
+        var machineId  = this.TryGetMachineId();
 
-        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName);
+        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
 
         return await this.GetGrainFactory()
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .Register(input, connInfo);
+    }
+
+    public Task<bool> BeginResetPassword(string email)
+    {
+        var clientName = this.GetClientName();
+        var ipAddress  = this.GetIpAddress();
+        var region     = this.GetRegion();
+        var hostName   = this.GetHostName();
+        var machineId  = this.TryGetMachineId();
+
+        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
+
+        return this.GetGrainFactory()
+           .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
+           .BeginResetPass(email, connInfo);
+    }
+
+    public async Task<Either<string, AuthorizationError>> ResetPassword(UserResetPassInput input)
+    {
+        var clientName = this.GetClientName();
+        var ipAddress  = this.GetIpAddress();
+        var region     = this.GetRegion();
+        var hostName   = this.GetHostName();
+        var machineId  = this.TryGetMachineId();
+
+        var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
+
+        return await this.GetGrainFactory()
+           .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
+           .ResetPass(input, connInfo);
     }
 
     public async Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode)
