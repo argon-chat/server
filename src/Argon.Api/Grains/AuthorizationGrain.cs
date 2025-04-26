@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Features.Otp;
 using Orleans.Concurrency;
+using OtpNet;
 using Services;
 
 [StatelessWorker]
@@ -10,7 +11,8 @@ public class AuthorizationGrain(
     ILogger<AuthorizationGrain> logger,
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    IDbContextFactory<ApplicationDbContext> context) : Grain, IAuthorizationGrain
+    IDbContextFactory<ApplicationDbContext> context,
+    IArgonCacheDatabase cache) : Grain, IAuthorizationGrain
 {
     public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
@@ -55,7 +57,7 @@ public class AuthorizationGrain(
         user.OtpHash = null;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
-        return await GenerateJwt(user, Guid.NewGuid());
+        return await GenerateJwt(user, connectionInfo.machineId);
     }
 
     public async Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
@@ -124,6 +126,55 @@ public class AuthorizationGrain(
             return RegistrationError.INTERNAL_ERROR;
 
         return await GenerateJwt(user, Guid.NewGuid());
+    }
+
+    public async Task<bool> BeginResetPass(string email, UserConnectionInfo connectionInfo)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == email);
+        if (user is null)
+        {
+            logger.LogWarning("Email not registered '{email}' cannot be reset pass", email);
+            return true;
+        }
+        var otp = passwordHashingService.GenerateOtp(user.Id);
+        await cache.StringSetAsync($"otp_reset:{user.Id}", otp.Hashed);
+        await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
+           .SendResetCodeAsync(email, otp.Code, TimeSpan.FromHours(1));
+        return true;
+    }
+
+    public async Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData, UserConnectionInfo connectionInfo)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == resetData.Email);
+        if (user is null)
+        {
+            logger.LogWarning("Email not registered '{email}' cannot be reset pass", resetData.Email);
+            return AuthorizationError.BAD_OTP;
+        }
+        var hashed = await cache.StringGetAsync($"otp_reset:{user.Id}");
+
+        if (string.IsNullOrEmpty(hashed))
+            return AuthorizationError.BAD_OTP;
+
+        var otp = new OtpCode(resetData.otpCode);
+
+        if (!otp.Hashed.Equals(hashed))
+        {
+            logger.LogError("User '{email}' entered invalid otp code {otp} {optHash}", resetData.Email, resetData.otpCode, otp.Hashed);
+            return AuthorizationError.BAD_OTP;
+        }
+
+        await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
+           .SendNotificationResetPasswordAsync(resetData.Email);
+
+        user.PasswordDigest = passwordHashingService.HashPassword(resetData.newPassword);
+        ctx.Users.Update(user);
+        await ctx.SaveChangesAsync();
+        return await GenerateJwt(user, connectionInfo.machineId);
     }
 
     private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);

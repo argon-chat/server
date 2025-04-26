@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using System.Net;
 using System.Net.Mail;
+using Argon.Features.Otp;
 using Features.Template;
 using Orleans.Concurrency;
 
@@ -24,11 +25,12 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             IsBodyHtml = true
         });
 
+    [OneWay]
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
         if (!smtpOptions.Value.Enabled)
         {
-            logger.LogWarning($"[OTP CODE]: {email}, code: {otpCode}");
+            logger.LogWarning("[OTP CODE]: {Email}, code: {OtpCode}", email, otpCode);
             return;
         }
 
@@ -43,6 +45,45 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         });
 
         await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code", form)
+        {
+            IsBodyHtml = true
+        });
+    }
+
+    [OneWay]
+    public async Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[OTP RESET CODE]: {Email}, code: {OtpCode}", email, otpCode);
+            return;
+        }
+
+        var form = formStorage.Render("reset_pass", new Dictionary<string, string>
+        {
+            {
+                "reset_code", otpCode
+            }
+        });
+
+        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon reset password code", form)
+        {
+            IsBodyHtml = true
+        });
+    }
+
+    [OneWay]
+    public async Task SendNotificationResetPasswordAsync(string email)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
+            return;
+        }
+
+        var form = formStorage.Render("pass_changed",new Dictionary<string, string>());
+
+        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon password changed", form)
         {
             IsBodyHtml = true
         });

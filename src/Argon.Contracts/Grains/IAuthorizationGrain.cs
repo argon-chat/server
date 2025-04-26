@@ -11,4 +11,10 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
 
     [Alias("Register"), AlwaysInterleave]
     Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
+
+    [Alias("BeginResetPass"), AlwaysInterleave]
+    Task<bool> BeginResetPass(string email, UserConnectionInfo connectionInfo);
+
+    [Alias("ResetPass"), AlwaysInterleave]
+    Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData, UserConnectionInfo connectionInfo);
 }

@@ -20,6 +20,12 @@ public interface IUserInteraction : IArgonService
     [AllowAnonymous]
     Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input);
 
+    [AllowAnonymous]
+    Task<bool> BeginResetPassword(string email);
+
+    [AllowAnonymous]
+    Task<Either<string, AuthorizationError>> ResetPassword(UserResetPassInput input);
+
 
     Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode);
 }
