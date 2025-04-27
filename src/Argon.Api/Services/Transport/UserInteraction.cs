@@ -13,7 +13,7 @@ public class UserInteraction : IUserInteraction
     {
         var userData = this.GetUser();
         var serverId = Guid.NewGuid();
-        var server   = await this.GetGrainFactory()
+        var server = await this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
            .CreateServer(new ServerInput(request.Name, request.Description, request.AvatarFileId), userData.id);
         return server.Value.ToDto();
@@ -22,7 +22,7 @@ public class UserInteraction : IUserInteraction
     public async Task<List<ServerDto>> GetServers()
     {
         var userData = this.GetUser();
-        var servers  = await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMyServers();
+        var servers = await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMyServers();
         return servers.ToDto();
     }
 
@@ -30,10 +30,10 @@ public class UserInteraction : IUserInteraction
     public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input)
     {
         var clientName = this.GetClientName();
-        var ipAddress  = this.GetIpAddress();
-        var region     = this.GetRegion();
-        var hostName   = this.GetHostName();
-        var machineId  = this.TryGetMachineId();
+        var ipAddress = this.GetIpAddress();
+        var region = this.GetRegion();
+        var hostName = this.GetHostName();
+        var machineId = this.TryGetMachineId();
 
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
@@ -48,10 +48,10 @@ public class UserInteraction : IUserInteraction
     public async Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input)
     {
         var clientName = this.GetClientName();
-        var ipAddress  = this.GetIpAddress();
-        var region     = this.GetRegion();
-        var hostName   = this.GetHostName();
-        var machineId  = this.TryGetMachineId();
+        var ipAddress = this.GetIpAddress();
+        var region = this.GetRegion();
+        var hostName = this.GetHostName();
+        var machineId = this.TryGetMachineId();
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
 
@@ -64,10 +64,10 @@ public class UserInteraction : IUserInteraction
     public Task<bool> BeginResetPassword(string email)
     {
         var clientName = this.GetClientName();
-        var ipAddress  = this.GetIpAddress();
-        var region     = this.GetRegion();
-        var hostName   = this.GetHostName();
-        var machineId  = this.TryGetMachineId();
+        var ipAddress = this.GetIpAddress();
+        var region = this.GetRegion();
+        var hostName = this.GetHostName();
+        var machineId = this.TryGetMachineId();
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
 
@@ -80,10 +80,10 @@ public class UserInteraction : IUserInteraction
     public async Task<Either<string, AuthorizationError>> ResetPassword(UserResetPassInput input)
     {
         var clientName = this.GetClientName();
-        var ipAddress  = this.GetIpAddress();
-        var region     = this.GetRegion();
-        var hostName   = this.GetHostName();
-        var machineId  = this.TryGetMachineId();
+        var ipAddress = this.GetIpAddress();
+        var region = this.GetRegion();
+        var hostName = this.GetHostName();
+        var machineId = this.TryGetMachineId();
 
         var connInfo = new UserConnectionInfo(region, ipAddress, clientName, hostName, machineId);
 
@@ -95,12 +95,15 @@ public class UserInteraction : IUserInteraction
     public async Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode)
     {
         var userData = this.GetUser();
-        var invite   = this.GetGrainFactory().GetGrain<IInviteGrain>(inviteCode.inviteCode);
-        var result   = await invite.AcceptAsync(userData.id);
+        var invite = this.GetGrainFactory().GetGrain<IInviteGrain>(inviteCode.inviteCode);
+        var result = await invite.AcceptAsync(userData.id);
 
         if (result.Item2 != AcceptInviteError.NONE)
             return result.Item2;
 
         return await this.GetGrainFactory().GetGrain<IServerGrain>(result.Item1).GetServer();
-    }   
+    }
+
+    public async Task BroadcastPresenceAsync(UserActivityPresence presence)
+        => await this.GetGrainFactory().GetGrain<IUserSessionGrain>(this.GetSessionId()).BroadcastPresenceAsync(presence);
 }
