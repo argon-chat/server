@@ -14,5 +14,8 @@ public interface IUserSessionGrain : IGrainWithGuidKey
     [Alias(nameof(HeartBeatAsync))]
     ValueTask HeartBeatAsync(UserStatus status);
 
+    [Alias(nameof(BroadcastPresenceAsync))]
+    ValueTask BroadcastPresenceAsync(UserActivityPresence presence);
+
     public const string StorageId = "CacheStorage";
 }

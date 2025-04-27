@@ -26,6 +26,9 @@ public interface IServerGrain : IGrainWithGuidKey
     [Alias(nameof(SetUserStatus))]
     ValueTask SetUserStatus(Guid userId, UserStatus status);
 
+    [Alias(nameof(SetUserPresence))]
+    ValueTask SetUserPresence(Guid userId, UserActivityPresence presence);
+
     [Alias(nameof(GetMembers))]
     Task<List<RealtimeServerMember>> GetMembers();
 

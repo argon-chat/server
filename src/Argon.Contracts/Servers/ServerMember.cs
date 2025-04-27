@@ -10,7 +10,7 @@ public record ServerMember : ArgonEntityWithOwnership
     public Guid ServerId { get; set; }
     public Guid UserId   { get; set; }
 
-    public virtual User   User   { get; set; }
+    public virtual User User { get; set; }
     [IgnoreMember, TsIgnore]
     public virtual Server Server { get; set; }
 
@@ -25,7 +25,8 @@ public record ServerMemberDto(Guid UserId, Guid ServerId, long JoinedAt, Guid Me
 
 public static class ServerMemberExtensions
 {
-    public static ServerMemberDto ToDto(this ServerMember msg) => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimestamp(), msg.Id, msg.User?.ToDto());
+    public static ServerMemberDto ToDto(this ServerMember msg)
+        => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimestamp(), msg.Id, msg.User?.ToDto());
 
     public static List<ServerMemberDto> ToDto(this List<ServerMember> msg) => msg.Select(x => x.ToDto()).ToList();
 
@@ -36,6 +37,7 @@ public static class ServerMemberExtensions
 [TsInterface, MessagePackObject(true)]
 public record RealtimeServerMember
 {
-    public ServerMemberDto Member { get; set; }
-    public UserStatus   Status { get; set; }
+    public ServerMemberDto       Member   { get; set; }
+    public UserStatus            Status   { get; set; }
+    public UserActivityPresence? Presence { get; set; }
 }

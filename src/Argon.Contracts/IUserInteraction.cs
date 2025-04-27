@@ -28,4 +28,7 @@ public interface IUserInteraction : IArgonService
 
 
     Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode);
+
+
+    Task BroadcastPresenceAsync(UserActivityPresence presence);
 }
