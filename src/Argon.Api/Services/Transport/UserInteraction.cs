@@ -106,8 +106,14 @@ public class UserInteraction : IUserInteraction
     }
 
     public async Task BroadcastPresenceAsync(UserActivityPresence presence)
-        => await this.GetGrainFactory().GetGrain<IUserSessionGrain>(this.GetSessionId()).BroadcastPresenceAsync(presence);
+    {
+        var userData = this.GetUser();
+        await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).BroadcastPresenceAsync(presence);
+    }
 
     public async Task RemoveBroadcastPresenceAsync()
-        => await this.GetGrainFactory().GetGrain<IUserSessionGrain>(this.GetSessionId()).RemoveBroadcastPresenceAsync();
+    {
+        var userData = this.GetUser();
+        await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).RemoveBroadcastPresenceAsync();
+    }
 }

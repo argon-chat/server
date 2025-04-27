@@ -1,12 +1,15 @@
 namespace Argon.Grains;
 
+using Features.Logic;
+using Orleans;
 using Orleans.Concurrency;
 using Services;
 
 [StatelessWorker]
 public class UserGrain(
     IPasswordHashingService passwordHashingService,
-    IDbContextFactory<ApplicationDbContext> context) : Grain, IUserGrain
+    IDbContextFactory<ApplicationDbContext> context,
+    IUserPresenceService presenceService) : Grain, IUserGrain
 {
     public async Task<User> UpdateUser(UserEditInput input)
     {
@@ -71,4 +74,26 @@ public class UserGrain(
            .Select(x => x.ServerId)
            .ToListAsync();
     }
+
+    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence)
+    {
+        await presenceService.BroadcastActivityPresence(presence, this.GetPrimaryKey(), Guid.Empty);
+        var servers = await GetMyServersIds();
+        foreach (var server in servers)
+            await GrainFactory
+               .GetGrain<IServerGrain>(server)
+               .SetUserPresence(this.GetPrimaryKey(), presence);
+    }
+
+    public async ValueTask RemoveBroadcastPresenceAsync()
+    {
+        await presenceService.RemoveActivityPresence(this.GetPrimaryKey());
+
+        var servers = await GetMyServersIds();
+        foreach (var server in servers)
+            await GrainFactory
+               .GetGrain<IServerGrain>(server)
+               .RemoveUserPresence(this.GetPrimaryKey());
+    }
+
 }

@@ -16,4 +16,10 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetMyServersIds))]
     Task<List<Guid>> GetMyServersIds();
+
+    [Alias(nameof(BroadcastPresenceAsync))]
+    ValueTask BroadcastPresenceAsync(UserActivityPresence presence);
+
+    [Alias(nameof(RemoveBroadcastPresenceAsync))]
+    ValueTask RemoveBroadcastPresenceAsync();
 }
