@@ -1,9 +1,11 @@
 namespace Argon.Grains;
 
 using Argon.Features.Rpc;
+using Features.Logic;
 using Features.Repositories;
 using Orleans.GrainDirectory;
 using Persistence.States;
+using Services;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
@@ -11,7 +13,8 @@ public class ServerGrain(
     IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
-    IServerRepository serverRepository) : Grain, IServerGrain
+    IServerRepository serverRepository,
+    IUserPresenceService userPresence) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
@@ -76,14 +79,19 @@ public class ServerGrain(
            .Include(x => x.User)
            .FirstAsync();
 
+
         return new RealtimeServerMember
         {
             Member = x.ToDto(),
             Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
                 ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 2 ? item.Status : UserStatus.Offline
-                : UserStatus.Offline
+                : UserStatus.Offline,
+            Presence = await userPresence.GetUsersActivityPresence(x.UserId)
         };
     }
+
+    public async ValueTask SetUserPresence(Guid userId, UserActivityPresence presence)
+        => await _serverEvents.Fire(new OnUserPresenceActivityChanged(userId, presence));
 
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
@@ -95,12 +103,15 @@ public class ServerGrain(
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
+        var activities = await userPresence.BatchGetUsersActivityPresence(members.Select(x => x.UserId).ToList());
+
         return members.Select(x => new RealtimeServerMember
         {
             Member = x.ToDto(),
             Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
                 ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 10 ? item.Status : UserStatus.Offline
-                : UserStatus.Offline
+                : UserStatus.Offline,
+            Presence = activities.TryGetValue(x.UserId, out var presence) ? presence : null
         }).ToList();
     }
 

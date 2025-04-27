@@ -137,6 +137,18 @@ public class UserSessionGrain(
         }
     }
 
+    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence)
+    {
+        await presenceService.BroadcastActivityPresence(presence, _userId, this.GetPrimaryKey());
+        var servers = await grainFactory
+           .GetGrain<IUserGrain>(_userId)
+           .GetMyServersIds();
+        foreach (var server in servers)
+            await grainFactory
+               .GetGrain<IServerGrain>(server)
+               .SetUserPresence(_userId, presence);
+    }
+
 
     public ValueTask EndRealtimeSession()
         => SelfDestroy();

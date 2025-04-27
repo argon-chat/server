@@ -26,6 +26,8 @@ public static class ArgonRpcExtensions
         => ArgonTransportContext.Current.GetRegion();
     public static Guid GetMachineId(this IArgonService argonService)
         => ArgonTransportContext.Current.GetMachineId();
+    public static Guid GetSessionId(this IArgonService argonService)
+        => ArgonTransportContext.Current.GetSessionId();
 
 
     public static Guid TryGetMachineId(this IArgonService argonService)
