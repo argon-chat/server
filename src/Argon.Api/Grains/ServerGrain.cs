@@ -93,6 +93,9 @@ public class ServerGrain(
     public async ValueTask SetUserPresence(Guid userId, UserActivityPresence presence)
         => await _serverEvents.Fire(new OnUserPresenceActivityChanged(userId, presence));
 
+    public async ValueTask RemoveUserPresence(Guid userId)
+        => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
+
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();

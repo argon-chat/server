@@ -23,6 +23,7 @@ public interface IUserPresenceService
 
     Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds);
     Task<UserActivityPresence?>                  GetUsersActivityPresence(Guid userId);
+    Task                                         RemoveActivityPresence(Guid userId);
 }
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
@@ -99,4 +100,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var presence = await cache.StringGetAsync(SessionPresenceKeyPrefix(userId));
         return string.IsNullOrEmpty(presence) ? null : JsonConvert.DeserializeObject<UserActivityPresence>(presence);
     }
+
+    public Task RemoveActivityPresence(Guid userId)
+        => cache.KeyDeleteAsync(SessionPresenceKeyPrefix(userId));
 }

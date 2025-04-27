@@ -31,4 +31,5 @@ public interface IUserInteraction : IArgonService
 
 
     Task BroadcastPresenceAsync(UserActivityPresence presence);
+    Task RemoveBroadcastPresenceAsync();
 }
