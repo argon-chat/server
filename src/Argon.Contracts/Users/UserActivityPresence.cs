@@ -11,5 +11,6 @@ public enum ActivityPresenceKind
 {
     GAME,
     SOFTWARE,
-    STREAMING
+    STREAMING,
+    LISTEN
 }
