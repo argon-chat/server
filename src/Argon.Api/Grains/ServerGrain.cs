@@ -107,16 +107,15 @@ public class ServerGrain(
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
-        var ids = members.Select(x => x.UserId).ToList();
-        var (activities, onlines) = await (
-            userPresence.BatchGetUsersActivityPresence(ids),
-            userPresence.AreUsersOnlineAsync(ids))
-           .WhenAll();
+        var ids        = members.Select(x => x.UserId).ToList();
+        var activities = await userPresence.BatchGetUsersActivityPresence(ids);
 
         return members.Select(x => new RealtimeServerMember
         {
             Member   = x.ToDto(),
-            Status   = onlines.TryGetValue(x.UserId, out var isOnline) ? (isOnline ? UserStatus.Online : UserStatus.Offline) : UserStatus.Offline,
+            Status   = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 15 ? item.Status : UserStatus.Offline
+                : UserStatus.Offline,
             Presence = activities.TryGetValue(x.UserId, out var presence) ? presence : null
         }).ToList();
     }
