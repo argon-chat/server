@@ -51,7 +51,7 @@ public class UserSessionGrain(
         _machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
+        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
         _cacheSubscriber   = await cache.SubscribeToExpired(OnKeyExpired);
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -106,7 +106,7 @@ public class UserSessionGrain(
 
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
-        this.DelayDeactivation(TimeSpan.FromMinutes(5));
+        this.DelayDeactivation(TimeSpan.FromMinutes(2));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
