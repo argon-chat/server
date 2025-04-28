@@ -101,7 +101,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     }
 
     public async Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId)
-        => await cache.StringSetAsync(SessionPresenceKey(userId), JsonConvert.SerializeObject(presence));
+        => await cache.StringSetAsync(SessionPresenceKey(userId), JsonConvert.SerializeObject(presence), TimeSpan.FromMinutes(10));
 
     public async Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds)
     {
