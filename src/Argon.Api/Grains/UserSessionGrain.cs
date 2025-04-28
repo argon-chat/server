@@ -51,7 +51,7 @@ public class UserSessionGrain(
         _machineId = machineKey;
 
         userStream = await this.Streams().CreateServerStreamFor(_userId);
-        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromMinutes(3), TimeSpan.FromMinutes(3));
+        refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 
         _cacheSubscriber   = await cache.SubscribeToExpired(OnKeyExpired);
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -81,6 +81,9 @@ public class UserSessionGrain(
                 await grainFactory
                    .GetGrain<IServerGrain>(server)
                    .SetUserStatus(_userId, UserStatus.Offline);
+            await grainFactory
+               .GetGrain<IUserGrain>(_userId)
+               .RemoveBroadcastPresenceAsync();
             await this.SelfDestroy();
             return;
         }

@@ -1,12 +1,8 @@
 namespace Argon.Features.Jwt;
 
-using System.IdentityModel.Tokens.Jwt;
 using System.IO.Hashing;
-using k8s.KubeConfigModels;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.IdentityModel.JsonWebTokens;
-using Microsoft.IdentityModel.Logging;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
@@ -77,6 +73,8 @@ public static class JwtFeature
                 options.DefaultChallengeScheme    = JwtBearerDefaults.AuthenticationScheme;
             })
            .AddJwtBearer(JwtBearerDefaults.AuthenticationScheme);
+        builder.Services.AddSingleton<IPostConfigureOptions<JwtBearerOptions>, PostConfigurator>();
+        builder.Services.AddSingleton<PostConfigurator>();
 
         return builder.Services;
     }
