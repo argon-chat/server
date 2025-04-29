@@ -163,7 +163,7 @@ public class AuthorizationGrain(
 
         if (!otp.Hashed.Equals(hashed))
         {
-            logger.LogError("User '{email}' entered invalid otp code {otp} {optHash}", resetData.Email, resetData.otpCode, otp.Hashed);
+            logger.LogError("User '{email}' entered invalid otp code {otp} != {enteredOtp} ({optHash})", resetData.Email, otp.Code, resetData.otpCode, otp.Hashed);
             return AuthorizationError.BAD_OTP;
         }
 
