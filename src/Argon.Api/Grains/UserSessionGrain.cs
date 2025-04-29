@@ -67,6 +67,7 @@ public class UserSessionGrain(
 
     private async Task OnKeyExpired(string key)
     {
+        logger.LogCritical("OnKeyExpired, {key}", key);
         if (key.StartsWith($"presence:user:{_userId}:session:")) return;
 
         refreshTimer?.Dispose();

@@ -56,10 +56,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     }
 
     public Task HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
-    {
-        var key = SessionKey(userId, sessionId);
-        return cache.StringSetAsync(key, "1", DefaultTTL, ct);
-    }
+        => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
 
     public async Task<bool> IsUserOnlineAsync(Guid userId, CancellationToken ct = default)
     {
