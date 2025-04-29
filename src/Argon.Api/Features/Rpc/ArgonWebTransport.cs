@@ -72,8 +72,13 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
         {
             try
             {
-                logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-                var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(scope.GetSessionId());
+                var sessionId = scope.GetSessionId();
+                logger.LogInformation("Web Transport handled user stream, {serverId}, sessionId: {sessionId}", user.id, sessionId);
+
+                if (sessionId == Guid.Empty)
+                    throw new Exception($"No session id defined in argon transport");
+
+                var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
                 await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
                 var stream = await clusterClient.Streams().CreateClientStream(user.id);
                 await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
