@@ -130,8 +130,14 @@ public class UserSessionGrain(
 
     public async ValueTask HeartBeatAsync(UserStatus status)
     {
+        if (_userId == Guid.Empty)
+        {
+            logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
+            return;
+        }
+
         _lastHeartbeatTime = DateTime.UtcNow;
-        await presenceService.HeartbeatAsync(_userId, _machineId);
+        await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
 
         if (_preferedStatus != status)
         {
