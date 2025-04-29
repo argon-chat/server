@@ -72,6 +72,9 @@ public static class OrleansExtension
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
+                    options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
+                    options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
+                    options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
                     //options.LivenessEnabled             = false; // TODO
                 })
                .Configure<GrainCollectionOptions>(options =>
