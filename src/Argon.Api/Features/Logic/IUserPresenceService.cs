@@ -29,7 +29,7 @@ public interface IUserPresenceService
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
 {
-    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(30);
+    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(60);
 
     private static string SessionKey(Guid userId, Guid sessionId)
         => $"presence:user:{userId}:session:{sessionId}";
