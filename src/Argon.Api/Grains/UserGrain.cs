@@ -9,7 +9,8 @@ using Services;
 public class UserGrain(
     IPasswordHashingService passwordHashingService,
     IDbContextFactory<ApplicationDbContext> context,
-    IUserPresenceService presenceService) : Grain, IUserGrain
+    IUserPresenceService presenceService,
+    ILogger<IUserGrain> logger) : Grain, IUserGrain
 {
     public async Task<User> UpdateUser(UserEditInput input)
     {
@@ -87,6 +88,7 @@ public class UserGrain(
 
     public async ValueTask RemoveBroadcastPresenceAsync()
     {
+        logger.LogInformation("Called remove broadcast presence for {userId}", this.GetPrimaryKey());
         await presenceService.RemoveActivityPresence(this.GetPrimaryKey());
 
         var servers = await GetMyServersIds();

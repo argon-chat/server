@@ -67,14 +67,18 @@ public class UserSessionGrain(
 
     private async Task OnKeyExpired(string key)
     {
-        logger.LogCritical("OnKeyExpired, {key}", key);
-        if (key.StartsWith($"presence:user:{_userId}:session:")) return;
+        if (!key.StartsWith($"presence:user:{_userId}:session:"))
+            return;
+        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId, this.GetPrimaryKey());
 
         refreshTimer?.Dispose();
         refreshTimer = null;
 
+        logger.LogInformation("Destroyed timer for session: {sessionId}, userId: {userId}", this.GetPrimaryKey(), _userId);
+
         if (!await presenceService.IsUserOnlineAsync(_userId))
         {
+            logger.LogInformation("This is last user session, become totally offline");
             var servers = await grainFactory
                .GetGrain<IUserGrain>(_userId)
                .GetMyServersIds();
@@ -85,9 +89,13 @@ public class UserSessionGrain(
             await grainFactory
                .GetGrain<IUserGrain>(_userId)
                .RemoveBroadcastPresenceAsync();
+            logger.LogInformation("All necessary steps completed, self destroy called soon");
             await this.SelfDestroy();
             return;
         }
+
+        logger.LogInformation("This is not last user session, skip offline broadcast, destroy session...");
+
 
         if (_lastHeartbeatTime is null)
         {
@@ -98,6 +106,7 @@ public class UserSessionGrain(
 
         if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
         {
+            logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true", _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
             await this.SelfDestroy();
             return;
         }
