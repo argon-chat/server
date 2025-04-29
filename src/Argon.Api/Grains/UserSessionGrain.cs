@@ -58,7 +58,7 @@ public class UserSessionGrain(
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
-        await presenceService.HeartbeatAsync(_userId, _machineId);
+        await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         foreach (var server in servers)
             await grainFactory
                .GetGrain<IServerGrain>(server)
