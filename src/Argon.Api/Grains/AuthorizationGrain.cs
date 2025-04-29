@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Features.Otp;
+using Org.BouncyCastle.Ocsp;
 using Orleans.Concurrency;
 using Services;
 
@@ -138,6 +139,7 @@ public class AuthorizationGrain(
             return true;
         }
         var otp = passwordHashingService.GenerateOtp(user.Id);
+        logger.LogError("User '{email}' generated otp code {otp} ({optHash})", email, otp.Code, otp.Hashed);
         await cache.StringSetAsync($"otp_reset:{user.Id}", otp.Hashed, TimeSpan.FromMinutes(3));
         await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
            .SendResetCodeAsync(email, otp.Code, TimeSpan.FromHours(1));
@@ -163,7 +165,7 @@ public class AuthorizationGrain(
 
         if (!otp.Hashed.Equals(hashed))
         {
-            logger.LogError("User '{email}' entered invalid otp code {otp} != {enteredOtp} ({optHash})", resetData.Email, otp.Code, resetData.otpCode, otp.Hashed);
+            logger.LogError("User '{email}' entered invalid otp code {otp} enterHash: ({optHash}) != sysHash: ({hashed})", resetData.Email, otp.Code, otp.Hashed, hashed);
             return AuthorizationError.BAD_OTP;
         }
 
