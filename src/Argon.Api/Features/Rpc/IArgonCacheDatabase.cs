@@ -173,29 +173,23 @@ public static class ArgonCacheDatabaseFeature
 }
 
 public readonly record struct OnRedisKeyExpired(string key);
-public class RedisEventHandler(IRedisPoolConnections pool, IAsyncPublisher<OnRedisKeyExpired> publisher) : IHostedService, IDisposable, IAsyncDisposable
+public class RedisEventHandler(IRedisPoolConnections pool, IAsyncPublisher<OnRedisKeyExpired> publisher, IHostApplicationLifetime hostedLifecycle, ILogger<RedisEventHandler> logger) : IHostedService
 {
-    private CacheSubscriber? _cacheSubscriber;
-
-#pragma warning disable CA1816 // idiotic hint GC.SuppressFinalize, but it's not necessary here
-    public async ValueTask DisposeAsync()
-    {
-        if (_cacheSubscriber != null) await _cacheSubscriber.DisposeAsync();
-    }
-
-    public void Dispose()
-        => _cacheSubscriber?.Dispose();
-#pragma warning restore CA1816
-
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var scope = pool.Rent();
 
         var k = new RedisChannel("__keyevent@0__:expired", RedisChannel.PatternMode.Auto);
         var s = scope.GetMultiplexer().GetSubscriber();
-        _cacheSubscriber = new CacheSubscriber(k, s, scope);
+        var c = new CacheSubscriber(k, s, scope);
         var w = await s.SubscribeAsync(k);
-        w.OnMessage(async message => await publisher.PublishAsync(new OnRedisKeyExpired(message.Message.ToString()), cancellationToken));
+        logger.LogInformation("Registered event handler subscription for '__keyevent@0__:expired'");
+        w.OnMessage(async message =>
+        {
+            logger.LogInformation("Key expired: {key}", message.Message.ToString());
+            await publisher.PublishAsync(new OnRedisKeyExpired(message.Message.ToString()), cancellationToken);
+        });
+        hostedLifecycle.ApplicationStopping.Register(() => c.Dispose());
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
