@@ -11,6 +11,7 @@ using StackExchange.Redis;
 public interface IArgonCacheDatabase
 {
     Task          StringSetAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default);
+    Task          UpdateStringExpirationAsync(string key, TimeSpan expiration, CancellationToken ct = default);
     Task          StringSetAsync(string key, string value, CancellationToken ct = default);
     Task<string?> StringGetAsync(string key, CancellationToken ct = default);
     Task          KeyDeleteAsync(string key, CancellationToken ct = default);
@@ -29,6 +30,12 @@ public class RedisArgonCacheDatabase(IRedisPoolConnections pool) : IArgonCacheDa
         using var scope = pool.Rent();
 
         return scope.GetDatabase().StringSetAsync(key, value, expiration).WaitAsync(ct);
+    }
+
+    public Task UpdateStringExpirationAsync(string key, TimeSpan expiration, CancellationToken ct = default)
+    {
+        using var scope = pool.Rent();
+        return scope.GetDatabase().KeyExpireAsync(key, expiration).WaitAsync(ct);
     }
 
     public Task StringSetAsync(string key, string value, CancellationToken ct = default)

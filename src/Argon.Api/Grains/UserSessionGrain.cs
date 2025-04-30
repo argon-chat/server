@@ -22,10 +22,11 @@ public class UserSessionGrain(
 
     private IGrainTimer? refreshTimer;
 
-    private UserStatus?       _preferedStatus;
+    private UserStatus?       _preferredStatus;
     private IAsyncDisposable? _cacheSubscriber;
 
     private DateTime? _lastHeartbeatTime;
+    private DateTime? _lastDebouncedHeartbeatTime;
 
     public async ValueTask SelfDestroy()
         => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
@@ -58,11 +59,11 @@ public class UserSessionGrain(
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
-        await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
+        await presenceService.SetSessionOnlineAsync(_userId, this.GetPrimaryKey());
         foreach (var server in servers)
             await grainFactory
                .GetGrain<IServerGrain>(server)
-               .SetUserStatus(_userId, _preferedStatus ?? UserStatus.Online);
+               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
     }
 
     private async Task OnKeyExpired(string key)
@@ -123,7 +124,7 @@ public class UserSessionGrain(
         foreach (var server in servers)
             await grainFactory
                .GetGrain<IServerGrain>(server)
-               .SetUserStatus(_userId, _preferedStatus ?? UserStatus.Online);
+               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
 
         if (!await presenceService.IsUserOnlineAsync(_userId, arg))
         {
@@ -145,14 +146,19 @@ public class UserSessionGrain(
             logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
             throw new DropConnectionException($"Trying set heartbeat with not active session");
         }
-
+        
         _lastHeartbeatTime = DateTime.UtcNow;
-        await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
-
-        if (_preferedStatus != status)
+        if (DateTime.UtcNow - (_lastDebouncedHeartbeatTime ?? new DateTime()) > TimeSpan.FromSeconds(30))
         {
-            _preferedStatus = status;
+            _lastDebouncedHeartbeatTime = DateTime.UtcNow;
+            await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
+        }
+
+        if (_preferredStatus != status)
+        {
+            _preferredStatus = status;
             await UserSessionTickAsync(CancellationToken.None);
+            await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
     }
 

@@ -17,8 +17,8 @@ public interface IUserPresenceService
     Task                         HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
     Task<bool>                   IsUserOnlineAsync(Guid userId, CancellationToken ct = default);
     Task<Dictionary<Guid, bool>> AreUsersOnlineAsync(IEnumerable<Guid> userIds, CancellationToken ct = default);
-
-    Task<List<Guid>> GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
+    Task                         SetSessionOnlineAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
+    Task<List<Guid>>             GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
 
     Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId);
 
@@ -29,7 +29,7 @@ public interface IUserPresenceService
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
 {
-    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(120);
 
     private static string SessionKey(Guid userId, Guid sessionId)
         => $"presence:user:{userId}:session:{sessionId}";
@@ -43,10 +43,19 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string SessionPresenceKeyPrefix(Guid userId)
         => $"activity:user:{userId}:session:broadcast";
 
+    public Task SetSessionOnlineAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+        => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
+
     public Task SetSessionOnlineAsync(Guid userId, Guid sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
         return cache.StringSetAsync(key, "1", ttl, ct);
+    }
+
+    private Task UpdateSessionAsync(Guid userId, Guid sessionId, TimeSpan ttl, CancellationToken ct = default)
+    {
+        var key = SessionKey(userId, sessionId);
+        return cache.UpdateStringExpirationAsync(key, ttl, ct);
     }
 
     public Task RemoveSessionAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
@@ -56,7 +65,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     }
 
     public Task HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
-        => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
+        => UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
 
     public async Task<bool> IsUserOnlineAsync(Guid userId, CancellationToken ct = default)
     {
