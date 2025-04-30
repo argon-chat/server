@@ -113,13 +113,7 @@ public static class OrleansExtension
     public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
     {
         foreach (var key in keys)
-        {
-            builder.AddAdoNetGrainStorage(key, x =>
-            {
-                x.Invariant        = invariant;
-                x.ConnectionString = builder.Configuration.GetConnectionString(connString);
-            });
-        }
+            builder.AddRedisStorage(key, 0);
 
         return builder;
     }
