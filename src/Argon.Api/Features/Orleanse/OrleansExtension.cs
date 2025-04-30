@@ -10,6 +10,8 @@ using NatsStreaming;
 using Orleans.Configuration;
 using Sentry;
 using Services;
+using Orleans.Hosting;
+using Orleans.Serialization;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -76,6 +78,10 @@ public static class OrleansExtension
                     options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
                     options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
                     //options.LivenessEnabled             = false; // TODO
+                })
+               .Configure<ExceptionSerializationOptions>(x =>
+                {
+                    x.SupportedNamespacePrefixes.Add("Argon");
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {

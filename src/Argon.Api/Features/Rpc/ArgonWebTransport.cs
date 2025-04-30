@@ -5,6 +5,7 @@ using System.Net.WebSockets;
 using Argon.Grains;
 using Features.Rpc;
 using Microsoft.AspNetCore.Connections;
+using Orleans.Serialization;
 
 public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollector eventCollector) : IArgonWebTransport
 {
@@ -107,7 +108,12 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                     var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
                     await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
                 }
-                catch (DropConnectionException e)
+                catch (CodecNotFoundException e)
+                {
+                    ctx.Abort(new ConnectionAbortedException("failed write pkg [codec error]", e));
+                    return;
+                }
+                catch (ArgonDropConnectionException e)
                 {
                     ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
                     return;

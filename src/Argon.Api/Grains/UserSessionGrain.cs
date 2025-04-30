@@ -144,7 +144,7 @@ public class UserSessionGrain(
         if (_userId == Guid.Empty)
         {
             logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
-            throw new DropConnectionException($"Trying set heartbeat with not active session");
+            throw new ArgonDropConnectionException($"Trying set heartbeat with not active session");
         }
         
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -173,4 +173,4 @@ public class UserSessionGrain(
 }
 
 
-public class DropConnectionException(string msg) : InvalidOperationException(msg);
+public class ArgonDropConnectionException(string msg) : InvalidOperationException(msg);
