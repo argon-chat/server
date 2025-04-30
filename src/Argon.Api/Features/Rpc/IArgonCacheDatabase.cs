@@ -113,6 +113,9 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         }, ct);
     }
 
+    public Task UpdateStringExpirationAsync(string key, TimeSpan expiration, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
     public Task StringSetAsync(string key, string value, CancellationToken ct = default)
     {
         _keys.TryAdd(key, 0);
