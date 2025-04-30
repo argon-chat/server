@@ -2,17 +2,18 @@ namespace Argon.Grains;
 
 using Features.Logic;
 using Features.Rpc;
+using MessagePipe;
 using Orleans.Streams;
 using Services;
 using static DeactivationReasonCode;
-using static LiveKit.Proto.RequestResponse.Types;
 
 public class UserSessionGrain(
-    IGrainFactory grainFactory, 
-    IClusterClient clusterClient, 
+    IGrainFactory grainFactory,
+    IClusterClient clusterClient,
     ILogger<IUserSessionGrain> logger,
     IUserPresenceService presenceService,
-    IArgonCacheDatabase cache)
+    IArgonCacheDatabase cache,
+    IAsyncSubscriber<OnRedisKeyExpired> subscriberKeyExpired)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
     private Guid _userId;
@@ -22,8 +23,8 @@ public class UserSessionGrain(
 
     private IGrainTimer? refreshTimer;
 
-    private UserStatus?       _preferredStatus;
-    private IAsyncDisposable? _cacheSubscriber;
+    private UserStatus?  _preferredStatus;
+    private IDisposable? _cacheSubscriber;
 
     private DateTime? _lastHeartbeatTime;
     private DateTime? _lastDebouncedHeartbeatTime;
@@ -35,7 +36,7 @@ public class UserSessionGrain(
     {
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
-        await (_cacheSubscriber?.DisposeAsync() ?? ValueTask.CompletedTask);
+        _cacheSubscriber?.Dispose();
         refreshTimer?.Dispose();
         refreshTimer = null;
     }
@@ -48,14 +49,16 @@ public class UserSessionGrain(
             return;
         }
 
-        _userId    = userId;
-        _machineId = machineKey;
+        _userId            = userId;
+        _machineId         = machineKey;
+        _lastHeartbeatTime = DateTime.UtcNow;
+        var bag = DisposableBag.CreateBuilder();
 
-        userStream = await this.Streams().CreateServerStreamFor(_userId);
+
+        userStream   = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
-        _cacheSubscriber   = await cache.SubscribeToExpired(OnKeyExpired);
-        _lastHeartbeatTime = DateTime.UtcNow;
+        subscriberKeyExpired.Subscribe(OnKeyExpired).AddTo(bag);
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
@@ -64,20 +67,23 @@ public class UserSessionGrain(
             await grainFactory
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
+        _cacheSubscriber = bag.Build();
     }
 
-    private async Task OnKeyExpired(string key)
+    private async ValueTask OnKeyExpired(OnRedisKeyExpired ev, CancellationToken ct = default)
     {
+        var key = ev.key;
         if (!key.StartsWith($"presence:user:{_userId}:session:"))
             return;
-        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId, this.GetPrimaryKey());
+        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId,
+            this.GetPrimaryKey());
 
         refreshTimer?.Dispose();
         refreshTimer = null;
 
         logger.LogInformation("Destroyed timer for session: {sessionId}, userId: {userId}", this.GetPrimaryKey(), _userId);
 
-        if (!await presenceService.IsUserOnlineAsync(_userId))
+        if (!await presenceService.IsUserOnlineAsync(_userId, ct))
         {
             logger.LogInformation("This is last user session, become totally offline");
             var servers = await grainFactory
@@ -107,10 +113,12 @@ public class UserSessionGrain(
 
         if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
         {
-            logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true", _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
+            logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true",
+                _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
             await this.SelfDestroy();
             return;
         }
+
         logger.LogCritical($"ALERT, detected dead session, but lastHeartbeatTime less default TTL");
         await this.SelfDestroy();
     }
@@ -146,7 +154,7 @@ public class UserSessionGrain(
             logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
             throw new ArgonDropConnectionException($"Trying set heartbeat with not active session");
         }
-        
+
         _lastHeartbeatTime = DateTime.UtcNow;
         if (DateTime.UtcNow - (_lastDebouncedHeartbeatTime ?? new DateTime()) > TimeSpan.FromSeconds(30))
         {
@@ -171,6 +179,5 @@ public class UserSessionGrain(
     public Task OnErrorAsync(Exception ex)
         => Task.CompletedTask;
 }
-
 
 public class ArgonDropConnectionException(string msg) : InvalidOperationException(msg);

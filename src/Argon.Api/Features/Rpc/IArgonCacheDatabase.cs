@@ -3,6 +3,7 @@ namespace Argon.Services;
 using System.Text.RegularExpressions;
 using Features.Env;
 using Grpc.Core;
+using MessagePipe;
 using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.ObjectPool;
 using Newtonsoft.Json;
@@ -17,8 +18,6 @@ public interface IArgonCacheDatabase
     Task          KeyDeleteAsync(string key, CancellationToken ct = default);
     Task<bool>    KeyExistsAsync(string key, CancellationToken ct = default);
 
-
-    Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default);
 
     IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default);
 }
@@ -70,18 +69,6 @@ public class RedisArgonCacheDatabase(IRedisPoolConnections pool) : IArgonCacheDa
         using var scope = pool.Rent();
         foreach (var key in scope.GetServer().Keys(pattern: pattern, pageSize: 1))
             yield return key;
-    }
-
-    public async Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
-    {
-        var scope = pool.Rent();
-
-        var k = new RedisChannel("__keyevent@0__:expired", RedisChannel.PatternMode.Auto);
-        var s = scope.GetMultiplexer().GetSubscriber();
-        var e = new CacheSubscriber(k, s, scope);
-        var w = await s.SubscribeAsync(k);
-        w.OnMessage(async message => await onKeyExpired(message.Message.ToString()));
-        return e;
     }
 }
 
@@ -177,11 +164,42 @@ public static class ArgonCacheDatabaseFeature
             builder.Services.Configure<RedisConnectionPoolOptions>(builder.Configuration.GetSection("redis"));
             builder.Services.AddSingleton<IRedisPoolConnections, RedisConnectionPool>();
             builder.Services.AddHostedService(q => q.GetRequiredService<IRedisPoolConnections>());
+            builder.Services.AddHostedService<RedisEventHandler>();
             builder.Services.AddScoped<IArgonCacheDatabase, RedisArgonCacheDatabase>();
         }
 
         return builder.Services;
     }
+}
+
+public readonly record struct OnRedisKeyExpired(string key);
+public class RedisEventHandler(IRedisPoolConnections pool, IAsyncPublisher<OnRedisKeyExpired> publisher) : IHostedService, IDisposable, IAsyncDisposable
+{
+    private CacheSubscriber? _cacheSubscriber;
+
+#pragma warning disable CA1816 // idiotic hint GC.SuppressFinalize, but it's not necessary here
+    public async ValueTask DisposeAsync()
+    {
+        if (_cacheSubscriber != null) await _cacheSubscriber.DisposeAsync();
+    }
+
+    public void Dispose()
+        => _cacheSubscriber?.Dispose();
+#pragma warning restore CA1816
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        var scope = pool.Rent();
+
+        var k = new RedisChannel("__keyevent@0__:expired", RedisChannel.PatternMode.Auto);
+        var s = scope.GetMultiplexer().GetSubscriber();
+        _cacheSubscriber = new CacheSubscriber(k, s, scope);
+        var w = await s.SubscribeAsync(k);
+        w.OnMessage(async message => await publisher.PublishAsync(new OnRedisKeyExpired(message.Message.ToString()), cancellationToken));
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
 
 public readonly struct ConnectionScope(IConnectionMultiplexer multiplexer, RedisConnectionPool pool) : IDisposable
