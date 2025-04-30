@@ -233,14 +233,32 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
 
     private readonly PeriodicTimer timer = new(TimeSpan.FromMinutes(2));
 
-    private ulong Taken;
-    private ulong Allocated;
+    private const uint MaxAllowedSize = 2000;
 
+    private       ulong Taken;
+    private       ulong Allocated;
+    private       ulong DefaultSize = 16;
+    private       ulong MaxSizeOveruseCounter;
+    private const ulong MaxOveruseThreshold = 5;
 
     public ConnectionScope Rent()
     {
         Interlocked.Increment(ref Taken);
-        return ConnectionPool.TryTake(out var multiplexer) ? new ConnectionScope(multiplexer, this) : new ConnectionScope(EnsureNew(), this);
+
+        var currentAllocated = Interlocked.Read(ref Allocated);
+        if (currentAllocated > Interlocked.Read(ref DefaultSize))
+        {
+            var count = Interlocked.Increment(ref MaxSizeOveruseCounter);
+            if (count >= MaxOveruseThreshold)
+            {
+                TryIncreaseMaxSize();
+                Interlocked.Exchange(ref MaxSizeOveruseCounter, 0);
+            }
+        }
+
+        return ConnectionPool.TryTake(out var multiplexer)
+            ? new ConnectionScope(multiplexer, this)
+            : new ConnectionScope(EnsureNew(), this);
     }
 
     public void Return(IConnectionMultiplexer connection)
@@ -258,13 +276,13 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
 
     private void Populate()
     {
-        foreach (var _ in Enumerable.Range(0, (int)Math.Max(6, (int)options.Value.MaxSize / 2u)).Select(_ => EnsureNew())) { }
+        foreach (var _ in Enumerable.Range(0, (int)Math.Max(6, (int)Interlocked.Read(ref DefaultSize) / 2u)).Select(_ => EnsureNew())) { }
     }
 
     private async Task Cleanup()
     {
         var (allocated, taken) = (Interlocked.Read(ref Allocated), Interlocked.Read(ref Taken));
-        var maxSize = options.Value.MaxSize;
+        var maxSize = Interlocked.Read(ref DefaultSize);
         var excess  = allocated - taken;
         if (excess <= maxSize) return;
 
@@ -289,6 +307,7 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        Interlocked.Exchange(ref DefaultSize, options.Value.MaxSize);
         Populate();
 
         try
@@ -304,5 +323,31 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
         {
             logger.LogInformation("Redis cleanup service stopping...");
         }
+    }
+    private DateTime lastScaleUp = DateTime.UtcNow;
+
+    private void TryIncreaseMaxSize()
+    {
+        var current = Interlocked.Read(ref DefaultSize);
+
+        if (current >= MaxAllowedSize)
+        {
+            logger.LogCritical("Redis pool reached max allowed size {MaxAllowedSize}. Consider scaling infrastructure or adding replicas!", MaxAllowedSize);
+            return;
+        }
+
+        var now                = DateTime.UtcNow;
+        var timeSinceLastScale = now - lastScaleUp;
+        if (timeSinceLastScale < TimeSpan.FromMinutes(1))
+            return;
+
+        var increment = current < 20 ? 2u : current < 50 ? 5u : 10u;
+        var proposed  = Math.Min(MaxAllowedSize, current + increment);
+
+        if (proposed <= current) 
+            return;
+        logger.LogWarning("Auto-scaling Redis pool size from {Old} to {New}", current, proposed);
+        Interlocked.Exchange(ref DefaultSize, proposed);
+        lastScaleUp = now;
     }
 }

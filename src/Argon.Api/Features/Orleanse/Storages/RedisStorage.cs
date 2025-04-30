@@ -38,7 +38,7 @@ public class RedisStorage : IGrainStorage, ILifecycleParticipant<ISiloLifecycle>
 
 #endregion
 
-    private static string GetKey(GrainId grainId, string stateName) => $"{grainId.ToString()}-{stateName}";
+    private static string GetKey(GrainId grainId, string stateName) => $"@grains/{grainId.Type}/{grainId.ToString()}:{stateName}";
 
 #region Implementation of IGrainStorage
 
