@@ -2,6 +2,7 @@ namespace Argon.Services;
 
 using System.Buffers;
 using System.Net.WebSockets;
+using Argon.Grains;
 using Features.Rpc;
 using Microsoft.AspNetCore.Connections;
 
@@ -105,6 +106,11 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 {
                     var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
                     await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
+                }
+                catch (DropConnectionException e)
+                {
+                    ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
+                    return;
                 }
                 catch (Exception e)
                 {

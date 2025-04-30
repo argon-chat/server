@@ -143,7 +143,7 @@ public class UserSessionGrain(
         if (_userId == Guid.Empty)
         {
             logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
-            return;
+            throw new DropConnectionException($"Trying set heartbeat with not active session");
         }
 
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -165,3 +165,6 @@ public class UserSessionGrain(
     public Task OnErrorAsync(Exception ex)
         => Task.CompletedTask;
 }
+
+
+public class DropConnectionException(string msg) : InvalidOperationException(msg);
