@@ -14,7 +14,7 @@ public record ServerMember : ArgonEntityWithOwnership
     [IgnoreMember, TsIgnore]
     public virtual Server Server { get; set; }
 
-    public DateTime JoinedAt { get; set; }
+    public DateTimeOffset JoinedAt { get; set; }
 
     public ICollection<ServerMemberArchetype> ServerMemberArchetypes { get; set; }
         = new List<ServerMemberArchetype>();
@@ -26,7 +26,7 @@ public record ServerMemberDto(Guid UserId, Guid ServerId, long JoinedAt, Guid Me
 public static class ServerMemberExtensions
 {
     public static ServerMemberDto ToDto(this ServerMember msg)
-        => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimestamp(), msg.Id, msg.User?.ToDto());
+        => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimeSeconds(), msg.Id, msg.User?.ToDto());
 
     public static List<ServerMemberDto> ToDto(this List<ServerMember> msg) => msg.Select(x => x.ToDto()).ToList();
 

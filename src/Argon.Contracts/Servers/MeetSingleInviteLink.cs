@@ -8,7 +8,7 @@ public record MeetSingleInviteLink : ArgonEntityWithOwnership<ulong>
 
     public Guid? NoChannelSharedKey { get; set; }
 
-    public DateTime ExpireDate { get; set; }
+    public DateTimeOffset ExpireDate { get; set; }
 
     public bool IsNoAssociatedMeeting() 
         => AssociatedChannelId is null && AssociatedServerId is null && NoChannelSharedKey is not null;

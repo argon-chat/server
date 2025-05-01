@@ -36,9 +36,9 @@ public class TimeStampAndSoftDeleteInterceptor : SaveChangesInterceptor
             var entity = (ArgonEntity)entry.Entity;
 
             if (entry.State == EntityState.Added)
-                entity.CreatedAt = DateTime.UtcNow;
+                entity.CreatedAt = DateTimeOffset.UtcNow;
 
-            entity.UpdatedAt = DateTime.UtcNow;
+            entity.UpdatedAt = DateTimeOffset.UtcNow;
         }
     }
 

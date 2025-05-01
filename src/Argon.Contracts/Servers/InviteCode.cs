@@ -17,9 +17,9 @@ public readonly record struct InviteCode(string inviteCode);
 
 
 [MessagePackObject(true), Alias("Argon.Shared.Servers.InviteCodeEntity")]
-public record struct InviteCodeEntity(InviteCode code, Guid serverId, Guid issuerId, DateTime expireTime, long used)
+public record struct InviteCodeEntity(InviteCode code, Guid serverId, Guid issuerId, DateTimeOffset expireTime, long used)
 {
-    public bool HasExpired() => DateTime.UtcNow > expireTime;
+    public bool HasExpired() => DateTimeOffset.UtcNow > expireTime;
 
 
     public unsafe static string GenerateInviteCode(int length = 9)

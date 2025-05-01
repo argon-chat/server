@@ -23,8 +23,8 @@ public sealed record User : ArgonEntity
     [IgnoreMember]
     public ICollection<ServerMember> ServerMembers { get; set; } = new List<ServerMember>();
 
-    public LockdownReason LockdownReason     { get; set; }
-    public DateTime?      LockDownExpiration { get; set; }
+    public LockdownReason  LockdownReason     { get; set; }
+    public DateTimeOffset? LockDownExpiration { get; set; }
 }
 
 [MessagePackObject(true), TsInterface]

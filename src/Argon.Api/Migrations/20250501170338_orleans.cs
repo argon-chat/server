@@ -5,13 +5,12 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Argon.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class Orleans : Migration
+    public partial class orleans : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
             migrationBuilder.Sql(System.IO.File.ReadAllText("Migrations/orleans_up.sql"));
-            migrationBuilder.Sql(System.IO.File.ReadAllText("Migrations/orleans_streaming.sql"));
         }
 
         /// <inheritdoc />

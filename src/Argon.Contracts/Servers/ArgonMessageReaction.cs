@@ -18,5 +18,5 @@ public record ArgonMessageReaction : ArgonEntityWithOwnership
     [Required, MaxLength(32)]
     public string Reaction { get; set; }
 
-    public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+    public DateTimeOffset Timestamp { get; set; } = DateTimeOffset.UtcNow;
 }

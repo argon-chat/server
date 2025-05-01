@@ -30,35 +30,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        var dateTimeOffsetConverter = new ValueConverter<DateTimeOffset, long>(
-            v => v.ToUnixTimeMilliseconds(),
-            v => DateTimeOffset.FromUnixTimeMilliseconds(v)
-        );
-
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            foreach (var property in entityType.GetProperties())
-            {
-                if (property.ClrType == typeof(DateTimeOffset))
-                    property.SetValueConverter(dateTimeOffsetConverter);
-            }
-        }
-
-        var dateTimeOffsetNullConverter = new ValueConverter<DateTimeOffset?, long?>(
-            v => (v == null ? null : v.Value.ToUnixTimeMilliseconds()),
-            v => v == null ? null : DateTimeOffset.FromUnixTimeMilliseconds(v.Value)
-        );
-
-        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
-        {
-            foreach (var property in entityType.GetProperties())
-            {
-                if (property.ClrType == typeof(DateTimeOffset?))
-                    property.SetValueConverter(dateTimeOffsetNullConverter);
-            }
-        }
-
-
         modelBuilder.Entity<ArgonMessageCounters>()
            .ToTable("ArgonMessages_Counters")
            .HasKey(x => new
@@ -239,6 +210,34 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 CreatedAt     = new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8382)
             }
         ]);
+
+        var dateTimeOffsetConverter = new ValueConverter<DateTimeOffset, long>(
+            v => v.ToUnixTimeMilliseconds(),
+            v => DateTimeOffset.FromUnixTimeMilliseconds(v)
+        );
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset))
+                    property.SetValueConverter(dateTimeOffsetConverter);
+            }
+        }
+
+        var dateTimeOffsetNullConverter = new ValueConverter<DateTimeOffset?, long?>(
+            v => (v == null ? null : v.Value.ToUnixTimeMilliseconds()),
+            v => v == null ? null : DateTimeOffset.FromUnixTimeMilliseconds(v.Value)
+        );
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset?))
+                    property.SetValueConverter(dateTimeOffsetNullConverter);
+            }
+        }
     }
 
     private static LambdaExpression GetSoftDeleteFilter(Type type)

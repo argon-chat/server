@@ -50,7 +50,7 @@ public static class ServerExtensions
 [MessagePackObject(true)]
 public record ServerInvite : ArgonEntityWithOwnership<ulong>
 {
-    public         DateTime Expired  { get; set; }
-    public         Guid     ServerId { get; set; }
-    public virtual Server   Server   { get; set; }
+    public         DateTimeOffset Expired  { get; set; }
+    public         Guid           ServerId { get; set; }
+    public virtual Server         Server   { get; set; }
 }

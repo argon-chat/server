@@ -14,8 +14,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250406190917_MessageReactionsAndMessageIdChanged")]
-    partial class MessageReactionsAndMessageIdChanged
+    [Migration("20250501170338_orleans")]
+    partial class orleans
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -36,14 +36,14 @@ namespace Argon.Api.Migrations
                     b.Property<int>("Colour")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Description")
                         .IsRequired()
@@ -77,8 +77,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("ServerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -93,7 +93,7 @@ namespace Argon.Api.Migrations
                         {
                             Id = new Guid("11111111-3333-0000-1111-111111111111"),
                             Colour = -8355712,
-                            CreatedAt = new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8411),
+                            CreatedAt = 1732377674205L,
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "Default role for everyone in this server",
                             Entitlement = 15760355m,
@@ -103,13 +103,13 @@ namespace Argon.Api.Migrations
                             IsMentionable = true,
                             Name = "everyone",
                             ServerId = new Guid("11111111-0000-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = -62135596800000L
                         },
                         new
                         {
                             Id = new Guid("11111111-4444-0000-1111-111111111111"),
                             Colour = -8355712,
-                            CreatedAt = new DateTime(2024, 11, 23, 16, 1, 14, 205, DateTimeKind.Utc).AddTicks(8382),
+                            CreatedAt = 1732377674205L,
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "Default role for owner in this server",
                             Entitlement = -1m,
@@ -119,7 +119,7 @@ namespace Argon.Api.Migrations
                             IsMentionable = false,
                             Name = "owner",
                             ServerId = new Guid("11111111-0000-1111-1111-111111111111"),
-                            UpdatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = -62135596800000L
                         });
                 });
 
@@ -150,14 +150,14 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(20,0)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<List<MessageEntity>>("Entities")
                         .IsRequired()
@@ -174,8 +174,8 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(2048)
                         .HasColumnType("character varying(2048)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("ServerId", "ChannelId", "MessageId");
 
@@ -185,6 +185,22 @@ namespace Argon.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Messages");
+                });
+
+            modelBuilder.Entity("Argon.ArgonMessageCounters", b =>
+                {
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("ServerId")
+                        .HasColumnType("uuid");
+
+                    b.Property<decimal>("NextMessageId")
+                        .HasColumnType("numeric(20,0)");
+
+                    b.HasKey("ChannelId", "ServerId");
+
+                    b.ToTable("ArgonMessages_Counters", (string)null);
                 });
 
             modelBuilder.Entity("Argon.ArgonMessageReaction", b =>
@@ -205,14 +221,14 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(32)
                         .HasColumnType("character varying(32)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid");
@@ -220,17 +236,18 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("Timestamp")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("Timestamp")
+                        .HasColumnType("bigint");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("ServerId", "ChannelId", "MessageId", "UserId", "Reaction");
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId", "ChannelId", "MessageId");
+                    b.HasIndex("ServerId", "ChannelId", "MessageId")
+                        .IsUnique();
 
                     b.ToTable("ArgonMessageReactions");
                 });
@@ -244,14 +261,14 @@ namespace Argon.Api.Migrations
                     b.Property<int>("ChannelType")
                         .HasColumnType("integer");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1024)
@@ -268,8 +285,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("ServerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -297,14 +314,14 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<decimal>("Deny")
                         .HasColumnType("numeric(20,0)");
@@ -318,8 +335,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid?>("ServerMemberId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -346,11 +363,11 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("AllowedSendOptionalEmails")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -372,14 +389,14 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1024)
@@ -397,8 +414,8 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -411,12 +428,12 @@ namespace Argon.Api.Migrations
                         {
                             Id = new Guid("11111111-0000-1111-1111-111111111111"),
                             AvatarFileId = "",
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedAt = -62135596800000L,
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "",
                             IsDeleted = false,
                             Name = "system_server",
-                            UpdatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified)
+                            UpdatedAt = -62135596800000L
                         });
                 });
 
@@ -426,17 +443,17 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("numeric(20,0)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
-                    b.Property<DateTime>("Expired")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("Expired")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -444,8 +461,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("ServerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -462,26 +479,26 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime>("JoinedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("JoinedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("ServerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -509,17 +526,17 @@ namespace Argon.Api.Migrations
                     b.Property<Guid?>("AssociatedServerId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
-                    b.Property<DateTime>("ExpireDate")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("ExpireDate")
+                        .HasColumnType("bigint");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -527,8 +544,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid?>("NoChannelSharedKey")
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.HasKey("Id");
 
@@ -547,11 +564,11 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
-                    b.Property<DateTime?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
@@ -566,8 +583,8 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<DateTime?>("LockDownExpiration")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long?>("LockDownExpiration")
+                        .HasColumnType("bigint");
 
                     b.Property<int>("LockdownReason")
                         .HasColumnType("integer");
@@ -584,8 +601,8 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<string>("Username")
                         .IsRequired()
@@ -600,12 +617,12 @@ namespace Argon.Api.Migrations
                         new
                         {
                             Id = new Guid("11111111-2222-1111-2222-111111111111"),
-                            CreatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            CreatedAt = -62135596800000L,
                             DisplayName = "System",
                             Email = "system@argon.gl",
                             IsDeleted = false,
                             LockdownReason = 0,
-                            UpdatedAt = new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified),
+                            UpdatedAt = -62135596800000L,
                             Username = "system"
                         });
                 });
