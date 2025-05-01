@@ -74,7 +74,10 @@ public class UserSessionGrain(
     {
         var key = ev.key;
         if (!key.StartsWith($"presence:user:{_userId}:session:"))
+        {
+            logger.LogInformation("KeyExpired, but {userId} is matched to presence session, {key}", _userId, key);
             return;
+        }
         using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId,
             this.GetPrimaryKey());
 
