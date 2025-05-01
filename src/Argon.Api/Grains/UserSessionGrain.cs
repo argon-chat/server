@@ -18,6 +18,7 @@ public class UserSessionGrain(
 {
     private Guid _userId;
     private Guid _machineId;
+    private Guid _shadowUserId;
 
     private IArgonStream<IArgonEvent> userStream;
 
@@ -36,6 +37,7 @@ public class UserSessionGrain(
     {
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
+        logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
         _cacheSubscriber?.Dispose();
         refreshTimer?.Dispose();
         refreshTimer = null;
@@ -50,7 +52,11 @@ public class UserSessionGrain(
         }
 
         _userId            = userId;
+        _shadowUserId      = userId;
         _machineId         = machineKey;
+
+        logger.LogInformation("Grain for session {sessionId} has been activated, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
+
         _lastHeartbeatTime = DateTime.UtcNow;
         var bag = DisposableBag.CreateBuilder();
 
@@ -173,8 +179,11 @@ public class UserSessionGrain(
         }
     }
 
-    public ValueTask EndRealtimeSession()
-        => SelfDestroy();
+    public async ValueTask EndRealtimeSession()
+    {
+        logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, go to expire session, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
+        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{this.GetPrimaryKey()}", TimeSpan.FromSeconds(1));
+    }
 
     public async Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
         => await userStream.Fire(item);

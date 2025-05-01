@@ -83,7 +83,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
                 await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
                 var stream = await clusterClient.Streams().CreateClientStream(user.id);
-                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
+                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn, true));
                 await sessionGrain.EndRealtimeSession();
             }
             catch (Exception e)
@@ -94,7 +94,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
         }
     }
 
-    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx)
+    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx, bool allowHandlePackages = false)
     {
         using var mem = MemoryPool<byte>.Shared.Rent(4096);
         
@@ -103,6 +103,9 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
             while (!ctx.ConnectionClosed.IsCancellationRequested)
             {
                 var readResult = await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
+
+                if (!allowHandlePackages) continue;
+
                 try
                 {
                     var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
