@@ -13,7 +13,7 @@ public class UserSessionGrain(
     ILogger<IUserSessionGrain> logger,
     IUserPresenceService presenceService,
     IArgonCacheDatabase cache,
-    IAsyncSubscriber<OnRedisKeyExpired> subscriberKeyExpired)
+    IRedisEventStorage eventStorage)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
     private Guid _userId;
@@ -58,7 +58,7 @@ public class UserSessionGrain(
         userStream   = await this.Streams().CreateServerStreamFor(_userId);
         refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
-        subscriberKeyExpired.Subscribe(OnKeyExpired).AddTo(bag);
+        eventStorage.OnKeyExpiredSubscribeAsync(OnKeyExpired).AddTo(bag);
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
