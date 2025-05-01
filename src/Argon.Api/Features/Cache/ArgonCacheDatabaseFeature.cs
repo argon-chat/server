@@ -8,6 +8,7 @@ public static class ArgonCacheDatabaseFeature
     {
         if (builder.Environment.IsSingleInstance())
         {
+            throw null;
             builder.Services.AddDistributedMemoryCache();
             builder.Services.AddSingleton<IArgonCacheDatabase, InMemoryArgonCacheDatabase>();
         }
@@ -18,7 +19,7 @@ public static class ArgonCacheDatabaseFeature
             builder.Services.AddHostedService(q => q.GetRequiredService<IRedisPoolConnections>());
             builder.Services.AddHostedService<RedisEventHandler>();
             builder.Services.AddSingleton<IRedisEventStorage, RedisEventStorage>();
-            builder.Services.AddScoped<IArgonCacheDatabase, RedisArgonCacheDatabase>();
+            builder.Services.AddSingleton<IArgonCacheDatabase, RedisArgonCacheDatabase>();
         }
 
         return builder.Services;

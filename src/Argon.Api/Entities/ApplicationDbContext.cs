@@ -3,6 +3,7 @@ namespace Argon.Entities;
 using Features.EF;
 using System.Drawing;
 using System.Linq.Expressions;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Shared.Servers;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
@@ -29,6 +30,35 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        var dateTimeOffsetConverter = new ValueConverter<DateTimeOffset, long>(
+            v => v.ToUnixTimeMilliseconds(),
+            v => DateTimeOffset.FromUnixTimeMilliseconds(v)
+        );
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset))
+                    property.SetValueConverter(dateTimeOffsetConverter);
+            }
+        }
+
+        var dateTimeOffsetNullConverter = new ValueConverter<DateTimeOffset?, long?>(
+            v => (v == null ? null : v.Value.ToUnixTimeMilliseconds()),
+            v => v == null ? null : DateTimeOffset.FromUnixTimeMilliseconds(v.Value)
+        );
+
+        foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+        {
+            foreach (var property in entityType.GetProperties())
+            {
+                if (property.ClrType == typeof(DateTimeOffset?))
+                    property.SetValueConverter(dateTimeOffsetNullConverter);
+            }
+        }
+
+
         modelBuilder.Entity<ArgonMessageCounters>()
            .ToTable("ArgonMessages_Counters")
            .HasKey(x => new

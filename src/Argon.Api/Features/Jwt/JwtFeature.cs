@@ -6,12 +6,14 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
 
-public class PostConfigurator(IssuerSigningKeyResolver resolverKeysStore, IOptions<JwtOptions> jwtOptions) : IPostConfigureOptions<JwtBearerOptions>
+public class PostConfigurator(IServiceProvider provider, IOptions<JwtOptions> jwtOptions) : IPostConfigureOptions<JwtBearerOptions>
 {
     public void PostConfigure(string? name, JwtBearerOptions options)
     {
         if (name != JwtBearerDefaults.AuthenticationScheme)
             return;
+        using var scope             = provider.CreateScope();
+        var       resolverKeysStore = scope.ServiceProvider.GetRequiredService<IssuerSigningKeyResolver>();
         options.TokenValidationParameters.IssuerSigningKeyResolver = resolverKeysStore;
         options.TokenValidationParameters.ValidAudience            = jwtOptions.Value.Audience;
         options.TokenValidationParameters.ValidIssuer              = jwtOptions.Value.Issuer;

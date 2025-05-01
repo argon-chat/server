@@ -7,11 +7,11 @@ public abstract record ArgonEntity
     public Guid Id { get; set; }
 
     [IgnoreMember, TsIgnore]
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
     [IgnoreMember, TsIgnore]
-    public DateTime UpdatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
     [IgnoreMember, TsIgnore]
-    public DateTime? DeletedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 
     [IgnoreMember, TsIgnore]
     public bool IsDeleted { get; set; }
@@ -24,11 +24,11 @@ public abstract record ArgonEntity<T>
     public T Id { get; set; }
 
     [IgnoreMember, TsIgnore]
-    public DateTime CreatedAt { get; set; }
+    public DateTimeOffset CreatedAt { get; set; }
     [IgnoreMember, TsIgnore]
-    public DateTime UpdatedAt { get; set; }
+    public DateTimeOffset UpdatedAt { get; set; }
     [IgnoreMember, TsIgnore]
-    public DateTime? DeletedAt { get; set; }
+    public DateTimeOffset? DeletedAt { get; set; }
 
     [IgnoreMember, TsIgnore]
     public bool IsDeleted { get; set; }
