@@ -5,7 +5,7 @@ using Argon.Features.RegionalUnit;
 using Serilog;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
-
+AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 if (builder.Environment.IsSingleInstance())
     builder.AddSingleInstanceWorkload();
 else if (builder.Environment.IsSingleRegion())
