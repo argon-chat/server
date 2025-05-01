@@ -61,13 +61,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .Property(m => m.Entities)
            .HasColumnType("jsonb");
 
-        modelBuilder.Entity<ArgonMessage>()
-           .Property(x => x.CreatedAt)
-           .HasColumnType("timestamp with time zone")
-           .HasConversion(
-                v => v,
-                v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
-            );
+        //modelBuilder.Entity<ArgonMessage>()
+        //   .Property(x => x.CreatedAt)
+        //   .HasColumnType("timestamp with time zone")
+        //   .HasConversion(
+        //        v => v,
+        //        v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
+        //    );
 
         modelBuilder.Entity<ArgonMessageReaction>()
            .HasKey(r => new { r.ServerId, r.ChannelId, r.MessageId, r.UserId, r.Reaction });
