@@ -28,11 +28,11 @@ public class ChannelGrain(
 
         _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
 
-        await state.ReadStateAsync();
+        await state.ReadStateAsync(cancellationToken);
 
         state.State.Users.Clear();
 
-        await state.WriteStateAsync();
+        await state.WriteStateAsync(cancellationToken);
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -123,7 +123,7 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task SendMessage(Guid senderId, string text, List<MessageEntity> entities)
+    public async Task SendMessage(Guid senderId, string text, List<MessageEntity> entities, ulong? replyTo)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
 
@@ -139,7 +139,8 @@ public class ChannelGrain(
             Entities  = entities,
             Text      = text,
             MessageId = msgId,
-            CreatedAt = DateTime.UtcNow
+            CreatedAt = DateTime.UtcNow,
+            Reply = replyTo
         };
 
         var e = await ctx.Messages.AddAsync(message);

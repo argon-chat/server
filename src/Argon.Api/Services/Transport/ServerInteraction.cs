@@ -58,13 +58,13 @@ public class ServerInteraction : IServerInteraction
            .CreateInviteLinkAsync(user.id, expiration);
     }
 
-    public Task SendMessage(Guid channelId, string text, List<MessageEntity> entities)
+    public Task SendMessage(Guid channelId, string text, List<MessageEntity> entities, ulong? replyTo)
     {
         var user = this.GetUser();
 
         return this.GetGrainFactory()
            .GetGrain<IChannelGrain>(channelId)
-           .SendMessage(user.id, text, entities);
+           .SendMessage(user.id, text, entities, replyTo);
     }
 
     public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) => this.GetGrainFactory()
