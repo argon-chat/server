@@ -5,7 +5,6 @@ using Argon.Features.RegionalUnit;
 using Serilog;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
-
 if (builder.Environment.IsSingleInstance())
     builder.AddSingleInstanceWorkload();
 else if (builder.Environment.IsSingleRegion())

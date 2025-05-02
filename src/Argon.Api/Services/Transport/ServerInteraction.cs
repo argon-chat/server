@@ -14,6 +14,11 @@ public class ServerInteraction : IServerInteraction
            .GetGrain<IServerGrain>(serverId)
            .DeleteChannel(channelId, this.GetUser().id);
 
+    public Task<RealtimeServerMember> GetMember(Guid serverId, Guid userId)
+        => this.GetGrainFactory()
+           .GetGrain<IServerGrain>(serverId)
+           .GetMember(userId);
+
     public async Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId)
     {
         var user = this.GetUser();
@@ -53,13 +58,13 @@ public class ServerInteraction : IServerInteraction
            .CreateInviteLinkAsync(user.id, expiration);
     }
 
-    public Task SendMessage(Guid channelId, string text, List<MessageEntity> entities)
+    public Task SendMessage(Guid channelId, string text, List<MessageEntity> entities, ulong? replyTo)
     {
         var user = this.GetUser();
 
         return this.GetGrainFactory()
            .GetGrain<IChannelGrain>(channelId)
-           .SendMessage(user.id, text, entities);
+           .SendMessage(user.id, text, entities, replyTo);
     }
 
     public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) => this.GetGrainFactory()

@@ -2,10 +2,12 @@ namespace Argon.Services;
 
 using System.Buffers;
 using System.Net.WebSockets;
+using Argon.Grains;
 using Features.Rpc;
 using Microsoft.AspNetCore.Connections;
+using Orleans.Serialization;
 
-public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTransport
+public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollector eventCollector) : IArgonWebTransport
 {
     public async Task HandleTransportRequest(HttpContext ctx, ArgonTransportFeaturePipe conn, ArgonTransportContext scope)
     {
@@ -48,37 +50,81 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
 
         if (ctx.Request.Query.TryGetValue("srv", out var srvId))
         {
-            if (!Guid.TryParse(srvId, out var serverId))
+            try
             {
-                logger.LogCritical("srv incorrect format");
-                conn.Abort(new ConnectionAbortedException("srv incorrect format"));
-                return;
+                if (!Guid.TryParse(srvId, out var serverId))
+                {
+                    logger.LogCritical("srv incorrect format");
+                    conn.Abort(new ConnectionAbortedException("srv incorrect format"));
+                    return;
+                }
+
+                logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
+                var stream = await clusterClient.Streams().CreateClientStream(serverId);
+
+                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
             }
-
-            logger.LogInformation("Web Transport handled server stream, {serverId}", serverId);
-            var stream = await clusterClient.Streams().CreateClientStream(serverId);
-
-            await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed execute server transport");
+                conn.Abort(new ConnectionAbortedException("Exception when activate server transport"));
+            }
         }
         else
         {
-            logger.LogInformation("Web Transport handled user stream, {serverId}", user.id);
-            var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(scope.GetSessionId());
-            await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
-            var stream = await clusterClient.Streams().CreateClientStream(user.id);
-            await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn));
-            await sessionGrain.EndRealtimeSession();
+            try
+            {
+                var sessionId = scope.GetSessionId();
+                logger.LogInformation("Web Transport handled user stream, {serverId}, sessionId: {sessionId}", user.id, sessionId);
+
+                if (sessionId == Guid.Empty)
+                    throw new Exception($"No session id defined in argon transport");
+
+                var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
+                await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
+                var stream = await clusterClient.Streams().CreateClientStream(user.id);
+                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn, true));
+                await sessionGrain.EndRealtimeSession();
+            }
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed execute transport for user");
+                conn.Abort(new ConnectionAbortedException("Exception when activate user transport"));
+            }
         }
     }
 
-    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx)
+    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx, bool allowHandlePackages = false)
     {
         using var mem = MemoryPool<byte>.Shared.Rent(4096);
+        
         try
         {
             while (!ctx.ConnectionClosed.IsCancellationRequested)
             {
                 var readResult = await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
+
+                if (!allowHandlePackages) continue;
+
+                try
+                {
+                    var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
+                    await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
+                }
+                catch (CodecNotFoundException e)
+                {
+                    ctx.Abort(new ConnectionAbortedException("failed write pkg [codec error]", e));
+                    return;
+                }
+                catch (ArgonDropConnectionException e)
+                {
+                    ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
+                    return;
+                }
+                catch (Exception e)
+                {
+                    logger.LogInformation(e, "Failed write event from user");
+                }
             }
         }
         catch (WebSocketException e) when (ctx.WebSocket.CloseStatus == (WebSocketCloseStatus?)4999)
@@ -91,7 +137,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("Argon Transport reading closed, {ConnectionId}", ctx.ConnectionId);
+            logger.LogWarning("Argon Transport reading closed, {ConnectionId}", ctx.ConnectionId);
         } // its ok 
         catch (Exception e)
         {
@@ -117,6 +163,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
                     var result = ctx.WriteAsync(msg);
                     if (result.IsCompletedSuccessfully)
                         continue;
+                    logger.LogCritical("Package write '{eventType}' failed, not completed", evType.Name);
                     break;
                 }
                 catch (Exception e)
@@ -130,11 +177,11 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger) : IArgonWebTr
         }
         catch (WebSocketException e)
         {
-            logger.LogInformation("Argon Transport writer closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
+            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException e)
         {
-            logger.LogInformation("Argon Transport writer closed, {ConnectionId}", ctx.ConnectionId);
+            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}", ctx.ConnectionId);
         } // its ok 
         catch (Exception e)
         {

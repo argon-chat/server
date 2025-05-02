@@ -3,16 +3,22 @@ namespace Argon.Features.Jwt;
 using System.IdentityModel.Tokens.Jwt;
 using Microsoft.IdentityModel.Tokens;
 
-public class TokenAuthorization(TokenValidationParameters tokenValidation, ILogger<TokenAuthorization> logger)
+public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthorization> logger)
 {
     public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token)
     {
         if (string.IsNullOrEmpty(token))
-        {
             return TokenValidationError.BAD_TOKEN;
-        }
 
-        var tokenHandler = new JwtSecurityTokenHandler();
+        await using var scope = provider.CreateAsyncScope();
+
+        var tokenValidation = scope.ServiceProvider.GetRequiredKeyedService<TokenValidationParameters>("argon-validator");
+        var tokenHandler    = new JwtSecurityTokenHandler();
+        var tokenData       = tokenHandler.ReadJwtToken(token);
+
+        if (string.IsNullOrEmpty(tokenData.Header.Kid))
+            return TokenValidationError.BAD_TOKEN;
+
         try
         {
             var principal = tokenHandler.ValidateToken(token, tokenValidation, out var validatedToken);
@@ -36,7 +42,9 @@ public class TokenAuthorization(TokenValidationParameters tokenValidation, ILogg
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, "Failed validate token");
+            
+            var existKid  = tokenValidation.IssuerSigningKeyResolver("", null, "", null).First().KeyId;
+            logger.LogCritical(e, "Failed validate token, kid from key {kid}, kid in system: {existKid}", tokenData.Header.Kid, existKid);
             return TokenValidationError.BAD_TOKEN;
         }
     }

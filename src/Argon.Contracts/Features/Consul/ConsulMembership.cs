@@ -21,7 +21,8 @@ public class ConsulMembership(
     IOptions<ClusterOptions> clusterOptions,
     IOptions<ConsulMembershipOptions> membershipOptions,
     IHostApplicationLifetime lifetime,
-    IHostEnvironment hostEnvironment) : IArgonUnitMembership
+    IHostEnvironment hostEnvironment,
+    ILocalSiloDetails localSiloDetails) : IArgonUnitMembership
 {
     private readonly JsonSerializerOptions opt = new(JsonSerializerOptions.Web)
     {
@@ -137,6 +138,14 @@ public class ConsulMembership(
             $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
             $"Unit answered correctly!",
             ToStatus(entry));
+
+
+    public async Task RegisterOnShutdownRules()
+        => lifetime
+           .ApplicationStopping
+           .Register(() => client
+               .Agent
+               .ServiceDeregister(localSiloDetails.SiloAddress.ToString()));
 
 
     private TTLStatus ToStatus(MembershipEntry entry)

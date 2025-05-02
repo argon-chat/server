@@ -50,6 +50,8 @@ public static class EventConfigurator
     {
         consumer.On<HeartBeatEvent>(async (ev, ctx) =>
         {
+            if (ctx.SessionId == Guid.Empty)
+                return;
             await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).HeartBeatAsync(ev.status);
         });
     }

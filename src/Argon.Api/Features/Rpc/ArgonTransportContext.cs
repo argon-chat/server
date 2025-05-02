@@ -34,7 +34,15 @@ public class ArgonTransportContext(
         => RpcContext.GetHostName();
 
     public Guid GetSessionId()
-        => RpcContext.GetSessionId();
+    {
+        if (authCtx is WtAuthorizationContext wt)
+            return wt.SessionId;
+
+        return RpcContext.GetSessionId();
+    }
+
+    public Guid GetMachineId()
+        => RpcContext.GetMachineId();
 
     public static ArgonTransportContext Current
         => localScope.Value ?? throw new InvalidOperationException($"No active transport context");
@@ -82,4 +90,5 @@ public class WtAuthorizationContext(HttpContext ctx, TransportClientId id) : IAr
 {
     public bool          IsAuthorized => true;
     public TokenUserData User         => new(id.userId, Guid.Empty);
+    public Guid          SessionId    => id.sessionId;
 }

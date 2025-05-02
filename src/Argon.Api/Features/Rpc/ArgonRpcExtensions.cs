@@ -24,4 +24,21 @@ public static class ArgonRpcExtensions
         => ArgonTransportContext.Current.GetRay();
     public static string GetRegion(this IArgonService argonService)
         => ArgonTransportContext.Current.GetRegion();
+    public static Guid GetMachineId(this IArgonService argonService)
+        => ArgonTransportContext.Current.GetMachineId();
+    public static Guid GetSessionId(this IArgonService argonService)
+        => ArgonTransportContext.Current.GetSessionId();
+
+
+    public static Guid TryGetMachineId(this IArgonService argonService)
+    {
+        try
+        {
+            return ArgonTransportContext.Current.GetMachineId();
+        }
+        catch
+        {
+            return Guid.NewGuid();
+        }
+    }
 }

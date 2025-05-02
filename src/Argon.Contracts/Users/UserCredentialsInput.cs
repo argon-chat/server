@@ -8,3 +8,9 @@ public sealed record UserCredentialsInput(
     string? Password,
     string? OtpCode,
     string? captchaToken);
+
+[MessagePackObject(true), TsInterface]
+public sealed record UserResetPassInput(
+    string Email,
+    string otpCode,
+    string newPassword);

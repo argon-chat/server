@@ -88,7 +88,7 @@ public sealed record ArgonMessageDto(ulong MessageId, ulong? ReplyId, Guid Chann
 public static class ArgonMessageExtensions
 {
     public static ArgonMessageDto ToDto(this ArgonMessage msg) => new(msg.MessageId, msg.Reply, msg.ChannelId, msg.ServerId, msg.Text, msg.Entities,
-        msg.CreatedAt.ToUnixTimestamp(), msg.CreatorId);
+        msg.CreatedAt.ToUnixTimeSeconds(), msg.CreatorId);
 
     public static List<ArgonMessageDto> ToDto(this List<ArgonMessage> msg) => msg.Select(x => x.ToDto()).ToList();
 

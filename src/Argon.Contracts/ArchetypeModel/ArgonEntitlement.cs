@@ -75,3 +75,39 @@ public enum ArgonEntitlement : ulong
 
     Administrator = ulong.MaxValue
 }
+
+public readonly record struct EntitlementScopeKey(string key)
+{
+    public static implicit operator string(EntitlementScopeKey k) => k.key;
+    public static implicit operator EntitlementScopeKey(string k) => new(k);
+
+
+    public static readonly EntitlementScopeKey All   = new("*");
+    public static readonly EntitlementScopeKey Base  = new("base");
+    public static readonly EntitlementScopeKey Chat  = new("chat");
+    public static readonly EntitlementScopeKey Media = new("media");
+    public static readonly EntitlementScopeKey Moderate = new("moderate");
+    public static readonly EntitlementScopeKey Server = new("server");
+}
+
+public readonly record struct EntitlementKey(string key)
+{
+    public static implicit operator string(EntitlementKey k) => k.key;
+    public static implicit operator EntitlementKey(string k) => new(k);
+}
+
+public readonly record struct ArgonEntitlementScope(EntitlementScopeKey scope, EntitlementKey key)
+{
+    public static readonly ArgonEntitlementScope OwnerScope    = new(EntitlementScopeKey.All, "*");
+    public static readonly ArgonEntitlementScope BaseScope     = new(EntitlementScopeKey.Base, "*");
+    public static readonly ArgonEntitlementScope ChatScope     = new(EntitlementScopeKey.Chat, "*");
+    public static readonly ArgonEntitlementScope MediaScope    = new(EntitlementScopeKey.Media, "*");
+    public static readonly ArgonEntitlementScope ModerateScope = new(EntitlementScopeKey.Moderate, "*");
+    public static readonly ArgonEntitlementScope ServerScope   = new(EntitlementScopeKey.Server, "*");
+
+
+    public static readonly ArgonEntitlementScope BaseScope_ViewChannel = new(EntitlementScopeKey.Base, "channel:view");
+    public static readonly ArgonEntitlementScope BaseScope_JoinToVoice = new(EntitlementScopeKey.Base, "voice:join");
+
+
+}

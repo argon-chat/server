@@ -5,4 +5,5 @@ public sealed record UserConnectionInfo(
     string Region,
     string IpAddress,
     string ClientName,
-    string HostName);
+    string HostName,
+    Guid machineId);

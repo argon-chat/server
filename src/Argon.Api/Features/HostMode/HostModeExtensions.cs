@@ -172,6 +172,7 @@ public static class HostModeExtensions
         builder.WebHost.UseQuic();
         builder.AddLogging();
         builder.UseMessagePack();
+        builder.Services.AddMessagePipe();
         builder.WebHost.UseSentry(o => {
             o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
             o.Debug               = true;

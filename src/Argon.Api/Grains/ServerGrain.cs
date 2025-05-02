@@ -1,9 +1,12 @@
 namespace Argon.Grains;
 
+using Api.Features.Utils;
 using Argon.Features.Rpc;
+using Features.Logic;
 using Features.Repositories;
 using Orleans.GrainDirectory;
 using Persistence.States;
+using Services;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
@@ -11,7 +14,8 @@ public class ServerGrain(
     IPersistentState<RealtimeServerGrainState> state,
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
-    IServerRepository serverRepository) : Grain, IServerGrain
+    IServerRepository serverRepository,
+    IUserPresenceService userPresence) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
@@ -65,6 +69,34 @@ public class ServerGrain(
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
+    public async Task<RealtimeServerMember> GetMember(Guid userId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var x = await ctx
+           .UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(x => x.UserId == userId)
+           .Include(x => x.User)
+           .FirstAsync();
+
+
+        return new RealtimeServerMember
+        {
+            Member = x.ToDto(),
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 2 ? item.Status : UserStatus.Offline
+                : UserStatus.Offline,
+            Presence = await userPresence.GetUsersActivityPresence(x.UserId)
+        };
+    }
+
+    public async ValueTask SetUserPresence(Guid userId, UserActivityPresence presence)
+        => await _serverEvents.Fire(new OnUserPresenceActivityChanged(userId, presence));
+
+    public async ValueTask RemoveUserPresence(Guid userId)
+        => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
+
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -75,12 +107,16 @@ public class ServerGrain(
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .ToListAsync();
 
+        var ids        = members.Select(x => x.UserId).ToList();
+        var activities = await userPresence.BatchGetUsersActivityPresence(ids);
+
         return members.Select(x => new RealtimeServerMember
         {
-            Member = x.ToDto(),
-            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
-                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 10 ? item.Status : UserStatus.Offline
-                : UserStatus.Offline
+            Member   = x.ToDto(),
+            Status   = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+                ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 15 ? item.Status : UserStatus.Offline
+                : UserStatus.Offline,
+            Presence = activities.TryGetValue(x.UserId, out var presence) ? presence : null
         }).ToList();
     }
 
@@ -117,8 +153,8 @@ public class ServerGrain(
 
     public async ValueTask DoUserUpdatedAsync(Guid userId)
     {
-        await using var ctx = await context.CreateDbContextAsync();
-        var user = await ctx.Users.FirstAsync(x => x.Id == userId);
+        await using var ctx  = await context.CreateDbContextAsync();
+        var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
         await _serverEvents.Fire(new UserUpdated(user.ToDto()));
     }
 

@@ -22,13 +22,35 @@ public record Server : ArgonEntityWithOwnership, IArchetypeSubject
     public virtual ICollection<Archetype>    Archetypes        { get; set; } = new List<Archetype>();
     public         ICollection<IArchetype>   SubjectArchetypes => Archetypes.OfType<IArchetype>().ToList();
     [TsIgnore]
-    public virtual ICollection<ServerInvite> ServerInvites     { get; set; } = new List<ServerInvite>();
+    public virtual ICollection<ServerInvite> ServerInvites { get; set; } = new List<ServerInvite>();
+}
+
+[MessagePackObject(true), TsInterface]
+public record ServerDto(
+    Guid Id,
+    string Name,
+    string Description,
+    string AvatarFieldId,
+    string TopBannerFileId,
+    List<Channel> Channels,
+    List<ServerMemberDto> Users,
+    List<Archetype> Archetypes);
+
+public static class ServerExtensions
+{
+    public static ServerDto ToDto(this Server msg) => new(msg.Id, msg.Name, msg.Description, msg.AvatarFileId, msg.TopBannedFileId,
+        msg.Channels.ToList(), msg.Users.ToList().ToDto(), msg.Archetypes.ToList());
+
+    public static List<ServerDto> ToDto(this List<Server> msg) => msg.Select(x => x.ToDto()).ToList();
+
+    public async static Task<ServerDto>       ToDto(this Task<Server> msg)       => (await msg).ToDto();
+    public async static Task<List<ServerDto>> ToDto(this Task<List<Server>> msg) => (await msg).ToDto();
 }
 
 [MessagePackObject(true)]
 public record ServerInvite : ArgonEntityWithOwnership<ulong>
 {
-    public         DateTime Expired  { get; set; }
-    public         Guid     ServerId { get; set; }
-    public virtual Server   Server   { get; set; }
+    public         DateTimeOffset Expired  { get; set; }
+    public         Guid           ServerId { get; set; }
+    public virtual Server         Server   { get; set; }
 }

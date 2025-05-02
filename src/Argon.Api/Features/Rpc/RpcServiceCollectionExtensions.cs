@@ -5,6 +5,7 @@ using Features.Jwt;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.WebSockets;
 using Microsoft.Net.Http.Headers;
+using Shared.SharedGrains;
 
 public static class RpcServiceCollectionExtensions
 {
@@ -139,7 +140,8 @@ public static class RpcServiceCollectionExtensions
         var auth      = scope.ServiceProvider.GetRequiredService<TokenAuthorization>();
         var exchanger = scope.ServiceProvider.GetRequiredService<ITransportExchange>();
 
-        var result    = await auth.AuthorizeByToken(token.ToString());
+        var   result    = await auth.AuthorizeByToken(token.ToString());
+        Guid? sessionId;
 
         if (!result.IsSuccess)
         {
@@ -151,7 +153,42 @@ public static class RpcServiceCollectionExtensions
             return;
         }
 
-        var aat = await exchanger.CreateExchangeKey(token.ToString(), result.Value.id, result.Value.machineId);
+        if (context.Request.Headers.TryGetValue("X-Ctt", out var sid) && 
+            context.Request.Headers.TryGetValue("X-Ctf", out var fingerprint))
+        {
+            var registry = scope.ServiceProvider.GetRequiredService<IArgonDcRegistry>();
+            var dcClient = registry.GetNearestClusterClient();
+
+            if (dcClient is null)
+            {
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "no dc available"
+                });
+                return;
+            }
+
+            sessionId = Guid.Parse(sid.ToString());
+            var frags = fingerprint.ToString().Split(':');
+            var appId = frags[0];
+            var appFt = frags[1];
+
+            var validated = await dcClient.GetGrain<IExternalClientCertificationGrain>(Guid.NewGuid())
+               .ValidateCertificateFingerprint(appId, appFt, sessionId.Value, result.Value.id, result.Value.machineId);
+            if (!validated)
+            {
+                context.Response.StatusCode = (int)HttpStatusCode.Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    message = "bad token"
+                });
+                return;
+            }
+        }
+        else
+            sessionId = context.GetSessionId();
+
+        var aat = await exchanger.CreateExchangeKey(token.ToString(), result.Value.id, result.Value.machineId, sessionId.Value);
 
         context.Response.StatusCode = (int)HttpStatusCode.OK;
         context.Response.Headers.TryAdd("X-Wt-Upgrade", opt.Value.Upgrade);

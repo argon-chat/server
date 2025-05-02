@@ -9,9 +9,9 @@ public class AllowAnonymousAttribute : Attribute;
 [TsInterface]
 public interface IUserInteraction : IArgonService
 {
-    Task<User>         GetMe();
-    Task<Server>       CreateServer(CreateServerRequest request);
-    Task<List<Server>> GetServers();
+    Task<User>            GetMe();
+    Task<ServerDto>       CreateServer(CreateServerRequest request);
+    Task<List<ServerDto>> GetServers();
 
 
     [AllowAnonymous]
@@ -20,6 +20,16 @@ public interface IUserInteraction : IArgonService
     [AllowAnonymous]
     Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input);
 
+    [AllowAnonymous]
+    Task<bool> BeginResetPassword(string email);
+
+    [AllowAnonymous]
+    Task<Either<string, AuthorizationError>> ResetPassword(UserResetPassInput input);
+
 
     Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode);
+
+
+    Task BroadcastPresenceAsync(UserActivityPresence presence);
+    Task RemoveBroadcastPresenceAsync();
 }

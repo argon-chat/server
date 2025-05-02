@@ -33,6 +33,8 @@
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
         <PackageReference Include="Microsoft.Orleans.Serialization" Version="9.1.2" />
         <PackageReference Include="Microsoft.Orleans.Serialization.MessagePack" Version="9.1.2" />
+        <PackageReference Include="Ulid" Version="1.3.4" />
+
     </ItemGroup>
 
     <ItemGroup>

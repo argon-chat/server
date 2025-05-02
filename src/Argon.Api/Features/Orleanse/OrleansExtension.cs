@@ -10,6 +10,8 @@ using NatsStreaming;
 using Orleans.Configuration;
 using Sentry;
 using Services;
+using Orleans.Hosting;
+using Orleans.Serialization;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -72,7 +74,14 @@ public static class OrleansExtension
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                    options.LivenessEnabled             = false; // TODO
+                    options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
+                    options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
+                    options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
+                    //options.LivenessEnabled             = false; // TODO
+                })
+               .Configure<ExceptionSerializationOptions>(x =>
+                {
+                    x.SupportedNamespacePrefixes.Add("Argon");
                 })
                .Configure<GrainCollectionOptions>(options =>
                 {
@@ -104,13 +113,7 @@ public static class OrleansExtension
     public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
     {
         foreach (var key in keys)
-        {
-            builder.AddAdoNetGrainStorage(key, x =>
-            {
-                x.Invariant        = invariant;
-                x.ConnectionString = builder.Configuration.GetConnectionString(connString);
-            });
-        }
+            builder.AddRedisStorage(key, 0);
 
         return builder;
     }
