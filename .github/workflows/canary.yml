@@ -28,7 +28,7 @@ jobs:
       - name: Test
         run: dotnet test --no-build --verbosity normal
   build-ghcr:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/dev'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

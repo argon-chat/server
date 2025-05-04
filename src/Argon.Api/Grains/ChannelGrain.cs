@@ -46,7 +46,7 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync();
         var messages = await ctx.Messages
            .Where(m => m.ChannelId == this.GetPrimaryKey())
-           .OrderByDescending(m => m.MessageId)
+           .OrderBy(m => m.MessageId)
            .Skip(offset)
            .Take(count)
            .AsNoTracking()
