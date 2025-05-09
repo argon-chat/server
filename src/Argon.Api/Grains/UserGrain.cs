@@ -112,4 +112,10 @@ public class UserGrain(
         });
         await ctx.SaveChangesAsync();
     }
+
+    public async ValueTask<List<UserSocialIntegrationDto>> GetMeSocials()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        return await ctx.SocialIntegrations.Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
+    }
 }

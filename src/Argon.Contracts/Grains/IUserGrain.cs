@@ -25,4 +25,7 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(CreateSocialBound))]
     ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId);
+
+    [Alias(nameof(GetMeSocials))]
+    ValueTask<List<UserSocialIntegrationDto>> GetMeSocials();
 }

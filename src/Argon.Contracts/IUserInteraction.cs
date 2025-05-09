@@ -35,4 +35,6 @@ public interface IUserInteraction : IArgonService
 
     Task<bool>   CompleteSocialBoundAsync(string token, string socialUser, string kind, string userSlash);
     Task<string> CreateSocialBoundAsync(string kind);
+
+    Task<List<UserSocialIntegrationDto>> GetMeSocials();
 }

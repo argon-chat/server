@@ -143,4 +143,11 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
         var userData = this.GetUser();
         await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).RemoveBroadcastPresenceAsync();
     }
+
+
+    public async Task<List<UserSocialIntegrationDto>> GetMeSocials()
+    {
+        var userData = this.GetUser();
+        return await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMeSocials();
+    }
 }
