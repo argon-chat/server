@@ -23,7 +23,8 @@ public class EnsureAllUserHasProfile(ILogger<EnsureAllUserHasProfile> logger) : 
             {
                 UserId    = userId,
                 Id        = Guid.NewGuid(),
-                IsPremium = false
+                IsPremium = false,
+                Badges    = []
             });
 
             await ctx.UserProfiles.AddRangeAsync(profiles);
