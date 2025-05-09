@@ -26,23 +26,33 @@ public class PostConfigurator(IServiceProvider provider, IOptions<JwtOptions> jw
     }
 }
 
+public class WrapperForSignKey(IServiceProvider q)
+{
+    public IEnumerable<SecurityKey> IssuerSigningKeyResolver(
+        string token,
+        SecurityToken securityToken,
+        string kid,
+        TokenValidationParameters validationParameters)
+    {
+        var opt      = q.GetRequiredService<IOptions<JwtOptions>>();
+        var keyBytes = Encoding.UTF8.GetBytes(opt.Value.Key);
+        return
+        [
+            new SymmetricSecurityKey(keyBytes)
+            {
+                KeyId = $"{Crc64.HashToUInt64(keyBytes):X}"
+            }
+        ];
+    }
+}
+
 public static class JwtFeature
 {
     public static IServiceCollection AddJwt(this WebApplicationBuilder builder)
     {
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
-        builder.Services.AddScoped<IssuerSigningKeyResolver>(q => (_, _, _, _) =>
-        {
-            var opt    = q.GetRequiredService<IOptions<JwtOptions>>();
-            var keyBytes = Encoding.UTF8.GetBytes(opt.Value.Key);
-            return
-            [
-                new SymmetricSecurityKey(keyBytes)
-                {
-                    KeyId = $"{Crc64.HashToUInt64(keyBytes):X}"
-                }
-            ];
-        });
+        builder.Services.AddSingleton<WrapperForSignKey>();
+        builder.Services.AddScoped<IssuerSigningKeyResolver>(q => q.GetRequiredService<WrapperForSignKey>().IssuerSigningKeyResolver);
 
         builder.Services.AddKeyedScoped<TokenValidationParameters>("argon-validator", (q, _) =>
         {
