@@ -67,10 +67,11 @@ public class ServerInteraction : IServerInteraction
            .SendMessage(user.id, text, entities, replyTo);
     }
 
-    public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) => this.GetGrainFactory()
-       .GetGrain<IChannelGrain>(channelId)
-       .GetMessages(count, offset)
-       .ToDto();
+    public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) 
+        => this.GetGrainFactory()
+               .GetGrain<IChannelGrain>(channelId)
+               .GetMessages(count, offset)
+               .ToDto();
 
     // TODO use access key
     public Task<UserDto> PrefetchUser(Guid serverId, Guid userId)

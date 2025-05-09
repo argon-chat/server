@@ -19,11 +19,14 @@ using Sfu;
 using Serilog;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
+using FluentValidation;
 using GeoIP;
 using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
 using Logic;
 using RegionalUnit;
+using Services.Validators;
+using Social;
 
 public static class HostModeExtensions
 {
@@ -187,6 +190,8 @@ public static class HostModeExtensions
             builder.AddEfRepositories();
             builder.AddArgonPermissions();
         }
+
+        builder.Services.AddValidatorsFromAssembly(typeof(NewUserCredentialsInputValidator).Assembly);
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();
@@ -195,6 +200,7 @@ public static class HostModeExtensions
         builder.AddOtpCodes();
         builder.AddCaptchaFeature();
         builder.AddUserPresenceFeature();
+        builder.AddSocialIntegrations();
         builder.AddEventCollectorFeature(EventConfigurator.Configure);
         builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
