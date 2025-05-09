@@ -125,7 +125,7 @@ public class UserGrain(
 
         try
         {
-            var result = await ctx.SocialIntegrations.DeleteByKeyAsync(socialId);
+            var result = await ctx.SocialIntegrations.Where(x => x.Id == socialId).ExecuteDeleteAsync();
             return result == 1;
         }
         catch (Exception e)
