@@ -2,7 +2,6 @@ using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
-using Serilog;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())

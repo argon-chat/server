@@ -22,4 +22,7 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
     ValueTask RemoveBroadcastPresenceAsync();
+
+    [Alias(nameof(CreateSocialBound))]
+    ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId);
 }

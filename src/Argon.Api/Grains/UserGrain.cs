@@ -98,4 +98,18 @@ public class UserGrain(
                .RemoveUserPresence(this.GetPrimaryKey());
     }
 
+    public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        await ctx.SocialIntegrations.AddAsync(new UserSocialIntegration()
+        {
+            Kind     = kind,
+            SocialId = socialId,
+            UserData = userData,
+            Id       = Guid.NewGuid(),
+            UserId   = this.GetPrimaryKey()
+        });
+        await ctx.SaveChangesAsync();
+    }
 }

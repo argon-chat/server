@@ -28,6 +28,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
+    public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ArgonMessageCounters>()
@@ -152,6 +154,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .WithMany()
            .HasForeignKey(cpo => cpo.ServerMemberId)
            .OnDelete(DeleteBehavior.Restrict);
+
+        modelBuilder.Entity<UserSocialIntegration>()
+           .HasOne(x => x.User)
+           .WithMany()
+           .HasForeignKey(x => x.UserId)
+           .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserSocialIntegration>()
+           .HasIndex(x => x.SocialId);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
