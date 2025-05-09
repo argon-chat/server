@@ -109,6 +109,10 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
         return await bounder.CompleteBoundTokenAsync(userId, token, socialUser, clusterClient);
     }
 
+    public async Task<bool> DeleteSocialBound(string kind, Guid socialId)
+        => await this.GetGrainFactory().GetGrain<IUserGrain>(this.GetUser().id).DeleteSocialBoundAsync(kind, socialId);
+
+
     public async Task<string> CreateSocialBoundAsync(string kind)
     {
         if (!kind.Equals("Telegram")) // temporary only tg

@@ -118,4 +118,20 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
         return await ctx.SocialIntegrations.Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
     }
+
+    public async ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        try
+        {
+            var result = await ctx.SocialIntegrations.DeleteByKeyAsync(socialId);
+            return result == 1;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed delete social bound by {socialId}", socialId);
+            return false;
+        }
+    }
 }

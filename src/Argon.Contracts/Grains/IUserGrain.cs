@@ -28,4 +28,7 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetMeSocials))]
     ValueTask<List<UserSocialIntegrationDto>> GetMeSocials();
+
+    [Alias(nameof(DeleteSocialBoundAsync))]
+    ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId);
 }
