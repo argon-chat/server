@@ -1,8 +1,10 @@
 namespace Argon.Services;
 
+using Features.Social;
+using Validators;
 using Shared.Servers;
 
-public class UserInteraction : IUserInteraction
+public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
 {
     public async Task<User> GetMe()
     {
@@ -48,6 +50,8 @@ public class UserInteraction : IUserInteraction
     [AllowAnonymous]
     public async Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input)
     {
+        var validationResult = await new NewUserCredentialsInputValidator().ValidateAsync(input);
+
         var clientName = this.GetClientName();
         var ipAddress  = this.GetIpAddress();
         var region     = this.GetRegion();
@@ -91,6 +95,29 @@ public class UserInteraction : IUserInteraction
         return await this.GetGrainFactory()
            .GetGrain<IAuthorizationGrain>(Guid.NewGuid())
            .ResetPass(input, connInfo);
+    }
+
+    [AllowAnonymous]
+    public async Task<bool> CompleteSocialBoundAsync(string token, string socialUser, string kind, string userSlash)
+    {
+        if (!Guid.TryParse(userSlash.Split('/').First(), out var userId))
+            return false;
+        if (!kind.Equals("Telegram")) // temporary only tg
+            return false;
+        var clusterClient = this.GetClusterClient();
+
+        return await bounder.CompleteBoundTokenAsync(userId, token, socialUser, clusterClient);
+    }
+
+    public async Task<string> CreateSocialBoundAsync(string kind)
+    {
+        if (!kind.Equals("Telegram")) // temporary only tg
+            return "";
+        var userData = this.GetUser();
+
+        var token = await bounder.CreateBoundTokenAsync(userData.id, TimeSpan.FromMinutes(2));
+
+        return token;
     }
 
     public async Task<Either<Server, AcceptInviteError>> JoinToServerAsync(InviteCode inviteCode)
