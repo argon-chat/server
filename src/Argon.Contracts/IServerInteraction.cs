@@ -27,4 +27,6 @@ public interface IServerInteraction : IArgonService
     Task<InviteCode>             CreateInviteCode(Guid serverId, TimeSpan expiration);
 
     Task<UserDto> PrefetchUser(Guid serverId, Guid userId);
+
+    Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId);
 }

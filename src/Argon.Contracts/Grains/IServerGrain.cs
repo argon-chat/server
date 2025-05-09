@@ -46,6 +46,9 @@ public interface IServerGrain : IGrainWithGuidKey
 
     [Alias(nameof(DoUserUpdatedAsync))]
     ValueTask DoUserUpdatedAsync(Guid userId);
+
+    [Alias(nameof(PrefetchProfile))]
+    ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller);
 }
 
 public enum ServerCreationError

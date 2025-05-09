@@ -1,5 +1,7 @@
 namespace Argon.Users;
 
+using System.ComponentModel.DataAnnotations.Schema;
+
 public record UserProfile : ArgonEntity
 {
     public required Guid UserId { get; set; }
@@ -21,6 +23,7 @@ public record UserProfile : ArgonEntity
 
     public bool IsPremium { get; set; }
 
+    [Column(TypeName = "jsonb")]
     public List<string> Badges { get; set; }
 }
 

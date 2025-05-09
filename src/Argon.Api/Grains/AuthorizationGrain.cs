@@ -113,6 +113,13 @@ public class AuthorizationGrain(
                 };
                 await ctx.UserAgreements.AddAsync(agreements);
 
+                await ctx.UserProfiles.AddAsync(new UserProfile
+                {
+                    UserId = userId,
+                    Id     = Guid.NewGuid(),
+                    Badges = [],
+                });
+
                 await ctx.SaveChangesAsync();
                 await transaction.CommitAsync();
             }

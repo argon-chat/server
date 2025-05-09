@@ -112,8 +112,8 @@ public class ServerGrain(
 
         return members.Select(x => new RealtimeServerMember
         {
-            Member   = x.ToDto(),
-            Status   = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
+            Member = x.ToDto(),
+            Status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
                 ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 15 ? item.Status : UserStatus.Offline
                 : UserStatus.Offline,
             Presence = activities.TryGetValue(x.UserId, out var presence) ? presence : null
@@ -157,6 +157,21 @@ public class ServerGrain(
         var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
         await _serverEvents.Fire(new UserUpdated(user.ToDto()));
     }
+
+    public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller)
+    {
+        
+        await using var ctx     = await context.CreateDbContextAsync();
+        List<Guid>      userIds = [userId, caller];
+        var targetProfile       = await ctx.Servers
+           .SelectMany(server => server.Users)
+           .Where(member => userIds.Contains(member.UserId))
+           .Select(member => member.User.Profile)
+           .FirstAsync(x => x.UserId == userId)
+           .ToDto();
+        return targetProfile;
+    }
+
 
     public async ValueTask UserJoined(Guid userId)
     {

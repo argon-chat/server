@@ -4,6 +4,7 @@ using Features.EF;
 using System.Drawing;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Newtonsoft.Json;
 using Shared.Servers;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
@@ -29,6 +30,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
     public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
+    public DbSet<UserProfile> UserProfiles { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -163,6 +165,19 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<UserSocialIntegration>()
            .HasIndex(x => x.SocialId);
+
+        modelBuilder.Entity<UserProfile>()
+           .Property(u => u.Badges)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => JsonConvert.SerializeObject(v ?? new List<string>()),
+                v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>()
+            );
+        modelBuilder.Entity<UserProfile>()
+           .HasOne(x => x.User)
+           .WithOne(x => x.Profile)
+           .HasForeignKey<UserProfile>(x => x.UserId)
+           .OnDelete(DeleteBehavior.Cascade);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

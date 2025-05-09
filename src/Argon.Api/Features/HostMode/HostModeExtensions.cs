@@ -186,6 +186,7 @@ public static class HostModeExtensions
         });
         if (!builder.IsEntryPointRole())
         {
+            builder.AddBeforeMigrations();
             builder.AddPooledDatabase<ApplicationDbContext>();
             builder.AddEfRepositories();
             builder.AddArgonPermissions();

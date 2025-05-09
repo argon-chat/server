@@ -1,7 +1,7 @@
 namespace Argon.Users;
 
-[MessagePackObject(true), TsInterface]
-public sealed record User : ArgonEntity
+[MessagePackObject(true)]
+public record User : ArgonEntity
 {
     public static readonly Guid SystemUser
         = Guid.Parse("11111111-2222-1111-2222-111111111111");
@@ -25,6 +25,9 @@ public sealed record User : ArgonEntity
 
     public LockdownReason  LockdownReason     { get; set; }
     public DateTimeOffset? LockDownExpiration { get; set; }
+
+    [IgnoreMember]
+    public virtual UserProfile Profile { get; set; }
 }
 
 [MessagePackObject(true), TsInterface]
