@@ -9,6 +9,8 @@ public static class CorsFeature
         ("app", "index"),
         ("https", "argon.gl"),
         ("https", "argon.zone"),
+        ("https", "link.argon.gl"),
+        ("https", "meet.argon.gl"),
     ];
     public static void AddDefaultCors(this WebApplicationBuilder builder)
         => builder.Services.AddCors(x => x.AddDefaultPolicy(z => z.SetIsOriginAllowed(origin =>
@@ -22,8 +24,3 @@ public static class CorsFeature
            .AllowAnyMethod()
            .WithExposedHeaders("X-Wt-Upgrade", "X-Wt-Fingerprint", "X-Wt-AAT")));
 }
-
-/*context.Response.Headers.TryAdd("X-Wt-Upgrade", opt.Value.Upgrade);
-if (!string.IsNullOrEmpty(opt.Value.CertificateFingerprint))
-    context.Response.Headers.TryAdd("X-Wt-Fingerprint", opt.Value.CertificateFingerprint);
-context.Response.Headers.TryAdd("X-Wt-AAT", aat.ToString());*/
