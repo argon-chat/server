@@ -37,4 +37,6 @@ public interface IUserInteraction : IArgonService
     Task<string> CreateSocialBoundAsync(string kind);
 
     Task<List<UserSocialIntegrationDto>> GetMeSocials();
+
+    Task<bool> DeleteSocialBound(string kind, Guid socialId);
 }
