@@ -30,7 +30,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
     public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
-    public DbSet<UserProfile> UserProfiles { get; set; }
+    public DbSet<UserProfile>           UserProfiles       { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -64,6 +64,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.Entities)
+           .HasConversion(
+                v => JsonConvert.SerializeObject(v, new JsonSerializerSettings
+                {
+                    TypeNameHandling = TypeNameHandling.Auto,
+                    Formatting       = Formatting.None
+                }),
+                v => JsonConvert.DeserializeObject<List<MessageEntity>>(v, new JsonSerializerSettings
+                {
+                    TypeNameHandling = TypeNameHandling.Auto,
+                    Formatting       = Formatting.None
+                }) ?? new List<MessageEntity>())
            .HasColumnType("jsonb");
 
         //modelBuilder.Entity<ArgonMessage>()
