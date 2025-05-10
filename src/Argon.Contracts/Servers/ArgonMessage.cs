@@ -22,10 +22,43 @@ public enum EntityType : ushort
 [TsInterface, MessagePackObject(true)]
 public record MessageEntity
 {
+    public const int GlobalVersion = 1;
+
     public EntityType Type    { get; set; }
     public int        Offset  { get; set; }
     public int        Length  { get; set; }
-    public string?    UrlMask { get; set; }
+    public int        Version { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityMention : MessageEntity
+{
+    public required Guid UserId { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityEmail : MessageEntity
+{
+    public required string Email { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityHashTag : MessageEntity
+{
+    public required string Hashtag { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityQuote : MessageEntity
+{
+    public required Guid QuotedUserId { get; set; }
+}
+
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityUrl : MessageEntity
+{
+    public required string Domain { get; set; }
+    public required string Path { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]

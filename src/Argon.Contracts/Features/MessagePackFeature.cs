@@ -15,7 +15,8 @@ public static class MessagePackFeature
            .WithResolver(CompositeResolver.Create(
                 DynamicEnumAsStringResolver.Instance,
                 EitherFormatterResolver.Instance,
-                ArgonEventResolver.Instance));
+                ArgonEventResolver.Instance,
+                MessageEntityResolver.Instance));
         MessagePackSerializer.DefaultOptions = options;
         collection.AddSingleton(options);
         collection.AddSerializer(x => {
