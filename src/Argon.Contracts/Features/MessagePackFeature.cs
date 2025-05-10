@@ -13,13 +13,22 @@ public static class MessagePackFeature
     {
         var options = MessagePackSerializerOptions.Standard
            .WithResolver(CompositeResolver.Create(
-                DynamicEnumAsStringResolver.Instance,
-                EitherFormatterResolver.Instance,
-                ArgonEventResolver.Instance,
-                MessageEntityResolver.Instance));
+                [
+                    new MessageEntityFormatter()
+                ],
+                [
+                    DynamicEnumAsStringResolver.Instance,
+                    EitherFormatterResolver.Instance,
+                    ArgonEventResolver.Instance,
+                    StandardResolver.Instance
+                ]));
+
         MessagePackSerializer.DefaultOptions = options;
+
         collection.AddSingleton(options);
-        collection.AddSerializer(x => {
+
+        collection.AddSerializer(x =>
+        {
             x.AddMessagePackSerializer(null, null, options);
         });
     }

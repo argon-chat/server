@@ -19,7 +19,7 @@ public enum EntityType : ushort
     Underline,
 }
 
-[TsInterface, MessagePackObject(true), MessagePackFormatter(typeof(MessageEntityFormatter))]
+[TsInterface, MessagePackObject(true)]
 public record MessageEntity
 {
     public const int GlobalVersion = 1;
