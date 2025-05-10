@@ -54,6 +54,16 @@ public static class EventConfigurator
                 return;
             await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).HeartBeatAsync(ev.status);
         });
+        consumer.On<IAmTypingEvent>(async (ev, ctx) => {
+            if (ctx.SessionId == Guid.Empty)
+                return;
+            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingEmit(ev.serverId, ev.channelId);
+        });
+        consumer.On<IAmStopTypingEvent>(async (ev, ctx) => {
+            if (ctx.SessionId == Guid.Empty)
+                return;
+            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingStopEmit(ev.serverId, ev.channelId);
+        });
     }
 }
 
