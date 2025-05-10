@@ -14,7 +14,7 @@ public interface IArgonTransportAuthorizationContext
 public class ArgonTransportDcOffline : Exception;
 
 public class ArgonTransportContext(
-    HttpContext RpcContext, IServiceProvider provider, IArgonTransportAuthorizationContext authCtx, IArgonDcRegistry registry) : IDisposable
+    HttpContext RpcContext, IServiceProvider provider, IArgonTransportAuthorizationContext authCtx, IClusterClient? clusterClient) : IDisposable
 {
     private static readonly AsyncLocal<ArgonTransportContext> localScope = new();
 
@@ -49,26 +49,23 @@ public class ArgonTransportContext(
 
     public IClusterClient GetClusterClient()
     {
-        var clusterClient = registry.GetNearestClusterClient();
-
         if (clusterClient is null)
             throw new ArgonTransportDcOffline();
-
         return clusterClient;
     }
 
-    public static ArgonTransportContext CreateGrpc(ServerCallContext ctx, IServiceProvider provider, IArgonDcRegistry registry)
+    public static ArgonTransportContext CreateGrpc(ServerCallContext ctx, IServiceProvider provider, IClusterClient? clusterClient)
     {
         if (localScope.Value is not null)
             throw new InvalidAsynchronousStateException($"AsyncLocal of ArgonTransportContext already active");
-        return localScope.Value = new ArgonTransportContext(ctx.GetHttpContext(), provider, new GrpcArgonTransportAuthorizationContext(ctx), registry);
+        return localScope.Value = new ArgonTransportContext(ctx.GetHttpContext(), provider, new GrpcArgonTransportAuthorizationContext(ctx), clusterClient);
     }
 
-    public static ArgonTransportContext CreateWt(HttpContext ctx, TransportClientId clientId, IServiceProvider provider, IArgonDcRegistry registry)
+    public static ArgonTransportContext CreateWt(HttpContext ctx, TransportClientId clientId, IServiceProvider provider, IClusterClient? clusterClient)
     {
         if (localScope.Value is not null)
             throw new InvalidAsynchronousStateException($"AsyncLocal of ArgonTransportContext already active");
-        return localScope.Value = new ArgonTransportContext(ctx, provider, new WtAuthorizationContext(ctx, clientId), registry);
+        return localScope.Value = new ArgonTransportContext(ctx, provider, new WtAuthorizationContext(ctx, clientId), clusterClient);
     }
 
 

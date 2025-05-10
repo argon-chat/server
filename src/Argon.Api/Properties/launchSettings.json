@@ -5,8 +5,8 @@
       "launchUrl": "swagger",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ARGON_ROLE": "EntryPoint",
-        "ARGON_MODE": "SingleRegion",
+        "ARGON_ROLE": "Hybrid",
+        "ARGON_MODE": "SingleInstance",
         "NO_STRUCTURED_LOGS": "true",
         "USE_LOCALHOST_CERTS": "true"
       },

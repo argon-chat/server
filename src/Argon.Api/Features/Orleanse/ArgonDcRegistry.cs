@@ -23,6 +23,45 @@ public interface IArgonDcRegistry
     Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync);
 }
 
+public class ArgonHybridDcRegistry(IServiceProvider serviceProvider) : IArgonDcRegistry
+{
+    public IReadOnlyDictionary<string, ArgonDcClusterInfo> GetAll()
+        => new Dictionary<string, ArgonDcClusterInfo>()
+        {
+            {
+                "ru-3", new ArgonDcClusterInfo("ru-3", 1, serviceProvider, DateTime.UtcNow, ONLINE, new CancellationTokenSource())
+            }
+        };
+
+    public bool TryGet(string region, [NotNullWhen(true)] out ArgonDcClusterInfo? item)
+    {
+        item = GetAll().First().Value;
+        return true;
+    }
+
+    public void Upsert(ArgonDcClusterInfo item)
+    {
+
+    }
+
+    public void Remove(string region)
+    {
+
+    }
+
+    public ArgonDcClusterInfo? GetNearestDc()
+        => GetAll().First().Value;
+
+    public IClusterClient? GetNearestClusterClient()
+        => serviceProvider.GetRequiredService<IClusterClient>();
+
+    public int GetDcCount()
+        => 1;
+
+    public Task SubscribeToNewClient(Func<ArgonDcClusterInfo, CancellationToken, ValueTask> onNextAsync)
+        => Task.CompletedTask;
+}
+
 public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 {
     private readonly ILogger<IArgonDcRegistry> _logger;

@@ -27,6 +27,13 @@ public static class OrleansExtension
         return builder;
     }
 
+    public static WebApplicationBuilder AddShimsForHybridRole(this WebApplicationBuilder builder)
+    {
+        builder.AddNatsCtx();
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonHybridDcRegistry>();
+        return builder;
+    }
+
     public static WebApplicationBuilder AddSingleOrleansClient(this WebApplicationBuilder builder)
     {
         //builder.AddMultiOrleansClient();
@@ -44,7 +51,7 @@ public static class OrleansExtension
         builder.Services.UseOrleansMessagePack();
         builder.Host.UseOrleans(siloBuilder =>
         {
-            if (builder.IsGatewayRole())
+            if (builder.IsGatewayRole() || builder.IsHybridRole())
                 siloBuilder.ConfigureEndpoints(11111, 30000).UseDashboard(o => o.Port = 22832);
             else if (builder.IsWorkerRole())
                 siloBuilder.ConfigureEndpoints(11111, 0);

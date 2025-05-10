@@ -59,22 +59,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             })
            .IsUnique();
 
+
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.MessageId);
 
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.Entities)
-           .HasConversion(
-                v => JsonConvert.SerializeObject(v, new JsonSerializerSettings
-                {
-                    TypeNameHandling = TypeNameHandling.Auto,
-                    Formatting       = Formatting.None
-                }),
-                v => JsonConvert.DeserializeObject<List<MessageEntity>>(v, new JsonSerializerSettings
-                {
-                    TypeNameHandling = TypeNameHandling.Auto,
-                    Formatting       = Formatting.None
-                }) ?? new List<MessageEntity>())
+           .HasConversion<PolyListNewtonsoftJsonValueConverter<List<MessageEntity>, MessageEntity>>()
            .HasColumnType("jsonb");
 
         //modelBuilder.Entity<ArgonMessage>()
@@ -86,10 +77,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         //    );
 
         modelBuilder.Entity<ArgonMessageReaction>()
-           .HasKey(r => new { r.ServerId, r.ChannelId, r.MessageId, r.UserId, r.Reaction });
+           .HasKey(r => new
+            {
+                r.ServerId,
+                r.ChannelId,
+                r.MessageId,
+                r.UserId,
+                r.Reaction
+            });
 
         modelBuilder.Entity<ArgonMessageReaction>()
-           .HasIndex(r => new { r.ServerId, r.ChannelId, r.MessageId })
+           .HasIndex(r => new
+            {
+                r.ServerId,
+                r.ChannelId,
+                r.MessageId
+            })
            .IsUnique();
 
         modelBuilder.Entity<ServerMemberArchetype>()
