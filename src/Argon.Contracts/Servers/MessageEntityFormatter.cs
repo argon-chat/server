@@ -51,47 +51,41 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
         }
     }
 
-    public MessageEntity Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    public MessageEntity? Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
     {
         if (reader.TryReadNil())
             return null;
 
-        var clone = reader;
-
+        var clone    = reader;
         var mapCount = clone.ReadMapHeader();
-        string? typeString = null;
+
+        string? typeStr = null;
 
         for (var i = 0; i < mapCount; i++)
         {
             var key = clone.ReadString();
-            if (key == nameof(MessageEntity.Type))
+            if (key == "Type")
             {
-                typeString = clone.ReadString();
+                typeStr = clone.ReadString();
                 break;
             }
-            clone.Skip(); // skip value
+            clone.Skip();
         }
 
-        if (typeString == null)
-            throw new InvalidOperationException("MessageEntity is missing 'type' field");
+        if (typeStr is null)
+            throw new MessagePackSerializationException("Missing 'Type' field");
 
-        if (!Enum.TryParse<EntityType>(typeString, true, out var entityType))
-            throw new InvalidOperationException($"Unknown MessageEntity type '{typeString}'");
+        if (!Enum.TryParse<EntityType>(typeStr, true, out var entityType))
+            throw new MessagePackSerializationException($"Unknown EntityType: {typeStr}");
 
-        switch (entityType)
+        return entityType switch
         {
-            case EntityType.Mention:
-            return MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options);
-            case EntityType.Email:
-            return MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options);
-            case EntityType.Hashtag:
-            return MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options);
-            case EntityType.Quote:
-            return MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options);
-            case EntityType.Url:
-            return MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options);
-            default:
-            return MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options);
-        }
+            EntityType.Mention => MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options),
+            EntityType.Email   => MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options),
+            EntityType.Hashtag => MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options),
+            EntityType.Quote   => MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options),
+            EntityType.Url     => MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options),
+            _                  => MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options),
+        };
     }
 }
