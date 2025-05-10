@@ -7,7 +7,7 @@ public class PolymorphicListConverter<TBase> : JsonConverter<List<TBase>>
 {
     private readonly JsonSerializerSettings InternalSettings = new()
     {
-        TypeNameHandling = TypeNameHandling.Auto
+        TypeNameHandling = TypeNameHandling.All
     };
 
     public override void WriteJson(JsonWriter writer, List<TBase>? value, JsonSerializer serializer)
