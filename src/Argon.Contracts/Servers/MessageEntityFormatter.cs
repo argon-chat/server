@@ -28,10 +28,6 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
             return;
         }
 
-        writer.WriteArrayHeader(2);
-
-        writer.Write((ushort)value.Type);
-
         switch (value.Type)
         {
             case EntityType.Mention:
@@ -50,63 +46,52 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
                 MessagePackSerializer.Serialize(ref writer, (MessageEntityUrl)value, options);
                 break;
             default:
-                writer.WriteMapHeader(3);
-                writer.Write(nameof(MessageEntity.Type));
-                writer.Write((ushort)value.Type);
-                writer.Write(nameof(MessageEntity.Offset));
-                writer.Write(value.Offset);
-                writer.Write(nameof(MessageEntity.Length));
-                writer.Write(value.Length);
-                writer.Write(nameof(MessageEntity.Version));
-                writer.Write(value.Version);
-            break;
+                MessagePackSerializer.Serialize(ref writer, value, options);
+                break;
         }
     }
 
-    public MessageEntity? Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
+    public MessageEntity Deserialize(ref MessagePackReader reader, MessagePackSerializerOptions options)
     {
-        if (reader.TryReadNil()) return null;
+        if (reader.TryReadNil())
+            return null;
 
-        var count = reader.ReadArrayHeader();
-        if (count != 2) throw new InvalidOperationException("Invalid MessageEntity format");
+        var clone = reader;
 
-        var type = (EntityType)reader.ReadUInt16();
+        var mapCount = clone.ReadMapHeader();
+        string? typeString = null;
 
-        switch (type)
+        for (var i = 0; i < mapCount; i++)
+        {
+            var key = clone.ReadString();
+            if (key == nameof(MessageEntity.Type))
+            {
+                typeString = clone.ReadString();
+                break;
+            }
+            clone.Skip(); // skip value
+        }
+
+        if (typeString == null)
+            throw new InvalidOperationException("MessageEntity is missing 'type' field");
+
+        if (!Enum.TryParse<EntityType>(typeString, true, out var entityType))
+            throw new InvalidOperationException($"Unknown MessageEntity type '{typeString}'");
+
+        switch (entityType)
         {
             case EntityType.Mention:
-                return MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options);
+            return MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options);
             case EntityType.Email:
-                return MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options);
+            return MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options);
             case EntityType.Hashtag:
-                return MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options);
+            return MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options);
             case EntityType.Quote:
-                return MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options);
+            return MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options);
             case EntityType.Url:
-                return MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options);
+            return MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options);
             default:
-                var mapCount = reader.ReadMapHeader();
-                var offset   = 0;
-                var length   = 0;
-                var version  = 0;
-                for (var i = 0; i < mapCount; i++)
-                {
-                    var key = reader.ReadString();
-                    switch (key)
-                    {
-                        case nameof(MessageEntity.Offset): offset = reader.ReadInt32(); break;
-                        case nameof(MessageEntity.Length): length = reader.ReadInt32(); break;
-                        case nameof(MessageEntity.Version): length = reader.ReadInt32(); break;
-                        default:                           reader.Skip(); break;
-                    }
-                }
-                return new MessageEntity
-                {
-                    Type   = type,
-                    Offset = offset,
-                    Length = length,
-                    Version = version
-                };
+            return MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options);
         }
     }
 }

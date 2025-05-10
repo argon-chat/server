@@ -1,9 +1,9 @@
 namespace Argon;
 
 using System.ComponentModel.DataAnnotations.Schema;
-using ArchetypeModel;
-using Features.Web;
+using MessagePack.Formatters;
 
+[MessagePackFormatter(typeof(EnumAsStringFormatter<EntityType>))]
 public enum EntityType : ushort
 {
     Hashtag,
