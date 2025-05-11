@@ -32,6 +32,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
     public DbSet<UserProfile>           UserProfiles       { get; set; }
 
+    public DbSet<UsernameReserved> Reservation { get; set; }
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ArgonMessageCounters>()
@@ -67,6 +68,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .Property(m => m.Entities)
            .HasConversion<PolyListNewtonsoftJsonValueConverter<List<MessageEntity>, MessageEntity>>()
            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<UsernameReserved>()
+           .HasIndex(x => x.NormalizedUserName)
+           .IsUnique();
 
         //modelBuilder.Entity<ArgonMessage>()
         //   .Property(x => x.CreatedAt)

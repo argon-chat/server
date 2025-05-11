@@ -17,7 +17,6 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
-        user.Username     = input.Username ?? user.Username;
         user.DisplayName  = input.DisplayName ?? user.DisplayName;
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         ctx.Users.Update(user);

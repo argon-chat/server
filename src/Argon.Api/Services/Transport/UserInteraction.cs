@@ -48,9 +48,20 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
     }
 
     [AllowAnonymous]
-    public async Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input)
+    public async Task<Either<string, RegistrationErrorData>> Registration(NewUserCredentialsInput input)
     {
         var validationResult = await new NewUserCredentialsInputValidator().ValidateAsync(input);
+
+        if (!validationResult.IsValid)
+        {
+            var err = validationResult.Errors.First();
+            return new RegistrationErrorData()
+            {
+                Field   = err.PropertyName,
+                Code    = RegistrationError.VALIDATION_FAILED,
+                Message = err.ErrorMessage
+            };
+        }
 
         var clientName = this.GetClientName();
         var ipAddress  = this.GetIpAddress();
