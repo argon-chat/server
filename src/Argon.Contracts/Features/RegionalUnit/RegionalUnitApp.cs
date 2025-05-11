@@ -26,8 +26,8 @@ public class RegionalUnitApp
         if (true) // builder.Environment.IsSingleInstance() 
         {
             // set default dc for compatible reason
-            builder.SetDatacenter("ru-3");
-            builder.Services.AddKeyedSingleton<string>("dc", "ru-3");
+            builder.SetDatacenter(Environment.GetEnvironmentVariable("ARGON_REGION_DC") ?? "ru-3");
+            builder.Services.AddKeyedSingleton<string>("dc", Environment.GetEnvironmentVariable("ARGON_REGION_DC") ?? "ru-3");
             builder.AddLogging();
             builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{builder.Environment.DetermineClientSpace()}"));
             builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
