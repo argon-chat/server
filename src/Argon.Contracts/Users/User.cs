@@ -11,7 +11,7 @@ public record User : ArgonEntity
     [MaxLength(64)]
     public required string Username { get; set; }
     [MaxLength(64)]
-    public string? NormalizedUsername { get; set; }
+    public required string NormalizedUsername { get; set; }
     [MaxLength(64)]
     public required string DisplayName { get; set; }
     [MaxLength(64), IgnoreMember, JsonIgnore, TsIgnore]

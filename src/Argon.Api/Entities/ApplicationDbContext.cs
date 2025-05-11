@@ -33,6 +33,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserProfile>           UserProfiles       { get; set; }
 
     public DbSet<UsernameReserved> Reservation { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<ArgonMessageCounters>()
@@ -208,11 +209,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<User>().HasData(new User
         {
-            Username       = "system",
-            DisplayName    = "System",
-            Email          = "system@argon.gl",
-            Id             = User.SystemUser,
-            PasswordDigest = null
+            Username           = "system",
+            DisplayName        = "System",
+            Email              = "system@argon.gl",
+            Id                 = User.SystemUser,
+            PasswordDigest     = null,
+            NormalizedUsername = "system"
         });
 
         modelBuilder.Entity<Server>().HasData(new Server

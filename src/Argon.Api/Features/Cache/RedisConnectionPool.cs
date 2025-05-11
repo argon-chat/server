@@ -62,7 +62,7 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
         if (excess <= maxSize) return;
 
         var rmRequired = excess - maxSize;
-        logger.LogWarning("Cleaning up {Count} excess redis connections", rmRequired);
+        logger.LogInformation("Cleaning up {Count} excess redis connections", rmRequired);
 
         while (rmRequired > 0 && ConnectionPool.TryTake(out var mux))
         {
@@ -90,7 +90,7 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
             while (await timer.WaitForNextTickAsync(stoppingToken))
             {
                 var (allocated, taken) = (Interlocked.Read(ref Allocated), Interlocked.Read(ref Taken));
-                logger.LogInformation("Cleaning up redis pool call, currently allocated: {connectionAllocated}, in use: {connectionTaken}", allocated, taken);
+                logger.LogDebug("Cleaning up redis pool call, currently allocated: {connectionAllocated}, in use: {connectionTaken}", allocated, taken);
                 await Cleanup();
             }
         }
@@ -121,7 +121,7 @@ public class RedisConnectionPool(IConfiguration cfg, ILogger<RedisConnectionPool
 
         if (proposed <= current) 
             return;
-        logger.LogWarning("Auto-scaling Redis pool size from {Old} to {New}", current, proposed);
+        logger.LogInformation("Auto-scaling Redis pool size from {Old} to {New}", current, proposed);
         Interlocked.Exchange(ref DefaultSize, proposed);
         lastScaleUp = now;
     }
