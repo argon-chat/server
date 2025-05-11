@@ -24,10 +24,10 @@ public static class RpcServiceCollectionExtensions
 
     private async static Task HandleWs(HttpContext ctx)
     {
-        var logger      = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebSocketFeature>>();
-        var wtCollector = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
-        var registry    = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
-
+        var logger        = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebSocketFeature>>();
+        var wtCollector   = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
+        var registry      = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
+        var clusterClient = registry.GetNearestClusterClient();
         if (!ctx.WebSockets.IsWebSocketRequest)
         {
             logger.LogCritical("Request is not web socket type");
@@ -57,7 +57,7 @@ public static class RpcServiceCollectionExtensions
 
         logger.LogInformation("WebSocket token exchanged, {aat}", attToken);
 
-        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, registry);
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, clusterClient);
         await using var pipe  = ArgonTransportFeaturePipe.CreateForWs(socket);
 
         await wtCollector.HandleTransportRequest(ctx, pipe, scope);
@@ -65,10 +65,11 @@ public static class RpcServiceCollectionExtensions
 
     private async static Task HandleWt(HttpContext ctx)
     {
-        var wt          = ctx.Features.Get<IHttpWebTransportFeature>();
-        var logger      = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebTransportFeature>>();
-        var wtCollector = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
-        var registry    = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
+        var wt            = ctx.Features.Get<IHttpWebTransportFeature>();
+        var logger        = ctx.RequestServices.GetRequiredService<ILogger<IHttpWebTransportFeature>>();
+        var wtCollector   = ctx.RequestServices.GetRequiredService<IArgonWebTransport>();
+        var registry      = ctx.RequestServices.GetRequiredService<IArgonDcRegistry>();
+        var clusterClient = registry.GetNearestClusterClient();
 
         if (wt is null)
         {
@@ -121,7 +122,7 @@ public static class RpcServiceCollectionExtensions
         logger.LogInformation("Web Transport token exchanged, {aat}", attToken);
 
 
-        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, registry);
+        using var       scope = ArgonTransportContext.CreateWt(ctx, token.Value, ctx.RequestServices, clusterClient);
         await using var pipe  = ArgonTransportFeaturePipe.CreateForWt(conn);
         await wtCollector.HandleTransportRequest(ctx, pipe, scope);
     }

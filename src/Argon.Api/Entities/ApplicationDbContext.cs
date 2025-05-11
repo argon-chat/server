@@ -4,6 +4,7 @@ using Features.EF;
 using System.Drawing;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using Newtonsoft.Json;
 using Shared.Servers;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
@@ -29,6 +30,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
 
     public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
+    public DbSet<UserProfile>           UserProfiles       { get; set; }
+
+    public DbSet<UsernameReserved> Reservation { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,12 +61,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             })
            .IsUnique();
 
+
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.MessageId);
 
         modelBuilder.Entity<ArgonMessage>()
            .Property(m => m.Entities)
+           .HasConversion<PolyListNewtonsoftJsonValueConverter<List<MessageEntity>, MessageEntity>>()
            .HasColumnType("jsonb");
+
+        modelBuilder.Entity<UsernameReserved>()
+           .HasIndex(x => x.NormalizedUserName)
+           .IsUnique();
 
         //modelBuilder.Entity<ArgonMessage>()
         //   .Property(x => x.CreatedAt)
@@ -73,10 +83,22 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         //    );
 
         modelBuilder.Entity<ArgonMessageReaction>()
-           .HasKey(r => new { r.ServerId, r.ChannelId, r.MessageId, r.UserId, r.Reaction });
+           .HasKey(r => new
+            {
+                r.ServerId,
+                r.ChannelId,
+                r.MessageId,
+                r.UserId,
+                r.Reaction
+            });
 
         modelBuilder.Entity<ArgonMessageReaction>()
-           .HasIndex(r => new { r.ServerId, r.ChannelId, r.MessageId })
+           .HasIndex(r => new
+            {
+                r.ServerId,
+                r.ChannelId,
+                r.MessageId
+            })
            .IsUnique();
 
         modelBuilder.Entity<ServerMemberArchetype>()
@@ -164,6 +186,19 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<UserSocialIntegration>()
            .HasIndex(x => x.SocialId);
 
+        modelBuilder.Entity<UserProfile>()
+           .Property(u => u.Badges)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => JsonConvert.SerializeObject(v ?? new List<string>()),
+                v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>()
+            );
+        modelBuilder.Entity<UserProfile>()
+           .HasOne(x => x.User)
+           .WithOne(x => x.Profile)
+           .HasForeignKey<UserProfile>(x => x.UserId)
+           .OnDelete(DeleteBehavior.Cascade);
+
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
             if (!typeof(ArgonEntity).IsAssignableFrom(entityType.ClrType))
@@ -174,11 +209,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
         modelBuilder.Entity<User>().HasData(new User
         {
-            Username       = "system",
-            DisplayName    = "System",
-            Email          = "system@argon.gl",
-            Id             = User.SystemUser,
-            PasswordDigest = null
+            Username           = "system",
+            DisplayName        = "System",
+            Email              = "system@argon.gl",
+            Id                 = User.SystemUser,
+            PasswordDigest     = null,
+            NormalizedUsername = "system"
         });
 
         modelBuilder.Entity<Server>().HasData(new Server

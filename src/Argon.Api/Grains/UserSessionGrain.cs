@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using Features.Logic;
 using Features.Rpc;
 using MessagePipe;
+using Orleans.Concurrency;
 using Orleans.Streams;
 using Services;
 using static DeactivationReasonCode;
@@ -156,6 +157,7 @@ public class UserSessionGrain(
         }
     }
 
+    [OneWay]
     public async ValueTask HeartBeatAsync(UserStatus status)
     {
         if (_userId == Guid.Empty)
@@ -178,6 +180,14 @@ public class UserSessionGrain(
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
     }
+
+    [OneWay]
+    public ValueTask OnTypingEmit(Guid serverId, Guid channelId)
+        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingEmit(serverId, this._userId);
+
+    [OneWay]
+    public ValueTask OnTypingStopEmit(Guid serverId, Guid channelId)
+        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingStopEmit(serverId, this._userId);
 
     public async ValueTask EndRealtimeSession()
     {

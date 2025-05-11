@@ -186,6 +186,7 @@ public static class HostModeExtensions
         });
         if (!builder.IsEntryPointRole())
         {
+            builder.AddBeforeMigrations();
             builder.AddPooledDatabase<ApplicationDbContext>();
             builder.AddEfRepositories();
             builder.AddArgonPermissions();
@@ -209,6 +210,7 @@ public static class HostModeExtensions
             if (!builder.IsSingleInstance())
                 throw new InvalidOperationException("Hybrid role is only allowed in single instance mode");
             builder.AddWorkerOrleans();
+            builder.AddShimsForHybridRole();
         }
         else if (builder.IsEntryPointRole())
         {

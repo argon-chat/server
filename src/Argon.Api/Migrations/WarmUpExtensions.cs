@@ -5,6 +5,7 @@ using Argon.Features.Env;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.DependencyInjection;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations.Internal;
 
 public static class WarmUpExtension
@@ -19,22 +20,35 @@ public static class WarmUpExtension
         var       factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<T>>();
         using var db      = factory.CreateDbContext();
         if (isMigrate)
-            Migrate(db, scope.ServiceProvider.GetRequiredService<ILogger<T>>());
+            Migrate(db, scope.ServiceProvider.GetRequiredService<ILogger<T>>(), scope.ServiceProvider);
         else
             db.Database.EnsureCreated();
         return app;
     }
 
-    private static void Migrate<T>(T dbCtx, ILogger<T> logger) where T : DbContext
+    private static void Migrate<T>(T dbCtx, ILogger<T> logger, IServiceProvider provider) where T : DbContext
     {
         var migrations = dbCtx.Database.GetPendingMigrations().ToList();
         foreach (var migration in migrations)
         {
             logger.LogInformation("Applying migration: {migration}", migration);
+
+            var beforeHandler = provider.GetKeyedService<IBeforeMigrationsHandler>(IBeforeMigrationsHandler.Key(migration.Split('_').Last()));
+
+            beforeHandler?.BeforeMigrateAsync(dbCtx).Wait(TimeSpan.FromMinutes(5));
             dbCtx.Database.Migrate(migration);
+
             logger.LogInformation("Migration applied: {migration}", migration);
         }
     }
+}
+
+
+public interface IBeforeMigrationsHandler
+{
+    public static string Key(string migrationName) => $"before_migration_{migrationName}";
+
+    Task BeforeMigrateAsync(DbContext ctx);
 }
 
 #pragma warning disable EF1001 // Internal EF Core API usage.

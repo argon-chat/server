@@ -48,9 +48,20 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
     }
 
     [AllowAnonymous]
-    public async Task<Either<string, RegistrationError>> Registration(NewUserCredentialsInput input)
+    public async Task<Either<string, RegistrationErrorData>> Registration(NewUserCredentialsInput input)
     {
         var validationResult = await new NewUserCredentialsInputValidator().ValidateAsync(input);
+
+        if (!validationResult.IsValid)
+        {
+            var err = validationResult.Errors.First();
+            return new RegistrationErrorData()
+            {
+                Field   = err.PropertyName,
+                Code    = RegistrationError.VALIDATION_FAILED,
+                Message = err.ErrorMessage
+            };
+        }
 
         var clientName = this.GetClientName();
         var ipAddress  = this.GetIpAddress();
@@ -109,6 +120,10 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
         return await bounder.CompleteBoundTokenAsync(userId, token, socialUser, clusterClient);
     }
 
+    public async Task<bool> DeleteSocialBound(string kind, Guid socialId)
+        => await this.GetGrainFactory().GetGrain<IUserGrain>(this.GetUser().id).DeleteSocialBoundAsync(kind, socialId);
+
+
     public async Task<string> CreateSocialBoundAsync(string kind)
     {
         if (!kind.Equals("Telegram")) // temporary only tg
@@ -142,5 +157,12 @@ public class UserInteraction(TelegramSocialBounder bounder) : IUserInteraction
     {
         var userData = this.GetUser();
         await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).RemoveBroadcastPresenceAsync();
+    }
+
+
+    public async Task<List<UserSocialIntegrationDto>> GetMeSocials()
+    {
+        var userData = this.GetUser();
+        return await this.GetGrainFactory().GetGrain<IUserGrain>(userData.id).GetMeSocials();
     }
 }

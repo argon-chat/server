@@ -17,7 +17,6 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
-        user.Username     = input.Username ?? user.Username;
         user.DisplayName  = input.DisplayName ?? user.DisplayName;
         user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
         ctx.Users.Update(user);
@@ -111,5 +110,27 @@ public class UserGrain(
             UserId   = this.GetPrimaryKey()
         });
         await ctx.SaveChangesAsync();
+    }
+
+    public async ValueTask<List<UserSocialIntegrationDto>> GetMeSocials()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        return await ctx.SocialIntegrations.Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
+    }
+
+    public async ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        try
+        {
+            var result = await ctx.SocialIntegrations.Where(x => x.Id == socialId).ExecuteDeleteAsync();
+            return result == 1;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed delete social bound by {socialId}", socialId);
+            return false;
+        }
     }
 }

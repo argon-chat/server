@@ -76,4 +76,7 @@ public class ServerInteraction : IServerInteraction
     // TODO use access key
     public Task<UserDto> PrefetchUser(Guid serverId, Guid userId)
         => this.GetGrainFactory().GetGrain<IUserGrain>(userId).GetMe().ToDto();
+
+    public async Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId)
+        => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).PrefetchProfile(userId, this.GetUser().id);
 }

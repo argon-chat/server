@@ -30,6 +30,12 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [OneWay, Alias("ClearChannel")]
     Task ClearChannel();
+
+
+    [OneWay, Alias("OnTypingEmit")]
+    ValueTask OnTypingEmit(Guid serverId, Guid userId);
+    [OneWay, Alias("OnTypingStopEmit")]
+    ValueTask OnTypingStopEmit(Guid serverId, Guid userId);
 }
 
 [MessagePackObject(true)]

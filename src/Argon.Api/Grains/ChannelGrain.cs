@@ -65,6 +65,20 @@ public class ChannelGrain(
         return Task.CompletedTask;
     }
 
+    [OneWay]
+    public async ValueTask OnTypingEmit(Guid serverId, Guid userId)
+    {
+        if (this.ServerId.id != serverId) return;
+        await _userStateEmitter.Fire(new UserTypingEvent(userId, serverId, ChannelId.channelId));
+    }
+
+    [OneWay]
+    public async ValueTask OnTypingStopEmit(Guid serverId, Guid userId)
+    {
+        if (ServerId.id != serverId) return;
+        await _userStateEmitter.Fire(new UserStopTypingEvent(userId, serverId, ChannelId.channelId));
+    }
+
 
     public async Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId)
     {

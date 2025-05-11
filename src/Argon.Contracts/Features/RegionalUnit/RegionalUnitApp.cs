@@ -20,8 +20,8 @@ public class RegionalUnitApp
             builder.WebHost.UseUrls("http://localhost:5002");
         else if (builder.IsGatewayRole())
             builder.WebHost.UseUrls("http://localhost:5000");
-        else
-            builder.WebHost.UseUrls("http://localhost:5001");
+        //else
+        //    builder.WebHost.UseUrls("https://localhost:5001");
 
         if (true) // builder.Environment.IsSingleInstance() 
         {

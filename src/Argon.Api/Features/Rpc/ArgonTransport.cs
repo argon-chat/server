@@ -5,27 +5,34 @@ using Features.Middlewares;
 using Google.Protobuf;
 using Grpc.Core;
 using System.Security.AccessControl;
+using Features.Env;
 using Transport;
 
-public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger)
+public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger, IHostEnvironment env)
     : Transport.ArgonTransport.ArgonTransportBase
 {
     public async override Task<RpcResponse> Unary(RpcRequest request, ServerCallContext context)
     {
-        await using var scope = provider.CreateAsyncScope();
+        await using var scope     = provider.CreateAsyncScope();
+        var             nearestDc = default(IClusterClient);
 
-        var registry = scope.ServiceProvider.GetRequiredService<IArgonDcRegistry>();
-
-
-        var nearestDc = registry.GetNearestClusterClient();
+        if (env.IsHybrid())
+        {
+            nearestDc = scope.ServiceProvider.GetRequiredService<IClusterClient>();
+        }
+        else
+        {
+            var registry = scope.ServiceProvider.GetRequiredService<IArgonDcRegistry>();
+            nearestDc = registry.GetNearestClusterClient();
+        }
 
         if (nearestDc is null)
         {
             context.Status = new Status(StatusCode.FailedPrecondition, "no dc online found");
             return new RpcResponse
             {
-                Payload      = ByteString.Empty,
-                StatusCode   = ArgonRpcStatusCode.Ok,
+                Payload = ByteString.Empty,
+                StatusCode = ArgonRpcStatusCode.Ok,
                 ErrorMessage = "no dc online found"
             };
         }
@@ -33,7 +40,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
         using var _ = scope.ServiceProvider.GetRequiredService<IServerTimingRecorder>()
            .BeginRecord($"Unary/{request.Interface}::{request.Method}");
-        using var ctx     = ArgonTransportContext.CreateGrpc(context, provider, registry);
+        using var ctx     = ArgonTransportContext.CreateGrpc(context, provider, nearestDc);
         var       service = storage.GetService(request.Interface);  
 
         try

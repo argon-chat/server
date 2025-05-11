@@ -3,6 +3,7 @@ using System;
 using Argon.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -11,9 +12,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Api.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20250510121713_Test")]
+    partial class Test
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -584,11 +587,6 @@ namespace Argon.Api.Migrations
                     b.Property<int>("LockdownReason")
                         .HasColumnType("integer");
 
-                    b.Property<string>("NormalizedUsername")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
                     b.Property<string>("OtpHash")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
@@ -622,7 +620,6 @@ namespace Argon.Api.Migrations
                             Email = "system@argon.gl",
                             IsDeleted = false,
                             LockdownReason = 0,
-                            NormalizedUsername = "system",
                             UpdatedAt = -62135596800000L,
                             Username = "system"
                         });
@@ -723,34 +720,6 @@ namespace Argon.Api.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("SocialIntegrations");
-                });
-
-            modelBuilder.Entity("Argon.Users.UsernameReserved", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsBanned")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsReserved")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("NormalizedUserName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("UserName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("NormalizedUserName")
-                        .IsUnique();
-
-                    b.ToTable("Reservation");
                 });
 
             modelBuilder.Entity("Argon.ArchetypeModel.Archetype", b =>

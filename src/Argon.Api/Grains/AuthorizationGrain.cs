@@ -60,7 +60,7 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, connectionInfo.machineId);
     }
 
-    public async Task<Either<string, RegistrationError>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -68,17 +68,27 @@ public class AuthorizationGrain(
         if (user is not null)
         {
             logger.LogWarning("Email already registered '{email}'", input.Email);
-            return RegistrationError.EMAIL_ALREADY_REGISTERED;
+            return RegistrationErrorData.EmailAlreadyRegistered();
         }
 
-        user = await ctx.Users.FirstOrDefaultAsync(u => u.Username == input.Username);
+        var normalizedUserName = input.Username.ToLowerInvariant();
+
+        user = await ctx.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == normalizedUserName);
         if (user is not null)
         {
             logger.LogWarning("Username already registered '{username}'", input.Username);
-            return RegistrationError.USERNAME_ALREADY_TAKEN;
+            return RegistrationErrorData.UsernameAlreadyTaken();
         }
 
-        // TODO check reserved username
+        var reserved = await ctx.Reservation.FirstOrDefaultAsync(x => x.NormalizedUserName == normalizedUserName);
+
+        if (reserved is not null)
+        {
+            logger.LogWarning("Username reserved '{username}'", input.Username);
+            if (reserved.IsBanned)
+                return RegistrationErrorData.UsernameAlreadyTaken();
+            return RegistrationErrorData.UsernameReserved();
+        }
 
         // TODO check sso email (mx records and etc)
 
@@ -94,14 +104,15 @@ public class AuthorizationGrain(
                 var userId = Guid.NewGuid();
                 user = new User()
                 {
-                    AvatarFileId   = null,
-                    CreatedAt      = DateTime.UtcNow,
-                    Email          = input.Email,
-                    Id             = userId,
-                    Username       = input.Username,
-                    PasswordDigest = passwordHashingService.HashPassword(input.Password),
-                    PhoneNumber    = input.PhoneNumber,
-                    DisplayName    = input.DisplayName,
+                    AvatarFileId       = null,
+                    CreatedAt          = DateTime.UtcNow,
+                    Email              = input.Email,
+                    Id                 = userId,
+                    Username           = input.Username,
+                    NormalizedUsername = normalizedUserName,
+                    PasswordDigest     = passwordHashingService.HashPassword(input.Password),
+                    PhoneNumber        = input.PhoneNumber,
+                    DisplayName        = input.DisplayName,
                 };
                 await ctx.Users.AddAsync(user);
 
@@ -113,6 +124,13 @@ public class AuthorizationGrain(
                 };
                 await ctx.UserAgreements.AddAsync(agreements);
 
+                await ctx.UserProfiles.AddAsync(new UserProfile
+                {
+                    UserId = userId,
+                    Id     = Guid.NewGuid(),
+                    Badges = [],
+                });
+
                 await ctx.SaveChangesAsync();
                 await transaction.CommitAsync();
             }
@@ -123,7 +141,7 @@ public class AuthorizationGrain(
             }
         });
         if (user is null)
-            return RegistrationError.INTERNAL_ERROR;
+            return RegistrationErrorData.InternalError();
 
         return await GenerateJwt(user, Guid.NewGuid());
     }
@@ -138,6 +156,7 @@ public class AuthorizationGrain(
             logger.LogWarning("Email not registered '{email}' cannot be reset pass", email);
             return true;
         }
+
         var otp = passwordHashingService.GenerateOtp(user.Id);
         logger.LogError("User '{email}' generated otp code {otp} ({optHash})", email, otp.Code, otp.Hashed);
         await cache.StringSetAsync($"otp_reset:{user.Id}", otp.Hashed, TimeSpan.FromMinutes(3));
@@ -156,6 +175,7 @@ public class AuthorizationGrain(
             logger.LogWarning("Email not registered '{email}' cannot be reset pass", resetData.Email);
             return AuthorizationError.BAD_OTP;
         }
+
         var hashed = await cache.StringGetAsync($"otp_reset:{user.Id}");
 
         if (string.IsNullOrEmpty(hashed))
@@ -165,7 +185,8 @@ public class AuthorizationGrain(
 
         if (!otp.Hashed.Equals(hashed))
         {
-            logger.LogError("User '{email}' entered invalid otp code {otp} enterHash: ({optHash}) != sysHash: ({hashed})", resetData.Email, otp.Code, otp.Hashed, hashed);
+            logger.LogError("User '{email}' entered invalid otp code {otp} enterHash: ({optHash}) != sysHash: ({hashed})", resetData.Email, otp.Code,
+                otp.Hashed, hashed);
             return AuthorizationError.BAD_OTP;
         }
 
