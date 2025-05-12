@@ -52,8 +52,16 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
                     MessagePackSerializer.Serialize(ref writer, (MessageEntityUnderline)value, options);
                     break;
                 default:
-                    MessagePackSerializer.Serialize(ref writer, value);
-                    break;
+                    writer.WriteMapHeader(4);
+                    writer.Write(nameof(MessageEntity.Type));
+                    writer.Write(value.Type.ToString());
+                    writer.Write(nameof(MessageEntity.Offset));
+                    writer.Write(value.Offset);
+                    writer.Write(nameof(MessageEntity.Length));
+                    writer.Write(value.Length);
+                    writer.Write(nameof(MessageEntity.Version));
+                    writer.Write(value.Version);
+                    return;
             }
         }
         catch (Exception e)
@@ -99,7 +107,45 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
             EntityType.Quote     => MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options),
             EntityType.Url       => MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options),
             EntityType.Underline => MessagePackSerializer.Deserialize<MessageEntityUnderline>(ref reader, options),
-            _                    => MessagePackSerializer.Deserialize<MessageEntity>(ref reader),
+            _ => DeserializeBaseEntity(ref reader)
+        };
+    }
+
+    private static MessageEntity DeserializeBaseEntity(ref MessagePackReader reader)
+    {
+        var        count  = reader.ReadMapHeader();
+        EntityType type   = default;
+        int        offset = 0, length = 0, version = 0;
+
+        for (var i = 0; i < count; i++)
+        {
+            var key = reader.ReadString();
+            switch (key)
+            {
+                case nameof(MessageEntity.Type):
+                    type = Enum.Parse<EntityType>(reader.ReadString()!, true);
+                    break;
+                case nameof(MessageEntity.Offset):
+                    offset = reader.ReadInt32();
+                    break;
+                case nameof(MessageEntity.Length):
+                    length = reader.ReadInt32();
+                    break;
+                case nameof(MessageEntity.Version):
+                    version = reader.ReadInt32();
+                    break;
+                default:
+                    reader.Skip();
+                    break;
+            }
+        }
+
+        return new MessageEntity
+        {
+            Type    = type,
+            Offset  = offset,
+            Length  = length,
+            Version = version
         };
     }
 }
