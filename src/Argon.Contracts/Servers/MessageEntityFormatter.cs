@@ -48,6 +48,9 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
                 case EntityType.Url:
                     MessagePackSerializer.Serialize(ref writer, (MessageEntityUrl)value, options);
                     break;
+                case EntityType.Underline:
+                    MessagePackSerializer.Serialize(ref writer, (MessageEntityUnderline)value, options);
+                    break;
                 default:
                     MessagePackSerializer.Serialize(ref writer, value, options);
                     break;
@@ -78,6 +81,7 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
                 typeStr = clone.ReadString();
                 break;
             }
+
             clone.Skip();
         }
 
@@ -89,12 +93,13 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
 
         return entityType switch
         {
-            EntityType.Mention => MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options),
-            EntityType.Email   => MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options),
-            EntityType.Hashtag => MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options),
-            EntityType.Quote   => MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options),
-            EntityType.Url     => MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options),
-            _                  => MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options),
+            EntityType.Mention   => MessagePackSerializer.Deserialize<MessageEntityMention>(ref reader, options),
+            EntityType.Email     => MessagePackSerializer.Deserialize<MessageEntityEmail>(ref reader, options),
+            EntityType.Hashtag   => MessagePackSerializer.Deserialize<MessageEntityHashTag>(ref reader, options),
+            EntityType.Quote     => MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options),
+            EntityType.Url       => MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options),
+            EntityType.Underline => MessagePackSerializer.Deserialize<MessageEntityUnderline>(ref reader, options),
+            _                    => MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options),
         };
     }
 }

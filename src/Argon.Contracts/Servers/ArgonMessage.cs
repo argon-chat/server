@@ -17,6 +17,9 @@ public enum EntityType : ushort
     Bold,
     Italic,
     Underline,
+    Fraction,
+    Ordinal,
+    Capitalized
 }
 
 [TsInterface, MessagePackObject(true)]
@@ -54,6 +57,11 @@ public record MessageEntityQuote : MessageEntity
     public required Guid QuotedUserId { get; set; }
 }
 
+[TsInterface, MessagePackObject(true)]
+public record MessageEntityUnderline : MessageEntity
+{
+    public required int Colour { get; set; }
+}
 [TsInterface, MessagePackObject(true)]
 public record MessageEntityUrl : MessageEntity
 {
