@@ -52,7 +52,7 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
                     MessagePackSerializer.Serialize(ref writer, (MessageEntityUnderline)value, options);
                     break;
                 default:
-                    MessagePackSerializer.Serialize(ref writer, value, options);
+                    MessagePackSerializer.Serialize(ref writer, value);
                     break;
             }
         }
@@ -99,7 +99,7 @@ public class MessageEntityFormatter : IMessagePackFormatter<MessageEntity?>
             EntityType.Quote     => MessagePackSerializer.Deserialize<MessageEntityQuote>(ref reader, options),
             EntityType.Url       => MessagePackSerializer.Deserialize<MessageEntityUrl>(ref reader, options),
             EntityType.Underline => MessagePackSerializer.Deserialize<MessageEntityUnderline>(ref reader, options),
-            _                    => MessagePackSerializer.Deserialize<MessageEntity>(ref reader, options),
+            _                    => MessagePackSerializer.Deserialize<MessageEntity>(ref reader),
         };
     }
 }
