@@ -1,10 +1,11 @@
 namespace Argon.Grains;
 
-using System.Net;
-using System.Net.Mail;
 using Argon.Features.Otp;
 using Features.Template;
 using Orleans.Concurrency;
+using System.Net;
+using System.Net.Mail;
+using System.Threading;
 
 [StatelessWorker]
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
@@ -25,7 +26,6 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             IsBodyHtml = true
         });
 
-    [OneWay]
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
         if (!smtpOptions.Value.Enabled)
@@ -46,10 +46,12 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
         try
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
             await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code", form)
             {
                 IsBodyHtml = true
-            });
+            }, cts.Token);
         }
         catch (Exception e)
         {
@@ -57,7 +59,6 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         }
     }
 
-    [OneWay]
     public async Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity)
     {
         if (!smtpOptions.Value.Enabled)
@@ -76,10 +77,11 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
        
         try
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon reset password code", form)
             {
                 IsBodyHtml = true
-            });
+            }, cts.Token);
         }
         catch (Exception e)
         {
@@ -87,7 +89,6 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         }
     }
 
-    [OneWay]
     public async Task SendNotificationResetPasswordAsync(string email)
     {
         if (!smtpOptions.Value.Enabled)
@@ -97,12 +98,14 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         }
         try
         {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+
             var form = formStorage.Render("pass_changed", new Dictionary<string, string>());
 
             await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon password changed", form)
             {
                 IsBodyHtml = true
-            });
+            }, cts.Token);
         }
         catch (Exception e)
         {
