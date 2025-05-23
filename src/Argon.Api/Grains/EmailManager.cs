@@ -44,10 +44,17 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             }
         });
 
-        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code", form)
+        try
         {
-            IsBodyHtml = true
-        });
+            await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon verification code", form)
+            {
+                IsBodyHtml = true
+            });
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed send otp code to '{email}'", email);
+        }
     }
 
     [OneWay]
@@ -66,10 +73,18 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             }
         });
 
-        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon reset password code", form)
+       
+        try
         {
-            IsBodyHtml = true
-        });
+            await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon reset password code", form)
+            {
+                IsBodyHtml = true
+            });
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed send reset code to '{email}'", email);
+        }
     }
 
     [OneWay]
@@ -80,12 +95,18 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
             return;
         }
-
-        var form = formStorage.Render("pass_changed",new Dictionary<string, string>());
-
-        await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon password changed", form)
+        try
         {
-            IsBodyHtml = true
-        });
+            var form = formStorage.Render("pass_changed", new Dictionary<string, string>());
+
+            await Client.SendMailAsync(new MailMessage(smtpOptions.Value.User, email, $"Your Argon password changed", form)
+            {
+                IsBodyHtml = true
+            });
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed send notification to '{email}'", email);
+        }
     }
 }
