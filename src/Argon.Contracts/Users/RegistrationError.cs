@@ -12,6 +12,7 @@ public enum RegistrationError
     VALIDATION_FAILED
 }
 
+[MessagePackObject(true), TsInterface]
 public record RegistrationErrorData
 {
     public RegistrationError Code    { get; set; }

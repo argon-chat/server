@@ -24,9 +24,9 @@ public class NewUserCredentialsInputValidator : AbstractValidator<NewUserCredent
            .NotEmpty().WithMessage("Display name is required.")
            .MaximumLength(64).WithMessage("Display name must be no more than 64 characters.");
 
-        RuleFor(x => x.BirthDate)
-           .LessThan(DateTime.UtcNow.AddYears(-18))
-           .WithMessage("You must be at least 18 years old.");
+        //RuleFor(x => x.BirthDate)
+        //   .LessThan(DateTime.UtcNow.AddYears(-18))
+        //   .WithMessage("You must be at least 18 years old.");
 
         RuleFor(x => x.AgreeTos)
            .Equal(true).WithMessage("You must agree to the terms of service.");
