@@ -157,13 +157,12 @@ public class UserSessionGrain(
         }
     }
 
-    [OneWay]
-    public async ValueTask HeartBeatAsync(UserStatus status)
+    public async ValueTask<bool> HeartBeatAsync(UserStatus status)
     {
         if (_userId == Guid.Empty)
         {
-            logger.LogCritical("TRYING SET HEARTBEAT WITH NULL USERID, FIX ME");
-            throw new ArgonDropConnectionException($"Trying set heartbeat with not active session");
+            logger.LogWarning("Trying set heartbeat with no active session, reset connection...");
+            return false;
         }
 
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -179,6 +178,8 @@ public class UserSessionGrain(
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
+
+        return true;
     }
 
     [OneWay]

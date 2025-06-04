@@ -12,8 +12,8 @@ public interface IUserSessionGrain : IGrainWithGuidKey
     [Alias(nameof(EndRealtimeSession))]
     ValueTask EndRealtimeSession();
 
-    [OneWay, Alias(nameof(HeartBeatAsync))]
-    ValueTask HeartBeatAsync(UserStatus status);
+    [Alias(nameof(HeartBeatAsync))]
+    ValueTask<bool> HeartBeatAsync(UserStatus status);
 
 
     [OneWay, Alias(nameof(OnTypingEmit))]
