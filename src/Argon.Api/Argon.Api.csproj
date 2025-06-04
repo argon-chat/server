@@ -79,6 +79,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\Argon.Contracts\Argon.Shared.csproj" />
+        <ProjectReference Include="..\Argon.Metrics\Argon.Metrics.csproj" />
     </ItemGroup>
 
     <ItemGroup>
