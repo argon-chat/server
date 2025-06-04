@@ -5,7 +5,8 @@ using InfluxDB.Client;
 using InfluxDB.Client.Writes;
 using Microsoft.Extensions.Options;
 
-public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOptions> options) : BackgroundService, IPointBuffer
+public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOptions> options, ILogger<IPointBuffer> logger)
+    : BackgroundService, IPointBuffer
 {
     private readonly InfluxDbOptions            _options       = options.Value;
     private readonly ConcurrentQueue<PointData> _buffer        = new();
@@ -25,10 +26,20 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
             while (_buffer.TryDequeue(out var point))
                 list.Add(point);
 
-            if (list.Count <= 0) 
+            if (list.Count <= 0)
                 continue;
-            var writer = client.Value.GetWriteApiAsync();
-            await writer.WritePointsAsync(list, _options.Bucket, _options.Org, stoppingToken);
+
+            try
+            {
+                var writer = client.Value.GetWriteApiAsync();
+                await writer.WritePointsAsync(list, _options.Bucket, _options.Org, stoppingToken);
+            }
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed write metrics");
+                foreach (var point in list)
+                    _buffer.Enqueue(point);
+            }
         }
     }
 }

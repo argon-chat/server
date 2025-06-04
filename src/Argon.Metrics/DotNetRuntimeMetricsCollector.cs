@@ -41,5 +41,7 @@ public class DotNetRuntimeMetricsCollector(IMetricsCollector metrics, ILogger<Do
         await metrics.GaugeAsync(MeasurementId.Dotnet.ThreadPool.IOAvailable, io);
         await metrics.GaugeAsync(MeasurementId.Dotnet.ThreadPool.WorkerMin, minWorker);
         await metrics.GaugeAsync(MeasurementId.Dotnet.ThreadPool.WorkerMax, maxWorker);
+        await metrics.GaugeAsync(MeasurementId.Dotnet.ThreadPool.IOMin, minIO);
+        await metrics.GaugeAsync(MeasurementId.Dotnet.ThreadPool.IOMax, maxIO);
     }
 }

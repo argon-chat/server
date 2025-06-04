@@ -3,20 +3,20 @@ namespace Argon.Metrics;
 using System.Diagnostics;
 
 public readonly struct MetricTimer(IMetricsCollector collector, MeasurementId name, IDictionary<string, string>? tags = null)
-    : IDisposable
+    : IAsyncDisposable
 {
     private readonly Stopwatch _sw = Stopwatch.StartNew();
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
         _sw.Stop();
-        collector.DurationAsync(name, _sw.Elapsed, tags).GetAwaiter().GetResult();
+        await collector.DurationAsync(name, _sw.Elapsed, tags);
     }
 }
 
 public static class TimeExtensions
 {
-    public static IDisposable StartTimer(this IMetricsCollector collector, MeasurementId name,
+    public static IAsyncDisposable StartTimer(this IMetricsCollector collector, MeasurementId name,
         IDictionary<string, string>? tags = null)
         => new MetricTimer(collector, name, tags);
 
