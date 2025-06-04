@@ -4,6 +4,11 @@ public class DotNetRuntimeMetricsCollector(IMetricsCollector metrics, ILogger<Do
 {
     private readonly TimeSpan _interval = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// Runs the background service loop that periodically collects and pushes .NET runtime metrics until cancellation is requested.
+    /// </summary>
+    /// <param name="stoppingToken">Token used to signal service cancellation.</param>
+    /// <returns>A task representing the asynchronous execution of the service.</returns>
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         while (!stoppingToken.IsCancellationRequested)
@@ -21,6 +26,12 @@ public class DotNetRuntimeMetricsCollector(IMetricsCollector metrics, ILogger<Do
         }
     }
 
+    /// <summary>
+    /// Collects current .NET runtime metrics and asynchronously pushes them to the metrics collector.
+    /// </summary>
+    /// <remarks>
+    /// Metrics gathered include total managed memory usage, garbage collection counts for generations 0–2, and thread pool statistics (available, minimum, and maximum worker and IO threads).
+    /// </remarks>
     private async Task CollectAndPushAsync()
     {
         var memory = GC.GetTotalMemory(false);

@@ -168,6 +168,10 @@ public static class HostModeExtensions
         return builder;
     }
 
+    /// <summary>
+    /// Configures default services and middleware required for Argon workloads, including metrics, caching, server timing, logging, serialization, authorization, and feature integrations.
+    /// </summary>
+    /// <returns>The configured <see cref="WebApplicationBuilder"/> instance.</returns>
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
         builder.AddVaultConfiguration();

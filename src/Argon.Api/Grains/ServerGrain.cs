@@ -137,6 +137,13 @@ public class ServerGrain(
         return results.ToList();
     }
 
+    /// <summary>
+    /// Adds a user to the server if they are not already a member.
+    /// </summary>
+    /// <param name="userId">The unique identifier of the user to join.</param>
+    /// <remarks>
+    /// If the user is already a member of the server, the operation is skipped. Otherwise, a new membership is created and the user is marked as joined.
+    /// </remarks>
     public async ValueTask DoJoinUserAsync(Guid userId)
     {
         await using var ctx = await context.CreateDbContextAsync();

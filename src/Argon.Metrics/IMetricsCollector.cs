@@ -2,9 +2,30 @@ namespace Argon.Metrics;
 
 public interface IMetricsCollector
 {
-    Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null);
-    Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null);
-    Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null);
+    /// <summary>
+/// Records a count metric for the specified measurement identifier asynchronously.
+/// </summary>
+/// <param name="measurement">The identifier for the metric to record.</param>
+/// <param name="value">The count value to record. Defaults to 1.</param>
+/// <param name="tags">Optional key-value pairs to associate with the metric.</param>
+/// <returns>A task representing the asynchronous operation.</returns>
+Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null);
+    /// <summary>
+/// Records an observation metric with the specified measurement identifier, value, and optional tags.
+/// </summary>
+/// <param name="measurement">The identifier for the metric to observe.</param>
+/// <param name="value">The observed value to record.</param>
+/// <param name="tags">Optional key-value pairs to further describe the metric context.</param>
+/// <returns>A task representing the asynchronous operation.</returns>
+Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null);
+    /// <summary>
+/// Records a duration metric for the specified measurement identifier.
+/// </summary>
+/// <param name="measurement">The identifier for the metric to record.</param>
+/// <param name="duration">The duration value to record.</param>
+/// <param name="tags">Optional tags to associate with the metric.</param>
+/// <returns>A task representing the asynchronous operation.</returns>
+Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null);
 }
 
 public readonly record struct MeasurementId(string key)
