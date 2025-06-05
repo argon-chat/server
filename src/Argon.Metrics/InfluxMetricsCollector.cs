@@ -7,7 +7,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
 {
     private readonly Lazy<string?> Datacenter = new(() => provider.GetKeyedService<string>("dc"));
 
-    private PointData BuildPoint(MeasurementId measurement, IDictionary<string, string>? tags)
+    private PointData BuildPoint(MeasurementId measurement, Dictionary<string, string>? tags)
     {
         var point = PointData.Measurement(measurement.key);
         if (tags == null) return point;
@@ -23,7 +23,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
         return point;
     }
      
-    public async Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null)
+    public async Task CountAsync(MeasurementId measurement, long value = 1, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
            .SetIntegerField("value", value)
@@ -32,11 +32,11 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
         writer.Enqueue(point);
     }
 
-    public Task CountAsync(MeasurementId measurement, IDictionary<string, string> tags)
+    public Task CountAsync(MeasurementId measurement, Dictionary<string, string> tags)
         => CountAsync(measurement, 1, tags);
 
 
-    public async Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null)
+    public async Task ObserveAsync(MeasurementId measurement, double value, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
            .SetDoubleField("value", value)
@@ -45,7 +45,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
         writer.Enqueue(point);
     }
 
-    public async Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null)
+    public async Task DurationAsync(MeasurementId measurement, TimeSpan duration, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
            .SetDoubleField("duration_ms", duration.TotalMilliseconds)
