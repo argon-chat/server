@@ -1,37 +1,46 @@
 namespace Argon.Metrics;
 
-using InfluxDB.Client.Api.Domain;
-using InfluxDB.Client.Writes;
+using InfluxDB3.Client.Write;
 
 public class InfluxMetricsCollector(IPointBuffer writer) : IMetricsCollector
 {
-    private static PointData CreatePoint(MeasurementId measurement, string field, object value, IDictionary<string, string>? tags)
+    private static PointData BuildPoint(MeasurementId measurement, IDictionary<string, string>? tags)
     {
-        var point = PointData.Measurement(measurement.key)
-           .Timestamp(DateTime.UtcNow, WritePrecision.Ns);
-
-        if (tags != null)
-            point = tags.Aggregate(point, (current, tag) => current.Tag(tag.Key, tag.Value));
-
-        point = point.Field(field, value);
+        var point = PointData.Measurement(measurement.key);
+        if (tags == null) return point;
+        foreach (var tag in tags)
+            point.SetTag(tag.Key, tag.Value);
         return point;
     }
 
-    public Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null)
+    public async Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null)
     {
-        writer.Enqueue(CreatePoint(measurement, "count", value, tags));
-        return Task.CompletedTask;
+        var point = BuildPoint(measurement, tags)
+           .SetIntegerField("value", value)
+           .SetTimestamp(DateTime.UtcNow);
+
+        writer.Enqueue(point);
     }
 
-    public Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null)
+    public Task CountAsync(MeasurementId measurement, IDictionary<string, string> tags)
+        => CountAsync(measurement, 1, tags);
+
+
+    public async Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null)
     {
-        writer.Enqueue(CreatePoint(measurement, "value", value, tags));
-        return Task.CompletedTask;
+        var point = BuildPoint(measurement, tags)
+           .SetDoubleField("value", value)
+           .SetTimestamp(DateTime.UtcNow);
+
+        writer.Enqueue(point);
     }
 
-    public Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null)
+    public async Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null)
     {
-        writer.Enqueue(CreatePoint(measurement, "duration_ms", duration.TotalMilliseconds, tags));
-        return Task.CompletedTask;
+        var point = BuildPoint(measurement, tags)
+           .SetDoubleField("duration_ms", duration.TotalMilliseconds)
+           .SetTimestamp(DateTime.UtcNow);
+
+        writer.Enqueue(point);
     }
 }

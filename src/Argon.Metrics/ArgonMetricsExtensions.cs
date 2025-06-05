@@ -1,6 +1,6 @@
 namespace Argon.Metrics;
 
-using InfluxDB.Client;
+using InfluxDB3.Client;
 using Microsoft.Extensions.Options;
 
 public static class ArgonMetricsExtensions

@@ -1,8 +1,8 @@
 namespace Argon.Metrics;
 
 using System.Collections.Concurrent;
-using InfluxDB.Client;
-using InfluxDB.Client.Writes;
+using InfluxDB3.Client;
+using InfluxDB3.Client.Write;
 using Microsoft.Extensions.Options;
 
 public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOptions> options, ILogger<IPointBuffer> logger)
@@ -31,8 +31,11 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
 
             try
             {
-                var writer = client.Value.GetWriteApiAsync();
-                await writer.WritePointsAsync(list, _options.Bucket, _options.Org, stoppingToken);
+                await client.Value.WritePointsAsync(
+                    points: list,
+                    database: _options.Database,
+                    cancellationToken: stoppingToken
+                );
             }
             catch (Exception e)
             {
