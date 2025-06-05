@@ -2,12 +2,12 @@ namespace Argon.Metrics;
 
 public interface IMetricsCollector
 {
-    Task CountAsync(MeasurementId measurement, long value = 1, IDictionary<string, string>? tags = null);
+    Task CountAsync(MeasurementId measurement, long value = 1, Dictionary<string, string>? tags = null);
     Task CountAsync(MeasurementId measurement, IDictionary<string, string> tags);
 
 
-    Task ObserveAsync(MeasurementId measurement, double value, IDictionary<string, string>? tags = null);
-    Task DurationAsync(MeasurementId measurement, TimeSpan duration, IDictionary<string, string>? tags = null);
+    Task ObserveAsync(MeasurementId measurement, double value, Dictionary<string, string>? tags = null);
+    Task DurationAsync(MeasurementId measurement, TimeSpan duration, Dictionary<string, string>? tags = null);
 }
 
 public readonly record struct MeasurementId(string key)
@@ -36,5 +36,15 @@ public readonly record struct MeasurementId(string key)
             public static readonly MeasurementId IOMin           = new("dotnet_threadpool_io_max");
             public static readonly MeasurementId IOMax           = new("dotnet_threadpool_io_max");
         }
+    }
+
+    public static class RedisMetrics
+    {
+        public static readonly MeasurementId PoolAllocated = new("redis_pool_allocated");
+        public static readonly MeasurementId PoolTaken = new("redis_pool_taken");
+        public static readonly MeasurementId PoolScaleUp = new("redis_pool_scale_up");
+        public static readonly MeasurementId PoolCleanup = new("redis_pool_cleanup");
+        public static readonly MeasurementId PoolCreateError = new("redis_pool_create_error");
+        public static readonly MeasurementId PoolCleanupError = new("redis_pool_cleanup_error");
     }
 }

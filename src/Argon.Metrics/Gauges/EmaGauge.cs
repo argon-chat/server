@@ -1,6 +1,6 @@
 namespace Argon.Metrics.Gauges;
 
-public class EmaGauge(IMetricsCollector collector, MeasurementId measurement, double alpha = 0.2, IDictionary<string, string>? tags = null)
+public class EmaGauge(IMetricsCollector collector, MeasurementId measurement, double alpha = 0.2, Dictionary<string, string>? tags = null)
 {
     private double? _ema;
 

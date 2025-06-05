@@ -15,7 +15,7 @@ public class HistogramBucketGauge(
     IMetricsCollector collector,
     MeasurementId measurement,
     double[] buckets,
-    IDictionary<string, string>? baseTags = null)
+    Dictionary<string, string>? baseTags = null)
 {
     private readonly Lazy<double[]> _buckets = new(() => buckets.OrderBy(x => x).ToArray());
 

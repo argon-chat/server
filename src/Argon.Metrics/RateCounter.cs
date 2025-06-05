@@ -3,7 +3,7 @@ namespace Argon.Metrics;
 public class RateCounter(
     IMetricsCollector collector,
     MeasurementId measurement,
-    IDictionary<string, string>? tags = null)
+    Dictionary<string, string>? tags = null)
 {
     private long     _count     = 0;
     private DateTime _lastFlush = DateTime.UtcNow;

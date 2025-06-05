@@ -1,6 +1,6 @@
 namespace Argon.Metrics.Gauges;
 
-public class DeltaGauge(IMetricsCollector collector, MeasurementId measurement, IDictionary<string, string>? tags = null)
+public class DeltaGauge(IMetricsCollector collector, MeasurementId measurement, Dictionary<string, string>? tags = null)
 {
     private double? _previous;
 
