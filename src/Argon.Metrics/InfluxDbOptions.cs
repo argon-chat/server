@@ -5,6 +5,5 @@ public class InfluxDbOptions
     public required bool   IsEnabled { get; set; } = false;
     public required string Url       { get; set; }
     public required string Token     { get; set; }
-    public required string Bucket    { get; set; }
-    public required string Org       { get; set; }
+    public required string Database  { get; set; }
 }

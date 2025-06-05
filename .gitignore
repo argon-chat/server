@@ -21,3 +21,5 @@ deploy/docker/vault_tokens/
 deploy/docker/argon_vault/
 
 src/Argon.Contracts/Properties/launchSettings.json
+
+src/Argon.Metrics/Properties/launchSettings.json

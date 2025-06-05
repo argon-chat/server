@@ -1,8 +1,11 @@
 namespace Argon.Grains;
 
+using Argon.Metrics.Gauges;
+using Consul;
 using Features.Logic;
 using Features.Rpc;
 using MessagePipe;
+using Metrics;
 using Orleans.Concurrency;
 using Orleans.Streams;
 using Services;
@@ -14,9 +17,22 @@ public class UserSessionGrain(
     ILogger<IUserSessionGrain> logger,
     IUserPresenceService presenceService,
     IArgonCacheDatabase cache,
-    IRedisEventStorage eventStorage)
+    IRedisEventStorage eventStorage,
+    IMetricsCollector metrics)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
+    private static readonly Dictionary<string, string> tags = new()
+    {
+        ["component"] = "user_session"
+    };
+
+    private readonly DeltaGauge       _activeSessionDelta = new(metrics, new("user_session_active"), tags);
+    private readonly RateCounter      _heartbeatRate      = new(metrics, new("user_session_heartbeat"), tags);
+    private readonly RateCounter      _tickRate           = new(metrics, new("user_session_tick"), tags);
+    private readonly CountPerTagGauge _sessionDestroyed   = new(metrics, new("user_session_destroyed"));
+    private readonly CountPerTagGauge statusChangeCounter = new(metrics, new("user_session_status_change"));
+    private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
+
     private Guid _userId;
     private Guid _machineId;
     private Guid _shadowUserId;
@@ -36,6 +52,11 @@ public class UserSessionGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        _ = _activeSessionDelta.ObserveAsync(-1);
+        var reasonTag = reason.ReasonCode == ApplicationRequested
+            ? "graceful"
+            : "force";
+        _ = _sessionDestroyed.CountAsync("reason", reasonTag);
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
         logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
@@ -51,6 +72,7 @@ public class UserSessionGrain(
             logger.LogWarning("Trying activate session, but session already active, {sessionId}, {userId}", this.GetPrimaryKey(), _userId);
             return;
         }
+        _ = _activeSessionDelta.ObserveAsync(1);
 
         _userId            = userId;
         _shadowUserId      = userId;
@@ -123,6 +145,8 @@ public class UserSessionGrain(
 
         if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
         {
+            await metrics.CountAsync(new("user_session_timeout"));
+            await _sessionDestroyed.CountAsync("reason", "ttl_expired");
             logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true",
                 _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
             await this.SelfDestroy();
@@ -135,6 +159,7 @@ public class UserSessionGrain(
 
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
+        _tickRate.Increment();
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
@@ -161,6 +186,7 @@ public class UserSessionGrain(
     {
         if (_userId == Guid.Empty)
         {
+            await metrics.CountAsync(new("user_session_invalid_state"));
             logger.LogWarning("Trying set heartbeat with no active session, reset connection...");
             return false;
         }
@@ -174,11 +200,14 @@ public class UserSessionGrain(
 
         if (_preferredStatus != status)
         {
+            await statusChangeCounter.CountAsync("from", _preferredStatus?.ToString() ?? "unset");
             _preferredStatus = status;
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
-
+        _heartbeatRate.Increment();
+        await _heartbeatRate.FlushAsync();
+        await sessionHeartbeatCounter.CountAsync("status", status.ToString());
         return true;
     }
 

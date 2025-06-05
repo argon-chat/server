@@ -1,6 +1,9 @@
 namespace Argon.Grains;
 
+using System.Diagnostics;
 using Features.Otp;
+using Metrics;
+using Metrics.Gauges;
 using Org.BouncyCastle.Ocsp;
 using Orleans.Concurrency;
 using Services;
@@ -12,16 +15,30 @@ public class AuthorizationGrain(
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
     IDbContextFactory<ApplicationDbContext> context,
-    IArgonCacheDatabase cache) : Grain, IAuthorizationGrain
+    IArgonCacheDatabase cache,
+    IMetricsCollector metrics) : Grain, IAuthorizationGrain
 {
+    private static readonly Dictionary<string, string> _tags = new()
+    {
+        ["component"] = "authorization_grain"
+    };
+
+    private readonly CountPerTagGauge authSuccess    = new(metrics, new("auth_success"));
+    private readonly CountPerTagGauge authFailure    = new(metrics, new("auth_failed"));
+    private readonly CountPerTagGauge registerStatus = new(metrics, new("auth_register"));
+    private readonly CountPerTagGauge resetCounter   = new(metrics, new("auth_reset"));
+
+
     public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
+        await using var sw  = metrics.StartTimer(new MeasurementId("auth_latency"));
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
         if (user is null)
         {
             logger.LogWarning("Not found user '{email}'", input.Email);
+            await authFailure.CountAsync("reason", "user_not_found");
             return AuthorizationError.BAD_CREDENTIALS;
         }
 
@@ -30,6 +47,7 @@ public class AuthorizationGrain(
         if (!verified)
         {
             logger.LogWarning("User '{email}' entered bad password, not matched", input.Email);
+            await authFailure.CountAsync("reason", "bad_password");
             return AuthorizationError.BAD_CREDENTIALS;
         }
 
@@ -51,8 +69,12 @@ public class AuthorizationGrain(
         if (!(user.OtpHash?.Equals(userOtp.Hashed) ?? false))
         {
             logger.LogError("User '{email}' entered invalid otp code {otp} {optHash}", input.Email, userOtp.Code, userOtp.Hashed);
+            await authFailure.CountAsync("reason", "bad_otp");
             return AuthorizationError.BAD_OTP;
         }
+
+        await authSuccess.CountAsync("method", "password+otp");
+
 
         user.OtpHash = null;
         ctx.Users.Update(user);
@@ -62,11 +84,13 @@ public class AuthorizationGrain(
 
     public async Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
     {
+        await using var sw  = metrics.StartTimer(new MeasurementId("register_latency"));
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.Email);
         if (user is not null)
         {
+            await registerStatus.CountAsync("reason", "email_taken");
             logger.LogWarning("Email already registered '{email}'", input.Email);
             return RegistrationErrorData.EmailAlreadyRegistered();
         }
@@ -77,6 +101,7 @@ public class AuthorizationGrain(
         if (user is not null)
         {
             logger.LogWarning("Username already registered '{username}'", input.Username);
+            await registerStatus.CountAsync("reason", "username_taken");
             return RegistrationErrorData.UsernameAlreadyTaken();
         }
 
@@ -85,6 +110,7 @@ public class AuthorizationGrain(
         if (reserved is not null)
         {
             logger.LogWarning("Username reserved '{username}'", input.Username);
+            await registerStatus.CountAsync("reason", reserved.IsBanned ? "username_banned" : "username_reserved");
             if (reserved.IsBanned)
                 return RegistrationErrorData.UsernameAlreadyTaken();
             return RegistrationErrorData.UsernameReserved();
@@ -143,11 +169,15 @@ public class AuthorizationGrain(
         if (user is null)
             return RegistrationErrorData.InternalError();
 
+        await registerStatus.CountAsync("result", "ok");
+
         return await GenerateJwt(user, Guid.NewGuid());
     }
 
     public async Task<bool> BeginResetPass(string email, UserConnectionInfo connectionInfo)
     {
+        await using var sw = metrics.StartTimer(new MeasurementId("begin_pass_reset_latency"));
+        await resetCounter.CountAsync("stage", "begin");
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == email);
@@ -167,6 +197,8 @@ public class AuthorizationGrain(
 
     public async Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData, UserConnectionInfo connectionInfo)
     {
+        await using var sw = metrics.StartTimer(new MeasurementId("pass_reset_latency"));
+        await resetCounter.CountAsync("stage", "apply");
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == resetData.Email);

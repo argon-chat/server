@@ -1,6 +1,6 @@
-﻿namespace Argon.Metrics;
+namespace Argon.Metrics;
 
-using InfluxDB.Client.Writes;
+using InfluxDB3.Client.Write;
 
 public interface IPointBuffer
 {
