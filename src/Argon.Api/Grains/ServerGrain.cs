@@ -141,6 +141,11 @@ public class ServerGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
+        var alreadyExist = await ctx.UsersToServerRelations.AnyAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == userId);
+
+        if (alreadyExist)
+            return;
+
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
             Id       = Guid.NewGuid(),

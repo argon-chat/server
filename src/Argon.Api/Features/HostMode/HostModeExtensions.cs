@@ -24,6 +24,7 @@ using GeoIP;
 using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
 using Logic;
+using Metrics;
 using RegionalUnit;
 using Services.Validators;
 using Social;
@@ -170,6 +171,7 @@ public static class HostModeExtensions
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
         builder.AddVaultConfiguration();
+        builder.AddMetrics();
         builder.AddArgonCacheDatabase();
         builder.Services.AddServerTiming();
         builder.WebHost.UseQuic();
