@@ -18,7 +18,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         logger.LogInformation("Begin create write stream for '{streamID}'", id);
 
         var stream = ActivatorUtilities.CreateInstance<NatsArgonWriteOnlyStream>(provider, id, client.CreateJetStreamContext());
-        
+
         try
         {
             await stream.EnsureCreatedStream();
@@ -28,6 +28,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
             logger.LogCritical(e, "Failed to create write stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
+
         return stream;
     }
 
@@ -44,6 +45,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
             logger.LogCritical(e, "Failed to create read stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
+
         return stream;
     }
 }
@@ -65,9 +67,10 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
             DuplicateWindow = TimeSpan.Zero,
             MaxAge          = TimeSpan.FromSeconds(30),
             AllowDirect     = true,
-            MaxBytes        = int.MaxValue / 2,
+            MaxBytes        = -1,
+            MaxMsgs         = 1000,
             Retention       = StreamConfigRetention.Interest,
-            Storage         = StreamConfigStorage.File,
+            Storage         = StreamConfigStorage.Memory,
             Discard         = StreamConfigDiscard.Old
         }, ct);
 
