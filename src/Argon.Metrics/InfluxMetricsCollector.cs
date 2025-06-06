@@ -26,7 +26,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
     public async Task CountAsync(MeasurementId measurement, long value = 1, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
-           .SetField("value", value)
+           .SetDoubleField("value", value)
            .SetTimestamp(DateTime.UtcNow);
 
         writer.Enqueue(point);
@@ -39,7 +39,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
     public async Task ObserveAsync(MeasurementId measurement, double value, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
-           .SetField("value", value)
+           .SetDoubleField("value", value)
            .SetTimestamp(DateTime.UtcNow);
 
         writer.Enqueue(point);
@@ -48,7 +48,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
     public async Task DurationAsync(MeasurementId measurement, TimeSpan duration, Dictionary<string, string>? tags = null)
     {
         var point = BuildPoint(measurement, tags)
-           .SetField("duration_ms", duration.TotalMilliseconds)
+           .SetDoubleField("duration_ms", duration.TotalMilliseconds)
            .SetTimestamp(DateTime.UtcNow);
 
         writer.Enqueue(point);
