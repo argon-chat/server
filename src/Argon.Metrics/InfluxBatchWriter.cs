@@ -16,6 +16,7 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+
         while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(_flushInterval, stoppingToken);

@@ -1,6 +1,6 @@
 namespace Argon.Metrics.Gauges;
 
-public class RateGauge(IMetricsCollector collector, MeasurementId measurement, IDictionary<string, string>? tags = null)
+public class RateGauge(IMetricsCollector collector, MeasurementId measurement, Dictionary<string, string>? tags = null)
 {
     private long     _lastValue = 0;
     private DateTime _lastTime  = DateTime.UtcNow;

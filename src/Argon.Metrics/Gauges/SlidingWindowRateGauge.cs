@@ -15,8 +15,8 @@ namespace Argon.Metrics.Gauges;
 public class SlidingWindowRateGauge(
     IMetricsCollector collector,
     MeasurementId measurement,
-    TimeSpan window,
-    IDictionary<string, string>? tags = null)
+    TimeSpan window, 
+    Dictionary<string, string>? tags = null)
 {
     private readonly LinkedList<(DateTime timestamp, int count)> _events = new();
 

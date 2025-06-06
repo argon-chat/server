@@ -2,7 +2,7 @@ namespace Argon.Metrics;
 
 using System.Diagnostics;
 
-public readonly struct MetricTimer(IMetricsCollector collector, MeasurementId name, IDictionary<string, string>? tags = null)
+public readonly struct MetricTimer(IMetricsCollector collector, MeasurementId name, Dictionary<string, string>? tags = null)
     : IAsyncDisposable
 {
     private readonly Stopwatch _sw = Stopwatch.StartNew();
@@ -17,11 +17,11 @@ public readonly struct MetricTimer(IMetricsCollector collector, MeasurementId na
 public static class TimeExtensions
 {
     public static IAsyncDisposable StartTimer(this IMetricsCollector collector, MeasurementId name,
-        IDictionary<string, string>? tags = null)
+        Dictionary<string, string>? tags = null)
         => new MetricTimer(collector, name, tags);
 
     public async static Task TimeAsync(this IMetricsCollector collector, MeasurementId name, Func<Task> action,
-        IDictionary<string, string>? tags = null)
+        Dictionary<string, string>? tags = null)
     {
         var sw = Stopwatch.StartNew();
         await action();
@@ -31,7 +31,7 @@ public static class TimeExtensions
     }
 
     public async static Task<T> TimeAsync<T>(this IMetricsCollector collector, MeasurementId name, Func<Task<T>> action,
-        IDictionary<string, string>? tags = null)
+        Dictionary<string, string>? tags = null)
     {
         var sw     = Stopwatch.StartNew();
         var result = await action();

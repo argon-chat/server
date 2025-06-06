@@ -4,7 +4,7 @@ public class MovingAverageGauge(
     IMetricsCollector collector,
     MeasurementId measurement,
     int windowSize = 10,
-    IDictionary<string, string>? tags = null)
+    Dictionary<string, string>? tags = null)
 {
     private readonly Queue<double> _window = new();
 

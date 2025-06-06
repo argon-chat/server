@@ -14,7 +14,7 @@ public static class ArgonMetricsExtensions
         {
             var cfg = provider.GetRequiredService<IOptions<InfluxDbOptions>>().Value;
 
-            return new Lazy<InfluxDBClient>(() => new InfluxDBClient(cfg.Url, cfg.Token));
+            return new Lazy<InfluxDBClient>(() => new(cfg.Url, cfg.Token));
         });
 
         builder.Services.AddSingleton<IMetricsCollector, InfluxMetricsCollector>();

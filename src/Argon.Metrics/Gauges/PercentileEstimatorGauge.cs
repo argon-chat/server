@@ -20,7 +20,7 @@ public class PercentileEstimatorGauge(
     IMetricsCollector collector,
     MeasurementId measurement,
     int maxSamples = 500,
-    IDictionary<string, string>? tags = null)
+    Dictionary<string, string>? tags = null)
 {
     private readonly List<double> _samples = new();
 
@@ -41,7 +41,7 @@ public class PercentileEstimatorGauge(
         await collector.ObserveAsync(measurement, p99, MergeTags("quantile", "p99"));
     }
 
-    private IDictionary<string, string> MergeTags(string key, string value)
+    private Dictionary<string, string> MergeTags(string key, string value)
     {
         var tags1 = tags is null
             ? new Dictionary<string, string>()
