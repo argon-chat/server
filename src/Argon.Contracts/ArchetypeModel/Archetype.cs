@@ -40,6 +40,7 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
 
 public record ArchetypeDto
 {
+    public Guid   Id          { get; set; }
     public Guid   ServerId    { get; set; }
     public string Name        { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
@@ -64,7 +65,8 @@ public static class ArchetypeExtensions
             ServerId      = msg.ServerId,
             IconFileId    = msg.IconFileId,
             IsHidden      = msg.IsHidden,
-            IsLocked      = msg.IsLocked
+            IsLocked      = msg.IsLocked,
+            Id            = msg.Id,
         };
 
     public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();
