@@ -53,7 +53,7 @@ public record ArchetypeDto
 
     public string? IconFileId { get; set; } = null;
 
-    public ArgonEntitlement Entitlement { get; set; }
+    public string Entitlement { get; set; }
 }
 
 public static class ArchetypeExtensions
@@ -70,7 +70,7 @@ public static class ArchetypeExtensions
             IsHidden      = msg.IsHidden,
             IsLocked      = msg.IsLocked,
             Id            = msg.Id,
-            Entitlement   = msg.Entitlement
+            Entitlement   = $"{(ulong)msg.Entitlement}"
         };
 
     public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();
