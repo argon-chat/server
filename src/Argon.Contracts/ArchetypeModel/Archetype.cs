@@ -38,6 +38,7 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
         = new List<ServerMemberArchetype>();
 }
 
+[MessagePackObject(true)]
 public record ArchetypeDto
 {
     public Guid   Id          { get; set; }
