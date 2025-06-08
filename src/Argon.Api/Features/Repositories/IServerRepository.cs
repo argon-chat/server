@@ -40,7 +40,7 @@ public class ServerRepository(
 
                 var e = await ctx.Servers.AddAsync(server);
 
-                await ctx.SaveChangesAsync();
+                Debug.Assert(await ctx.SaveChangesAsync() == 1);
 
                 var sm = new ServerMember
                 {
@@ -52,9 +52,9 @@ public class ServerRepository(
 
                 await ctx.UsersToServerRelations.AddAsync(sm);
 
-                await ctx.SaveChangesAsync();
+                Debug.Assert(await ctx.SaveChangesAsync() == 1);
 
-                await CloneArchetypesAsync(e.Entity.Id, sm.Id, initiator);
+                await CloneArchetypesAsync(ctx, serverId, sm.Id, initiator);
 
                 await transaction.CommitAsync();
 
@@ -70,12 +70,10 @@ public class ServerRepository(
     }
 
 
-    private async ValueTask CloneArchetypesAsync(Guid serverId, Guid serverMemberId, Guid userId)
+    private async ValueTask CloneArchetypesAsync(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId, Guid userId)
     {
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var everyone = await ctx.Archetypes.FindAsync(Archetype.DefaultArchetype_Everyone);
-        var owner    = await ctx.Archetypes.FindAsync(Archetype.DefaultArchetype_Owner);
+        var everyone = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == Archetype.DefaultArchetype_Everyone);
+        var owner    = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == Archetype.DefaultArchetype_Owner);
 
         owner!.Id               = Guid.NewGuid();
         owner.CreatorId         = userId;
