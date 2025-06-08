@@ -52,6 +52,8 @@ public record ArchetypeDto
     public bool IsLocked      { get; set; }
 
     public string? IconFileId { get; set; } = null;
+
+    public ArgonEntitlement Entitlement { get; set; }
 }
 
 public static class ArchetypeExtensions
@@ -68,6 +70,7 @@ public static class ArchetypeExtensions
             IsHidden      = msg.IsHidden,
             IsLocked      = msg.IsLocked,
             Id            = msg.Id,
+            Entitlement   = msg.Entitlement
         };
 
     public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();

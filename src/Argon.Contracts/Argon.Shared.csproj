@@ -5,7 +5,7 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <OutputType>Library</OutputType>
-        <IsMacOS Condition="'$(OS)' == 'Unix' and '$(Platform)' != 'Windows'">true</IsMacOS>
+        <IsMacOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">true</IsMacOS>
     </PropertyGroup>
 
     <ItemGroup>
