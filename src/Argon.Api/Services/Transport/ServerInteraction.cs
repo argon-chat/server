@@ -38,7 +38,7 @@ public class ServerInteraction : IServerInteraction
     public Task<List<RealtimeChannel>> GetChannels(Guid serverId)
         => this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
-           .GetChannels();
+           .GetChannels(this.GetUser().id);
 
     public Task<List<RealtimeServerMember>> GetMembers(Guid serverId)
         => this.GetGrainFactory()

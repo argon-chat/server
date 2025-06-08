@@ -32,6 +32,9 @@ public static class EnvironmentExtensions
 
         if (Environment.GetEnvironmentVariable("ARGON_MODE") is { } newEnv)
             return Enum.Parse<ArgonEnvironmentKind>(newEnv);
+        if (Environment.GetCommandLineArgs().Contains("migrations") ||
+            Environment.GetCommandLineArgs().Contains("database"))
+            return ArgonEnvironmentKind.SingleRegion;
         throw new InvalidOperationException("No defined 'ARGON_MODE' environment variable, no defined argon mode");
     }
 }
@@ -92,7 +95,12 @@ public static class EnvironmentRoleExtensions
     {
         if (Environment.GetEnvironmentVariable("ARGON_ROLE") is { } newEnv)
             return Enum.Parse<ArgonRoleKind>(newEnv);
-        throw new InvalidOperationException("No defined 'ARGON_ROLE' environment variable, no defined argon role");
+
+        if (Environment.GetCommandLineArgs().Contains("migrations") ||
+            Environment.GetCommandLineArgs().Contains("database"))
+            return ArgonRoleKind.Worker;
+
+        throw new InvalidOperationException($"No defined 'ARGON_ROLE' environment variable, no defined argon role");
     }
 }
 

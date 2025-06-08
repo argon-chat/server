@@ -39,7 +39,7 @@ public interface IServerGrain : IGrainWithGuidKey
     Task<RealtimeServerMember> GetMember(Guid userId);
 
     [Alias(nameof(GetChannels))]
-    Task<List<RealtimeChannel>> GetChannels();
+    Task<List<RealtimeChannel>> GetChannels(Guid userId);
 
     [Alias(nameof(DoJoinUserAsync))]
     ValueTask DoJoinUserAsync(Guid userId);

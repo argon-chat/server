@@ -78,6 +78,7 @@ public class ServerGrain(
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .Where(x => x.UserId == userId)
            .Include(x => x.User)
+           .Include(x => x.ServerMemberArchetypes)
            .FirstAsync();
 
 
@@ -105,6 +106,7 @@ public class ServerGrain(
            .UsersToServerRelations
            .Include(x => x.User)
            .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Include(x => x.ServerMemberArchetypes)
            .ToListAsync();
 
         var ids        = members.Select(x => x.UserId).ToList();
@@ -120,15 +122,35 @@ public class ServerGrain(
         }).ToList();
     }
 
-    public async Task<List<RealtimeChannel>> GetChannels()
+    public async Task<List<RealtimeChannel>> GetChannels(Guid userId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
+        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == userId && x.ServerId == this.GetPrimaryKey());
+        var serverMemberId = serverMember.Id;
+        var serverId       = this.GetPrimaryKey();
+
+        var member = await ctx.UsersToServerRelations
+           .Include(m => m.ServerMemberArchetypes)
+           .ThenInclude(sma => sma.Archetype)
+           .FirstAsync(m => m.Id == serverMemberId && m.ServerId == serverId);
+
+        var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
+
         var channels = await ctx.Channels
-           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(c => c.ServerId == serverId)
+           .Include(c => c.EntitlementOverwrites)
            .ToListAsync();
 
-        var results = await Task.WhenAll(channels.Select(async x => new RealtimeChannel()
+        var c = channels
+           .Where(c =>
+            {
+                var finalPerms = EntitlementEvaluator.ApplyPermissionOverwrites(basePermissions, member, c);
+                return EntitlementAnalyzer.IsEntitlementSatisfied(finalPerms, ArgonEntitlement.ViewChannel);
+            })
+           .ToList();
+
+        var results = await Task.WhenAll(c.Select(async x => new RealtimeChannel()
         {
             Channel = x,
             Users   = await grainFactory.GetGrain<IChannelGrain>(x.Id).GetMembers()
@@ -165,10 +187,9 @@ public class ServerGrain(
 
     public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller)
     {
-        
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
-        var targetProfile       = await ctx.Servers
+        var targetProfile = await ctx.Servers
            .SelectMany(server => server.Users)
            .Where(member => userIds.Contains(member.UserId))
            .Select(member => member.User.Profile)

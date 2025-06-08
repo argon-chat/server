@@ -37,3 +37,13 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     public virtual ICollection<ServerMemberArchetype> ServerMemberRoles { get; set; }
         = new List<ServerMemberArchetype>();
 }
+
+public record ArchetypeDto
+{
+    public Guid   ServerId    { get; set; }
+    public string Name        { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+
+    public bool IsMentionable { get; set; }
+    public int  Colour        { get; set; }
+}
