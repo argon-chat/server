@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Api.Features.Utils;
 using Argon.Features.Rpc;
+using Consul;
 using Features.Logic;
 using Features.Repositories;
 using Orleans.GrainDirectory;
@@ -196,13 +197,20 @@ public class ServerGrain(
     {
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
-        var targetProfile = await ctx.Servers
+        var targetMember = await ctx.Servers
+           .AsNoTracking()
            .SelectMany(server => server.Users)
            .Where(member => userIds.Contains(member.UserId))
-           .Select(member => member.User.Profile)
-           .FirstAsync(x => x.UserId == userId)
-           .ToDto();
-        return targetProfile;
+           .Include(serverMember => serverMember.User)
+           .ThenInclude(user => user.Profile)
+           .Include(serverMember => serverMember.ServerMemberArchetypes)
+           .FirstAsync(x => x.UserId == userId);
+
+        var profile = targetMember.User.Profile.ToDto();
+
+        profile.Archetypes.AddRange(targetMember.ServerMemberArchetypes.ToDto());
+
+        return profile;
     }
 
 

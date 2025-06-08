@@ -1,6 +1,7 @@
 namespace Argon.Users;
 
 using System.ComponentModel.DataAnnotations.Schema;
+using ArchetypeModel;
 
 public record UserProfile : ArgonEntity
 {
@@ -28,8 +29,18 @@ public record UserProfile : ArgonEntity
 }
 
 [MessagePackObject(true), TsInterface]
-public sealed record UserProfileDto(Guid UserId, string? CustomStatus, string? CustomStatusIconId,
-    string? BannerFileId, DateOnly? DateOfBirth, string? Bio, bool IsPremium, List<string> Badges);
+public sealed record UserProfileDto(
+    Guid UserId,
+    string? CustomStatus,
+    string? CustomStatusIconId,
+    string? BannerFileId,
+    DateOnly? DateOfBirth,
+    string? Bio,
+    bool IsPremium,
+    List<string> Badges)
+{
+    public List<ServerMemberArchetypeDto> Archetypes { get; set; } = new();
+}
 
 public static class UserProfileExtensions
 {
