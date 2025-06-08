@@ -1,5 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
+using ArchetypeModel;
 using Users;
 
 [Alias($"Argon.Grains.Interfaces.{nameof(IServerGrain)}")]
@@ -49,6 +50,9 @@ public interface IServerGrain : IGrainWithGuidKey
 
     [Alias(nameof(PrefetchProfile))]
     ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller);
+
+    [Alias(nameof(GetServerArchetypes))]
+    Task<List<ArchetypeDto>> GetServerArchetypes();
 }
 
 public enum ServerCreationError

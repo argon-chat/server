@@ -79,4 +79,7 @@ public class ServerInteraction : IServerInteraction
 
     public async Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId)
         => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).PrefetchProfile(userId, this.GetUser().id);
+
+    public async Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId)
+        => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).GetServerArchetypes();
 }

@@ -1,5 +1,6 @@
 namespace Argon;
 
+using ArchetypeModel;
 using Argon.Shared.Servers;
 using Streaming.Events;
 using Users;
@@ -29,4 +30,6 @@ public interface IServerInteraction : IArgonService
     Task<UserDto> PrefetchUser(Guid serverId, Guid userId);
 
     Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId);
+
+    Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId);
 }

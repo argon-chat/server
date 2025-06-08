@@ -98,6 +98,13 @@ public class ServerGrain(
     public async ValueTask RemoveUserPresence(Guid userId)
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
 
+    public async Task<List<ArchetypeDto>> GetServerArchetypes()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        return await ctx.Archetypes.Where(x => x.ServerId == this.GetPrimaryKey()).ToListAsync().ToDto();
+    }
+
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();
