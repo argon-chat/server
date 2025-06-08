@@ -22,6 +22,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{90798FD4
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ArgonSharedLogicTest", "tests\ArgonSharedLogicTest\ArgonSharedLogicTest.csproj", "{0034BD67-3431-4BAE-A5C2-1400543A9DAF}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Argon.Metrics", "src\Argon.Metrics\Argon.Metrics.csproj", "{454E45DC-9D69-4680-BF74-3E9CCA66F276}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -40,6 +42,10 @@ Global
 		{0034BD67-3431-4BAE-A5C2-1400543A9DAF}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{0034BD67-3431-4BAE-A5C2-1400543A9DAF}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{0034BD67-3431-4BAE-A5C2-1400543A9DAF}.Release|Any CPU.Build.0 = Release|Any CPU
+		{454E45DC-9D69-4680-BF74-3E9CCA66F276}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{454E45DC-9D69-4680-BF74-3E9CCA66F276}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{454E45DC-9D69-4680-BF74-3E9CCA66F276}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{454E45DC-9D69-4680-BF74-3E9CCA66F276}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -48,6 +54,7 @@ Global
 		{D781D76E-6DD7-4C82-96D2-CA5D316BBF1E} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{151002BD-57E5-440B-9CA7-C681A69CA02C} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 		{0034BD67-3431-4BAE-A5C2-1400543A9DAF} = {90798FD4-3C62-4AE1-ADE9-F5EC4A0FD4B1}
+		{454E45DC-9D69-4680-BF74-3E9CCA66F276} = {43C63C3C-90EB-4AED-BB15-B30F76F93A9E}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {576333C3-629F-47F8-BE21-3E82EDC2655D}

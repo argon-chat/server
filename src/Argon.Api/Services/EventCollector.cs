@@ -1,5 +1,7 @@
 namespace Argon.Services;
 
+using Grains;
+
 public class EventCollector([FromKeyedServices("event.collector.cfg")] Action<IEventConsumer> configuration) : IEventCollector
 {
     private readonly Dictionary<string, Func<object, IEventConsumer, Task>> executers = new();
@@ -52,7 +54,9 @@ public static class EventConfigurator
         {
             if (ctx.SessionId == Guid.Empty)
                 return;
-            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).HeartBeatAsync(ev.status);
+            var result = await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).HeartBeatAsync(ev.status);
+
+            if (!result) throw new ArgonDropConnectionException("session invalidated");
         });
         consumer.On<IAmTypingEvent>(async (ev, ctx) => {
             if (ctx.SessionId == Guid.Empty)
