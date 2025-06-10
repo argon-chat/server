@@ -28,7 +28,8 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     public bool IsLocked { get; set; }
     [TsIgnore]
     public bool IsHidden { get; set; }
-
+    [TsIgnore]
+    public bool IsGroup { get; set; }
 
     public Color Colour { get; set; }
     [MaxLength(128)]
@@ -50,6 +51,7 @@ public record ArchetypeDto
     public int  Colour        { get; set; }
     public bool IsHidden      { get; set; }
     public bool IsLocked      { get; set; }
+    public bool IsGroup       { get; set; }
 
     public string? IconFileId { get; set; } = null;
 
@@ -70,7 +72,8 @@ public static class ArchetypeExtensions
             IsHidden      = msg.IsHidden,
             IsLocked      = msg.IsLocked,
             Id            = msg.Id,
-            Entitlement   = $"{(ulong)msg.Entitlement}"
+            Entitlement   = $"{(ulong)msg.Entitlement}",
+            IsGroup       = msg.IsGroup
         };
 
     public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();
