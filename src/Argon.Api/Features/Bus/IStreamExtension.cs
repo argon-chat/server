@@ -1,7 +1,6 @@
-namespace Argon.Features.Rpc;
+namespace Argon.Api.Features.Bus;
 
-using NatsStreaming;
-
+using Argon.Features.NatsStreaming;
 public interface IStreamExtension
 {
     ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary);
