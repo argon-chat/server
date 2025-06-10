@@ -63,6 +63,36 @@ public static class EntitlementAnalyzer
 
 public static class EntitlementEvaluator
 {
+    public static bool IsAllowedToEdit(
+        Archetype targetToEdit,
+        List<Archetype> userArchetypes)
+    {
+        var maxEntitlement = userArchetypes.Max(x => (ulong)x.Entitlement);
+
+        return maxEntitlement > (ulong)targetToEdit.Entitlement;
+    }
+
+    public static bool IsAllowedToEdit(
+        Archetype targetToEdit,
+        ArgonEntitlement promptedEntitlement,
+        List<Archetype> userArchetypes)
+    {
+        var userPermissions = userArchetypes
+           .Aggregate(ArgonEntitlement.None, (current, archetype) => current | archetype.Entitlement);
+
+        if (userPermissions.HasFlag(ArgonEntitlement.Administrator))
+            return true;
+
+        if (userPermissions.HasFlag(ArgonEntitlement.ManageServer))
+            return true;
+
+        if (userArchetypes.Any(ua => ua.Id == targetToEdit.Id))
+            return false;
+
+        var tryingToAdd = promptedEntitlement & ~userPermissions;
+        return tryingToAdd == ArgonEntitlement.None;
+    }
+
     public static bool HasAccessTo(ServerMember member, IArchetypeObject obj, ArgonEntitlement targetCheck)
     {
         var permissions = GetBasePermissions(member);
