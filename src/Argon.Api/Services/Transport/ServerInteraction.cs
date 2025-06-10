@@ -82,4 +82,13 @@ public class ServerInteraction : IServerInteraction
 
     public async Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId)
         => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).GetServerArchetypes();
+
+    public Task<ArchetypeDto> CreateArchetypeAsync(Guid serverId, string name)
+        => this.GetGrainFactory().GetGrain<IServerGrain>(serverId).CreateArchetypeAsync(this.GetUser().id, name);
+
+    public Task<ArchetypeDto?> UpdateArchetypeAsync(Guid serverId, ArchetypeDto dto)
+    {
+        dto.ServerId = serverId;
+        return this.GetGrainFactory().GetGrain<IServerGrain>(serverId).UpdateArchetypeAsync(this.GetUser().id, dto);
+    }
 }

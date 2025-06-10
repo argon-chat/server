@@ -53,6 +53,12 @@ public interface IServerGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetServerArchetypes))]
     Task<List<ArchetypeDto>> GetServerArchetypes();
+
+    [Alias(nameof(CreateArchetypeAsync))]
+    Task<ArchetypeDto>  CreateArchetypeAsync(Guid creatorId, string name);
+
+    [Alias(nameof(UpdateArchetypeAsync))]
+    Task<ArchetypeDto?> UpdateArchetypeAsync(Guid callerId, ArchetypeDto dto);
 }
 
 public enum ServerCreationError

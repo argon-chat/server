@@ -1,7 +1,10 @@
 namespace Argon.Grains;
 
+using System.Diagnostics;
+using System.Drawing;
 using Api.Features.Utils;
-using Argon.Features.Rpc;
+using Argon.Api.Features.Bus;
+using Argon.Services.L1L2;
 using Consul;
 using Features.Logic;
 using Features.Repositories;
@@ -16,7 +19,9 @@ public class ServerGrain(
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
     IServerRepository serverRepository,
-    IUserPresenceService userPresence) : Grain, IServerGrain
+    IUserPresenceService userPresence,
+    IArchetypeAgent archetypeAgent,
+    ILogger<IServerGrain> logger) : Grain, IServerGrain
 {
     private IArgonStream<IArgonEvent> _serverEvents;
 
@@ -100,11 +105,130 @@ public class ServerGrain(
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
 
     public async Task<List<ArchetypeDto>> GetServerArchetypes()
+        => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
+
+    public async Task<ArchetypeDto> CreateArchetypeAsync(Guid creatorId, string name)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        return await ctx.Archetypes.Where(x => x.ServerId == this.GetPrimaryKey()).ToListAsync().ToDto();
+        var arch = new Archetype()
+        {
+            ServerId      = this.GetPrimaryKey(),
+            Entitlement   = ArgonEntitlement.Base,
+            Id            = Guid.NewGuid(),
+            Name          = name,
+            Description   = "",
+            IsMentionable = false,
+            IsLocked      = false,
+            IsHidden      = false,
+            Colour        = Color.White,
+            IconFileId    = null,
+            CreatedAt     = DateTimeOffset.UtcNow,
+            CreatorId     = creatorId,
+            IsDeleted     = false,
+            IsGroup       = false,
+        };
+
+        ctx.Archetypes.Add(arch);
+
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+
+        await _serverEvents.Fire(new ArchetypeCreated(arch.ToDto()));
+
+        return await archetypeAgent.DoCreatedAsync(arch);
     }
+
+    public async Task<ArchetypeDto?> UpdateArchetypeAsync(Guid callerId, ArchetypeDto dto)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var invoker = await ctx.UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Include(x => x.ServerMemberArchetypes)
+           .ThenInclude(x => x.Archetype)
+           .FirstOrDefaultAsync();
+
+        if (string.IsNullOrWhiteSpace(dto.Name)) return null;
+        if (string.IsNullOrWhiteSpace(dto.Description)) dto.Description = "";
+        if (dto.Name.Length > 64) return null;
+        if (dto.Description.Length > 256) return null;
+
+        if (invoker is null)
+        {
+            logger.LogError(
+                "User {userId} tried to change the {archetypeId} right on server {serverId}, although he is not a member of the server.",
+                callerId, dto.Id, this.GetPrimaryKey()
+            );
+            return null;
+        }
+
+        var entity = await ctx.Archetypes.FirstOrDefaultAsync(x => x.Id == dto.Id && x.ServerId == this.GetPrimaryKey());
+
+        if (entity is null)
+        {
+            logger.LogError(
+                "User {userId} tried to change the {archetypeId} right on server {serverId}, but the right is not part of the server.",
+                callerId, dto.Id, this.GetPrimaryKey()
+            );
+            return null;
+        }
+
+        var invokerArchetypes = invoker
+           .ServerMemberArchetypes
+           .Select(x => x.Archetype)
+           .ToList();
+
+        if (!ulong.TryParse(dto.Entitlement, out var parsed))
+            return null;
+
+        var promptedEntitlements = (ArgonEntitlement)parsed;
+
+        var archetypeEntity = ctx.Attach(entity);
+        var archetype       = archetypeEntity.Entity;
+
+        if (archetype.Entitlement != promptedEntitlements)
+        {
+            if (!EntitlementEvaluator.IsAllowedToEdit(archetype, promptedEntitlements, invokerArchetypes))
+            {
+                logger.LogError("User {userId} is trying to edit archetype {archetypeId}, but he does not have the rights",
+                    invoker.UserId, archetype.Id);
+                return null;
+            }
+
+            archetype.Entitlement = promptedEntitlements;
+
+            if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
+            {
+                Debug.Assert(await ctx.SaveChangesAsync() == 1);
+                return await Changed(archetypeEntity.Entity);
+            }
+        }
+
+        if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
+            return null;
+
+        if (!archetype.Name.Equals(dto.Name))
+            archetype.Name = dto.Name;
+        if (archetype.Colour.ToArgb() != dto.Colour)
+            archetype.Colour = Color.FromArgb(dto.Colour);
+
+        archetype.IsGroup       = dto.IsGroup;
+        archetype.IsMentionable = dto.IsMentionable;
+        archetype.UpdatedAt = DateTimeOffset.UtcNow;
+
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        return await Changed(archetypeEntity.Entity);
+
+
+        async Task<ArchetypeDto?> Changed(Archetype value)
+        {
+            var result = value.ToDto();
+            await _serverEvents.Fire(new ArchetypeChanged(result));
+            return result;
+        }
+    }
+
+    
 
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
