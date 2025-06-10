@@ -1,6 +1,7 @@
 namespace Argon.Services;
 
 using System.Buffers;
+using System.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 
@@ -202,8 +203,36 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
         return new(lease, 0, length);
     }
     public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = new())
-        => throw new NotImplementedException();
+        => SetImplAsync(key, new(value), options, token);
+    private async Task SetImplAsync(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions opt, CancellationToken token = default)
+    {
+        token.ThrowIfCancellationRequested();
 
+        using var conn  = redis.Rent();
+        var       cache = conn.GetDatabase(options.Value.DbId);
+        Debug.Assert(cache is not null);
+
+        var creationTime = DateTimeOffset.UtcNow;
+
+        var absoluteExpiration = GetAbsoluteExpiration(creationTime, opt);
+
+        var prefixedKey = key;
+        var ttl         = GetExpirationInSeconds(creationTime, absoluteExpiration, opt);
+        var fields      = GetHashFields(Linearize(value, out var lease), absoluteExpiration, opt.SlidingExpiration);
+
+        if (ttl is null)
+        {
+            await cache.HashSetAsync(prefixedKey, fields).ConfigureAwait(false);
+        }
+        else
+        {
+            await Task.WhenAll(
+                cache.HashSetAsync(prefixedKey, fields),
+                cache.KeyExpireAsync(prefixedKey, TimeSpan.FromSeconds(ttl.GetValueOrDefault()))
+            ).ConfigureAwait(false);
+        }
+        Recycle(lease); // we're happy to only recycle on success
+    }
     private static long? GetExpirationInSeconds(DateTimeOffset creationTime, DateTimeOffset? absoluteExpiration, DistributedCacheEntryOptions options)
     {
         if (absoluteExpiration.HasValue && options.SlidingExpiration.HasValue)
