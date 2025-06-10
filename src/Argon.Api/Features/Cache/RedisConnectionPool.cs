@@ -2,6 +2,7 @@ namespace Argon.Services;
 
 using Metrics;
 using Metrics.Gauges;
+using Microsoft.Extensions.Caching.StackExchangeRedis;
 using StackExchange.Redis;
 using static Metrics.MeasurementId;
 

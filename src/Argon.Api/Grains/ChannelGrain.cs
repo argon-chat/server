@@ -1,12 +1,12 @@
 namespace Argon.Grains;
 
-using Features.Rpc;
 using Orleans.Concurrency;
 using Orleans.GrainDirectory;
 using Orleans.Providers;
 using Persistence.States;
 using Sfu;
 using Servers;
+using Argon.Api.Features.Bus;
 
 [GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(

@@ -2,8 +2,8 @@ namespace Argon.Services;
 
 using System.Buffers;
 using System.Net.WebSockets;
-using Argon.Grains;
-using Features.Rpc;
+using Argon.Api.Features.Bus;
+using Grains;
 using Microsoft.AspNetCore.Connections;
 using Orleans.Serialization;
 

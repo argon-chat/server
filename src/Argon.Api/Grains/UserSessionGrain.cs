@@ -1,9 +1,8 @@
 namespace Argon.Grains;
 
-using Argon.Metrics.Gauges;
-using Consul;
+using Argon.Api.Features.Bus;
+using Metrics.Gauges;
 using Features.Logic;
-using Features.Rpc;
 using MessagePipe;
 using Metrics;
 using Orleans.Concurrency;
