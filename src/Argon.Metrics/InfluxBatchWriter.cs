@@ -17,31 +17,7 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-
         while (!stoppingToken.IsCancellationRequested)
-        {
-            await Task.Delay(_flushInterval, stoppingToken);
-
-            if (!_options.IsEnabled) continue;
-
-            while (_buffer.TryDequeue(out var point))
-            {
-                try
-                {
-                    await client.Value.WritePointsAsync(
-                        points: [point],
-                        database: _options.Database,
-                        cancellationToken: stoppingToken
-                    );
-                }
-                catch (Exception e)
-                {
-                    logger.LogCritical(e, "failed write metrics '{measurementId}'", point.GetMeasurement());
-                }
-            }
-        }
-
-        /*while (!stoppingToken.IsCancellationRequested)
         {
             await Task.Delay(_flushInterval, stoppingToken);
 
@@ -64,12 +40,11 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
             }
             catch (Exception e)
             {
-                logger.LogCritical(e, "failed write metrics '{measurementId}'", e.);
+                logger.LogCritical(e, "failed write metrics");
                 foreach (var point in list)
                     _buffer.Enqueue(point);
             }
 
-
-        }*/
+        }
     }
 }
