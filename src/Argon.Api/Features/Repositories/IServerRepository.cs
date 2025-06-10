@@ -2,15 +2,6 @@ namespace Argon.Features.Repositories;
 
 using System.Diagnostics;
 
-public static class TemplateFeature
-{
-    public static IServiceCollection AddEfRepositories(this WebApplicationBuilder builder)
-    {
-        builder.Services.AddScoped<IServerRepository, ServerRepository>();
-        return builder.Services;
-    }
-}
-
 public interface IServerRepository
 {
     ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator);
