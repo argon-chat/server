@@ -32,4 +32,8 @@ public interface IServerInteraction : IArgonService
     Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId);
 
     Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId);
+
+    Task<ArchetypeDto> CreateArchetypeAsync(Guid serverId, string name);
+
+    Task<ArchetypeDto?> UpdateArchetypeAsync(Guid serverId, ArchetypeDto dto);
 }
