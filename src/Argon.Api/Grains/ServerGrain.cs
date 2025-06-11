@@ -223,6 +223,7 @@ public class ServerGrain(
         async Task<ArchetypeDto?> Changed(Archetype value)
         {
             var result = value.ToDto();
+            await archetypeAgent.DoUpdatedAsync(value);
             await _serverEvents.Fire(new ArchetypeChanged(result));
             return result;
         }
@@ -299,14 +300,16 @@ public class ServerGrain(
 
         if (alreadyExist)
             return;
-
+        var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
-            Id       = Guid.NewGuid(),
+            Id       = member,
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });
         await ctx.SaveChangesAsync();
+
+        await serverRepository.GrantDefaultArchetypeTo(ctx, this.GetPrimaryKey(), member);
         await UserJoined(userId);
     }
 

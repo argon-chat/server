@@ -5,6 +5,7 @@ using System.Diagnostics;
 public interface IServerRepository
 {
     ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator);
+    ValueTask         GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId);
 }
 
 public class ServerRepository(
@@ -60,6 +61,23 @@ public class ServerRepository(
         });
     }
 
+    public async ValueTask GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId)
+    {
+        var everyone = await ctx.Archetypes
+           .AsNoTracking()
+           .FirstAsync(x => x.IsDefault && x.ServerId == serverId);
+
+        var e1 = new ServerMemberArchetype
+        {
+            ArchetypeId    = everyone.Id,
+            ServerMemberId = serverMemberId
+        };
+
+        await ctx.ServerMemberArchetypes.AddAsync(e1);
+
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+    }
+
 
     private async ValueTask CloneArchetypesAsync(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId, Guid userId)
     {
@@ -77,19 +95,30 @@ public class ServerRepository(
         everyone.ServerId          = serverId;
         everyone.Server            = null!;
         everyone.ServerMemberRoles = new List<ServerMemberArchetype>();
+        everyone.IsDefault         = true;
 
         await ctx.Archetypes.AddAsync(everyone);
         await ctx.Archetypes.AddAsync(owner);
 
         Debug.Assert(await ctx.SaveChangesAsync() == 2);
 
-        var e = new ServerMemberArchetype()
+        var e1 = new ServerMemberArchetype()
         {
             ArchetypeId    = owner.Id,
             ServerMemberId = serverMemberId
         };
 
-        await ctx.ServerMemberArchetypes.AddAsync(e);
+        await ctx.ServerMemberArchetypes.AddAsync(e1);
+
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+
+        var e2 = new ServerMemberArchetype()
+        {
+            ArchetypeId    = everyone.Id,
+            ServerMemberId = serverMemberId
+        };
+
+        await ctx.ServerMemberArchetypes.AddAsync(e2);
 
         Debug.Assert(await ctx.SaveChangesAsync() == 1);
     }

@@ -30,6 +30,8 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     public bool IsHidden { get; set; }
     [TsIgnore]
     public bool IsGroup { get; set; }
+    [TsIgnore]
+    public bool IsDefault { get; set; }
 
     public Color Colour { get; set; }
     [MaxLength(128)]
