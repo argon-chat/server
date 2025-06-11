@@ -18,8 +18,9 @@ public static class L1L2CacheExtensions
 
             options.DefaultEntryOptions = new HybridCacheEntryOptions
             {
-                Expiration           = TimeSpan.FromHours(24),
-                LocalCacheExpiration = TimeSpan.FromHours(24)
+                Expiration           = TimeSpan.FromHours(48),
+                LocalCacheExpiration = TimeSpan.FromHours(48),
+                Flags                = HybridCacheEntryFlags.DisableCompression
             };
         });
         builder.Services.AddScoped<IArchetypeAgent, ArchetypeAgentHub>();
@@ -116,10 +117,13 @@ public class HybridArchetypeCache(
     }
 
     public async Task SignalInvalidationAsync(Guid serverId, Guid archetypeId, CancellationToken cancellationToken = default)
-        => await nats.PublishAsync(
+    {
+        await InvalidateAsync(serverId, archetypeId);
+        await nats.PublishAsync(
             IArchetypeCache.InvalidationSubject,
             new NatsArchetypeInvalidateEvent(serverId, archetypeId),
             cancellationToken: cancellationToken);
+    }
 }
 
 public record NatsArchetypeInvalidateEvent(Guid ServerId, Guid ArchetypeId);
