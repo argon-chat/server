@@ -17,7 +17,7 @@ namespace Argon.Api.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.3")
+                .HasAnnotation("ProductVersion", "9.0.5")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -51,6 +51,9 @@ namespace Argon.Api.Migrations
                     b.Property<string>("IconFileId")
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
+
+                    b.Property<bool>("IsDefault")
+                        .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -95,6 +98,7 @@ namespace Argon.Api.Migrations
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "Default role for everyone in this server",
                             Entitlement = 15760355m,
+                            IsDefault = false,
                             IsDeleted = false,
                             IsGroup = false,
                             IsHidden = false,
@@ -112,6 +116,7 @@ namespace Argon.Api.Migrations
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "Default role for owner in this server",
                             Entitlement = -1m,
+                            IsDefault = false,
                             IsDeleted = false,
                             IsGroup = false,
                             IsHidden = true,
