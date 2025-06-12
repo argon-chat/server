@@ -8,10 +8,10 @@ using System.Threading.Tasks;
 public interface IChannelGrain : IGrainWithGuidKey
 {
     [Alias("Join")]
-    Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId);
+    Task<Either<string, JoinToChannelError>> Join();
 
     [Alias("Leave")]
-    Task Leave(Guid userId);
+    Task Leave();
 
     [Alias("GetChannel")]
     Task<Channel> GetChannel();
@@ -20,7 +20,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Channel> UpdateChannel(ChannelInput input);
 
     [Alias(nameof(SendMessage))]
-    Task SendMessage(Guid senderId, string text, List<MessageEntity> entities, ulong? replyTo);
+    Task SendMessage(string text, List<MessageEntity> entities, ulong? replyTo);
 
     [Alias(nameof(GetMessages))]
     Task<List<ArgonMessage>> GetMessages(int count, int offset);
@@ -33,9 +33,9 @@ public interface IChannelGrain : IGrainWithGuidKey
 
 
     [OneWay, Alias("OnTypingEmit")]
-    ValueTask OnTypingEmit(Guid serverId, Guid userId);
+    ValueTask OnTypingEmit();
     [OneWay, Alias("OnTypingStopEmit")]
-    ValueTask OnTypingStopEmit(Guid serverId, Guid userId);
+    ValueTask OnTypingStopEmit();
 }
 
 [MessagePackObject(true)]

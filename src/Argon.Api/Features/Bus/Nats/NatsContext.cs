@@ -9,6 +9,7 @@ using Orleans.Runtime;
 using System;
 using System.Buffers;
 using System.Threading.Channels;
+using Api.Features.Bus;
 using Newtonsoft.Json;
 
 public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServiceProvider provider)
@@ -205,6 +206,8 @@ public static class NatsExtensions
         });
 
         builder.Services.AddSingleton<NatsContext>();
+
+        builder.Services.AddSingleton<IStreamManagement, StreamManagement>();
         return builder.Services;
     }
 }

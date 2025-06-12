@@ -6,7 +6,7 @@ using Shared.Servers;
 public interface IInviteGrain : IGrainWithStringKey
 {
     [Alias("AcceptAsync")]
-    ValueTask<(Guid, AcceptInviteError)> AcceptAsync(Guid userId);
+    ValueTask<(Guid, AcceptInviteError)> AcceptAsync();
 
     [Alias("DropInviteCodeAsync")]
     ValueTask DropInviteCodeAsync();

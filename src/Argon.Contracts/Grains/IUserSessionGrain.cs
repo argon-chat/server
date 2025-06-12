@@ -7,7 +7,7 @@ using Users;
 public interface IUserSessionGrain : IGrainWithGuidKey
 {
     [Alias(nameof(BeginRealtimeSession))]
-    ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null);
+    ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null);
 
     [Alias(nameof(EndRealtimeSession))]
     ValueTask EndRealtimeSession();
@@ -17,9 +17,9 @@ public interface IUserSessionGrain : IGrainWithGuidKey
 
 
     [OneWay, Alias(nameof(OnTypingEmit))]
-    ValueTask OnTypingEmit(Guid serverId, Guid channelId);
+    ValueTask OnTypingEmit(Guid channelId);
     [OneWay, Alias(nameof(OnTypingStopEmit))]
-    ValueTask OnTypingStopEmit(Guid serverId, Guid channelId);
+    ValueTask OnTypingStopEmit(Guid channelId);
 
     public const string StorageId = "CacheStorage";
 }

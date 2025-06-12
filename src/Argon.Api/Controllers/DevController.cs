@@ -19,10 +19,6 @@ public class DevController(IGrainFactory grainFactory) : ControllerBase
             accessId = await grainFactory.GetGrain<IAccessTokenGrain>(Guid.Empty).GenerateAccessHashAsync(userId, DateTime.Now),
             message = "I'm A Hetero Silo Yay!"
         });
-
-    //[HttpPost("{userId:guid}/{channelId:guid}")]
-    //public async Task SendMessage(Guid userId, Guid channelId, ArgonMessage message)
-    //    => await grainFactory.GetGrain<IChannelGrain>(channelId).SendMessage(message.Text);
 }
 
 //#endif
