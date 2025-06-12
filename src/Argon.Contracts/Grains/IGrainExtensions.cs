@@ -47,6 +47,18 @@ public static class IGrainExtensions
         => RequestContext.Set("$caller_session_id", sessionId);
     public static void SetUserCountry(this IArgonService that, string Country)
         => RequestContext.Set("$caller_country", Country);
+
+
+    public static void SetUserId(this RequestContext.ReentrancySection that, Guid userId)
+        => RequestContext.Set("$caller_user_id", userId);
+    public static void SetUserMachineId(this RequestContext.ReentrancySection that, Guid machineId)
+        => RequestContext.Set("$caller_machine_id", machineId);
+    public static void SetUserSessionId(this RequestContext.ReentrancySection that, Guid sessionId)
+        => RequestContext.Set("$caller_session_id", sessionId);
+    public static void SetUserCountry(this RequestContext.ReentrancySection that, string Country)
+        => RequestContext.Set("$caller_country", Country);
+
+    //  RequestContext.ReentrancySection
 }
 
 public class NotAuthorizedCallException : Exception;

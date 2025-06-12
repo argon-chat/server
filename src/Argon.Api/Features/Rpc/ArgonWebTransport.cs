@@ -80,6 +80,14 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 if (sessionId == Guid.Empty)
                     throw new Exception($"No session id defined in argon transport");
 
+                using var reentrancy = RequestContext.AllowCallChainReentrancy();
+
+
+                reentrancy.SetUserId(ctx.GetUserId());
+                reentrancy.SetUserMachineId(ctx.GetMachineId());
+                reentrancy.SetUserSessionId(ctx.GetSessionId());
+                reentrancy.SetUserCountry(ctx.GetRegion());
+
                 var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
                 await sessionGrain.BeginRealtimeSession(UserStatus.Online);
                 var stream = await clusterClient.Streams().CreateClientStream(user.id);
@@ -108,6 +116,8 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
 
                 try
                 {
+                    using var reentrancy = RequestContext.AllowCallChainReentrancy();
+
                     var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
                     await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
                 }
