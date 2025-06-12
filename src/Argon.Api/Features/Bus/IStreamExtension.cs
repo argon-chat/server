@@ -1,6 +1,8 @@
 namespace Argon.Api.Features.Bus;
 
 using Argon.Features.NatsStreaming;
+using StackExchange.Redis;
+
 public interface IStreamExtension
 {
     ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary);
@@ -9,9 +11,10 @@ public interface IStreamExtension
 
 public interface IStreamExtension<T> where T : Grain, IGrainWithGuidKey
 {
-    ValueTask<IArgonStream<IArgonEvent>> CreateServerStream();
-    ValueTask<IArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId);
+    ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStream();
+    ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId);
 }
+
 public static class ArgonStreamExtensions
 {
     public static IStreamExtension<T> Streams<T>(this T grain) where T : Grain, IGrainWithGuidKey
@@ -20,15 +23,16 @@ public static class ArgonStreamExtensions
     public static IStreamExtension Streams(this IClusterClient clusterClient)
         => new StreamForClusterClientExtension(clusterClient);
 }
+
 public readonly struct StreamForGrainExtension<T>(T grain) : IStreamExtension<T> where T : Grain, IGrainWithGuidKey
 {
-    public ValueTask<IArgonStream<IArgonEvent>> CreateServerStream()
+    public ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStream()
         => CreateServerStreamFor(grain.GetPrimaryKey());
 
-    public async ValueTask<IArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
+    public async ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
         => await grain.GrainContext.ActivationServices
-           .GetRequiredService<NatsContext>()
-           .CreateWriteStream(StreamId.Create(IArgonEvent.Namespace, targetId));
+           .GetRequiredService<IStreamManagement>()
+           .CreateServerStream(StreamId.Create(IArgonEvent.Namespace, targetId));
 }
 
 public readonly struct StreamForClusterClientExtension(IClusterClient client) : IStreamExtension
