@@ -77,6 +77,12 @@ public class VaultDbCredentialsProvider(
         {
             try
             {
+                var opt         = options.Value;
+                if (!opt.UseRotationHolder)
+                {
+                    await Task.Delay(TimeSpan.FromSeconds(300), stoppingToken);
+                    continue;
+                }
                 var credentials = await GetCredentialsAsync();
                 await Task.Delay(TimeSpan.FromSeconds(Math.Max(60, credentials.ttl - 60)), stoppingToken);
             }
