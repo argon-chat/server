@@ -66,6 +66,8 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
             var result = await InvokeServiceMethod(service, method, request.Payload);
 
+            context.ResponseTrailers.Add("X-ReentrancyId", RequestContext.ReentrancyId.ToString());
+
             return new RpcResponse()
             {
                 Payload    = ByteString.CopyFrom(result),
