@@ -17,6 +17,9 @@ public record Channel : ArgonEntityWithOwnership, IArchetypeObject
     [MaxLength(1024)]
     public string? Description { get; set; } = null;
 
+    public TimeSpan? SlowMode              { get; set; }
+    public bool      DoNotRestrictBoosters { get; set; }
+
     public virtual ICollection<ChannelEntitlementOverwrite> EntitlementOverwrites { get; set; }
         = new List<ChannelEntitlementOverwrite>();
     public ICollection<IArchetypeOverwrite> Overwrites => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();

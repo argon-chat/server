@@ -27,7 +27,7 @@ public class UserGrain(
         await Task.WhenAll(userServers
            .Select(id => GrainFactory
                .GetGrain<IServerGrain>(id)
-               .DoUserUpdatedAsync(this.GetPrimaryKey())
+               .DoUserUpdatedAsync()
                .AsTask())
            .ToArray());
 

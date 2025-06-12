@@ -93,7 +93,8 @@ public class EntitlementEvaluatorTests
                 DisplayName = "",
                 Email       = "",
                 Username    = "",
-                Id          = Guid.NewGuid()
+                Id          = Guid.NewGuid(),
+                NormalizedUsername = ""
             },
             Id       = Guid.NewGuid(),
             ServerId = serverId,
@@ -114,7 +115,8 @@ public class EntitlementEvaluatorTests
                 DisplayName = "",
                 Email       = "",
                 Username    = "",
-                Id          = Guid.NewGuid()
+                Id          = Guid.NewGuid(),
+                NormalizedUsername = ""
             },
             Id       = Guid.NewGuid(),
             ServerId = serverId,
@@ -140,7 +142,8 @@ public class EntitlementEvaluatorTests
                 DisplayName = "",
                 Email       = "",
                 Username    = "",
-                Id          = Guid.NewGuid()
+                Id          = Guid.NewGuid(),
+                NormalizedUsername = ""
             },
             Id       = Guid.NewGuid(),
             ServerId = serverId,

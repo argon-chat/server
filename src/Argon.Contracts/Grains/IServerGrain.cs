@@ -1,12 +1,42 @@
 namespace Argon.Grains.Interfaces;
 
+using ArchetypeModel;
 using Users;
+
+[Alias($"Argon.Grains.Interfaces.{nameof(IEntitlementGrain)}")]
+public interface IEntitlementGrain : IGrainWithGuidKey
+{
+    [Alias(nameof(GetServerArchetypes))]
+    Task<List<ArchetypeDto>> GetServerArchetypes();
+
+    [Alias(nameof(CreateArchetypeAsync))]
+    Task<ArchetypeDto> CreateArchetypeAsync( string name);
+
+    [Alias(nameof(UpdateArchetypeAsync))]
+    Task<ArchetypeDto?> UpdateArchetypeAsync(ArchetypeDto dto);
+
+    [Alias(nameof(GetChannelEntitlementOverwrites))]
+    Task<List<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid channelId);
+
+    [Alias(nameof(UpsertArchetypeEntitlementForChannel))]
+    Task<ChannelEntitlementOverwrite?>
+        UpsertArchetypeEntitlementForChannel(Guid channelId, Guid archetypeId,
+            ArgonEntitlement deny, ArgonEntitlement allow);
+
+    [Alias(nameof(UpsertMemberEntitlementForChannel))]
+    Task<ChannelEntitlementOverwrite?>
+        UpsertMemberEntitlementForChannel(Guid channelId, Guid memberId,
+            ArgonEntitlement deny, ArgonEntitlement allow);
+
+    [Alias(nameof(DeleteEntitlementForChannel))]
+    Task<bool> DeleteEntitlementForChannel(Guid channelId, Guid EntitlementOverwriteId);
+}
 
 [Alias($"Argon.Grains.Interfaces.{nameof(IServerGrain)}")]
 public interface IServerGrain : IGrainWithGuidKey
 {
     [Alias(nameof(CreateServer))]
-    Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId);
+    Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input);
 
     [Alias(nameof(GetServer))]
     Task<Server> GetServer();
@@ -18,10 +48,10 @@ public interface IServerGrain : IGrainWithGuidKey
     Task DeleteServer();
 
     [Alias(nameof(CreateChannel))]
-    Task<Channel> CreateChannel(ChannelInput input, Guid initiator);
+    Task<Channel> CreateChannel(ChannelInput input);
 
     [Alias(nameof(DeleteChannel))]
-    Task DeleteChannel(Guid channelId, Guid initiator);
+    Task DeleteChannel(Guid channelId);
 
     [Alias(nameof(SetUserStatus))]
     ValueTask SetUserStatus(Guid userId, UserStatus status);
@@ -42,13 +72,13 @@ public interface IServerGrain : IGrainWithGuidKey
     Task<List<RealtimeChannel>> GetChannels();
 
     [Alias(nameof(DoJoinUserAsync))]
-    ValueTask DoJoinUserAsync(Guid userId);
+    ValueTask DoJoinUserAsync();
 
     [Alias(nameof(DoUserUpdatedAsync))]
-    ValueTask DoUserUpdatedAsync(Guid userId);
+    ValueTask DoUserUpdatedAsync();
 
     [Alias(nameof(PrefetchProfile))]
-    ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller);
+    ValueTask<UserProfileDto> PrefetchProfile(Guid userId);
 }
 
 public enum ServerCreationError

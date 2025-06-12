@@ -1,12 +1,11 @@
 namespace Argon.Grains;
 
-using Api.Features.Utils;
-using Argon.Features.Rpc;
+using Argon.Api.Features.Bus;
+using Argon.Services.L1L2;
 using Features.Logic;
 using Features.Repositories;
 using Orleans.GrainDirectory;
 using Persistence.States;
-using Services;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
@@ -15,9 +14,11 @@ public class ServerGrain(
     IGrainFactory grainFactory,
     IDbContextFactory<ApplicationDbContext> context,
     IServerRepository serverRepository,
-    IUserPresenceService userPresence) : Grain, IServerGrain
+    IUserPresenceService userPresence,
+    IArchetypeAgent archetypeAgent,
+    ILogger<IServerGrain> logger) : Grain, IServerGrain
 {
-    private IArgonStream<IArgonEvent> _serverEvents;
+    private IDistributedArgonStream<IArgonEvent> _serverEvents;
 
     public async override Task OnActivateAsync(CancellationToken ct)
     {
@@ -28,14 +29,17 @@ public class ServerGrain(
         _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
-        => state.WriteStateAsync(ct);
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
+    {
+        await _serverEvents.DisposeAsync();
+        await state.WriteStateAsync(ct);
+    }
 
-
-    public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
+    public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input)
     {
         if (string.IsNullOrEmpty(input.Name))
             return ServerCreationError.BAD_MODEL;
+        var creatorId = this.GetUserId();
 
         await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId);
         await UserJoined(creatorId);
@@ -78,6 +82,7 @@ public class ServerGrain(
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .Where(x => x.UserId == userId)
            .Include(x => x.User)
+           .Include(x => x.ServerMemberArchetypes)
            .FirstAsync();
 
 
@@ -97,6 +102,7 @@ public class ServerGrain(
     public async ValueTask RemoveUserPresence(Guid userId)
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
 
+
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -105,6 +111,7 @@ public class ServerGrain(
            .UsersToServerRelations
            .Include(x => x.User)
            .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Include(x => x.ServerMemberArchetypes)
            .ToListAsync();
 
         var ids        = members.Select(x => x.UserId).ToList();
@@ -122,13 +129,34 @@ public class ServerGrain(
 
     public async Task<List<RealtimeChannel>> GetChannels()
     {
-        await using var ctx = await context.CreateDbContextAsync();
+        var             callerId = this.GetUserId();
+        await using var ctx      = await context.CreateDbContextAsync();
+
+        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == callerId && x.ServerId == this.GetPrimaryKey());
+        var serverMemberId = serverMember.Id;
+        var serverId       = this.GetPrimaryKey();
+
+        var member = await ctx.UsersToServerRelations
+           .Include(m => m.ServerMemberArchetypes)
+           .ThenInclude(sma => sma.Archetype)
+           .FirstAsync(m => m.Id == serverMemberId && m.ServerId == serverId);
+
+        var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
 
         var channels = await ctx.Channels
-           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(c => c.ServerId == serverId)
+           .Include(c => c.EntitlementOverwrites)
            .ToListAsync();
 
-        var results = await Task.WhenAll(channels.Select(async x => new RealtimeChannel()
+        var c = channels
+           .Where(c =>
+            {
+                var finalPerms = EntitlementEvaluator.ApplyPermissionOverwrites(basePermissions, member, c);
+                return EntitlementAnalyzer.IsEntitlementSatisfied(finalPerms, ArgonEntitlement.ViewChannel);
+            })
+           .ToList();
+
+        var results = await Task.WhenAll(c.Select(async x => new RealtimeChannel()
         {
             Channel = x,
             Users   = await grainFactory.GetGrain<IChannelGrain>(x.Id).GetMembers()
@@ -137,44 +165,58 @@ public class ServerGrain(
         return results.ToList();
     }
 
-    public async ValueTask DoJoinUserAsync(Guid userId)
+    public async ValueTask DoJoinUserAsync()
     {
         await using var ctx = await context.CreateDbContextAsync();
+
+        var userId = this.GetUserId();
 
         var alreadyExist = await ctx.UsersToServerRelations.AnyAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == userId);
 
         if (alreadyExist)
             return;
-
+        var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
-            Id       = Guid.NewGuid(),
+            Id       = member,
             ServerId = this.GetPrimaryKey(),
             UserId   = userId
         });
         await ctx.SaveChangesAsync();
+
+        await serverRepository.GrantDefaultArchetypeTo(ctx, this.GetPrimaryKey(), member);
         await UserJoined(userId);
     }
 
-    public async ValueTask DoUserUpdatedAsync(Guid userId)
+    public async ValueTask DoUserUpdatedAsync()
     {
+        var userId = this.GetUserId();
+
         await using var ctx  = await context.CreateDbContextAsync();
         var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
         await _serverEvents.Fire(new UserUpdated(user.ToDto()));
     }
 
-    public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller)
+    public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId)
     {
-        
+        var caller = this.GetUserId();
+
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
-        var targetProfile       = await ctx.Servers
+        var targetMember = await ctx.Servers
+           .AsNoTracking()
            .SelectMany(server => server.Users)
            .Where(member => userIds.Contains(member.UserId))
-           .Select(member => member.User.Profile)
-           .FirstAsync(x => x.UserId == userId)
-           .ToDto();
-        return targetProfile;
+           .Include(serverMember => serverMember.User)
+           .ThenInclude(user => user.Profile)
+           .Include(serverMember => serverMember.ServerMemberArchetypes)
+           .FirstAsync(x => x.UserId == userId);
+
+        var profile = targetMember.User.Profile.ToDto();
+
+        profile.Archetypes.AddRange(targetMember.ServerMemberArchetypes.ToDto());
+
+        return profile;
     }
 
 
@@ -197,14 +239,14 @@ public class ServerGrain(
         await ctx.SaveChangesAsync();
     }
 
-    public async Task<Channel> CreateChannel(ChannelInput input, Guid initiator)
+    public async Task<Channel> CreateChannel(ChannelInput input)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         var channel = new Channel
         {
             Name        = input.Name,
-            CreatorId   = initiator,
+            CreatorId   = this.GetUserId(),
             Description = input.Description,
             ChannelType = input.ChannelType,
             ServerId    = this.GetPrimaryKey()
@@ -215,12 +257,33 @@ public class ServerGrain(
         return channel;
     }
 
-    public async Task DeleteChannel(Guid channelId, Guid initiator)
+    public async Task DeleteChannel(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelRemoved(channelId));
+    }
+
+
+    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
+    {
+        var invoker = await ctx.UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Include(x => x.ServerMemberArchetypes)
+           .ThenInclude(x => x.Archetype)
+           .FirstOrDefaultAsync();
+
+        if (invoker is null)
+            return false;
+
+        var invokerArchetypes = invoker
+           .ServerMemberArchetypes
+           .Select(x => x.Archetype)
+           .ToList();
+
+        return invokerArchetypes.Any(x
+            => x.Entitlement.HasFlag(requiredEntitlement));
     }
 }

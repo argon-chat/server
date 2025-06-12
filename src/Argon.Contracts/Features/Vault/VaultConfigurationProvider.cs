@@ -37,7 +37,7 @@ public class VaultConfigurationProvider : ConfigurationProvider
     internal VaultConfigurationSource ConfigurationSource { get; private set; }
     
     /// <inheritdoc/>
-    public async override void Load()
+    public override void Load()
     {
         try
         {
@@ -81,13 +81,13 @@ public class VaultConfigurationProvider : ConfigurationProvider
                 this.vaultClient = new VaultClient(vaultClientSettings);
             }
 
-            var hasChanges = await this.LoadVaultDataAsync(this.vaultClient).ConfigureAwait(true);
+            var hasChanges = this.LoadVaultDataAsync(this.vaultClient).GetAwaiter().GetResult();
 
             if (hasChanges)
                 this.OnReload();
 
         }
-        catch (Exception e) when (e is VaultApiException || e is System.Net.Http.HttpRequestException)
+        catch (Exception e) when (e is VaultApiException or HttpRequestException)
         {
             Log.Logger.Error(e, "Cannot load configuration from Vault");
             throw;

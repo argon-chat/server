@@ -2,6 +2,7 @@ namespace Argon.Api.Migrations;
 
 using System.Data;
 using Argon.Features.Env;
+using Argon.Features.Vault;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -23,6 +24,18 @@ public static class WarmUpExtension
             Migrate(db, scope.ServiceProvider.GetRequiredService<ILogger<T>>(), scope.ServiceProvider);
         else
             db.Database.EnsureCreated();
+        return app;
+    }
+
+    public async static Task<WebApplication> WarmUpRotations(this WebApplication app)
+    {
+        if (app.Environment.IsEntryPoint())
+            return app;
+
+        using var scope = app.Services.CreateScope();
+
+        var rotationManager = scope.ServiceProvider.GetRequiredService<IVaultDbCredentialsProvider>();
+        await rotationManager.EnsureLoadedAsync();
         return app;
     }
 

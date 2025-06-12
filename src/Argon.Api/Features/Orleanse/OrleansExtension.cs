@@ -73,11 +73,7 @@ public static class OrleansExtension
                     IServerInvitesGrain.StorageId,
                     "Default"
                 ], "Npgsql", "DefaultConnection")
-               .UseAdoNetReminderService(x =>
-                {
-                    x.Invariant        = "Npgsql";
-                    x.ConnectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-                })
+               .UseInMemoryReminderService()
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);

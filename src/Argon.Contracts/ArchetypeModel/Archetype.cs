@@ -13,7 +13,7 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     [IgnoreMember, TsIgnore]
     public virtual Server Server { get; set; }
     [TsIgnore]
-    public Guid ServerId { get;         set; }
+    public Guid ServerId { get; set; }
 
     [MaxLength(64)]
     public string Name { get; set; } = string.Empty;
@@ -25,15 +25,62 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
     [TsIgnore]
     public bool IsMentionable { get; set; }
     [TsIgnore]
-    public bool IsLocked      { get; set; }
+    public bool IsLocked { get; set; }
     [TsIgnore]
-    public bool IsHidden      { get; set; }
+    public bool IsHidden { get; set; }
+    [TsIgnore]
+    public bool IsGroup { get; set; }
+    [TsIgnore]
+    public bool IsDefault { get; set; }
 
-    
     public Color Colour { get; set; }
     [MaxLength(128)]
     public string? IconFileId { get; set; } = null;
 
     public virtual ICollection<ServerMemberArchetype> ServerMemberRoles { get; set; }
         = new List<ServerMemberArchetype>();
+}
+
+[MessagePackObject(true)]
+public record ArchetypeDto
+{
+    public Guid   Id          { get; set; }
+    public Guid   ServerId    { get; set; }
+    public string Name        { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
+
+    public bool IsMentionable { get; set; }
+    public int  Colour        { get; set; }
+    public bool IsHidden      { get; set; }
+    public bool IsLocked      { get; set; }
+    public bool IsGroup       { get; set; }
+
+    public string? IconFileId { get; set; } = null;
+
+    public string Entitlement { get; set; }
+}
+
+public static class ArchetypeExtensions
+{
+    public static ArchetypeDto ToDto(this Archetype msg)
+        => new()
+        {
+            Colour        = msg.Colour.ToArgb(),
+            Description   = msg.Description,
+            IsMentionable = msg.IsMentionable,
+            Name          = msg.Name,
+            ServerId      = msg.ServerId,
+            IconFileId    = msg.IconFileId,
+            IsHidden      = msg.IsHidden,
+            IsLocked      = msg.IsLocked,
+            Id            = msg.Id,
+            Entitlement   = $"{(ulong)msg.Entitlement}",
+            IsGroup       = msg.IsGroup
+        };
+
+    public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();
+    public static List<ArchetypeDto> ToDto(this ICollection<Archetype> msg) => msg.Select(x => x.ToDto()).ToList();
+
+    public async static Task<ArchetypeDto>       ToDto(this Task<Archetype> msg)       => (await msg).ToDto();
+    public async static Task<List<ArchetypeDto>> ToDto(this Task<List<Archetype>> msg) => (await msg).ToDto();
 }

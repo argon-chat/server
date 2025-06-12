@@ -20,4 +20,5 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 
+await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>().RunAsync();

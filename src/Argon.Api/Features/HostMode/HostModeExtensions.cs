@@ -171,6 +171,7 @@ public static class HostModeExtensions
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
         builder.AddVaultConfiguration();
+        builder.AddVaultClient();
         builder.AddMetrics();
         builder.AddArgonCacheDatabase();
         builder.Services.AddServerTiming();

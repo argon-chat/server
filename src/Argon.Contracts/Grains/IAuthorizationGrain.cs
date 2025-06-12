@@ -7,14 +7,14 @@ using Users;
 public interface IAuthorizationGrain : IGrainWithGuidKey
 {
     [Alias("Authorize"), AlwaysInterleave]
-    Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo);
+    Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input);
 
     [Alias("Register"), AlwaysInterleave]
-    Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo);
+    Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input);
 
     [Alias("BeginResetPass"), AlwaysInterleave]
-    Task<bool> BeginResetPass(string email, UserConnectionInfo connectionInfo);
+    Task<bool> BeginResetPass(string email);
 
     [Alias("ResetPass"), AlwaysInterleave]
-    Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData, UserConnectionInfo connectionInfo);
+    Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData);
 }

@@ -14,7 +14,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
     public async override Task<RpcResponse> Unary(RpcRequest request, ServerCallContext context)
     {
         await using var scope     = provider.CreateAsyncScope();
-        var             nearestDc = default(IClusterClient);
+        IClusterClient?             nearestDc;
 
         if (env.IsHybrid())
         {
@@ -36,7 +36,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
                 ErrorMessage = "no dc online found"
             };
         }
-
+        using var reentrancy = RequestContext.AllowCallChainReentrancy();
 
         using var _ = scope.ServiceProvider.GetRequiredService<IServerTimingRecorder>()
            .BeginRecord($"Unary/{request.Interface}::{request.Method}");
@@ -56,7 +56,17 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
                     StatusCode = ArgonRpcStatusCode.NotAuthorized,
                 };
 
+            if (ctx.IsAuthorized)
+            {
+                service.SetUserId(ctx.User.id);
+                service.SetUserMachineId(ctx.User.machineId);
+            }
+            service.SetUserSessionId(ctx.GetSessionId());
+            service.SetUserCountry(ctx.GetRegion());
+
             var result = await InvokeServiceMethod(service, method, request.Payload);
+
+            context.ResponseTrailers.Add("X-ReentrancyId", RequestContext.ReentrancyId.ToString());
 
             return new RpcResponse()
             {
@@ -90,7 +100,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
         var typedArguments = new object[parameterTypes.Length];
 
-        for (int i = 0; i < parameterTypes.Length; i++)
+        for (var i = 0; i < parameterTypes.Length; i++)
         {
             var targetType = parameterTypes[i];
             var rawArg     = rawArguments[i];

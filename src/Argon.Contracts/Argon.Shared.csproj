@@ -5,22 +5,22 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <OutputType>Library</OutputType>
-        <IsMacOS Condition="'$(OS)' == 'Unix' and '$(Platform)' != 'Windows'">true</IsMacOS>
+        <IsMacOS Condition="$([MSBuild]::IsOSPlatform('OSX'))">true</IsMacOS>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Google.Protobuf" Version="3.29.3" />
+        <PackageReference Include="Google.Protobuf" Version="3.31.1" />
         <PackageReference Include="Grpc.Core" Version="2.46.6" />
-        <PackageReference Include="Grpc.Tools" Version="2.69.0" Condition="'$(IsMacOS)' != 'true'">
+        <PackageReference Include="Grpc.Tools" Version="2.72.0" Condition="'$(IsMacOS)' != 'true'">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="MessagePack" Version="2.5.192" />
-        <PackageReference Include="MessagePackAnalyzer" Version="2.5.192">
+        <PackageReference Include="MessagePack" Version="[2.5.198,2.6.0)" />
+        <PackageReference Include="MessagePackAnalyzer" Version="[2.5.198,2.6.0)">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Abstractions" Version="9.0.5" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
         <PackageReference Include="Reinforced.Typings" Version="1.6.5" />
         <Protobuf Include="Protos\transport.proto" GrpcServices="Server" />
@@ -28,7 +28,7 @@
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="9.1.2" />
         <PackageReference Include="Consul" Version="1.7.14.7" />
         <PackageReference Include="VaultSharp" Version="1.17.5.1" />
-        <PackageReference Include="Sentry.AspNetCore" Version="5.4.0" />
+        <PackageReference Include="Sentry.AspNetCore" Version="5.10.0" />
         <PackageReference Include="Serilog.AspNetCore" Version="9.0.0" />
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />

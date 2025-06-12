@@ -1,6 +1,6 @@
 namespace Argon.Services;
 
-using Features.Rpc;
+using Argon.Api.Features.Bus;
 
 public class EventBusService : IEventBus
 {

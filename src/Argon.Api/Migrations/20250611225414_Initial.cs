@@ -1,6 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using Argon;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -10,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 namespace Argon.Api.Migrations
 {
     /// <inheritdoc />
-    public partial class initial : Migration
+    public partial class Initial : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -79,7 +77,7 @@ namespace Argon.Api.Migrations
                     ChannelId = table.Column<Guid>(type: "uuid", nullable: false),
                     Reply = table.Column<decimal>(type: "numeric(20,0)", nullable: true),
                     Text = table.Column<string>(type: "character varying(2048)", maxLength: 2048, nullable: false),
-                    Entities = table.Column<List<MessageEntity>>(type: "jsonb", nullable: false),
+                    Entities = table.Column<string>(type: "jsonb", nullable: false),
                     CreatedAt = table.Column<long>(type: "bigint", nullable: false),
                     UpdatedAt = table.Column<long>(type: "bigint", nullable: false),
                     DeletedAt = table.Column<long>(type: "bigint", nullable: true),
@@ -89,6 +87,21 @@ namespace Argon.Api.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Messages", x => new { x.ServerId, x.ChannelId, x.MessageId });
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Reservation",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserName = table.Column<string>(type: "text", nullable: false),
+                    NormalizedUserName = table.Column<string>(type: "text", nullable: false),
+                    IsBanned = table.Column<bool>(type: "boolean", nullable: false),
+                    IsReserved = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Reservation", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -118,6 +131,7 @@ namespace Argon.Api.Migrations
                     Id = table.Column<Guid>(type: "uuid", nullable: false),
                     Email = table.Column<string>(type: "character varying(255)", maxLength: 255, nullable: false),
                     Username = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
+                    NormalizedUsername = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     DisplayName = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: false),
                     PhoneNumber = table.Column<string>(type: "character varying(64)", maxLength: 64, nullable: true),
                     PasswordDigest = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
@@ -147,6 +161,8 @@ namespace Argon.Api.Migrations
                     IsMentionable = table.Column<bool>(type: "boolean", nullable: false),
                     IsLocked = table.Column<bool>(type: "boolean", nullable: false),
                     IsHidden = table.Column<bool>(type: "boolean", nullable: false),
+                    IsGroup = table.Column<bool>(type: "boolean", nullable: false),
+                    IsDefault = table.Column<bool>(type: "boolean", nullable: false),
                     Colour = table.Column<int>(type: "integer", nullable: false),
                     IconFileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
                     CreatedAt = table.Column<long>(type: "bigint", nullable: false),
@@ -217,6 +233,31 @@ namespace Argon.Api.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "SocialIntegrations",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    SocialId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: false),
+                    Kind = table.Column<int>(type: "integer", nullable: false),
+                    UserData = table.Column<string>(type: "jsonb", nullable: false),
+                    CreatedAt = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedAt = table.Column<long>(type: "bigint", nullable: false),
+                    DeletedAt = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_SocialIntegrations", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_SocialIntegrations_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "UserAgreements",
                 columns: table => new
                 {
@@ -232,6 +273,35 @@ namespace Argon.Api.Migrations
                     table.PrimaryKey("PK_UserAgreements", x => x.Id);
                     table.ForeignKey(
                         name: "FK_UserAgreements_Users_UserId",
+                        column: x => x.UserId,
+                        principalTable: "Users",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserProfiles",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    UserId = table.Column<Guid>(type: "uuid", nullable: false),
+                    CustomStatus = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    CustomStatusIconId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    BannerFileId = table.Column<string>(type: "character varying(128)", maxLength: 128, nullable: true),
+                    DateOfBirth = table.Column<DateOnly>(type: "date", nullable: true),
+                    Bio = table.Column<string>(type: "character varying(512)", maxLength: 512, nullable: true),
+                    IsPremium = table.Column<bool>(type: "boolean", nullable: false),
+                    Badges = table.Column<string>(type: "jsonb", nullable: false),
+                    CreatedAt = table.Column<long>(type: "bigint", nullable: false),
+                    UpdatedAt = table.Column<long>(type: "bigint", nullable: false),
+                    DeletedAt = table.Column<long>(type: "bigint", nullable: true),
+                    IsDeleted = table.Column<bool>(type: "boolean", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserProfiles", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_UserProfiles_Users_UserId",
                         column: x => x.UserId,
                         principalTable: "Users",
                         principalColumn: "Id",
@@ -340,16 +410,16 @@ namespace Argon.Api.Migrations
 
             migrationBuilder.InsertData(
                 table: "Users",
-                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "DeletedAt", "DisplayName", "Email", "IsDeleted", "LockDownExpiration", "LockdownReason", "OtpHash", "PasswordDigest", "PhoneNumber", "UpdatedAt", "Username" },
-                values: new object[] { new Guid("11111111-2222-1111-2222-111111111111"), null, -62135596800000L, null, "System", "system@argon.gl", false, null, 0, null, null, null, -62135596800000L, "system" });
+                columns: new[] { "Id", "AvatarFileId", "CreatedAt", "DeletedAt", "DisplayName", "Email", "IsDeleted", "LockDownExpiration", "LockdownReason", "NormalizedUsername", "OtpHash", "PasswordDigest", "PhoneNumber", "UpdatedAt", "Username" },
+                values: new object[] { new Guid("11111111-2222-1111-2222-111111111111"), null, -62135596800000L, null, "System", "system@argon.gl", false, null, 0, "system", null, null, null, -62135596800000L, "system" });
 
             migrationBuilder.InsertData(
                 table: "Archetypes",
-                columns: new[] { "Id", "Colour", "CreatedAt", "CreatorId", "DeletedAt", "Description", "Entitlement", "IconFileId", "IsDeleted", "IsHidden", "IsLocked", "IsMentionable", "Name", "ServerId", "UpdatedAt" },
+                columns: new[] { "Id", "Colour", "CreatedAt", "CreatorId", "DeletedAt", "Description", "Entitlement", "IconFileId", "IsDefault", "IsDeleted", "IsGroup", "IsHidden", "IsLocked", "IsMentionable", "Name", "ServerId", "UpdatedAt" },
                 values: new object[,]
                 {
-                    { new Guid("11111111-3333-0000-1111-111111111111"), -8355712, 1732377674205L, new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for everyone in this server", 15760355m, null, false, false, false, true, "everyone", new Guid("11111111-0000-1111-1111-111111111111"), -62135596800000L },
-                    { new Guid("11111111-4444-0000-1111-111111111111"), -8355712, 1732377674205L, new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for owner in this server", -1m, null, false, true, true, false, "owner", new Guid("11111111-0000-1111-1111-111111111111"), -62135596800000L }
+                    { new Guid("11111111-3333-0000-1111-111111111111"), -8355712, 1732377674205L, new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for everyone in this server", 15760355m, null, false, false, false, false, false, true, "everyone", new Guid("11111111-0000-1111-1111-111111111111"), -62135596800000L },
+                    { new Guid("11111111-4444-0000-1111-111111111111"), -8355712, 1732377674205L, new Guid("11111111-2222-1111-2222-111111111111"), null, "Default role for owner in this server", -1m, null, false, false, false, true, true, false, "owner", new Guid("11111111-0000-1111-1111-111111111111"), -62135596800000L }
                 });
 
             migrationBuilder.CreateIndex(
@@ -425,6 +495,12 @@ namespace Argon.Api.Migrations
                 unique: true);
 
             migrationBuilder.CreateIndex(
+                name: "IX_Reservation_NormalizedUserName",
+                table: "Reservation",
+                column: "NormalizedUserName",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ServerInvites_CreatorId",
                 table: "ServerInvites",
                 column: "CreatorId");
@@ -445,9 +521,25 @@ namespace Argon.Api.Migrations
                 column: "CreatorId");
 
             migrationBuilder.CreateIndex(
+                name: "IX_SocialIntegrations_SocialId",
+                table: "SocialIntegrations",
+                column: "SocialId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_SocialIntegrations_UserId",
+                table: "SocialIntegrations",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_UserAgreements_UserId",
                 table: "UserAgreements",
                 column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserProfiles_UserId",
+                table: "UserProfiles",
+                column: "UserId",
+                unique: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_UsersToServerRelations_CreatorId",
@@ -484,13 +576,22 @@ namespace Argon.Api.Migrations
                 name: "Messages");
 
             migrationBuilder.DropTable(
+                name: "Reservation");
+
+            migrationBuilder.DropTable(
                 name: "ServerInvites");
 
             migrationBuilder.DropTable(
                 name: "ServerMemberArchetypes");
 
             migrationBuilder.DropTable(
+                name: "SocialIntegrations");
+
+            migrationBuilder.DropTable(
                 name: "UserAgreements");
+
+            migrationBuilder.DropTable(
+                name: "UserProfiles");
 
             migrationBuilder.DropTable(
                 name: "Channels");

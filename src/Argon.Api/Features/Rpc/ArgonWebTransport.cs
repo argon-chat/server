@@ -2,8 +2,8 @@ namespace Argon.Services;
 
 using System.Buffers;
 using System.Net.WebSockets;
-using Argon.Grains;
-using Features.Rpc;
+using Argon.Api.Features.Bus;
+using Grains;
 using Microsoft.AspNetCore.Connections;
 using Orleans.Serialization;
 
@@ -81,7 +81,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                     throw new Exception($"No session id defined in argon transport");
 
                 var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
-                await sessionGrain.BeginRealtimeSession(user.id, user.machineId, UserStatus.Online);
+                await sessionGrain.BeginRealtimeSession(UserStatus.Online);
                 var stream = await clusterClient.Streams().CreateClientStream(user.id);
                 await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn, true));
                 await sessionGrain.EndRealtimeSession();

@@ -1,6 +1,9 @@
 namespace Argon.Features.Vault;
 
+using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using VaultSharp;
+using VaultSharp.V1.AuthMethods.Token;
 
 public static class VaultFeature
 {
@@ -23,6 +26,31 @@ public static class VaultFeature
             builder.Services.AddHostedService<VaultChangeWatcher>();
 
         return cfg;
+    }
+
+    public static IServiceCollection AddVaultClient(this WebApplicationBuilder builder)
+    {
+        if (Environment.GetEnvironmentVariable("USE_VAULT") is null)
+            return builder.Services;
+
+        var url   = Environment.GetEnvironmentVariable("ARGON_VAULT_URL");
+        var token = ReadToken();
+
+        builder.Services.AddSingleton<IVaultClient>(x =>
+        {
+            var vaultClientSettings = new VaultClientSettings(url, new TokenAuthMethodInfo(token))
+            {
+                UseVaultTokenHeaderInsteadOfAuthorizationHeader = true,
+
+                PostProcessHttpClientHandlerAction = handler =>
+                {
+                    if (handler is not HttpClientHandler clientHandler) return;
+                    clientHandler.ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                }
+            };
+            return new VaultClient(vaultClientSettings);
+        });
+        return builder.Services;
     }
 
 

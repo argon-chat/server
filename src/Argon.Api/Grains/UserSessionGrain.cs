@@ -1,9 +1,8 @@
 namespace Argon.Grains;
 
-using Argon.Metrics.Gauges;
-using Consul;
+using Argon.Api.Features.Bus;
+using Metrics.Gauges;
 using Features.Logic;
-using Features.Rpc;
 using MessagePipe;
 using Metrics;
 using Orleans.Concurrency;
@@ -21,15 +20,10 @@ public class UserSessionGrain(
     IMetricsCollector metrics)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
-    private static readonly Dictionary<string, string> tags = new()
-    {
-        ["component"] = "user_session"
-    };
-
-    private readonly DeltaGauge       _activeSessionDelta = new(metrics, new("user_session_active"), tags);
-    private readonly RateCounter      _heartbeatRate      = new(metrics, new("user_session_heartbeat"), tags);
-    private readonly RateCounter      _tickRate           = new(metrics, new("user_session_tick"), tags);
-    private readonly CountPerTagGauge _sessionDestroyed   = new(metrics, new("user_session_destroyed"));
+    private readonly DeltaGauge       activeSessionDelta = new(metrics, new("user_session_active"));
+    private readonly RateCounter      heartbeatRate      = new(metrics, new("user_session_heartbeat"));
+    private readonly RateCounter      tickRate           = new(metrics, new("user_session_tick"));
+    private readonly CountPerTagGauge sessionDestroyed   = new(metrics, new("user_session_destroyed"));
     private readonly CountPerTagGauge statusChangeCounter = new(metrics, new("user_session_status_change"));
     private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
 
@@ -37,7 +31,7 @@ public class UserSessionGrain(
     private Guid _machineId;
     private Guid _shadowUserId;
 
-    private IArgonStream<IArgonEvent> userStream;
+    private IDistributedArgonStream<IArgonEvent> userStream;
 
     private IGrainTimer? refreshTimer;
 
@@ -52,31 +46,27 @@ public class UserSessionGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        _ = _activeSessionDelta.ObserveAsync(-1);
+        _ = activeSessionDelta.ObserveAsync(-1);
         var reasonTag = reason.ReasonCode == ApplicationRequested
             ? "graceful"
             : "force";
-        _ = _sessionDestroyed.CountAsync("reason", reasonTag);
+        _ = sessionDestroyed.CountAsync("reason", reasonTag);
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
         logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
         _cacheSubscriber?.Dispose();
         refreshTimer?.Dispose();
+        await userStream.DisposeAsync();
         refreshTimer = null;
     }
 
-    public async ValueTask BeginRealtimeSession(Guid userId, Guid machineKey, UserStatus? preferredStatus = null)
+    public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
     {
-        if (_userId != Guid.Empty && _machineId != Guid.Empty)
-        {
-            logger.LogWarning("Trying activate session, but session already active, {sessionId}, {userId}", this.GetPrimaryKey(), _userId);
-            return;
-        }
-        _ = _activeSessionDelta.ObserveAsync(1);
+        _ = activeSessionDelta.ObserveAsync(1);
 
-        _userId            = userId;
-        _shadowUserId      = userId;
-        _machineId         = machineKey;
+        _userId       = this.GetUserId();
+        _shadowUserId = _userId;
+        _machineId    = this.GetUserMachineId();
 
         logger.LogInformation("Grain for session {sessionId} has been activated, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
 
@@ -146,7 +136,7 @@ public class UserSessionGrain(
         if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
         {
             await metrics.CountAsync(new("user_session_timeout"));
-            await _sessionDestroyed.CountAsync("reason", "ttl_expired");
+            await sessionDestroyed.CountAsync("reason", "ttl_expired");
             logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true",
                 _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
             await this.SelfDestroy();
@@ -159,7 +149,7 @@ public class UserSessionGrain(
 
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
-        _tickRate.Increment();
+        tickRate.Increment();
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
@@ -205,19 +195,19 @@ public class UserSessionGrain(
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
-        _heartbeatRate.Increment();
-        await _heartbeatRate.FlushAsync();
+        heartbeatRate.Increment();
+        await heartbeatRate.FlushAsync();
         await sessionHeartbeatCounter.CountAsync("status", status.ToString());
         return true;
     }
 
     [OneWay]
-    public ValueTask OnTypingEmit(Guid serverId, Guid channelId)
-        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingEmit(serverId, this._userId);
+    public ValueTask OnTypingEmit(Guid channelId)
+        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingEmit();
 
     [OneWay]
-    public ValueTask OnTypingStopEmit(Guid serverId, Guid channelId)
-        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingStopEmit(serverId, this._userId);
+    public ValueTask OnTypingStopEmit(Guid channelId)
+        => this.GrainFactory.GetGrain<IChannelGrain>(channelId).OnTypingStopEmit();
 
     public async ValueTask EndRealtimeSession()
     {

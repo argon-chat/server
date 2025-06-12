@@ -21,12 +21,12 @@ public record ServerMember : ArgonEntityWithOwnership
 }
 
 [MessagePackObject(true), TsInterface]
-public record ServerMemberDto(Guid UserId, Guid ServerId, long JoinedAt, Guid MemberId, UserDto? User);
+public record ServerMemberDto(Guid UserId, Guid ServerId, long JoinedAt, Guid MemberId, UserDto? User, List<ServerMemberArchetypeDto> Archetypes);
 
 public static class ServerMemberExtensions
 {
     public static ServerMemberDto ToDto(this ServerMember msg)
-        => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimeSeconds(), msg.Id, msg.User?.ToDto());
+        => new(msg.UserId, msg.ServerId, msg.JoinedAt.ToUnixTimeSeconds(), msg.Id, msg.User?.ToDto(), msg.ServerMemberArchetypes.ToDto());
 
     public static List<ServerMemberDto> ToDto(this List<ServerMember> msg) => msg.Select(x => x.ToDto()).ToList();
 

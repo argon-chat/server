@@ -7,12 +7,12 @@ public class ServerInteraction : IServerInteraction
     public async Task CreateChannel(CreateChannelRequest request)
         => await this.GetGrainFactory()
            .GetGrain<IServerGrain>(request.serverId)
-           .CreateChannel(new ChannelInput(request.name, new ChannelEntitlementOverwrite(), request.desc, request.kind), this.GetUser().id);
+           .CreateChannel(new ChannelInput(request.name, new ChannelEntitlementOverwrite(), request.desc, request.kind));
 
     public Task DeleteChannel(Guid serverId, Guid channelId)
         => this.GetGrainFactory()
            .GetGrain<IServerGrain>(serverId)
-           .DeleteChannel(channelId, this.GetUser().id);
+           .DeleteChannel(channelId);
 
     public Task<RealtimeServerMember> GetMember(Guid serverId, Guid userId)
         => this.GetGrainFactory()
@@ -20,12 +20,9 @@ public class ServerInteraction : IServerInteraction
            .GetMember(userId);
 
     public async Task<Either<string, JoinToChannelError>> JoinToVoiceChannel(Guid serverId, Guid channelId)
-    {
-        var user = this.GetUser();
-        return await this.GetGrainFactory()
+        => await this.GetGrainFactory()
            .GetGrain<IChannelGrain>(channelId)
-           .Join(user.id, user.machineId);
-    }
+           .Join();
 
     public async Task DisconnectFromVoiceChannel(Guid serverId, Guid channelId)
     {
@@ -59,13 +56,9 @@ public class ServerInteraction : IServerInteraction
     }
 
     public Task SendMessage(Guid channelId, string text, List<MessageEntity> entities, ulong? replyTo)
-    {
-        var user = this.GetUser();
-
-        return this.GetGrainFactory()
+        => this.GetGrainFactory()
            .GetGrain<IChannelGrain>(channelId)
-           .SendMessage(user.id, text, entities, replyTo);
-    }
+           .SendMessage(text, entities, replyTo);
 
     public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) 
         => this.GetGrainFactory()
@@ -78,5 +71,17 @@ public class ServerInteraction : IServerInteraction
         => this.GetGrainFactory().GetGrain<IUserGrain>(userId).GetMe().ToDto();
 
     public async Task<UserProfileDto> PrefetchProfile(Guid serverId, Guid userId)
-        => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).PrefetchProfile(userId, this.GetUser().id);
+        => await this.GetGrainFactory().GetGrain<IServerGrain>(serverId).PrefetchProfile(userId);
+
+    public async Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId)
+        => await this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).GetServerArchetypes();
+
+    public Task<ArchetypeDto> CreateArchetypeAsync(Guid serverId, string name)
+        => this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).CreateArchetypeAsync(name);
+
+    public Task<ArchetypeDto?> UpdateArchetypeAsync(Guid serverId, ArchetypeDto dto)
+    {
+        dto.ServerId = serverId;
+        return this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).UpdateArchetypeAsync(dto);
+    }
 }
