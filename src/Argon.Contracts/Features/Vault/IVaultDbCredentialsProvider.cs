@@ -37,7 +37,7 @@ public class VaultDbCredentialsProvider(
 
         var opt = options.Value;
 
-        var secret = await vault.V1.Secrets.Database.GetCredentialsAsync(opt.RotationHolderRoleName);
+        var secret = await vault.V1.Secrets.Database.GetCredentialsAsync(opt.RotationHolderRoleName, mountPoint: opt.RotationHolderSecretEngine);
 
         var username = secret.Data.Username;
         var password = secret.Data.Password;
