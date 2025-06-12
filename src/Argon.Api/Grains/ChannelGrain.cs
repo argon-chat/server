@@ -15,7 +15,7 @@ public class ChannelGrain(
     IArgonSelectiveForwardingUnit sfu,
     IDbContextFactory<ApplicationDbContext> context) : Grain, IChannelGrain
 {
-    private IArgonStream<IArgonEvent> _userStateEmitter = null!;
+    private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
 
     private Channel        _self     { get; set; }
@@ -66,24 +66,20 @@ public class ChannelGrain(
     }
 
     [OneWay]
-    public async ValueTask OnTypingEmit(Guid serverId, Guid userId)
-    {
-        if (this.ServerId.id != serverId) return;
-        await _userStateEmitter.Fire(new UserTypingEvent(userId, serverId, ChannelId.channelId));
-    }
+    public async ValueTask OnTypingEmit()
+        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), ServerId.id, ChannelId.channelId));
 
     [OneWay]
-    public async ValueTask OnTypingStopEmit(Guid serverId, Guid userId)
-    {
-        if (ServerId.id != serverId) return;
-        await _userStateEmitter.Fire(new UserStopTypingEvent(userId, serverId, ChannelId.channelId));
-    }
+    public async ValueTask OnTypingStopEmit()
+        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), ServerId.id, ChannelId.channelId));
 
 
-    public async Task<Either<string, JoinToChannelError>> Join(Guid userId, Guid sessionId)
+    public async Task<Either<string, JoinToChannelError>> Join()
     {
         if (_self.ChannelType != ChannelType.Voice)
             return JoinToChannelError.CHANNEL_IS_NOT_VOICE;
+
+        var userId = this.GetUserId();
 
         if (state.State.Users.ContainsKey(userId))
             await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
@@ -99,8 +95,6 @@ public class ChannelGrain(
 
         await _userStateEmitter.Fire(new JoinedToChannelUser(userId, this.GetPrimaryKey()));
 
-        //await GrainFactory.GetGrain<IUserSessionGrain>(sessionId).SetActiveChannelConnection(this.GetPrimaryKey());
-
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
 
@@ -109,9 +103,6 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
-        if (userId == Guid.Empty)
-            throw new InvalidOperationException($"Leave Guid Empty");
-
         state.State.Users.Remove(userId);
         await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
         await sfu.KickParticipantAsync(userId, ChannelId);
@@ -137,9 +128,10 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task SendMessage(Guid senderId, string text, List<MessageEntity> entities, ulong? replyTo)
+    public async Task SendMessage(string text, List<MessageEntity> entities, ulong? replyTo)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+        var senderId = this.GetUserId();
 
         await using var ctx = await context.CreateDbContextAsync();
 

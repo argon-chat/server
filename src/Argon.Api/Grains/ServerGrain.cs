@@ -1,16 +1,11 @@
 namespace Argon.Grains;
 
-using System.Diagnostics;
-using System.Drawing;
-using Api.Features.Utils;
 using Argon.Api.Features.Bus;
 using Argon.Services.L1L2;
-using Consul;
 using Features.Logic;
 using Features.Repositories;
 using Orleans.GrainDirectory;
 using Persistence.States;
-using Services;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class ServerGrain(
@@ -23,7 +18,7 @@ public class ServerGrain(
     IArchetypeAgent archetypeAgent,
     ILogger<IServerGrain> logger) : Grain, IServerGrain
 {
-    private IArgonStream<IArgonEvent> _serverEvents;
+    private IDistributedArgonStream<IArgonEvent> _serverEvents;
 
     public async override Task OnActivateAsync(CancellationToken ct)
     {
@@ -34,14 +29,17 @@ public class ServerGrain(
         _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
     }
 
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
-        => state.WriteStateAsync(ct);
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
+    {
+        await _serverEvents.DisposeAsync();
+        await state.WriteStateAsync(ct);
+    }
 
-
-    public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input, Guid creatorId)
+    public async Task<Either<Server, ServerCreationError>> CreateServer(ServerInput input)
     {
         if (string.IsNullOrEmpty(input.Name))
             return ServerCreationError.BAD_MODEL;
+        var creatorId = this.GetUserId();
 
         await serverRepository.CreateAsync(this.GetPrimaryKey(), input, creatorId);
         await UserJoined(creatorId);
@@ -104,132 +102,6 @@ public class ServerGrain(
     public async ValueTask RemoveUserPresence(Guid userId)
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(userId));
 
-    public async Task<List<ArchetypeDto>> GetServerArchetypes()
-        => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
-
-    public async Task<ArchetypeDto> CreateArchetypeAsync(Guid creatorId, string name)
-    {
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var arch = new Archetype()
-        {
-            ServerId      = this.GetPrimaryKey(),
-            Entitlement   = ArgonEntitlement.Base,
-            Id            = Guid.NewGuid(),
-            Name          = name,
-            Description   = "",
-            IsMentionable = false,
-            IsLocked      = false,
-            IsHidden      = false,
-            Colour        = Color.White,
-            IconFileId    = null,
-            CreatedAt     = DateTimeOffset.UtcNow,
-            CreatorId     = creatorId,
-            IsDeleted     = false,
-            IsGroup       = false,
-        };
-
-        ctx.Archetypes.Add(arch);
-
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
-
-        await _serverEvents.Fire(new ArchetypeCreated(arch.ToDto()));
-
-        return await archetypeAgent.DoCreatedAsync(arch);
-    }
-
-    public async Task<ArchetypeDto?> UpdateArchetypeAsync(Guid callerId, ArchetypeDto dto)
-    {
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var invoker = await ctx.UsersToServerRelations
-           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.ServerMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync();
-
-        if (string.IsNullOrWhiteSpace(dto.Name)) return null;
-        if (string.IsNullOrWhiteSpace(dto.Description)) dto.Description = "";
-        if (dto.Name.Length > 64) return null;
-        if (dto.Description.Length > 256) return null;
-
-        if (invoker is null)
-        {
-            logger.LogError(
-                "User {userId} tried to change the {archetypeId} right on server {serverId}, although he is not a member of the server.",
-                callerId, dto.Id, this.GetPrimaryKey()
-            );
-            return null;
-        }
-
-        var entity = await ctx.Archetypes.FirstOrDefaultAsync(x => x.Id == dto.Id && x.ServerId == this.GetPrimaryKey());
-
-        if (entity is null)
-        {
-            logger.LogError(
-                "User {userId} tried to change the {archetypeId} right on server {serverId}, but the right is not part of the server.",
-                callerId, dto.Id, this.GetPrimaryKey()
-            );
-            return null;
-        }
-
-        var invokerArchetypes = invoker
-           .ServerMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        if (!ulong.TryParse(dto.Entitlement, out var parsed))
-            return null;
-
-        var promptedEntitlements = (ArgonEntitlement)parsed;
-
-        var archetypeEntity = ctx.Attach(entity);
-        var archetype       = archetypeEntity.Entity;
-
-        if (archetype.Entitlement != promptedEntitlements)
-        {
-            if (!EntitlementEvaluator.IsAllowedToEdit(archetype, promptedEntitlements, invokerArchetypes))
-            {
-                logger.LogError("User {userId} is trying to edit archetype {archetypeId}, but he does not have the rights",
-                    invoker.UserId, archetype.Id);
-                return null;
-            }
-
-            archetype.Entitlement = promptedEntitlements;
-
-            if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
-            {
-                Debug.Assert(await ctx.SaveChangesAsync() == 1);
-                return await Changed(archetypeEntity.Entity);
-            }
-        }
-
-        if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
-            return null;
-
-        if (!archetype.Name.Equals(dto.Name))
-            archetype.Name = dto.Name;
-        if (archetype.Colour.ToArgb() != dto.Colour)
-            archetype.Colour = Color.FromArgb(dto.Colour);
-
-        archetype.IsGroup       = dto.IsGroup;
-        archetype.IsMentionable = dto.IsMentionable;
-        archetype.UpdatedAt = DateTimeOffset.UtcNow;
-
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
-        return await Changed(archetypeEntity.Entity);
-
-
-        async Task<ArchetypeDto?> Changed(Archetype value)
-        {
-            var result = value.ToDto();
-            await archetypeAgent.DoUpdatedAsync(value);
-            await _serverEvents.Fire(new ArchetypeChanged(result));
-            return result;
-        }
-    }
-
-    
 
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
@@ -255,11 +127,12 @@ public class ServerGrain(
         }).ToList();
     }
 
-    public async Task<List<RealtimeChannel>> GetChannels(Guid userId)
+    public async Task<List<RealtimeChannel>> GetChannels()
     {
-        await using var ctx = await context.CreateDbContextAsync();
+        var             callerId = this.GetUserId();
+        await using var ctx      = await context.CreateDbContextAsync();
 
-        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == userId && x.ServerId == this.GetPrimaryKey());
+        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == callerId && x.ServerId == this.GetPrimaryKey());
         var serverMemberId = serverMember.Id;
         var serverId       = this.GetPrimaryKey();
 
@@ -292,9 +165,11 @@ public class ServerGrain(
         return results.ToList();
     }
 
-    public async ValueTask DoJoinUserAsync(Guid userId)
+    public async ValueTask DoJoinUserAsync()
     {
         await using var ctx = await context.CreateDbContextAsync();
+
+        var userId = this.GetUserId();
 
         var alreadyExist = await ctx.UsersToServerRelations.AnyAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == userId);
 
@@ -313,15 +188,19 @@ public class ServerGrain(
         await UserJoined(userId);
     }
 
-    public async ValueTask DoUserUpdatedAsync(Guid userId)
+    public async ValueTask DoUserUpdatedAsync()
     {
+        var userId = this.GetUserId();
+
         await using var ctx  = await context.CreateDbContextAsync();
         var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
         await _serverEvents.Fire(new UserUpdated(user.ToDto()));
     }
 
-    public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId, Guid caller)
+    public async ValueTask<UserProfileDto> PrefetchProfile(Guid userId)
     {
+        var caller = this.GetUserId();
+
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
         var targetMember = await ctx.Servers
@@ -360,14 +239,14 @@ public class ServerGrain(
         await ctx.SaveChangesAsync();
     }
 
-    public async Task<Channel> CreateChannel(ChannelInput input, Guid initiator)
+    public async Task<Channel> CreateChannel(ChannelInput input)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         var channel = new Channel
         {
             Name        = input.Name,
-            CreatorId   = initiator,
+            CreatorId   = this.GetUserId(),
             Description = input.Description,
             ChannelType = input.ChannelType,
             ServerId    = this.GetPrimaryKey()
@@ -378,12 +257,33 @@ public class ServerGrain(
         return channel;
     }
 
-    public async Task DeleteChannel(Guid channelId, Guid initiator)
+    public async Task DeleteChannel(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelRemoved(channelId));
+    }
+
+
+    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
+    {
+        var invoker = await ctx.UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Include(x => x.ServerMemberArchetypes)
+           .ThenInclude(x => x.Archetype)
+           .FirstOrDefaultAsync();
+
+        if (invoker is null)
+            return false;
+
+        var invokerArchetypes = invoker
+           .ServerMemberArchetypes
+           .Select(x => x.Archetype)
+           .ToList();
+
+        return invokerArchetypes.Any(x
+            => x.Entitlement.HasFlag(requiredEntitlement));
     }
 }

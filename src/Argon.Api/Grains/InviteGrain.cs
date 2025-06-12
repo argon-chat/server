@@ -6,7 +6,7 @@ using Shared.Servers;
 [StatelessWorker]
 public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grain, IInviteGrain
 {
-    public async ValueTask<(Guid, AcceptInviteError)> AcceptAsync(Guid userId)
+    public async ValueTask<(Guid, AcceptInviteError)> AcceptAsync()
     {
         await using var db = await context.CreateDbContextAsync();
         
@@ -16,7 +16,7 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
             return (Guid.Empty, AcceptInviteError.NOT_FOUND); // TODO
         if (e.Expired < DateTime.Now)
             return (Guid.Empty, AcceptInviteError.EXPIRED);
-        await GrainFactory.GetGrain<IServerGrain>(e.ServerId).DoJoinUserAsync(userId);
+        await GrainFactory.GetGrain<IServerGrain>(e.ServerId).DoJoinUserAsync();
         return (e.ServerId, AcceptInviteError.NONE);
     }
 
@@ -24,5 +24,4 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
     {
         // TODO
     }
-
 }

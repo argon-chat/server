@@ -18,18 +18,13 @@ public class AuthorizationGrain(
     IArgonCacheDatabase cache,
     IMetricsCollector metrics) : Grain, IAuthorizationGrain
 {
-    private static readonly Dictionary<string, string> _tags = new()
-    {
-        ["component"] = "authorization_grain"
-    };
-
     private readonly CountPerTagGauge authSuccess    = new(metrics, new("auth_success"));
     private readonly CountPerTagGauge authFailure    = new(metrics, new("auth_failed"));
     private readonly CountPerTagGauge registerStatus = new(metrics, new("auth_register"));
     private readonly CountPerTagGauge resetCounter   = new(metrics, new("auth_reset"));
 
 
-    public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input)
     {
         await using var sw  = metrics.StartTimer(new MeasurementId("auth_latency"));
         await using var ctx = await context.CreateDbContextAsync();
@@ -79,10 +74,10 @@ public class AuthorizationGrain(
         user.OtpHash = null;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
-        return await GenerateJwt(user, connectionInfo.machineId);
+        return await GenerateJwt(user, this.GetUserMachineId());
     }
 
-    public async Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, RegistrationErrorData>> Register(NewUserCredentialsInput input)
     {
         await using var sw  = metrics.StartTimer(new MeasurementId("register_latency"));
         await using var ctx = await context.CreateDbContextAsync();
@@ -174,7 +169,7 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, Guid.NewGuid());
     }
 
-    public async Task<bool> BeginResetPass(string email, UserConnectionInfo connectionInfo)
+    public async Task<bool> BeginResetPass(string email)
     {
         await using var sw = metrics.StartTimer(new MeasurementId("begin_pass_reset_latency"));
         await resetCounter.CountAsync("stage", "begin");
@@ -195,7 +190,7 @@ public class AuthorizationGrain(
         return true;
     }
 
-    public async Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData, UserConnectionInfo connectionInfo)
+    public async Task<Either<string, AuthorizationError>> ResetPass(UserResetPassInput resetData)
     {
         await using var sw = metrics.StartTimer(new MeasurementId("pass_reset_latency"));
         await resetCounter.CountAsync("stage", "apply");
@@ -228,7 +223,7 @@ public class AuthorizationGrain(
         user.PasswordDigest = passwordHashingService.HashPassword(resetData.newPassword);
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
-        return await GenerateJwt(user, connectionInfo.machineId);
+        return await GenerateJwt(user, this.GetUserMachineId());
     }
 
     private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);
