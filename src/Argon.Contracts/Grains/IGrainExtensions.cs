@@ -22,6 +22,22 @@ public static class IGrainExtensions
         throw new NotAuthorizedCallException();
     }
 
+    public static Guid? GetUserId(this IIncomingGrainCallContext ctx)
+    {
+        var result = RequestContext.Get("$caller_user_id");
+        if (result is Guid g)
+            return g;
+        return null;
+    }
+
+    public static Guid? GetReentrancyId(this IIncomingGrainCallContext ctx)
+    {
+        var result = RequestContext.ReentrancyId;
+        if (result == Guid.Empty)
+            return null;
+        return result;
+    }
+
     // RequestContext.AllowCallChainReentrancy()
     public static void SetUserId(this IArgonService that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);

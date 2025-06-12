@@ -10,26 +10,26 @@ public interface IEntitlementGrain : IGrainWithGuidKey
     Task<List<ArchetypeDto>> GetServerArchetypes();
 
     [Alias(nameof(CreateArchetypeAsync))]
-    Task<ArchetypeDto> CreateArchetypeAsync(Guid creatorId, string name);
+    Task<ArchetypeDto> CreateArchetypeAsync( string name);
 
     [Alias(nameof(UpdateArchetypeAsync))]
-    Task<ArchetypeDto?> UpdateArchetypeAsync(Guid callerId, ArchetypeDto dto);
+    Task<ArchetypeDto?> UpdateArchetypeAsync(ArchetypeDto dto);
 
     [Alias(nameof(GetChannelEntitlementOverwrites))]
     Task<List<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid channelId);
 
     [Alias(nameof(UpsertArchetypeEntitlementForChannel))]
     Task<ChannelEntitlementOverwrite?>
-        UpsertArchetypeEntitlementForChannel(Guid callerId, Guid channelId, Guid archetypeId,
+        UpsertArchetypeEntitlementForChannel(Guid channelId, Guid archetypeId,
             ArgonEntitlement deny, ArgonEntitlement allow);
 
     [Alias(nameof(UpsertMemberEntitlementForChannel))]
     Task<ChannelEntitlementOverwrite?>
-        UpsertMemberEntitlementForChannel(Guid callerId, Guid channelId, Guid memberId,
+        UpsertMemberEntitlementForChannel(Guid channelId, Guid memberId,
             ArgonEntitlement deny, ArgonEntitlement allow);
 
     [Alias(nameof(DeleteEntitlementForChannel))]
-    Task<bool> DeleteEntitlementForChannel(Guid callerId, Guid channelId, Guid EntitlementOverwriteId);
+    Task<bool> DeleteEntitlementForChannel(Guid channelId, Guid EntitlementOverwriteId);
 }
 
 [Alias($"Argon.Grains.Interfaces.{nameof(IServerGrain)}")]

@@ -11,7 +11,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Either<string, JoinToChannelError>> Join();
 
     [Alias("Leave")]
-    Task Leave();
+    Task Leave(Guid userId);
 
     [Alias("GetChannel")]
     Task<Channel> GetChannel();
