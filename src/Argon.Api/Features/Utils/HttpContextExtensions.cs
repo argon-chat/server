@@ -30,11 +30,18 @@ public static class HttpContextExtensions
             : string.Empty;
 
     public static Guid GetSessionId(this HttpContext ctx)
-        => ctx.Request.Headers.ContainsKey("Sec-Ref")
+    {
+        var env = ctx.RequestServices.GetRequiredService<IHostEnvironment>();
+
+        if (env.IsDevelopment() && !ctx.Request.Headers.ContainsKey("Sec-Ref"))
+            return Guid.Parse(ctx.Request.Headers["X-Ctt"]!);
+
+        return ctx.Request.Headers.ContainsKey("Sec-Ref")
             ? (Guid.TryParse(ctx.Request.Headers["Sec-Ref"].ToString(), out var sid)
                 ? sid
                 : throw new InvalidOperationException("SessionId invalid"))
             : throw new InvalidOperationException($"SessionId is not defined");
+    }
 
     public static Guid GetMachineId(this HttpContext ctx)
         => ctx.Request.Headers.ContainsKey("Sec-Carry")
