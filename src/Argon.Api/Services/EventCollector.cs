@@ -61,12 +61,12 @@ public static class EventConfigurator
         consumer.On<IAmTypingEvent>(async (ev, ctx) => {
             if (ctx.SessionId == Guid.Empty)
                 return;
-            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingEmit(ev.serverId, ev.channelId);
+            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingEmit(ev.channelId);
         });
         consumer.On<IAmStopTypingEvent>(async (ev, ctx) => {
             if (ctx.SessionId == Guid.Empty)
                 return;
-            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingStopEmit(ev.serverId, ev.channelId);
+            await ctx.ClusterClient.GetGrain<IUserSessionGrain>(ctx.SessionId).OnTypingStopEmit(ev.channelId);
         });
     }
 }
