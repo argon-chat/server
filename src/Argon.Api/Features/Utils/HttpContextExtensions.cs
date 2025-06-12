@@ -47,8 +47,8 @@ public static class HttpContextExtensions
         => ctx.Request.Headers.ContainsKey("Sec-Carry")
             ? (Guid.TryParse(ctx.Request.Headers["Sec-Carry"].ToString(), out var sid)
                 ? sid
-                : throw new InvalidOperationException("SessionId invalid"))
-            : throw new InvalidOperationException($"SessionId is not defined");
+                : throw new InvalidOperationException("MachineId invalid"))
+            : throw new InvalidOperationException($"MachineId is not defined");
 
     public static Guid GetUserId(this HttpContext ctx)
     {

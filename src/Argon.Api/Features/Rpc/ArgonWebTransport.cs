@@ -84,7 +84,6 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
 
 
                 reentrancy.SetUserId(user.id);
-                reentrancy.SetUserMachineId(ctx.GetMachineId());
                 reentrancy.SetUserSessionId(sessionId);
                 reentrancy.SetUserCountry(ctx.GetRegion());
 
