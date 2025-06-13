@@ -36,4 +36,12 @@ public interface IServerInteraction : IArgonService
     Task<ArchetypeDto> CreateArchetypeAsync(Guid serverId, string name);
 
     Task<ArchetypeDto?> UpdateArchetypeAsync(Guid serverId, ArchetypeDto dto);
+
+    Task<bool> SetArchetypeToMember(Guid serverId, Guid memberId, Guid archetypeId, bool isGrant);
+
+    Task<List<ArchetypeDtoGroup>> GetDetailedServerArchetypes(Guid serverId);
+
+    Task<ChannelEntitlementOverwrite?>
+        UpsertArchetypeEntitlementForChannel(Guid serverId, Guid channelId, Guid archetypeId,
+            ArgonEntitlement deny, ArgonEntitlement allow);
 }

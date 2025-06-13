@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using Grpc.Core;
 using Shared.Servers;
 
 public class ServerInteraction : IServerInteraction
@@ -60,11 +61,11 @@ public class ServerInteraction : IServerInteraction
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities, replyTo);
 
-    public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset) 
+    public Task<List<ArgonMessageDto>> GetMessages(Guid channelId, int count, int offset)
         => this.GetGrainFactory()
-               .GetGrain<IChannelGrain>(channelId)
-               .GetMessages(count, offset)
-               .ToDto();
+           .GetGrain<IChannelGrain>(channelId)
+           .GetMessages(count, offset)
+           .ToDto();
 
     // TODO use access key
     public Task<UserDto> PrefetchUser(Guid serverId, Guid userId)
@@ -76,6 +77,9 @@ public class ServerInteraction : IServerInteraction
     public async Task<List<ArchetypeDto>> GetServerArchetypes(Guid serverId)
         => await this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).GetServerArchetypes();
 
+    public async Task<List<ArchetypeDtoGroup>> GetDetailedServerArchetypes(Guid serverId)
+        => await this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).GetFullyServerArchetypes();
+
     public Task<ArchetypeDto> CreateArchetypeAsync(Guid serverId, string name)
         => this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).CreateArchetypeAsync(name);
 
@@ -84,4 +88,18 @@ public class ServerInteraction : IServerInteraction
         dto.ServerId = serverId;
         return this.GetGrainFactory().GetGrain<IEntitlementGrain>(serverId).UpdateArchetypeAsync(dto);
     }
+
+    public Task<ChannelEntitlementOverwrite?>
+        UpsertArchetypeEntitlementForChannel(Guid serverId, Guid channelId, Guid archetypeId,
+            ArgonEntitlement deny, ArgonEntitlement allow)
+        => this
+           .GetGrainFactory()
+           .GetGrain<IEntitlementGrain>(serverId)
+           .UpsertArchetypeEntitlementForChannel(channelId, archetypeId, deny, allow);
+
+    public Task<bool> SetArchetypeToMember(Guid serverId, Guid memberId, Guid archetypeId, bool isGrant)
+        => this
+           .GetGrainFactory()
+           .GetGrain<IEntitlementGrain>(serverId)
+           .SetArchetypeToMember(memberId, archetypeId, isGrant);
 }
