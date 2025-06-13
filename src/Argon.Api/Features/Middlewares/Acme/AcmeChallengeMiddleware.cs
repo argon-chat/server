@@ -1,14 +1,13 @@
 namespace Argon.Features.Middlewares.Acme;
 
-using System.Drawing;
 using Certes;
 using Certes.Acme;
 using Certes.Acme.Resource;
 using Env;
-using k8s;
-using k8s.Models;
+using global::k8s;
+using global::k8s.Autorest;
+using global::k8s.Models;
 using Services;
-using StackExchange.Redis;
 
 public class AcmeChallengeMiddleware(RequestDelegate next, IServiceProvider provider)
 {
@@ -127,7 +126,7 @@ public class AcmeChallenge(IServiceProvider provider, ILogger<AcmeChallenge> log
             await k8sClient.ReplaceNamespacedSecretAsync(existingSecret, secretName, namespaceName);
             logger.LogInformation("Kubernetes secret updated.");
         }
-        catch (k8s.Autorest.HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
+        catch (HttpOperationException ex) when (ex.Response.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
             await k8sClient.CreateNamespacedSecretAsync(secret, namespaceName);
             logger.LogInformation("Kubernetes secret created.");
