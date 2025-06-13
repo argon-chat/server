@@ -13,21 +13,19 @@ public static class PreStopHookExtensions
             }
         );
 
-    private async static Task Middleware(HttpContext context, RequestDelegate arg2)
+    private async static Task Middleware(HttpContext context, RequestDelegate next)
     {
-        var ip       = context.Connection.RemoteIpAddress;
-        var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
-        var logger   = context.RequestServices.GetRequiredService<ILogger<IHostApplicationLifetime>>();
-
-        if (ip is null || !(IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Parse("::1"))))
-        {
-            context.Response.StatusCode = 403;
-            await context.Response.WriteAsync($"Forbidden, {ip} denied");
-            return;
-        }
-
         if (context.Request.Path == "/internal/shutdown" && context.Request.Method == "GET")
         {
+            var ip       = context.Connection.RemoteIpAddress;
+            var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
+            var logger   = context.RequestServices.GetRequiredService<ILogger<IHostApplicationLifetime>>();
+            if (ip is null || !(IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Parse("::1"))))
+            {
+                context.Response.StatusCode = 403;
+                await context.Response.WriteAsync($"Forbidden, {ip} denied");
+                return;
+            }
             _ = Task.Run(() =>
             {
                 logger.LogWarning("Shutdown triggered from internal endpoint.");
@@ -39,7 +37,6 @@ public static class PreStopHookExtensions
             return;
         }
 
-        context.Response.StatusCode = 404;
-        await context.Response.WriteAsync("Not found.");
+        await next(context);
     }
 }
