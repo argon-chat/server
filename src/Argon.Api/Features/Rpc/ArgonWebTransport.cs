@@ -86,7 +86,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 reentrancy.SetUserId(user.id);
                 reentrancy.SetUserSessionId(sessionId);
                 reentrancy.SetUserCountry(ctx.GetRegion());
-                reentrancy.SetUserMachineId(ctx.GetMachineId()); // todo
+                reentrancy.SetUserMachineId(scope.User.machineId); // todo
 
                 var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
                 await sessionGrain.BeginRealtimeSession(UserStatus.Online);
