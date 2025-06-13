@@ -1,0 +1,18 @@
+<Solution>
+  <Folder Name="/Solution Items/">
+    <File Path=".dockerignore" />
+    <File Path=".editorconfig" />
+    <File Path=".gitignore" />
+    <File Path=".gitmodules" />
+    <File Path="GitVersion.yml" />
+    <File Path="src/AppHost/aspirate-output/docker-compose.yaml" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Argon.Api/Argon.Api.csproj" />
+    <Project Path="src/Argon.Contracts/Argon.Shared.csproj" />
+    <Project Path="src/Argon.Metrics/Argon.Metrics.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ArgonSharedLogicTest/ArgonSharedLogicTest.csproj" />
+  </Folder>
+</Solution>
