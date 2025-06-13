@@ -2,7 +2,7 @@ namespace Argon.Features;
 
 using System.Globalization;
 using Env;
-using k8s;
+using global::k8s;
 using Orleans.Placement.Repartitioning;
 using static Math;
 using static SiloStatus;
