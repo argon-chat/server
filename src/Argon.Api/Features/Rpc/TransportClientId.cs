@@ -29,6 +29,6 @@ public enum ExchangeTokenError
 
 public interface ITransportExchange
 {
-    ValueTask<TransportClientId>  CreateExchangeKey(string token, Guid userId, Guid machineId, Guid sessionId);
+    ValueTask<TransportClientId>  CreateExchangeKey(string token, Guid userId, string machineId, Guid sessionId);
     ValueTask<Either<TransportClientId, ExchangeTokenError>> ExchangeToken(string token, HttpContext httpContext);
 }

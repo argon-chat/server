@@ -12,14 +12,12 @@ public static class IGrainExtensions
         throw new NotAuthorizedCallException();
     }
 
-    public static Guid GetUserMachineId(this Grain grain)
+    public static string GetUserMachineId(this Grain grain)
     {
-        var result = RequestContext.Get("$caller_machine_id");
-        if (result is null)
+        var result = RequestContext.Get("$caller_machine_id") as string;
+        if (string.IsNullOrEmpty(result))
             throw new NotAuthorizedCallException();
-        if (result is Guid g)
-            return g;
-        throw new NotAuthorizedCallException();
+        return result;
     }
 
     public static Guid? GetUserId(this IIncomingGrainCallContext ctx)
@@ -41,7 +39,7 @@ public static class IGrainExtensions
     // RequestContext.AllowCallChainReentrancy()
     public static void SetUserId(this IArgonService that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);
-    public static void SetUserMachineId(this IArgonService that, Guid machineId)
+    public static void SetUserMachineId(this IArgonService that, string machineId)
         => RequestContext.Set("$caller_machine_id", machineId);
     public static void SetUserSessionId(this IArgonService that, Guid sessionId)
         => RequestContext.Set("$caller_session_id", sessionId);
@@ -51,7 +49,7 @@ public static class IGrainExtensions
 
     public static void SetUserId(this RequestContext.ReentrancySection that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);
-    public static void SetUserMachineId(this RequestContext.ReentrancySection that, Guid machineId)
+    public static void SetUserMachineId(this RequestContext.ReentrancySection that, string machineId)
         => RequestContext.Set("$caller_machine_id", machineId);
     public static void SetUserSessionId(this RequestContext.ReentrancySection that, Guid sessionId)
         => RequestContext.Set("$caller_session_id", sessionId);

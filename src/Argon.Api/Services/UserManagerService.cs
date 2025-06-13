@@ -8,7 +8,7 @@ using Microsoft.IdentityModel.Tokens;
 
 public class UserManagerService(ILogger<UserManagerService> logger, IServiceProvider provider)
 {
-    public async Task<string> GenerateJwt(Guid id, Guid machineId)
+    public async Task<string> GenerateJwt(Guid id, string machineId)
     {
         await using var scope = provider.CreateAsyncScope();
         var             jwt   = scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>();
@@ -22,7 +22,7 @@ public class UserManagerService(ILogger<UserManagerService> logger, IServiceProv
             SecurityAlgorithms.HmacSha512Signature);
         var subject = new ClaimsIdentity([
             new Claim("id", id.ToString()),
-            new Claim("machineId", machineId.ToString("N"))
+            new Claim("mid", machineId)
         ]);
         var expires = DateTime.UtcNow.Add(exp);
         var tokenDescriptor = new SecurityTokenDescriptor

@@ -9,6 +9,7 @@ public interface IVaultDbCredentialsProvider : IHostedService
     Task<DbCredentials> GetCredentialsAsync();
     string              BuildConnectionString();
     Task                EnsureLoadedAsync();
+    bool                IsEnabled { get; }
 }
 
 public record DatabaseOptions
@@ -19,6 +20,9 @@ public record DatabaseOptions
     public string? RotationHolderSecretEngine { get; set; }
     public string? RotationHolderRoleName     { get; set; }
 }
+
+
+
 
 public class VaultDbCredentialsProvider(
     IServiceProvider provider,
@@ -70,6 +74,8 @@ public class VaultDbCredentialsProvider(
         logger.LogWarning("Security warning, credentials rotation is not configured, going use default connection string for database.");
         return Task.CompletedTask;
     }
+
+    public bool IsEnabled => options.Value.UseRotationHolder;
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {

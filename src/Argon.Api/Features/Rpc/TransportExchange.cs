@@ -3,7 +3,7 @@ namespace Argon.Services;
 public class TransportExchange(IOptions<TransportOptions> options, IArgonCacheDatabase db, IServiceProvider provider)
     : ITransportExchange
 {
-    public async ValueTask<TransportClientId> CreateExchangeKey(string token, Guid userId, Guid machineId, Guid sessionId)
+    public async ValueTask<TransportClientId> CreateExchangeKey(string token, Guid userId, string machineId, Guid sessionId)
     {
         var id = Ulid.NewUlid();
 

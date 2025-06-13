@@ -166,7 +166,7 @@ public class AuthorizationGrain(
 
         await registerStatus.CountAsync("result", "ok");
 
-        return await GenerateJwt(user, Guid.NewGuid());
+        return await GenerateJwt(user, this.GetUserMachineId());
     }
 
     public async Task<bool> BeginResetPass(string email)
@@ -226,5 +226,5 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, this.GetUserMachineId());
     }
 
-    private async Task<string> GenerateJwt(User User, Guid machineId) => await managerService.GenerateJwt(User.Id, machineId);
+    private async Task<string> GenerateJwt(User User, string machineId) => await managerService.GenerateJwt(User.Id, machineId);
 }

@@ -43,12 +43,18 @@ public static class HttpContextExtensions
             : throw new InvalidOperationException($"SessionId is not defined");
     }
 
-    public static Guid GetMachineId(this HttpContext ctx)
-        => ctx.Request.Headers.ContainsKey("Sec-Carry")
-            ? (Guid.TryParse(ctx.Request.Headers["Sec-Carry"].ToString(), out var sid)
-                ? sid
-                : throw new InvalidOperationException("MachineId invalid"))
-            : throw new InvalidOperationException($"MachineId is not defined");
+    public static string GetMachineId(this HttpContext ctx)
+    {
+        if (ctx.Request.Headers.ContainsKey("Sec-Carry"))
+        {
+            if (!string.IsNullOrEmpty(ctx.Request.Headers["Sec-Carry"].ToString()))
+                return ctx.Request.Headers["Sec-Carry"].ToString();
+            else
+                throw new InvalidOperationException("MachineId invalid");
+        }
+        else
+            throw new InvalidOperationException($"MachineId is not defined");
+    }
 
     public static Guid GetUserId(this HttpContext ctx)
     {

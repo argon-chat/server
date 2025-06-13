@@ -27,12 +27,11 @@ public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthoriz
                 !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha512, StringComparison.InvariantCultureIgnoreCase))
                 return TokenValidationError.BAD_TOKEN;
             var idClaim        = principal.FindFirst("id");
-            var machineIdClaim = principal.FindFirst("machineId");
+            var machineIdClaim = principal.FindFirst("mid");
 
             if (idClaim != null && machineIdClaim != null &&
-                Guid.TryParse(idClaim.Value, out var id) &&
-                Guid.TryParse(machineIdClaim.Value, out var machineId))
-                return new TokenUserData(id, machineId);
+                Guid.TryParse(idClaim.Value, out var id))
+                return new TokenUserData(id, machineIdClaim.Value);
 
             return TokenValidationError.BAD_TOKEN;
         }

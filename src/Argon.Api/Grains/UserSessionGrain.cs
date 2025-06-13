@@ -28,7 +28,7 @@ public class UserSessionGrain(
     private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
 
     private Guid _userId;
-    private Guid _machineId;
+    private string _machineId;
     private Guid _shadowUserId;
 
     private IDistributedArgonStream<IArgonEvent> userStream;

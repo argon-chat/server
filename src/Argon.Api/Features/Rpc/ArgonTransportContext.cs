@@ -41,7 +41,7 @@ public class ArgonTransportContext(
         return RpcContext.GetSessionId();
     }
 
-    public Guid GetMachineId()
+    public string GetMachineId()
         => RpcContext.GetMachineId();
 
     public static ArgonTransportContext Current
@@ -86,6 +86,6 @@ public class GrpcArgonTransportAuthorizationContext(ServerCallContext RpcContext
 public class WtAuthorizationContext(HttpContext ctx, TransportClientId id) : IArgonTransportAuthorizationContext
 {
     public bool          IsAuthorized => true;
-    public TokenUserData User         => new(id.userId, Guid.Empty);
+    public TokenUserData User         => new(id.userId, "unknown");
     public Guid          SessionId    => id.sessionId;
 }
