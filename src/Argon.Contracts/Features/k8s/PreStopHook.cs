@@ -17,6 +17,7 @@ public static class PreStopHookExtensions
     {
         var ip       = context.Connection.RemoteIpAddress;
         var lifetime = context.RequestServices.GetRequiredService<IHostApplicationLifetime>();
+        var logger   = context.RequestServices.GetRequiredService<ILogger<IHostApplicationLifetime>>();
 
         if (ip is null || !(IPAddress.IsLoopback(ip) || ip.Equals(IPAddress.Parse("::1"))))
         {
@@ -29,7 +30,7 @@ public static class PreStopHookExtensions
         {
             _ = Task.Run(() =>
             {
-                Console.WriteLine("Shutdown triggered from internal endpoint.");
+                logger.LogWarning("Shutdown triggered from internal endpoint.");
                 lifetime.StopApplication();
             });
 
