@@ -58,7 +58,7 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
 
             if (ctx.IsAuthorized)
                 service.SetUserId(ctx.User.id);
-            service.SetUserMachineId(ctx.User.machineId);
+            service.SetUserMachineId(ctx.GetMachineId());
             service.SetUserSessionId(ctx.GetSessionId());
             service.SetUserCountry(ctx.GetRegion());
 
