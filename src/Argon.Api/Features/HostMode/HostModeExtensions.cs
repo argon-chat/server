@@ -23,6 +23,7 @@ using FluentValidation;
 using GeoIP;
 using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
+using k8s;
 using Logic;
 using Metrics;
 using RegionalUnit;
@@ -253,6 +254,8 @@ public static class RunHostModeExtensions
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
+        app.UsePreStopHook();
+
         return app;
     }
 
@@ -278,6 +281,8 @@ public static class RunHostModeExtensions
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
+        app.UsePreStopHook();
+
         return app;
     }
 
