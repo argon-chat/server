@@ -30,6 +30,15 @@ public static class TimeExtensions
         await collector.DurationAsync(name, sw.Elapsed, tags);
     }
 
+    public async static Task TimeAsync(this IMetricsCollector collector, MeasurementId name, string scope, string operation, Func<Task> action)
+    {
+        var sw = Stopwatch.StartNew();
+        await action();
+        sw.Stop();
+
+        await collector.DurationAsync(name, sw.Elapsed, scope, operation);
+    }
+
     public async static Task<T> TimeAsync<T>(this IMetricsCollector collector, MeasurementId name, Func<Task<T>> action,
         Dictionary<string, string>? tags = null)
     {

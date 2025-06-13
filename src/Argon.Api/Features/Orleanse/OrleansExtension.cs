@@ -68,6 +68,7 @@ public static class OrleansExtension
                .AddActivityPropagation()
                .AddReminders()
                .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
+               .AddIncomingGrainCallFilter<MetricGrainCallFilter>()
                .UseStorages([
                     IUserSessionGrain.StorageId,
                     IServerInvitesGrain.StorageId,

@@ -53,4 +53,15 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
 
         writer.Enqueue(point);
     }
+
+    public async Task DurationAsync(MeasurementId measurement, TimeSpan duration, string scope, string operation)
+    {
+        var point = BuildPoint(measurement, [])
+           .SetDoubleField("duration_ms", duration.TotalMilliseconds)
+           .SetStringField("scope", scope)
+           .SetStringField("operation", operation)
+           .SetTimestamp(DateTime.UtcNow);
+
+        writer.Enqueue(point);
+    }
 }
