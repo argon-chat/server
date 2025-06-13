@@ -9,6 +9,9 @@ public interface IEntitlementGrain : IGrainWithGuidKey
     [Alias(nameof(GetServerArchetypes))]
     Task<List<ArchetypeDto>> GetServerArchetypes();
 
+    [Alias(nameof(GetFullyServerArchetypes))]
+    Task<List<ArchetypeDtoGroup>> GetFullyServerArchetypes();
+
     [Alias(nameof(CreateArchetypeAsync))]
     Task<ArchetypeDto> CreateArchetypeAsync( string name);
 
@@ -30,6 +33,9 @@ public interface IEntitlementGrain : IGrainWithGuidKey
 
     [Alias(nameof(DeleteEntitlementForChannel))]
     Task<bool> DeleteEntitlementForChannel(Guid channelId, Guid EntitlementOverwriteId);
+
+    [Alias(nameof(SetArchetypeToMember))]
+    Task<bool> SetArchetypeToMember(Guid memberId, Guid archetypeId, bool isGrant);
 }
 
 [Alias($"Argon.Grains.Interfaces.{nameof(IServerGrain)}")]

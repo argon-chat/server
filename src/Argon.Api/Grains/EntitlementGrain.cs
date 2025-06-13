@@ -23,6 +23,46 @@ public class EntitlementGrain(
     public async Task<List<ArchetypeDto>> GetServerArchetypes()
         => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
+    public async Task<List<ArchetypeDtoGroup>> GetFullyServerArchetypes()
+    {
+        var             callerId   = this.GetUserId();
+        await using var ctx        = await context.CreateDbContextAsync();
+        var             archetypes = await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
+
+        if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageArchetype))
+            return archetypes.Select(x => new ArchetypeDtoGroup()
+            {
+                Archetype = x,
+                Members = []
+            }).ToList();
+
+        var serverId = this.GetPrimaryKey();
+
+        var members = await ctx.UsersToServerRelations
+           .Where(m => m.ServerId == serverId)
+           .Include(m => m.ServerMemberArchetypes)
+           .ToListAsync();
+
+        var membersWithArchetypes = members.Select(m => new
+        {
+            MemberId       = m.Id,
+            ArchetypeIds = m.ServerMemberArchetypes.Select(sma => sma.ArchetypeId).ToList()
+        }).ToList();
+
+        var result = archetypes.Select(a => new ArchetypeDtoGroup
+        {
+            Archetype = a,
+            Members   = []
+        }).ToDictionary(g => g.Archetype.Id);
+
+        foreach (var member in membersWithArchetypes)
+            foreach (var archId in member.ArchetypeIds)
+                if (result.TryGetValue(archId, out var group))
+                    group.Members.Add(member.MemberId);
+
+        return result.Values.ToList();
+    }
+
     public async Task<ArchetypeDto> CreateArchetypeAsync(string name)
     {
         var creatorId = this.GetUserId();
@@ -256,6 +296,61 @@ public class EntitlementGrain(
         return e is null ? [] : e.EntitlementOverwrites.ToList();
     }
 
+
+    public async Task<bool> SetArchetypeToMember(Guid memberId, Guid archetypeId, bool isGrant)
+    {
+        var             callerId = this.GetUserId();
+        await using var ctx      = await context.CreateDbContextAsync();
+
+        var invoker = await ctx.UsersToServerRelations
+           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Include(x => x.ServerMemberArchetypes)
+           .ThenInclude(x => x.Archetype)
+           .FirstOrDefaultAsync();
+
+        if (invoker is null)
+            return false;
+
+        var invokerArchetypes = invoker
+           .ServerMemberArchetypes
+           .Select(x => x.Archetype)
+           .ToList();
+
+        if (!invokerArchetypes.Any(x
+                => x.Entitlement.HasFlag(ArgonEntitlement.ManageArchetype)))
+            return false;
+
+        var targetArchetype = await ctx.Archetypes
+           .FirstOrDefaultAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == archetypeId);
+
+        if (targetArchetype is null)
+            return false;
+
+        if (!EntitlementEvaluator.IsAllowedToEdit(targetArchetype, invokerArchetypes))
+            return false;
+
+        if (isGrant)
+        {
+            await ctx.ServerMemberArchetypes.AddAsync(new ServerMemberArchetype()
+            {
+                ArchetypeId    = archetypeId,
+                ServerMemberId = memberId
+            });
+            Debug.Assert(await ctx.SaveChangesAsync() == 1);
+            return true;
+        }
+
+        var e = await ctx
+           .ServerMemberArchetypes
+           .FirstOrDefaultAsync(x => x.ServerMemberId == memberId && x.ArchetypeId == archetypeId);
+
+        if (e is null) return false;
+
+        ctx.ServerMemberArchetypes.Remove(e);
+        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        return true;
+    }
+
     private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
     {
         var invoker = await ctx.UsersToServerRelations
@@ -275,4 +370,6 @@ public class EntitlementGrain(
         return invokerArchetypes.Any(x
             => x.Entitlement.HasFlag(requiredEntitlement));
     }
+
+
 }

@@ -41,6 +41,14 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
         = new List<ServerMemberArchetype>();
 }
 
+
+[MessagePackObject(true)]
+public record ArchetypeDtoGroup
+{
+    public ArchetypeDto Archetype { get; set; }
+    public List<Guid>   Members   { get; set; }
+}
+
 [MessagePackObject(true)]
 public record ArchetypeDto
 {
