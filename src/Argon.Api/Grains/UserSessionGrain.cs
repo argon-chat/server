@@ -21,7 +21,7 @@ public class UserSessionGrain(
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
     private readonly DeltaGauge       activeSessionDelta = new(metrics, new("user_session_active"));
-    private readonly RateCounter      heartbeatRate      = new(metrics, new("user_session_heartbeat"));
+    private readonly RateCounter      heartbeatRate      = new(metrics, new("user_session_heartbeat_rate"));
     private readonly RateCounter      tickRate           = new(metrics, new("user_session_tick"));
     private readonly CountPerTagGauge sessionDestroyed   = new(metrics, new("user_session_destroyed"));
     private readonly CountPerTagGauge statusChangeCounter = new(metrics, new("user_session_status_change"));
