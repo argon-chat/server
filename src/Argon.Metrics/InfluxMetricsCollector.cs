@@ -12,14 +12,14 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
         var point = PointData.Measurement(measurement.key);
         if (tags == null) return point;
         foreach (var tag in tags)
-            point.SetTag(tag.Key, tag.Value);
+            point.SetField(tag.Key, tag.Value);
 
         if (Datacenter.Value is { } dc)
-            point.SetTag("dc", dc);
+            point.SetField("dc", dc);
         if (Environment.GetEnvironmentVariable("ARGON_ROLE") is { } role)
-            point.SetTag("role", role);
+            point.SetField("role", role);
         if (Environment.GetEnvironmentVariable("NODE") is { } node)
-            point.SetTag("node", node);
+            point.SetField("node", node);
         return point;
     }
      
