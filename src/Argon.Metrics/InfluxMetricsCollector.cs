@@ -10,8 +10,7 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
     private PointData BuildPoint(MeasurementId measurement, Dictionary<string, string>? tags)
     {
         var point = PointData.Measurement(measurement.key);
-        if (tags == null) return point;
-        foreach (var tag in tags)
+        if (tags != null) foreach (var tag in tags)
             point.SetField(tag.Key, tag.Value);
 
         if (Datacenter.Value is { } dc)
