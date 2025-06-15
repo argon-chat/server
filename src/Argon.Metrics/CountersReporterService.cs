@@ -2,7 +2,7 @@ namespace Argon.Metrics;
 
 public class CountersReporterService(ICounters counters, ILogger<CountersReporterService> logger) : BackgroundService
 {
-    private readonly PeriodicTimer timer = new(TimeSpan.FromSeconds(10));
+    private readonly PeriodicTimer timer = new(TimeSpan.FromSeconds(1));
 
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)

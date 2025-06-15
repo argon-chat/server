@@ -32,6 +32,15 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
         writer.Enqueue(point);
     }
 
+    public async Task CountExactAsync(MeasurementId measurement, long value = 1, DateTime? timestamp = null)
+    {
+        var point = BuildPoint(measurement, null)
+           .SetDoubleField("value", value)
+           .SetTimestamp(timestamp ?? DateTime.UtcNow);
+
+        writer.Enqueue(point);
+    }
+
     public Task CountAsync(MeasurementId measurement, Dictionary<string, string> tags)
         => CountAsync(measurement, 1, tags);
 

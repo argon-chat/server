@@ -20,8 +20,12 @@ public class CounterStorage(IMetricsCollector collector) : ICounters
         => counters.GetOrAdd(measurementId, id => new GlobalCounter(id, false)).Decrement();
 
     public async Task ReportAllAsync()
-        => await Task
+    {
+        var now     = DateTime.UtcNow;
+        var trimmed = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, now.Second, DateTimeKind.Utc);
+        await Task
            .WhenAll(counters.Keys.Select(counters.GetValueOrDefault)
                .Where(x => x is not null)
-               .Select(x => x.ReportAsync(collector)));
+               .Select(x => x.ReportAsync(collector, trimmed)));
+    }
 }

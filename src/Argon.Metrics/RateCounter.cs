@@ -22,7 +22,9 @@ public class GlobalCounter(MeasurementId measurement, bool canBeLessZero = true)
     }
 
     public Task ReportAsync(IMetricsCollector collector)
-        => canBeLessZero ? collector.CountAsync(measurement, count_1) : collector.CountAsync(measurement, (long)count_2);
+        => canBeLessZero ? collector.CountExactAsync(measurement, count_1) : collector.CountExactAsync(measurement, (long)count_2);
+    public Task ReportAsync(IMetricsCollector collector, DateTime timestamp)
+        => canBeLessZero ? collector.CountExactAsync(measurement, count_1, timestamp) : collector.CountExactAsync(measurement, (long)count_2, timestamp);
 }
 
 public class RateCounter(
