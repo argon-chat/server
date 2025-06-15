@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using System.Diagnostics.Metrics;
 using Argon.Api.Features.Bus;
 using Metrics.Gauges;
 using Features.Logic;
@@ -17,19 +18,20 @@ public class UserSessionGrain(
     IUserPresenceService presenceService,
     IArgonCacheDatabase cache,
     IRedisEventStorage eventStorage,
-    IMetricsCollector metrics)
+    IMetricsCollector metrics,
+    ICounters globalCounters)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
-    private static readonly DeltaGaugeGlobal activeSessionDelta      = new(new("user_session_active"));
-    private readonly        RateCounter      heartbeatRate           = new(metrics, new("user_session_heartbeat_rate"));
-    private readonly        RateCounter      tickRate                = new(metrics, new("user_session_tick"));
-    private readonly        CountPerTagGauge sessionDestroyed        = new(metrics, new("user_session_destroyed"));
-    private readonly        CountPerTagGauge statusChangeCounter     = new(metrics, new("user_session_status_change"));
-    private readonly        CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
+    private readonly MeasurementId    total_user_active       = new("total_user_active");
+    private readonly RateCounter      heartbeatRate           = new(metrics, new("user_session_heartbeat_rate"));
+    private readonly RateCounter      tickRate                = new(metrics, new("user_session_tick"));
+    private readonly CountPerTagGauge sessionDestroyed        = new(metrics, new("user_session_destroyed"));
+    private readonly CountPerTagGauge statusChangeCounter     = new(metrics, new("user_session_status_change"));
+    private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
 
-    private Guid _userId;
+    private Guid   _userId;
     private string _machineId;
-    private Guid _shadowUserId;
+    private Guid   _shadowUserId;
 
     private IDistributedArgonStream<IArgonEvent> userStream;
 
@@ -46,7 +48,7 @@ public class UserSessionGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        _ = activeSessionDelta.ObserveAsync(metrics, -1);
+        globalCounters.Decrement(total_user_active);
         var reasonTag = reason.ReasonCode == ApplicationRequested
             ? "graceful"
             : "force";
@@ -62,9 +64,9 @@ public class UserSessionGrain(
 
     public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
     {
-        _ = activeSessionDelta.ObserveAsync(metrics, 1);
+        globalCounters.Increment(total_user_active);
 
-        _userId       = this.GetUserId();
+        _userId = this.GetUserId();
         _shadowUserId = _userId;
         _machineId    = this.GetUserMachineId();
 
@@ -97,6 +99,7 @@ public class UserSessionGrain(
             logger.LogInformation("KeyExpired, but {userId} is matched to presence session, {key}", _userId, key);
             return;
         }
+
         using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId,
             this.GetPrimaryKey());
 
@@ -195,6 +198,7 @@ public class UserSessionGrain(
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
+
         heartbeatRate.Increment();
         await heartbeatRate.FlushAsync();
         await sessionHeartbeatCounter.CountAsync("status", status.ToString());
@@ -211,7 +215,8 @@ public class UserSessionGrain(
 
     public async ValueTask EndRealtimeSession()
     {
-        logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, go to expire session, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
+        logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, go to expire session, linkedUserId: {userId}",
+            this.GetPrimaryKey(), _shadowUserId);
         await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{this.GetPrimaryKey()}", TimeSpan.FromSeconds(1));
     }
 

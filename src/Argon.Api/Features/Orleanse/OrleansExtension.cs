@@ -12,6 +12,7 @@ using Sentry;
 using Services;
 using Orleans.Hosting;
 using Orleans.Serialization;
+using Argon.Api.Services.Metrics;
 
 #pragma warning disable ORLEANSEXP001
 

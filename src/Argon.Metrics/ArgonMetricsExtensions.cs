@@ -18,9 +18,11 @@ public static class ArgonMetricsExtensions
         });
 
         builder.Services.AddSingleton<IMetricsCollector, InfluxMetricsCollector>();
+        builder.Services.AddSingleton<ICounters, CounterStorage>();
         builder.Services.AddSingleton<IPointBuffer, InfluxBatchWriter>();
         builder.Services.AddHostedService(sp => (InfluxBatchWriter)sp.GetRequiredService<IPointBuffer>());
         builder.Services.AddHostedService<DotNetRuntimeMetricsCollector>();
+        builder.Services.AddHostedService<CountersReporterService>();
 
         return builder.Services;
     }

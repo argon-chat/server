@@ -1,5 +1,30 @@
 namespace Argon.Metrics;
 
+public class GlobalCounter(MeasurementId measurement, bool canBeLessZero = true)
+{
+    private long count_1 = 0;
+    private ulong count_2 = 0;
+
+    public void Increment(long value = 1)
+    {
+        if (canBeLessZero)
+            Interlocked.Add(ref count_1, value);
+        else
+            Interlocked.Add(ref count_2, (ulong)value);
+    }
+
+    public void Decrement()
+    {
+        if (canBeLessZero)
+            Interlocked.Decrement(ref count_1);
+        else
+            Interlocked.Decrement(ref count_2);
+    }
+
+    public Task ReportAsync(IMetricsCollector collector)
+        => canBeLessZero ? collector.CountAsync(measurement, count_1) : collector.CountAsync(measurement, (long)count_2);
+}
+
 public class RateCounter(
     IMetricsCollector collector,
     MeasurementId measurement,

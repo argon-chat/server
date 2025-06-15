@@ -1,7 +1,7 @@
-namespace Argon.Api.Features;
+namespace Argon.Api.Services.Metrics;
 
-using global::Orleans.Concurrency;
-using Metrics;
+using Argon.Metrics;
+using Orleans.Concurrency;
 using OrleansDashboard;
 using OrleansDashboard.Metrics.Details;
 using OrleansDashboard.Metrics.History;

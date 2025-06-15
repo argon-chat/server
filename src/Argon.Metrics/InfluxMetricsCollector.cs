@@ -2,6 +2,7 @@ namespace Argon.Metrics;
 
 using InfluxDB3.Client.Write;
 using Microsoft.Extensions.DependencyInjection;
+using System.Collections.Concurrent;
 
 public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provider, IWebHostEnvironment env) : IMetricsCollector
 {
