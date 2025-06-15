@@ -110,6 +110,7 @@ public static class OrleansExtension
                    .UseLocalhostClustering();
         });
 
+        builder.Services.AddHostedService<OrleansMetricCollector>();
         return builder;
     }
 
