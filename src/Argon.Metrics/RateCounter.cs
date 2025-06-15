@@ -24,4 +24,26 @@ public class RateCounter(
             await collector.ObserveAsync(measurement, rate, tags);
         }
     }
+
+    private int current_times;
+
+    public async Task FlushAsync(int times)
+    {
+        current_times++;
+
+        if (current_times < times) return;
+
+        current_times = 0;
+
+        var now     = DateTime.UtcNow;
+        var elapsed = (now - _lastFlush).TotalSeconds;
+        var count   = Interlocked.Exchange(ref _count, 0);
+        _lastFlush = now;
+
+        if (elapsed > 0)
+        {
+            var rate = count / elapsed;
+            await collector.ObserveAsync(measurement, rate, tags);
+        }
+    }
 }

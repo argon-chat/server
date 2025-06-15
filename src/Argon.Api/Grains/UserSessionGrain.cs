@@ -20,12 +20,12 @@ public class UserSessionGrain(
     IMetricsCollector metrics)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
-    private readonly DeltaGauge       activeSessionDelta = new(metrics, new("user_session_active"));
-    private readonly RateCounter      heartbeatRate      = new(metrics, new("user_session_heartbeat_rate"));
-    private readonly RateCounter      tickRate           = new(metrics, new("user_session_tick"));
-    private readonly CountPerTagGauge sessionDestroyed   = new(metrics, new("user_session_destroyed"));
-    private readonly CountPerTagGauge statusChangeCounter = new(metrics, new("user_session_status_change"));
-    private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
+    private static readonly DeltaGaugeGlobal activeSessionDelta      = new(new("user_session_active"));
+    private readonly        RateCounter      heartbeatRate           = new(metrics, new("user_session_heartbeat_rate"));
+    private readonly        RateCounter      tickRate                = new(metrics, new("user_session_tick"));
+    private readonly        CountPerTagGauge sessionDestroyed        = new(metrics, new("user_session_destroyed"));
+    private readonly        CountPerTagGauge statusChangeCounter     = new(metrics, new("user_session_status_change"));
+    private readonly        CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
 
     private Guid _userId;
     private string _machineId;
@@ -46,7 +46,7 @@ public class UserSessionGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        _ = activeSessionDelta.ObserveAsync(-1);
+        _ = activeSessionDelta.ObserveAsync(metrics, -1);
         var reasonTag = reason.ReasonCode == ApplicationRequested
             ? "graceful"
             : "force";
@@ -62,7 +62,7 @@ public class UserSessionGrain(
 
     public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
     {
-        _ = activeSessionDelta.ObserveAsync(1);
+        _ = activeSessionDelta.ObserveAsync(metrics, 1);
 
         _userId       = this.GetUserId();
         _shadowUserId = _userId;
