@@ -21,13 +21,11 @@ public static class DatabaseFeature
 
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               .UseNpgsql(connStr, npgsql => {
-                    npgsql.ConfigureDataSource(q => q.EnableDynamicJson().UseJsonNet());
-                })
+               .UseNpgsql(connStr, npgsql => npgsql.ConfigureDataSource(q => q.EnableDynamicJson().UseJsonNet()))
                .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>()
                .AddInterceptors(new TimeStampAndSoftDeleteInterceptor(),
                     new RotatableConnectionInterceptor(credentialsProvider));
-        });
+        }, 512);
     }
 }
 

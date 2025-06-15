@@ -50,6 +50,7 @@ public class ServerGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
         return await ctx.Servers
+           .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
@@ -58,6 +59,7 @@ public class ServerGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var server = await ctx.Servers
+           .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
         var copy = server with
@@ -70,6 +72,7 @@ public class ServerGrain(
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified( /*ObjDiff.Compare(copy, server)*/[]));
         return await ctx.Servers
+           .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
 
@@ -79,6 +82,7 @@ public class ServerGrain(
 
         var x = await ctx
            .UsersToServerRelations
+           .AsNoTracking()
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .Where(x => x.UserId == userId)
            .Include(x => x.User)
@@ -109,6 +113,7 @@ public class ServerGrain(
 
         var members = await ctx
            .UsersToServerRelations
+           .AsNoTracking()
            .Include(x => x.User)
            .Where(x => x.ServerId == this.GetPrimaryKey())
            .Include(x => x.ServerMemberArchetypes)
@@ -137,6 +142,7 @@ public class ServerGrain(
         var serverId       = this.GetPrimaryKey();
 
         var member = await ctx.UsersToServerRelations
+           .AsNoTracking()
            .Include(m => m.ServerMemberArchetypes)
            .ThenInclude(sma => sma.Archetype)
            .FirstAsync(m => m.Id == serverMemberId && m.ServerId == serverId);
@@ -170,11 +176,6 @@ public class ServerGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var userId = this.GetUserId();
-
-        var alreadyExist = await ctx.UsersToServerRelations.AnyAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == userId);
-
-        if (alreadyExist)
-            return;
         var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new ServerMember
         {
@@ -270,6 +271,7 @@ public class ServerGrain(
     private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
     {
         var invoker = await ctx.UsersToServerRelations
+           .AsNoTracking()
            .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
            .Include(x => x.ServerMemberArchetypes)
            .ThenInclude(x => x.Archetype)

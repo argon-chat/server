@@ -19,6 +19,8 @@ public readonly record struct InviteCode(string inviteCode);
 [MessagePackObject(true), Alias("Argon.Shared.Servers.InviteCodeEntity")]
 public record struct InviteCodeEntity(InviteCode code, Guid serverId, Guid issuerId, DateTimeOffset expireTime, long used)
 {
+    public const string CacheEntityKey = $"{nameof(InviteCodeEntity)}_{{0}}";
+
     public bool HasExpired() => DateTimeOffset.UtcNow > expireTime;
 
 

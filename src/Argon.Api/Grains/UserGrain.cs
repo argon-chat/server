@@ -39,9 +39,7 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         return await ctx.Users
-           .Include(x => x.ServerMembers)
-           .ThenInclude(x => x.Server)
-           .ThenInclude(x => x.Channels)
+           .AsNoTracking()
            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 
@@ -50,6 +48,7 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         return await ctx.Users
+           .AsNoTracking()
            .Include(user => user.ServerMembers)
            .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
            .ThenInclude(x => x.Users)
@@ -68,6 +67,7 @@ public class UserGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         return await ctx.Users
+           .AsNoTracking()
            .Include(user => user.ServerMembers)
            .Where(u => u.Id == this.GetPrimaryKey())
            .SelectMany(x => x.ServerMembers)
@@ -115,7 +115,7 @@ public class UserGrain(
     public async ValueTask<List<UserSocialIntegrationDto>> GetMeSocials()
     {
         await using var ctx = await context.CreateDbContextAsync();
-        return await ctx.SocialIntegrations.Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
+        return await ctx.SocialIntegrations.AsNoTracking().Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
     }
 
     public async ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId)

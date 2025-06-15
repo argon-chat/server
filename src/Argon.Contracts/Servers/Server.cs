@@ -53,4 +53,9 @@ public record ServerInvite : ArgonEntityWithOwnership<ulong>
     public         DateTimeOffset Expired  { get; set; }
     public         Guid           ServerId { get; set; }
     public virtual Server         Server   { get; set; }
+
+    public ServerInviteDto ToDto() => new(Id, Expired, ServerId);
 }
+
+[MessagePackObject(true)]
+public record ServerInviteDto(ulong Id, DateTimeOffset Expired, Guid ServerId);
