@@ -26,7 +26,7 @@ public readonly record struct MeasurementId(string key)
             public static readonly MeasurementId IOAvailable     = new("dotnet_threadpool_io_available");
             public static readonly MeasurementId WorkerMin       = new("dotnet_threadpool_worker_min");
             public static readonly MeasurementId WorkerMax       = new("dotnet_threadpool_worker_max");
-            public static readonly MeasurementId IOMin           = new("dotnet_threadpool_io_max");
+            public static readonly MeasurementId IOMin           = new("dotnet_threadpool_io_min");
             public static readonly MeasurementId IOMax           = new("dotnet_threadpool_io_max");
         }
     }
