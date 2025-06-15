@@ -20,6 +20,8 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
             point.SetField("role", role);
         if (Environment.GetEnvironmentVariable("NODE") is { } node)
             point.SetField("node", node);
+
+        point.SetField("hostname", System.Net.Dns.GetHostName());
         return point;
     }
      
