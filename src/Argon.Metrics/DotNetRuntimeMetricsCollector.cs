@@ -4,7 +4,7 @@ using Argon.Metrics.Gauges;
 
 public class DotNetRuntimeMetricsCollector(IMetricsCollector metrics, ILogger<DotNetRuntimeMetricsCollector> logger) : BackgroundService
 {
-    private readonly TimeSpan _interval = TimeSpan.FromSeconds(30);
+    private readonly TimeSpan _interval = TimeSpan.FromSeconds(1);
 
     private readonly DeltaGauge _gen0 = new(metrics, MeasurementId.Dotnet.Gc.Gen0Collections);
     private readonly DeltaGauge _gen1 = new(metrics, MeasurementId.Dotnet.Gc.Gen1Collections);
