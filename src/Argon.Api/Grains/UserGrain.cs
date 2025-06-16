@@ -135,13 +135,15 @@ public class UserGrain(
         }
     }
 
-    [OneWay]
+    //[OneWay]
     public async ValueTask UpdateUserDeviceHistory()
     {
         await using var ctx    = await context.CreateDbContextAsync();
         var             userId = this.GetUserId();
+        
         try
         {
+            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(), userId, this.GetUserMachineId());
             if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == userId && x.MachineId == this.GetUserMachineId()))
             {
                 await ctx.DeviceHistories.Where(x => x.UserId == userId && x.MachineId == this.GetUserMachineId())

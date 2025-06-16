@@ -33,6 +33,7 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(DeleteSocialBoundAsync))]
     ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId);
 
-    [Alias(nameof(UpdateUserDeviceHistory)), OneWay]
+    [Alias(nameof(UpdateUserDeviceHistory))]
+    //[OneWay]
     ValueTask UpdateUserDeviceHistory();
 }
