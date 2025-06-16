@@ -41,7 +41,6 @@ public record Archetype : ArgonEntityWithOwnership, IArchetype
         = new List<ServerMemberArchetype>();
 }
 
-
 [MessagePackObject(true)]
 public record ArchetypeDtoGroup
 {
@@ -62,6 +61,7 @@ public record ArchetypeDto
     public bool IsHidden      { get; set; }
     public bool IsLocked      { get; set; }
     public bool IsGroup       { get; set; }
+    public bool IsDefault     { get; set; }
 
     public string? IconFileId { get; set; } = null;
 
@@ -83,7 +83,8 @@ public static class ArchetypeExtensions
             IsLocked      = msg.IsLocked,
             Id            = msg.Id,
             Entitlement   = $"{(ulong)msg.Entitlement}",
-            IsGroup       = msg.IsGroup
+            IsGroup       = msg.IsGroup,
+            IsDefault     = msg.IsDefault
         };
 
     public static List<ArchetypeDto> ToDto(this List<Archetype> msg)        => msg.Select(x => x.ToDto()).ToList();
