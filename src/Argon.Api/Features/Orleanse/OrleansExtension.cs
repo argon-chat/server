@@ -110,8 +110,8 @@ public static class OrleansExtension
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering();
         });
-
-        builder.Services.AddHostedService<OrleansMetricCollector>();
+        if (builder.IsGatewayRole() || builder.IsHybridRole())
+            builder.Services.AddHostedService<OrleansMetricCollector>();
         return builder;
     }
 

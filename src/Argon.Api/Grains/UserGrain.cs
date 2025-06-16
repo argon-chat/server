@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using System.Diagnostics;
 using Features.Logic;
 using Orleans;
 using Orleans.Concurrency;
@@ -131,6 +132,43 @@ public class UserGrain(
         {
             logger.LogError(e, "failed delete social bound by {socialId}", socialId);
             return false;
+        }
+    }
+
+    [OneWay]
+    public async ValueTask UpdateUserDeviceHistory()
+    {
+        await using var ctx    = await context.CreateDbContextAsync();
+        var             userId = this.GetUserId();
+        try
+        {
+            if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == userId && x.MachineId == this.GetUserMachineId()))
+            {
+                await ctx.DeviceHistories.Where(x => x.UserId == userId && x.MachineId == this.GetUserMachineId())
+                   .ExecuteUpdateAsync(q => q
+                       .SetProperty(x => x.LastLoginTime, DateTimeOffset.Now)
+                       .SetProperty(x => x.RegionCountry, this.GetUserRegion() ?? "unknown")
+                       .SetProperty(x => x.LastKnownIP, this.GetUserIp() ?? "unknown"));
+            }
+            else
+            {
+                await ctx.DeviceHistories.AddAsync(new UserDeviceHistory
+                {
+                    AppId         = "unknown",
+                    DeviceType    = DeviceTypeKind.WindowsDesktop,
+                    LastKnownIP   = this.GetUserIp() ?? "unknown",
+                    LastLoginTime = DateTimeOffset.Now,
+                    MachineId     = this.GetUserMachineId(),
+                    RegionCountry = this.GetUserRegion() ?? "unknown",
+                    UserId        = userId
+                });
+            }
+
+            Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed update user device history");
         }
     }
 }

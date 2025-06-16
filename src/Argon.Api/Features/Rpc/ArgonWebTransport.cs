@@ -83,6 +83,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 using var reentrancy = RequestContext.AllowCallChainReentrancy();
 
 
+                reentrancy.SetUserIp(scope.GetIpAddress());
                 reentrancy.SetUserId(user.id);
                 reentrancy.SetUserSessionId(sessionId);
                 reentrancy.SetUserCountry(ctx.GetRegion());

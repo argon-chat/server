@@ -9,11 +9,12 @@ using Shared.Servers;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public DbSet<User>           Users                  { get; set; }
-    public DbSet<UserAgreements> UserAgreements         { get; set; }
-    public DbSet<Server>         Servers                { get; set; }
-    public DbSet<Channel>        Channels               { get; set; }
-    public DbSet<ServerMember>   UsersToServerRelations { get; set; }
+    public DbSet<User>              Users                  { get; set; }
+    public DbSet<UserDeviceHistory> DeviceHistories        => Set<UserDeviceHistory>();
+    public DbSet<UserAgreements>    UserAgreements         { get; set; }
+    public DbSet<Server>            Servers                { get; set; }
+    public DbSet<Channel>           Channels               { get; set; }
+    public DbSet<ServerMember>      UsersToServerRelations { get; set; }
 
     public DbSet<ServerMemberArchetype>       ServerMemberArchetypes       { get; set; }
     public DbSet<Archetype>                   Archetypes                   { get; set; }
@@ -198,6 +199,32 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .WithOne(x => x.Profile)
            .HasForeignKey<UserProfile>(x => x.UserId)
            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .HasKey(udh => new { udh.UserId, udh.MachineId });
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .HasOne(udh => udh.User)
+           .WithMany()
+           .HasForeignKey(udh => udh.UserId)
+           .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .Property(udh => udh.MachineId)
+           .IsRequired()
+           .HasMaxLength(64);
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .Property(udh => udh.LastKnownIP)
+           .HasMaxLength(64);
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .Property(udh => udh.RegionCountry)
+           .HasMaxLength(64);
+
+        modelBuilder.Entity<UserDeviceHistory>()
+           .Property(udh => udh.AppId)
+           .HasMaxLength(64);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

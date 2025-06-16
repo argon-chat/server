@@ -1,14 +1,15 @@
 namespace Argon.Grains;
 
-using System.Diagnostics.Metrics;
 using Argon.Api.Features.Bus;
-using Metrics.Gauges;
 using Features.Logic;
 using MessagePipe;
 using Metrics;
+using Metrics.Gauges;
+using Orleans;
 using Orleans.Concurrency;
 using Orleans.Streams;
 using Services;
+using System.Diagnostics.Metrics;
 using static DeactivationReasonCode;
 
 public class UserSessionGrain(
@@ -66,7 +67,7 @@ public class UserSessionGrain(
     {
         globalCounters.Increment(total_user_active);
 
-        _userId = this.GetUserId();
+        _userId       = this.GetUserId();
         _shadowUserId = _userId;
         _machineId    = this.GetUserMachineId();
 
@@ -89,6 +90,8 @@ public class UserSessionGrain(
                .GetGrain<IServerGrain>(server)
                .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
         _cacheSubscriber = bag.Build();
+
+        await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
     }
 
     private async ValueTask OnKeyExpired(OnRedisKeyExpired ev, CancellationToken ct = default)

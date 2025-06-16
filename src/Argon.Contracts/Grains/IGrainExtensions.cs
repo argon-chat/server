@@ -12,6 +12,11 @@ public static class IGrainExtensions
         throw new NotAuthorizedCallException();
     }
 
+    public static string? GetUserIp(this Grain grain)
+        => RequestContext.Get("$caller_user_ip") as string;
+    public static string? GetUserRegion(this Grain grain)
+        => RequestContext.Get("$caller_country") as string;
+
     public static string GetUserMachineId(this Grain grain)
     {
         var result = RequestContext.Get("$caller_machine_id") as string;
@@ -28,6 +33,11 @@ public static class IGrainExtensions
         return null;
     }
 
+    public static string? GetUserIp(this IIncomingGrainCallContext ctx)
+        => RequestContext.Get("$caller_user_ip") as string;
+    public static string? GetUserRegion(this IIncomingGrainCallContext ctx)
+        => RequestContext.Get("$caller_country") as string;
+
     public static Guid? GetReentrancyId(this IIncomingGrainCallContext ctx)
     {
         var result = RequestContext.ReentrancyId;
@@ -39,6 +49,8 @@ public static class IGrainExtensions
     // RequestContext.AllowCallChainReentrancy()
     public static void SetUserId(this IArgonService that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);
+    public static void SetUserIp(this IArgonService that, string ip)
+        => RequestContext.Set("$caller_user_ip", ip);
     public static void SetUserMachineId(this IArgonService that, string machineId)
         => RequestContext.Set("$caller_machine_id", machineId);
     public static void SetUserSessionId(this IArgonService that, Guid sessionId)
@@ -46,7 +58,8 @@ public static class IGrainExtensions
     public static void SetUserCountry(this IArgonService that, string Country)
         => RequestContext.Set("$caller_country", Country);
 
-
+    public static void SetUserIp(this RequestContext.ReentrancySection that, string userIp)
+        => RequestContext.Set("$caller_user_ip", userIp);
     public static void SetUserId(this RequestContext.ReentrancySection that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);
     public static void SetUserMachineId(this RequestContext.ReentrancySection that, string machineId)

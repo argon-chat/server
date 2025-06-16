@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account Deletion Notice</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #db7070;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #444444;
+            margin-bottom: 20px;
+        }
+
+        .highlight {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            color: #000000;
+            background-color: #f0f0f0;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 20px 0;
+        }
+
+        .footer {
+            font-size: 14px;
+            color: #888888;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .legal {
+            font-size: 13px;
+            color: #bbbbbb;
+            text-align: center;
+            margin-top: 40px;
+            line-height: 1.5;
+        }
+
+        .legal a {
+            color: #bbbbbb;
+            text-decoration: none;
+            margin: 0 8px;
+			text-decoration: underline;
+        }
+
+        .legal a:hover {
+            color: #3ed3d3;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">Account Deletion Notice</div>
+    <div class="message">
+        Hi {{displayName}},
+    </div>
+    <div class="message">
+        We noticed that your account has been inactive for a prolonged period.<br><br>
+        To maintain a secure and efficient environment, we regularly remove inactive accounts.
+    </div>
+    <div class="message">
+        Your account is scheduled for deletion on:
+    </div>
+    <div class="highlight">
+        {{ deletion_date }}
+    </div>
+    <div class="message">
+        To prevent your account from being deleted, please open the app and sign in before this date.<br><br>
+        This will cancel the deletion process and keep your account active.
+    </div>
+    <div class="message">
+        If you do not take any action, your account and all associated data will be permanently removed and cannot be recovered.
+    </div>
+    <div class="message">
+        If you received this message in error, or no longer wish to use the account, you can safely ignore this email.
+    </div>
+    <div class="footer">
+        Thank you,<br>
+        The Argon Team
+    </div>
+    <div class="legal">
+        Copyright © 2024-2025 Argon Inc. LLC<br>
+        2 Sasna Tsrer str., Yerevan, 0054<br>
+        <a href="https://argon.gl">argon.gl</a>
+    </div>
+</div>
+</body>
+</html>

@@ -73,7 +73,11 @@ public class AuthorizationGrain(
 
         user.OtpHash = null;
         ctx.Users.Update(user);
+
+
         await ctx.SaveChangesAsync();
+        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+
         return await GenerateJwt(user, this.GetUserMachineId());
     }
 
