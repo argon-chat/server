@@ -42,8 +42,10 @@ public class EMailFormStorage
 
 public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> logger, FluidParser engine) : BackgroundService
 {
+    private bool IsLoaded = false;
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        if (IsLoaded) return;
         var formFiles = Directory.EnumerateFiles("./Resources", "*.html").ToList();
 
         logger.LogInformation("Found '{count}' email forms", formFiles.Count);
@@ -61,5 +63,10 @@ public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> 
             else
                 logger.LogError("Failed load '{name}' email form, error: {error}", name, error);
         }
+
+        IsLoaded = true;
     }
+
+    public async Task ForceLoad()
+        => await ExecuteAsync(CancellationToken.None);
 }

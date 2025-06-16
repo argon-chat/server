@@ -21,4 +21,6 @@ public interface IEmailManager : IGrainWithGuidKey
     Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity);
     [Alias(nameof(SendNotificationResetPasswordAsync)), OneWay]
     Task SendNotificationResetPasswordAsync(string email);
+    [Alias(nameof(SendDeleteNoticeAsync)), OneWay]
+    Task SendDeleteNoticeAsync(string email, string displayName, DateTimeOffset deletionTime);
 }

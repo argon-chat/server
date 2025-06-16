@@ -30,7 +30,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
     private async Task SendAsync(MimeMessage message, CancellationToken cancellationToken = default)
     {
         using var client = new SmtpClient();
-
+        message.MessageId = $"{message.MessageId.Split('@').First()}@argon.gl";
         try
         {
             var options = smtpOptions.Value;
@@ -105,6 +105,33 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         }
     }
 
+    [OneWay]
+    public async Task SendDeleteNoticeAsync(string email, string displayName, DateTimeOffset deletionTime)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
+            return;
+        }
+        var form = formStorage.Render("deletion_notice", new Dictionary<string, string>
+        {
+            { "deletion_date", deletionTime.ToString("D") },
+            { "displayName", displayName },
+        });
+
+        try
+        {
+            //using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var       msg = CreateMessage(email, "Account Deletion Notice", form);
+            await SendAsync(msg, default);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send reset code to '{email}'", email);
+        }
+    }
+
+    [OneWay]
     public async Task SendNotificationResetPasswordAsync(string email)
     {
         if (!smtpOptions.Value.Enabled)
@@ -118,7 +145,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var form = formStorage.Render("pass_changed", new Dictionary<string, string>());
             var msg = CreateMessage(email, "Your Argon password changed", form);
-            await SendAsync(msg, cts.Token);
+            await SendAsync(msg, CancellationToken.None);
         }
         catch (Exception e)
         {

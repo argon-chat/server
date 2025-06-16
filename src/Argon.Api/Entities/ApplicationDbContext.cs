@@ -219,7 +219,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
            .HasMaxLength(64);
 
         modelBuilder.Entity<UserDeviceHistory>()
-           .Property(udh => udh.RegionCountry)
+           .Property(udh => udh.RegionAddress)
            .HasMaxLength(64);
 
         modelBuilder.Entity<UserDeviceHistory>()

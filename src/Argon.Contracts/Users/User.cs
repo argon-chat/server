@@ -42,7 +42,7 @@ public record UserDeviceHistory
     [MaxLength(64)]
     public string LastKnownIP { get; set; }
     [MaxLength(64)]
-    public string RegionCountry { get; set; }
+    public string RegionAddress { get; set; }
     [MaxLength(64)]
     public string AppId { get; set; }
 

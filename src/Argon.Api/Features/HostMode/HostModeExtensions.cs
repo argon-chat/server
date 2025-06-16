@@ -92,7 +92,11 @@ public static class HostModeExtensions
                 x.AddService<IUserInteraction, UserInteraction>();
                 x.AddService<IEventBus, EventBusService>();
             });
+            
         }
+        if (builder.IsHybridRole())
+            builder.AddTemplateEngine();
+
 
         return builder;
     }
