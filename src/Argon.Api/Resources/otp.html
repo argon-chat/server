@@ -1,91 +1,136 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta content="width=device-width, initial-scale=1.0" name="viewport">
-    <title>Your OTP Code</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArgonChat - Your One-Time Passcode</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1a1a;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
             margin: 0;
             padding: 0;
-            color: #e0e0e0;
+            color: #333333;
         }
 
         .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border-left: 6px solid #7e57c2;
+        }
+
+        .inner {
+            padding: 40px 32px;
         }
 
         .header {
-            font-size: 24px;
-            font-weight: bold;
-            text-align: center;
-            margin-bottom: 20px;
-            color: #bb86fc;
-        }
-
-        .message {
-            font-size: 16px;
-            color: #cccccc;
-            margin-bottom: 20px;
-            line-height: 1.5;
-        }
-		
-		.otp-code {
-            display: inline-block;
             font-size: 28px;
-            font-weight: bold;
-            padding: 10px 20px;
-            color: #ffffff;
-            background-color: #6200ea;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-bottom: 20px;
+            font-weight: 600;
+            color: #7e57c2;
+            text-align: center;
+            margin-bottom: 24px;
         }
 
-        .button {
-            display: inline-block;
-            font-size: 18px;
-            font-weight: bold;
-            padding: 10px 20px;
+        .intro {
+            font-size: 17px;
+            line-height: 1.7;
+            color: #444444;
+            margin-bottom: 24px;
+        }
+
+        .highlight-box {
+            background: linear-gradient(135deg, #7e57c2, #b388ff);
             color: #ffffff;
-            background-color: #6200ea;
-            border-radius: 4px;
-            text-decoration: none;
-            margin-bottom: 20px;
+            padding: 20px;
+            text-align: center;
+            border-radius: 10px;
+            font-size: 30px;
+            font-weight: bold;
+            letter-spacing: 6px;
+            margin: 32px 0;
+        }
+
+        .explanation {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555555;
+            margin-bottom: 24px;
+        }
+
+        .security-note {
+            background-color: #f9f9f9;
+            border-left: 4px solid #ffa726;
+            padding: 16px 20px;
+            font-size: 15px;
+            color: #666666;
+            border-radius: 6px;
+            margin-bottom: 30px;
         }
 
         .footer {
-            font-size: 14px;
-            color: #888888;
+            font-size: 15px;
+            color: #777777;
             text-align: center;
-            margin-top: 20px;
+            margin-top: 40px;
         }
+
+        .legal {
+            font-size: 12px;
+            color: #bbbbbb;
+            text-align: center;
+            line-height: 1.5;
+            margin-top: 30px;
+        }
+
+            .legal a {
+                color: #bbbbbb;
+                text-decoration: none;
+                margin: 0 6px;
+            }
+
+                .legal a:hover {
+                    text-decoration: underline;
+                }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">Your OTP Code</div>
-    <div class="message">
-        Hello,<br><br>
-        Your one-time password for accessing the system is:
+    <div class="container">
+        <div class="inner">
+            <div class="header">Your One-Time Passcode</div>
+
+            <div class="intro">
+                Hello,<br><br>
+                Someone (hopefully you) requested a one-time code to verify their identity in the Argon Chat.
+                If this was you, use the code below to complete your login or sensitive action.
+            </div>
+
+            <div class="highlight-box">{{ otp }}</div>
+
+            <div class="explanation">
+                This code is valid for <strong>{{ validity }} minutes</strong> and will expire afterward.
+                If the code doesn't work, you can always request a new one from the app.
+            </div>
+
+            <div class="security-note">
+                ⚠️ <strong>Security Tip:</strong> Never share this code with anyone. Argon Staff will never ask for your code via email, phone, or chat.
+            </div>
+
+            <div class="footer">
+                Stay safe,<br>
+                — The Argon Team
+            </div>
+
+            <div class="legal">
+                © 2025 Argon Inc. LLC<br>
+                2 Sasna Tsrer str., Yerevan, 0054<br>
+                <a href="https://argon.gl">argon.gl</a><br /><br />
+                You are receiving this service email with important information regarding your account.
+            </div>
+        </div>
     </div>
-    <div style="text-align: center;">
-        <span class="otp-code">{{otp}}</span>
-    </div>
-    <div class="message">
-        Please use this code within {{validity}} minutes.
-    </div>
-    <div class="footer">
-        Thank you,<br>
-        The Argon Team
-    </div>
-</div>
 </body>
 </html>

@@ -1,78 +1,117 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Reset Code</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArgonChat - Password Reset Code</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1a1a;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
             margin: 0;
             padding: 0;
-            color: #e0e0e0;
+            color: #333333;
         }
 
         .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border-left: 6px solid #7e57c2;
+        }
+
+        .inner {
+            padding: 40px 32px;
         }
 
         .header {
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 26px;
+            font-weight: 600;
+            color: #7e57c2;
             text-align: center;
-            color: #bb86fc;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .message {
             font-size: 16px;
-            line-height: 1.5;
-            color: #cccccc;
-            margin-bottom: 20px;
+            line-height: 1.7;
+            color: #444444;
+            margin-bottom: 24px;
         }
 
-        .code {
-            font-size: 22px;
-            font-weight: bold;
-            text-align: center;
+        .code-box {
+            background: linear-gradient(135deg, #7e57c2, #b388ff);
             color: #ffffff;
-            background-color: #3a3a3a;
-            padding: 15px;
-            border-radius: 6px;
-            margin: 20px 0;
+            padding: 16px 32px;
+            font-size: 24px;
+            font-weight: bold;
+            border-radius: 10px;
+            text-align: center;
+            letter-spacing: 4px;
+            margin: 24px 0;
         }
 
         .footer {
-            font-size: 14px;
-            color: #888888;
+            font-size: 15px;
+            color: #777777;
             text-align: center;
+            margin-top: 40px;
+        }
+
+        .legal {
+            font-size: 12px;
+            color: #bbbbbb;
+            text-align: center;
+            line-height: 1.5;
             margin-top: 30px;
         }
+
+            .legal a {
+                color: #bbbbbb;
+                text-decoration: none;
+                margin: 0 6px;
+            }
+
+                .legal a:hover {
+                    text-decoration: underline;
+                }
     </style>
 </head>
 <body>
-<div class="container">
-    <div class="header">Password Reset</div>
-    <div class="message">
-        We received a request to reset your password.<br><br>
-        Please open the app and enter the code below to reset your password:
+    <div class="container">
+        <div class="inner">
+            <div class="header">Password Reset Request</div>
+
+            <div class="message">
+                Hello,<br><br>
+                We received a request to reset your password for your Argon account.<br>
+                Please enter the code below in the app to proceed:
+            </div>
+
+            <div class="code-box">
+                {{ reset_code }}
+            </div>
+
+            <div class="message">
+                This code will expire shortly for your security.<br>
+                If you did not request a password reset, please ignore this message or contact support.
+            </div>
+
+            <div class="footer">
+                Stay safe,<br>
+                The Argon Team
+            </div>
+
+            <div class="legal">
+                © 2025 Argon Inc. LLC<br>
+                2 Sasna Tsrer str., Yerevan, 0054<br>
+                <a href="https://argon.gl">argon.gl</a><br /><br />
+                You are receiving this service email with important information regarding your account.
+            </div>
+        </div>
     </div>
-    <div class="code">
-        {{ reset_code }}
-    </div>
-    <div class="message">
-        If you did not request a password reset, you can safely ignore this email.
-    </div>
-    <div class="footer">
-        Thank you,<br>
-        The Argon Team
-    </div>
-</div>
 </body>
 </html>

@@ -1,62 +1,112 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Password Changed</title>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>ArgonChat - Password Changed</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            background-color: #1a1a1a;
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
             margin: 0;
             padding: 0;
-            color: #e0e0e0;
+            color: #333333;
         }
 
         .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background-color: #2a2a2a;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border-left: 6px solid #7e57c2;
+        }
+
+        .inner {
+            padding: 40px 32px;
         }
 
         .header {
-            font-size: 24px;
-            font-weight: bold;
+            font-size: 26px;
+            font-weight: 600;
+            color: #7e57c2;
             text-align: center;
-            color: #03dac6;
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .message {
             font-size: 16px;
-            line-height: 1.5;
-            color: #cccccc;
-            margin-bottom: 20px;
+            line-height: 1.7;
+            color: #444444;
+            margin-bottom: 24px;
             text-align: center;
         }
 
+        .security-note {
+            background-color: #fdf6e3;
+            border-left: 4px solid #ffa726;
+            padding: 16px 20px;
+            font-size: 15px;
+            color: #666666;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+
         .footer {
-            font-size: 14px;
-            color: #888888;
+            font-size: 15px;
+            color: #777777;
             text-align: center;
+            margin-top: 40px;
+        }
+
+        .legal {
+            font-size: 12px;
+            color: #bbbbbb;
+            text-align: center;
+            line-height: 1.5;
             margin-top: 30px;
         }
+
+            .legal a {
+                color: #bbbbbb;
+                text-decoration: none;
+                margin: 0 6px;
+            }
+
+                .legal a:hover {
+                    text-decoration: underline;
+                }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">Password Successfully Changed</div>
+<div class="container">
+    <div class="inner">
+        <div class="header">Your Password Was Changed</div>
+
         <div class="message">
-            Your password has been successfully updated.<br><br>
-            If you did not perform this action, please contact our support immediately.
+            Hello,<br><br>
+            We're letting you know that your password was successfully changed.<br>
+            If this was you — no further action is needed.
         </div>
+
+        <div class="security-note">
+            ⚠️ <strong>If you did not change your password</strong>, please reset it immediately and contact our support team.<br>
+            Your account may be at risk.
+        </div>
+
         <div class="footer">
-            Thank you,<br>
+            Stay secure,<br>
             The Argon Team
         </div>
+
+        <div class="legal">
+            © 2025 Argon Inc. LLC<br>
+            2 Sasna Tsrer str., Yerevan, 0054<br>
+            <a href="https://argon.gl">argon.gl</a><br /><br />
+            You are receiving this service email with important information regarding your account.
+        </div>
     </div>
+</div>
 </body>
 </html>
