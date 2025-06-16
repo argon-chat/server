@@ -1,5 +1,6 @@
 namespace Argon.Features;
 
+using Microsoft.Azure.Amqp.Framing;
 using System.Security.Claims;
 
 public static class HttpContextExtensions

@@ -86,6 +86,6 @@ public class GrpcArgonTransportAuthorizationContext(ServerCallContext RpcContext
 public class WtAuthorizationContext(HttpContext ctx, TransportClientId id) : IArgonTransportAuthorizationContext
 {
     public bool          IsAuthorized => true;
-    public TokenUserData User         => new(id.userId, "unknown");
+    public TokenUserData User         => new(id.userId, id.machineId);
     public Guid          SessionId    => id.sessionId;
 }

@@ -1,9 +1,9 @@
 namespace Argon.Services;
 
-public record TransportClientId(Ulid id, Guid userId, string hash, Guid sessionId)
+public record TransportClientId(Ulid id, Guid userId, string machineId, string hash, Guid sessionId)
 {
     public override string ToString()
-        => $"{userId:N}.{id}.{hash}.{sessionId}";
+        => $"{userId:N}.{id}.{hash}.{sessionId}.{machineId}";
 }
 
 public class TransportExchangeOptions
@@ -24,7 +24,8 @@ public enum ExchangeTokenError
     NONE,
     BAD_KEY,
     INTEGRITY_FAILED,
-    ALREADY_EXCHANGED
+    ALREADY_EXCHANGED,
+    BAD_MACHINE_ID
 }
 
 public interface ITransportExchange
