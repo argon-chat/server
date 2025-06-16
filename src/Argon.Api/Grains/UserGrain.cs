@@ -138,11 +138,12 @@ public class UserGrain(
     //[OneWay]
     public async ValueTask UpdateUserDeviceHistory()
     {
-        await using var ctx    = await context.CreateDbContextAsync();
-        
+        await using var ctx = await context.CreateDbContextAsync();
+
         try
         {
-            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(), this.GetPrimaryKey(), this.GetUserMachineId());
+            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(),
+                this.GetPrimaryKey(), this.GetUserMachineId());
             if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId()))
             {
                 await ctx.DeviceHistories.Where(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId())
@@ -165,7 +166,9 @@ public class UserGrain(
                 });
             }
 
-            Debug.Assert(await ctx.SaveChangesAsync() == 1);
+            var result = await ctx.SaveChangesAsync();
+
+            logger.LogWarning("UpdateUserDeviceHistory, saved {count}", result);
         }
         catch (Exception e)
         {
