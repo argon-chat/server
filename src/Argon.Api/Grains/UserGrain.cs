@@ -139,14 +139,13 @@ public class UserGrain(
     public async ValueTask UpdateUserDeviceHistory()
     {
         await using var ctx    = await context.CreateDbContextAsync();
-        var             userId = this.GetUserId();
         
         try
         {
-            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(), userId, this.GetUserMachineId());
-            if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == userId && x.MachineId == this.GetUserMachineId()))
+            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(), this.GetPrimaryKey(), this.GetUserMachineId());
+            if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId()))
             {
-                await ctx.DeviceHistories.Where(x => x.UserId == userId && x.MachineId == this.GetUserMachineId())
+                await ctx.DeviceHistories.Where(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId())
                    .ExecuteUpdateAsync(q => q
                        .SetProperty(x => x.LastLoginTime, DateTimeOffset.Now)
                        .SetProperty(x => x.RegionAddress, this.GetUserRegion() ?? "unknown")
@@ -162,7 +161,7 @@ public class UserGrain(
                     LastLoginTime = DateTimeOffset.Now,
                     MachineId     = this.GetUserMachineId(),
                     RegionAddress = this.GetUserRegion() ?? "unknown",
-                    UserId        = userId
+                    UserId        = this.GetPrimaryKey()
                 });
             }
 

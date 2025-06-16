@@ -76,6 +76,9 @@ public class AuthorizationGrain(
 
 
         await ctx.SaveChangesAsync();
+
+        
+
         await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
 
         return await GenerateJwt(user, this.GetUserMachineId());

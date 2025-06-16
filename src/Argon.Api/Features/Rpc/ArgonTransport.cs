@@ -57,11 +57,11 @@ public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage st
                 };
 
             if (ctx.IsAuthorized)
-                service.SetUserId(ctx.User.id);
-            service.SetUserIp(ctx.GetIpAddress());
-            service.SetUserMachineId(ctx.GetMachineId());
-            service.SetUserSessionId(ctx.GetSessionId());
-            service.SetUserCountry(ctx.GetRegion());
+                reentrancy.SetUserId(ctx.User.id);
+            reentrancy.SetUserIp(ctx.GetIpAddress());
+            reentrancy.SetUserMachineId(ctx.GetMachineId());
+            reentrancy.SetUserSessionId(ctx.GetSessionId());
+            reentrancy.SetUserCountry(ctx.GetRegion());
 
             var result = await InvokeServiceMethod(service, method, request.Payload);
 
