@@ -1,6 +1,7 @@
 namespace Argon.Features.Repositories;
 
 using System.Diagnostics;
+using Shared;
 
 public interface IServerRepository
 {
@@ -32,7 +33,7 @@ public class ServerRepository(
 
                 var e = await ctx.Servers.AddAsync(server);
 
-                Debug.Assert(await ctx.SaveChangesAsync() == 1);
+                Ensure.That(await ctx.SaveChangesAsync() == 1);
 
                 var sm = new ServerMember
                 {
@@ -44,7 +45,7 @@ public class ServerRepository(
 
                 await ctx.UsersToServerRelations.AddAsync(sm);
 
-                Debug.Assert(await ctx.SaveChangesAsync() == 1);
+                Ensure.That(await ctx.SaveChangesAsync() == 1);
 
                 await CloneArchetypesAsync(ctx, serverId, sm.Id, initiator);
 
@@ -75,7 +76,7 @@ public class ServerRepository(
 
         await ctx.ServerMemberArchetypes.AddAsync(e1);
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
     }
 
 
@@ -100,7 +101,7 @@ public class ServerRepository(
         await ctx.Archetypes.AddAsync(everyone);
         await ctx.Archetypes.AddAsync(owner);
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 2);
+        Ensure.That(await ctx.SaveChangesAsync() == 2);
 
         var e1 = new ServerMemberArchetype()
         {
@@ -110,7 +111,7 @@ public class ServerRepository(
 
         await ctx.ServerMemberArchetypes.AddAsync(e1);
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
 
         var e2 = new ServerMemberArchetype()
         {
@@ -120,6 +121,6 @@ public class ServerRepository(
 
         await ctx.ServerMemberArchetypes.AddAsync(e2);
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
     }
 }

@@ -4,7 +4,9 @@ using Argon.Api.Features.Bus;
 using Features.Repositories;
 using Services.L1L2;
 using System.Diagnostics;
+using System.Diagnostics.Contracts;
 using System.Drawing;
+using Shared;
 
 public class EntitlementGrain(
     IDbContextFactory<ApplicationDbContext> context,
@@ -89,7 +91,7 @@ public class EntitlementGrain(
 
         ctx.Archetypes.Add(arch);
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
 
         await _serverEvents.Fire(new ArchetypeCreated(arch.ToDto()));
 
@@ -159,7 +161,7 @@ public class EntitlementGrain(
 
             if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
             {
-                Debug.Assert(await ctx.SaveChangesAsync() == 1);
+                Ensure.That(await ctx.SaveChangesAsync() == 1);
                 return await Changed(archetypeEntity.Entity);
             }
         }
@@ -176,7 +178,7 @@ public class EntitlementGrain(
         archetype.IsMentionable = dto.IsMentionable;
         archetype.UpdatedAt     = DateTimeOffset.UtcNow;
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
         return await Changed(archetypeEntity.Entity);
 
 
@@ -222,9 +224,9 @@ public class EntitlementGrain(
             ctx.ChannelEntitlementOverwrites.Update(overwrite);
         }
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-
+            
         return overwrite;
     }
 
@@ -245,7 +247,7 @@ public class EntitlementGrain(
         if (overwrite is null) return false;
 
         ctx.ChannelEntitlementOverwrites.Remove(overwrite);
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
         return true;
     }
 
@@ -282,7 +284,7 @@ public class EntitlementGrain(
             ctx.ChannelEntitlementOverwrites.Update(overwrite);
         }
 
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
 
 
         return overwrite;
@@ -336,7 +338,7 @@ public class EntitlementGrain(
                 ArchetypeId    = archetypeId,
                 ServerMemberId = memberId
             });
-            Debug.Assert(await ctx.SaveChangesAsync() == 1);
+            Ensure.That(await ctx.SaveChangesAsync() == 1);
             return true;
         }
 
@@ -347,7 +349,7 @@ public class EntitlementGrain(
         if (e is null) return false;
 
         ctx.ServerMemberArchetypes.Remove(e);
-        Debug.Assert(await ctx.SaveChangesAsync() == 1);
+        Ensure.That(await ctx.SaveChangesAsync() == 1);
         return true;
     }
 
