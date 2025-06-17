@@ -148,7 +148,7 @@ public class UserGrain(
             {
                 await ctx.DeviceHistories.Where(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId())
                    .ExecuteUpdateAsync(q => q
-                       .SetProperty(x => x.LastLoginTime, DateTimeOffset.Now)
+                       .SetProperty(x => x.LastLoginTime, DateTimeOffset.UtcNow)
                        .SetProperty(x => x.RegionAddress, this.GetUserRegion() ?? "unknown")
                        .SetProperty(x => x.LastKnownIP, this.GetUserIp() ?? "unknown"));
             }
@@ -159,7 +159,7 @@ public class UserGrain(
                     AppId         = "unknown",
                     DeviceType    = DeviceTypeKind.WindowsDesktop,
                     LastKnownIP   = this.GetUserIp() ?? "unknown",
-                    LastLoginTime = DateTimeOffset.Now,
+                    LastLoginTime = DateTimeOffset.UtcNow,
                     MachineId     = this.GetUserMachineId(),
                     RegionAddress = this.GetUserRegion() ?? "unknown",
                     UserId        = this.GetPrimaryKey()
