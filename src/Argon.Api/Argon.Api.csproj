@@ -98,5 +98,13 @@
 
     <ItemGroup>
       <Folder Include="Features\Cache\L1L2\" />
+      <Folder Include="Features\Messages\" />
+      <Folder Include="Migrations\Cassandra\" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="Migrations\Cassandra\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
     </ItemGroup>
 </Project>

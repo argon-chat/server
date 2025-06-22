@@ -75,6 +75,12 @@ public static class EnvironmentRoleExtensions
     public static string GetDatacenter(this WebApplicationBuilder builder)
         => builder.Host.Properties["dc"].As<object, string>();
 
+    public static void SetFeatureOptions(this WebApplicationBuilder builder, FeaturesOptions options)
+        => builder.Host.Properties.Add("features", options);
+
+    public static FeaturesOptions GetFeatureOptions(this WebApplicationBuilder builder)
+        => builder.Host.Properties["features"].As<object, FeaturesOptions>();
+
     public static string DetermineClientSpace(this IHostEnvironment env)
     {
         if (env.IsEntryPoint())

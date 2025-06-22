@@ -2,9 +2,6 @@ using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
-using Argon.Features.Template;
-using Argon.Grains;
-using Fluid;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())
@@ -23,6 +20,6 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 
-
+await app.WarmUpCassandra();
 await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>().RunAsync();

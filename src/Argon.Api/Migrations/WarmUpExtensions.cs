@@ -1,6 +1,6 @@
 namespace Argon.Api.Migrations;
 
-using System.Data;
+using Argon.Features.EF;
 using Argon.Features.Env;
 using Argon.Features.Vault;
 using Microsoft.EntityFrameworkCore;
@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Migrations.Internal;
+using System.Data;
 
 public static class WarmUpExtension
 {
@@ -24,6 +25,24 @@ public static class WarmUpExtension
             Migrate(db, scope.ServiceProvider.GetRequiredService<ILogger<T>>(), scope.ServiceProvider);
         else
             db.Database.EnsureCreated();
+        return app;
+    }
+
+    public async static Task<WebApplication> WarmUpCassandra(this WebApplication app)
+    {
+        if (app.Environment.IsEntryPoint())
+            return app;
+
+        var options = app.Services.GetRequiredService<IOptions<FeaturesOptions>>();
+
+        if (!options.Value.UseCassandra) return app;
+
+        using var scope = app.Services.CreateScope();
+
+        var controller = scope.ServiceProvider.GetRequiredService<CassandraMigrationController>();
+
+        await controller.BeginMigrations();
+
         return app;
     }
 

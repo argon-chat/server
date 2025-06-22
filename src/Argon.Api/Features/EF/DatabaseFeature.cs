@@ -26,6 +26,7 @@ public static class DatabaseFeature
                .AddInterceptors(new TimeStampAndSoftDeleteInterceptor(),
                     new RotatableConnectionInterceptor(credentialsProvider));
         }, 512);
+        builder.AddCassandraPooledContext();
     }
 }
 
