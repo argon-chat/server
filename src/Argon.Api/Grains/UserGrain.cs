@@ -148,7 +148,7 @@ public class UserGrain(
             {
                 await ctx.DeviceHistories.Where(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId())
                    .ExecuteUpdateAsync(q => q
-                       .SetProperty(x => x.LastLoginTime, DateTimeOffset.UtcNow)
+                       .SetProperty(x => x.LastLoginTime, (object)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
                        .SetProperty(x => x.RegionAddress, this.GetUserRegion() ?? "unknown")
                        .SetProperty(x => x.LastKnownIP, this.GetUserIp() ?? "unknown"));
             }
