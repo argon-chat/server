@@ -144,13 +144,17 @@ public class UserGrain(
         {
             logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(),
                 this.GetPrimaryKey(), this.GetUserMachineId());
-            if (await ctx.DeviceHistories.AnyAsync(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId()))
+            var history = await ctx.DeviceHistories.FirstOrDefaultAsync(x
+                => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId());
+
+
+            if (history is not null)
             {
-                await ctx.DeviceHistories.Where(x => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId())
-                   .ExecuteUpdateAsync(q => q
-                       .SetProperty(x => x.LastLoginTime, (object)DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())
-                       .SetProperty(x => x.RegionAddress, this.GetUserRegion() ?? "unknown")
-                       .SetProperty(x => x.LastKnownIP, this.GetUserIp() ?? "unknown"));
+                history.LastKnownIP   = this.GetUserIp() ?? "unknown";
+                history.RegionAddress = this.GetUserRegion() ?? "unknown";
+                history.LastLoginTime = DateTimeOffset.UtcNow;
+
+                ctx.Update(history);
             }
             else
             {
