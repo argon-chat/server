@@ -3,7 +3,7 @@
 
 ## Copyright Notice
 
-Copyright (c) 2024, Yuuki Wesp, Aram Hayrapetyan, and all contributors of the Argon repository (argon-chat/server). 
+Copyright (c) 2024-2025, Argon Inc. LLC. 
 All rights reserved.
 
 ## Parameters
