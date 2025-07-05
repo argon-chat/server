@@ -5,6 +5,7 @@ using InfluxDB3.Client.Write;
 using Microsoft.Extensions.Options;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Drawing;
 
 public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOptions> options, ILogger<IPointBuffer> logger)
     : BackgroundService, IPointBuffer
@@ -12,6 +13,7 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
     private readonly InfluxDbOptions            _options       = options.Value;
     private readonly ConcurrentQueue<PointData> _buffer        = new();
     private readonly TimeSpan                   _flushInterval = TimeSpan.FromSeconds(5);
+    private const    int                        MaxBufferSize  = 10000;
 
     public void Enqueue(PointData point) => _buffer.Enqueue(point);
 
@@ -38,13 +40,28 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
                     cancellationToken: stoppingToken
                 );
             }
+            catch (OutOfMemoryException e)
+            {
+                logger.LogCritical(e, "failed write metrics, current queue: {count}", _buffer.Count);
+                logger.LogCritical("metrics buffer out of memory — dropping all point");
+                list.Clear();
+                _buffer.Clear();
+                GC.Collect();
+            }
             catch (Exception e)
             {
-                logger.LogCritical(e, "failed write metrics");
-                foreach (var point in list)
-                    _buffer.Enqueue(point);
-            }
+                logger.LogCritical(e, "failed write metrics, current queue: {count}", _buffer.Count);
 
+                if (_buffer.Count >= MaxBufferSize)
+                {
+                    logger.LogWarning("metrics buffer overflow — dropping oldest point");
+                    foreach (var point in list.Skip(Math.Abs(_buffer.Count - MaxBufferSize)))
+                        _buffer.Enqueue(point);
+                }
+                else
+                    foreach (var point in list)
+                        _buffer.Enqueue(point);
+            }
         }
     }
 }
