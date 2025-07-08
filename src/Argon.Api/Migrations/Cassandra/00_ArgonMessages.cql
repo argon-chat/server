@@ -1,14 +1,14 @@
-CREATE TABLE IF NOT EXISTS argon_messages (
-    server_id UUID,
-    channel_id UUID,
-    message_id BIGINT,
-    author_id UUID,
-    reply BIGINT,
-    text TEXT,
-    entities TEXT,
-    created_at TIMESTAMP,
-    is_deleted BOOLEAN,
-    deleted_at TIMESTAMP,
-    updated_at TIMESTAMP,
-    PRIMARY KEY ((server_id, channel_id), message_id)
-) WITH CLUSTERING ORDER BY (message_id ASC)
+CREATE TABLE IF NOT EXISTS ArgonMessage (
+    MessageId BIGINT,
+    ServerId UUID,
+    ChannelId UUID,
+    CreatorId UUID,
+    Reply BIGINT,
+    Text TEXT,
+    Entities TEXT,
+    CreatedAt TIMESTAMP,
+    IsDeleted BOOLEAN,
+    DeletedAt TIMESTAMP,
+    UpdatedAt TIMESTAMP,
+    PRIMARY KEY ((ServerId, ChannelId), MessageId)
+) WITH CLUSTERING ORDER BY (MessageId ASC)

@@ -123,6 +123,9 @@ public record ArgonMessage : ArgonEntityWithOwnershipNoKey
     public List<MessageEntity> Entities { get; set; } = new();
 }
 
+
+
+
 [MessagePackObject(true)]
 public sealed record ArgonMessageDto(ulong MessageId, ulong? ReplyId, Guid ChannelId, Guid ServerId, string Text, List<MessageEntity> Entities, long TimeSent, Guid Sender);
 

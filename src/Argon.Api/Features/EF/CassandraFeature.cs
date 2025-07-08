@@ -1,7 +1,9 @@
 namespace Argon.Features.EF;
 
-using Cassandra;
+using Argon.Cassandra.Core;
+using Cassandra.Configuration;
 using Env;
+using global::Cassandra;
 
 public static class CassandraFeature
 {
@@ -30,9 +32,25 @@ public static class CassandraFeature
         });
 
         builder.Services.AddSingleton<CassandraMigrationController>();
+        builder.Services.AddSingleton<CassandraConfiguration>(sp =>
+        {
+            var opt = sp.GetRequiredService<IOptions<CassandraOptions>>();
+            return new CassandraConfiguration
+            {
+                ContactPoints      = opt.Value.ContactPoints,
+                Port               = 9042,
+                Keyspace           = opt.Value.KeySpace,
+                AutoCreateKeyspace = true,
+                ReplicationFactor  = 1,
+                ConnectionTimeout  = 30000,
+                QueryTimeout       = 30000
+            };
+        });
+
+        builder.Services.AddScoped<ArgonCassandraDbContext>();
+        builder.Services.AddSingleton<ICassandraDbContextFactory<ArgonCassandraDbContext>, CassandraDbContextFactory<ArgonCassandraDbContext>>();
     }
 }
-
 
 public record CassandraOptions
 {

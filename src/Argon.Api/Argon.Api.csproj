@@ -25,7 +25,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="CassandraCSharpDriver" Version="3.22.0" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
         <PackageReference Include="MailKit" Version="4.12.1" />
         <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.5.0" />
@@ -80,6 +79,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Argon.Cassandra\Argon.Cassandra.csproj" />
         <ProjectReference Include="..\Argon.Contracts\Argon.Shared.csproj" />
         <ProjectReference Include="..\Argon.Metrics\Argon.Metrics.csproj" />
     </ItemGroup>
@@ -94,12 +94,6 @@
         <None Update="Resources\**\*">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-    </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="Features\Cache\L1L2\" />
-      <Folder Include="Features\Messages\" />
-      <Folder Include="Migrations\Cassandra\" />
     </ItemGroup>
 
     <ItemGroup>

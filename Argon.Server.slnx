@@ -9,6 +9,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/Argon.Api/Argon.Api.csproj" />
+    <Project Path="src/Argon.Cassandra/Argon.Cassandra.csproj" Id="d4102e01-48e2-4796-8c3f-1ae701d44c65" />
     <Project Path="src/Argon.Contracts/Argon.Shared.csproj" />
     <Project Path="src/Argon.Metrics/Argon.Metrics.csproj" />
   </Folder>

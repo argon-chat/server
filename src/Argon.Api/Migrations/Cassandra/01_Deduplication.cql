@@ -1,7 +1,7 @@
-CREATE TABLE IF NOT EXISTS message_deduplication (
-    server_id UUID,
-    channel_id UUID,
-    random_id BIGINT,
-    message_id BIGINT,
-    PRIMARY KEY ((server_id, channel_id), random_id)
+CREATE TABLE IF NOT EXISTS ArgonMessageDeduplication (
+    ServerId UUID,
+    ChannelId UUID,
+    RandomId BIGINT,
+    MessageId BIGINT,
+    PRIMARY KEY ((ServerId, ChannelId), RandomId)
 )

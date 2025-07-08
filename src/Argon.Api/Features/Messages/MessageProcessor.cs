@@ -1,145 +1,52 @@
 namespace Argon.Features.Messages;
 
-using Cassandra;
 using System;
-using Newtonsoft.Json;
-
-public class MessageProcessor(ISession cassandraSession)
+using Cassandra.Features.Messages;
+using Entities;
+public class MessageProcessor(ArgonCassandraDbContext ctx)
 {
-    private static readonly JsonSerializerSettings _settings = new()
-    {
-        TypeNameHandling = TypeNameHandling.All,
-        Formatting       = Formatting.None,
-        Converters       = [new PolymorphicListConverter<MessageEntity>()]
-    };
-
     public async Task<List<ArgonMessage>> QueryMessages(
         Guid serverId,
         Guid channelId,
-        long? fromMessageId = null,
-        int limit = 50
-    )
+        ulong? fromMessageId = null,
+        int limit = 50)
     {
-        var parameters = new List<object>
-        {
-            serverId,
-            channelId
-        };
-        var cql = "SELECT message_id, reply, text, entities, author_id, created_at, is_deleted, deleted_at, updated_at " +
-                  "FROM argon_messages WHERE server_id = ? AND channel_id = ?";
+        var query = ctx.ArgonMessages
+           .Where(m => m.ServerId == serverId && m.ChannelId == channelId);
 
-        if (fromMessageId is not null)
-        {
-            cql += " AND message_id >= ?";
-            parameters.Add(fromMessageId.Value);
-        }
+        if (fromMessageId.HasValue)
+            query = query.Where(m => m.MessageId >= fromMessageId.Value);
 
-        cql += " LIMIT ?";
-        parameters.Add(limit);
-
-        var statement = new SimpleStatement(cql, parameters.ToArray());
-        var rowSet    = await cassandraSession.ExecuteAsync(statement);
-
-        return rowSet.Select(row => new ArgonMessage
-            {
-                ServerId  = serverId,
-                ChannelId = channelId,
-                MessageId = unchecked((ulong)row.GetValue<long>("message_id")),
-                Reply     = row.IsNull("reply") ? null : unchecked((ulong?)row.GetValue<long>("reply")),
-                Text      = row.GetValue<string>("text") ?? string.Empty,
-                Entities  = JsonConvert.DeserializeObject<List<MessageEntity>>(row.GetValue<string>("entities") ?? "[]", _settings) ?? [],
-                CreatorId = row.GetValue<Guid>("author_id"),
-                CreatedAt = row.GetValue<DateTimeOffset>("created_at"),
-                IsDeleted = row.GetValue<bool>("is_deleted"),
-                DeletedAt = row.IsNull("deleted_at") ? null : row.GetValue<DateTimeOffset?>("deleted_at"),
-                UpdatedAt = row.GetValue<DateTimeOffset>("updated_at")
-            })
-           .ToList();
+        return await query
+           .OrderBy(m => m.MessageId)
+           .Take(limit)
+           .ToListAsync();
     }
 
-    public async Task<List<ArgonMessage>> GetMessages(Guid serverId, Guid channelId, int count, int offset)
+
+    
+    public async Task<bool> CheckDuplicationAsync(ArgonMessage msg, ulong randomId)
     {
-        var fetch = count + offset;
+        var (serverId, channelId) = (msg.ServerId, msg.ChannelId);
 
-        var cql = "SELECT message_id, reply, text, entities, author_id, created_at, is_deleted, deleted_at, updated_at " +
-                  "FROM argon_messages WHERE server_id = ? AND channel_id = ? ORDER BY message_id DESC LIMIT ?";
-
-        var statement = new SimpleStatement(cql, serverId, channelId, fetch)
-           .SetAutoPage(false)
-           .SetPageSize(fetch);
-
-        var rowSet = await cassandraSession.ExecuteAsync(statement);
-        var result = new List<ArgonMessage>(count);
-        var i      = 0;
-
-        foreach (var row in rowSet)
-        {
-            if (i++ < offset) continue;
-            if (result.Count == count) break;
-
-            result.Add(new ArgonMessage
-            {
-                ServerId  = serverId,
-                ChannelId = channelId,
-                MessageId = unchecked((ulong)row.GetValue<long>("message_id")),
-                Reply     = row.IsNull("reply") ? null : unchecked((ulong?)row.GetValue<long>("reply")),
-                Text      = row.GetValue<string>("text") ?? string.Empty,
-                Entities  = JsonConvert.DeserializeObject<List<MessageEntity>>(row.GetValue<string>("entities") ?? "[]", _settings) ?? [],
-                CreatorId = row.GetValue<Guid>("author_id"),
-                CreatedAt = row.GetValue<DateTimeOffset>("created_at"),
-                IsDeleted = row.GetValue<bool>("is_deleted"),
-                DeletedAt = row.IsNull("deleted_at") ? null : row.GetValue<DateTimeOffset?>("deleted_at"),
-                UpdatedAt = row.GetValue<DateTimeOffset>("updated_at")
-            });
-        }
-
-        return result;
+        return ctx.Set<ArgonMessageDeduplication>()
+           .Any(x => x.RandomId == randomId && x.ChannelId == channelId && x.ServerId == serverId);
     }
 
-    public Task<RowSet?> ExecuteDeduplicationAsync(ArgonMessage msg, long randomId)
-        => cassandraSession.ExecuteAsync(new SimpleStatement(
-            "SELECT message_id FROM message_deduplication WHERE server_id=? AND channel_id=? AND random_id=?",
-            msg.ServerId, msg.ChannelId, randomId
-        ));
-
-    public async Task<RowSet?> ExecuteInsertMessage(ulong nextMessageId, ArgonMessage msg, long randomId)
+    public async Task ExecuteInsertMessage(ulong nextMessageId, ArgonMessage msg, ulong randomId)
     {
-        var entitiesJson = JsonConvert.SerializeObject(msg.Entities ?? [], _settings);
-        var now          = DateTimeOffset.UtcNow;
-
-        var batch = new BatchStatement()
-           .Add(new SimpleStatement(
-                "INSERT INTO argon_messages (server_id, channel_id, message_id, author_id, reply, text, entities, created_at, is_deleted, deleted_at, updated_at) " +
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                msg.ServerId,
-                msg.ChannelId,
-                unchecked((long)nextMessageId),
-                msg.CreatorId,
-                msg.Reply ?? null,
-                msg.Text,
-                entitiesJson,
-                now,
-                false,
-                null,
-                now
-            ))
-           .Add(new SimpleStatement(
-                "INSERT INTO message_deduplication (server_id, channel_id, random_id, message_id) " +
-                "VALUES (?, ?, ?, ?) USING TTL 86400",
-                msg.ServerId,
-                msg.ChannelId,
-                randomId,
-                unchecked((long)nextMessageId)
-            ));
-
-        var rowSet = await cassandraSession.ExecuteAsync(batch);
-
         msg.MessageId = nextMessageId;
-        msg.CreatedAt = now;
-        msg.UpdatedAt = now;
-        msg.IsDeleted = false;
-        msg.DeletedAt = null;
 
-        return rowSet;
+        await ctx.Set<ArgonMessage>()
+           .AddAsync(msg);
+        await ctx.Set<ArgonMessageDeduplication>()
+           .AddAsync(new ArgonMessageDeduplication()
+            {
+                ChannelId = msg.ChannelId,
+                MessageId = nextMessageId,
+                RandomId  = randomId,
+                ServerId  = msg.ServerId 
+           });
+        await ctx.SaveChangesAsync();
     }
 }
