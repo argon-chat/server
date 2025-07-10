@@ -1,4 +1,4 @@
-﻿namespace Argon.Entities;
+namespace Argon.Entities;
 
 using Cassandra.Mapping;
 using Newtonsoft.Json;
@@ -17,4 +17,28 @@ public class MessageEntityConverter : ICassandraConverter<List<MessageEntity>, s
 
     public List<MessageEntity> ConvertFrom(string @out)
         => JsonConvert.DeserializeObject<List<MessageEntity>>(@out ?? "[]", _settings) ?? [];
+}
+
+public class DateTimeConverter : ICassandraConverter<DateTimeOffset, long>
+{
+    public long ConvertTo(DateTimeOffset @in)
+        => @in.ToUnixTimeMilliseconds();
+
+    public DateTimeOffset ConvertFrom(long @out)
+        => DateTimeOffset.FromUnixTimeMilliseconds(@out);
+}
+
+public class DateTimeNullableConverter : ICassandraConverter<DateTimeOffset?, long?>
+{
+    public long? ConvertTo(DateTimeOffset? @in)
+    {
+        if (@in is null) return null;
+        return @in.Value.ToUnixTimeMilliseconds();
+    }
+
+    public DateTimeOffset? ConvertFrom(long? @out)
+    {
+        if (@out is null) return null;
+        return DateTimeOffset.FromUnixTimeMilliseconds(@out.Value);
+    }
 }

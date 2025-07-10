@@ -130,34 +130,12 @@ public class CassandraHealthCheck(ICluster cluster, ILogger? logger = null)
     }
 }
 
-/// <summary>
-/// Result of a Cassandra health check
-/// </summary>
 public class HealthCheckResult
 {
-    /// <summary>
-    /// Whether the cluster is healthy and responsive
-    /// </summary>
     public bool IsHealthy { get; set; }
-
-    /// <summary>
-    /// Response time for the health check
-    /// </summary>
     public TimeSpan ResponseTime { get; set; }
-
-    /// <summary>
-    /// Cassandra version if available
-    /// </summary>
     public string? CassandraVersion { get; set; }
-
-    /// <summary>
-    /// Human-readable message about the health status
-    /// </summary>
     public string Message { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Exception that occurred during health check (if any)
-    /// </summary>
     public Exception? Exception { get; set; }
 
     public override string ToString()

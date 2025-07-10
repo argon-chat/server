@@ -1,8 +1,9 @@
 namespace Argon.Features.Messages;
 
-using System;
 using Cassandra.Features.Messages;
 using Entities;
+using System;
+
 public class MessageProcessor(ArgonCassandraDbContext ctx)
 {
     public async Task<List<ArgonMessage>> QueryMessages(
@@ -11,20 +12,18 @@ public class MessageProcessor(ArgonCassandraDbContext ctx)
         ulong? fromMessageId = null,
         int limit = 50)
     {
-        var query = ctx.ArgonMessages
-           .Where(m => m.ServerId == serverId && m.ChannelId == channelId);
-
         if (fromMessageId.HasValue)
-            query = query.Where(m => m.MessageId >= fromMessageId.Value);
-
-        return await query
-           .OrderBy(m => m.MessageId)
-           .Take(limit)
+            return await ctx.ArgonMessages
+               .Where(m => m.ServerId == serverId && m.ChannelId == channelId && m.MessageId < fromMessageId.Value)
+               .OrderByDescending(m => m.MessageId)
+               .ToListAsync();
+        return await ctx.ArgonMessages
+           .Where(m => m.ServerId == serverId && m.ChannelId == channelId)
+           .OrderByDescending(m => m.MessageId)
            .ToListAsync();
     }
 
 
-    
     public async Task<bool> CheckDuplicationAsync(ArgonMessage msg, ulong randomId)
     {
         var (serverId, channelId) = (msg.ServerId, msg.ChannelId);
@@ -45,8 +44,8 @@ public class MessageProcessor(ArgonCassandraDbContext ctx)
                 ChannelId = msg.ChannelId,
                 MessageId = nextMessageId,
                 RandomId  = randomId,
-                ServerId  = msg.ServerId 
-           });
+                ServerId  = msg.ServerId
+            });
         await ctx.SaveChangesAsync();
     }
 }

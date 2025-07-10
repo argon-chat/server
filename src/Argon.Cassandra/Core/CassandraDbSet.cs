@@ -18,11 +18,12 @@ public class CassandraDbSet<T> : IQueryable<T>, IAsyncQueryProvider, IAsyncEnume
     /// Initializes a new instance of the CassandraDbSet class.
     /// </summary>
     /// <param name="context">The context this set belongs to.</param>
-    public CassandraDbSet(CassandraDbContext context)
+    /// <param name="logger"></param>
+    public CassandraDbSet(CassandraDbContext context, ILogger<CassandraQueryProvider<T>> logger)
     {
         _context       = context;
-        _queryProvider = new CassandraQueryProvider<T>(context);
-        Expression    = Expression.Constant(this);
+        _queryProvider = new CassandraQueryProvider<T>(context, logger);
+        Expression     = Expression.Constant(this);
     }
 
     /// <summary>
@@ -62,7 +63,8 @@ public class CassandraDbSet<T> : IQueryable<T>, IAsyncQueryProvider, IAsyncEnume
     public async IAsyncEnumerator<T> GetAsyncEnumerator(CancellationToken cancellationToken = default)
     {
         var entities = await _queryProvider.DoExecuteAsync<IEnumerable<T>>(Expression, cancellationToken);
-        foreach (var item in entities)
+
+        foreach (var item in entities!)
             yield return item;
     }
 
@@ -84,9 +86,7 @@ public class CassandraDbSet<T> : IQueryable<T>, IAsyncQueryProvider, IAsyncEnume
     public void Add(T entity, int ttl)
     {
         if (entity == null) throw new ArgumentNullException(nameof(entity));
-        if (entity is IWithTTL withTtl)
-            withTtl.TtlSeconds = ttl;
-        _context.TrackEntity(entity, EntityState.Added);
+        _context.TrackEntity(entity, EntityState.Added, ttl);
     }
 
     /// <summary>

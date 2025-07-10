@@ -89,7 +89,7 @@ public class CassandraMetrics(ILogger? logger = null)
     public OperationMetrics? GetOperationMetrics(string operationType, string tableName)
     {
         var key = $"{operationType}:{tableName}";
-        return _operationMetrics.TryGetValue(key, out var metrics) ? metrics : null;
+        return _operationMetrics.GetValueOrDefault(key);
     }
 
     /// <summary>

@@ -165,8 +165,9 @@ public class ChannelGrain(
             Entities  = entities,
             Text      = text,
             MessageId = msgId,
-            CreatedAt = DateTime.UtcNow,
-            Reply = replyTo
+            CreatedAt = DateTimeOffset.UtcNow,
+            Reply     = replyTo,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
 
         var dup = await processor.CheckDuplicationAsync(message, rand);

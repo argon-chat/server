@@ -39,14 +39,12 @@ public static class CassandraQueryableExtensions
     public async static Task<T?> FirstOrDefaultAsync<T>(this IQueryable<T> queryable, CancellationToken cancellationToken = default) where T : class
     {
         if (queryable is Query.CassandraQuery<T> cassandraQuery)
-        {
             return await cassandraQuery.FirstOrDefaultAsync(cancellationToken);
-        }
 
         if (queryable is IAsyncEnumerable<T> asyncEnumerable)
         {
             await using var enumerator = asyncEnumerable.GetAsyncEnumerator(cancellationToken);
-            return await enumerator.MoveNextAsync() ? enumerator.Current : default;
+            return await enumerator.MoveNextAsync() ? enumerator.Current : null;
         }
 
         return queryable.FirstOrDefault();
@@ -60,9 +58,7 @@ public static class CassandraQueryableExtensions
     public async static Task<T?> SingleOrDefaultAsync<T>(this IQueryable<T> queryable, CancellationToken cancellationToken = default) where T : class
     {
         if (queryable is Query.CassandraQuery<T> cassandraQuery)
-        {
             return await cassandraQuery.SingleOrDefaultAsync(cancellationToken);
-        }
 
         if (queryable is IAsyncEnumerable<T> asyncEnumerable)
         {
@@ -87,9 +83,7 @@ public static class CassandraQueryableExtensions
     public async static Task<List<T>> ToListAsync<T>(this IQueryable<T> queryable, CancellationToken cancellationToken = default) where T : class
     {
         if (queryable is Query.CassandraQuery<T> cassandraQuery)
-        {
             return await cassandraQuery.ToListAsync(cancellationToken);
-        }
 
         if (queryable is IAsyncEnumerable<T> asyncEnumerable)
         {
@@ -112,9 +106,7 @@ public static class CassandraQueryableExtensions
     public async static Task<int> CountAsync<T>(this IQueryable<T> queryable, CancellationToken cancellationToken = default) where T : class
     {
         if (queryable is Query.CassandraQuery<T> cassandraQuery)
-        {
             return await cassandraQuery.CountAsync(cancellationToken);
-        }
 
         if (queryable is IAsyncEnumerable<T> asyncEnumerable)
         {
@@ -245,18 +237,14 @@ public static class CassandraQueryableExtensions
         if (queryable is IAsyncEnumerable<T> asyncEnumerable)
         {
             await foreach (var item in asyncEnumerable.WithCancellation(cancellationToken))
-            {
                 yield return item;
-            }
         }
         else
         {
             // Fallback to ToListAsync and iterate
             var list = await ToListAsync(queryable, cancellationToken);
             foreach (var item in list)
-            {
                 yield return item;
-            }
         }
     }
 }

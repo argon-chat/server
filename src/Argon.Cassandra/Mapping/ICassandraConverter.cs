@@ -20,7 +20,11 @@ public interface ICassandraConverter<TIn, TOut> : ICassandraConverter
         => (TOut)ConvertTo((TIn)@in)!;
 
     object ICassandraConverter.BoxedConvertFrom([NotNull] object @from)
-        => (TIn)ConvertFrom((TOut)@from)!;
+    {
+        if (@from.GetType() == typeof(TIn))
+            return @from;
+        return (TIn)ConvertFrom((TOut)from)!;
+    }
 
     TOut ConvertTo(TIn @in);
     TIn ConvertFrom(TOut @out);

@@ -1,10 +1,12 @@
 namespace Argon.Cassandra.Core;
 
-using Mapping;
+using Argon.Cassandra.Query;
 using Collections;
 using Configuration;
 using global::Cassandra.Serialization;
+using Mapping;
 using MaterializedViews;
+using Microsoft.Extensions.DependencyInjection;
 using static Mapping.EntityMetadataCache;
 
 /// <summary>
@@ -14,7 +16,8 @@ using static Mapping.EntityMetadataCache;
 public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
 {
     private readonly ConcurrentDictionary<Type, object>            entitySets = new();
-    private readonly ILogger?                                      logger;
+    private readonly IServiceProvider                              _serviceProvider;
+    private readonly ILogger<CassandraDbContext>?                  logger;
     private readonly ConcurrentDictionary<object, EntityStateInfo> entityStates = new();
     private          Cluster?                                      cluster;
     private          ISession?                                     session;
@@ -41,21 +44,16 @@ public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
     protected CassandraConfiguration Configuration { get; }
 
     /// <summary>
-    /// Initializes a new instance of the CassandraDbContext with default configuration.
-    /// </summary>
-    protected CassandraDbContext() : this(new CassandraConfiguration())
-    {
-    }
-
-    /// <summary>
     /// Initializes a new instance of the CassandraDbContext with the specified configuration.
     /// </summary>
     /// <param name="configuration">The configuration to use for this context.</param>
+    /// <param name="serviceProvider"></param>
     /// <param name="logger">Optional logger for diagnostics.</param>
-    protected CassandraDbContext(CassandraConfiguration configuration, ILogger? logger = null)
+    protected CassandraDbContext(CassandraConfiguration configuration, IServiceProvider serviceProvider, ILogger<CassandraDbContext> logger)
     {
-        this.Configuration = configuration ?? throw new ArgumentNullException(nameof(configuration));
-        this.logger        = logger;
+        this.Configuration    = configuration ?? throw new ArgumentNullException(nameof(configuration));
+        this._serviceProvider = serviceProvider;
+        this.logger           = logger;
         Initialize();
     }
 
@@ -72,9 +70,8 @@ public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
         {
             var entityType = property.PropertyType.GetGenericArguments()[0];
             var dbSetType  = typeof(CassandraDbSet<>).MakeGenericType(entityType);
-            var dbSet = Activator.CreateInstance(dbSetType, this) ??
+            var dbSet = ActivatorUtilities.CreateInstance(_serviceProvider, dbSetType, this) ??
                         throw new InvalidOperationException($"Cannot create CassandraDbSet");
-
             if (property.CanWrite)
                 property.SetValue(this, dbSet);
             entitySets[entityType] = dbSet;
@@ -170,7 +167,7 @@ public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
             return (CassandraDbSet<T>)existingSet;
         }
 
-        var dbSet = new CassandraDbSet<T>(this);
+        var dbSet = new CassandraDbSet<T>(this, _serviceProvider.GetRequiredService<ILogger<CassandraQueryProvider<T>>>());
         entitySets[entityType] = dbSet;
         return dbSet;
     }
@@ -582,7 +579,7 @@ public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
         if (entitySets.TryGetValue(viewType, out var existingSet))
             return (CassandraDbSet<TView>)existingSet;
 
-        var dbSet = new CassandraDbSet<TView>(this);
+        var dbSet = new CassandraDbSet<TView>(this, _serviceProvider.GetRequiredService<ILogger<CassandraQueryProvider<TView>>>());
         entitySets[viewType] = dbSet;
         return dbSet;
     }
