@@ -2,6 +2,8 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Argon.Features.Messages;
+using Cassandra.Core;
+using Microsoft.EntityFrameworkCore;
 using Orleans.Concurrency;
 using Orleans.GrainDirectory;
 using Orleans.Providers;
@@ -15,7 +17,7 @@ public class ChannelGrain(
     IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
     IDbContextFactory<ApplicationDbContext> context,
-    Cassandra.ISession cassandraSession) : Grain, IChannelGrain
+    ICassandraDbContextFactory<ArgonCassandraDbContext> cassandraContext) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -43,7 +45,7 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
-    public Task<List<ArgonMessage>> GetMessages(int count, int offset)
+    public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
     {
         //await using var ctx = await context.CreateDbContextAsync();
         //var messages = await ctx.Messages
@@ -55,10 +57,16 @@ public class ChannelGrain(
         //   .ToListAsync();
 
         //return messages;
+        return [];
+    }
 
-        var processor = new MessageProcessor(cassandraSession);
+    public async Task<List<ArgonMessage>> QueryMessages(ulong? @from, int limit)
+    {
+        await using var ctx = await cassandraContext.CreateDbContextAsync();
 
-        return processor.GetMessages(ServerId.id, this.GetPrimaryKey(), count, offset);
+        var processor = new MessageProcessor(ctx.Context);
+
+        return await processor.QueryMessages(_self.ServerId, this.GetPrimaryKey(), @from, limit);
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
@@ -139,13 +147,15 @@ public class ChannelGrain(
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
         var senderId = this.GetUserId();
 
-        var processor = new MessageProcessor(cassandraSession);
+        await using var csCtx = await cassandraContext.CreateDbContextAsync();
+
+        var processor = new MessageProcessor(csCtx.Context);
 
         await using var ctx = await context.CreateDbContextAsync();
 
         var msgId = await ctx.GenerateNextMessageId(_self.ServerId, this.GetPrimaryKey());
 
-        var rand = Random.Shared.NextInt64(long.MinValue, long.MaxValue);
+        var rand = (unchecked((ulong)Random.Shared.NextInt64(long.MinValue, long.MaxValue)));
 
         var message = new ArgonMessage
         {
@@ -155,14 +165,14 @@ public class ChannelGrain(
             Entities  = entities,
             Text      = text,
             MessageId = msgId,
-            CreatedAt = DateTime.UtcNow,
-            Reply = replyTo
+            CreatedAt = DateTimeOffset.UtcNow,
+            Reply     = replyTo,
+            UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        var dup = await processor.ExecuteDeduplicationAsync(message, rand);
+        var dup = await processor.CheckDuplicationAsync(message, rand);
 
-        if (dup?.FirstOrDefault() != null)
-            return;
+        if (dup) return;
 
         await processor.ExecuteInsertMessage(msgId, message, rand);
 

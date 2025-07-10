@@ -25,6 +25,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias(nameof(GetMessages))]
     Task<List<ArgonMessage>> GetMessages(int count, int offset);
 
+    [Alias(nameof(QueryMessages))]
+    Task<List<ArgonMessage>> QueryMessages(ulong? @from, int limit);
+
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();
 

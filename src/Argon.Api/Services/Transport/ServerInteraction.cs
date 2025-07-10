@@ -67,6 +67,12 @@ public class ServerInteraction : IServerInteraction
            .GetMessages(count, offset)
            .ToDto();
 
+    public Task<List<ArgonMessageDto>> QueryMessages(Guid channelId, ulong? @from, int limit)
+        => this.GetGrainFactory()
+           .GetGrain<IChannelGrain>(channelId)
+           .QueryMessages(@from, limit)
+           .ToDto();
+
     // TODO use access key
     public Task<UserDto> PrefetchUser(Guid serverId, Guid userId)
         => this.GetGrainFactory().GetGrain<IUserGrain>(userId).GetMe().ToDto();

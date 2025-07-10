@@ -15,7 +15,11 @@ public class InfluxBatchWriter(Lazy<InfluxDBClient> client, IOptions<InfluxDbOpt
     private readonly TimeSpan                   _flushInterval = TimeSpan.FromSeconds(5);
     private const    int                        MaxBufferSize  = 10000;
 
-    public void Enqueue(PointData point) => _buffer.Enqueue(point);
+    public void Enqueue(PointData point)
+    {
+        if (!_options.IsEnabled) return;
+        _buffer.Enqueue(point);
+    }
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {

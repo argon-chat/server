@@ -1,38 +1,34 @@
 namespace Argon.Features.EF;
 
-using Cassandra;
+using Cassandra.Core;
 
 public class CassandraMigrationController(
-    ICluster cluster, 
+    ICassandraDbContextFactory<ArgonCassandraDbContext> dbCtx, 
     IOptions<CassandraOptions> options, 
     ILogger<CassandraMigrationController> logger)
 {
 
     public async Task BeginMigrations()
     {
-        var conn = await EnsureKeyspaceCreated();
-        await EnsureExistMigrationTable(conn);
-        await ApplyMigrations(conn);
+        await using var ctx = await dbCtx.CreateDbContextAsync();
+        await EnsureKeyspaceCreated(ctx.Context);
+        await EnsureExistMigrationTable(ctx.Context);
+        await ApplyMigrations(ctx.Context);
     }
 
-    private async Task<ISession> EnsureKeyspaceCreated()
+    private Task EnsureKeyspaceCreated(ArgonCassandraDbContext ctx)
     {
-        var conn = await cluster.ConnectAsync();
-
-        var sql =
-            $$"""
-                CREATE KEYSPACE IF NOT EXISTS {{options.Value.KeySpace}}
-                WITH replication = { 'class': 'SimpleStrategy', 'replication_factor': 1 };
-            """;
-
-        await conn.ExecuteAsync(new SimpleStatement(sql));
-
-        return await cluster.ConnectAsync(options.Value.KeySpace);
+        ctx.Session.CreateKeyspaceIfNotExists(options.Value.KeySpace, new Dictionary<string, string>()
+        {
+            { "class", "SimpleStrategy" },
+            { "replication_factor", "1" }
+        });
+        return Task.CompletedTask;
     }
 
-    private async Task ApplyMigrations(ISession session)
+    private async Task ApplyMigrations(ArgonCassandraDbContext ctx)
     {
-        var appliedIds = await GetAppliedMigrationIds(session);
+        var appliedIds = await GetAppliedMigrationIds(ctx);
 
         var migrationFiles = Directory.GetFiles("Migrations/Cassandra", "*.cql")
            .OrderBy(Path.GetFileName)
@@ -51,27 +47,23 @@ public class CassandraMigrationController(
 
             var cql = await File.ReadAllTextAsync(file);
 
-            await session.ExecuteAsync(new SimpleStatement(cql));
+            await ctx.ExecuteCqlAsync(cql);
 
-            await session.ExecuteAsync(new SimpleStatement(
-                "INSERT INTO cassandra_migrations (id, applied_at) VALUES (?, toTimestamp(now()))",
-                id
-            ));
+            await ctx.ExecuteCqlAsync("INSERT INTO cassandra_migrations (id, applied_at) VALUES (?, toTimestamp(now()))",
+                id);
 
             logger.LogInformation("Applied migration: {MigrationId}", id);
         }
     }
 
-    private async Task<HashSet<string>> GetAppliedMigrationIds(ISession session)
+    private async Task<HashSet<string>> GetAppliedMigrationIds(ArgonCassandraDbContext ctx)
     {
-        var result = await session.ExecuteAsync(new SimpleStatement(
-            "SELECT id FROM cassandra_migrations"
-        ));
+        var result = await ctx.ExecuteCqlAsync("SELECT id FROM cassandra_migrations");
 
         return result.Select(row => row.GetValue<string>("id")).ToHashSet();
     }
 
-    private async static Task EnsureExistMigrationTable(ISession session)
+    private async Task EnsureExistMigrationTable(ArgonCassandraDbContext ctx)
     {
         const string sql =
         """
@@ -80,6 +72,6 @@ public class CassandraMigrationController(
            applied_at TIMESTAMP
         )
         """;
-        await session.ExecuteAsync(new SimpleStatement(sql));
+        await ctx.ExecuteCqlAsync(sql);
     }
 }
