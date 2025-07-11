@@ -105,102 +105,138 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
 
     private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx, bool allowHandlePackages = false)
     {
-        using var mem = MemoryPool<byte>.Shared.Rent(4096);
-        
+        using var buffer = MemoryPool<byte>.Shared.Rent(4096);
+
         try
         {
             while (!ctx.ConnectionClosed.IsCancellationRequested)
             {
-                var readResult = await ctx.WebSocket.ReceiveAsync(mem.Memory, CancellationToken.None);
+                ValueWebSocketReceiveResult result;
+                try
+                {
+                    result = await ctx.WebSocket.ReceiveAsync(buffer.Memory, CancellationToken.None);
+                }
+                catch (WebSocketException ex)
+                {
+                    logger.LogWarning(ex, "WebSocket receive failed: {ConnectionId}", ctx.ConnectionId);
+                    break;
+                }
 
-                if (!allowHandlePackages) continue;
+                if (result.MessageType == WebSocketMessageType.Close)
+                {
+                    logger.LogInformation("WebSocket closed: {ConnectionId}, Status: {Status}, Desc: {Description}",
+                        ctx.ConnectionId, ctx.WebSocket.CloseStatus, ctx.WebSocket.CloseStatusDescription);
+                    break;
+                }
+
+                if (result.Count == 0 || !allowHandlePackages)
+                    continue;
 
                 try
                 {
                     using var reentrancy = RequestContext.AllowCallChainReentrancy();
 
-                    var pkg = MessagePackSerializer.Deserialize(typeof(IArgonEvent), mem.Memory[..readResult.Count], null, CancellationToken.None);
-                    await eventCollector.ExecuteEventAsync((pkg as IArgonEvent)!);
+                    var pkg = (IArgonEvent?)MessagePackSerializer.Deserialize(
+                        typeof(IArgonEvent),
+                        buffer.Memory[..result.Count],
+                        null,
+                        CancellationToken.None);
+
+                    if (pkg is not null)
+                        await eventCollector.ExecuteEventAsync(pkg);
                 }
-                catch (CodecNotFoundException e)
+                catch (CodecNotFoundException ex)
                 {
-                    ctx.Abort(new ConnectionAbortedException("failed write pkg [codec error]", e));
+                    logger.LogWarning(ex, "Codec error while reading package, closing connection: {ConnectionId}", ctx.ConnectionId);
+                    ctx.Abort(new ConnectionAbortedException("Codec error in received package", ex));
                     return;
                 }
-                catch (ArgonDropConnectionException e)
+                catch (ArgonDropConnectionException ex)
                 {
-                    ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
+                    logger.LogWarning(ex, "Protocol violation, dropping connection: {ConnectionId}", ctx.ConnectionId);
+                    ctx.Abort(new ConnectionAbortedException("Protocol violation in received package", ex));
                     return;
                 }
-                catch (Exception e)
+                catch (Exception ex)
                 {
-                    logger.LogInformation(e, "Failed write event from user");
+                    logger.LogInformation(ex, "Failed to handle incoming package: {ConnectionId}", ctx.ConnectionId);
                 }
             }
         }
-        catch (WebSocketException e) when (ctx.WebSocket.CloseStatus == (WebSocketCloseStatus?)4999)
-        {
-            logger.LogInformation("Argon Transport normally closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
-        }
-        catch (WebSocketException e)
-        {
-            logger.LogError("Argon Transport reading exception failed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
-        }
         catch (OperationCanceledException)
         {
-            logger.LogWarning("Argon Transport reading closed, {ConnectionId}", ctx.ConnectionId);
-        } // its ok 
-        catch (Exception e)
+            logger.LogWarning("WebSocket reading loop cancelled: {ConnectionId}", ctx.ConnectionId);
+        }
+        catch (Exception ex)
         {
-            logger.LogCritical(e, "Argon Transport closed with exception, {ConnectionId}, {e}", ctx.ConnectionId, e);
-            ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
+            logger.LogCritical(ex, "Unhandled exception in reading loop: {ConnectionId}", ctx.ConnectionId);
+            ctx.Abort(new ConnectionAbortedException("Fatal error in WebSocket loop", ex));
         }
     }
 
+
     private async Task HandleLoopAsync(IArgonStream<IArgonEvent> stream, ArgonTransportFeaturePipe ctx)
     {
-        logger.LogWarning("Argon Transport stream is start");
+        logger.LogWarning("Argon transport write-loop started: {ConnectionId}", ctx.ConnectionId);
 
         try
         {
             await foreach (var item in stream.WithCancellation(ctx.ConnectionClosed))
             {
                 var evType = item.GetType();
-                logger.LogInformation("Success write event '{eventType}'", evType.Name);
-                var msg = MessagePackSerializer.Serialize(evType, item);
+                byte[] msg;
 
                 try
                 {
-                    var result = ctx.WriteAsync(msg);
-                    if (result.IsCompletedSuccessfully)
-                        continue;
-                    logger.LogCritical("Package write '{eventType}' failed, not completed", evType.Name);
+                    msg = MessagePackSerializer.Serialize(evType, item);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "Failed to serialize event '{EventType}': {ConnectionId}", evType.Name, ctx.ConnectionId);
+                    continue; // skip bad event
+                }
+
+                try
+                {
+                    await ctx.WriteAsync(msg);
+                    logger.LogDebug("Sent event '{EventType}' to client: {ConnectionId}", evType.Name, ctx.ConnectionId);
+                }
+                catch (OperationCanceledException)
+                {
+                    logger.LogWarning("Write loop cancelled: {ConnectionId}", ctx.ConnectionId);
                     break;
                 }
-                catch (Exception e)
+                catch (WebSocketException ex)
                 {
-                    logger.LogCritical(e, "Failed write '{eventType}' event to web transport stream", evType.Name);
-
-                    if (ctx.ConnectionClosed.IsCancellationRequested)
-                        break;
+                    logger.LogWarning(ex, "WebSocket write failed: {ConnectionId}", ctx.ConnectionId);
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    logger.LogCritical(ex, "Unexpected write failure for '{EventType}': {ConnectionId}", evType.Name, ctx.ConnectionId);
+                    if (!ctx.ConnectionClosed.IsCancellationRequested)
+                        ctx.Abort(new ConnectionAbortedException("WebSocket write failure", ex));
+                    break;
                 }
             }
         }
-        catch (WebSocketException e)
+        catch (OperationCanceledException)
         {
-            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}, {WebSocketErrorCode}", ctx.ConnectionId, e.WebSocketErrorCode);
+            logger.LogInformation("Write loop gracefully cancelled: {ConnectionId}", ctx.ConnectionId);
         }
-        catch (OperationCanceledException e)
+        catch (WebSocketException ex)
         {
-            logger.LogWarning(e, "Argon Transport writer closed, {ConnectionId}", ctx.ConnectionId);
-        } // its ok 
-        catch (Exception e)
-        {
-            logger.LogCritical(e, "Argon Transport closed with exception, {ConnectionId}, {e}", ctx.ConnectionId, e);
-            ctx.Abort(new ConnectionAbortedException("failed write pkg", e));
+            logger.LogWarning(ex, "WebSocket writer closed with error: {ConnectionId}", ctx.ConnectionId);
         }
-
-        logger.LogInformation("Argon transport stream is ended");
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex, "Write loop crashed: {ConnectionId}", ctx.ConnectionId);
+            ctx.Abort(new ConnectionAbortedException("Fatal write error", ex));
+        }
+        finally
+        {
+            logger.LogInformation("Argon transport write-loop ended: {ConnectionId}", ctx.ConnectionId);
+        }
     }
 
     public async IAsyncEnumerable<T> CombineAsyncEnumerators<T>(params IAsyncEnumerable<T>[] enums)
