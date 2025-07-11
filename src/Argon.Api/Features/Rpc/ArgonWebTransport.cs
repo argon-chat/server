@@ -6,6 +6,7 @@ using Argon.Api.Features.Bus;
 using Grains;
 using Microsoft.AspNetCore.Connections;
 using Orleans.Serialization;
+using static MessagePackSerializer;
 
 public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollector eventCollector) : IArgonWebTransport
 {
@@ -92,8 +93,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 var sessionGrain = clusterClient.GetGrain<IUserSessionGrain>(sessionId);
                 await sessionGrain.BeginRealtimeSession(UserStatus.Online);
                 var stream = await clusterClient.Streams().CreateClientStream(user.id);
-                await Task.WhenAll(HandleLoopAsync(stream, conn), HandleLoopReadingAsync(conn, true));
-                await sessionGrain.EndRealtimeSession();
+                await HandleFullDuplexAsync(stream, conn);
             }
             catch (Exception e)
             {
@@ -103,18 +103,43 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
         }
     }
 
-    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx, bool allowHandlePackages = false)
+    public async Task HandleFullDuplexAsync(IArgonStream<IArgonEvent> stream, ArgonTransportFeaturePipe ctx)
+    {
+        logger.LogInformation("Starting full-duplex WebSocket handling: {ConnectionId}", ctx.ConnectionId);
+
+        using var cts         = CancellationTokenSource.CreateLinkedTokenSource(ctx.ConnectionClosed);
+        var       linkedToken = cts.Token;
+
+        var writer = HandleLoopAsync(stream, ctx, linkedToken);
+        var reader = HandleLoopReadingAsync(ctx, true, linkedToken);
+
+        await Task.WhenAny(reader, writer);
+
+        await cts.CancelAsync();
+
+        try
+        {
+            await Task.WhenAll(reader, writer);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        logger.LogInformation("Full-duplex handling completed: {ConnectionId}", ctx.ConnectionId);
+    }
+
+    private async Task HandleLoopReadingAsync(ArgonTransportFeaturePipe ctx, bool allowHandlePackages = false, CancellationToken ct = default)
     {
         using var buffer = MemoryPool<byte>.Shared.Rent(4096);
 
         try
         {
-            while (!ctx.ConnectionClosed.IsCancellationRequested)
+            while (!ct.IsCancellationRequested)
             {
                 ValueWebSocketReceiveResult result;
                 try
                 {
-                    result = await ctx.WebSocket.ReceiveAsync(buffer.Memory, CancellationToken.None);
+                    result = await ctx.WebSocket.ReceiveAsync(buffer.Memory, ct);
                 }
                 catch (WebSocketException ex)
                 {
@@ -136,7 +161,7 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
                 {
                     using var reentrancy = RequestContext.AllowCallChainReentrancy();
 
-                    var pkg = (IArgonEvent?)MessagePackSerializer.Deserialize(
+                    var pkg = (IArgonEvent?)Deserialize(
                         typeof(IArgonEvent),
                         buffer.Memory[..result.Count],
                         null,
@@ -175,20 +200,20 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
     }
 
 
-    private async Task HandleLoopAsync(IArgonStream<IArgonEvent> stream, ArgonTransportFeaturePipe ctx)
+    private async Task HandleLoopAsync(IArgonStream<IArgonEvent> stream, ArgonTransportFeaturePipe ctx, CancellationToken ct = default)
     {
         logger.LogWarning("Argon transport write-loop started: {ConnectionId}", ctx.ConnectionId);
 
         try
         {
-            await foreach (var item in stream.WithCancellation(ctx.ConnectionClosed))
+            await foreach (var item in stream.WithCancellation(ct))
             {
                 var evType = item.GetType();
                 byte[] msg;
 
                 try
                 {
-                    msg = MessagePackSerializer.Serialize(evType, item);
+                    msg = Serialize(evType, item);
                 }
                 catch (Exception ex)
                 {
