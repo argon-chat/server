@@ -34,6 +34,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserProfile>           UserProfiles       { get; set; }
 
     public DbSet<UsernameReserved> Reservation { get; set; }
+    public DbSet<SpaceCategory>    Categories  { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -225,6 +226,18 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<UserDeviceHistory>()
            .Property(udh => udh.AppId)
            .HasMaxLength(64);
+
+        modelBuilder.Entity<SpaceCategory>()
+           .HasOne(x => x.Server)
+           .WithMany(x => x.SpaceCategories)
+           .HasForeignKey(x => x.ServerId)
+           .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<SpaceCategory>()
+           .HasMany(x => x.Channels)
+           .WithOne(x => x.Category)
+           .HasForeignKey(x => x.CategoryId)
+           .OnDelete(DeleteBehavior.Cascade);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {

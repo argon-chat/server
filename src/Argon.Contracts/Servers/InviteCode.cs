@@ -23,6 +23,22 @@ public record struct InviteCodeEntity(InviteCode code, Guid serverId, Guid issue
 
     public bool HasExpired() => DateTimeOffset.UtcNow > expireTime;
 
+    public static bool TryParseInviteCode(string inviteCode, out ulong? inviteId)
+    {
+        inviteId = null;
+        if (inviteCode.Length is not (9 or 12))
+            return false;
+        try
+        {
+            inviteId = EncodeToUlong(inviteCode);
+            return true;
+        }
+        catch (Exception e)
+        {
+            return false;
+        }
+    }
+
 
     public unsafe static string GenerateInviteCode(int length = 9)
     {

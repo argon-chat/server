@@ -108,4 +108,8 @@ public class ServerInteraction : IServerInteraction
            .GetGrainFactory()
            .GetGrain<IEntitlementGrain>(serverId)
            .SetArchetypeToMember(memberId, archetypeId, isGrant);
+
+
+    public Task<bool> KickMemberFromChannel(Guid serverId, Guid channelId, Guid memberId)
+        => this.GetGrainFactory().GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
 }

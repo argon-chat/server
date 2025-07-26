@@ -36,11 +36,11 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
 
     public static readonly SfuPermission DefaultSystem = new(SfuPermissionFlags.ALL, []);
 
-    public Dictionary<string, object> ToDictionary(ArgonChannelId channelId)
+    public Dictionary<string, object> ToDictionary(ISfuRoomDescriptor channelId)
     {
         var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
         dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
-        dict.Add("room", $"{channelId.serverId.id}-{channelId.channelId}");
+        dict.Add("room", channelId.ToRawRoomId());
         return dict;
     }
 

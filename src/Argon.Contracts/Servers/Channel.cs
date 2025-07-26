@@ -2,9 +2,10 @@ namespace Argon;
 
 using ArchetypeModel;
 using Servers;
+using Shared.Servers;
 
 [TsInterface, MessagePackObject(true)]
-public record Channel : ArgonEntityWithOwnership, IArchetypeObject
+public record Channel : OrderableArgonEntity, IArchetypeObject
 {
     public ChannelType ChannelType { get; set; }
     public Guid        ServerId    { get; set; }
@@ -23,6 +24,9 @@ public record Channel : ArgonEntityWithOwnership, IArchetypeObject
     public virtual ICollection<ChannelEntitlementOverwrite> EntitlementOverwrites { get; set; }
         = new List<ChannelEntitlementOverwrite>();
     public ICollection<IArchetypeOverwrite> Overwrites => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();
+
+    public virtual SpaceCategory? Category   { get; set; }
+    public         Guid?          CategoryId { get; set; }
 }
 
 [TsInterface, MessagePackObject(true)]

@@ -263,26 +263,4 @@ public class ArgonWebTransport(ILogger<IArgonWebTransport> logger, IEventCollect
             logger.LogInformation("Argon transport write-loop ended: {ConnectionId}", ctx.ConnectionId);
         }
     }
-
-    public async IAsyncEnumerable<T> CombineAsyncEnumerators<T>(params IAsyncEnumerable<T>[] enums)
-    {
-        var channel = System.Threading.Channels.Channel.CreateUnbounded<T>();
-        var tasks = enums.Select(async enumerable =>
-        {
-            await foreach (var item in enumerable)
-            {
-                await channel.Writer.WriteAsync(item);
-            }
-        }).ToList();
-
-        _ = Task.WhenAll(tasks).ContinueWith(_ => channel.Writer.Complete());
-
-        while (await channel.Reader.WaitToReadAsync())
-        {
-            while (channel.Reader.TryRead(out var item))
-            {
-                yield return item;
-            }
-        }
-    }
 }

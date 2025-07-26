@@ -45,4 +45,6 @@ public interface IServerInteraction : IArgonService
     Task<ChannelEntitlementOverwrite?>
         UpsertArchetypeEntitlementForChannel(Guid serverId, Guid channelId, Guid archetypeId,
             ArgonEntitlement deny, ArgonEntitlement allow);
+
+    Task<bool> KickMemberFromChannel(Guid serverId, Guid channelId, Guid memberId);
 }

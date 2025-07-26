@@ -2,44 +2,19 @@ namespace Argon.Sfu;
 
 public interface IArgonSelectiveForwardingUnit
 {
-    /// <summary>
-    ///     Issue a realtime authorization token for use RealtimeCall
-    /// </summary>
-    /// <param name="userId">
-    ///     Argon User
-    /// </param>
-    /// <param name="channelId">
-    ///     Argon channel Id (composite server & channel key)
-    /// </param>
-    /// <param name="permission">
-    ///     defined permissions for user
-    /// </param>
-    /// <returns>
-    ///     Realtime token for connect to channel
-    /// </returns>
-    ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonChannelId channelId, SfuPermission permission);
-
-
-    ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ArgonChannelId channelId, SfuPermission permission);
+    const string GRPC_CHANNEL_KEY = $":{nameof(IArgonSelectiveForwardingUnit)}";
+    
+    ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ISfuRoomDescriptor channelId, SfuPermission permission);
+    ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ISfuRoomDescriptor channelId, SfuPermission permission);
     ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, Guid sharedId, SfuPermission permission);
 
-    /// <summary>
-    ///     Set mute or unmute for participant
-    /// </summary>
-    ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ArgonChannelId channelId);
+    ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ISfuRoomDescriptor channelId);
 
-    /// <summary>
-    ///     Kick participant from channel
-    /// </summary>
-    ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ArgonChannelId channelId);
+    ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ISfuRoomDescriptor channelId);
 
-    /// <summary>
-    ///     Get or Create ephemeral channel
-    /// </summary>
-    ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ArgonChannelId channelId, uint maxParticipants);
+    ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ISfuRoomDescriptor channelId, uint maxParticipants);
 
-    /// <summary>
-    ///     dispose ephemeral channel
-    /// </summary>
-    ValueTask<bool> PruneEphemeralChannelAsync(ArgonChannelId channelId);
+    ValueTask<bool> PruneEphemeralChannelAsync(ISfuRoomDescriptor channelId);
+
+    ValueTask<string> BeginRecordAsync(ISfuRoomDescriptor channelId);
 }

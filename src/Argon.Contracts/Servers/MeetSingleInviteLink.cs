@@ -17,14 +17,3 @@ public record MeetSingleInviteLink : ArgonEntityWithOwnership<ulong>
     public string Decode()
         => InviteCodeEntity.DecodeFromUlong(Id);
 }
-
-public enum MeetJoinError
-{
-    OK,
-    NO_LINK_EXIST
-}
-
-
-[MessagePackObject(true), TsInterface]
-public record MeetAuthorizationData(
-    string voiceToken, string accessToken);

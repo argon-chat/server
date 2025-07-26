@@ -1,15 +1,13 @@
 namespace Argon.Services;
 
-using Api.Features.Orleans.Client;
 using Features.Middlewares;
 using Google.Protobuf;
 using Grpc.Core;
-using System.Security.AccessControl;
+using Argon.Transport;
 using Features.Env;
-using Transport;
 
 public class ArgonTransport(IServiceProvider provider, ArgonDescriptorStorage storage, ILogger<ArgonTransport> logger, IHostEnvironment env)
-    : Transport.ArgonTransport.ArgonTransportBase
+    : global::Argon.Transport.ArgonTransport.ArgonTransportBase
 {
     public async override Task<RpcResponse> Unary(RpcRequest request, ServerCallContext context)
     {

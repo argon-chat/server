@@ -39,6 +39,10 @@ public interface IChannelGrain : IGrainWithGuidKey
     ValueTask OnTypingEmit();
     [OneWay, Alias("OnTypingStopEmit")]
     ValueTask OnTypingStopEmit();
+
+
+    [Alias("KickMemberFromChannel")]
+    Task<bool> KickMemberFromChannel(Guid memberId);
 }
 
 [MessagePackObject(true)]

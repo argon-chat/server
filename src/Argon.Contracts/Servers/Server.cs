@@ -1,6 +1,7 @@
 namespace Argon;
 
 using ArchetypeModel;
+using Shared.Servers;
 
 [TsInterface, MessagePackObject(true)]
 public record Server : ArgonEntityWithOwnership, IArchetypeSubject
@@ -23,6 +24,8 @@ public record Server : ArgonEntityWithOwnership, IArchetypeSubject
     public         ICollection<IArchetype>   SubjectArchetypes => Archetypes.OfType<IArchetype>().ToList();
     [TsIgnore]
     public virtual ICollection<ServerInvite> ServerInvites { get; set; } = new List<ServerInvite>();
+
+    public virtual ICollection<SpaceCategory> SpaceCategories { get; set; } = new List<SpaceCategory>();
 }
 
 [MessagePackObject(true), TsInterface]
@@ -34,12 +37,13 @@ public record ServerDto(
     string TopBannerFileId,
     List<Channel> Channels,
     List<ServerMemberDto> Users,
-    List<Archetype> Archetypes);
+    List<Archetype> Archetypes,
+    List<SpaceCategoryDto> Categories);
 
 public static class ServerExtensions
 {
     public static ServerDto ToDto(this Server msg) => new(msg.Id, msg.Name, msg.Description, msg.AvatarFileId, msg.TopBannedFileId,
-        msg.Channels.ToList(), msg.Users.ToList().ToDto(), msg.Archetypes.ToList());
+        msg.Channels.ToList(), msg.Users.ToList().ToDto(), msg.Archetypes.ToList(), msg.SpaceCategories.ToList().ToDto());
 
     public static List<ServerDto> ToDto(this List<Server> msg) => msg.Select(x => x.ToDto()).ToList();
 

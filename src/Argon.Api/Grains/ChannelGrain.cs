@@ -87,6 +87,43 @@ public class ChannelGrain(
     public async ValueTask OnTypingStopEmit()
         => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), ServerId.id, ChannelId.channelId));
 
+    public async Task<bool> KickMemberFromChannel(Guid memberId)
+    {
+        if (_self.ChannelType != ChannelType.Voice)
+            return false;
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var userId = this.GetUserId();
+
+        if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
+            return false;
+
+        return await sfu.KickParticipantAsync(new ArgonUserId(memberId), new ArgonChannelId(this.ServerId, this.GetPrimaryKey()));
+    }
+
+
+    // TODO
+    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
+    {
+        var invoker = await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(x => x.ServerId == ServerId.id && x.UserId == callerId)
+           .Include(x => x.ServerMemberArchetypes)
+           .ThenInclude(x => x.Archetype)
+           .FirstOrDefaultAsync();
+
+        if (invoker is null)
+            return false;
+
+        var invokerArchetypes = invoker
+           .ServerMemberArchetypes
+           .Select(x => x.Archetype)
+           .ToList();
+
+        return invokerArchetypes.Any(x
+            => x.Entitlement.HasFlag(requiredEntitlement));
+    }
 
     public async Task<Either<string, JoinToChannelError>> Join()
     {
