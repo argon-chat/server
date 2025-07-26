@@ -9,10 +9,13 @@ public static class SfuFeature
     {
         builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
 
-        builder.Services.AddKeyedSingleton<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, o) =>
+        builder.Services.AddKeyedScoped<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, o) =>
         {
             var opt = provider.GetRequiredService<IOptions<SfuFeatureSettings>>();
-            return GrpcChannel.ForAddress(opt.Value.Url);
+            return GrpcChannel.ForAddress(opt.Value.Url, new GrpcChannelOptions()
+            {
+                UnsafeUseInsecureChannelCallCredentials = true
+            });
         });
 
         builder.Services.AddScoped<Egress.EgressClient>(provider
