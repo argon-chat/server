@@ -2,6 +2,7 @@ namespace Argon.Sfu;
 
 using Grpc.Core;
 using Grpc.Net.Client;
+using Grpc.Net.Client.Web;
 using LiveKit.Proto;
 
 public static class SfuFeature
@@ -10,25 +11,23 @@ public static class SfuFeature
     {
         builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
 
-        builder.Services.AddKeyedScoped<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, o) =>
+        builder.Services.AddKeyedScoped<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, _) =>
         {
             var opt = provider.GetRequiredService<IOptions<SfuFeatureSettings>>();
-            var httpHandler = new SocketsHttpHandler
+
+            var innerHandler = new HttpClientHandler
             {
-                EnableMultipleHttp2Connections = true
+                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
+            };
+            var grpcWebHandler = new GrpcWebHandler(GrpcWebMode.GrpcWebText, innerHandler)
+            {
+                HttpVersion = new Version(1,1)
             };
 
-            httpHandler.SslOptions = new System.Net.Security.SslClientAuthenticationOptions
-            {
-                EnabledSslProtocols = System.Security.Authentication.SslProtocols.None
-            };
-
-            httpHandler.AllowAutoRedirect = false;
-            httpHandler.UseProxy          = false;
             return GrpcChannel.ForAddress(opt.Value.Url, new GrpcChannelOptions
             {
-                Credentials = ChannelCredentials.Insecure,
-                HttpHandler = httpHandler
+                HttpHandler = grpcWebHandler,
+                Credentials = ChannelCredentials.Insecure 
             });
         });
 

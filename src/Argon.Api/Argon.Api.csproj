@@ -26,6 +26,7 @@
 
     <ItemGroup>
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
+        <PackageReference Include="Grpc.Net.Client.Web" Version="2.71.0" />
         <PackageReference Include="MailKit" Version="4.13.0" />
         <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="9.7.0" />
         <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="9.0.7" />
