@@ -1,5 +1,6 @@
 namespace Argon.Sfu;
 
+using Grpc.Core;
 using Grpc.Net.Client;
 using LiveKit.Proto;
 
@@ -12,9 +13,22 @@ public static class SfuFeature
         builder.Services.AddKeyedScoped<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, o) =>
         {
             var opt = provider.GetRequiredService<IOptions<SfuFeatureSettings>>();
-            return GrpcChannel.ForAddress(opt.Value.Url, new GrpcChannelOptions()
+            var httpHandler = new SocketsHttpHandler
             {
-                UnsafeUseInsecureChannelCallCredentials = true
+                EnableMultipleHttp2Connections = true
+            };
+
+            httpHandler.SslOptions = new System.Net.Security.SslClientAuthenticationOptions
+            {
+                EnabledSslProtocols = System.Security.Authentication.SslProtocols.None
+            };
+
+            httpHandler.AllowAutoRedirect = false;
+            httpHandler.UseProxy          = false;
+            return GrpcChannel.ForAddress(opt.Value.Url, new GrpcChannelOptions
+            {
+                Credentials = ChannelCredentials.Insecure,
+                HttpHandler = httpHandler
             });
         });
 
