@@ -2,7 +2,7 @@ namespace Argon.Sfu;
 
 public interface IArgonSelectiveForwardingUnit
 {
-    const string GRPC_CHANNEL_KEY = $":{nameof(IArgonSelectiveForwardingUnit)}";
+    const string CHANNEL_KEY = $":{nameof(IArgonSelectiveForwardingUnit)}";
     
     ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ISfuRoomDescriptor channelId, SfuPermission permission);
     ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ISfuRoomDescriptor channelId, SfuPermission permission);

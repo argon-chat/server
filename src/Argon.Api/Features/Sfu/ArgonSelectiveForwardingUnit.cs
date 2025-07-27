@@ -1,12 +1,13 @@
 namespace Argon.Sfu;
 
+using Argon.Sfu.Services;
 using Flurl.Http;
+using Grpc.Core;
 using LiveKit.Proto;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using Rpc;
 using System.IdentityModel.Tokens.Jwt;
-using Grpc.Core;
 using static Rpc.Room;
 
 #if DEBUG
@@ -24,8 +25,8 @@ public class ArgonSfuTestController : ControllerBase
 
 public class ArgonSelectiveForwardingUnit(
     IOptions<SfuFeatureSettings> settings,
-    RoomService.RoomServiceClient roomClient,
-    Egress.EgressClient egressClient,
+    TwirlRoomServiceClient roomClient,
+    TwirlEgressClient egressClient,
     ILogger<IArgonSelectiveForwardingUnit> logger) : IArgonSelectiveForwardingUnit
 {
     private static readonly Guid SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);

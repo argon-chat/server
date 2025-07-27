@@ -1,9 +1,14 @@
 namespace Argon.Sfu;
 
+using Argon.Sfu.Services;
+using Flurl.Http;
+using Flurl.Http.Newtonsoft;
 using Grpc.Core;
 using Grpc.Net.Client;
 using Grpc.Net.Client.Web;
 using LiveKit.Proto;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 public static class SfuFeature
 {
@@ -11,36 +16,29 @@ public static class SfuFeature
     {
         builder.Services.Configure<SfuFeatureSettings>(builder.Configuration.GetSection("sfu"));
 
-        builder.Services.AddKeyedScoped<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY, (provider, _) =>
+        builder.Services.AddKeyedScoped<IFlurlClient>(IArgonSelectiveForwardingUnit.CHANNEL_KEY, (provider, _) =>
         {
             var opt = provider.GetRequiredService<IOptions<SfuFeatureSettings>>();
 
-            var innerHandler = new HttpClientHandler
-            {
-                ServerCertificateCustomValidationCallback = HttpClientHandler.DangerousAcceptAnyServerCertificateValidator
-            };
-            var grpcWebHandler = new GrpcWebHandler(GrpcWebMode.GrpcWebText, innerHandler)
-            {
-                HttpVersion = new Version(1,1)
-            };
+            var client = new FlurlClient(opt.Value.Url);
 
-            return GrpcChannel.ForAddress(opt.Value.Url, new GrpcChannelOptions
+            client.Settings.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings()
             {
-                HttpHandler = grpcWebHandler,
-                Credentials = ChannelCredentials.Insecure 
+                ContractResolver = new CamelCasePropertyNamesContractResolver()
             });
-        });
 
-        builder.Services.AddScoped<Egress.EgressClient>(provider
-            => new Egress.EgressClient(provider.GetRequiredKeyedService<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY)));
-        builder.Services.AddScoped<Ingress.IngressClient>(provider
-            => new Ingress.IngressClient(provider.GetRequiredKeyedService<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY)));
-        builder.Services.AddScoped<RoomService.RoomServiceClient>(provider
-            => new RoomService.RoomServiceClient(provider.GetRequiredKeyedService<GrpcChannel>(IArgonSelectiveForwardingUnit.GRPC_CHANNEL_KEY)));
+            return client;
+        });
+        builder.Services.AddScoped<TwirpClient>();
+        builder.Services.AddScoped<TwirlRoomServiceClient>();
+        builder.Services.AddScoped<TwirlEgressClient>();
+        
         builder.Services.AddTransient<IArgonSelectiveForwardingUnit, ArgonSelectiveForwardingUnit>();
         return builder;
     }
 }
+
+
 
 public class SfuFeatureSettings
 {
