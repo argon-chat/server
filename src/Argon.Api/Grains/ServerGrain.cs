@@ -246,11 +246,12 @@ public class ServerGrain(
 
         var channel = new Channel
         {
-            Name        = input.Name,
-            CreatorId   = this.GetUserId(),
-            Description = input.Description,
-            ChannelType = input.ChannelType,
-            ServerId    = this.GetPrimaryKey()
+            Name            = input.Name,
+            CreatorId       = this.GetUserId(),
+            Description     = input.Description,
+            ChannelType     = input.ChannelType,
+            ServerId        = this.GetPrimaryKey(),
+            FractionalIndex = ""
         };
         await ctx.Channels.AddAsync(channel);
         await ctx.SaveChangesAsync();
