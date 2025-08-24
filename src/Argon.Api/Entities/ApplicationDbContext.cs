@@ -1,11 +1,10 @@
 namespace Argon.Entities;
 
-using Features.EF;
 using System.Drawing;
 using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Newtonsoft.Json;
 using Shared.Servers;
+using Argon.Api.Entities.Configurations;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
@@ -38,206 +37,21 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<ArgonMessageCounters>()
-           .ToTable("ArgonMessages_Counters")
-           .HasKey(x => new
-            {
-                x.ChannelId,
-                x.ServerId
-            });
-
-        modelBuilder.Entity<ArgonMessage>()
-           .HasKey(m => new
-            {
-                m.ServerId,
-                m.ChannelId,
-                m.MessageId
-            });
-
-        modelBuilder.Entity<ArgonMessage>()
-           .HasIndex(m => new
-            {
-                m.ServerId,
-                m.ChannelId,
-                m.MessageId
-            })
-           .IsUnique();
-
-
-        modelBuilder.Entity<ArgonMessage>()
-           .Property(m => m.MessageId);
-
-        modelBuilder.Entity<ArgonMessage>()
-           .Property(m => m.Entities)
-           .HasConversion<PolyListNewtonsoftJsonValueConverter<List<MessageEntity>, MessageEntity>>()
-           .HasColumnType("jsonb");
-
-        modelBuilder.Entity<UsernameReserved>()
-           .HasIndex(x => x.NormalizedUserName)
-           .IsUnique();
-
-        //modelBuilder.Entity<ArgonMessage>()
-        //   .Property(x => x.CreatedAt)
-        //   .HasColumnType("timestamp with time zone")
-        //   .HasConversion(
-        //        v => v,
-        //        v => DateTime.SpecifyKind(v, DateTimeKind.Utc)
-        //    );
-
-        modelBuilder.Entity<ArgonMessageReaction>()
-           .HasKey(r => new
-            {
-                r.ServerId,
-                r.ChannelId,
-                r.MessageId,
-                r.UserId,
-                r.Reaction
-            });
-
-        modelBuilder.Entity<ArgonMessageReaction>()
-           .HasIndex(r => new
-            {
-                r.ServerId,
-                r.ChannelId,
-                r.MessageId
-            })
-           .IsUnique();
-
-        modelBuilder.Entity<ServerMemberArchetype>()
-           .HasKey(x => new
-            {
-                x.ServerMemberId,
-                x.ArchetypeId
-            });
-
-        modelBuilder.Entity<ServerMemberArchetype>()
-           .HasOne(x => x.ServerMember)
-           .WithMany(x => x.ServerMemberArchetypes)
-           .HasForeignKey(x => x.ServerMemberId);
-
-        modelBuilder.Entity<ServerMemberArchetype>()
-           .HasOne(x => x.Archetype)
-           .WithMany(x => x.ServerMemberRoles)
-           .HasForeignKey(x => x.ArchetypeId);
-
-        modelBuilder.Entity<Archetype>()
-           .HasOne(x => x.Server)
-           .WithMany(x => x.Archetypes)
-           .HasForeignKey(x => x.ServerId);
-
-        modelBuilder.Entity<Archetype>()
-           .Property(x => x.Colour)
-           .HasConversion<ColourConverter>();
-
-        modelBuilder.Entity<ServerMember>()
-           .HasOne(x => x.Server)
-           .WithMany(x => x.Users)
-           .HasForeignKey(x => x.ServerId);
-
-        modelBuilder.Entity<ServerMember>()
-           .HasOne(x => x.User)
-           .WithMany(x => x.ServerMembers)
-           .HasForeignKey(x => x.UserId);
-
-        modelBuilder.Entity<ServerInvite>()
-           .HasOne(c => c.Server)
-           .WithMany(s => s.ServerInvites)
-           .HasForeignKey(c => c.ServerId);
-
-        modelBuilder.Entity<ServerInvite>()
-           .HasKey(x => x.Id);
-
-        modelBuilder.Entity<MeetSingleInviteLink>()
-           .HasKey(x => x.Id);
-
-        modelBuilder.Entity<Channel>()
-           .HasOne(c => c.Server)
-           .WithMany(s => s.Channels)
-           .HasForeignKey(c => c.ServerId);
-
-        modelBuilder.Entity<Channel>()
-           .HasIndex(x => new
-            {
-                x.Id,
-                x.ServerId
-            });
-
-        modelBuilder.Entity<ChannelEntitlementOverwrite>()
-           .HasOne(cpo => cpo.Channel)
-           .WithMany(c => c.EntitlementOverwrites)
-           .HasForeignKey(cpo => cpo.ChannelId);
-
-        modelBuilder.Entity<ChannelEntitlementOverwrite>()
-           .HasOne(cpo => cpo.Archetype)
-           .WithMany()
-           .HasForeignKey(cpo => cpo.ArchetypeId)
-           .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<ChannelEntitlementOverwrite>()
-           .HasOne(cpo => cpo.ServerMember)
-           .WithMany()
-           .HasForeignKey(cpo => cpo.ServerMemberId)
-           .OnDelete(DeleteBehavior.Restrict);
-
-        modelBuilder.Entity<UserSocialIntegration>()
-           .HasOne(x => x.User)
-           .WithMany()
-           .HasForeignKey(x => x.UserId)
-           .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<UserSocialIntegration>()
-           .HasIndex(x => x.SocialId);
-
-        modelBuilder.Entity<UserProfile>()
-           .Property(u => u.Badges)
-           .HasColumnType("jsonb")
-           .HasConversion(
-                v => JsonConvert.SerializeObject(v ?? new List<string>()),
-                v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>()
-            );
-        modelBuilder.Entity<UserProfile>()
-           .HasOne(x => x.User)
-           .WithOne(x => x.Profile)
-           .HasForeignKey<UserProfile>(x => x.UserId)
-           .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .HasKey(udh => new { udh.UserId, udh.MachineId });
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .HasOne(udh => udh.User)
-           .WithMany()
-           .HasForeignKey(udh => udh.UserId)
-           .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .Property(udh => udh.MachineId)
-           .IsRequired()
-           .HasMaxLength(64);
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .Property(udh => udh.LastKnownIP)
-           .HasMaxLength(64);
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .Property(udh => udh.RegionAddress)
-           .HasMaxLength(64);
-
-        modelBuilder.Entity<UserDeviceHistory>()
-           .Property(udh => udh.AppId)
-           .HasMaxLength(64);
-
-        modelBuilder.Entity<SpaceCategory>()
-           .HasOne(x => x.Server)
-           .WithMany(x => x.SpaceCategories)
-           .HasForeignKey(x => x.ServerId)
-           .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<SpaceCategory>()
-           .HasMany(x => x.Channels)
-           .WithOne(x => x.Category)
-           .HasForeignKey(x => x.CategoryId)
-           .OnDelete(DeleteBehavior.Cascade);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageCountersTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UsernameReservedTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageReactionTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerMemberArchetypeTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArchetypeTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerMemberTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerInviteTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MeetSingleInviteLinkTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChannelTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChannelEntitlementOverwriteTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserSocialIntegrationTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserProfileTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserDeviceHistoryTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SpaceCategoryTypeConfiguration).Assembly);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
