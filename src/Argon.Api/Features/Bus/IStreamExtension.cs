@@ -1,7 +1,6 @@
 namespace Argon.Api.Features.Bus;
 
 using Argon.Features.NatsStreaming;
-using StackExchange.Redis;
 
 public interface IStreamExtension
 {
@@ -32,7 +31,7 @@ public readonly struct StreamForGrainExtension<T>(T grain) : IStreamExtension<T>
     public async ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
         => await grain.GrainContext.ActivationServices
            .GetRequiredService<IStreamManagement>()
-           .CreateServerStream(StreamId.Create(IArgonEvent.Namespace, targetId));
+           .CreateServerStream(StreamId.Create("@", targetId));
 }
 
 public readonly struct StreamForClusterClientExtension(IClusterClient client) : IStreamExtension
@@ -40,7 +39,7 @@ public readonly struct StreamForClusterClientExtension(IClusterClient client) : 
     public async ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary)
         => await client.ServiceProvider
            .GetRequiredService<NatsContext>()
-           .CreateReadStream(StreamId.Create(IArgonEvent.Namespace, primary));
+           .CreateReadStream(StreamId.Create("@", primary));
 
     public ValueTask<IArgonStream<IArgonEvent>> CreateClientStream(Guid primary, long sequence, int eventId)
         => CreateClientStream(primary);

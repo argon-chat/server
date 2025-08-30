@@ -17,12 +17,12 @@ namespace Argon.Api.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.7")
+                .HasAnnotation("ProductVersion", "9.0.8")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("Argon.ArchetypeModel.Archetype", b =>
+            modelBuilder.Entity("Argon.Entities.ArchetypeEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -75,7 +75,7 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<Guid>("ServerId")
+                    b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
                     b.Property<long>("UpdatedAt")
@@ -85,7 +85,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId");
+                    b.HasIndex("SpaceId");
 
                     b.ToTable("Archetypes");
 
@@ -97,7 +97,7 @@ namespace Argon.Api.Migrations
                             CreatedAt = 1732377674205L,
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "Default role for everyone in this server",
-                            Entitlement = 15760355m,
+                            Entitlement = 15761383m,
                             IsDefault = false,
                             IsDeleted = false,
                             IsGroup = false,
@@ -105,7 +105,7 @@ namespace Argon.Api.Migrations
                             IsLocked = false,
                             IsMentionable = true,
                             Name = "everyone",
-                            ServerId = new Guid("11111111-0000-1111-1111-111111111111"),
+                            SpaceId = new Guid("11111111-0000-1111-1111-111111111111"),
                             UpdatedAt = -62135596800000L
                         },
                         new
@@ -123,27 +123,12 @@ namespace Argon.Api.Migrations
                             IsLocked = true,
                             IsMentionable = false,
                             Name = "owner",
-                            ServerId = new Guid("11111111-0000-1111-1111-111111111111"),
+                            SpaceId = new Guid("11111111-0000-1111-1111-111111111111"),
                             UpdatedAt = -62135596800000L
                         });
                 });
 
-            modelBuilder.Entity("Argon.ArchetypeModel.ServerMemberArchetype", b =>
-                {
-                    b.Property<Guid>("ServerMemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ArchetypeId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("ServerMemberId", "ArchetypeId");
-
-                    b.HasIndex("ArchetypeId");
-
-                    b.ToTable("ServerMemberArchetypes");
-                });
-
-            modelBuilder.Entity("Argon.ArgonMessage", b =>
+            modelBuilder.Entity("Argon.Entities.ArgonMessageEntity", b =>
                 {
                     b.Property<Guid>("ServerId")
                         .HasColumnType("uuid");
@@ -192,39 +177,20 @@ namespace Argon.Api.Migrations
                     b.ToTable("Messages");
                 });
 
-            modelBuilder.Entity("Argon.ArgonMessageCounters", b =>
+            modelBuilder.Entity("Argon.Entities.ChannelEntitlementOverwriteEntity", b =>
                 {
-                    b.Property<Guid>("ChannelId")
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid>("ServerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("NextMessageId")
+                    b.Property<decimal>("Allow")
                         .HasColumnType("numeric(20,0)");
 
-                    b.HasKey("ChannelId", "ServerId");
-
-                    b.ToTable("ArgonMessages_Counters", (string)null);
-                });
-
-            modelBuilder.Entity("Argon.ArgonMessageReaction", b =>
-                {
-                    b.Property<Guid>("ServerId")
+                    b.Property<Guid?>("ArchetypeId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
-
-                    b.Property<decimal>("MessageId")
-                        .HasColumnType("numeric(20,0)");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reaction")
-                        .HasMaxLength(32)
-                        .HasColumnType("character varying(32)");
 
                     b.Property<long>("CreatedAt")
                         .HasColumnType("bigint");
@@ -235,29 +201,40 @@ namespace Argon.Api.Migrations
                     b.Property<long?>("DeletedAt")
                         .HasColumnType("bigint");
 
-                    b.Property<Guid>("Id")
-                        .HasColumnType("uuid");
+                    b.Property<decimal>("Deny")
+                        .HasColumnType("numeric(20,0)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("Timestamp")
-                        .HasColumnType("bigint");
+                    b.Property<int>("Scope")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("SpaceCategoryEntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("SpaceMemberId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("UpdatedAt")
                         .HasColumnType("bigint");
 
-                    b.HasKey("ServerId", "ChannelId", "MessageId", "UserId", "Reaction");
+                    b.HasKey("Id");
+
+                    b.HasIndex("ArchetypeId");
+
+                    b.HasIndex("ChannelId");
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId", "ChannelId", "MessageId")
-                        .IsUnique();
+                    b.HasIndex("SpaceCategoryEntityId");
 
-                    b.ToTable("ArgonMessageReactions");
+                    b.HasIndex("SpaceMemberId");
+
+                    b.ToTable("ChannelEntitlementOverwrites");
                 });
 
-            modelBuilder.Entity("Argon.Channel", b =>
+            modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -298,11 +275,11 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(128)
                         .HasColumnType("character varying(128)");
 
-                    b.Property<Guid>("ServerId")
-                        .HasColumnType("uuid");
-
                     b.Property<TimeSpan?>("SlowMode")
                         .HasColumnType("interval");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
 
                     b.Property<long>("UpdatedAt")
                         .HasColumnType("bigint");
@@ -313,26 +290,53 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId");
+                    b.HasIndex("SpaceId");
 
-                    b.HasIndex("Id", "ServerId");
+                    b.HasIndex("Id", "SpaceId");
 
                     b.ToTable("Channels");
                 });
 
-            modelBuilder.Entity("Argon.ChannelEntitlementOverwrite", b =>
+            modelBuilder.Entity("Argon.Entities.ServerInvite", b =>
+                {
+                    b.Property<decimal>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(20,0)");
+
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long?>("DeletedAt")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("Expired")
+                        .HasColumnType("bigint");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("UpdatedAt")
+                        .HasColumnType("bigint");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatorId");
+
+                    b.HasIndex("SpaceId");
+
+                    b.ToTable("ServerInvites");
+                });
+
+            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("Allow")
-                        .HasColumnType("numeric(20,0)");
-
-                    b.Property<Guid?>("ArchetypeId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
                     b.Property<long>("CreatedAt")
@@ -344,68 +348,35 @@ namespace Argon.Api.Migrations
                     b.Property<long?>("DeletedAt")
                         .HasColumnType("bigint");
 
-                    b.Property<decimal>("Deny")
-                        .HasColumnType("numeric(20,0)");
+                    b.Property<string>("FractionalIndex")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<int>("Scope")
-                        .HasColumnType("integer");
-
-                    b.Property<Guid?>("ServerMemberId")
+                    b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("SpaceCategoryId")
-                        .HasColumnType("uuid");
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<long>("UpdatedAt")
                         .HasColumnType("bigint");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ArchetypeId");
-
-                    b.HasIndex("ChannelId");
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerMemberId");
+                    b.HasIndex("SpaceId");
 
-                    b.HasIndex("SpaceCategoryId");
-
-                    b.ToTable("ChannelEntitlementOverwrites");
+                    b.ToTable("Categories");
                 });
 
-            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AgreeTOS")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AllowedSendOptionalEmails")
-                        .HasColumnType("boolean");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserAgreements");
-                });
-
-            modelBuilder.Entity("Argon.Server", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -463,43 +434,22 @@ namespace Argon.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Argon.ServerInvite", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceMemberArchetypeEntity", b =>
                 {
-                    b.Property<decimal>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(20,0)");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CreatorId")
+                    b.Property<Guid>("SpaceMemberId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Expired")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("ServerId")
+                    b.Property<Guid>("ArchetypeId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.HasKey("SpaceMemberId", "ArchetypeId");
 
-                    b.HasKey("Id");
+                    b.HasIndex("ArchetypeId");
 
-                    b.HasIndex("CreatorId");
-
-                    b.HasIndex("ServerId");
-
-                    b.ToTable("ServerInvites");
+                    b.ToTable("ServerMemberArchetypes");
                 });
 
-            modelBuilder.Entity("Argon.ServerMember", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -540,90 +490,70 @@ namespace Argon.Api.Migrations
                     b.ToTable("UsersToServerRelations");
                 });
 
-            modelBuilder.Entity("Argon.Shared.Servers.MeetSingleInviteLink", b =>
-                {
-                    b.Property<decimal>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(20,0)");
-
-                    b.Property<Guid?>("AssociatedChannelId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AssociatedServerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CreatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("ExpireDate")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("NoChannelSharedKey")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatorId");
-
-                    b.ToTable("MeetInviteLinks");
-                });
-
-            modelBuilder.Entity("Argon.Shared.Servers.SpaceCategory", b =>
+            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CreatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("FractionalIndex")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<bool>("IsDeleted")
+                    b.Property<bool>("AgreeTOS")
                         .HasColumnType("boolean");
 
-                    b.Property<Guid>("ServerId")
-                        .HasColumnType("uuid");
+                    b.Property<bool>("AllowedSendOptionalEmails")
+                        .HasColumnType("boolean");
 
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                    b.Property<long>("CreatedAt")
+                        .HasColumnType("bigint");
 
                     b.Property<long>("UpdatedAt")
                         .HasColumnType("bigint");
 
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
                     b.HasKey("Id");
 
-                    b.HasIndex("CreatorId");
+                    b.HasIndex("UserId");
 
-                    b.HasIndex("ServerId");
-
-                    b.ToTable("Categories");
+                    b.ToTable("UserAgreements");
                 });
 
-            modelBuilder.Entity("Argon.Users.User", b =>
+            modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MachineId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("AppId")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<int>("DeviceType")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("LastKnownIP")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<long?>("LastLoginTime")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RegionAddress")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.HasKey("UserId", "MachineId");
+
+                    b.ToTable("DeviceHistories");
+                });
+
+            modelBuilder.Entity("Argon.Entities.UserEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -663,10 +593,6 @@ namespace Argon.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("character varying(64)");
 
-                    b.Property<string>("OtpHash")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
                     b.Property<string>("PasswordDigest")
                         .HasMaxLength(512)
                         .HasColumnType("character varying(512)");
@@ -685,6 +611,14 @@ namespace Argon.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("DisplayName");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("NormalizedUsername")
+                        .IsUnique();
+
                     b.ToTable("Users");
 
                     b.HasData(
@@ -702,42 +636,7 @@ namespace Argon.Api.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Argon.Users.UserDeviceHistory", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("MachineId")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("AppId")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<int>("DeviceType")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("LastKnownIP")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<long?>("LastLoginTime")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("RegionAddress")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.HasKey("UserId", "MachineId");
-
-                    b.ToTable("DeviceHistories");
-                });
-
-            modelBuilder.Entity("Argon.Users.UserProfile", b =>
+            modelBuilder.Entity("Argon.Entities.UserProfileEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -775,9 +674,6 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<bool>("IsPremium")
-                        .HasColumnType("boolean");
-
                     b.Property<long>("UpdatedAt")
                         .HasColumnType("bigint");
 
@@ -792,49 +688,7 @@ namespace Argon.Api.Migrations
                     b.ToTable("UserProfiles");
                 });
 
-            modelBuilder.Entity("Argon.Users.UserSocialIntegration", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<int>("Kind")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("SocialId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("UserData")
-                        .IsRequired()
-                        .HasColumnType("jsonb");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("SocialId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("SocialIntegrations");
-                });
-
-            modelBuilder.Entity("Argon.Users.UsernameReserved", b =>
+            modelBuilder.Entity("Argon.Entities.UsernameReservedEntity", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -862,138 +716,127 @@ namespace Argon.Api.Migrations
                     b.ToTable("Reservation");
                 });
 
-            modelBuilder.Entity("Argon.ArchetypeModel.Archetype", b =>
+            modelBuilder.Entity("Argon.Entities.ArchetypeEntity", b =>
                 {
-                    b.HasOne("Argon.Server", "Server")
+                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
                         .WithMany("Archetypes")
-                        .HasForeignKey("ServerId")
+                        .HasForeignKey("SpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Server");
+                    b.Navigation("Space");
                 });
 
-            modelBuilder.Entity("Argon.ArchetypeModel.ServerMemberArchetype", b =>
+            modelBuilder.Entity("Argon.Entities.ChannelEntitlementOverwriteEntity", b =>
                 {
-                    b.HasOne("Argon.ArchetypeModel.Archetype", "Archetype")
-                        .WithMany("ServerMemberRoles")
-                        .HasForeignKey("ArchetypeId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Argon.ServerMember", "ServerMember")
-                        .WithMany("ServerMemberArchetypes")
-                        .HasForeignKey("ServerMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Archetype");
-
-                    b.Navigation("ServerMember");
-                });
-
-            modelBuilder.Entity("Argon.Channel", b =>
-                {
-                    b.HasOne("Argon.Shared.Servers.SpaceCategory", "Category")
-                        .WithMany("Channels")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
-                    b.HasOne("Argon.Server", "Server")
-                        .WithMany("Channels")
-                        .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Category");
-
-                    b.Navigation("Server");
-                });
-
-            modelBuilder.Entity("Argon.ChannelEntitlementOverwrite", b =>
-                {
-                    b.HasOne("Argon.ArchetypeModel.Archetype", "Archetype")
+                    b.HasOne("Argon.Entities.ArchetypeEntity", "Archetype")
                         .WithMany()
                         .HasForeignKey("ArchetypeId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("Argon.Channel", "Channel")
+                    b.HasOne("Argon.Entities.ChannelEntity", "Channel")
                         .WithMany("EntitlementOverwrites")
                         .HasForeignKey("ChannelId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.ServerMember", "ServerMember")
-                        .WithMany()
-                        .HasForeignKey("ServerMemberId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("Argon.Shared.Servers.SpaceCategory", null)
+                    b.HasOne("Argon.Entities.SpaceCategoryEntity", null)
                         .WithMany("EntitlementOverwrites")
-                        .HasForeignKey("SpaceCategoryId");
+                        .HasForeignKey("SpaceCategoryEntityId");
+
+                    b.HasOne("Argon.Entities.SpaceMemberEntity", "SpaceMember")
+                        .WithMany()
+                        .HasForeignKey("SpaceMemberId")
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.Navigation("Archetype");
 
                     b.Navigation("Channel");
 
+                    b.Navigation("SpaceMember");
+                });
+
+            modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.SpaceCategoryEntity", "Category")
+                        .WithMany("Channels")
+                        .HasForeignKey("CategoryId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
+                        .WithMany("Channels")
+                        .HasForeignKey("SpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Category");
+
+                    b.Navigation("Space");
+                });
+
+            modelBuilder.Entity("Argon.Entities.ServerInvite", b =>
+                {
+                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
+                        .WithMany("ServerInvites")
+                        .HasForeignKey("SpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Space");
+                });
+
+            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
+                        .WithMany("SpaceCategories")
+                        .HasForeignKey("SpaceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Space");
+                });
+
+            modelBuilder.Entity("Argon.Entities.SpaceMemberArchetypeEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.ArchetypeEntity", "Archetype")
+                        .WithMany("SpaceMemberRoles")
+                        .HasForeignKey("ArchetypeId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Argon.Entities.SpaceMemberEntity", "ServerMember")
+                        .WithMany("SpaceMemberArchetypes")
+                        .HasForeignKey("SpaceMemberId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Archetype");
+
                     b.Navigation("ServerMember");
                 });
 
-            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
                 {
-                    b.HasOne("Argon.Users.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Argon.ServerInvite", b =>
-                {
-                    b.HasOne("Argon.Server", "Server")
-                        .WithMany("ServerInvites")
-                        .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Server");
-                });
-
-            modelBuilder.Entity("Argon.ServerMember", b =>
-                {
-                    b.HasOne("Argon.Server", "Server")
+                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
                         .WithMany("Users")
                         .HasForeignKey("ServerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.Users.User", "User")
+                    b.HasOne("Argon.Entities.UserEntity", "User")
                         .WithMany("ServerMembers")
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Server");
+                    b.Navigation("Space");
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Argon.Shared.Servers.SpaceCategory", b =>
+            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
                 {
-                    b.HasOne("Argon.Server", "Server")
-                        .WithMany("SpaceCategories")
-                        .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Server");
-                });
-
-            modelBuilder.Entity("Argon.Users.UserDeviceHistory", b =>
-                {
-                    b.HasOne("Argon.Users.User", "User")
+                    b.HasOne("Argon.Entities.UserEntity", "User")
                         .WithMany()
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -1002,39 +845,46 @@ namespace Argon.Api.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Argon.Users.UserProfile", b =>
+            modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>
                 {
-                    b.HasOne("Argon.Users.User", "User")
+                    b.HasOne("Argon.Entities.UserEntity", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.UserProfileEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.UserEntity", "User")
                         .WithOne("Profile")
-                        .HasForeignKey("Argon.Users.UserProfile", "UserId")
+                        .HasForeignKey("Argon.Entities.UserProfileEntity", "UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("Argon.Users.UserSocialIntegration", b =>
+            modelBuilder.Entity("Argon.Entities.ArchetypeEntity", b =>
                 {
-                    b.HasOne("Argon.Users.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
+                    b.Navigation("SpaceMemberRoles");
                 });
 
-            modelBuilder.Entity("Argon.ArchetypeModel.Archetype", b =>
-                {
-                    b.Navigation("ServerMemberRoles");
-                });
-
-            modelBuilder.Entity("Argon.Channel", b =>
+            modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
                 {
                     b.Navigation("EntitlementOverwrites");
                 });
 
-            modelBuilder.Entity("Argon.Server", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
+                {
+                    b.Navigation("Channels");
+
+                    b.Navigation("EntitlementOverwrites");
+                });
+
+            modelBuilder.Entity("Argon.Entities.SpaceEntity", b =>
                 {
                     b.Navigation("Archetypes");
 
@@ -1047,19 +897,12 @@ namespace Argon.Api.Migrations
                     b.Navigation("Users");
                 });
 
-            modelBuilder.Entity("Argon.ServerMember", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
                 {
-                    b.Navigation("ServerMemberArchetypes");
+                    b.Navigation("SpaceMemberArchetypes");
                 });
 
-            modelBuilder.Entity("Argon.Shared.Servers.SpaceCategory", b =>
-                {
-                    b.Navigation("Channels");
-
-                    b.Navigation("EntitlementOverwrites");
-                });
-
-            modelBuilder.Entity("Argon.Users.User", b =>
+            modelBuilder.Entity("Argon.Entities.UserEntity", b =>
                 {
                     b.Navigation("Profile")
                         .IsRequired();

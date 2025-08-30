@@ -3,9 +3,8 @@ namespace Argon.Grains;
 using Argon.Api.Features.Bus;
 using Features.Repositories;
 using Services.L1L2;
-using System.Diagnostics;
-using System.Diagnostics.Contracts;
 using System.Drawing;
+using ion.runtime;
 using Shared;
 
 public class EntitlementGrain(
@@ -22,59 +21,54 @@ public class EntitlementGrain(
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
         => await _serverEvents.DisposeAsync();
 
-    public async Task<List<ArchetypeDto>> GetServerArchetypes()
+    public async Task<List<Archetype>> GetServerArchetypes()
         => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
-    public async Task<List<ArchetypeDtoGroup>> GetFullyServerArchetypes()
+    public async Task<List<ArchetypeGroup>> GetFullyServerArchetypes()
     {
         var             callerId   = this.GetUserId();
         await using var ctx        = await context.CreateDbContextAsync();
         var             archetypes = await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
         if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageArchetype))
-            return archetypes.Select(x => new ArchetypeDtoGroup()
-            {
-                Archetype = x,
-                Members = []
-            }).ToList();
+            return archetypes.Select(x => new ArchetypeGroup(x, IonArray<Guid>.Empty)).ToList();
 
         var serverId = this.GetPrimaryKey();
 
         var members = await ctx.UsersToServerRelations
            .Where(m => m.ServerId == serverId)
-           .Include(m => m.ServerMemberArchetypes)
+           .Include(m => m.SpaceMemberArchetypes)
            .ToListAsync();
 
         var membersWithArchetypes = members.Select(m => new
         {
             MemberId       = m.Id,
-            ArchetypeIds = m.ServerMemberArchetypes.Select(sma => sma.ArchetypeId).ToList()
+            ArchetypeIds = m.SpaceMemberArchetypes.Select(sma => sma.ArchetypeId).ToList()
         }).ToList();
 
-        var result = archetypes.Select(a => new ArchetypeDtoGroup
-        {
-            Archetype = a,
-            Members   = []
-        }).ToDictionary(g => g.Archetype.Id);
+        var result = archetypes.Select(a => new ArchetypeGroup(a, IonArray<Guid>.Empty)).ToDictionary(g => g.archetype.id);
 
+        var memberList = new List<Guid>();
         foreach (var member in membersWithArchetypes)
             foreach (var archId in member.ArchetypeIds)
                 if (result.TryGetValue(archId, out var group))
-                    group.Members.Add(member.MemberId);
+                    memberList.Add(member.MemberId);
 
         return result.Values.ToList();
     }
 
-    public async Task<ArchetypeDto> CreateArchetypeAsync(string name)
+    public async Task<Archetype> CreateArchetypeAsync(string name)
     {
         var creatorId = this.GetUserId();
 
         await using var ctx = await context.CreateDbContextAsync();
 
-        var arch = new Archetype()
+        throw new NotImplementedException();
+
+        var arch = new ArchetypeEntity()
         {
-            ServerId      = this.GetPrimaryKey(),
-            Entitlement   = ArgonEntitlement.Base,
+            SpaceId      = this.GetPrimaryKey(),
+            //Entitlement   = ArgonEntitlement.Base,
             Id            = Guid.NewGuid(),
             Name          = name,
             Description   = "",
@@ -93,12 +87,12 @@ public class EntitlementGrain(
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-        await _serverEvents.Fire(new ArchetypeCreated(arch.ToDto()));
+        await _serverEvents.Fire(new ArchetypeCreated(this.GetPrimaryKey(), arch.ToDto()));
 
         return await archetypeAgent.DoCreatedAsync(arch);
     }
 
-    public async Task<ArchetypeDto?> UpdateArchetypeAsync(ArchetypeDto dto)
+    public async Task<Archetype?> UpdateArchetypeAsync(Archetype dto)
     {
         var callerId = this.GetUserId();
 
@@ -106,44 +100,41 @@ public class EntitlementGrain(
 
         var invoker = await ctx.UsersToServerRelations
            .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.ServerMemberArchetypes)
+           .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
 
-        if (string.IsNullOrWhiteSpace(dto.Name)) return null;
-        if (string.IsNullOrWhiteSpace(dto.Description)) dto.Description = "";
-        if (dto.Name.Length > 64) return null;
-        if (dto.Description.Length > 256) return null;
+        if (string.IsNullOrWhiteSpace(dto.name)) return null;
+        if (dto.name.Length > 64) return null;
+        if (dto.description.Length > 256) return null;
 
         if (invoker is null)
         {
             logger.LogError(
                 "User {userId} tried to change the {archetypeId} right on server {serverId}, although he is not a member of the server.",
-                callerId, dto.Id, this.GetPrimaryKey()
+                callerId, dto.id, this.GetPrimaryKey()
             );
             return null;
         }
 
-        var entity = await ctx.Archetypes.FirstOrDefaultAsync(x => x.Id == dto.Id && x.ServerId == this.GetPrimaryKey());
+        var entity = await ctx.Archetypes.FirstOrDefaultAsync(x => x.Id == dto.id && x.SpaceId == this.GetPrimaryKey());
 
         if (entity is null)
         {
             logger.LogError(
                 "User {userId} tried to change the {archetypeId} right on server {serverId}, but the right is not part of the server.",
-                callerId, dto.Id, this.GetPrimaryKey()
+                callerId, dto.id, this.GetPrimaryKey()
             );
             return null;
         }
 
         var invokerArchetypes = invoker
-           .ServerMemberArchetypes
+           .SpaceMemberArchetypes
            .Select(x => x.Archetype)
            .ToList();
 
-        if (!ulong.TryParse(dto.Entitlement, out var parsed))
-            return null;
 
-        var promptedEntitlements = (ArgonEntitlement)parsed;
+        var promptedEntitlements = dto.entitlement;
 
         var archetypeEntity = ctx.Attach(entity);
         var archetype       = archetypeEntity.Entity;
@@ -169,24 +160,24 @@ public class EntitlementGrain(
         if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
             return null;
 
-        if (!archetype.Name.Equals(dto.Name))
-            archetype.Name = dto.Name;
-        if (archetype.Colour.ToArgb() != dto.Colour)
-            archetype.Colour = Color.FromArgb(dto.Colour);
+        //if (!archetype.Name.Equals(dto.name))
+        //    archetype.Name = dto.Name;
+        if (archetype.Colour.ToArgb() != dto.colour)
+            archetype.Colour = Color.FromArgb(dto.colour);
 
-        archetype.IsGroup       = dto.IsGroup;
-        archetype.IsMentionable = dto.IsMentionable;
+        archetype.IsGroup       = dto.isGroup;
+        archetype.IsMentionable = dto.isMentionable;
         archetype.UpdatedAt     = DateTimeOffset.UtcNow;
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
         return await Changed(archetypeEntity.Entity);
 
 
-        async Task<ArchetypeDto?> Changed(Archetype value)
+        async Task<Archetype?> Changed(ArchetypeEntity value)
         {
             var result = value.ToDto();
             await archetypeAgent.DoUpdatedAsync(value);
-            await _serverEvents.Fire(new ArchetypeChanged(result));
+            await _serverEvents.Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             return result;
         }
     }
@@ -203,15 +194,15 @@ public class EntitlementGrain(
 
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
             x.ChannelId == channelId &&
-            x.ServerMemberId == memberId
+            x.SpaceMemberId == memberId
         );
 
         if (overwrite == null)
         {
-            overwrite = new ChannelEntitlementOverwrite
+            overwrite = new ChannelEntitlementOverwriteEntity()
             {
                 ChannelId      = channelId,
-                ServerMemberId = memberId,
+                SpaceMemberId  = memberId,
                 Allow          = allow,
                 Deny           = deny
             };
@@ -227,7 +218,7 @@ public class EntitlementGrain(
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
             
-        return overwrite;
+        return overwrite.ToDto();
     }
 
     public async Task<bool> DeleteEntitlementForChannel(Guid channelId, Guid EntitlementOverwriteId)
@@ -268,7 +259,7 @@ public class EntitlementGrain(
 
         if (overwrite == null)
         {
-            overwrite = new ChannelEntitlementOverwrite
+            overwrite = new ChannelEntitlementOverwriteEntity()
             {
                 ChannelId   = channelId,
                 ArchetypeId = archetypeId,
@@ -287,15 +278,15 @@ public class EntitlementGrain(
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
 
-        return overwrite;
+        return overwrite.ToDto();
     }
 
     public async Task<List<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
         var e = await ctx.Channels.Include(x => x.EntitlementOverwrites)
-           .FirstOrDefaultAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == channelId);
-        return e is null ? [] : e.EntitlementOverwrites.ToList();
+           .FirstOrDefaultAsync(x => x.SpaceId == this.GetPrimaryKey() && x.Id == channelId);
+        return e is null ? [] : e.EntitlementOverwrites.Select(x => x.ToDto()).ToList();
     }
 
 
@@ -306,7 +297,7 @@ public class EntitlementGrain(
 
         var invoker = await ctx.UsersToServerRelations
            .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.ServerMemberArchetypes)
+           .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
 
@@ -314,7 +305,7 @@ public class EntitlementGrain(
             return false;
 
         var invokerArchetypes = invoker
-           .ServerMemberArchetypes
+           .SpaceMemberArchetypes
            .Select(x => x.Archetype)
            .ToList();
 
@@ -323,7 +314,7 @@ public class EntitlementGrain(
             return false;
 
         var targetArchetype = await ctx.Archetypes
-           .FirstOrDefaultAsync(x => x.ServerId == this.GetPrimaryKey() && x.Id == archetypeId);
+           .FirstOrDefaultAsync(x => x.SpaceId == this.GetPrimaryKey() && x.Id == archetypeId);
 
         if (targetArchetype is null)
             return false;
@@ -333,10 +324,10 @@ public class EntitlementGrain(
 
         if (isGrant)
         {
-            await ctx.ServerMemberArchetypes.AddAsync(new ServerMemberArchetype()
+            await ctx.ServerMemberArchetypes.AddAsync(new SpaceMemberArchetypeEntity()
             {
                 ArchetypeId    = archetypeId,
-                ServerMemberId = memberId
+                SpaceMemberId = memberId
             });
             Ensure.That(await ctx.SaveChangesAsync() == 1);
             return true;
@@ -344,7 +335,7 @@ public class EntitlementGrain(
 
         var e = await ctx
            .ServerMemberArchetypes
-           .FirstOrDefaultAsync(x => x.ServerMemberId == memberId && x.ArchetypeId == archetypeId);
+           .FirstOrDefaultAsync(x => x.SpaceMemberId == memberId && x.ArchetypeId == archetypeId);
 
         if (e is null) return false;
 
@@ -357,7 +348,7 @@ public class EntitlementGrain(
     {
         var invoker = await ctx.UsersToServerRelations
            .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.ServerMemberArchetypes)
+           .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
 
@@ -365,7 +356,7 @@ public class EntitlementGrain(
             return false;
 
         var invokerArchetypes = invoker
-           .ServerMemberArchetypes
+           .SpaceMemberArchetypes
            .Select(x => x.Archetype)
            .ToList();
 

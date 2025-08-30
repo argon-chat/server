@@ -1,7 +1,6 @@
 namespace Argon.Entities;
 
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Newtonsoft.Json;
 
 public class PolyListNewtonsoftJsonValueConverter<T, E>()
     : ValueConverter<T, string>(arg => ToJson(arg), s => FromJson(s))

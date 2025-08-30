@@ -2,7 +2,6 @@ namespace Argon.Features;
 
 using System.Diagnostics.CodeAnalysis;
 using Env;
-using Microsoft.Azure.Amqp.Framing;
 using ObservableCollections;
 using R3;
 using static Api.Features.Orleans.Client.ArgonDataCenterStatus;

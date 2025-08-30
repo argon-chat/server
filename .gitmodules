@@ -1,0 +1,3 @@
+[submodule "src/Argon.Ion"]
+	path = src/Argon.Ion
+	url = https://github.com/argon-chat/Argon.Ion.git

@@ -1,7 +1,7 @@
 namespace Argon.Grains;
 
 using Orleans.Concurrency;
-using Shared.Servers;
+using InviteCode = Entities.InviteCode;
 
 [StatelessWorker]
 public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFactory<ApplicationDbContext> context) : Grain, IServerInvitesGrain
@@ -9,28 +9,28 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
     public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
     {
         await using var db         = await context.CreateDbContextAsync();
-        var             inviteCode = InviteCodeEntity.GenerateInviteCode();
+        var             inviteCode = InviteCodeEntityData.GenerateInviteCode();
 
         await db.ServerInvites.AddAsync(new ServerInvite
         {
-            Id        = InviteCodeEntity.EncodeToUlong(inviteCode),
+            Id        = InviteCodeEntityData.EncodeToUlong(inviteCode),
             CreatedAt = DateTime.Now,
             CreatorId = issuer,
             Expired   = DateTime.UtcNow + expiration,
-            ServerId  = this.GetPrimaryKey(),
+            SpaceId  = this.GetPrimaryKey(),
         });
         await db.SaveChangesAsync();
         return new InviteCode(inviteCode);
     }
 
-    public async Task<List<InviteCodeEntity>> GetInviteCodes()
+    public async Task<List<InviteCodeEntityData>> GetInviteCodes()
     {
         await using var db = await context.CreateDbContextAsync();
 
         var list = await db.ServerInvites
-           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(x => x.SpaceId == this.GetPrimaryKey())
            .AsNoTracking()
            .ToListAsync();
-        return list.Select(x => new InviteCodeEntity(new InviteCode(InviteCodeEntity.DecodeFromUlong(x.Id)), x.ServerId, x.CreatorId, x.Expired, 0)).ToList();
+        return list.Select(x => new InviteCodeEntityData(new InviteCode(InviteCodeEntityData.DecodeFromUlong(x.Id)), x.SpaceId, x.CreatorId, x.Expired, 0)).ToList();
     }
 }

@@ -1,22 +1,21 @@
 namespace Argon.Entities;
 
 using Cassandra.Mapping;
-using Newtonsoft.Json;
 
-public class MessageEntityConverter : ICassandraConverter<List<MessageEntity>, string>
+public class MessageEntityConverter : ICassandraConverter<List<IMessageEntity>, string>
 {
     private static readonly JsonSerializerSettings _settings = new()
     {
         TypeNameHandling = TypeNameHandling.All,
         Formatting       = Formatting.None,
-        Converters       = [new PolymorphicListConverter<MessageEntity>()]
+        Converters       = [new PolymorphicListConverter<IMessageEntity>()]
     };
 
-    public string ConvertTo(List<MessageEntity> @in)
+    public string ConvertTo(List<IMessageEntity> @in)
         => JsonConvert.SerializeObject(@in ?? [], _settings) ?? "[]";
 
-    public List<MessageEntity> ConvertFrom(string @out)
-        => JsonConvert.DeserializeObject<List<MessageEntity>>(@out ?? "[]", _settings) ?? [];
+    public List<IMessageEntity> ConvertFrom(string @out)
+        => JsonConvert.DeserializeObject<List<IMessageEntity>>(@out ?? "[]", _settings) ?? [];
 }
 
 public class DateTimeConverter : ICassandraConverter<DateTimeOffset, long>

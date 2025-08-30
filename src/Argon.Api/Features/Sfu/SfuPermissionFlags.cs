@@ -1,7 +1,8 @@
 namespace Argon.Sfu;
 
+using Google.Protobuf.Reflection;
 using LiveKit.Proto;
-using Microsoft.OpenApi.Extensions;
+using YamlDotNet.Core;
 
 [Flags]
 public enum SfuPermissionFlags

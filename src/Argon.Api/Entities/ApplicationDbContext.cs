@@ -1,57 +1,33 @@
 namespace Argon.Entities;
 
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Drawing;
 using System.Linq.Expressions;
-using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
-using Shared.Servers;
-using Argon.Api.Entities.Configurations;
+using static ArgonEntitlement;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public DbSet<User>              Users                  { get; set; }
-    public DbSet<UserDeviceHistory> DeviceHistories        => Set<UserDeviceHistory>();
-    public DbSet<UserAgreements>    UserAgreements         { get; set; }
-    public DbSet<Server>            Servers                { get; set; }
-    public DbSet<Channel>           Channels               { get; set; }
-    public DbSet<ServerMember>      UsersToServerRelations { get; set; }
+    public DbSet<UserEntity>              Users                  { get; set; }
+    public DbSet<UserDeviceHistoryEntity> DeviceHistories        => Set<UserDeviceHistoryEntity>();
+    public DbSet<UserAgreements>          UserAgreements         { get; set; }
+    public DbSet<SpaceEntity>             Servers                { get; set; }
+    public DbSet<ChannelEntity>           Channels               { get; set; }
+    public DbSet<SpaceMemberEntity>       UsersToServerRelations { get; set; }
 
-    public DbSet<ServerMemberArchetype>       ServerMemberArchetypes       { get; set; }
-    public DbSet<Archetype>                   Archetypes                   { get; set; }
-    public DbSet<ChannelEntitlementOverwrite> ChannelEntitlementOverwrites { get; set; }
+    public DbSet<SpaceMemberArchetypeEntity>        ServerMemberArchetypes       { get; set; }
+    public DbSet<ArchetypeEntity>                   Archetypes                   { get; set; }
+    public DbSet<ChannelEntitlementOverwriteEntity> ChannelEntitlementOverwrites { get; set; }
 
     public DbSet<ServerInvite> ServerInvites { get; set; }
 
-    public DbSet<ArgonMessage>         Messages { get; set; }
-    public DbSet<ArgonMessageCounters> Counters { get; set; }
-
-    public DbSet<ArgonMessageReaction> ArgonMessageReactions { get; set; }
-
-
-    public DbSet<MeetSingleInviteLink> MeetInviteLinks { get; set; }
-
-    public DbSet<UserSocialIntegration> SocialIntegrations { get; set; }
-    public DbSet<UserProfile>           UserProfiles       { get; set; }
-
-    public DbSet<UsernameReserved> Reservation { get; set; }
-    public DbSet<SpaceCategory>    Categories  { get; set; }
+    public DbSet<ArgonMessageEntity>     Messages     { get; set; }
+    public DbSet<UserProfileEntity>      UserProfiles { get; set; }
+    public DbSet<UsernameReservedEntity> Reservation  { get; set; }
+    public DbSet<SpaceCategoryEntity>    Categories   { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageCountersTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UsernameReservedTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArgonMessageReactionTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerMemberArchetypeTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ArchetypeTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerMemberTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ServerInviteTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(MeetSingleInviteLinkTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChannelTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ChannelEntitlementOverwriteTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserSocialIntegrationTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserProfileTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(UserDeviceHistoryTypeConfiguration).Assembly);
-        modelBuilder.ApplyConfigurationsFromAssembly(typeof(SpaceCategoryTypeConfiguration).Assembly);
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
         {
@@ -61,31 +37,33 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                .HasQueryFilter(GetSoftDeleteFilter(entityType.ClrType));
         }
 
-        modelBuilder.Entity<User>().HasData(new User
+        modelBuilder.Entity<UserEntity>().HasData(new UserEntity
         {
             Username           = "system",
             DisplayName        = "System",
             Email              = "system@argon.gl",
-            Id                 = User.SystemUser,
+            Id                 = UserEntity.SystemUser,
             PasswordDigest     = null,
             NormalizedUsername = "system"
         });
 
-        modelBuilder.Entity<Server>().HasData(new Server
+        modelBuilder.Entity<SpaceEntity>().HasData(new SpaceEntity
         {
             Name      = "system_server",
-            CreatorId = User.SystemUser,
-            Id        = Server.DefaultSystemServer
+            CreatorId = UserEntity.SystemUser,
+            Id        = SpaceEntity.DefaultSystemServer
         });
 
-        modelBuilder.Entity<Archetype>().HasData([
-            new Archetype
+        modelBuilder.Entity<ArchetypeEntity>().HasData([
+            new ArchetypeEntity
             {
-                Id            = Archetype.DefaultArchetype_Everyone,
-                Colour        = Color.Gray,
-                CreatorId     = User.SystemUser,
-                Entitlement   = ArgonEntitlement.BaseMember,
-                ServerId      = Server.DefaultSystemServer,
+                Id        = ArchetypeEntity.DefaultArchetype_Everyone,
+                Colour    = Color.Gray,
+                CreatorId = UserEntity.SystemUser,
+                Entitlement = ViewChannel | ReadHistory | JoinToVoice | SendMessages | SendVoice | AttachFiles | AddReactions | AnyMentions |
+                              MentionEveryone | ExternalEmoji | ExternalStickers | UseCommands | PostEmbeddedLinks | Connect | Speak | Video |
+                              Stream,
+                SpaceId       = SpaceEntity.DefaultSystemServer,
                 Name          = "everyone",
                 IsLocked      = false,
                 IsMentionable = true,
@@ -95,14 +73,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             }
         ]);
 
-        modelBuilder.Entity<Archetype>().HasData([
-            new Archetype
+        modelBuilder.Entity<ArchetypeEntity>().HasData([
+            new ArchetypeEntity
             {
-                Id            = Archetype.DefaultArchetype_Owner,
+                Id            = ArchetypeEntity.DefaultArchetype_Owner,
                 Colour        = Color.Gray,
-                CreatorId     = User.SystemUser,
-                Entitlement   = ArgonEntitlement.Administrator,
-                ServerId      = Server.DefaultSystemServer,
+                CreatorId     = UserEntity.SystemUser,
+                Entitlement   = ArgonEntitlementKit.Administrator,
+                SpaceId       = SpaceEntity.DefaultSystemServer,
                 Name          = "owner",
                 IsLocked      = true,
                 IsMentionable = false,

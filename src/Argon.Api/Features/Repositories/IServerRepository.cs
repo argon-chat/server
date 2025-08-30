@@ -1,18 +1,17 @@
 namespace Argon.Features.Repositories;
 
-using System.Diagnostics;
 using Shared;
 
 public interface IServerRepository
 {
-    ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator);
+    ValueTask<SpaceEntity> CreateAsync(Guid serverId, ServerInput data, Guid initiator);
     ValueTask         GrantDefaultArchetypeTo(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId);
 }
 
 public class ServerRepository(
     IDbContextFactory<ApplicationDbContext> context, ILogger<IServerRepository> logger) : IServerRepository
 {
-    public async ValueTask<Server> CreateAsync(Guid serverId, ServerInput data, Guid initiator)
+    public async ValueTask<SpaceEntity> CreateAsync(Guid serverId, ServerInput data, Guid initiator)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -22,7 +21,7 @@ public class ServerRepository(
             await using var transaction = await ctx.Database.BeginTransactionAsync();
             try
             {
-                var server = new Server()
+                var server = new SpaceEntity()
                 {
                     Id           = serverId,
                     AvatarFileId = data.AvatarUrl,
@@ -35,7 +34,7 @@ public class ServerRepository(
 
                 Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-                var sm = new ServerMember
+                var sm = new SpaceMemberEntity
                 {
                     Id = Guid.NewGuid(),
                     ServerId  = serverId,
@@ -66,12 +65,12 @@ public class ServerRepository(
     {
         var everyone = await ctx.Archetypes
            .AsNoTracking()
-           .FirstAsync(x => x.IsDefault && x.ServerId == serverId);
+           .FirstAsync(x => x.IsDefault && x.SpaceId == serverId);
 
-        var e1 = new ServerMemberArchetype
+        var e1 = new SpaceMemberArchetypeEntity
         {
             ArchetypeId    = everyone.Id,
-            ServerMemberId = serverMemberId
+            SpaceMemberId = serverMemberId
         };
 
         await ctx.ServerMemberArchetypes.AddAsync(e1);
@@ -82,20 +81,20 @@ public class ServerRepository(
 
     private async ValueTask CloneArchetypesAsync(ApplicationDbContext ctx, Guid serverId, Guid serverMemberId, Guid userId)
     {
-        var everyone = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == Archetype.DefaultArchetype_Everyone);
-        var owner    = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == Archetype.DefaultArchetype_Owner);
+        var everyone = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == ArchetypeEntity.DefaultArchetype_Everyone);
+        var owner    = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == ArchetypeEntity.DefaultArchetype_Owner);
 
         owner!.Id               = Guid.NewGuid();
         owner.CreatorId         = userId;
-        owner.Server            = null!;
-        owner.ServerId          = serverId;
-        owner.ServerMemberRoles = new List<ServerMemberArchetype>();
+        owner.Space            = null!;
+        owner.SpaceId          = serverId;
+        owner.SpaceMemberRoles = new List<SpaceMemberArchetypeEntity>();
 
         everyone!.Id               = Guid.NewGuid();
         everyone.CreatorId         = userId;
-        everyone.ServerId          = serverId;
-        everyone.Server            = null!;
-        everyone.ServerMemberRoles = new List<ServerMemberArchetype>();
+        everyone.SpaceId          = serverId;
+        everyone.Space            = null!;
+        everyone.SpaceMemberRoles = new List<SpaceMemberArchetypeEntity>();
         everyone.IsDefault         = true;
 
         await ctx.Archetypes.AddAsync(everyone);
@@ -103,20 +102,20 @@ public class ServerRepository(
 
         Ensure.That(await ctx.SaveChangesAsync() == 2);
 
-        var e1 = new ServerMemberArchetype()
+        var e1 = new SpaceMemberArchetypeEntity()
         {
             ArchetypeId    = owner.Id,
-            ServerMemberId = serverMemberId
+            SpaceMemberId = serverMemberId
         };
 
         await ctx.ServerMemberArchetypes.AddAsync(e1);
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-        var e2 = new ServerMemberArchetype()
+        var e2 = new SpaceMemberArchetypeEntity()
         {
             ArchetypeId    = everyone.Id,
-            ServerMemberId = serverMemberId
+            SpaceMemberId = serverMemberId
         };
 
         await ctx.ServerMemberArchetypes.AddAsync(e2);

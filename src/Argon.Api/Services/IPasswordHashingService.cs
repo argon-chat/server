@@ -6,7 +6,7 @@ public interface IPasswordHashingService
 {
     const string OneTimePassKey = $"{nameof(IPasswordHashingService)}.onetime";
     string?      HashPassword(string? password);
-    bool         VerifyPassword(string? inputPassword, User user);
+    bool         VerifyPassword(string? inputPassword, UserEntity user);
     bool         ValidatePassword(string? password, string? passwordDigest);
     bool         VerifyOtp(string? inputOtp, string? userOtp);
     OtpCode      GenerateOtp(Guid userId);
@@ -33,8 +33,8 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
         return Convert.ToBase64String(dest[..written]);
     }
 
-    public bool VerifyPassword(string? inputPassword, User user) =>
-        ValidatePassword(inputPassword, user.PasswordDigest) || VerifyOtp(inputPassword, user.OtpHash);
+    public bool VerifyPassword(string? inputPassword, UserEntity user) =>
+        ValidatePassword(inputPassword, user.PasswordDigest) /*|| VerifyOtp(inputPassword, user.OtpHash)*/;
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
