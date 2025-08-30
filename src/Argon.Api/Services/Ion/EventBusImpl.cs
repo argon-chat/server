@@ -12,12 +12,12 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
 
         await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).BeginRealtimeSession();
         
-        var mux = new AsyncStreamMux<IArgonEvent>(logger);
+        //var mux = new AsyncStreamMux<IArgonEvent>(logger);
 
-        mux.Subscribe(await client.Streams().CreateClientStream(this.GetUserId()));
-        mux.Subscribe(await this.GetClusterClient().Streams().CreateClientStream(spaceId));
+        //mux.Subscribe(await client.Streams().CreateClientStream(this.GetUserId()));
+        //mux.Subscribe();
 
-        await foreach (var e in mux.GetStream())
+        await foreach (var e in await this.GetClusterClient().Streams().CreateClientStream(spaceId))
             yield return e;
     }
 
