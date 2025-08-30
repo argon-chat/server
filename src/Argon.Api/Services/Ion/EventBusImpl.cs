@@ -1,22 +1,23 @@
 namespace Argon.Services.Ion;
 
+using System.Runtime.CompilerServices;
+using System.Threading.Channels;
 using Api.Features.Bus;
 
-public class EventBusImpl : IEventBus
+public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
 {
     public async IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId)
-    {
-        await foreach (var e in await this.GetClusterClient().Streams().CreateClientStream(spaceId))
-            yield return e;
-    }
-
-    public async IAsyncEnumerable<IArgonEvent> ForSelf()
     {
         var client = this.GetClusterClient();
 
         await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).BeginRealtimeSession();
+        
+        var mux = new AsyncStreamMux<IArgonEvent>(logger);
 
-        await foreach (var e in await client.Streams().CreateClientStream(this.GetUserId()))
+        mux.Subscribe(await client.Streams().CreateClientStream(this.GetUserId()));
+        mux.Subscribe(await this.GetClusterClient().Streams().CreateClientStream(spaceId));
+
+        await foreach (var e in mux.GetStream())
             yield return e;
     }
 
@@ -33,71 +34,71 @@ public class EventBusImpl : IEventBus
 }
 
 
-//public class AsyncStreamMux<T> : IAsyncDisposable
-//{
-//    private readonly Channel<T> _channel = Channel.CreateUnbounded<T>();
-//    private readonly ConcurrentDictionary<IAsyncEnumerable<T>, CancellationTokenSource> _subscriptions = new();
-//    private readonly CancellationTokenSource _shutdown = new();
+public class AsyncStreamMux<T>(ILogger logger) : IAsyncDisposable
+{
+    private readonly Channel<T>                                                         _channel       = Channel.CreateUnbounded<T>();
+    private readonly ConcurrentDictionary<IAsyncEnumerable<T>, CancellationTokenSource> _subscriptions = new();
+    private readonly CancellationTokenSource                                            _shutdown      = new();
 
-//    public async IAsyncEnumerable<T> GetStream([EnumeratorCancellation] CancellationToken cancellationToken = default)
-//    {
-//        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+    public async IAsyncEnumerable<T> GetStream([EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
 
-//        try
-//        {
-//            while (await _channel.Reader.WaitToReadAsync(linked.Token))
-//            {
-//                while (_channel.Reader.TryRead(out var item))
-//                    yield return item;
-//            }
-//        }
-//        finally
-//        {
-//            await DisposeAsync();
-//        }
-//    }
+        try
+        {
+            while (await _channel.Reader.WaitToReadAsync(linked.Token))
+            {
+                while (_channel.Reader.TryRead(out var item))
+                    yield return item;
+            }
+        }
+        finally
+        {
+            await DisposeAsync();
+        }
+    }
 
-//    public void Subscribe(IAsyncEnumerable<T> source)
-//    {
-//        var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
-//        if (_subscriptions.TryAdd(source, cts))
-//        {
-//            _ = Task.Run(async () => {
-//                try
-//                {
-//                    await foreach (var item in source.WithCancellation(cts.Token))
-//                        await _channel.Writer.WriteAsync(item, cts.Token);
-//                }
-//                catch (OperationCanceledException) { }
-//                catch (Exception ex)
-//                {
-//                    Console.Error.WriteLine($"[Mux] Source error: {ex}");
-//                }
-//                finally
-//                {
-//                    _subscriptions.TryRemove(source, out _);
-//                }
-//            }, cts.Token);
-//        }
-//    }
+    public void Subscribe(IAsyncEnumerable<T> source)
+    {
+        var cts = CancellationTokenSource.CreateLinkedTokenSource(_shutdown.Token);
+        if (_subscriptions.TryAdd(source, cts))
+        {
+            _ = Task.Run(async () => {
+                try
+                {
+                    await foreach (var item in source.WithCancellation(cts.Token))
+                        await _channel.Writer.WriteAsync(item, cts.Token);
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    logger.LogError(ex, "[Mux] Source error");
+                }
+                finally
+                {
+                    _subscriptions.TryRemove(source, out _);
+                }
+            }, cts.Token);
+        }
+    }
 
-//    public void Unsubscribe(IAsyncEnumerable<T> source)
-//    {
-//        if (_subscriptions.TryRemove(source, out var cts))
-//            cts.Cancel();
-//    }
+    public void Unsubscribe(IAsyncEnumerable<T> source)
+    {
+        if (_subscriptions.TryRemove(source, out var cts))
+            cts.Cancel();
+    }
 
-//    public void Complete() => _channel.Writer.TryComplete();
+    public void Complete() => _channel.Writer.TryComplete();
 
-//    public async ValueTask DisposeAsync()
-//    {
-//        await _shutdown.CancelAsync();
-//        foreach (var (_, cts) in _subscriptions)
-//            await cts.CancelAsync();
+    public async ValueTask DisposeAsync()
+    {
+        await _shutdown.CancelAsync();
+        foreach (var (_, cts) in _subscriptions)
+            await cts.CancelAsync();
 
-//        _subscriptions.Clear();
-//        _channel.Writer.TryComplete();
+        _subscriptions.Clear();
+        _channel.Writer.TryComplete();
 
-//        await Task.Yield();
-//    }
-//}
+        await Task.Yield();
+    }
+}

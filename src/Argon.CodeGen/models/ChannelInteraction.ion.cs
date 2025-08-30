@@ -118,7 +118,6 @@ public interface IChannelInteraction : IIonService
 public interface IEventBus : IIonService
 {
     IAsyncEnumerable<IArgonEvent> ForServer(guid spaceId);
-    IAsyncEnumerable<IArgonEvent> ForSelf();
     Task Dispatch(IArgonClientEvent ev);
 }
 

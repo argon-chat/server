@@ -219,8 +219,6 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
     
     private static readonly Lazy<MethodInfo> ForServer_Ref = new(() =>
         typeof(IEventBus).GetMethod(nameof(ForServer), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> ForSelf_Ref = new(() =>
-        typeof(IEventBus).GetMethod(nameof(ForSelf), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Dispatch_Ref = new(() =>
         typeof(IEventBus).GetMethod(nameof(Dispatch), BindingFlags.Public | BindingFlags.Instance)!);
 
@@ -237,22 +235,6 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         writer.WriteStartArray(argsSize);
         
         IonFormatterStorage<guid>.Write(writer, __spaceid);
-        
-        writer.WriteEndArray();
-    
-        return ws.CallServerStreamingAsync<IArgonEvent>(writer.Encode());
-    }
-    public IAsyncEnumerable<IArgonEvent> ForSelf()
-    {
-        var ws = new IonWsClient(context, typeof(IEventBus), ForSelf_Ref.Value);
-    
-        var writer = new CborWriter();
-
-        const int argsSize = 0;
-        
-        writer.WriteStartArray(argsSize);
-        
-        
         
         writer.WriteEndArray();
     

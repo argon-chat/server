@@ -50,7 +50,7 @@ public class ServerInteractionImpl : IServerInteraction
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetServerArchetypes();
 
     public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(Guid spaceId)
-        => throw new NotImplementedException();
+        => await this.GetGrain<IEntitlementGrain>(spaceId).GetFullyServerArchetypes();
 }
 
 public class ChannelInteractionImpl : IChannelInteraction
@@ -102,5 +102,5 @@ public class ChannelInteractionImpl : IChannelInteraction
     }
 
     public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId)
-        => throw new NotImplementedException();
+        => await this.GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
 }

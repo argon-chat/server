@@ -243,33 +243,6 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
             mem.Dispose();
         }
     }
-    public async IAsyncEnumerable<Memory<byte>> ForSelf_Execute(CborReader reader)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IEventBus>();
-
-        const int argumentSize = 0;
-
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-            
-        
-
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-
-        await foreach (var e in service.ForSelf())
-        {
-            var writer = new CborWriter();
-
-            IonFormatterStorage<IArgonEvent>.Write(writer, e);
-
-            var mem = MemoryPool<byte>.Shared.Rent(writer.BytesWritten);
-
-            writer.Encode(mem.Memory.Span);
-
-            yield return mem.Memory;
-
-            mem.Dispose();
-        }
-    }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task Dispatch_Execute(CborReader reader, CborWriter writer)
     {
@@ -292,8 +265,6 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
         
         if (methodName.Equals("ForServer", StringComparison.InvariantCultureIgnoreCase))
             return ForServer_Execute(reader);
-        if (methodName.Equals("ForSelf", StringComparison.InvariantCultureIgnoreCase))
-            return ForSelf_Execute(reader);
 
         
         throw new InvalidOperationException("no method defined");
