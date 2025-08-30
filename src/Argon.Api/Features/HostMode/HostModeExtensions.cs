@@ -84,11 +84,8 @@ public static class HostModeExtensions
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
             builder.AddDefaultCors();
-            //builder.Services.AddControllers(x =>
-            //    {
-            //        x.InputFormatters.Insert(0, new IonPassThroughFormatter());
-            //    })
-            //   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+            builder.Services.AddControllers()
+               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
             //builder.AddArgonTransport(x => {
             //    x.AddService<IServerInteraction, ServerInteraction>();
@@ -161,8 +158,8 @@ public static class HostModeExtensions
                     listenOptions.UseConnectionLogging();
                 });
             });
-            //builder.Services.AddControllers()
-            //   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+            builder.Services.AddControllers()
+               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
             //builder.AddArgonTransport(x => {
             //    x.AddService<IServerInteraction, ServerInteraction>();
