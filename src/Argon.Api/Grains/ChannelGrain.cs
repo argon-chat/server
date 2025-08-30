@@ -8,7 +8,6 @@ using Orleans.Concurrency;
 using Orleans.GrainDirectory;
 using Orleans.Providers;
 using Persistence.States;
-using Servers;
 using Sfu;
 
 [GrainDirectory(GrainDirectoryName = "channels")]
@@ -22,8 +21,8 @@ public class ChannelGrain(
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
 
-    private Channel        _self     { get; set; }
-    private ArgonServerId  ServerId  => new(_self.ServerId);
+    private ChannelEntity        _self     { get; set; }
+    private ArgonServerId  ServerId  => new(_self.SpaceId);
     private ArgonChannelId ChannelId => new(ServerId, this.GetPrimaryKey());
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
@@ -45,7 +44,7 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
-    public async Task<List<ArgonMessage>> GetMessages(int count, int offset)
+    public async Task<List<ArgonMessageEntity>> GetMessages(int count, ulong offset)
     {
         //await using var ctx = await context.CreateDbContextAsync();
         //var messages = await ctx.Messages
@@ -60,13 +59,13 @@ public class ChannelGrain(
         return [];
     }
 
-    public async Task<List<ArgonMessage>> QueryMessages(ulong? @from, int limit)
+    public async Task<List<ArgonMessageEntity>> QueryMessages(ulong? @from, int limit)
     {
         await using var ctx = await cassandraContext.CreateDbContextAsync();
 
         var processor = new MessageProcessor(ctx.Context);
 
-        return await processor.QueryMessages(_self.ServerId, this.GetPrimaryKey(), @from, limit);
+        return await processor.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
     }
 
     public async Task<List<RealtimeChannelUser>> GetMembers()
@@ -109,7 +108,7 @@ public class ChannelGrain(
         var invoker = await ctx.UsersToServerRelations
            .AsNoTracking()
            .Where(x => x.ServerId == ServerId.id && x.UserId == callerId)
-           .Include(x => x.ServerMemberArchetypes)
+           .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
 
@@ -117,7 +116,7 @@ public class ChannelGrain(
             return false;
 
         var invokerArchetypes = invoker
-           .ServerMemberArchetypes
+           .SpaceMemberArchetypes
            .Select(x => x.Archetype)
            .ToList();
 
@@ -133,18 +132,14 @@ public class ChannelGrain(
         var userId = this.GetUserId();
 
         if (state.State.Users.ContainsKey(userId))
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
         else
         {
-            state.State.Users.Add(userId, new RealtimeChannelUser()
-            {
-                UserId = userId,
-                State  = ChannelMemberState.NONE
-            });
+            state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
             await state.WriteStateAsync();
         }
 
-        await _userStateEmitter.Fire(new JoinedToChannelUser(userId, this.GetPrimaryKey()));
+        await _userStateEmitter.Fire(new JoinedToChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -155,7 +150,7 @@ public class ChannelGrain(
     public async Task Leave(Guid userId)
     {
         state.State.Users.Remove(userId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(userId, this.GetPrimaryKey()));
+        await _userStateEmitter.Fire(new LeavedFromChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
         await sfu.KickParticipantAsync(userId, ChannelId);
         await state.WriteStateAsync();
 
@@ -163,10 +158,10 @@ public class ChannelGrain(
             this.DelayDeactivation(TimeSpan.MinValue);
     }
 
-    public async Task<Channel> GetChannel()
+    public async Task<ChannelEntity> GetChannel()
         => await Get();
 
-    public async Task<Channel> UpdateChannel(ChannelInput input)
+    public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -179,7 +174,7 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task SendMessage(string text, List<MessageEntity> entities, ulong? replyTo)
+    public async Task<ulong> SendMessage(string text, List<IMessageEntity> entities, ulong? replyTo)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
         var senderId = this.GetUserId();
@@ -190,51 +185,37 @@ public class ChannelGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
 
-        var msgId = await ctx.GenerateNextMessageId(_self.ServerId, this.GetPrimaryKey());
+        var msgId = await ctx.GenerateNextMessageId(_self.SpaceId, this.GetPrimaryKey());
 
         var rand = (unchecked((ulong)Random.Shared.NextInt64(long.MinValue, long.MaxValue)));
 
-        var message = new ArgonMessage
+        var message = new ArgonMessageEntity()
         {
-            ServerId  = _self.ServerId,
+            ServerId = _self.SpaceId,
             ChannelId = this.GetPrimaryKey(),
             CreatorId = senderId,
-            Entities  = entities,
-            Text      = text,
+            Entities = entities,
+            Text = text,
             MessageId = msgId,
             CreatedAt = DateTimeOffset.UtcNow,
-            Reply     = replyTo,
+            Reply = replyTo,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
         var dup = await processor.CheckDuplicationAsync(message, rand);
 
-        if (dup) return;
+        if (dup) return msgId;
 
         await processor.ExecuteInsertMessage(msgId, message, rand);
 
-        await _userStateEmitter.Fire(new MessageSent(message.ToDto()));
+        await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, message.ToDto()));
+        return msgId;
     }
 
-    private async Task<Channel> Get()
+    private async Task<ChannelEntity> Get()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 }
-
-public enum ChannelUserChangedStateEvent
-{
-    ON_JOINED,
-    ON_LEAVED,
-    ON_MUTED,
-    ON_MUTED_ALL,
-    ON_ENABLED_VIDEO,
-    ON_DISABLED_VIDEO,
-    ON_ENABLED_STREAMING,
-    ON_DISABLED_STREAMING
-}
-
-[GenerateSerializer, MessagePackObject(true)]
-public partial record OnChannelUserChangedState([property: Id(0)] Guid userId, [property: Id(1)] ChannelUserChangedStateEvent eventKind);

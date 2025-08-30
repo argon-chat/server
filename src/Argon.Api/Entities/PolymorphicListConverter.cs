@@ -1,6 +1,5 @@
 namespace Argon.Entities;
 
-using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
 public class PolymorphicListConverter<TBase> : JsonConverter<List<TBase>>

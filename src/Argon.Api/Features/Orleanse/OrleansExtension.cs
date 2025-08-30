@@ -1,18 +1,20 @@
 namespace Argon.Features;
 
-using System;
 using Api.Features;
 using Api.Features.Orleans.Consul;
+using Argon.Api.Features.Utils;
+using Argon.Api.Services.Metrics;
+using Argon.Services.Ion;
 using EntryPoint;
 using Env;
-using Orleans.Providers;
+using ion.runtime;
 using NatsStreaming;
 using Orleans.Configuration;
+using Orleans.Hosting;
+using Orleans.Providers;
+using Orleans.Serialization;
 using Sentry;
 using Services;
-using Orleans.Hosting;
-using Orleans.Serialization;
-using Argon.Api.Services.Metrics;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -39,6 +41,22 @@ public static class OrleansExtension
     {
         //builder.AddMultiOrleansClient();
         //return builder;
+        builder.Services.AddSerializer(x =>
+        {
+            x.AddNewtonsoftJsonSerializer(q => true,
+                optionsBuilder =>
+                {
+                    optionsBuilder.Configure(z =>
+                    {
+                        z.SerializerSettings                       ??= new JsonSerializerSettings();
+                        z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
+                        z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
+                        z.SerializerSettings.Converters.Add(new IonMaybeConverter());
+                        z.SerializerSettings.Converters.Add(new IonArrayConverter());
+                        z.SerializerSettings.Converters.Add(new StringEnumConverter());
+                    });
+                });
+        });
         builder.AddNatsCtx();
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
         builder.Services.AddHostedService<EntryPointWatcher>();
@@ -49,7 +67,21 @@ public static class OrleansExtension
     public static WebApplicationBuilder AddWorkerOrleans(this WebApplicationBuilder builder)
     {
         builder.AddNatsCtx();
-        builder.Services.UseOrleansMessagePack();
+        builder.Services.AddSerializer(x =>
+        {
+            x.AddNewtonsoftJsonSerializer(q => true, optionsBuilder =>
+            {
+                optionsBuilder.Configure(z =>
+                {
+                    z.SerializerSettings                       ??= new JsonSerializerSettings();
+                    z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
+                    z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
+                    z.SerializerSettings.Converters.Add(new IonMaybeConverter());
+                    z.SerializerSettings.Converters.Add(new IonArrayConverter());
+                    z.SerializerSettings.Converters.Add(new StringEnumConverter());
+                });
+            });
+        });
         builder.Host.UseOrleans(siloBuilder =>
         {
             if (builder.IsGatewayRole() || builder.IsHybridRole())
@@ -68,8 +100,8 @@ public static class OrleansExtension
                .AddStreaming()
                .AddActivityPropagation()
                .AddReminders()
-               .AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-               .AddIncomingGrainCallFilter<MetricGrainCallFilter>()
+               //.AddIncomingGrainCallFilter<SentryGrainCallFilter>()
+               //.AddIncomingGrainCallFilter<MetricGrainCallFilter>()
                .UseStorages([
                     IUserSessionGrain.StorageId,
                     IServerInvitesGrain.StorageId,
@@ -84,10 +116,7 @@ public static class OrleansExtension
                     options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
                     //options.LivenessEnabled             = false; // TODO
                 })
-               .Configure<ExceptionSerializationOptions>(x =>
-                {
-                    x.SupportedNamespacePrefixes.Add("Argon");
-                })
+               .Configure<ExceptionSerializationOptions>(x => { x.SupportedNamespacePrefixes.Add("Argon"); })
                .Configure<GrainCollectionOptions>(options =>
                 {
                     options.CollectionAge     = TimeSpan.FromMinutes(4);

@@ -1,6 +1,5 @@
 namespace Argon.Features.Logic;
 
-using Newtonsoft.Json;
 using Services;
 
 public static class UserPresenceFeature

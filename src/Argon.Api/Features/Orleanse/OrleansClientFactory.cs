@@ -22,8 +22,6 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
     {
         var services = new ServiceCollection();
         
-        services.UseOrleansMessagePack();
-        services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
         services.AddKeyedSingleton("dc", dc);
 
         services.Add(new ServiceDescriptor(typeof(IConsulClient), null,

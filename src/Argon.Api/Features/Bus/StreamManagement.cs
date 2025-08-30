@@ -22,7 +22,7 @@ public class StreamManagement(IServiceProvider serviceProvider) : IStreamManagem
     private readonly AsyncLock guarder = new();
 
     public ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
-        => CreateServerStream(StreamId.Create(IArgonEvent.Namespace, targetId));
+        => CreateServerStream(StreamId.Create("@", targetId));
 
     public async ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStream(StreamId streamId)
     {

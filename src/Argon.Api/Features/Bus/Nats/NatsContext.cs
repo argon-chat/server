@@ -6,11 +6,9 @@ using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 using NATS.Net;
 using Orleans.Runtime;
-using System;
 using System.Buffers;
 using System.Threading.Channels;
 using Api.Features.Bus;
-using Newtonsoft.Json;
 
 public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServiceProvider provider)
 {

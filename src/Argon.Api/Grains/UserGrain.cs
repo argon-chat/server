@@ -1,7 +1,7 @@
 namespace Argon.Grains;
 
-using System.Diagnostics;
 using Features.Logic;
+using ion.runtime;
 using Orleans;
 using Orleans.Concurrency;
 using Services;
@@ -13,13 +13,13 @@ public class UserGrain(
     IUserPresenceService presenceService,
     ILogger<IUserGrain> logger) : Grain, IUserGrain
 {
-    public async Task<User> UpdateUser(UserEditInput input)
+    public async Task<UserEntity> UpdateUser(UserEditInput input)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
-        user.DisplayName  = input.DisplayName ?? user.DisplayName;
-        user.AvatarFileId = input.AvatarId ?? user.AvatarFileId;
+        user.DisplayName  = !string.IsNullOrEmpty(input.displayName) ? input.displayName : user.DisplayName;
+        user.AvatarFileId = !string.IsNullOrEmpty(input.avatarId) ? input.avatarId : user.AvatarFileId;
         ctx.Users.Update(user);
         await ctx.SaveChangesAsync();
 
@@ -27,7 +27,7 @@ public class UserGrain(
 
         await Task.WhenAll(userServers
            .Select(id => GrainFactory
-               .GetGrain<IServerGrain>(id)
+               .GetGrain<ISpaceGrain>(id)
                .DoUserUpdatedAsync()
                .AsTask())
            .ToArray());
@@ -35,7 +35,7 @@ public class UserGrain(
         return user;
     }
 
-    public async Task<User> GetMe()
+    public async Task<UserEntity> GetMe()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -44,23 +44,18 @@ public class UserGrain(
            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 
-    public async Task<List<Server>> GetMyServers()
+    public async Task<List<ArgonSpaceBase>> GetMyServers()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        return await ctx.Users
+        var result = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .Include(user => user.ServerMembers)
-           .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
-           .ThenInclude(x => x.Users)
-           .Include(user => user.ServerMembers)
-           .ThenInclude(usersToServerRelation => usersToServerRelation.Server)
-           .ThenInclude(x => x.Channels)
-           .Where(x => x.Id == this.GetPrimaryKey())
-           .SelectMany(x => x.ServerMembers)
-           .Select(x => x.Server)
-           .AsSplitQuery()
+           .Include(x => x.Space)
+           .Where(x => x.UserId == this.GetPrimaryKey())
+           .Select(x => x.Space)
            .ToListAsync();
+
+        return result.Select(x => new ArgonSpaceBase(x.Id, x.Name, x.Description!, x.AvatarFileId, x.TopBannedFileId)).ToList();
     }
 
     public async Task<List<Guid>> GetMyServersIds()
@@ -82,7 +77,7 @@ public class UserGrain(
         var servers = await GetMyServersIds();
         foreach (var server in servers)
             await GrainFactory
-               .GetGrain<IServerGrain>(server)
+               .GetGrain<ISpaceGrain>(server)
                .SetUserPresence(this.GetPrimaryKey(), presence);
     }
 
@@ -94,46 +89,46 @@ public class UserGrain(
         var servers = await GetMyServersIds();
         foreach (var server in servers)
             await GrainFactory
-               .GetGrain<IServerGrain>(server)
+               .GetGrain<ISpaceGrain>(server)
                .RemoveUserPresence(this.GetPrimaryKey());
     }
 
-    public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
-    {
-        await using var ctx = await context.CreateDbContextAsync();
+    //public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
+    //{
+    //    await using var ctx = await context.CreateDbContextAsync();
 
-        await ctx.SocialIntegrations.AddAsync(new UserSocialIntegration()
-        {
-            Kind     = kind,
-            SocialId = socialId,
-            UserData = userData,
-            Id       = Guid.NewGuid(),
-            UserId   = this.GetPrimaryKey()
-        });
-        await ctx.SaveChangesAsync();
-    }
+    //    await ctx.SocialIntegrations.AddAsync(new UserSocialIntegration()
+    //    {
+    //        Kind     = kind,
+    //        SocialId = socialId,
+    //        UserData = userData,
+    //        Id       = Guid.NewGuid(),
+    //        UserId   = this.GetPrimaryKey()
+    //    });
+    //    await ctx.SaveChangesAsync();
+    //}
 
-    public async ValueTask<List<UserSocialIntegrationDto>> GetMeSocials()
-    {
-        await using var ctx = await context.CreateDbContextAsync();
-        return await ctx.SocialIntegrations.AsNoTracking().Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
-    }
+    //public async ValueTask<List<UserSocialIntegrationDto>> GetMeSocials()
+    //{
+    //    await using var ctx = await context.CreateDbContextAsync();
+    //    return await ctx.SocialIntegrations.AsNoTracking().Where(x => x.UserId == this.GetPrimaryKey()).ToListAsync().ToDto();
+    //}
 
-    public async ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId)
-    {
-        await using var ctx = await context.CreateDbContextAsync();
+    //public async ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId)
+    //{
+    //    await using var ctx = await context.CreateDbContextAsync();
 
-        try
-        {
-            var result = await ctx.SocialIntegrations.Where(x => x.Id == socialId).ExecuteDeleteAsync();
-            return result == 1;
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "failed delete social bound by {socialId}", socialId);
-            return false;
-        }
-    }
+    //    try
+    //    {
+    //        var result = await ctx.SocialIntegrations.Where(x => x.Id == socialId).ExecuteDeleteAsync();
+    //        return result == 1;
+    //    }
+    //    catch (Exception e)
+    //    {
+    //        logger.LogError(e, "failed delete social bound by {socialId}", socialId);
+    //        return false;
+    //    }
+    //}
 
     //[OneWay]
     public async ValueTask UpdateUserDeviceHistory()
@@ -158,7 +153,7 @@ public class UserGrain(
             }
             else
             {
-                await ctx.DeviceHistories.AddAsync(new UserDeviceHistory
+                await ctx.DeviceHistories.AddAsync(new UserDeviceHistoryEntity
                 {
                     AppId         = "unknown",
                     DeviceType    = DeviceTypeKind.WindowsDesktop,

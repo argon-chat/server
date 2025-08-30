@@ -10,4 +10,6 @@ public interface IMetricsCollector
     Task ObserveAsync(MeasurementId measurement, double value, Dictionary<string, string>? tags = null);
     Task DurationAsync(MeasurementId measurement, TimeSpan duration, Dictionary<string, string>? tags = null);
     Task DurationAsync(MeasurementId measurement, TimeSpan duration, string scope, string operation);
+
+    ILogger<IMetricsCollector> Logger { get; }
 }

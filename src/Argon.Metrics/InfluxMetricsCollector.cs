@@ -4,7 +4,7 @@ using InfluxDB3.Client.Write;
 using Microsoft.Extensions.DependencyInjection;
 using System.Collections.Concurrent;
 
-public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provider, IWebHostEnvironment env) : IMetricsCollector
+public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provider, IWebHostEnvironment env, ILogger<IMetricsCollector> logger) : IMetricsCollector
 {
     private readonly Lazy<string?> Datacenter = new(() => provider.GetKeyedService<string>("dc"));
 
@@ -75,4 +75,6 @@ public class InfluxMetricsCollector(IPointBuffer writer, IServiceProvider provid
 
         writer.Enqueue(point);
     }
+
+    public ILogger<IMetricsCollector> Logger { get; } = logger;
 }

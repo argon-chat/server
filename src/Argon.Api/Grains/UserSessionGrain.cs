@@ -87,7 +87,7 @@ public class UserSessionGrain(
         await presenceService.SetSessionOnlineAsync(_userId, this.GetPrimaryKey());
         foreach (var server in servers)
             await grainFactory
-               .GetGrain<IServerGrain>(server)
+               .GetGrain<ISpaceGrain>(server)
                .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
         _cacheSubscriber = bag.Build();
 
@@ -119,7 +119,7 @@ public class UserSessionGrain(
                .GetMyServersIds();
             foreach (var server in servers)
                 await grainFactory
-                   .GetGrain<IServerGrain>(server)
+                   .GetGrain<ISpaceGrain>(server)
                    .SetUserStatus(_userId, UserStatus.Offline);
             await grainFactory
                .GetGrain<IUserGrain>(_userId)
@@ -162,14 +162,14 @@ public class UserSessionGrain(
            .GetMyServersIds();
         foreach (var server in servers)
             await grainFactory
-               .GetGrain<IServerGrain>(server)
+               .GetGrain<ISpaceGrain>(server)
                .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
 
         if (!await presenceService.IsUserOnlineAsync(_userId, arg))
         {
             foreach (var server in servers)
                 await grainFactory
-                   .GetGrain<IServerGrain>(server)
+                   .GetGrain<ISpaceGrain>(server)
                    .SetUserStatus(_userId, UserStatus.Offline);
             refreshTimer?.Dispose();
             refreshTimer = null;
@@ -178,13 +178,13 @@ public class UserSessionGrain(
         }
     }
 
-    public async ValueTask<bool> HeartBeatAsync(UserStatus status)
+    public async ValueTask HeartBeatAsync(UserStatus status)
     {
         if (_userId == Guid.Empty)
         {
             await metrics.CountAsync(new("user_session_invalid_state"));
             logger.LogWarning("Trying set heartbeat with no active session, reset connection...");
-            return false;
+            return;
         }
 
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -205,7 +205,6 @@ public class UserSessionGrain(
         heartbeatRate.Increment();
         await heartbeatRate.FlushAsync();
         await sessionHeartbeatCounter.CountAsync("status", status.ToString());
-        return true;
     }
 
     [OneWay]

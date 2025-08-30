@@ -5,17 +5,17 @@ using Cassandra.Core;
 using Cassandra.Features.Messages;
 using Cassandra.Mapping;
 
-public class ArgonCassandraDbContext(CassandraConfiguration config, IServiceProvider serviceProvider, ILogger<ArgonCassandraDbContext> logger) 
+public class ArgonCassandraDbContext(CassandraConfiguration config, IServiceProvider serviceProvider, ILogger<ArgonCassandraDbContext> logger)
     : CassandraDbContext(config, serviceProvider, logger)
 {
-    public CassandraDbSet<ArgonMessage>              ArgonMessages              => Set<ArgonMessage>();
+    public CassandraDbSet<ArgonMessageEntity>        ArgonMessages              => Set<ArgonMessageEntity>();
     public CassandraDbSet<ArgonMessageDeduplication> ArgonMessagesDeduplication => Set<ArgonMessageDeduplication>();
     public CassandraDbSet<ArgonChannelMetadata>      ArgonChannelMetadata       => Set<ArgonChannelMetadata>();
 
 
     protected override void OnConfigureModels(IEntityMetadataContext metadataContext)
     {
-        metadataContext.ForTable<ArgonMessage>()
+        metadataContext.ForTable<ArgonMessageEntity>()
            .WithClusteringKey(x => x.MessageId, 0)
            .WithPartitionKey(x => x.ServerId, 0)
            .WithPartitionKey(x => x.ChannelId, 1)

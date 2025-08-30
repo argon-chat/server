@@ -1,7 +1,6 @@
 namespace Argon.Services;
 
 using System.Buffers;
-using System.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 

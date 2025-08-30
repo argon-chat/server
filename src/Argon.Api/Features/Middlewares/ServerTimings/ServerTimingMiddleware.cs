@@ -1,7 +1,5 @@
 namespace Argon.Features.Middlewares;
 
-using System.Diagnostics;
-
 public sealed class ServerTimingMiddleware(RequestDelegate next, IOptions<ServerTimingOptions> options)
 {
     private const string HeaderName = "Server-Timing";

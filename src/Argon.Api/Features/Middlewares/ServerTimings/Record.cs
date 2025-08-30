@@ -1,7 +1,5 @@
 ﻿namespace Argon.Features.Middlewares;
 
-using System.Diagnostics;
-
 public sealed class Record
 {
     private readonly double?   duration;

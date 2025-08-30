@@ -1,35 +1,36 @@
 namespace Argon.Features.HostMode;
 
+using Argon.Services.Ion;
 using Auth;
-using EF;
-using Jwt;
-using Logging;
-using Middlewares;
-using Vault;
-using Services;
-using Web;
 using Captcha;
+using EF;
 using Env;
-using MediaStorage;
-using Otp;
-using Pex;
-using Repositories;
-using Template;
-using Sfu;
-using Serilog;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-using System.Security.Cryptography.X509Certificates;
 using FluentValidation;
 using GeoIP;
 using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
+using Jwt;
 using k8s;
+using Logging;
 using Logic;
+using MediaStorage;
 using Metrics;
+using Microsoft.AspNetCore.Mvc.Formatters;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Middlewares;
+using Otp;
+using Pex;
 using RegionalUnit;
+using Repositories;
+using Serilog;
+using Services;
 using Services.Validators;
+using Sfu;
 using Social;
-
+using System.Security.Cryptography.X509Certificates;
+using Template;
+using Vault;
+using Web;
 public static class HostModeExtensions
 {
     public static WebApplicationBuilder AddSingleInstanceWorkload(this WebApplicationBuilder builder)
@@ -83,16 +84,28 @@ public static class HostModeExtensions
         if (builder.IsEntryPointRole() || builder.IsHybridRole())
         {
             builder.AddDefaultCors();
-            builder.Services.AddControllers()
-               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-            builder.AddSwaggerWithAuthHeader();
+            //builder.Services.AddControllers(x =>
+            //    {
+            //        x.InputFormatters.Insert(0, new IonPassThroughFormatter());
+            //    })
+            //   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
-            builder.AddArgonTransport(x => {
-                x.AddService<IServerInteraction, ServerInteraction>();
-                x.AddService<IUserInteraction, UserInteraction>();
-                x.AddService<IEventBus, EventBusService>();
+            //builder.AddArgonTransport(x => {
+            //    x.AddService<IServerInteraction, ServerInteraction>();
+            //    x.AddService<IUserInteraction, UserInteraction>();
+            //    x.AddService<IEventBus, EventBusService>();
+            //});
+
+            builder.Services.AddIonProtocol((x) => {
+                x.AddInterceptor<ArgonTransactionInterceptor>();
+                x.AddInterceptor<ArgonOrleansInterceptor>();
+                x.AddService<IUserInteraction, UserInteractionImpl>();
+                x.AddService<IEventBus, EventBusImpl>();
+                x.AddService<IServerInteraction, ServerInteractionImpl>();
+                x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+                x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
             });
-            
+
         }
         if (builder.IsHybridRole())
             builder.AddTemplateEngine();
@@ -148,14 +161,22 @@ public static class HostModeExtensions
                     listenOptions.UseConnectionLogging();
                 });
             });
-            builder.Services.AddControllers()
-               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-            builder.AddSwaggerWithAuthHeader();
+            //builder.Services.AddControllers()
+            //   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
-            builder.AddArgonTransport(x => {
-                x.AddService<IServerInteraction, ServerInteraction>();
-                x.AddService<IUserInteraction, UserInteraction>();
-                x.AddService<IEventBus, EventBusService>();
+            //builder.AddArgonTransport(x => {
+            //    x.AddService<IServerInteraction, ServerInteraction>();
+            //    x.AddService<IUserInteraction, UserInteraction>();
+            //    x.AddService<IEventBus, EventBusService>();
+            //});
+            builder.Services.AddIonProtocol((x) => {
+                x.AddInterceptor<ArgonTransactionInterceptor>();
+                x.AddInterceptor<ArgonOrleansInterceptor>();
+                x.AddService<IUserInteraction, UserInteractionImpl>();
+                x.AddService<IEventBus, EventBusImpl>();
+                x.AddService<IServerInteraction, ServerInteractionImpl>();
+                x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+                x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
             });
         }
 
@@ -182,7 +203,6 @@ public static class HostModeExtensions
         builder.Services.AddServerTiming();
         builder.WebHost.UseQuic();
         builder.AddLogging();
-        builder.UseMessagePack();
         builder.Services.AddMessagePipe();
         builder.WebHost.UseSentry(o => {
             o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
@@ -210,8 +230,6 @@ public static class HostModeExtensions
         builder.AddCaptchaFeature();
         builder.AddUserPresenceFeature();
         builder.AddSocialIntegrations();
-        builder.AddEventCollectorFeature(EventConfigurator.Configure);
-        builder.Services.AddSerializer(x => x.AddMessagePackSerializer(null, null, MessagePackSerializer.DefaultOptions));
 
         if (builder.IsHybridRole())
         {
@@ -246,15 +264,11 @@ public static class RunHostModeExtensions
         if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
-            app.UseSwagger();
-            app.UseSwaggerUI();
             app.UseAuthentication();
             app.UseAuthorization();
-            app.MapControllers();
-            app.MapArgonTransport();
+            app.MapRpcEndpoints();
+            app.UseWebSockets();
         }
-
-        app.UseEventCollectorFeature();
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });
@@ -271,17 +285,15 @@ public static class RunHostModeExtensions
         if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
-            app.UseSwagger();
-            app.UseSwaggerUI();
             app.UseAuthentication();
             app.UseAuthorization();
+            app.MapRpcEndpoints();
             app.MapControllers();
-            app.MapArgonTransport();
+            app.UseWebSockets();
             if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
                 app.UseSerilogRequestLogging();
             app.UseRewrites();
         }
-        app.UseEventCollectorFeature();
         app.MapGet("/", () => new {
             version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
         });

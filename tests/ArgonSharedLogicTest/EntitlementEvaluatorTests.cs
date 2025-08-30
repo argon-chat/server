@@ -88,7 +88,7 @@ public class EntitlementEvaluatorTests
 
         var user1 = new ServerMember()
         {
-            User = new User()
+            User = new UserEntity()
             {
                 DisplayName = "",
                 Email       = "",
@@ -110,7 +110,7 @@ public class EntitlementEvaluatorTests
 
         var user2 = new ServerMember()
         {
-            User = new User()
+            User = new UserEntity()
             {
                 DisplayName = "",
                 Email       = "",
@@ -137,7 +137,7 @@ public class EntitlementEvaluatorTests
 
         var user3 = new ServerMember()
         {
-            User = new User()
+            User = new UserEntity()
             {
                 DisplayName = "",
                 Email       = "",

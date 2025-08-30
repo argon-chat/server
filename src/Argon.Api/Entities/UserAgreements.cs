@@ -1,8 +1,6 @@
 namespace Argon.Entities;
 
-using System.ComponentModel.DataAnnotations;
 
-[MessagePackObject(true)]
 public record UserAgreements
 {
     [Key]
@@ -12,6 +10,6 @@ public record UserAgreements
     public DateTimeOffset CreatedAt                 { get; init; } = DateTimeOffset.UtcNow;
     public DateTimeOffset UpdatedAt                 { get; set; }  = DateTimeOffset.UtcNow;
 
-    public virtual User User   { get; set; }
+    public virtual UserEntity User   { get; set; }
     public         Guid UserId { get; set; }
 }

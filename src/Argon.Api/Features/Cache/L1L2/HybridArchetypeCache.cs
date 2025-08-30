@@ -4,7 +4,6 @@ using Features.Repositories;
 using Metrics;
 using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
-using System.Diagnostics;
 
 public static class L1L2CacheExtensions
 {
@@ -30,34 +29,34 @@ public static class L1L2CacheExtensions
 
 public class ArchetypeAgentHub(IArchetypeCache cache) : IArchetypeAgent
 {
-    public async Task<ArchetypeDto?> GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default)
+    public async Task<Archetype?> GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default)
         => await cache.GetAsync(serverId, archetypeId);
 
-    public async Task<List<ArchetypeDto>> GetAllAsync(Guid serverId, CancellationToken ct = default)
+    public async Task<List<Archetype>> GetAllAsync(Guid serverId, CancellationToken ct = default)
     {
         var e = await cache.GetAllAsync(serverId);
         return [..e];
     }
 
-    public async Task<ArchetypeDto> DoCreatedAsync(Archetype archetype, CancellationToken ct = default)
+    public async Task<Archetype> DoCreatedAsync(ArchetypeEntity archetype, CancellationToken ct = default)
     {
-        await cache.SignalInvalidationAsync(archetype.ServerId, archetype.Id, ct);
+        await cache.SignalInvalidationAsync(archetype.SpaceId, archetype.Id, ct);
         return archetype.ToDto();
     }
-    public async Task<ArchetypeDto> DoUpdatedAsync(Archetype archetype, CancellationToken ct = default)
+    public async Task<Archetype> DoUpdatedAsync(ArchetypeEntity archetype, CancellationToken ct = default)
     {
-        await cache.SignalInvalidationAsync(archetype.ServerId, archetype.Id, ct);
+        await cache.SignalInvalidationAsync(archetype.SpaceId, archetype.Id, ct);
         return archetype.ToDto();
     }
 }
 
 public interface IArchetypeAgent
 {
-    Task<ArchetypeDto?>      GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default);
-    Task<List<ArchetypeDto>> GetAllAsync(Guid serverId, CancellationToken ct = default);
+    Task<Archetype?>      GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default);
+    Task<List<Archetype>> GetAllAsync(Guid serverId, CancellationToken ct = default);
 
-    Task<ArchetypeDto> DoCreatedAsync(Archetype archetype, CancellationToken ct = default);
-    Task<ArchetypeDto> DoUpdatedAsync(Archetype archetype, CancellationToken ct = default);
+    Task<Archetype> DoCreatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
+    Task<Archetype> DoUpdatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
 }
 
 public class HybridArchetypeCache(
@@ -66,7 +65,7 @@ public class HybridArchetypeCache(
     IMetricsCollector metrics,
     INatsClient nats) : IArchetypeCache
 {
-    public async Task<ArchetypeDto?> GetAsync(Guid serverId, Guid archetypeId)
+    public async Task<Archetype?> GetAsync(Guid serverId, Guid archetypeId)
     {
         var tags = new Dictionary<string, string>
         {
@@ -77,7 +76,7 @@ public class HybridArchetypeCache(
         return await metrics.TimeAsync(HybridArchetypeCacheMetrics.GetDuration, async () =>
         {
             await metrics.CountAsync(HybridArchetypeCacheMetrics.GetCount, tags);
-            return await cache.GetOrCreateAsync<ArchetypeDto>(
+            return await cache.GetOrCreateAsync<Archetype>(
                 $"archetype:{serverId}:{archetypeId}",
                 async ct => await repo.GetByIdAsync(serverId, archetypeId, ct),
                 tags: [$"server:{serverId}", "archetype"]
@@ -85,7 +84,7 @@ public class HybridArchetypeCache(
         }, tags);
     }
 
-    public async Task<IReadOnlyList<ArchetypeDto>> GetAllAsync(Guid serverId)
+    public async Task<IReadOnlyList<Archetype>> GetAllAsync(Guid serverId)
     {
         var tags = new Dictionary<string, string>
         {
@@ -94,7 +93,7 @@ public class HybridArchetypeCache(
         return await metrics.TimeAsync(HybridArchetypeCacheMetrics.GetAllDuration, async () =>
         {
             await metrics.CountAsync(HybridArchetypeCacheMetrics.GetAllCount, tags);
-            return await cache.GetOrCreateAsync<IReadOnlyList<ArchetypeDto>>(
+            return await cache.GetOrCreateAsync<IReadOnlyList<Archetype>>(
                 $"archetypes:{serverId}",
                 async ct => await repo.GetAllAsync(serverId, ct),
                 tags: [$"server:{serverId}", "archetypes"]
@@ -193,8 +192,8 @@ public interface IArchetypeCache
 {
     public const string InvalidationSubject = "archetypes.invalidate";
 
-    Task<ArchetypeDto?>               GetAsync(Guid serverId, Guid archetypeId);
-    Task<IReadOnlyList<ArchetypeDto>> GetAllAsync(Guid serverId);
+    Task<Archetype?>               GetAsync(Guid serverId, Guid archetypeId);
+    Task<IReadOnlyList<Archetype>> GetAllAsync(Guid serverId);
 
     Task InvalidateAsync(Guid serverId, Guid archetypeId);
     Task SignalInvalidationAsync(Guid serverId, Guid roleId, CancellationToken cancellationToken = default);

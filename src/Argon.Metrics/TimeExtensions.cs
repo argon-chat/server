@@ -10,6 +10,7 @@ public readonly struct MetricTimer(IMetricsCollector collector, MeasurementId na
     public async ValueTask DisposeAsync()
     {
         _sw.Stop();
+        collector.Logger.LogInformation("Timing for '{metricKey}' elapsed: {elapsed:##,###} ms", name, _sw.Elapsed.TotalMilliseconds);
         await collector.DurationAsync(name, _sw.Elapsed, tags);
     }
 }

@@ -2,11 +2,10 @@ namespace Argon.Features.Messages;
 
 using Cassandra.Features.Messages;
 using Entities;
-using System;
 
 public class MessageProcessor(ArgonCassandraDbContext ctx)
 {
-    public async Task<List<ArgonMessage>> QueryMessages(
+    public async Task<List<ArgonMessageEntity>> QueryMessages(
         Guid serverId,
         Guid channelId,
         ulong? fromMessageId = null,
@@ -24,7 +23,7 @@ public class MessageProcessor(ArgonCassandraDbContext ctx)
     }
 
 
-    public async Task<bool> CheckDuplicationAsync(ArgonMessage msg, ulong randomId)
+    public async Task<bool> CheckDuplicationAsync(ArgonMessageEntity msg, ulong randomId)
     {
         var (serverId, channelId) = (msg.ServerId, msg.ChannelId);
 
@@ -32,11 +31,11 @@ public class MessageProcessor(ArgonCassandraDbContext ctx)
            .Any(x => x.RandomId == randomId && x.ChannelId == channelId && x.ServerId == serverId);
     }
 
-    public async Task ExecuteInsertMessage(ulong nextMessageId, ArgonMessage msg, ulong randomId)
+    public async Task ExecuteInsertMessage(ulong nextMessageId, ArgonMessageEntity msg, ulong randomId)
     {
-        msg.MessageId = nextMessageId;
+        msg = msg with { MessageId = nextMessageId };
 
-        await ctx.Set<ArgonMessage>()
+        await ctx.Set<ArgonMessageEntity>()
            .AddAsync(msg);
         await ctx.Set<ArgonMessageDeduplication>()
            .AddAsync(new ArgonMessageDeduplication()

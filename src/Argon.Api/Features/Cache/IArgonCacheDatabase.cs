@@ -2,7 +2,6 @@ namespace Argon.Services;
 
 using Grpc.Core;
 using Microsoft.Extensions.ObjectPool;
-using Newtonsoft.Json;
 
 public interface IArgonCacheDatabase
 {
