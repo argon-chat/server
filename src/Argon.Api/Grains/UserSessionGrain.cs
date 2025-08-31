@@ -66,10 +66,10 @@ public class UserSessionGrain(
     public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
     {
         globalCounters.Increment(total_user_active);
-
-        _userId       = this.GetUserId();
-        _shadowUserId = _userId;
-        _machineId    = this.GetUserMachineId();
+        _preferredStatus = preferredStatus;
+        _userId          = this.GetUserId();
+        _shadowUserId    = _userId;
+        _machineId       = this.GetUserMachineId();
 
         logger.LogInformation("Grain for session {sessionId} has been activated, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
 
@@ -94,14 +94,27 @@ public class UserSessionGrain(
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
     }
 
+    private static readonly TimeSpan ExpireGrace = TimeSpan.FromSeconds(10);
+
     private async ValueTask OnKeyExpired(OnRedisKeyExpired ev, CancellationToken ct = default)
     {
         var key = ev.key;
         if (!key.StartsWith($"presence:user:{_userId}:session:"))
             return;
 
-        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId,
-            this.GetPrimaryKey());
+        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}",
+            "OnKeyExpired", key, _userId, this.GetPrimaryKey());
+
+        var now = DateTime.UtcNow;
+        if (_lastHeartbeatTime is not null
+            && now - _lastHeartbeatTime.Value <= (UserPresenceService.DefaultTTL - ExpireGrace))
+        {
+            logger.LogWarning("Ignore EXPIRE for session {sessionId}: last heartbeat {age} ago (< TTL {ttl} - grace {grace})",
+                this.GetPrimaryKey(), now - _lastHeartbeatTime.Value, UserPresenceService.DefaultTTL, ExpireGrace);
+
+            refreshTimer ??= this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+            return;
+        }
 
         refreshTimer?.Dispose();
         refreshTimer = null;
@@ -111,43 +124,18 @@ public class UserSessionGrain(
         if (!await presenceService.IsUserOnlineAsync(_userId, ct))
         {
             logger.LogInformation("This is last user session, become totally offline");
-            var servers = await grainFactory
-               .GetGrain<IUserGrain>(_userId)
-               .GetMyServersIds();
+            var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds();
             foreach (var server in servers)
-                await grainFactory
-                   .GetGrain<ISpaceGrain>(server)
-                   .SetUserStatus(_userId, UserStatus.Offline);
-            await grainFactory
-               .GetGrain<IUserGrain>(_userId)
-               .RemoveBroadcastPresenceAsync();
+                await grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline);
+            await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
             logger.LogInformation("All necessary steps completed, self destroy called soon");
-            await this.SelfDestroy();
+            await SelfDestroy();
             return;
         }
 
-        logger.LogInformation("This is not last user session, skip offline broadcast, destroy session...");
-
-
-        if (_lastHeartbeatTime is null)
-        {
-            logger.LogCritical($"ALERT, detected dead session, but lastHeartbeatTime not defined");
-            await this.SelfDestroy();
-            return;
-        }
-
-        if (_lastHeartbeatTime - DateTime.UtcNow > UserPresenceService.DefaultTTL)
-        {
-            await metrics.CountAsync(new("user_session_timeout"));
-            await sessionDestroyed.CountAsync("reason", "ttl_expired");
-            logger.LogInformation("Session is now graceful complete, predicate {time} > {defaultTTL} return true",
-                _lastHeartbeatTime - DateTime.UtcNow, UserPresenceService.DefaultTTL);
-            await this.SelfDestroy();
-            return;
-        }
-
-        logger.LogCritical($"ALERT, detected dead session, but lastHeartbeatTime less default TTL");
-        await this.SelfDestroy();
+        logger.LogInformation("This is not last user session, destroy only this session grain");
+        await sessionDestroyed.CountAsync("reason", "expired_but_other_sessions_alive");
+        await SelfDestroy();
     }
 
     private async Task UserSessionTickAsync(CancellationToken arg)
@@ -197,7 +185,7 @@ public class UserSessionGrain(
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
-
+        DelayDeactivation(TimeSpan.FromMinutes(2));
         heartbeatRate.Increment();
         await heartbeatRate.FlushAsync();
         await sessionHeartbeatCounter.CountAsync("status", status.ToString());
