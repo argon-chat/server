@@ -98,10 +98,7 @@ public class UserSessionGrain(
     {
         var key = ev.key;
         if (!key.StartsWith($"presence:user:{_userId}:session:"))
-        {
-            logger.LogInformation("KeyExpired, but {userId} is matched to presence session, {key}", _userId, key);
             return;
-        }
 
         using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}", "OnKeyExpired", key, _userId,
             this.GetPrimaryKey());
@@ -218,7 +215,7 @@ public class UserSessionGrain(
     {
         logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, go to expire session, linkedUserId: {userId}",
             this.GetPrimaryKey(), _shadowUserId);
-        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{this.GetPrimaryKey()}", TimeSpan.FromSeconds(1));
+        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{this.GetPrimaryKey()}", TimeSpan.FromSeconds(60));
     }
 
     public async Task OnNextAsync(IArgonEvent item, StreamSequenceToken? token = null)
