@@ -16,12 +16,22 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
 
     public async Task Dispatch(IArgonClientEvent ev) => await DispatchTree(ev);
 
-    private ValueTask DispatchTree(IArgonClientEvent ev)
-        => ev switch
+    private async ValueTask DispatchTree(IArgonClientEvent ev)
+    {
+        switch (ev)
         {
-            IAmTypingEvent typing         => this.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingEmit(typing.channelId),
-            IAmStopTypingEvent stopTyping => this.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingStopEmit(stopTyping.channelId),
-            HeartBeatEvent heartbeat      => this.GetGrain<IUserSessionGrain>(this.GetSessionId()).HeartBeatAsync(heartbeat.status),
-            _                             => ValueTask.CompletedTask
-        };
+            case IAmTypingEvent typing:
+                await this.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingEmit(typing.channelId);
+                break;
+            case IAmStopTypingEvent stopTyping:
+                await this.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingStopEmit(stopTyping.channelId);
+                break;
+            case HeartBeatEvent heartbeat:
+                if (!await this.GetGrain<IUserSessionGrain>(this.GetSessionId()).HeartBeatAsync(heartbeat.status))
+                    throw new Exception("drop connection when sesssion expired"); 
+                break;
+            default:
+                return;
+        }
+    }
 }

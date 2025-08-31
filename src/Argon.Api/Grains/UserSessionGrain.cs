@@ -163,12 +163,12 @@ public class UserSessionGrain(
         }
     }
 
-    public async ValueTask HeartBeatAsync(UserStatus status)
+    public async ValueTask<bool> HeartBeatAsync(UserStatus status)
     {
         if (_userId == Guid.Empty)
         {
             await BeginRealtimeSession(status);
-            return;
+            return false;
         }
 
         _lastHeartbeatTime = DateTime.UtcNow;
@@ -177,6 +177,9 @@ public class UserSessionGrain(
             _lastDebouncedHeartbeatTime = DateTime.UtcNow;
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
+
+        if (status == UserStatus.Offline)
+            status = UserStatus.Online;
 
         if (_preferredStatus != status)
         {
@@ -189,6 +192,7 @@ public class UserSessionGrain(
         heartbeatRate.Increment();
         await heartbeatRate.FlushAsync();
         await sessionHeartbeatCounter.CountAsync("status", status.ToString());
+        return true;
     }
 
     [OneWay]
