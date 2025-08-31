@@ -44,6 +44,18 @@ public class UserGrain(
            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 
+    public async Task<ArgonUserProfile> GetMyProfile()
+    {
+        var caller = this.GetUserId();
+
+        await using var ctx     = await context.CreateDbContextAsync();
+        var profile = await ctx.UserProfiles
+           .AsNoTracking()
+           .FirstAsync(x => x.UserId == caller);
+
+        return profile.ToDto();
+    }
+
     public async Task<List<ArgonSpaceBase>> GetMyServers()
     {
         await using var ctx = await context.CreateDbContextAsync();

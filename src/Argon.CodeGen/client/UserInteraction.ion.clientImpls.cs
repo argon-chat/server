@@ -42,6 +42,8 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(RemoveBroadcastPresence), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMyFeatures_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(GetMyFeatures), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyProfile_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetMyProfile), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -250,6 +252,23 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
     
         return await req.CallAsync<IonArray<FeatureFlag>>(writer.Encode());
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ArgonUserProfile> GetMyProfile()
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetMyProfile_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ArgonUserProfile>(writer.Encode());
     }
 
 }

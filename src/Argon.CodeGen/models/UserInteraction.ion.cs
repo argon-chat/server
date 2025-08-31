@@ -106,6 +106,7 @@ public interface IUserInteraction : IIonService
     Task BroadcastPresence(UserActivityPresence presence);
     Task RemoveBroadcastPresence();
     Task<IonArray<FeatureFlag>> GetMyFeatures();
+    Task<ArgonUserProfile> GetMyProfile();
 }
 
 

@@ -67,4 +67,7 @@ public class UserInteractionImpl : IUserInteraction
 
     public async Task<IonArray<FeatureFlag>> GetMyFeatures()
         => IonArray<FeatureFlag>.Empty;
+
+    public async Task<ArgonUserProfile> GetMyProfile()
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
 }

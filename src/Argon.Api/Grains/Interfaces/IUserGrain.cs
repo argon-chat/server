@@ -12,6 +12,9 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(GetMe))]
     Task<UserEntity> GetMe();
 
+    [Alias(nameof(GetMyProfile))]
+    Task<ArgonUserProfile> GetMyProfile();
+
     [Alias(nameof(GetMyServers))]
     Task<List<ArgonSpaceBase>> GetMyServers();
 
