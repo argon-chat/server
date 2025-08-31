@@ -182,8 +182,7 @@ public class UserSessionGrain(
     {
         if (_userId == Guid.Empty)
         {
-            await metrics.CountAsync(new("user_session_invalid_state"));
-            logger.LogWarning("Trying set heartbeat with no active session, reset connection...");
+            await BeginRealtimeSession(status);
             return;
         }
 
