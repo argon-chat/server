@@ -236,6 +236,23 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         
         IonFormatterStorage<ArgonUserProfile>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyInventoryItems_Execute(CborReader reader, CborWriter writer)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyInventoryItems();
+        
+        IonFormatterStorage<InventoryItem>.WriteArray(writer, result);
+    }
 
     
     
@@ -269,6 +286,8 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetMyFeatures_Execute(reader, writer);
         if (methodName.Equals("GetMyProfile", StringComparison.InvariantCultureIgnoreCase))
             return GetMyProfile_Execute(reader, writer);
+        if (methodName.Equals("GetMyInventoryItems", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyInventoryItems_Execute(reader, writer);
 
         
         throw new InvalidOperationException("no method defined");
