@@ -84,6 +84,7 @@ public class UserInteractionImpl : IUserInteraction
             Guid.Parse("160c65a4-1baa-4336-8377-0ee7736ce193"),
             Guid.Parse("dfbcd9a2-70e1-4f0f-85fc-8e383625e982"),
             Guid.Parse("7becb726-e5d0-42a8-9fa6-0b2826423de8"),
+            Guid.Parse("bdc95de9-2868-4ff9-a5fd-461011f288d4"),
         };
         if (grantedUsers.Any(x => x == this.GetUserId()))
             return new IonArray<InventoryItem>([new InventoryItem("magic_coal", DateTime.Parse("01.09.2025 0:00:00"))]);
