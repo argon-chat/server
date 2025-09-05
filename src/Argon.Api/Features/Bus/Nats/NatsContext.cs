@@ -1,5 +1,7 @@
 namespace Argon.Features.NatsStreaming;
 
+using Api.Features.Bus;
+using Argon.Features.Bus;
 using Env;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -8,7 +10,6 @@ using NATS.Net;
 using Orleans.Runtime;
 using System.Buffers;
 using System.Threading.Channels;
-using Api.Features.Bus;
 
 public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServiceProvider provider)
 {
@@ -31,13 +32,13 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         return stream;
     }
 
-    public async Task<IArgonStream<IArgonEvent>> CreateReadStream(StreamId id)
+    public async Task<IArgonStream<IArgonEvent>> CreateReadStream(StreamId id, CancellationToken ct = default)
     {
         logger.LogInformation("Begin create read stream for '{streamID}'", id);
         var stream = ActivatorUtilities.CreateInstance<NatsArgonReadOnlyStream>(provider, id, client.CreateJetStreamContext());
         try
         {
-            await stream.CreateSub();
+            await stream.CreateSub(ct);
         }
         catch (Exception e)
         {
@@ -92,7 +93,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
     public ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
         => throw new NotImplementedException();
 
-    public async Task CreateSub()
+    public async Task CreateSub(CancellationToken ct = default)
         => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.ToNatsStreamName(), new ConsumerConfig(_consumerName)
         {
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
@@ -100,7 +101,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
             AckWait       = TimeSpan.FromSeconds(1),
             MaxAckPending = 3,
             Direct        = false
-        });
+        }, ct);
 
     public async ValueTask DisposeAsync()
         => await js.DeleteConsumerAsync(streamId.ToNatsStreamName(), _consumerName);
@@ -206,6 +207,7 @@ public static class NatsExtensions
         builder.Services.AddSingleton<NatsContext>();
 
         builder.Services.AddSingleton<IStreamManagement, StreamManagement>();
+        builder.Services.AddStreamingPump();
         return builder.Services;
     }
 }
