@@ -4,12 +4,11 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public class ArgonCouponRedemptionEntity : IEntityTypeConfiguration<ArgonCouponRedemptionEntity>
 {
-    public Guid              Id       { get; set; }
-    public Guid              CouponId { get; set; }
-    public ArgonCouponEntity Coupon   { get; set; } = null!;
-
-    public Guid     UserId     { get; set; }
-    public DateTime RedeemedAt { get; set; }
+    public Guid              Id         { get; set; }
+    public Guid              CouponId   { get; set; }
+    public ArgonCouponEntity Coupon     { get; set; } = null!;
+    public Guid              UserId     { get; set; }
+    public DateTimeOffset    RedeemedAt { get; set; }
 
     public ICollection<ArgonItemEntity> Items { get; set; } = new List<ArgonItemEntity>();
 

@@ -6,8 +6,8 @@ public record ArgonCouponEntity : ArgonEntity, IEntityTypeConfiguration<ArgonCou
 {
     public         string           Code                  { get; set; } = null!;
     public         string?          Description           { get; set; }
-    public         DateTime         ValidFrom             { get; set; }
-    public         DateTime         ValidTo               { get; set; }
+    public         DateTimeOffset   ValidFrom             { get; set; }
+    public         DateTimeOffset   ValidTo               { get; set; }
     public         int              MaxRedemptions        { get; set; }
     public         int              RedemptionCount       { get; set; }
     public         bool             IsActive              { get; set; }
