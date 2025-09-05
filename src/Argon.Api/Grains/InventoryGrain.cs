@@ -16,12 +16,20 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context) : G
            .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
 
     public async Task<List<InventoryNotification>> GetNotificationsAsync(CancellationToken ct = default)
-        => await context.Select(ctx => (
-                from u in ctx.UnreadInventoryItems.AsNoTracking().Where(x => x.OwnerUserId == this.GetUserId())
+        => await context.Select(async ctx =>
+        {
+            var items = await (
+                from u in ctx.UnreadInventoryItems.AsNoTracking()
+                where u.OwnerUserId == this.GetUserId()
                 join t in ctx.Items.AsNoTracking() on u.TemplateId equals t.TemplateId
                 orderby u.CreatedAt descending
-                select new InventoryNotification(u.InventoryItemId, u.TemplateId, u.CreatedAt.UtcDateTime))
-           .ToListAsync(ct), ct);
+                select new { u.InventoryItemId, u.TemplateId, u.CreatedAt }
+            ).ToListAsync(ct);
+
+            return items.Select(u =>
+                new InventoryNotification(u.InventoryItemId, u.TemplateId, u.CreatedAt.UtcDateTime)
+            ).ToList();
+        }, ct);
 
     [OneWay]
     public async Task MarkSeenAsync(List<Guid> inventoryItemIds, CancellationToken ct = default)
