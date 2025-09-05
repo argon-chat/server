@@ -8,4 +8,10 @@ public static class TaskExtensions
         await Task.WhenAll(task1, task2);
         return (task1.GetAwaiter().GetResult(), task2.GetAwaiter().GetResult());
     }
+
+    public async static Task<TOut> Then<TIn, TOut>(this Task<TIn> @this, Func<TIn, TOut> cast)
+    {
+        var result = await @this;
+        return cast(result);
+    }
 }
