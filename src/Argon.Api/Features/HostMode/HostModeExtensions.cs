@@ -1,13 +1,14 @@
 namespace Argon.Features.HostMode;
 
-using Argon.Services.Ion;
+using System.Security.Cryptography.X509Certificates;
+using Argon.Api.Features.CoreLogic.Otp;
+using Argon.Api.Features.CoreLogic.Social;
 using Auth;
 using Captcha;
 using EF;
 using Env;
 using FluentValidation;
 using GeoIP;
-using global::Orleans.Serialization;
 using global::Sentry.Infrastructure;
 using Jwt;
 using k8s;
@@ -15,19 +16,16 @@ using Logging;
 using Logic;
 using MediaStorage;
 using Metrics;
-using Microsoft.AspNetCore.Mvc.Formatters;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Middlewares;
-using Otp;
 using Pex;
 using RegionalUnit;
 using Repositories;
 using Serilog;
 using Services;
+using Services.Ion;
 using Services.Validators;
 using Sfu;
-using Social;
-using System.Security.Cryptography.X509Certificates;
 using Template;
 using Vault;
 using Web;
@@ -100,6 +98,7 @@ public static class HostModeExtensions
                 x.AddService<IEventBus, EventBusImpl>();
                 x.AddService<IServerInteraction, ServerInteractionImpl>();
                 x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+                x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
                 x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
             });
 
@@ -173,6 +172,7 @@ public static class HostModeExtensions
                 x.AddService<IEventBus, EventBusImpl>();
                 x.AddService<IServerInteraction, ServerInteractionImpl>();
                 x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+                x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
                 x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
             });
         }

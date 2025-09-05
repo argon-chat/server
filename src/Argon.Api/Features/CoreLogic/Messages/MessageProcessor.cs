@@ -1,7 +1,4 @@
-namespace Argon.Features.Messages;
-
-using Cassandra.Features.Messages;
-using Entities;
+namespace Argon.Api.Features.CoreLogic.Messages;
 
 public class MessageProcessor(ArgonCassandraDbContext ctx)
 {

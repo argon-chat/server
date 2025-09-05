@@ -1,4 +1,4 @@
-namespace Argon.Cassandra.Features.Messages;
+namespace Argon.Api.Features.CoreLogic.Messages;
 
 public class ArgonChannelMetadata
 {

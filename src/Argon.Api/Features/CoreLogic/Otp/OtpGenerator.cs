@@ -1,9 +1,8 @@
-namespace Argon.Features.Otp;
+namespace Argon.Api.Features.CoreLogic.Otp;
 
+using Argon.Services;
 using Microsoft.AspNetCore.DataProtection;
 using OtpNet;
-using Services;
-
 public record OneTimeOtpSettings
 {
     public string      ProtectorId     { get; init; }

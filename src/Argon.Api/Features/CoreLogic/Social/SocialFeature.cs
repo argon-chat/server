@@ -1,4 +1,4 @@
-namespace Argon.Features.Social;
+namespace Argon.Api.Features.CoreLogic.Social;
 
 public static class SocialFeature
 {

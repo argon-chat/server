@@ -1,4 +1,4 @@
-namespace Argon;
+namespace Argon.Api.Features.CoreLogic.Messages;
 
 public record ArgonMessageCounters
 {
