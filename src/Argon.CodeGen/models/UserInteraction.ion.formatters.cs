@@ -14,29 +14,6 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public InventoryItem Read(CborReader reader)
-    {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __id = IonFormatterStorage<string>.Read(reader);
-        var __granteddate = IonFormatterStorage<datetime>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__id, __granteddate);
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, InventoryItem value)
-    {
-        writer.WriteStartArray(2);
-        IonFormatterStorage<string>.Write(writer, value.id);
-        IonFormatterStorage<datetime>.Write(writer, value.grantedDate);
-        writer.WriteEndArray();
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

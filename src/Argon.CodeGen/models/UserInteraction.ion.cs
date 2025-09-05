@@ -15,10 +15,6 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InventoryItem(string id, datetime grantedDate);
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserEditInput(string? displayName, string? avatarId);
 
 
@@ -111,7 +107,6 @@ public interface IUserInteraction : IIonService
     Task RemoveBroadcastPresence();
     Task<IonArray<FeatureFlag>> GetMyFeatures();
     Task<ArgonUserProfile> GetMyProfile();
-    Task<IonArray<InventoryItem>> GetMyInventoryItems();
 }
 
 

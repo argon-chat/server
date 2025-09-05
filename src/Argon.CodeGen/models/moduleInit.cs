@@ -37,6 +37,13 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IJoinToVoiceResult>.Value = new Ion_IJoinToVoiceResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
+      IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
+      IonFormatterStorage<FriendRequestStatus>.Value = new Ion_FriendRequestStatus_Formatter();
+      IonFormatterStorage<InventoryItem>.Value = new Ion_InventoryItem_Formatter();
+      IonFormatterStorage<InventoryNotification>.Value = new Ion_InventoryNotification_Formatter();
+      IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
+      IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
+      IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
       IonFormatterStorage<JoinMeetResponse>.Value = new Ion_JoinMeetResponse_Formatter();
       IonFormatterStorage<MeetInfo>.Value = new Ion_MeetInfo_Formatter();
       IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
@@ -55,7 +62,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UserStatus>.Value = new Ion_UserStatus_Formatter();
       IonFormatterStorage<ArgonEntitlement>.Value = new Ion_ArgonEntitlement_Formatter();
       IonFormatterStorage<ArgonIonTicket>.Value = new Ion_ArgonIonTicket_Formatter();
-      IonFormatterStorage<InventoryItem>.Value = new Ion_InventoryItem_Formatter();
       IonFormatterStorage<UserEditInput>.Value = new Ion_UserEditInput_Formatter();
       IonFormatterStorage<FeatureFlag>.Value = new Ion_FeatureFlag_Formatter();
       IonFormatterStorage<FeatureFlagParameter>.Value = new Ion_FeatureFlagParameter_Formatter();
@@ -96,6 +102,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
+      IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
+      IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
       IonFormatterStorage<SuccessAuthorize>.Value = new Ion_SuccessAuthorize_Formatter();
       IonFormatterStorage<FailedAuthorize>.Value = new Ion_FailedAuthorize_Formatter();
       IonFormatterStorage<SuccessRegistration>.Value = new Ion_SuccessRegistration_Formatter();
@@ -105,6 +113,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_ArchetypeInteraction_ServiceExecutor>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
+      IonExecutorMetadataStorage.AddExecutor<Ion_FriendsInteraction_ServiceExecutor>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_MeetingInteraction_ServiceExecutor>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_UserInteraction_ServiceExecutor>("IUserInteraction");
@@ -113,6 +123,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_ArchetypeInteraction_ClientImpl>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
+      IonExecutorMetadataStorage.AddClient<Ion_FriendsInteraction_ClientImpl>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_MeetingInteraction_ClientImpl>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_UserInteraction_ClientImpl>("IUserInteraction");

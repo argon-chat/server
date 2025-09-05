@@ -1,6 +1,6 @@
 namespace Argon.Services;
 
-using Features.Otp;
+using Argon.Api.Features.CoreLogic.Otp;
 
 public interface IPasswordHashingService
 {
