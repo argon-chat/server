@@ -3,27 +3,29 @@ namespace Argon.Entities;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using System.Drawing;
 using System.Linq.Expressions;
+using Api.Entities.Data;
 using static ArgonEntitlement;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
-    public DbSet<UserEntity>              Users                  { get; set; }
-    public DbSet<UserDeviceHistoryEntity> DeviceHistories        => Set<UserDeviceHistoryEntity>();
-    public DbSet<UserAgreements>          UserAgreements         { get; set; }
-    public DbSet<SpaceEntity>             Servers                { get; set; }
-    public DbSet<ChannelEntity>           Channels               { get; set; }
-    public DbSet<SpaceMemberEntity>       UsersToServerRelations { get; set; }
-
-    public DbSet<SpaceMemberArchetypeEntity>        ServerMemberArchetypes       { get; set; }
-    public DbSet<ArchetypeEntity>                   Archetypes                   { get; set; }
-    public DbSet<ChannelEntitlementOverwriteEntity> ChannelEntitlementOverwrites { get; set; }
-
-    public DbSet<ServerInvite> ServerInvites { get; set; }
-
-    public DbSet<ArgonMessageEntity>     Messages     { get; set; }
-    public DbSet<UserProfileEntity>      UserProfiles { get; set; }
-    public DbSet<UsernameReservedEntity> Reservation  { get; set; }
-    public DbSet<SpaceCategoryEntity>    Categories   { get; set; }
+    public DbSet<UserEntity>                        Users                        => Set<UserEntity>();
+    public DbSet<UserDeviceHistoryEntity>           DeviceHistories              => Set<UserDeviceHistoryEntity>();
+    public DbSet<UserAgreements>                    UserAgreements               => Set<UserAgreements>();
+    public DbSet<SpaceEntity>                       Servers                      => Set<SpaceEntity>();
+    public DbSet<ChannelEntity>                     Channels                     => Set<ChannelEntity>();
+    public DbSet<SpaceMemberEntity>                 UsersToServerRelations       => Set<SpaceMemberEntity>();
+    public DbSet<SpaceMemberArchetypeEntity>        ServerMemberArchetypes       => Set<SpaceMemberArchetypeEntity>();
+    public DbSet<ArchetypeEntity>                   Archetypes                   => Set<ArchetypeEntity>();
+    public DbSet<ChannelEntitlementOverwriteEntity> ChannelEntitlementOverwrites => Set<ChannelEntitlementOverwriteEntity>();
+    public DbSet<ServerInvite>                      ServerInvites                => Set<ServerInvite>();
+    public DbSet<ArgonMessageEntity>                Messages                     => Set<ArgonMessageEntity>();
+    public DbSet<UserProfileEntity>                 UserProfiles                 => Set<UserProfileEntity>();
+    public DbSet<UsernameReservedEntity>            Reservation                  => Set<UsernameReservedEntity>();
+    public DbSet<SpaceCategoryEntity>               Categories                   => Set<SpaceCategoryEntity>();
+    public DbSet<ArgonItemEntity>                   Items                        => Set<ArgonItemEntity>();
+    public DbSet<ArgonItemNotificationEntity>       UnreadInventoryItems         => Set<ArgonItemNotificationEntity>();
+    public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
+    public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

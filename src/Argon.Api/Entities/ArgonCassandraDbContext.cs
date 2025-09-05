@@ -1,8 +1,8 @@
 namespace Argon.Entities;
 
+using Argon.Api.Features.CoreLogic.Messages;
 using Cassandra.Configuration;
 using Cassandra.Core;
-using Cassandra.Features.Messages;
 using Cassandra.Mapping;
 
 public class ArgonCassandraDbContext(CassandraConfiguration config, IServiceProvider serviceProvider, ILogger<ArgonCassandraDbContext> logger)
