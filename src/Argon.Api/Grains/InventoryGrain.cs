@@ -122,6 +122,6 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context) : G
     private async Task EnsureUnreadAsync(ApplicationDbContext ctx, Guid ownerId, Guid inventoryItemId, string templateId, CancellationToken ct)
         => await ctx.Database.ExecuteSqlInterpolatedAsync($@"
         INSERT INTO ""UnreadInventoryItems"" (""OwnerUserId"", ""InventoryItemId"", ""TemplateId"", ""CreatedAt"")
-        VALUES ({ownerId}, {inventoryItemId}, {templateId}, NOW())
+        VALUES ({ownerId}, {inventoryItemId}, {templateId}, {DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()})
         ON CONFLICT (""OwnerUserId"", ""InventoryItemId"") DO NOTHING;", ct);
 }
