@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using System.Linq;
 using Argon.Api.Features.Bus;
 using Argon.Services.L1L2;
 using Features.Logic;
@@ -7,7 +8,6 @@ using Features.Repositories;
 using ion.runtime;
 using Orleans.GrainDirectory;
 using Persistence.States;
-using System.Linq;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class SpaceGrain(

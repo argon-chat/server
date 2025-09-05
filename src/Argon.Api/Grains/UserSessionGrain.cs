@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using System.Diagnostics.Metrics;
 using Argon.Api.Features.Bus;
 using Features.Logic;
 using MessagePipe;
@@ -9,7 +10,6 @@ using Orleans;
 using Orleans.Concurrency;
 using Orleans.Streams;
 using Services;
-using System.Diagnostics.Metrics;
 using static DeactivationReasonCode;
 
 public class UserSessionGrain(

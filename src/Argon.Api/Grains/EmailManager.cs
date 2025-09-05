@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using System.Threading;
 using Features.Template;
 using MailKit.Net.Smtp;
 using MailKit.Security;
@@ -7,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Orleans.Concurrency;
-using System.Threading;
 
 [StatelessWorker]
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager

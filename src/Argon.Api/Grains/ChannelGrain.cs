@@ -1,7 +1,7 @@
 namespace Argon.Grains;
 
+using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
-using Argon.Features.Messages;
 using Cassandra.Core;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Concurrency;

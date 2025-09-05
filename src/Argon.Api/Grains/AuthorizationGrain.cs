@@ -1,9 +1,8 @@
 namespace Argon.Grains;
 
-using Features.Otp;
+using Api.Features.CoreLogic.Otp;
 using Metrics;
 using Metrics.Gauges;
-using Org.BouncyCastle.Ocsp;
 using Orleans.Concurrency;
 using Services;
 
