@@ -18,17 +18,25 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context) : G
     public async Task<List<InventoryNotification>> GetNotificationsAsync(CancellationToken ct = default)
         => await context.Select(async ctx =>
         {
-            var items = await (
-                from u in ctx.UnreadInventoryItems.AsNoTracking()
-                where u.OwnerUserId == this.GetUserId()
-                join t in ctx.Items.AsNoTracking() on u.TemplateId equals t.TemplateId
-                orderby u.CreatedAt descending
-                select new { u.InventoryItemId, u.TemplateId, u.CreatedAt }
-            ).ToListAsync(ct);
+            var items = await ctx.UnreadInventoryItems
+               .AsNoTracking()
+               .Where(u => u.OwnerUserId == this.GetUserId())
+               .OrderByDescending(u => u.CreatedAt)
+               .Select(u => new
+                {
+                    u.InventoryItemId,
+                    u.TemplateId,
+                    u.CreatedAt
+                })
+               .ToListAsync(ct);
 
-            return items.Select(u =>
-                new InventoryNotification(u.InventoryItemId, u.TemplateId, u.CreatedAt.UtcDateTime)
-            ).ToList();
+            return items
+               .Select(u => new InventoryNotification(
+                    u.InventoryItemId,
+                    u.TemplateId,
+                    u.CreatedAt.UtcDateTime
+                ))
+               .ToList();
         }, ct);
 
     [OneWay]
@@ -91,7 +99,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context) : G
         if (coupon.ReferenceItemEntityId.HasValue)
         {
             var referenceItem = await ctx.Items.FirstAsync(x => x.Id == coupon.ReferenceItemEntityId, ct);
-            
+
             var item = referenceItem with
             {
                 ConcurrencyToken = 0,
