@@ -15,4 +15,7 @@ public interface IInventoryGrain : IGrainWithGuidKey
 
     [Alias(nameof(RedeemCodeAsync))]
     Task<RedeemError?> RedeemCodeAsync(string code, CancellationToken ct = default);
+
+    [Alias(nameof(UseItemAsync))]
+    Task<bool> UseItemAsync(Guid itemId, CancellationToken ct = default);
 }

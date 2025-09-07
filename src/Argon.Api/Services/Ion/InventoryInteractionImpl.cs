@@ -22,4 +22,7 @@ public class InventoryInteractionImpl : IInventoryInteraction
             return new SuccessRedeem();
         return new FailedRedeem(result.Value);
     }
+
+    public async Task<bool> UseItem(Guid itemId)
+        => await this.GetGrain<IInventoryGrain>(Guid.NewGuid()).UseItemAsync(itemId);
 }

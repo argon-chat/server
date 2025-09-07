@@ -33,21 +33,22 @@ public class ArgonCouponRedemptionEntity : IEntityTypeConfiguration<ArgonCouponR
 
 public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryItem>, IEntityTypeConfiguration<ArgonItemEntity>
 {
-    public required string         TemplateId    { get; set; }
-    public          bool           IsUsable      { get; set; }
-    public          bool           IsGiftable    { get; set; }
-    public          ItemUseVector? ItemUseVector { get; set; }
-    public          Guid?          ReceivedFrom  { get; set; }
-    public          string?        Data          { get; set; }
-    public          Guid           OwnerId       { get; set; }
-    public          bool           IsAffectBadge { get; set; }
-    public          TimeSpan?      TTL           { get; set; }
-    public          Guid?          RedemptionId  { get; set; }
+    public required string         TemplateId       { get; set; }
+    public          bool           IsUsable         { get; set; }
+    public          bool           IsGiftable       { get; set; }
+    public          ItemUseVector? UseVector        { get; set; }
+    public          Guid?          ReceivedFrom     { get; set; }
+    public          Guid           OwnerId          { get; set; }
+    public          bool           IsAffectBadge    { get; set; }
+    public          TimeSpan?      TTL              { get; set; }
+    public          Guid?          RedemptionId     { get; set; }
+    public          long           ConcurrencyToken { get; set; }
 
-    public long ConcurrencyToken { get; set; }
+    public Guid?            ScenarioKey { get; set; }
+    public ItemUseScenario? Scenario    { get; set; }
 
     public static InventoryItem Map(scoped in ArgonItemEntity self)
-        => new(self.TemplateId, self.Id, self.CreatedAt.UtcDateTime, self.IsUsable, self.IsGiftable, self.ItemUseVector,
+        => new(self.TemplateId, self.Id, self.CreatedAt.UtcDateTime, self.IsUsable, self.IsGiftable, self.UseVector,
             self.ReceivedFrom, self.TTL);
 
     public void Configure(EntityTypeBuilder<ArgonItemEntity> builder)
@@ -56,9 +57,6 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
         builder.HasIndex(x => x.TemplateId);
         builder.HasIndex(x => x.OwnerId);
         builder.Property(x => x.TemplateId).HasMaxLength(255);
-        builder.Property(m => m.Data)
-           .HasMaxLength(1024)
-           .HasColumnType("jsonb");
         builder.Property(x => x.ConcurrencyToken)
            .IsConcurrencyToken();
         builder.HasIndex(x => new
@@ -66,10 +64,22 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
             x.OwnerId,
             x.TemplateId
         });
+
         builder.HasIndex(x => new
         {
             x.OwnerId,
             x.IsAffectBadge
         });
+
+        builder.HasIndex(x => new
+        {
+            x.Id,
+            x.OwnerId
+        });
+
+        builder.HasOne(i => i.Scenario)
+           .WithMany()
+           .HasForeignKey(i => i.ScenarioKey)
+           .OnDelete(DeleteBehavior.SetNull);
     }
 }

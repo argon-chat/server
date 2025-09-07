@@ -83,6 +83,23 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
         
         IonFormatterStorage<IRedeemResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UseItem_Execute(CborReader reader, CborWriter writer)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __itemid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UseItem(__itemid);
+        
+        IonFormatterStorage<bool>.Write(writer, result);
+    }
 
     
     
@@ -98,6 +115,8 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
             return GetNotifications_Execute(reader, writer);
         if (methodName.Equals("RedeemCode", StringComparison.InvariantCultureIgnoreCase))
             return RedeemCode_Execute(reader, writer);
+        if (methodName.Equals("UseItem", StringComparison.InvariantCultureIgnoreCase))
+            return UseItem_Execute(reader, writer);
 
         
         throw new InvalidOperationException("no method defined");

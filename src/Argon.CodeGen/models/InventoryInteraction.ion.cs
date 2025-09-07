@@ -26,8 +26,9 @@ public sealed record InventoryNotification(guid inventoryItemId, string id, date
 public enum ItemUseVector
 {
     RedeemCode = 0,
-    SpacePremium = 1,
-    UserPremium = 2,
+    Premium = 1,
+    Boost = 2,
+    Box = 3,
 }
 
 
@@ -49,6 +50,7 @@ public interface IInventoryInteraction : IIonService
     Task MarkSeen(IonArray<guid> itemIds);
     Task<IonArray<InventoryNotification>> GetNotifications();
     Task<IRedeemResult> RedeemCode(string code);
+    Task<bool> UseItem(guid itemId);
 }
 
 

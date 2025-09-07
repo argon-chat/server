@@ -26,6 +26,8 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         typeof(IInventoryInteraction).GetMethod(nameof(GetNotifications), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> RedeemCode_Ref = new(() =>
         typeof(IInventoryInteraction).GetMethod(nameof(RedeemCode), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UseItem_Ref = new(() =>
+        typeof(IInventoryInteraction).GetMethod(nameof(UseItem), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -96,6 +98,23 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         writer.WriteEndArray();
     
         return await req.CallAsync<IRedeemResult>(writer.Encode());
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<bool> UseItem(guid __itemid)
+    {
+        var req = new IonRequest(context, typeof(IInventoryInteraction), UseItem_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __itemid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<bool>(writer.Encode());
     }
 
 }
