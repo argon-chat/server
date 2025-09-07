@@ -75,13 +75,13 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
             if (!usableItem.IsUsable) return false;
             if (usableItem.Scenario is null) return false;
 
-            var ok = usableItem.Scenario switch
+            var newItemId = usableItem.Scenario switch
             {
                 QualifierBox qualifierBox => await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct),
-                _                         => false
+                _                         => null
             };
 
-            if (!ok)
+            if (newItemId is null)
             {
                 await trx.RollbackAsync(ct);
                 return false;
@@ -89,6 +89,8 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
 
             await ctx.SaveChangesAsync(ct);
             await trx.CommitAsync(ct);
+
+            await EnsureUnreadAsync(ctx, userId, newItemId.Value, usableItem.TemplateId, ct);
             return true;
         }
         catch (Exception e)
@@ -99,14 +101,14 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         }
     }
 
-    private async Task<bool> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem, CancellationToken ct = default)
+    private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem, CancellationToken ct = default)
     {
         var proto = box.ReferenceItem ?? await ctx.Set<ArgonItemEntity>()
            .AsNoTracking()
            .FirstOrDefaultAsync(i => i.Id == box.ReferenceItemId, ct);
 
         if (proto is null)
-            return false;
+            return null;
 
         ctx.Remove(boxItem);
 
@@ -120,10 +122,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         };
 
         await ctx.AddAsync(granted, ct);
-
-        await EnsureUnreadAsync(ctx, userId, granted.Id, granted.TemplateId, ct);
-
-        return true;
+        return granted.Id;
     }
 
     public async Task<RedeemError?> RedeemCodeAsync(string code, CancellationToken ct = default)
