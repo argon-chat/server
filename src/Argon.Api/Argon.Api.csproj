@@ -102,6 +102,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Features\Middlewares\Acme\" />
+        <InternalsVisibleTo Include="Argon.EE" />
     </ItemGroup>
 </Project>
