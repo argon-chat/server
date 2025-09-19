@@ -8,12 +8,24 @@ using Orleans.Concurrency;
 [StatelessWorker]
 public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILogger<IInventoryGrain> logger) : Grain, IInventoryGrain
 {
-    public async Task<List<InventoryItem>> GetMyItemsAsync(CancellationToken ct = default)
+
+    public async Task<List<InventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
         => await context.Select(ctx => ctx.Items
            .AsNoTracking()
-           .Where(x => x.OwnerId == this.GetUserId())
+           .Where(x => x.IsReference)
            .ToListAsync(ct)
            .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
+
+    public async Task<List<InventoryItem>> GetItemsForUserAsync(Guid userId, CancellationToken ct = default)
+        => await context.Select(ctx => ctx.Items
+           .AsNoTracking()
+           .Where(x => x.OwnerId == userId)
+           .ToListAsync(ct)
+           .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
+
+
+    public async Task<List<InventoryItem>> GetMyItemsAsync(CancellationToken ct = default)
+        => await GetItemsForUserAsync(this.GetUserId(), ct);
 
     public async Task<List<InventoryNotification>> GetNotificationsAsync(CancellationToken ct = default)
         => await context.Select(async ctx =>

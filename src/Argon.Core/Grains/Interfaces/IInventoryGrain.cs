@@ -18,4 +18,10 @@ public interface IInventoryGrain : IGrainWithGuidKey
 
     [Alias(nameof(UseItemAsync))]
     Task<bool> UseItemAsync(Guid itemId, CancellationToken ct = default);
+
+    [Alias(nameof(GetItemsForUserAsync))]
+    Task<List<InventoryItem>> GetItemsForUserAsync(Guid userId, CancellationToken ct = default);
+
+    [Alias(nameof(GetReferencesItemsAsync))]
+    Task<List<InventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default);
 }
