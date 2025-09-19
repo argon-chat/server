@@ -33,16 +33,16 @@ public class ArgonCouponRedemptionEntity : IEntityTypeConfiguration<ArgonCouponR
 
 public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryItem>, IEntityTypeConfiguration<ArgonItemEntity>
 {
-    public required string         TemplateId       { get; set; }
-    public          bool           IsUsable         { get; set; }
-    public          bool           IsGiftable       { get; set; }
-    public          ItemUseVector? UseVector        { get; set; }
-    public          Guid?          ReceivedFrom     { get; set; }
-    public          Guid           OwnerId          { get; set; }
-    public          bool           IsAffectBadge    { get; set; }
-    public          TimeSpan?      TTL              { get; set; }
-    public          Guid?          RedemptionId     { get; set; }
-    public          long           ConcurrencyToken { get; set; }
+    public required string         TemplateId    { get; set; }
+    public          bool           IsUsable      { get; set; }
+    public          bool           IsGiftable    { get; set; }
+    public          ItemUseVector? UseVector     { get; set; }
+    public          Guid?          ReceivedFrom  { get; set; }
+    public          Guid           OwnerId       { get; set; }
+    public          bool           IsAffectBadge { get; set; }
+    public          TimeSpan?      TTL           { get; set; }
+    public          Guid?          RedemptionId  { get; set; }
+    public          bool           IsReference   { get; set; }
 
     public Guid?            ScenarioKey { get; set; }
     public ItemUseScenario? Scenario    { get; set; }
@@ -57,8 +57,7 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
         builder.HasIndex(x => x.TemplateId);
         builder.HasIndex(x => x.OwnerId);
         builder.Property(x => x.TemplateId).HasMaxLength(255);
-        builder.Property(x => x.ConcurrencyToken)
-           .IsConcurrencyToken();
+        builder.HasIndex(x => x.IsReference);
         builder.HasIndex(x => new
         {
             x.OwnerId,

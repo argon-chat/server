@@ -43,6 +43,7 @@ xml_space_before_self_closing = false
 [*.{cs}]
 
 # Microsoft .NET properties
+dotnet_diagnostic.CA2252.severity = none
 csharp_preferred_modifier_order = public, required, protected, internal, file, new, private, abstract, virtual, async, sealed, override, extern, unsafe, volatile, static, readonly:suggestion
 csharp_style_expression_bodied_accessors = true:suggestion
 csharp_style_expression_bodied_constructors = true:suggestion

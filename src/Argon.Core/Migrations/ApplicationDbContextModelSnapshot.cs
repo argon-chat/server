@@ -105,10 +105,6 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<long>("ConcurrencyToken")
-                        .IsConcurrencyToken()
-                        .HasColumnType("bigint");
-
                     b.Property<long>("CreatedAt")
                         .HasColumnType("bigint");
 
@@ -122,6 +118,9 @@ namespace Argon.Api.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsGiftable")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsReference")
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsUsable")
@@ -154,6 +153,8 @@ namespace Argon.Api.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IsReference");
 
                     b.HasIndex("OwnerId");
 

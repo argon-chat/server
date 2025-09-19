@@ -116,7 +116,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         {
             Id = Guid.NewGuid(),
             OwnerId = userId,
-            ConcurrencyToken = 0,
+            IsReference = false,
             CreatedAt = DateTimeOffset.UtcNow,
             ReceivedFrom = null
         };
@@ -168,7 +168,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
 
             var item = referenceItem with
             {
-                ConcurrencyToken = 0,
+                IsReference = false,
                 Id = Guid.NewGuid(),
                 OwnerId = userId,
                 RedemptionId = redemption.Id,

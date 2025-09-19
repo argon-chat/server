@@ -23,3 +23,5 @@ public interface IUserSessionGrain : IGrainWithGuidKey
 
     public const string StorageId = "CacheStorage";
 }
+
+public class ArgonDropConnectionException(string msg) : InvalidOperationException(msg);

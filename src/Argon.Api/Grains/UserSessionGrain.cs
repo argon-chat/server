@@ -217,4 +217,3 @@ public class UserSessionGrain(
         => Task.CompletedTask;
 }
 
-public class ArgonDropConnectionException(string msg) : InvalidOperationException(msg);
