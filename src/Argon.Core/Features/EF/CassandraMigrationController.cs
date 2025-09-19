@@ -26,13 +26,27 @@ public class CassandraMigrationController(
         return Task.CompletedTask;
     }
 
+    private static List<string> GetMigrationFiles(string relativePath = "Migrations/Cassandra")
+    {
+        var baseDir    = AppContext.BaseDirectory;
+        var candidate1 = Path.Combine(baseDir, relativePath);
+        var candidate2 = Path.GetFullPath(relativePath);
+
+        var migrationDir = Directory.Exists(candidate1) ? candidate1 :
+            Directory.Exists(candidate2)                ? candidate2 :
+                                                          throw new DirectoryNotFoundException(
+                                                              $"Migration folder not found in '{candidate1}', or in '{candidate2}'");
+
+        return Directory.GetFiles(migrationDir, "*.cql")
+           .OrderBy(Path.GetFileName)
+           .ToList();
+    }
+
     private async Task ApplyMigrations(ArgonCassandraDbContext ctx)
     {
         var appliedIds = await GetAppliedMigrationIds(ctx);
 
-        var migrationFiles = Directory.GetFiles("Migrations/Cassandra", "*.cql")
-           .OrderBy(Path.GetFileName)
-           .ToList();
+        var migrationFiles = GetMigrationFiles();
 
         foreach (var file in migrationFiles)
         {

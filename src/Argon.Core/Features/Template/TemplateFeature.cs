@@ -46,6 +46,8 @@ public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (IsLoaded) return;
+        if (!Directory.Exists("./Resources")) return;
+
         var formFiles = Directory.EnumerateFiles("./Resources", "*.html").ToList();
 
         logger.LogInformation("Found '{count}' email forms", formFiles.Count);
