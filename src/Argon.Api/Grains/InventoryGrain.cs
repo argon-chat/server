@@ -41,13 +41,13 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         return true;
     }
 
-    public async Task<bool> CreateReferenceItem(string templateId, bool isUsable, bool isGiftable, bool isAffectToBadge,
+    public async Task<Guid?> CreateReferenceItem(string templateId, bool isUsable, bool isGiftable, bool isAffectToBadge,
         CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
         var item = new ArgonItemEntity()
         {
-            IsReference   = false,
+            IsReference   = true,
             Id            = Guid.NewGuid(),
             OwnerId       = UserEntity.SystemUser,
             ReceivedFrom  = null,
@@ -60,7 +60,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         ctx.Set<ArgonItemEntity>().Add(item);
 
         await ctx.SaveChangesAsync(ct);
-        return true;
+        return item.Id;
     }
 
     public async Task<Guid?> CreateCaseForReferenceItem(Guid refItemId, 

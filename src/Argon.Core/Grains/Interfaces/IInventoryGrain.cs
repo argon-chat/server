@@ -30,7 +30,7 @@ public interface IInventoryGrain : IGrainWithGuidKey
     Task<bool> GiveItemFor(Guid userId, Guid refItemId, CancellationToken ct = default);
 
     [Alias(nameof(CreateReferenceItem))]
-    Task<bool> CreateReferenceItem(string templateId, bool isUsable, bool isGiftable, bool isAffectToBadge, CancellationToken ct = default);
+    Task<Guid?> CreateReferenceItem(string templateId, bool isUsable, bool isGiftable, bool isAffectToBadge, CancellationToken ct = default);
 
     [Alias(nameof(CreateCaseForReferenceItem))]
     Task<Guid?> CreateCaseForReferenceItem(Guid refItemId, string caseTemplateId, CancellationToken ct = default);
