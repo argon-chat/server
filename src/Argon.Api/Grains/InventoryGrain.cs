@@ -5,16 +5,33 @@ using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
 using k8s.KubeConfigModels;
 using Orleans.Concurrency;
+using System.Linq;
 
 [StatelessWorker]
 public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILogger<IInventoryGrain> logger) : Grain, IInventoryGrain
 {
-    public async Task<List<InventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
-        => await context.Select(ctx => ctx.Items
+    public async Task<List<DetailedInventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
+    {
+        var items = await context.Select(ctx => ctx.Items
            .AsNoTracking()
+           .Include(x => x.Scenario)
            .Where(x => x.IsReference)
-           .ToListAsync(ct)
-           .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
+           .ToListAsync(ct), ct);
+
+        return items.Select(x => new DetailedInventoryItem(x.ToDto(), UnwrapScenarioForCase(x.Scenario, items))).ToList();
+    }
+
+    private InventoryItem? UnwrapScenarioForCase(ItemUseScenario? scenario, List<ArgonItemEntity> items)
+    {
+        if (scenario is null) return null;
+        if (scenario is not QualifierBox qualifierBox) return null;
+
+        var containedItem = items.FirstOrDefault(x => x.Id == qualifierBox.ReferenceItemId);
+
+        if (containedItem is null) return null;
+
+        return containedItem.ToDto();
+    }
 
     public async Task<bool> GiveItemFor(Guid userId, Guid refItemId, CancellationToken ct = default)
     {
