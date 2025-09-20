@@ -96,7 +96,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<ArgonSpaceBase>>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonSpaceBase>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<ArgonUser> UpdateMe(UserEditInput __request)
@@ -251,7 +251,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<FeatureFlag>>(writer.Encode());
+        return await req.CallAsyncWithArray<FeatureFlag>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<ArgonUserProfile> GetMyProfile()

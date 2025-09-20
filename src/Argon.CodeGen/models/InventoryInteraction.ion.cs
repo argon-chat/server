@@ -27,8 +27,8 @@ public enum ItemUseVector
 {
     RedeemCode = 0,
     Premium = 1,
-    Boost = 2,
-    Box = 3,
+    Box = 2,
+    QualifierBox = 3,
 }
 
 

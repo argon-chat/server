@@ -48,7 +48,7 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<Archetype>>(writer.Encode());
+        return await req.CallAsyncWithArray<Archetype>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<Archetype> CreateArchetype(guid __spaceid, string __name)
@@ -121,7 +121,7 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<ArchetypeGroup>>(writer.Encode());
+        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid __spaceid, guid __channelid, guid __archetypeid, ArgonEntitlement __deny, ArgonEntitlement __allow)

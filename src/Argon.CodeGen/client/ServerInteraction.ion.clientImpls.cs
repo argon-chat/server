@@ -54,7 +54,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<RealtimeServerMember>>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeServerMember>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<RealtimeServerMember> GetMember(guid __spaceid, guid __userid)
@@ -89,7 +89,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<InviteCodeEntity>>(writer.Encode());
+        return await req.CallAsyncWithArray<InviteCodeEntity>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<InviteCode> CreateInviteCode(guid __spaceid)
@@ -159,7 +159,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<RealtimeChannel>>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<Archetype>> GetServerArchetypes(guid __spaceid)
@@ -176,7 +176,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<Archetype>>(writer.Encode());
+        return await req.CallAsyncWithArray<Archetype>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid __spaceid)
@@ -193,7 +193,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<ArchetypeGroup>>(writer.Encode());
+        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode());
     }
 
 }

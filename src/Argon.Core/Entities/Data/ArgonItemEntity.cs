@@ -76,6 +76,11 @@ public record ArgonItemEntity : ArgonEntity, IMapper<ArgonItemEntity, InventoryI
             x.OwnerId
         });
 
+        builder.HasIndex(x => new {
+            x.Id,
+            x.IsReference
+        });
+
         builder.HasOne(i => i.Scenario)
            .WithMany()
            .HasForeignKey(i => i.ScenarioKey)

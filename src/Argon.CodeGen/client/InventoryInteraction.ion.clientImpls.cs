@@ -46,7 +46,7 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<InventoryItem>>(writer.Encode());
+        return await req.CallAsyncWithArray<InventoryItem>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task MarkSeen(IonArray<guid> __itemids)
@@ -80,7 +80,7 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<InventoryNotification>>(writer.Encode());
+        return await req.CallAsyncWithArray<InventoryNotification>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IRedeemResult> RedeemCode(string __code)

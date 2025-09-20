@@ -3,18 +3,105 @@ namespace Argon.Grains;
 using Api.Entities.Data;
 using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
+using k8s.KubeConfigModels;
 using Orleans.Concurrency;
 
 [StatelessWorker]
 public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILogger<IInventoryGrain> logger) : Grain, IInventoryGrain
 {
-
     public async Task<List<InventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
         => await context.Select(ctx => ctx.Items
            .AsNoTracking()
            .Where(x => x.IsReference)
            .ToListAsync(ct)
            .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
+
+    public async Task<bool> GiveItemFor(Guid userId, Guid refItemId, CancellationToken ct = default)
+    {
+        await using var ctx           = await context.CreateDbContextAsync(ct);
+        var             referenceItem = await ctx.Items.FirstOrDefaultAsync(x => x.Id == refItemId && x.IsReference, ct);
+
+        if (referenceItem is null)
+            return false;
+
+        var item = referenceItem with
+        {
+            IsReference = false,
+            Id = Guid.NewGuid(),
+            OwnerId = userId,
+            ReceivedFrom = null,
+            CreatedAt = DateTimeOffset.Now
+        };
+
+        ctx.Set<ArgonItemEntity>().Add(item);
+
+        await ctx.SaveChangesAsync(ct);
+
+        await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+        return true;
+    }
+
+    public async Task<bool> CreateReferenceItem(string templateId, bool isUsable, bool isGiftable, bool isAffectToBadge,
+        CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        var item = new ArgonItemEntity()
+        {
+            IsReference   = false,
+            Id            = Guid.NewGuid(),
+            OwnerId       = UserEntity.SystemUser,
+            ReceivedFrom  = null,
+            CreatedAt     = DateTimeOffset.Now,
+            TemplateId    = templateId,
+            IsUsable      = isUsable,
+            IsAffectBadge = isAffectToBadge,
+            IsGiftable    = isGiftable
+        };
+        ctx.Set<ArgonItemEntity>().Add(item);
+
+        await ctx.SaveChangesAsync(ct);
+        return true;
+    }
+
+    public async Task<Guid?> CreateCaseForReferenceItem(Guid refItemId, 
+        string caseTemplateId, CancellationToken ct = default)
+    {
+        await using var ctx           = await context.CreateDbContextAsync(ct);
+        var             referenceItem = await ctx.Items
+           .FirstOrDefaultAsync(x => x.Id == refItemId && x.IsReference, ct);
+
+        if (referenceItem is null)
+            return null;
+
+
+        var @case = new ArgonItemEntity()
+        {
+            IsReference   = true,
+            Id            = Guid.NewGuid(),
+            OwnerId       = UserEntity.SystemUser,
+            ReceivedFrom  = null,
+            CreatedAt     = DateTimeOffset.Now,
+            TemplateId    = caseTemplateId,
+            IsUsable      = true,
+            IsAffectBadge = false,
+            IsGiftable    = false,
+            UseVector     = ItemUseVector.QualifierBox,
+            Scenario      = new QualifierBox
+            {
+                Key             = Guid.NewGuid(),
+                ReferenceItemId = referenceItem.Id
+            }
+        };
+
+        ctx.Set<ArgonItemEntity>().Add(@case);
+
+        await ctx.SaveChangesAsync(ct);
+
+        return @case.Id;
+    }
+
+    public async Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, CancellationToken ct = default)
+        => false;
 
     public async Task<List<InventoryItem>> GetItemsForUserAsync(Guid userId, CancellationToken ct = default)
         => await context.Select(ctx => ctx.Items
@@ -113,7 +200,8 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         }
     }
 
-    private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem, CancellationToken ct = default)
+    private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem,
+        CancellationToken ct = default)
     {
         var proto = box.ReferenceItem ?? await ctx.Set<ArgonItemEntity>()
            .AsNoTracking()

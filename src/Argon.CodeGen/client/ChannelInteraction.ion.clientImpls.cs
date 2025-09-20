@@ -92,7 +92,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<RealtimeChannel>>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, u8? __from, i4 __limit)
@@ -112,7 +112,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<ArgonMessage>>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<u8> SendMessage(guid __spaceid, guid __channelid, string __text, IonArray<IMessageEntity> __entities, u8? __replyto)
@@ -153,7 +153,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IonArray<ArgonMessage>>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel(guid __spaceid, guid __channelid)
