@@ -74,7 +74,7 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
-        var __description = IonFormatterStorage<string>.ReadNullable(reader);
+        var __description = reader.ReadNullable<string>();
         var __categoryid = IonFormatterStorage<guid>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 6);
         return new(__type, __spaceid, __channelid, __name, __description, __categoryid);
@@ -102,7 +102,7 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __messageid = IonFormatterStorage<u8>.Read(reader);
-        var __replyid = IonFormatterStorage<u8>.ReadNullable(reader);
+        var __replyid = reader.ReadNullable<u8>();
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __text = IonFormatterStorage<string>.Read(reader);

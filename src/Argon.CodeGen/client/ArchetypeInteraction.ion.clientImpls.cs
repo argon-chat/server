@@ -142,7 +142,7 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ChannelEntitlementOverwrite?>(writer.Encode());
+        return await req.CallAsyncNullable<ChannelEntitlementOverwrite>(writer.Encode());
     }
 
 }

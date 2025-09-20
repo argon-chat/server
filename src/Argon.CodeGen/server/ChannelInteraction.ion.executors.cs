@@ -79,7 +79,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __from = IonFormatterStorage<u8>.ReadNullable(reader);
+        var __from = reader.ReadNullable<u8>();
         var __limit = IonFormatterStorage<i4>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
@@ -101,7 +101,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __text = IonFormatterStorage<string>.Read(reader);
         var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
-        var __replyto = IonFormatterStorage<u8>.ReadNullable(reader);
+        var __replyto = reader.ReadNullable<u8>();
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     

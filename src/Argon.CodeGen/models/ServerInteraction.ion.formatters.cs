@@ -23,8 +23,8 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
-        var __avatarfieldid = IonFormatterStorage<string>.ReadNullable(reader);
-        var __topbannerfileid = IonFormatterStorage<string>.ReadNullable(reader);
+        var __avatarfieldid = reader.ReadNullable<string>();
+        var __topbannerfileid = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 5);
         return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid);
     }
@@ -52,8 +52,8 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
-        var __avatarfieldid = IonFormatterStorage<string>.ReadNullable(reader);
-        var __topbannerfileid = IonFormatterStorage<string>.ReadNullable(reader);
+        var __avatarfieldid = reader.ReadNullable<string>();
+        var __topbannerfileid = reader.ReadNullable<string>();
         var __channels = IonFormatterStorage<ArgonChannel>.ReadArray(reader);
         var __members = IonFormatterStorage<SpaceMember>.ReadArray(reader);
         var __archetypes = IonFormatterStorage<Archetype>.ReadArray(reader);
@@ -163,7 +163,7 @@ public sealed class Ion_RealtimeServerMember_Formatter : IonFormatter<RealtimeSe
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __member = IonFormatterStorage<SpaceMember>.Read(reader);
         var __status = IonFormatterStorage<UserStatus>.Read(reader);
-        var __presence = IonFormatterStorage<UserActivityPresence>.ReadNullable(reader);
+        var __presence = reader.ReadNullable<UserActivityPresence>();
         reader.ReadEndArrayAndSkip(arraySize - 3);
         return new(__member, __status, __presence);
     }
@@ -239,7 +239,7 @@ public sealed class Ion_ArgonUser_Formatter : IonFormatter<ArgonUser>
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
         var __displayname = IonFormatterStorage<string>.Read(reader);
-        var __avatarfileid = IonFormatterStorage<string>.ReadNullable(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 4);
         return new(__userid, __username, __displayname, __avatarfileid);
     }
@@ -264,11 +264,11 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __userid = IonFormatterStorage<guid>.Read(reader);
-        var __customstatus = IonFormatterStorage<string>.ReadNullable(reader);
-        var __customstatusiconid = IonFormatterStorage<string>.ReadNullable(reader);
-        var __bannerfileid = IonFormatterStorage<string>.ReadNullable(reader);
-        var __dateofbirth = IonFormatterStorage<dateonly>.ReadNullable(reader);
-        var __bio = IonFormatterStorage<string>.ReadNullable(reader);
+        var __customstatus = reader.ReadNullable<string>();
+        var __customstatusiconid = reader.ReadNullable<string>();
+        var __bannerfileid = reader.ReadNullable<string>();
+        var __dateofbirth = reader.ReadNullable<dateonly>();
+        var __bio = reader.ReadNullable<string>();
         var __ispremium = IonFormatterStorage<bool>.Read(reader);
         var __badges = IonFormatterStorage<string>.ReadArray(reader);
         var __archetypes = IonFormatterStorage<SpaceMemberArchetype>.ReadArray(reader);

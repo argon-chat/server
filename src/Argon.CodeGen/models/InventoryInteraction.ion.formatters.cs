@@ -25,9 +25,9 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
         var __granteddate = IonFormatterStorage<datetime>.Read(reader);
         var __usable = IonFormatterStorage<bool>.Read(reader);
         var __giftable = IonFormatterStorage<bool>.Read(reader);
-        var __usablevector = IonFormatterStorage<ItemUseVector>.ReadNullable(reader);
-        var __receivedfrom = IonFormatterStorage<guid>.ReadNullable(reader);
-        var __ttl = IonFormatterStorage<duration>.ReadNullable(reader);
+        var __usablevector = reader.ReadNullable<ItemUseVector>();
+        var __receivedfrom = reader.ReadNullable<guid>();
+        var __ttl = reader.ReadNullable<duration>();
         reader.ReadEndArrayAndSkip(arraySize - 8);
         return new(__id, __instanceid, __granteddate, __usable, __giftable, __usablevector, __receivedfrom, __ttl);
     }

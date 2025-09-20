@@ -20,8 +20,8 @@ public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
     public UserEditInput Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __displayname = IonFormatterStorage<string>.ReadNullable(reader);
-        var __avatarid = IonFormatterStorage<string>.ReadNullable(reader);
+        var __displayname = reader.ReadNullable<string>();
+        var __avatarid = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 2);
         return new(__displayname, __avatarid);
     }
@@ -45,7 +45,7 @@ public sealed class Ion_FeatureFlag_Formatter : IonFormatter<FeatureFlag>
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __key = IonFormatterStorage<string>.Read(reader);
         var __enabled = IonFormatterStorage<bool>.Read(reader);
-        var __variant = IonFormatterStorage<string>.ReadNullable(reader);
+        var __variant = reader.ReadNullable<string>();
         var __parameters = IonFormatterStorage<FeatureFlagParameter>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 4);
         return new(__key, __enabled, __variant, __parameters);
@@ -119,10 +119,10 @@ public sealed class Ion_UserCredentialsInput_Formatter : IonFormatter<UserCreden
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __email = IonFormatterStorage<string>.Read(reader);
-        var __username = IonFormatterStorage<string>.ReadNullable(reader);
+        var __username = reader.ReadNullable<string>();
         var __password = IonFormatterStorage<string>.Read(reader);
-        var __otpcode = IonFormatterStorage<string>.ReadNullable(reader);
-        var __captchatoken = IonFormatterStorage<string>.ReadNullable(reader);
+        var __otpcode = reader.ReadNullable<string>();
+        var __captchatoken = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 5);
         return new(__email, __username, __password, __otpcode, __captchatoken);
     }
@@ -153,7 +153,7 @@ public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUser
         var __displayname = IonFormatterStorage<string>.Read(reader);
         var __argreetos = IonFormatterStorage<bool>.Read(reader);
         var __argreeoptionalemails = IonFormatterStorage<bool>.Read(reader);
-        var __captchatoken = IonFormatterStorage<string>.ReadNullable(reader);
+        var __captchatoken = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 7);
         return new(__email, __username, __password, __displayname, __argreetos, __argreeoptionalemails, __captchatoken);
     }

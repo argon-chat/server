@@ -21,8 +21,8 @@ public sealed class Ion_ChannelEntitlementOverwrite_Formatter : IonFormatter<Cha
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __archetypeid = IonFormatterStorage<guid>.ReadNullable(reader);
-        var __servermemberid = IonFormatterStorage<guid>.ReadNullable(reader);
+        var __archetypeid = reader.ReadNullable<guid>();
+        var __servermemberid = reader.ReadNullable<guid>();
         var __allow = IonFormatterStorage<ArgonEntitlement>.Read(reader);
         var __deny = IonFormatterStorage<ArgonEntitlement>.Read(reader);
         var __creatorid = IonFormatterStorage<guid>.Read(reader);
@@ -63,7 +63,7 @@ public sealed class Ion_Archetype_Formatter : IonFormatter<Archetype>
         var __islocked = IonFormatterStorage<bool>.Read(reader);
         var __isgroup = IonFormatterStorage<bool>.Read(reader);
         var __isdefault = IonFormatterStorage<bool>.Read(reader);
-        var __iconfileid = IonFormatterStorage<string>.ReadNullable(reader);
+        var __iconfileid = reader.ReadNullable<string>();
         var __entitlement = IonFormatterStorage<ArgonEntitlement>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 12);
         return new(__id, __spaceid, __name, __description, __ismentionable, __colour, __ishidden, __islocked, __isgroup, __isdefault, __iconfileid, __entitlement);

@@ -199,7 +199,7 @@ public sealed class Ion_SuccessAuthorize_Formatter : IonFormatter<SuccessAuthori
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __token = IonFormatterStorage<string>.Read(reader);
-        var __refreshtoken = IonFormatterStorage<string>.ReadNullable(reader);
+        var __refreshtoken = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 2);
         return new(__token, __refreshtoken);
     }
@@ -325,7 +325,7 @@ public sealed class Ion_SuccessRegistration_Formatter : IonFormatter<SuccessRegi
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __token = IonFormatterStorage<string>.Read(reader);
-        var __refreshtoken = IonFormatterStorage<string>.ReadNullable(reader);
+        var __refreshtoken = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 2);
         return new(__token, __refreshtoken);
     }
@@ -348,8 +348,8 @@ public sealed class Ion_FailedRegistration_Formatter : IonFormatter<FailedRegist
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __error = IonFormatterStorage<RegistrationError>.Read(reader);
-        var __field = IonFormatterStorage<string>.ReadNullable(reader);
-        var __message = IonFormatterStorage<string>.ReadNullable(reader);
+        var __field = reader.ReadNullable<string>();
+        var __message = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 3);
         return new(__error, __field, __message);
     }
