@@ -19,6 +19,10 @@ public sealed record InventoryItem(string id, guid instanceId, datetime grantedD
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DetailedInventoryItem(InventoryItem item, InventoryItem? containedItem);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record InventoryNotification(guid inventoryItemId, string id, datetime createdAt);
 
 

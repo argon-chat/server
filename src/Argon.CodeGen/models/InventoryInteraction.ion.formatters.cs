@@ -49,6 +49,29 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DetailedInventoryItem_Formatter : IonFormatter<DetailedInventoryItem>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DetailedInventoryItem Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __item = IonFormatterStorage<InventoryItem>.Read(reader);
+        var __containeditem = reader.ReadNullable<InventoryItem>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__item, __containeditem);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DetailedInventoryItem value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<InventoryItem>.Write(writer, value.item);
+        IonFormatterStorage<InventoryItem>.WriteNullable(writer, value.containedItem);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_InventoryNotification_Formatter : IonFormatter<InventoryNotification>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

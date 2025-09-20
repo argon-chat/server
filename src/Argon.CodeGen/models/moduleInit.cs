@@ -40,6 +40,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<FriendRequestStatus>.Value = new Ion_FriendRequestStatus_Formatter();
       IonFormatterStorage<InventoryItem>.Value = new Ion_InventoryItem_Formatter();
+      IonFormatterStorage<DetailedInventoryItem>.Value = new Ion_DetailedInventoryItem_Formatter();
       IonFormatterStorage<InventoryNotification>.Value = new Ion_InventoryNotification_Formatter();
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
