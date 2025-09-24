@@ -28,6 +28,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public LockdownReason LockdownReason { get; set; }
     public DateTimeOffset? LockDownExpiration { get; set; }
 
+    public DateOnly? DateOfBirth { get; set; }
+
 
     public virtual UserProfileEntity Profile { get; set; }
 

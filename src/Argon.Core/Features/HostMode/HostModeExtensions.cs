@@ -219,7 +219,6 @@ public static class HostModeExtensions
             builder.AddArgonPermissions();
         }
 
-        builder.Services.AddValidatorsFromAssembly(typeof(NewUserCredentialsInputValidator).Assembly);
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();

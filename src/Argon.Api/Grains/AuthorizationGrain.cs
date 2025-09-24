@@ -31,7 +31,7 @@ public class AuthorizationGrain(
             AuthorizationScenario.Email_Pwd_Otp => await AuthorizeEmailPwdOtp(input),
             AuthorizationScenario.Email_Otp     => await AuthorizeEmailOtp(input),
             AuthorizationScenario.Phone_Otp     => await AuthorizePhoneOtp(input),
-            _                                   => AuthorizationError.BAD_CONFIGURATION
+            _                                   => AuthorizationError.NONE
         };
 
     private async Task<Either<string, AuthorizationError>> AuthorizeEmailPwdOtp(UserCredentialsInput input)
@@ -241,6 +241,7 @@ public class AuthorizationGrain(
                     NormalizedUsername = normalizedUserName,
                     PasswordDigest     = passwordHashingService.HashPassword(input.password),
                     DisplayName        = input.displayName,
+                    DateOfBirth        = input.birthDate
                 };
                 await ctx.Users.AddAsync(user);
 

@@ -16,7 +16,7 @@ public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIden
 
     public async Task<IRegistrationResult> Registration(NewUserCredentialsInput data)
     {
-        var validationStatus = await new NewUserCredentialsInputValidator().ValidateAsync(data);
+        var validationStatus = await new NewUserCredentialsInputValidator(this.GetUserCountry()).ValidateAsync(data);
 
         if (!validationStatus.IsValid)
         {

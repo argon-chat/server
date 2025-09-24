@@ -154,21 +154,23 @@ public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUser
         var __password = IonFormatterStorage<string>.Read(reader);
         var __displayname = IonFormatterStorage<string>.Read(reader);
         var __argreetos = IonFormatterStorage<bool>.Read(reader);
+        var __birthdate = IonFormatterStorage<dateonly>.Read(reader);
         var __argreeoptionalemails = IonFormatterStorage<bool>.Read(reader);
         var __captchatoken = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__email, __username, __password, __displayname, __argreetos, __argreeoptionalemails, __captchatoken);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__email, __username, __password, __displayname, __argreetos, __birthdate, __argreeoptionalemails, __captchatoken);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, NewUserCredentialsInput value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(8);
         IonFormatterStorage<string>.Write(writer, value.email);
         IonFormatterStorage<string>.Write(writer, value.username);
         IonFormatterStorage<string>.Write(writer, value.password);
         IonFormatterStorage<string>.Write(writer, value.displayName);
         IonFormatterStorage<bool>.Write(writer, value.argreeTos);
+        IonFormatterStorage<dateonly>.Write(writer, value.birthDate);
         IonFormatterStorage<bool>.Write(writer, value.argreeOptionalEmails);
         IonFormatterStorage<string>.WriteNullable(writer, value.captchaToken);
         writer.WriteEndArray();

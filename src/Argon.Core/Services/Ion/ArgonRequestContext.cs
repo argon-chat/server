@@ -39,4 +39,5 @@ public static class ServiceEx
 
     public static Guid GetUserId(this IIonService service) => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
     public static Guid GetSessionId(this IIonService service) => ArgonRequestContext.Current.SessionId;
+    public static string GetUserCountry(this IIonService service) => ArgonRequestContext.Current.Region;
 }
