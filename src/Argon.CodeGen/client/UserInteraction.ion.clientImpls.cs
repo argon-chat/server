@@ -26,14 +26,6 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(GetSpaces), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UpdateMe_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(UpdateMe), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> Authorize_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(Authorize), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> Registration_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(Registration), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> BeginResetPassword_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(BeginResetPassword), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> ResetPassword_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(ResetPassword), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> JoinToSpace_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(JoinToSpace), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> BroadcastPresence_Ref = new(() =>
@@ -114,76 +106,6 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
     
         return await req.CallAsync<ArgonUser>(writer.Encode());
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput __data)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), Authorize_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 1;
-    
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<UserCredentialsInput>.Write(writer, __data);
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsync<IAuthorizeResult>(writer.Encode());
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput __data)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), Registration_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 1;
-    
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<NewUserCredentialsInput>.Write(writer, __data);
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsync<IRegistrationResult>(writer.Encode());
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> BeginResetPassword(string __email)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), BeginResetPassword_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 1;
-    
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<string>.Write(writer, __email);
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsync<bool>(writer.Encode());
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IAuthorizeResult> ResetPassword(string __email, string __otpcode, string __newpassword)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), ResetPassword_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 3;
-    
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<string>.Write(writer, __email);
-        IonFormatterStorage<string>.Write(writer, __otpcode);
-        IonFormatterStorage<string>.Write(writer, __newpassword);
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsync<IAuthorizeResult>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode __invitecode)

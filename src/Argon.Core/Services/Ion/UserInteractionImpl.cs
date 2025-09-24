@@ -24,30 +24,6 @@ public class UserInteractionImpl : IUserInteraction
     public Task<ArgonUser> UpdateMe(UserEditInput request)
         => throw new NotImplementedException();
 
-    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data)
-    {
-        var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Authorize(data);
-
-        if (result.IsSuccess)
-            return new SuccessAuthorize(result.Value, null);
-        return new FailedAuthorize(result.Error);
-    }
-
-    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput data)
-    {
-        var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Register(data);
-
-        if (result.IsSuccess)
-            return new SuccessRegistration(result.Value, null);
-        return new FailedRegistration(result.Error.error, result.Error.field, result.Error.message);
-    }
-
-    public Task<bool> BeginResetPassword(string email)
-        => throw new NotImplementedException();
-
-    public Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword)
-        => throw new NotImplementedException();
-
     public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode)
     {
         var invite = this.GetGrain<IInviteGrain>(inviteCode.inviteCode);

@@ -95,6 +95,7 @@ public static class HostModeExtensions
                 x.AddInterceptor<ArgonTransactionInterceptor>();
                 x.AddInterceptor<ArgonOrleansInterceptor>();
                 x.AddService<IUserInteraction, UserInteractionImpl>();
+                x.AddService<IIdentityInteraction, IdentityInteraction>();
                 x.AddService<IEventBus, EventBusImpl>();
                 x.AddService<IServerInteraction, ServerInteractionImpl>();
                 x.AddService<IChannelInteraction, ChannelInteractionImpl>();
@@ -169,6 +170,7 @@ public static class HostModeExtensions
                 x.AddInterceptor<ArgonTransactionInterceptor>();
                 x.AddInterceptor<ArgonOrleansInterceptor>();
                 x.AddService<IUserInteraction, UserInteractionImpl>();
+                x.AddService<IIdentityInteraction, IdentityInteraction>();
                 x.AddService<IEventBus, EventBusImpl>();
                 x.AddService<IServerInteraction, ServerInteractionImpl>();
                 x.AddService<IChannelInteraction, ChannelInteractionImpl>();

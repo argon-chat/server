@@ -1,14 +1,30 @@
 namespace Argon.Features.Auth;
 
+using PhoneProviders;
 using Services;
 
 public static class AuthorizationFeature
 {
     public static void AddArgonAuthorization(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<ArgonAuthOptions>(builder.Configuration.GetSection("auth"));
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
         builder.Services.AddDataProtection();
+        builder.AddPhoneOtpProvider();
     }
+}
+
+public class ArgonAuthOptions
+{
+    public AuthorizationScenario Scenario { get; set; } = AuthorizationScenario.Email_Pwd_Otp;
+}
+
+public enum AuthorizationScenario
+{
+    Email_Pwd_Otp,
+    Email_Otp,
+    Phone_Otp,
+    SSO
 }

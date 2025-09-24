@@ -118,22 +118,24 @@ public sealed class Ion_UserCredentialsInput_Formatter : IonFormatter<UserCreden
     public UserCredentialsInput Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __email = IonFormatterStorage<string>.Read(reader);
+        var __email = reader.ReadNullable<string>();
+        var __phone = reader.ReadNullable<string>();
         var __username = reader.ReadNullable<string>();
-        var __password = IonFormatterStorage<string>.Read(reader);
+        var __password = reader.ReadNullable<string>();
         var __otpcode = reader.ReadNullable<string>();
         var __captchatoken = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 5);
-        return new(__email, __username, __password, __otpcode, __captchatoken);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__email, __phone, __username, __password, __otpcode, __captchatoken);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UserCredentialsInput value)
     {
-        writer.WriteStartArray(5);
-        IonFormatterStorage<string>.Write(writer, value.email);
+        writer.WriteStartArray(6);
+        IonFormatterStorage<string>.WriteNullable(writer, value.email);
+        IonFormatterStorage<string>.WriteNullable(writer, value.phone);
         IonFormatterStorage<string>.WriteNullable(writer, value.username);
-        IonFormatterStorage<string>.Write(writer, value.password);
+        IonFormatterStorage<string>.WriteNullable(writer, value.password);
         IonFormatterStorage<string>.WriteNullable(writer, value.otpCode);
         IonFormatterStorage<string>.WriteNullable(writer, value.captchaToken);
         writer.WriteEndArray();

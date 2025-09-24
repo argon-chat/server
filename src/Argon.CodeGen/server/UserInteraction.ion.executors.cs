@@ -86,76 +86,6 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ArgonUser>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Authorize_Execute(CborReader reader, CborWriter writer)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 1;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __data = IonFormatterStorage<UserCredentialsInput>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.Authorize(__data);
-        
-        IonFormatterStorage<IAuthorizeResult>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Registration_Execute(CborReader reader, CborWriter writer)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 1;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __data = IonFormatterStorage<NewUserCredentialsInput>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.Registration(__data);
-        
-        IonFormatterStorage<IRegistrationResult>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BeginResetPassword_Execute(CborReader reader, CborWriter writer)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 1;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __email = IonFormatterStorage<string>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.BeginResetPassword(__email);
-        
-        IonFormatterStorage<bool>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task ResetPassword_Execute(CborReader reader, CborWriter writer)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 3;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __email = IonFormatterStorage<string>.Read(reader);
-        var __otpcode = IonFormatterStorage<string>.Read(reader);
-        var __newpassword = IonFormatterStorage<string>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.ResetPassword(__email, __otpcode, __newpassword);
-        
-        IonFormatterStorage<IAuthorizeResult>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task JoinToSpace_Execute(CborReader reader, CborWriter writer)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
@@ -251,14 +181,6 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetSpaces_Execute(reader, writer);
         if (methodName.Equals("UpdateMe", StringComparison.InvariantCultureIgnoreCase))
             return UpdateMe_Execute(reader, writer);
-        if (methodName.Equals("Authorize", StringComparison.InvariantCultureIgnoreCase))
-            return Authorize_Execute(reader, writer);
-        if (methodName.Equals("Registration", StringComparison.InvariantCultureIgnoreCase))
-            return Registration_Execute(reader, writer);
-        if (methodName.Equals("BeginResetPassword", StringComparison.InvariantCultureIgnoreCase))
-            return BeginResetPassword_Execute(reader, writer);
-        if (methodName.Equals("ResetPassword", StringComparison.InvariantCultureIgnoreCase))
-            return ResetPassword_Execute(reader, writer);
         if (methodName.Equals("JoinToSpace", StringComparison.InvariantCultureIgnoreCase))
             return JoinToSpace_Execute(reader, writer);
         if (methodName.Equals("BroadcastPresence", StringComparison.InvariantCultureIgnoreCase))

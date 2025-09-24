@@ -31,7 +31,7 @@ public sealed record CreateServerRequest(string name, string description, string
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserCredentialsInput(string email, string? username, string password, string? otpCode, string? captchaToken);
+public sealed record UserCredentialsInput(string? email, string? phone, string? username, string? password, string? otpCode, string? captchaToken);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -94,14 +94,6 @@ public interface IUserInteraction : IIonService
     Task<ArgonSpaceBase> CreateSpace(CreateServerRequest request);
     Task<IonArray<ArgonSpaceBase>> GetSpaces();
     Task<ArgonUser> UpdateMe(UserEditInput request);
-    [AllowAnonymous()]
-    Task<IAuthorizeResult> Authorize(UserCredentialsInput data);
-    [AllowAnonymous()]
-    Task<IRegistrationResult> Registration(NewUserCredentialsInput data);
-    [AllowAnonymous()]
-    Task<bool> BeginResetPassword(string email);
-    [AllowAnonymous()]
-    Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword);
     Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode);
     Task BroadcastPresence(UserActivityPresence presence);
     Task RemoveBroadcastPresence();

@@ -115,6 +115,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
       IonExecutorMetadataStorage.AddExecutor<Ion_FriendsInteraction_ServiceExecutor>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_MeetingInteraction_ServiceExecutor>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
@@ -125,6 +126,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
       IonExecutorMetadataStorage.AddClient<Ion_FriendsInteraction_ClientImpl>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_MeetingInteraction_ClientImpl>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");
