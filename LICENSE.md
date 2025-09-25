@@ -3,12 +3,12 @@
 
 ## Copyright Notice
 
-Copyright (c) 2024-2025, Argon Inc. LLC. 
+Copyright (c) 2024-2025, Argon Inc. LLC.
 All rights reserved.
 
 ## Parameters
 
-**Licensor**: Yuuki Wesp, Aram Hayrapetyan, and all contributors of the Argon repository (argon-chat/server).
+**Licensor**: Argon Inc. LLC
 
 **Licensed Work**: Argon voice chat server software, including all versions published as of 2024 and later.
 
@@ -22,9 +22,11 @@ Hosting or using the Licensed Work(s) for internal purposes within an organizati
 
 For binding interpretive guidance on using Argon under the Business Source License, please refer to the FAQ (if available) or contact the Licensor directly.
 
-**Change Date**: Nine years from the date the Licensed Work is published.
+**Change Date**: Each commit, snapshot, or release of the Licensed Work will automatically become subject to the Change License exactly four (4) years after the date it was published.
 
 **Change License**: MPL 2.0
+
+**Definition of Publication Date**: For the purposes of this License, "date of publication" means the date a commit, snapshot, or release first becomes publicly available in the official Argon repository.
 
 For information about alternative licensing arrangements for the Licensed Work, please contact privacy@argon.gl.
 
@@ -36,11 +38,11 @@ Business Source License 1.1
 
 The Licensor hereby grants you the right to copy, modify, create derivative works, redistribute, and make non-production use of the Licensed Work. The Licensor may make an Additional Use Grant, above, permitting limited production use.
 
-Effective on the Change Date, or the fifth anniversary of the first publicly available distribution of a specific version of the Licensed Work under this License, whichever comes first, the Licensor hereby grants you rights under the terms of the Change License, and the rights granted in the paragraph above terminate.
+Effective on the Change Date, the version of the Licensed Work that reached the Change Date will automatically be relicensed under the Change License, and the rights granted in the paragraph above terminate for that version. The rights granted under this License continue to apply to newer versions of the Licensed Work until they reach their respective Change Dates.
 
 If your use of the Licensed Work does not comply with the requirements currently in effect as described in this License, you must purchase a commercial license from the Licensor or refrain from using the Licensed Work.
 
-All copies of the original and modified Licensed Work, and derivative works of the Licensed Work, are subject to this License. This License applies separately for each version of the Licensed Work, and the Change Date may vary for each version of the Licensed Work released by the Licensor.
+All copies of the original and modified Licensed Work, and derivative works of the Licensed Work, are subject to this License. This License applies separately for each commit, snapshot, or release of the Licensed Work, and the Change Date may vary accordingly.
 
 You must conspicuously display this License on each original or modified copy of the Licensed Work. If you receive the Licensed Work in original or modified form from a third party, the terms and conditions set forth in this License apply to your use of that work.
 
