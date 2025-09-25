@@ -6,8 +6,8 @@
     <RootNamespace>Argon</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ionpath.runtime" Version="1.2.2-beta.144" />
-    <PackageReference Include="ionpath.runtime.client" Version="1.2.2-beta.144" />
-    <PackageReference Include="ionpath.runtime.network" Version="1.2.2-beta.144" />
+    <PackageReference Include="ionpath.runtime" Version="1.2.2-beta.145" />
+    <PackageReference Include="ionpath.runtime.client" Version="1.2.2-beta.145" />
+    <PackageReference Include="ionpath.runtime.network" Version="1.2.2-beta.145" />
   </ItemGroup>
 </Project>
