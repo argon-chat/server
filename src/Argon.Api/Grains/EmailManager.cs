@@ -1,13 +1,17 @@
 namespace Argon.Grains;
 
+using System.Globalization;
+using System.Net.Mail;
 using System.Threading;
+using DnsClient;
+using DnsClient.Protocol;
 using Features.Template;
-using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using Orleans.Concurrency;
+using SmtpClient = MailKit.Net.Smtp.SmtpClient;
 
 [StatelessWorker]
 public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
@@ -27,8 +31,17 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         return message;
     }
 
-    private async Task SendAsync(MimeMessage message, CancellationToken cancellationToken = default)
+    private async Task SendAsync(string email, MimeMessage message, CancellationToken cancellationToken = default)
     {
+        var validation = await ValidateEMailDestination(email, cancellationToken);
+
+        if (!validation.CanSendEmail)
+        {
+            logger.LogError("Failed send email to {email}, validation failed, {reason}", email, validation.FailureReason);
+            return;
+        }
+
+
         using var client = new SmtpClient();
         message.MessageId = $"{message.MessageId.Split('@').First()}@argon.gl";
         try
@@ -51,7 +64,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
     public Task SendEmailAsync(string email, string subject, string message, string template = "none")
     {
         var msg = CreateMessage(email, subject, message);
-        return SendAsync(msg);
+        return SendAsync(email, msg);
     }
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
@@ -64,15 +77,19 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
         var form = formStorage.Render("otp", new Dictionary<string, string>
         {
-            { "otp", otpCode },
-            { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+            {
+                "otp", otpCode
+            },
+            {
+                "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}"
+            }
         });
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var msg = CreateMessage(email, "Your Argon verification code", form);
-            await SendAsync(msg, cts.Token);
+            var       msg = CreateMessage(email, "Your Argon verification code", form);
+            await SendAsync(email, msg, cts.Token);
         }
         catch (Exception e)
         {
@@ -90,14 +107,16 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
         var form = formStorage.Render("reset_pass", new Dictionary<string, string>
         {
-            { "reset_code", otpCode }
+            {
+                "reset_code", otpCode
+            }
         });
 
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var msg = CreateMessage(email, "Your Argon reset password code", form);
-            await SendAsync(msg, cts.Token);
+            var       msg = CreateMessage(email, "Your Argon reset password code", form);
+            await SendAsync(email, msg, cts.Token);
         }
         catch (Exception e)
         {
@@ -113,22 +132,127 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
             return;
         }
+
         var form = formStorage.Render("deletion_notice", new Dictionary<string, string>
         {
-            { "deletion_date", deletionTime.ToString("D") },
-            { "displayName", displayName },
+            {
+                "deletion_date", deletionTime.ToString("D")
+            },
+            {
+                "displayName", displayName
+            },
         });
 
         try
         {
             //using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var       msg = CreateMessage(email, "Account Deletion Notice", form);
-            await SendAsync(msg, default);
+            var msg = CreateMessage(email, "Account Deletion Notice", form);
+            await SendAsync(email, msg, CancellationToken.None);
         }
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed to send reset code to '{email}'", email);
         }
+    }
+
+    public async Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default)
+    {
+        string addressLocalPart;
+        string domainRaw;
+
+        try
+        {
+            var parsed = new MailAddress(email);
+            var addr   = parsed.Address;
+            var at     = addr.LastIndexOf('@');
+            if (at <= 0 || at == addr.Length - 1)
+                return new EmailValidationResult(false, null, null, false, false, SmtpCheckStatus.NotPerformed, "There is no local part or domain");
+
+            addressLocalPart = addr[..at];
+            domainRaw        = addr[(at + 1)..];
+        }
+        catch (Exception ex)
+        {
+            return new EmailValidationResult(false, null, null, false, false, SmtpCheckStatus.NotPerformed, $"Syntax error: {ex.Message}");
+        }
+
+        string domainAscii;
+        try
+        {
+            var idn = new IdnMapping();
+            var labels = domainRaw.Replace('。', '.').Replace('．', '.').Replace('｡', '.')
+               .Split('.', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            if (labels.Length == 0) throw new ArgumentException("Empty domain after normalization.");
+            domainAscii = string.Join(".", labels.Select(l => idn.GetAscii(l)));
+        }
+        catch (Exception ex)
+        {
+            return new EmailValidationResult(
+                true,
+                null,
+                null,
+                false,
+                false,
+                SmtpCheckStatus.NotPerformed,
+                $"The domain does not match the IDNA: {ex.Message}"
+            );
+        }
+
+        var normalizedAddress = $"{addressLocalPart}@{domainAscii}";
+
+        var lookup = new LookupClient(new LookupClientOptions
+        {
+            Timeout = TimeSpan.FromMilliseconds(400),
+            Retries = 1
+        });
+
+        var mx = Array.Empty<MxRecord>();
+        try
+        {
+            var mxResp = await lookup.QueryAsync(domainAscii, QueryType.MX, cancellationToken: ct);
+            mx = mxResp.Answers.MxRecords().OrderBy(r => r.Preference).ToArray();
+        }
+        catch
+        {
+            // ignored
+        }
+
+        var mxPresent      = mx.Length > 0;
+        var domainResolves = false;
+
+        try
+        {
+            var a    = await lookup.QueryAsync(domainAscii, QueryType.A, cancellationToken: ct);
+            var aaaa = await lookup.QueryAsync(domainAscii, QueryType.AAAA, cancellationToken: ct);
+            domainResolves = a.Answers.ARecords().Any() || aaaa.Answers.AaaaRecords().Any();
+        }
+        catch
+        {
+            // ignored
+        }
+
+        if (!mxPresent && !domainResolves)
+        {
+            return new EmailValidationResult(
+                true,
+                normalizedAddress,
+                domainAscii,
+                false,
+                false,
+                SmtpCheckStatus.NotPerformed,
+                "The domain does not have an MX and it does not resolve to A/AAAA"
+            );
+        }
+
+        return new EmailValidationResult(
+            true,
+            normalizedAddress,
+            domainAscii,
+            domainResolves,
+            mxPresent,
+            SmtpCheckStatus.NotPerformed,
+            mxPresent ? "MX is present" : "MX is not present, but A/AAAA is present (delivery by RFC-fallback is possible)"
+        );
     }
 
     [OneWay]
@@ -142,10 +266,10 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
 
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var form = formStorage.Render("pass_changed", new Dictionary<string, string>());
-            var msg = CreateMessage(email, "Your Argon password changed", form);
-            await SendAsync(msg, CancellationToken.None);
+            using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var       form = formStorage.Render("pass_changed", new Dictionary<string, string>());
+            var       msg  = CreateMessage(email, "Your Argon password changed", form);
+            await SendAsync(email, msg, CancellationToken.None);
         }
         catch (Exception e)
         {

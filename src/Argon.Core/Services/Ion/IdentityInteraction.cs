@@ -1,6 +1,6 @@
 namespace Argon.Services.Ion;
 
-using Argon.Services.Validators;
+using Core.Services.Validators;
 using Features.Auth;
 
 public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIdentityInteraction

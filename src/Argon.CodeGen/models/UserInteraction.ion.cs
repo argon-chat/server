@@ -39,6 +39,14 @@ public sealed record NewUserCredentialsInput(string email, string username, stri
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CreateSpaceError
+{
+    UNKNOWN = 0,
+    LIMIT_REACHED = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum AcceptInviteError
 {
     NONE = 0,
@@ -91,7 +99,7 @@ public enum LockdownReason
 public interface IUserInteraction : IIonService
 {
     Task<ArgonUser> GetMe();
-    Task<ArgonSpaceBase> CreateSpace(CreateServerRequest request);
+    Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request);
     Task<IonArray<ArgonSpaceBase>> GetSpaces();
     Task<ArgonUser> UpdateMe(UserEditInput request);
     Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode);
@@ -99,6 +107,130 @@ public interface IUserInteraction : IIonService
     Task RemoveBroadcastPresence();
     Task<IonArray<FeatureFlag>> GetMyFeatures();
     Task<ArgonUserProfile> GetMyProfile();
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ICreateSpaceResult : IIonUnion<ICreateSpaceResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessCreateSpace => this is SuccessCreateSpace;
+
+    internal bool IsFailedCreateSpace => this is FailedCreateSpace;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessCreateSpace(ArgonSpaceBase space) : ICreateSpaceResult
+{
+    public string UnionKey => nameof(SuccessCreateSpace);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedCreateSpace(CreateSpaceError error) : ICreateSpaceResult
+{
+    public string UnionKey => nameof(FailedCreateSpace);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ICreateSpaceResult_Formatter : IonFormatter<ICreateSpaceResult>
+{
+    public ICreateSpaceResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ICreateSpaceResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessCreateSpace>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedCreateSpace>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ICreateSpaceResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessCreateSpace n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessCreateSpace>.Write(writer, n_0);
+        }
+
+        else if (value is FailedCreateSpace n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedCreateSpace>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessCreateSpace_Formatter : IonFormatter<SuccessCreateSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessCreateSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __space = IonFormatterStorage<ArgonSpaceBase>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__space);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessCreateSpace value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<ArgonSpaceBase>.Write(writer, value.space);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedCreateSpace_Formatter : IonFormatter<FailedCreateSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedCreateSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<CreateSpaceError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedCreateSpace value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<CreateSpaceError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

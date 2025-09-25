@@ -57,7 +57,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         return await req.CallAsync<ArgonUser>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonSpaceBase> CreateSpace(CreateServerRequest __request)
+    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest __request)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), CreateSpace_Ref.Value);
     
@@ -71,7 +71,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonSpaceBase>(writer.Encode());
+        return await req.CallAsync<ICreateSpaceResult>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<ArgonSpaceBase>> GetSpaces()

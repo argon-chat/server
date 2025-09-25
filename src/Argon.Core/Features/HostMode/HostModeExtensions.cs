@@ -24,7 +24,6 @@ using Repositories;
 using Serilog;
 using Services;
 using Services.Ion;
-using Services.Validators;
 using Sfu;
 using Template;
 using Vault;
@@ -195,6 +194,7 @@ public static class HostModeExtensions
 
     public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
     {
+        builder.MapBetaOptions();
         builder.AddVaultConfiguration();
         builder.AddVaultClient();
         builder.AddMetrics();

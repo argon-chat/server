@@ -1,4 +1,4 @@
-namespace Argon.Services.Validators;
+namespace Argon.Core.Services.Validators;
 
 using FluentValidation;
 
@@ -40,7 +40,7 @@ public class NewUserCredentialsInputValidator : AbstractValidator<NewUserCredent
         { "UA", 14 }, // Ukraine – aligned with RU/EU practice
         { "BY", 14 }, // Belarus – aligned with RU
         { "KZ", 14 }, // Kazakhstan – aligned with RU
-        { "AM", 14 }, // Armenia – aligned with RU
+        { "AM", 16 }, // Armenia – aligned with RU
         { "GE", 16 }, // Georgia – aligned with GDPR max
         { "TR", 13 }, // Turkey – COPPA baseline
 
@@ -64,7 +64,7 @@ public class NewUserCredentialsInputValidator : AbstractValidator<NewUserCredent
         { "NG", 13 }, // Nigeria – COPPA baseline
 
         // --- Oceania ---
-        { "AU", 13 }, // Australia – no strict law, COPPA baseline
+        { "AU", 16 }, // Australia – no strict law, COPPA baseline
         { "NZ", 13 }, // New Zealand – COPPA baseline
     };
 

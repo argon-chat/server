@@ -69,10 +69,12 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CreateServerRequest>.Value = new Ion_CreateServerRequest_Formatter();
       IonFormatterStorage<UserCredentialsInput>.Value = new Ion_UserCredentialsInput_Formatter();
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
+      IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
       IonFormatterStorage<AcceptInviteError>.Value = new Ion_AcceptInviteError_Formatter();
       IonFormatterStorage<AuthorizationError>.Value = new Ion_AuthorizationError_Formatter();
       IonFormatterStorage<RegistrationError>.Value = new Ion_RegistrationError_Formatter();
       IonFormatterStorage<LockdownReason>.Value = new Ion_LockdownReason_Formatter();
+      IonFormatterStorage<ICreateSpaceResult>.Value = new Ion_ICreateSpaceResult_Formatter();
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
@@ -105,6 +107,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
+      IonFormatterStorage<SuccessCreateSpace>.Value = new Ion_SuccessCreateSpace_Formatter();
+      IonFormatterStorage<FailedCreateSpace>.Value = new Ion_FailedCreateSpace_Formatter();
       IonFormatterStorage<SuccessAuthorize>.Value = new Ion_SuccessAuthorize_Formatter();
       IonFormatterStorage<FailedAuthorize>.Value = new Ion_FailedAuthorize_Formatter();
       IonFormatterStorage<SuccessRegistration>.Value = new Ion_SuccessRegistration_Formatter();

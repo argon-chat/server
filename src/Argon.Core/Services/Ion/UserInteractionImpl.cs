@@ -1,9 +1,10 @@
 namespace Argon.Services.Ion;
 
+using Features.Logic;
 using ArgonContracts;
 using ion.runtime;
 
-public class UserInteractionImpl : IUserInteraction
+public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, ILogger<IUserInteraction> logger) : IUserInteraction
 {
     public async Task<ArgonUser> GetMe()
     {
@@ -11,11 +12,24 @@ public class UserInteractionImpl : IUserInteraction
         return user.ToDto();
     }
 
-    public async Task<ArgonSpaceBase> CreateSpace(CreateServerRequest request)
+    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request)
     {
-        var result = await this.GetGrain<ISpaceGrain>(this.GetUserId())
-           .CreateSpace(new ServerInput(request.name, request.description, request.avatarFieldId));
-        return result.Value;
+        var callerId = this.GetUserId();
+
+        if (!betaOptions.Value.AllowedCreationSpaceUsers.Contains(callerId))
+            return new FailedCreateSpace(CreateSpaceError.LIMIT_REACHED);
+
+        try
+        {
+            var result = await this.GetGrain<ISpaceGrain>(this.GetUserId())
+               .CreateSpace(new ServerInput(request.name, request.description, request.avatarFieldId));
+            return new SuccessCreateSpace(result.Value);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed create space");
+            return new FailedCreateSpace(CreateSpaceError.UNKNOWN);
+        }
     }
 
     public async Task<IonArray<ArgonSpaceBase>> GetSpaces()

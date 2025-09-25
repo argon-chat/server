@@ -178,6 +178,23 @@ public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUser
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateSpaceError_Formatter : IonFormatter<CreateSpaceError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateSpaceError Read(CborReader reader)
+    {
+         return (CreateSpaceError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateSpaceError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_AcceptInviteError_Formatter : IonFormatter<AcceptInviteError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

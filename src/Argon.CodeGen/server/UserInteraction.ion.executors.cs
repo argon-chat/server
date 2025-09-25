@@ -49,7 +49,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         var result = await service.CreateSpace(__request);
         
-        IonFormatterStorage<ArgonSpaceBase>.Write(writer, result);
+        IonFormatterStorage<ICreateSpaceResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetSpaces_Execute(CborReader reader, CborWriter writer)

@@ -34,7 +34,7 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
     }
 
     public bool VerifyPassword(string? inputPassword, UserEntity user) =>
-        ValidatePassword(inputPassword, user.PasswordDigest) /*|| VerifyOtp(inputPassword, user.OtpHash)*/;
+        ValidatePassword(inputPassword, user.PasswordDigest);
 
     public bool ValidatePassword(string? password, string? passwordDigest)
     {
