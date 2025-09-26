@@ -176,17 +176,25 @@ public class SpaceGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var userId = this.GetUserId();
+        var userId   = this.GetUserId();
+        var serverId = this.GetPrimaryKey();
+
+        var exists = await ctx.UsersToServerRelations
+           .AnyAsync(x => x.ServerId == serverId && x.UserId == userId);
+
+        if (exists)
+            return;
+
         var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
         {
             Id       = member,
-            ServerId = this.GetPrimaryKey(),
+            ServerId = serverId,
             UserId   = userId
         });
         await ctx.SaveChangesAsync();
 
-        await serverRepository.GrantDefaultArchetypeTo(ctx, this.GetPrimaryKey(), member);
+        await serverRepository.GrantDefaultArchetypeTo(ctx, serverId, member);
         await UserJoined(userId);
     }
 
