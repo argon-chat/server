@@ -3,15 +3,7 @@ using Argon.Api.Migrations;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
-using Microsoft.AspNetCore.WebSockets;
-
-JsonConvert.DefaultSettings = () => new JsonSerializerSettings()
-{
-    Converters =
-    {
-        new UlongEnumConverter<ArgonEntitlement>()
-    }
-};
+using Argon.Services.Ion;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())
@@ -20,11 +12,20 @@ else if (builder.Environment.IsSingleRegion())
     builder.AddSingleRegionWorkloads();
 else
     builder.AddMultiRegionWorkloads();
-builder.Services.AddWebSockets(x =>
-{
-    x.KeepAliveInterval = TimeSpan.FromMinutes(1);
-    x.KeepAliveTimeout  = TimeSpan.MaxValue;
+
+builder.Services.AddIonProtocol((x) => {
+    x.AddInterceptor<ArgonTransactionInterceptor>();
+    x.AddInterceptor<ArgonOrleansInterceptor>();
+    x.AddService<IUserInteraction, UserInteractionImpl>();
+    x.AddService<IIdentityInteraction, IdentityInteraction>();
+    x.AddService<IEventBus, EventBusImpl>();
+    x.AddService<IServerInteraction, ServerInteractionImpl>();
+    x.AddService<IChannelInteraction, ChannelInteractionImpl>();
+    x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
+    x.AddService<IArchetypeInteraction, ArchetypeInteraction>();
+    x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
+
 var app = builder.Build();
 
 if (builder.Environment.IsSingleInstance())

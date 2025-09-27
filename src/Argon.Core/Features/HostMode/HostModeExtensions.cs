@@ -17,6 +17,7 @@ using Logic;
 using MediaStorage;
 using Metrics;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.WebSockets;
 using Middlewares;
 using Pex;
 using RegionalUnit;
@@ -84,24 +85,6 @@ public static class HostModeExtensions
             builder.Services.AddControllers()
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
-            //builder.AddArgonTransport(x => {
-            //    x.AddService<IServerInteraction, ServerInteraction>();
-            //    x.AddService<IUserInteraction, UserInteraction>();
-            //    x.AddService<IEventBus, EventBusService>();
-            //});
-
-            builder.Services.AddIonProtocol((x) => {
-                x.AddInterceptor<ArgonTransactionInterceptor>();
-                x.AddInterceptor<ArgonOrleansInterceptor>();
-                x.AddService<IUserInteraction, UserInteractionImpl>();
-                x.AddService<IIdentityInteraction, IdentityInteraction>();
-                x.AddService<IEventBus, EventBusImpl>();
-                x.AddService<IServerInteraction, ServerInteractionImpl>();
-                x.AddService<IChannelInteraction, ChannelInteractionImpl>();
-                x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
-                x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
-            });
-
         }
         if (builder.IsHybridRole())
             builder.AddTemplateEngine();
@@ -160,22 +143,6 @@ public static class HostModeExtensions
             builder.Services.AddControllers()
                .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
             builder.Services.AddAuthorization();
-            //builder.AddArgonTransport(x => {
-            //    x.AddService<IServerInteraction, ServerInteraction>();
-            //    x.AddService<IUserInteraction, UserInteraction>();
-            //    x.AddService<IEventBus, EventBusService>();
-            //});
-            builder.Services.AddIonProtocol((x) => {
-                x.AddInterceptor<ArgonTransactionInterceptor>();
-                x.AddInterceptor<ArgonOrleansInterceptor>();
-                x.AddService<IUserInteraction, UserInteractionImpl>();
-                x.AddService<IIdentityInteraction, IdentityInteraction>();
-                x.AddService<IEventBus, EventBusImpl>();
-                x.AddService<IServerInteraction, ServerInteractionImpl>();
-                x.AddService<IChannelInteraction, ChannelInteractionImpl>();
-                x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
-                x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
-            });
         }
 
         builder.AddKubeResources();
@@ -228,6 +195,11 @@ public static class HostModeExtensions
         builder.AddCaptchaFeature();
         builder.AddUserPresenceFeature();
         builder.AddSocialIntegrations();
+        builder.Services.AddWebSockets(x =>
+        {
+            x.KeepAliveInterval = TimeSpan.FromMinutes(1);
+            x.KeepAliveTimeout  = TimeSpan.MaxValue;
+        });
 
         if (builder.IsHybridRole())
         {
