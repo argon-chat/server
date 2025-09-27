@@ -63,12 +63,10 @@ public class EntitlementGrain(
 
         await using var ctx = await context.CreateDbContextAsync();
 
-        throw new NotImplementedException();
-
         var arch = new ArchetypeEntity()
         {
-            SpaceId      = this.GetPrimaryKey(),
-            //Entitlement   = ArgonEntitlement.Base,
+            SpaceId       = this.GetPrimaryKey(),
+            Entitlement   = ArgonEntitlementKit.Base,
             Id            = Guid.NewGuid(),
             Name          = name,
             Description   = "",
