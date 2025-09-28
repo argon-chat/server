@@ -15,12 +15,11 @@ public sealed record OtpRecord(
     string? RequestId,
     string? DeviceId
 );
-
-
 [Workflow]
 public class OtpWorkflow
 {
     private string? _pendingCode;
+    private bool    _isVerified;
 
     [WorkflowSignal]
     public Task SubmitCodeAsync(string code)
@@ -29,8 +28,11 @@ public class OtpWorkflow
         return Task.CompletedTask;
     }
 
+    [WorkflowQuery]
+    public bool IsVerified => _isVerified;
+
     [WorkflowRun]
-    public async Task<bool> RunAsync(string email, OtpPurpose purpose, string? deviceId, string ip)
+    public async Task RunAsync(string email, OtpPurpose purpose, string? deviceId, string ip)
     {
         await Workflow.ExecuteActivityAsync(
             (OtpActivities a) => a.SendOtpAsync(email, purpose, deviceId, ip),
@@ -42,12 +44,12 @@ public class OtpWorkflow
 
         var expireAt = Workflow.UtcNow.AddMinutes(10);
 
-        while (Workflow.UtcNow < expireAt)
+        while (Workflow.UtcNow < expireAt && !_isVerified)
         {
             var left = expireAt - Workflow.UtcNow;
             var got  = await Workflow.WaitConditionAsync(() => _pendingCode is not null, left);
             if (!got)
-                return false;
+                break;
 
             var code = _pendingCode!;
             _pendingCode = null;
@@ -60,11 +62,10 @@ public class OtpWorkflow
                     RetryPolicy         = new() { MaximumAttempts = 1 }
                 });
 
-            if (ok)
-                return true;
+            if (!ok) continue;
+            _isVerified = true;
+            return;
         }
-
-        return false;
     }
 }
 public class OtpActivities(IOtpService otp)

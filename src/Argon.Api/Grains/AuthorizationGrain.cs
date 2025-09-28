@@ -57,18 +57,16 @@ public class AuthorizationGrain(
                 logger.LogWarning("User '{email}' entered bad password", input.email);
                 return AuthorizationError.BAD_CREDENTIALS;
             }
-
         }
 
         var workflowId = $"otp-auth:{user.Id}";
+        var userIp     = this.GetUserIp();
+        var machineId  = this.GetUserMachineId();
 
         if (string.IsNullOrEmpty(input.otpCode))
         {
-            var userIp = this.GetUserIp() ?? throw new InvalidOperationException("User Ip is required");
-            var deviceId = this.GetUserMachineId();
-
             await temporalClient.StartWorkflowAsync(
-                (OtpWorkflow wf) => wf.RunAsync(user.Email, OtpPurpose.SignIn, deviceId, userIp),
+                (OtpWorkflow wf) => wf.RunAsync(user.Email, OtpPurpose.SignIn, machineId, userIp ?? "unknown"),
                 new WorkflowOptions(id: workflowId, taskQueue: "argon-task-queue")
                 {
                     IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
@@ -78,21 +76,22 @@ public class AuthorizationGrain(
             return AuthorizationError.REQUIRED_OTP;
         }
 
-        var handle = temporalClient.GetWorkflowHandle<OtpWorkflow, bool>(workflowId);
+        var handle = temporalClient.GetWorkflowHandle<OtpWorkflow>(workflowId);
 
         try
         {
             await handle.SignalAsync(wf => wf.SubmitCodeAsync(input.otpCode));
-            var ok = await handle.GetResultAsync();
-            if (!ok)
+
+            var verified = await handle.QueryAsync(wf => wf.IsVerified);
+            if (!verified)
             {
-                logger.LogError("User '{email}' entered invalid or expired otp", input.email);
+                logger.LogError("User '{email}' entered invalid otp", input.email);
                 return AuthorizationError.BAD_OTP;
             }
         }
         catch (RpcException ex) when (ex.Code == RpcException.StatusCode.NotFound)
         {
-            logger.LogWarning("OTP workflow {WorkflowId} not found", workflowId);
+            logger.LogWarning("OTP workflow not found for '{email}'", input.email);
             return AuthorizationError.BAD_OTP;
         }
         catch (WorkflowFailedException ex)
