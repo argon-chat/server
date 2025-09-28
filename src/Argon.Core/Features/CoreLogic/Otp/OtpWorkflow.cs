@@ -34,17 +34,18 @@ public class OtpWorkflow
     {
         await Workflow.ExecuteActivityAsync(
             (OtpActivities a) => a.SendOtpAsync(email, purpose, deviceId, ip),
-            new() { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+            new()
+            {
+                StartToCloseTimeout = TimeSpan.FromSeconds(10),
+                RetryPolicy         = new() { MaximumAttempts = 1 }
+            });
 
         var expireAt = Workflow.UtcNow.AddMinutes(10);
 
-        while (true)
+        while (Workflow.UtcNow < expireAt)
         {
             var left = expireAt - Workflow.UtcNow;
-            if (left <= TimeSpan.Zero)
-                return false;
-
-            var got = await Workflow.WaitConditionAsync(() => _pendingCode is not null, left);
+            var got  = await Workflow.WaitConditionAsync(() => _pendingCode is not null, left);
             if (!got)
                 return false;
 
@@ -53,14 +54,19 @@ public class OtpWorkflow
 
             var ok = await Workflow.ExecuteActivityAsync(
                 (OtpActivities a) => a.VerifyOtpAsync(email, purpose, code, deviceId),
-                new() { StartToCloseTimeout = TimeSpan.FromSeconds(10) });
+                new()
+                {
+                    StartToCloseTimeout = TimeSpan.FromSeconds(10),
+                    RetryPolicy         = new() { MaximumAttempts = 1 }
+                });
 
             if (ok)
                 return true;
         }
+
+        return false;
     }
 }
-
 public class OtpActivities(IOtpService otp)
 {
     [Activity]
