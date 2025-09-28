@@ -1,4 +1,4 @@
-﻿namespace Argon.Features.Captcha;
+namespace Argon.Core.Features.Integrations.Captcha;
 
 public class NullCaptcha : ICaptchaFeature
 {

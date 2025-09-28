@@ -22,7 +22,8 @@ public class AuthorizationGrain(
     IMetricsCollector metrics,
     IOptions<ArgonAuthOptions> authOptions,
     IPhoneProvider phoneProvider,
-    ITemporalClient temporalClient) : Grain, IAuthorizationGrain
+    ITemporalClient temporalClient,
+    IOtpService otpService) : Grain, IAuthorizationGrain
 {
     private readonly CountPerTagGauge authSuccess    = new(metrics, new("auth_success"));
     private readonly CountPerTagGauge authFailure    = new(metrics, new("auth_failed"));
@@ -65,24 +66,15 @@ public class AuthorizationGrain(
 
         if (string.IsNullOrEmpty(input.otpCode))
         {
-            await temporalClient.StartWorkflowAsync(
-                (OtpWorkflow wf) => wf.RunAsync(user.Email, OtpPurpose.SignIn, machineId, userIp ?? "unknown"),
-                new WorkflowOptions(id: workflowId, taskQueue: "argon-task-queue")
-                {
-                    IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
-                });
+            await otpService.SendAsync(new SendOtpRequest(user.Email, OtpPurpose.SignIn, machineId), userIp ?? "unk");
 
             logger.LogInformation("User '{email}' requested otp code (workflow {WorkflowId})", input.email, workflowId);
             return AuthorizationError.REQUIRED_OTP;
         }
 
-        var handle = temporalClient.GetWorkflowHandle<OtpWorkflow>(workflowId);
-
         try
         {
-            await handle.SignalAsync(wf => wf.SubmitCodeAsync(input.otpCode));
-
-            var verified = await handle.QueryAsync(wf => wf.IsVerified);
+            var verified = await otpService.VerifyAsync(new VerifyOtpRequest(user.Email, OtpPurpose.SignIn, input.otpCode, machineId));
             if (!verified)
             {
                 logger.LogError("User '{email}' entered invalid otp", input.email);
@@ -151,21 +143,6 @@ public class AuthorizationGrain(
         await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
 
         return await GenerateJwt(user, this.GetUserMachineId());
-    }
-
-
-    private static bool SecureEquals(string? a, string? b)
-    {
-        if (a is null || b is null)
-            return false;
-
-        var aBytes = Encoding.UTF8.GetBytes(a);
-        var bBytes = Encoding.UTF8.GetBytes(b);
-
-        if (aBytes.Length != bBytes.Length)
-            return false;
-
-        return CryptographicOperations.FixedTimeEquals(aBytes, bBytes);
     }
 
     public async Task<Either<string, FailedRegistration>> Register(NewUserCredentialsInput input)
@@ -277,12 +254,12 @@ public class AuthorizationGrain(
         var userMachineId = this.GetUserMachineId();
         var workflowId    = $"otp-reset:{user.Id}";
 
-        await temporalClient.StartWorkflowAsync(
-            (OtpWorkflow wf) => wf.RunAsync(email, OtpPurpose.ResetPassword, userMachineId, userIp),
-            new WorkflowOptions(id: workflowId, taskQueue: "argon-task-queue")
-            {
-                IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
-            });
+        //await temporalClient.StartWorkflowAsync(
+        //    (OtpWorkflow wf) => wf.RunAsync(email, OtpPurpose.ResetPassword, userMachineId, userIp),
+        //    new WorkflowOptions(id: workflowId, taskQueue: "argon-task-queue")
+        //    {
+        //        IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
+        //    });
 
         logger.LogInformation("User '{email}' requested password reset (workflow {WorkflowId})", email, workflowId);
         return true;
@@ -306,7 +283,7 @@ public class AuthorizationGrain(
 
         try
         {
-            await handle.SignalAsync(wf => wf.SubmitCodeAsync(otpCode));
+            //await handle.SignalAsync(wf => wf.SubmitCodeAsync(otpCode));
 
             var ok = await handle.GetResultAsync();
             if (!ok)

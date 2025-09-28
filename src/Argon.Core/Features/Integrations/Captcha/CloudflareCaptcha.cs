@@ -1,4 +1,4 @@
-namespace Argon.Features.Captcha;
+namespace Argon.Core.Features.Integrations.Captcha;
 
 using Flurl.Http;
 
