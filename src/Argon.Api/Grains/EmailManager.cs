@@ -85,16 +85,9 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
             }
         });
 
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var       msg = CreateMessage(email, "Your Argon verification code", form);
-            await SendAsync(email, msg, cts.Token);
-        }
-        catch (Exception e)
-        {
-            logger.LogCritical(e, "Failed to send OTP code to '{email}'", email);
-        }
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var       msg = CreateMessage(email, "Your Argon verification code", form);
+        await SendAsync(email, msg, cts.Token);
     }
 
     public async Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity)

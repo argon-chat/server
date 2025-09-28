@@ -92,13 +92,14 @@ public class ChannelInteractionImpl : IChannelInteraction
            .GetGrain<IChannelGrain>(channelId)
            .Leave(this.GetUserId());
 
-    public async Task<IJoinToVoiceResult> JoinToVoiceChannel(Guid spaceId, Guid channelId)
+    public async Task<IInterlinkResult> Interlink(Guid spaceId, Guid channelId)
     {
         var result = await this.GetGrain<IChannelGrain>(channelId).Join();
 
-        if (result.IsSuccess)
-            return new SuccessJoinVoice(result.Value);
-        return new FailedJoinVoice(result.Error);
+        if (!result.IsSuccess) 
+            return new FailedJoinVoice(result.Error);
+        var rtc = await this.GetGrain<IChannelGrain>(channelId).GetConfiguration();
+        return new SuccessJoinVoice(rtc, result.Value);
     }
 
     public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId)

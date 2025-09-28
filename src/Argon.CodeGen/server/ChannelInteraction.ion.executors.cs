@@ -146,7 +146,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.DisconnectFromVoiceChannel(__spaceid, __channelid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task JoinToVoiceChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task Interlink_Execute(CborReader reader, CborWriter writer)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -159,9 +159,9 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.JoinToVoiceChannel(__spaceid, __channelid);
+        var result = await service.Interlink(__spaceid, __channelid);
         
-        IonFormatterStorage<IJoinToVoiceResult>.Write(writer, result);
+        IonFormatterStorage<IInterlinkResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer)
@@ -203,8 +203,8 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return GetMessages_Execute(reader, writer);
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
             return DisconnectFromVoiceChannel_Execute(reader, writer);
-        if (methodName.Equals("JoinToVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
-            return JoinToVoiceChannel_Execute(reader, writer);
+        if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))
+            return Interlink_Execute(reader, writer);
         if (methodName.Equals("KickMemberFromChannel", StringComparison.InvariantCultureIgnoreCase))
             return KickMemberFromChannel_Execute(reader, writer);
 

@@ -1,14 +1,12 @@
 namespace Argon.Sfu;
 
-using Argon.Sfu.Services;
-using Flurl.Http;
+using Services;
 using Grpc.Core;
 using LiveKit.Proto;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
-using Rpc;
 using System.IdentityModel.Tokens.Jwt;
-using static Rpc.Room;
+using Flurl.Http;
 
 #if DEBUG
 public class ArgonSfuTestController : ControllerBase
@@ -24,7 +22,7 @@ public class ArgonSfuTestController : ControllerBase
 #endif
 
 public class ArgonSelectiveForwardingUnit(
-    IOptions<SfuFeatureSettings> settings,
+    IOptions<CallKitOptions> settings,
     TwirlRoomServiceClient roomClient,
     TwirlEgressClient egressClient,
     ILogger<IArgonSelectiveForwardingUnit> logger) : IArgonSelectiveForwardingUnit
@@ -90,7 +88,7 @@ public class ArgonSelectiveForwardingUnit(
 
     public async ValueTask<string> BeginRecordAsync(ISfuRoomDescriptor channelId)
     {
-        var cfg = settings.Value.S3;
+        var cfg = settings.Value.Sfu.S3;
 
         var result = await egressClient.StartRoomCompositeEgressAsync(new RoomCompositeEgressRequest
         {
@@ -120,6 +118,61 @@ public class ArgonSelectiveForwardingUnit(
         return result.EgressId;
     }
 
+    public async ValueTask<RtcEndpoint> GetRtcEndpointAsync()
+    {
+        var list = new List<IceEndpoint>();
+
+        foreach (var iceCfg in settings.Value.Ices
+                    .Where(iceCfg => !string.IsNullOrEmpty(iceCfg.AppId) || !string.IsNullOrEmpty(iceCfg.Token))
+                    .Where(iceCfg => iceCfg.Scenario == IceScenario.Cloudflare))
+        {
+            var credentials = await ConsumeCloudflareCredentials(iceCfg.AppId!, iceCfg.Token!);
+
+            if (credentials is null)
+                continue;
+
+            list.AddRange(iceCfg.Urls.Select(iceUrl => new IceEndpoint(iceUrl, credentials.Value.username, credentials.Value.password)));
+        }
+
+        return new RtcEndpoint(settings.Value.Sfu.PublicUrl, list);
+    }
+
+    private record CloudflareIceRespItem(string? username, string? credential);
+
+    private record CloudflareIceResp(List<CloudflareIceRespItem> iceServers);
+
+    private static readonly ConcurrentDictionary<string, (DateTimeOffset Expiry, (string Username, string Password) Creds)> _cache
+        = new();
+
+    private async ValueTask<(string username, string password)?> ConsumeCloudflareCredentials(string clientId, string secret)
+    {
+        if (_cache.TryGetValue(clientId, out var entry))
+        {
+            if (entry.Expiry > DateTimeOffset.UtcNow)
+                return entry.Creds;
+        }
+
+        var result = await $"https://rtc.live.cloudflare.com/v1/turn/keys/{clientId}/credentials/generate-ice-servers"
+           .WithOAuthBearerToken(secret)
+           .PostJsonAsync(new
+            {
+                ttl = 86400
+            });
+
+        var creds = await result.GetJsonAsync<CloudflareIceResp>();
+
+        var s = creds.iceServers.FirstOrDefault(x => !string.IsNullOrEmpty(x.username) && !string.IsNullOrEmpty(x.credential));
+        if (s is null)
+            return null;
+
+        var expiry = DateTimeOffset.UtcNow.AddHours(23);
+
+        var tuple = (s.username!, s.credential!);
+        _cache[clientId] = (expiry, tuple);
+
+        return tuple;
+    }
+
     public async ValueTask<bool> StopRecordAsync(ISfuRoomDescriptor channelId, string egressId)
     {
         await egressClient.StopEgressAsync(new StopEgressRequest
@@ -133,10 +186,10 @@ public class ArgonSelectiveForwardingUnit(
         CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
 
     private static string CreateJwt(ISfuRoomDescriptor roomName, ArgonUserId identity, SfuPermission permissions,
-        IOptions<SfuFeatureSettings> settings)
+        IOptions<CallKitOptions> settings)
     {
         var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
 
         JwtPayload payload = new()
         {
@@ -144,7 +197,7 @@ public class ArgonSelectiveForwardingUnit(
                 "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
             },
             {
-                "iss", settings.Value.ClientId
+                "iss", settings.Value.Sfu.ClientId
             },
             {
                 "nbf", 0
@@ -165,10 +218,10 @@ public class ArgonSelectiveForwardingUnit(
     }
 
     private static string CreateMeetJwt(ISfuRoomDescriptor roomName, string identity, SfuPermission permissions,
-        IOptions<SfuFeatureSettings> settings)
+        IOptions<CallKitOptions> settings)
     {
         var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
 
         JwtPayload payload = new()
         {
@@ -176,7 +229,7 @@ public class ArgonSelectiveForwardingUnit(
                 "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
             },
             {
-                "iss", settings.Value.ClientId
+                "iss", settings.Value.Sfu.ClientId
             },
             {
                 "nbf", 0
@@ -205,10 +258,10 @@ public class ArgonSelectiveForwardingUnit(
         };
 
     private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
-        IOptions<SfuFeatureSettings> settings)
+        IOptions<CallKitOptions> settings)
     {
         var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.ClientSecret)), "HS256"));
+        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
 
         JwtPayload payload = new()
         {
@@ -216,7 +269,7 @@ public class ArgonSelectiveForwardingUnit(
                 "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
             },
             {
-                "iss", settings.Value.ClientId
+                "iss", settings.Value.Sfu.ClientId
             },
             {
                 "nbf", 0

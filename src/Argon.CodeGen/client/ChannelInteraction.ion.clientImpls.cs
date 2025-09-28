@@ -32,8 +32,8 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(GetMessages), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DisconnectFromVoiceChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(DisconnectFromVoiceChannel), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> JoinToVoiceChannel_Ref = new(() =>
-        typeof(IChannelInteraction).GetMethod(nameof(JoinToVoiceChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> Interlink_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(Interlink), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> KickMemberFromChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(KickMemberFromChannel), BindingFlags.Public | BindingFlags.Instance)!);
 
@@ -174,9 +174,9 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         await req.CallAsync(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IJoinToVoiceResult> JoinToVoiceChannel(guid __spaceid, guid __channelid)
+    public async Task<IInterlinkResult> Interlink(guid __spaceid, guid __channelid)
     {
-        var req = new IonRequest(context, typeof(IChannelInteraction), JoinToVoiceChannel_Ref.Value);
+        var req = new IonRequest(context, typeof(IChannelInteraction), Interlink_Ref.Value);
     
         var writer = new CborWriter();
         
@@ -189,7 +189,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IJoinToVoiceResult>(writer.Encode());
+        return await req.CallAsync<IInterlinkResult>(writer.Encode());
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<bool> KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid)

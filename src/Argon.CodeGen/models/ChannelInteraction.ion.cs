@@ -109,7 +109,7 @@ public interface IChannelInteraction : IIonService
     [Obsolete]
     Task<IonArray<ArgonMessage>> GetMessages(guid spaceId, guid channelId, i4 count, u8 offset);
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId);
-    Task<IJoinToVoiceResult> JoinToVoiceChannel(guid spaceId, guid channelId);
+    Task<IInterlinkResult> Interlink(guid spaceId, guid channelId);
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId);
 }
 
@@ -458,7 +458,7 @@ public sealed class Ion_MessageEntityUrl_Formatter : IonFormatter<MessageEntityU
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public interface IJoinToVoiceResult : IIonUnion<IJoinToVoiceResult>
+public interface IInterlinkResult : IIonUnion<IInterlinkResult>
 {
     string UnionKey { get; }
     uint UnionIndex { get; }
@@ -472,14 +472,14 @@ public interface IJoinToVoiceResult : IIonUnion<IJoinToVoiceResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessJoinVoice(string token) : IJoinToVoiceResult
+public sealed record SuccessJoinVoice(RtcEndpoint rtc, string token) : IInterlinkResult
 {
     public string UnionKey => nameof(SuccessJoinVoice);
     public uint UnionIndex => 0;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record FailedJoinVoice(JoinToChannelError error) : IJoinToVoiceResult
+public sealed record FailedJoinVoice(JoinToChannelError error) : IInterlinkResult
 {
     public string UnionKey => nameof(FailedJoinVoice);
     public uint UnionIndex => 1;
@@ -488,13 +488,13 @@ public sealed record FailedJoinVoice(JoinToChannelError error) : IJoinToVoiceRes
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_IJoinToVoiceResult_Formatter : IonFormatter<IJoinToVoiceResult>
+public sealed class Ion_IInterlinkResult_Formatter : IonFormatter<IInterlinkResult>
 {
-    public IJoinToVoiceResult Read(CborReader reader)
+    public IInterlinkResult Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
         var unionIndex = reader.ReadUInt32();
-        IJoinToVoiceResult result;
+        IInterlinkResult result;
         if (false) {}
         
         else if (unionIndex == 0)
@@ -509,7 +509,7 @@ public sealed class Ion_IJoinToVoiceResult_Formatter : IonFormatter<IJoinToVoice
         return result;
     }
 
-    public void Write(CborWriter writer, IJoinToVoiceResult value)
+    public void Write(CborWriter writer, IInterlinkResult value)
     {
         writer.WriteStartArray(2);
         writer.WriteUInt32(value.UnionIndex);
@@ -544,15 +544,17 @@ public sealed class Ion_SuccessJoinVoice_Formatter : IonFormatter<SuccessJoinVoi
     public SuccessJoinVoice Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
         var __token = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 1);
-        return new(__token);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__rtc, __token);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessJoinVoice value)
     {
-        writer.WriteStartArray(1);
+        writer.WriteStartArray(2);
+        IonFormatterStorage<RtcEndpoint>.Write(writer, value.rtc);
         IonFormatterStorage<string>.Write(writer, value.token);
         writer.WriteEndArray();
     }

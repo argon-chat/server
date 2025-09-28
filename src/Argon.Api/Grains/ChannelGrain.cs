@@ -147,11 +147,13 @@ public class ChannelGrain(
         return await sfu.IssueAuthorizationTokenAsync(userId, ChannelId, SfuPermission.DefaultUser);
     }
 
+    public async Task<RtcEndpoint> GetConfiguration()
+        => await sfu.GetRtcEndpointAsync();
+
     public async Task Leave(Guid userId)
     {
         state.State.Users.Remove(userId);
         await _userStateEmitter.Fire(new LeavedFromChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
-        //await sfu.KickParticipantAsync(userId, ChannelId);
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)

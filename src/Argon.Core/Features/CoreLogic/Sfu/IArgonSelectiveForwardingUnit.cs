@@ -17,4 +17,5 @@ public interface IArgonSelectiveForwardingUnit
     ValueTask<bool> PruneEphemeralChannelAsync(ISfuRoomDescriptor channelId);
 
     ValueTask<string> BeginRecordAsync(ISfuRoomDescriptor channelId);
+    ValueTask<RtcEndpoint> GetRtcEndpointAsync();
 }

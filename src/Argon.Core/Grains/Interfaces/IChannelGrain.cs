@@ -8,6 +8,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("Join")]
     Task<Either<string, JoinToChannelError>> Join();
 
+    [Alias("GetConfiguration")]
+    Task<RtcEndpoint> GetConfiguration();
+
     [Alias("Leave")]
     Task Leave(Guid userId);
 

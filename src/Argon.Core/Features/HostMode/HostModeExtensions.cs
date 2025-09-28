@@ -22,6 +22,7 @@ using Middlewares;
 using Pex;
 using RegionalUnit;
 using Repositories;
+using Sagas;
 using Serilog;
 using Services;
 using Services.Ion;
@@ -184,6 +185,7 @@ public static class HostModeExtensions
             builder.AddPooledDatabase<ApplicationDbContext>();
             builder.AddEfRepositories();
             builder.AddArgonPermissions();
+            builder.AddSagas();
         }
 
         builder.AddArgonAuthorization();

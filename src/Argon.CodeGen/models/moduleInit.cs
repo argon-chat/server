@@ -34,7 +34,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ActivityPresenceKind>.Value = new Ion_ActivityPresenceKind_Formatter();
       IonFormatterStorage<ChannelMemberState>.Value = new Ion_ChannelMemberState_Formatter();
       IonFormatterStorage<IMessageEntity>.Value = new Ion_IMessageEntity_Formatter();
-      IonFormatterStorage<IJoinToVoiceResult>.Value = new Ion_IJoinToVoiceResult_Formatter();
+      IonFormatterStorage<IInterlinkResult>.Value = new Ion_IInterlinkResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();

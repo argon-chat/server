@@ -1,7 +1,5 @@
 namespace Argon.Services;
 
-using Argon.Api.Features.CoreLogic.Otp;
-
 public interface IPasswordHashingService
 {
     const string OneTimePassKey = $"{nameof(IPasswordHashingService)}.onetime";
@@ -9,11 +7,9 @@ public interface IPasswordHashingService
     bool         VerifyPassword(string? inputPassword, UserEntity user);
     bool         ValidatePassword(string? password, string? passwordDigest);
     bool         VerifyOtp(string? inputOtp, string? userOtp);
-    OtpCode      GenerateOtp(Guid userId);
 }
 
-public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.OneTimePassKey)] OtpGenerator otpGenerator, 
-    ILogger<IPasswordHashingService> logger) : IPasswordHashingService
+public class PasswordHashingService(ILogger<IPasswordHashingService> logger) : IPasswordHashingService
 {
     public unsafe string? HashPassword(string? password)
     {
@@ -47,6 +43,4 @@ public class PasswordHashingService([FromKeyedServices(IPasswordHashingService.O
         if (inputOtp is null || userOtp is null) return false;
         return inputOtp == userOtp;
     }
-
-    public OtpCode GenerateOtp(Guid userId) => new(otpGenerator.GenerateKey(userId, DateTimeOffset.Now));
 }
