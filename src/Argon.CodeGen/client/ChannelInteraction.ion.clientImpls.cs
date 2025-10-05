@@ -40,7 +40,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateChannel(guid __spaceid, guid __channelid, CreateChannelRequest __request)
+    public async Task CreateChannel(guid __spaceid, guid __channelid, CreateChannelRequest __request, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), CreateChannel_Ref.Value);
 
@@ -56,10 +56,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task DeleteChannel(guid __spaceid, guid __channelid)
+    public async Task DeleteChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), DeleteChannel_Ref.Value);
 
@@ -74,10 +74,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<RealtimeChannel>> GetChannels(guid __spaceid, guid __channelid)
+    public async Task<IonArray<RealtimeChannel>> GetChannels(guid __spaceid, guid __channelid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), GetChannels_Ref.Value);
     
@@ -92,10 +92,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, u8? __from, i4 __limit)
+    public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, u8? __from, i4 __limit, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), QueryMessages_Ref.Value);
     
@@ -112,10 +112,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<u8> SendMessage(guid __spaceid, guid __channelid, string __text, IonArray<IMessageEntity> __entities, u8? __replyto)
+    public async Task<u8> SendMessage(guid __spaceid, guid __channelid, string __text, IonArray<IMessageEntity> __entities, u8? __replyto, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), SendMessage_Ref.Value);
     
@@ -133,10 +133,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<u8>(writer.Encode());
+        return await req.CallAsync<u8>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArgonMessage>> GetMessages(guid __spaceid, guid __channelid, i4 __count, u8 __offset)
+    public async Task<IonArray<ArgonMessage>> GetMessages(guid __spaceid, guid __channelid, i4 __count, u8 __offset, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), GetMessages_Ref.Value);
     
@@ -153,10 +153,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task DisconnectFromVoiceChannel(guid __spaceid, guid __channelid)
+    public async Task DisconnectFromVoiceChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), DisconnectFromVoiceChannel_Ref.Value);
 
@@ -171,10 +171,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IInterlinkResult> Interlink(guid __spaceid, guid __channelid)
+    public async Task<IInterlinkResult> Interlink(guid __spaceid, guid __channelid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), Interlink_Ref.Value);
     
@@ -189,10 +189,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IInterlinkResult>(writer.Encode());
+        return await req.CallAsync<IInterlinkResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid)
+    public async Task<bool> KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), KickMemberFromChannel_Ref.Value);
     
@@ -208,7 +208,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<bool>(writer.Encode());
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
 
 }
@@ -221,10 +221,12 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         typeof(IEventBus).GetMethod(nameof(ForServer), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Dispatch_Ref = new(() =>
         typeof(IEventBus).GetMethod(nameof(Dispatch), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> Pipe_Ref = new(() =>
+        typeof(IEventBus).GetMethod(nameof(Pipe), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
-    public IAsyncEnumerable<IArgonEvent> ForServer(guid __spaceid)
+    public IAsyncEnumerable<IArgonEvent> ForServer(guid __spaceid, CancellationToken ct = default)
     {
         var ws = new IonWsClient(context, typeof(IEventBus), ForServer_Ref.Value);
     
@@ -238,10 +240,10 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         
         writer.WriteEndArray();
     
-        return ws.CallServerStreamingAsync<IArgonEvent>(writer.Encode());
+        return ws.CallServerStreamingAsync<IArgonEvent>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Dispatch(IArgonClientEvent __ev)
+    public async Task Dispatch(IArgonClientEvent __ev, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IEventBus), Dispatch_Ref.Value);
 
@@ -255,7 +257,23 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    public IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent> inputStream, CancellationToken ct = default)
+    {
+        var ws = new IonWsClient(context, typeof(IEventBus), Pipe_Ref.Value);
+    
+        var writer = new CborWriter();
+
+        const int argsSize = 0;
+        
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return ws.CallServerStreamingAsync<IArgonEvent, IArgonClientEvent>(writer.Encode(), inputStream, ct: ct);
     }
 
 }

@@ -105,6 +105,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
+      IonFormatterStorage<SubscribeToMySpaces>.Value = new Ion_SubscribeToMySpaces_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
       IonFormatterStorage<SuccessCreateSpace>.Value = new Ion_SuccessCreateSpace_Formatter();

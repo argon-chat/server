@@ -42,11 +42,11 @@ public enum MeetJoinError
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IMeetingInteraction : IIonService
 {
-    Task Join(string inviteCode, string username);
-    Task<string> CreateMeetingLink();
-    Task SetDefaultPermissions(string roomId, i8 permissions);
-    Task<string> BeginRecordAsync(string roomId);
-    Task EndRecordAsync(string roomId);
+    Task Join(string inviteCode, string username, CancellationToken ct = default);
+    Task<string> CreateMeetingLink(CancellationToken ct = default);
+    Task SetDefaultPermissions(string roomId, i8 permissions, CancellationToken ct = default);
+    Task<string> BeginRecordAsync(string roomId, CancellationToken ct = default);
+    Task EndRecordAsync(string roomId, CancellationToken ct = default);
 }
 
 

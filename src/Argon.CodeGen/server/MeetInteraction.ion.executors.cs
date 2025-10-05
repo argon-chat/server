@@ -18,7 +18,7 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Join_Execute(CborReader reader, CborWriter writer)
+    public async Task Join_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IMeetingInteraction>();
     
@@ -34,7 +34,7 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.Join(__invitecode, __username);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateMeetingLink_Execute(CborReader reader, CborWriter writer)
+    public async Task CreateMeetingLink_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IMeetingInteraction>();
     
@@ -51,7 +51,7 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<string>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SetDefaultPermissions_Execute(CborReader reader, CborWriter writer)
+    public async Task SetDefaultPermissions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IMeetingInteraction>();
     
@@ -67,7 +67,7 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.SetDefaultPermissions(__roomid, __permissions);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BeginRecordAsync_Execute(CborReader reader, CborWriter writer)
+    public async Task BeginRecordAsync_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IMeetingInteraction>();
     
@@ -84,7 +84,7 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<string>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task EndRecordAsync_Execute(CborReader reader, CborWriter writer)
+    public async Task EndRecordAsync_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IMeetingInteraction>();
     
@@ -102,22 +102,28 @@ public sealed class Ion_MeetingInteraction_ServiceExecutor(AsyncServiceScope sco
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("Join", StringComparison.InvariantCultureIgnoreCase))
-            return Join_Execute(reader, writer);
+            return Join_Execute(reader, writer, ct);
         if (methodName.Equals("CreateMeetingLink", StringComparison.InvariantCultureIgnoreCase))
-            return CreateMeetingLink_Execute(reader, writer);
+            return CreateMeetingLink_Execute(reader, writer, ct);
         if (methodName.Equals("SetDefaultPermissions", StringComparison.InvariantCultureIgnoreCase))
-            return SetDefaultPermissions_Execute(reader, writer);
+            return SetDefaultPermissions_Execute(reader, writer, ct);
         if (methodName.Equals("BeginRecordAsync", StringComparison.InvariantCultureIgnoreCase))
-            return BeginRecordAsync_Execute(reader, writer);
+            return BeginRecordAsync_Execute(reader, writer, ct);
         if (methodName.Equals("EndRecordAsync", StringComparison.InvariantCultureIgnoreCase))
-            return EndRecordAsync_Execute(reader, writer);
+            return EndRecordAsync_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

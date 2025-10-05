@@ -18,7 +18,7 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IVoiceInteraction>();
     
@@ -36,7 +36,7 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IVoiceInteraction>();
     
@@ -56,16 +56,22 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
-            return DisconnectFromVoiceChannel_Execute(reader, writer);
+            return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("KickMemberFromChannel", StringComparison.InvariantCultureIgnoreCase))
-            return KickMemberFromChannel_Execute(reader, writer);
+            return KickMemberFromChannel_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

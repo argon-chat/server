@@ -18,7 +18,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMembers_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMembers_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<RealtimeServerMember>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMember_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMember_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -53,7 +53,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<RealtimeServerMember>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetInviteCodes_Execute(CborReader reader, CborWriter writer)
+    public async Task GetInviteCodes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -70,7 +70,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<InviteCodeEntity>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateInviteCode_Execute(CborReader reader, CborWriter writer)
+    public async Task CreateInviteCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -87,7 +87,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<InviteCode>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task PrefetchUser_Execute(CborReader reader, CborWriter writer)
+    public async Task PrefetchUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -105,7 +105,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<ArgonUser>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task PrefetchProfile_Execute(CborReader reader, CborWriter writer)
+    public async Task PrefetchProfile_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -123,7 +123,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<ArgonUserProfile>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetChannels_Execute(CborReader reader, CborWriter writer)
+    public async Task GetChannels_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -140,7 +140,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<RealtimeChannel>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetServerArchetypes_Execute(CborReader reader, CborWriter writer)
+    public async Task GetServerArchetypes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -157,7 +157,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<Archetype>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetDetailedServerArchetypes_Execute(CborReader reader, CborWriter writer)
+    public async Task GetDetailedServerArchetypes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -177,30 +177,36 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("GetMembers", StringComparison.InvariantCultureIgnoreCase))
-            return GetMembers_Execute(reader, writer);
+            return GetMembers_Execute(reader, writer, ct);
         if (methodName.Equals("GetMember", StringComparison.InvariantCultureIgnoreCase))
-            return GetMember_Execute(reader, writer);
+            return GetMember_Execute(reader, writer, ct);
         if (methodName.Equals("GetInviteCodes", StringComparison.InvariantCultureIgnoreCase))
-            return GetInviteCodes_Execute(reader, writer);
+            return GetInviteCodes_Execute(reader, writer, ct);
         if (methodName.Equals("CreateInviteCode", StringComparison.InvariantCultureIgnoreCase))
-            return CreateInviteCode_Execute(reader, writer);
+            return CreateInviteCode_Execute(reader, writer, ct);
         if (methodName.Equals("PrefetchUser", StringComparison.InvariantCultureIgnoreCase))
-            return PrefetchUser_Execute(reader, writer);
+            return PrefetchUser_Execute(reader, writer, ct);
         if (methodName.Equals("PrefetchProfile", StringComparison.InvariantCultureIgnoreCase))
-            return PrefetchProfile_Execute(reader, writer);
+            return PrefetchProfile_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannels", StringComparison.InvariantCultureIgnoreCase))
-            return GetChannels_Execute(reader, writer);
+            return GetChannels_Execute(reader, writer, ct);
         if (methodName.Equals("GetServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
-            return GetServerArchetypes_Execute(reader, writer);
+            return GetServerArchetypes_Execute(reader, writer, ct);
         if (methodName.Equals("GetDetailedServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
-            return GetDetailedServerArchetypes_Execute(reader, writer);
+            return GetDetailedServerArchetypes_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

@@ -1,6 +1,6 @@
 namespace Argon.Features.Auth;
 
-using PhoneProviders;
+using Argon.Core.Features.Integrations.Phones;
 using Services;
 
 public static class AuthorizationFeature

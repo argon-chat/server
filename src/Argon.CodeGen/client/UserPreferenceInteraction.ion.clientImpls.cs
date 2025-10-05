@@ -26,7 +26,7 @@ public sealed class Ion_PreferenceInteraction_ClientImpl(IonClientContext contex
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SetPreference(string __scope, string __value)
+    public async Task SetPreference(string __scope, string __value, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IPreferenceInteraction), SetPreference_Ref.Value);
 
@@ -41,10 +41,10 @@ public sealed class Ion_PreferenceInteraction_ClientImpl(IonClientContext contex
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetPreference(string __scope, string __value)
+    public async Task GetPreference(string __scope, string __value, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IPreferenceInteraction), GetPreference_Ref.Value);
 
@@ -59,7 +59,7 @@ public sealed class Ion_PreferenceInteraction_ClientImpl(IonClientContext contex
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

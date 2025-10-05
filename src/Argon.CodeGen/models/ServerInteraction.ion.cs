@@ -108,15 +108,15 @@ public enum ArgonEntitlement : u8
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IServerInteraction : IIonService
 {
-    Task<IonArray<RealtimeServerMember>> GetMembers(guid spaceId);
-    Task<RealtimeServerMember> GetMember(guid spaceId, guid userId);
-    Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid spaceId);
-    Task<InviteCode> CreateInviteCode(guid spaceId);
-    Task<ArgonUser> PrefetchUser(guid spaceId, guid userId);
-    Task<ArgonUserProfile> PrefetchProfile(guid spaceId, guid userId);
-    Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId);
-    Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId);
-    Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId);
+    Task<IonArray<RealtimeServerMember>> GetMembers(guid spaceId, CancellationToken ct = default);
+    Task<RealtimeServerMember> GetMember(guid spaceId, guid userId, CancellationToken ct = default);
+    Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid spaceId, CancellationToken ct = default);
+    Task<InviteCode> CreateInviteCode(guid spaceId, CancellationToken ct = default);
+    Task<ArgonUser> PrefetchUser(guid spaceId, guid userId, CancellationToken ct = default);
+    Task<ArgonUserProfile> PrefetchProfile(guid spaceId, guid userId, CancellationToken ct = default);
+    Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, CancellationToken ct = default);
+    Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId, CancellationToken ct = default);
+    Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId, CancellationToken ct = default);
 }
 
 

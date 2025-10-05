@@ -101,24 +101,25 @@ public enum ChannelMemberState : u4
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IChannelInteraction : IIonService
 {
-    Task CreateChannel(guid spaceId, guid channelId, CreateChannelRequest request);
-    Task DeleteChannel(guid spaceId, guid channelId);
-    Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId);
-    Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, u8? from, i4 limit);
-    Task<u8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, u8? replyTo);
+    Task CreateChannel(guid spaceId, guid channelId, CreateChannelRequest request, CancellationToken ct = default);
+    Task DeleteChannel(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, u8? from, i4 limit, CancellationToken ct = default);
+    Task<u8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, u8? replyTo, CancellationToken ct = default);
     [Obsolete]
-    Task<IonArray<ArgonMessage>> GetMessages(guid spaceId, guid channelId, i4 count, u8 offset);
-    Task DisconnectFromVoiceChannel(guid spaceId, guid channelId);
-    Task<IInterlinkResult> Interlink(guid spaceId, guid channelId);
-    Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId);
+    Task<IonArray<ArgonMessage>> GetMessages(guid spaceId, guid channelId, i4 count, u8 offset, CancellationToken ct = default);
+    Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
 }
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IEventBus : IIonService
 {
-    IAsyncEnumerable<IArgonEvent> ForServer(guid spaceId);
-    Task Dispatch(IArgonClientEvent ev);
+    IAsyncEnumerable<IArgonEvent> ForServer(guid spaceId, CancellationToken ct = default);
+    Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default);
+    IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent>?  ev, CancellationToken ct = default);
 }
 
 
@@ -1328,6 +1329,8 @@ public interface IArgonClientEvent : IIonUnion<IArgonClientEvent>
 
     internal bool IsHeartBeatEvent => this is HeartBeatEvent;
 
+    internal bool IsSubscribeToMySpaces => this is SubscribeToMySpaces;
+
 }
 
 
@@ -1352,6 +1355,13 @@ public sealed record HeartBeatEvent(UserStatus status) : IArgonClientEvent
     public uint UnionIndex => 2;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SubscribeToMySpaces() : IArgonClientEvent
+{
+    public string UnionKey => nameof(SubscribeToMySpaces);
+    public uint UnionIndex => 3;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1372,6 +1382,9 @@ public sealed class Ion_IArgonClientEvent_Formatter : IonFormatter<IArgonClientE
 
         else if (unionIndex == 2)
             result = IonFormatterStorage<HeartBeatEvent>.Read(reader);
+
+        else if (unionIndex == 3)
+            result = IonFormatterStorage<SubscribeToMySpaces>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -1405,6 +1418,13 @@ public sealed class Ion_IArgonClientEvent_Formatter : IonFormatter<IArgonClientE
             if (n_2.UnionIndex != 2)
                 throw new InvalidOperationException();
             IonFormatterStorage<HeartBeatEvent>.Write(writer, n_2);
+        }
+
+        else if (value is SubscribeToMySpaces n_3)
+        {
+            if (n_3.UnionIndex != 3)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SubscribeToMySpaces>.Write(writer, n_3);
         }
     
         else
@@ -1473,6 +1493,27 @@ public sealed class Ion_HeartBeatEvent_Formatter : IonFormatter<HeartBeatEvent>
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<UserStatus>.Write(writer, value.status);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SubscribeToMySpaces_Formatter : IonFormatter<SubscribeToMySpaces>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SubscribeToMySpaces Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SubscribeToMySpaces value)
+    {
+        writer.WriteStartArray(0);
+        
         writer.WriteEndArray();
     }
 }

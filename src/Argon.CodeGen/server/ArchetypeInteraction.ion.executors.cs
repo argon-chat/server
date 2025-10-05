@@ -18,7 +18,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetServerArchetypes_Execute(CborReader reader, CborWriter writer)
+    public async Task GetServerArchetypes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<Archetype>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateArchetype_Execute(CborReader reader, CborWriter writer)
+    public async Task CreateArchetype_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -53,7 +53,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<Archetype>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task UpdateArchetype_Execute(CborReader reader, CborWriter writer)
+    public async Task UpdateArchetype_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -71,7 +71,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<Archetype>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SetArchetypeToMember_Execute(CborReader reader, CborWriter writer)
+    public async Task SetArchetypeToMember_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -91,7 +91,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetDetailedServerArchetypes_Execute(CborReader reader, CborWriter writer)
+    public async Task GetDetailedServerArchetypes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -108,7 +108,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<ArchetypeGroup>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task UpsertArchetypeEntitlementForChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task UpsertArchetypeEntitlementForChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
     
@@ -132,24 +132,30 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("GetServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
-            return GetServerArchetypes_Execute(reader, writer);
+            return GetServerArchetypes_Execute(reader, writer, ct);
         if (methodName.Equals("CreateArchetype", StringComparison.InvariantCultureIgnoreCase))
-            return CreateArchetype_Execute(reader, writer);
+            return CreateArchetype_Execute(reader, writer, ct);
         if (methodName.Equals("UpdateArchetype", StringComparison.InvariantCultureIgnoreCase))
-            return UpdateArchetype_Execute(reader, writer);
+            return UpdateArchetype_Execute(reader, writer, ct);
         if (methodName.Equals("SetArchetypeToMember", StringComparison.InvariantCultureIgnoreCase))
-            return SetArchetypeToMember_Execute(reader, writer);
+            return SetArchetypeToMember_Execute(reader, writer, ct);
         if (methodName.Equals("GetDetailedServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
-            return GetDetailedServerArchetypes_Execute(reader, writer);
+            return GetDetailedServerArchetypes_Execute(reader, writer, ct);
         if (methodName.Equals("UpsertArchetypeEntitlementForChannel", StringComparison.InvariantCultureIgnoreCase))
-            return UpsertArchetypeEntitlementForChannel_Execute(reader, writer);
+            return UpsertArchetypeEntitlementForChannel_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

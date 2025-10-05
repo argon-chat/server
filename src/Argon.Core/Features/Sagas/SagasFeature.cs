@@ -1,10 +1,9 @@
 namespace Argon.Features.Sagas;
 
 using Argon.Api.Features.CoreLogic.Otp;
+using Core.Features.Integrations.Phones;
 using Temporalio.Client;
-using Temporalio.Common;
 using Temporalio.Extensions.Hosting;
-using Temporalio.Worker;
 
 public static class SagasFeature
 {
@@ -13,9 +12,12 @@ public static class SagasFeature
         builder.Services.Configure<TemporalClientConnectOptions>(builder.Configuration.GetSection("Sagas"));
         builder.Services.Configure<TemporalWorkerServiceOptions>(builder.Configuration.GetSection("Sagas"));
         builder.Services.AddTemporalClient();
+
         builder.Services
-           .AddHostedTemporalWorker("argon-task-queue")
+           .AddHostedTemporalWorker("otp-queue")
+           .AddWorkflow<PhoneOtpWorkflow>()
            .AddWorkflow<OtpWorkflow>()
-           .AddTransientActivities<OtpActivities>();
+           .AddTransientActivities<OtpActivities>()
+           .AddTransientActivities<PhoneActivities>();
     }
 }

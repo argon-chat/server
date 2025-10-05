@@ -70,9 +70,9 @@ public class UserGrain(
         return result.Select(x => new ArgonSpaceBase(x.Id, x.Name, x.Description!, x.AvatarFileId, x.TopBannedFileId)).ToList();
     }
 
-    public async Task<List<Guid>> GetMyServersIds()
+    public async Task<List<Guid>> GetMyServersIds(CancellationToken ct = default)
     {
-        await using var ctx = await context.CreateDbContextAsync();
+        await using var ctx = await context.CreateDbContextAsync(ct);
 
         return await ctx.Users
            .AsNoTracking()
@@ -80,7 +80,7 @@ public class UserGrain(
            .Where(u => u.Id == this.GetPrimaryKey())
            .SelectMany(x => x.ServerMembers)
            .Select(x => x.ServerId)
-           .ToListAsync();
+           .ToListAsync(cancellationToken: ct);
     }
 
     public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence)

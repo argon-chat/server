@@ -50,11 +50,11 @@ public enum RedeemError
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IInventoryInteraction : IIonService
 {
-    Task<IonArray<InventoryItem>> GetMyInventoryItems();
-    Task MarkSeen(IonArray<guid> itemIds);
-    Task<IonArray<InventoryNotification>> GetNotifications();
-    Task<IRedeemResult> RedeemCode(string code);
-    Task<bool> UseItem(guid itemId);
+    Task<IonArray<InventoryItem>> GetMyInventoryItems(CancellationToken ct = default);
+    Task MarkSeen(IonArray<guid> itemIds, CancellationToken ct = default);
+    Task<IonArray<InventoryNotification>> GetNotifications(CancellationToken ct = default);
+    Task<IRedeemResult> RedeemCode(string code, CancellationToken ct = default);
+    Task<bool> UseItem(guid itemId, CancellationToken ct = default);
 }
 
 

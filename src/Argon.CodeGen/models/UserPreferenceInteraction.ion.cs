@@ -17,8 +17,8 @@ namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IPreferenceInteraction : IIonService
 {
-    Task SetPreference(string scope, string value);
-    Task GetPreference(string scope, string value);
+    Task SetPreference(string scope, string value, CancellationToken ct = default);
+    Task GetPreference(string scope, string value, CancellationToken ct = default);
 }
 
 

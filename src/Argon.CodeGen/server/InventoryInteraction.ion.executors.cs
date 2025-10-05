@@ -18,7 +18,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMyInventoryItems_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMyInventoryItems_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<InventoryItem>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task MarkSeen_Execute(CborReader reader, CborWriter writer)
+    public async Task MarkSeen_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
     
@@ -50,7 +50,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
         await service.MarkSeen(__itemids);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetNotifications_Execute(CborReader reader, CborWriter writer)
+    public async Task GetNotifications_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
     
@@ -67,7 +67,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<InventoryNotification>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task RedeemCode_Execute(CborReader reader, CborWriter writer)
+    public async Task RedeemCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
     
@@ -84,7 +84,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
         IonFormatterStorage<IRedeemResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task UseItem_Execute(CborReader reader, CborWriter writer)
+    public async Task UseItem_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IInventoryInteraction>();
     
@@ -104,22 +104,28 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("GetMyInventoryItems", StringComparison.InvariantCultureIgnoreCase))
-            return GetMyInventoryItems_Execute(reader, writer);
+            return GetMyInventoryItems_Execute(reader, writer, ct);
         if (methodName.Equals("MarkSeen", StringComparison.InvariantCultureIgnoreCase))
-            return MarkSeen_Execute(reader, writer);
+            return MarkSeen_Execute(reader, writer, ct);
         if (methodName.Equals("GetNotifications", StringComparison.InvariantCultureIgnoreCase))
-            return GetNotifications_Execute(reader, writer);
+            return GetNotifications_Execute(reader, writer, ct);
         if (methodName.Equals("RedeemCode", StringComparison.InvariantCultureIgnoreCase))
-            return RedeemCode_Execute(reader, writer);
+            return RedeemCode_Execute(reader, writer, ct);
         if (methodName.Equals("UseItem", StringComparison.InvariantCultureIgnoreCase))
-            return UseItem_Execute(reader, writer);
+            return UseItem_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

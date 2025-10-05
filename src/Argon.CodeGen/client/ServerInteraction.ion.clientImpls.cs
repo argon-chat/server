@@ -40,7 +40,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<RealtimeServerMember>> GetMembers(guid __spaceid)
+    public async Task<IonArray<RealtimeServerMember>> GetMembers(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetMembers_Ref.Value);
     
@@ -54,10 +54,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<RealtimeServerMember>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeServerMember>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<RealtimeServerMember> GetMember(guid __spaceid, guid __userid)
+    public async Task<RealtimeServerMember> GetMember(guid __spaceid, guid __userid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetMember_Ref.Value);
     
@@ -72,10 +72,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<RealtimeServerMember>(writer.Encode());
+        return await req.CallAsync<RealtimeServerMember>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid __spaceid)
+    public async Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetInviteCodes_Ref.Value);
     
@@ -89,10 +89,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<InviteCodeEntity>(writer.Encode());
+        return await req.CallAsyncWithArray<InviteCodeEntity>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<InviteCode> CreateInviteCode(guid __spaceid)
+    public async Task<InviteCode> CreateInviteCode(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), CreateInviteCode_Ref.Value);
     
@@ -106,10 +106,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<InviteCode>(writer.Encode());
+        return await req.CallAsync<InviteCode>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUser> PrefetchUser(guid __spaceid, guid __userid)
+    public async Task<ArgonUser> PrefetchUser(guid __spaceid, guid __userid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), PrefetchUser_Ref.Value);
     
@@ -124,10 +124,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUser>(writer.Encode());
+        return await req.CallAsync<ArgonUser>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUserProfile> PrefetchProfile(guid __spaceid, guid __userid)
+    public async Task<ArgonUserProfile> PrefetchProfile(guid __spaceid, guid __userid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), PrefetchProfile_Ref.Value);
     
@@ -142,10 +142,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUserProfile>(writer.Encode());
+        return await req.CallAsync<ArgonUserProfile>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<RealtimeChannel>> GetChannels(guid __spaceid)
+    public async Task<IonArray<RealtimeChannel>> GetChannels(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetChannels_Ref.Value);
     
@@ -159,10 +159,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode());
+        return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<Archetype>> GetServerArchetypes(guid __spaceid)
+    public async Task<IonArray<Archetype>> GetServerArchetypes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetServerArchetypes_Ref.Value);
     
@@ -176,10 +176,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<Archetype>(writer.Encode());
+        return await req.CallAsyncWithArray<Archetype>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid __spaceid)
+    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetDetailedServerArchetypes_Ref.Value);
     
@@ -193,7 +193,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode());
+        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode(), ct: ct);
     }
 
 }

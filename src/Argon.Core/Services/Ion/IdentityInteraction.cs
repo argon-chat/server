@@ -5,7 +5,7 @@ using Features.Auth;
 
 public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIdentityInteraction
 {
-    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data)
+    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Authorize(data);
 
@@ -14,9 +14,9 @@ public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIden
         return new FailedAuthorize(result.Error);
     }
 
-    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput data)
+    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput data, CancellationToken ct = default)
     {
-        var validationStatus = await new NewUserCredentialsInputValidator(this.GetUserCountry()).ValidateAsync(data);
+        var validationStatus = await new NewUserCredentialsInputValidator(this.GetUserCountry()).ValidateAsync(data, ct);
 
         if (!validationStatus.IsValid)
         {
@@ -31,10 +31,10 @@ public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIden
         return new FailedRegistration(result.Error.error, result.Error.field, result.Error.message);
     }
 
-    public Task<bool> BeginResetPassword(string email)
+    public Task<bool> BeginResetPassword(string email, CancellationToken ct = default)
         => this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).BeginResetPass(email);
 
-    public async Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword)
+    public async Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).ResetPass(email, otpCode, newPassword);
 
@@ -43,6 +43,6 @@ public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIden
         return new FailedAuthorize(result.Error);
     }
 
-    public Task<string> GetAuthorizationScenario()
+    public Task<string> GetAuthorizationScenario(CancellationToken ct = default)
         => Task.FromResult(authOptions.Value.Scenario.ToString());
 }

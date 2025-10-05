@@ -40,7 +40,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUser> GetMe()
+    public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), GetMe_Ref.Value);
     
@@ -54,10 +54,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUser>(writer.Encode());
+        return await req.CallAsync<ArgonUser>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest __request)
+    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest __request, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), CreateSpace_Ref.Value);
     
@@ -71,10 +71,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ICreateSpaceResult>(writer.Encode());
+        return await req.CallAsync<ICreateSpaceResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArgonSpaceBase>> GetSpaces()
+    public async Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), GetSpaces_Ref.Value);
     
@@ -88,10 +88,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<ArgonSpaceBase>(writer.Encode());
+        return await req.CallAsyncWithArray<ArgonSpaceBase>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUser> UpdateMe(UserEditInput __request)
+    public async Task<ArgonUser> UpdateMe(UserEditInput __request, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), UpdateMe_Ref.Value);
     
@@ -105,10 +105,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUser>(writer.Encode());
+        return await req.CallAsync<ArgonUser>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode __invitecode)
+    public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode __invitecode, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), JoinToSpace_Ref.Value);
     
@@ -122,10 +122,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IJoinToSpaceResult>(writer.Encode());
+        return await req.CallAsync<IJoinToSpaceResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BroadcastPresence(UserActivityPresence __presence)
+    public async Task BroadcastPresence(UserActivityPresence __presence, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), BroadcastPresence_Ref.Value);
 
@@ -139,10 +139,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task RemoveBroadcastPresence()
+    public async Task RemoveBroadcastPresence(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), RemoveBroadcastPresence_Ref.Value);
 
@@ -156,10 +156,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<FeatureFlag>> GetMyFeatures()
+    public async Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), GetMyFeatures_Ref.Value);
     
@@ -173,10 +173,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<FeatureFlag>(writer.Encode());
+        return await req.CallAsyncWithArray<FeatureFlag>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUserProfile> GetMyProfile()
+    public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), GetMyProfile_Ref.Value);
     
@@ -190,7 +190,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUserProfile>(writer.Encode());
+        return await req.CallAsync<ArgonUserProfile>(writer.Encode(), ct: ct);
     }
 
 }

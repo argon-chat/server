@@ -26,7 +26,7 @@ public sealed class Ion_VoiceInteraction_ClientImpl(IonClientContext context) : 
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> DisconnectFromVoiceChannel(guid __spaceid, guid __channelid)
+    public async Task<bool> DisconnectFromVoiceChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IVoiceInteraction), DisconnectFromVoiceChannel_Ref.Value);
     
@@ -41,10 +41,10 @@ public sealed class Ion_VoiceInteraction_ClientImpl(IonClientContext context) : 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<bool>(writer.Encode());
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid)
+    public async Task KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IVoiceInteraction), KickMemberFromChannel_Ref.Value);
 
@@ -60,7 +60,7 @@ public sealed class Ion_VoiceInteraction_ClientImpl(IonClientContext context) : 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

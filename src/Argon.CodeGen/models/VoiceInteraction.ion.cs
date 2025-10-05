@@ -17,8 +17,8 @@ namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IVoiceInteraction : IIonService
 {
-    Task<bool> DisconnectFromVoiceChannel(guid spaceId, guid channelId);
-    Task KickMemberFromChannel(guid spaceId, guid channelId, guid memberId);
+    Task<bool> DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
 }
 
 

@@ -98,15 +98,15 @@ public enum LockdownReason
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IUserInteraction : IIonService
 {
-    Task<ArgonUser> GetMe();
-    Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request);
-    Task<IonArray<ArgonSpaceBase>> GetSpaces();
-    Task<ArgonUser> UpdateMe(UserEditInput request);
-    Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode);
-    Task BroadcastPresence(UserActivityPresence presence);
-    Task RemoveBroadcastPresence();
-    Task<IonArray<FeatureFlag>> GetMyFeatures();
-    Task<ArgonUserProfile> GetMyProfile();
+    Task<ArgonUser> GetMe(CancellationToken ct = default);
+    Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default);
+    Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default);
+    Task<ArgonUser> UpdateMe(UserEditInput request, CancellationToken ct = default);
+    Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default);
+    Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default);
+    Task RemoveBroadcastPresence(CancellationToken ct = default);
+    Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default);
+    Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default);
 }
 
 

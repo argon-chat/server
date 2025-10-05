@@ -32,7 +32,7 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<InventoryItem>> GetMyInventoryItems()
+    public async Task<IonArray<InventoryItem>> GetMyInventoryItems(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IInventoryInteraction), GetMyInventoryItems_Ref.Value);
     
@@ -46,10 +46,10 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<InventoryItem>(writer.Encode());
+        return await req.CallAsyncWithArray<InventoryItem>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task MarkSeen(IonArray<guid> __itemids)
+    public async Task MarkSeen(IonArray<guid> __itemids, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IInventoryInteraction), MarkSeen_Ref.Value);
 
@@ -63,10 +63,10 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<InventoryNotification>> GetNotifications()
+    public async Task<IonArray<InventoryNotification>> GetNotifications(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IInventoryInteraction), GetNotifications_Ref.Value);
     
@@ -80,10 +80,10 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<InventoryNotification>(writer.Encode());
+        return await req.CallAsyncWithArray<InventoryNotification>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IRedeemResult> RedeemCode(string __code)
+    public async Task<IRedeemResult> RedeemCode(string __code, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IInventoryInteraction), RedeemCode_Ref.Value);
     
@@ -97,10 +97,10 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IRedeemResult>(writer.Encode());
+        return await req.CallAsync<IRedeemResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> UseItem(guid __itemid)
+    public async Task<bool> UseItem(guid __itemid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IInventoryInteraction), UseItem_Ref.Value);
     
@@ -114,7 +114,7 @@ public sealed class Ion_InventoryInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<bool>(writer.Encode());
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
 
 }

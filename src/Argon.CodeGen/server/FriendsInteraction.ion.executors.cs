@@ -19,7 +19,8 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
 
     
-        public IAsyncEnumerable<Memory<byte>> StreamRouteExecuteAsync(string methodName, CborReader reader, [EnumeratorCancellation] CancellationToken ct)
+    
+    public IAsyncEnumerable<Memory<byte>> StreamRouteExecuteAsync(string methodName, CborReader reader, IAsyncEnumerable<ReadOnlyMemory<byte>>? inputStream, [EnumeratorCancellation] CancellationToken ct)
     {
         
 
@@ -28,5 +29,11 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     }
     
     
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

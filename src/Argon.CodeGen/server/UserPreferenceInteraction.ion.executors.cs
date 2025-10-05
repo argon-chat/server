@@ -18,7 +18,7 @@ public sealed class Ion_PreferenceInteraction_ServiceExecutor(AsyncServiceScope 
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SetPreference_Execute(CborReader reader, CborWriter writer)
+    public async Task SetPreference_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IPreferenceInteraction>();
     
@@ -34,7 +34,7 @@ public sealed class Ion_PreferenceInteraction_ServiceExecutor(AsyncServiceScope 
         await service.SetPreference(__scope, __value);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetPreference_Execute(CborReader reader, CborWriter writer)
+    public async Task GetPreference_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IPreferenceInteraction>();
     
@@ -53,16 +53,22 @@ public sealed class Ion_PreferenceInteraction_ServiceExecutor(AsyncServiceScope 
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("SetPreference", StringComparison.InvariantCultureIgnoreCase))
-            return SetPreference_Execute(reader, writer);
+            return SetPreference_Execute(reader, writer, ct);
         if (methodName.Equals("GetPreference", StringComparison.InvariantCultureIgnoreCase))
-            return GetPreference_Execute(reader, writer);
+            return GetPreference_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

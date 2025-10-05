@@ -34,7 +34,7 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<Archetype>> GetServerArchetypes(guid __spaceid)
+    public async Task<IonArray<Archetype>> GetServerArchetypes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), GetServerArchetypes_Ref.Value);
     
@@ -48,10 +48,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<Archetype>(writer.Encode());
+        return await req.CallAsyncWithArray<Archetype>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<Archetype> CreateArchetype(guid __spaceid, string __name)
+    public async Task<Archetype> CreateArchetype(guid __spaceid, string __name, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), CreateArchetype_Ref.Value);
     
@@ -66,10 +66,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<Archetype>(writer.Encode());
+        return await req.CallAsync<Archetype>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<Archetype> UpdateArchetype(guid __spaceid, Archetype __data)
+    public async Task<Archetype> UpdateArchetype(guid __spaceid, Archetype __data, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), UpdateArchetype_Ref.Value);
     
@@ -84,10 +84,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<Archetype>(writer.Encode());
+        return await req.CallAsync<Archetype>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> SetArchetypeToMember(guid __spaceid, guid __memberid, guid __archetypeid, bool __isgrant)
+    public async Task<bool> SetArchetypeToMember(guid __spaceid, guid __memberid, guid __archetypeid, bool __isgrant, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), SetArchetypeToMember_Ref.Value);
     
@@ -104,10 +104,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<bool>(writer.Encode());
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid __spaceid)
+    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), GetDetailedServerArchetypes_Ref.Value);
     
@@ -121,10 +121,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode());
+        return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid __spaceid, guid __channelid, guid __archetypeid, ArgonEntitlement __deny, ArgonEntitlement __allow)
+    public async Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid __spaceid, guid __channelid, guid __archetypeid, ArgonEntitlement __deny, ArgonEntitlement __allow, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IArchetypeInteraction), UpsertArchetypeEntitlementForChannel_Ref.Value);
     
@@ -142,7 +142,7 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncNullable<ChannelEntitlementOverwrite>(writer.Encode());
+        return await req.CallAsyncNullable<ChannelEntitlementOverwrite>(writer.Encode(), ct: ct);
     }
 
 }

@@ -18,15 +18,15 @@ namespace ArgonContracts;
 public interface IIdentityInteraction : IIonService
 {
     [AllowAnonymous()]
-    Task<IAuthorizeResult> Authorize(UserCredentialsInput data);
+    Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default);
     [AllowAnonymous()]
-    Task<IRegistrationResult> Registration(NewUserCredentialsInput data);
+    Task<IRegistrationResult> Registration(NewUserCredentialsInput data, CancellationToken ct = default);
     [AllowAnonymous()]
-    Task<bool> BeginResetPassword(string email);
+    Task<bool> BeginResetPassword(string email, CancellationToken ct = default);
     [AllowAnonymous()]
-    Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword);
+    Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword, CancellationToken ct = default);
     [AllowAnonymous()]
-    Task<string> GetAuthorizationScenario();
+    Task<string> GetAuthorizationScenario(CancellationToken ct = default);
 }
 
 

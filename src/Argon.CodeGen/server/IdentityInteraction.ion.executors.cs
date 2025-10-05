@@ -18,7 +18,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Authorize_Execute(CborReader reader, CborWriter writer)
+    public async Task Authorize_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         IonFormatterStorage<IAuthorizeResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Registration_Execute(CborReader reader, CborWriter writer)
+    public async Task Registration_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
     
@@ -52,7 +52,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         IonFormatterStorage<IRegistrationResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BeginResetPassword_Execute(CborReader reader, CborWriter writer)
+    public async Task BeginResetPassword_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
     
@@ -69,7 +69,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task ResetPassword_Execute(CborReader reader, CborWriter writer)
+    public async Task ResetPassword_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
     
@@ -88,7 +88,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         IonFormatterStorage<IAuthorizeResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetAuthorizationScenario_Execute(CborReader reader, CborWriter writer)
+    public async Task GetAuthorizationScenario_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
     
@@ -108,22 +108,28 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("Authorize", StringComparison.InvariantCultureIgnoreCase))
-            return Authorize_Execute(reader, writer);
+            return Authorize_Execute(reader, writer, ct);
         if (methodName.Equals("Registration", StringComparison.InvariantCultureIgnoreCase))
-            return Registration_Execute(reader, writer);
+            return Registration_Execute(reader, writer, ct);
         if (methodName.Equals("BeginResetPassword", StringComparison.InvariantCultureIgnoreCase))
-            return BeginResetPassword_Execute(reader, writer);
+            return BeginResetPassword_Execute(reader, writer, ct);
         if (methodName.Equals("ResetPassword", StringComparison.InvariantCultureIgnoreCase))
-            return ResetPassword_Execute(reader, writer);
+            return ResetPassword_Execute(reader, writer, ct);
         if (methodName.Equals("GetAuthorizationScenario", StringComparison.InvariantCultureIgnoreCase))
-            return GetAuthorizationScenario_Execute(reader, writer);
+            return GetAuthorizationScenario_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

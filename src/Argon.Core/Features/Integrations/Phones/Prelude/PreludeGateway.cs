@@ -1,17 +1,28 @@
 namespace Argon.Features.Integrations.Phones.Prelude;
 
+using Argon.Features.Integrations.Phones.Telegram;
 using Flurl.Http;
-
-public record PreludeGatewayOptions(string endpoint, string token);
 
 public class PreludeGateway(ILogger<PreludeGateway> logger, IOptions<PreludeGatewayOptions> options)
 {
     private readonly IFlurlClient client =
         new FlurlClient(options.Value.endpoint).WithOAuthBearerToken(options.Value.token);
 
-    public async Task<PreludeRequestId?> SendVerificationAsync(string phoneNumber, string userIp, string user_agent, string app_version,
+    public async Task<PreludeRequestId?> SendVerificationAsync(
+        string phoneNumber,
+        string userIp,
+        string userAgent,
+        string appVersion,
         CancellationToken ct = default)
     {
+        using var scope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["PhoneNumber"] = phoneNumber
+        });
+
+        logger.LogInformation("Sending verification request. AppVersion: {AppVersion}, IP: {UserIp}, UserAgent: {UserAgent}",
+            appVersion, userIp, userAgent);
+
         var result = await client.Request("/v2/verification").PostJsonAsync(new
         {
             target = new
@@ -21,10 +32,10 @@ public class PreludeGateway(ILogger<PreludeGateway> logger, IOptions<PreludeGate
             },
             signals = new
             {
-                app_version,
+                app_version     = appVersion,
                 device_platform = "web",
                 ip              = userIp,
-                user_agent
+                user_agent      = userAgent
             },
             options = new
             {
@@ -35,21 +46,54 @@ public class PreludeGateway(ILogger<PreludeGateway> logger, IOptions<PreludeGate
 
         var resp = await result.GetJsonAsync<PreludeVerificationResp>();
 
-        if (resp.status == "success")
+        if (resp.status == ValidateVerificationRequestStatus.success)
+        {
+            logger.LogInformation("Verification request created successfully. RequestId: {RequestId}, Method: {Method}",
+                resp.request_id, resp.method);
             return new PreludeRequestId(resp.request_id);
-        // log
+        }
+
+        logger.LogWarning("Verification request failed. Status: {Status}, Reason: {Reason}",
+            resp.status, resp.reason);
+
         return null;
     }
+    public async Task<bool> CheckVerificationAsync(string phoneNumber, string code, CancellationToken ct = default)
+    {
+        using var scope = logger.BeginScope(new Dictionary<string, object?>
+        {
+            ["PhoneNumber"] = phoneNumber
+        });
 
+        logger.LogInformation("Checking verification code {Code}", code);
 
-    /*request_id*/
-    /*{
-           "id": "vrf_01k67tthpbem7t6xx8bjb5wdqa",
-           "status": "success",
-           "method": "message",
-           "metadata": {},
-           "request_id": "522544ea-ee9a-41da-b978-2d854f319ca2"
-       }*/
+        var result = await client.Request("/v2/verification").PostJsonAsync(new
+        {
+            target = new
+            {
+                type  = "phone_number",
+                value = phoneNumber,
+            },
+            code
+        }, cancellationToken: ct);
+
+        var resp = await result.GetJsonAsync<PreludeCheckVerificationResp>();
+
+        if (resp.status == ValidateVerificationRequestStatus.success)
+        {
+            using var reqScope = logger.BeginScope(new Dictionary<string, object?>
+            {
+                ["RequestId"] = resp.request_id
+            });
+
+            logger.LogInformation("Verification succeeded for RequestId {RequestId}", resp.request_id);
+            return true;
+        }
+
+        logger.LogWarning("Verification failed. Status: {Status}, RequestId: {RequestId}", resp.status, resp.request_id);
+        return false;
+    }
+
     private enum ValidateVerificationRequestStatus
     {
         success,
@@ -64,7 +108,8 @@ public class PreludeGateway(ILogger<PreludeGateway> logger, IOptions<PreludeGate
         blocked
     }
 
-    private record PreludeVerificationResp(string id, string status, string method, string request_id, string reason);
+    private record PreludeVerificationResp(string id, ValidateVerificationRequestStatus status, string method, string request_id, string reason);
+    private record PreludeCheckVerificationResp(string id, ValidateVerificationRequestStatus status, string request_id);
 }
 
 public readonly record struct PreludeRequestId(string request_id);

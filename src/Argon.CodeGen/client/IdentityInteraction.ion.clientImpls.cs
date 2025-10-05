@@ -32,7 +32,7 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput __data)
+    public async Task<IAuthorizeResult> Authorize(UserCredentialsInput __data, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IIdentityInteraction), Authorize_Ref.Value);
     
@@ -46,10 +46,10 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IAuthorizeResult>(writer.Encode());
+        return await req.CallAsync<IAuthorizeResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput __data)
+    public async Task<IRegistrationResult> Registration(NewUserCredentialsInput __data, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IIdentityInteraction), Registration_Ref.Value);
     
@@ -63,10 +63,10 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IRegistrationResult>(writer.Encode());
+        return await req.CallAsync<IRegistrationResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<bool> BeginResetPassword(string __email)
+    public async Task<bool> BeginResetPassword(string __email, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IIdentityInteraction), BeginResetPassword_Ref.Value);
     
@@ -80,10 +80,10 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<bool>(writer.Encode());
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IAuthorizeResult> ResetPassword(string __email, string __otpcode, string __newpassword)
+    public async Task<IAuthorizeResult> ResetPassword(string __email, string __otpcode, string __newpassword, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IIdentityInteraction), ResetPassword_Ref.Value);
     
@@ -99,10 +99,10 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<IAuthorizeResult>(writer.Encode());
+        return await req.CallAsync<IAuthorizeResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<string> GetAuthorizationScenario()
+    public async Task<string> GetAuthorizationScenario(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IIdentityInteraction), GetAuthorizationScenario_Ref.Value);
     
@@ -116,7 +116,7 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<string>(writer.Encode());
+        return await req.CallAsync<string>(writer.Encode(), ct: ct);
     }
 
 }

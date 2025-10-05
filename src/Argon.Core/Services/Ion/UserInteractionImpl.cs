@@ -6,13 +6,13 @@ using ion.runtime;
 
 public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, ILogger<IUserInteraction> logger) : IUserInteraction
 {
-    public async Task<ArgonUser> GetMe()
+    public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
         var user = await this.GetGrain<IUserGrain>(this.GetUserId()).GetMe();
         return user.ToDto();
     }
 
-    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request)
+    public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default)
     {
         var callerId = this.GetUserId();
 
@@ -32,13 +32,13 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
         }
     }
 
-    public async Task<IonArray<ArgonSpaceBase>> GetSpaces()
+    public async Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default)
         => new(await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyServers());
 
-    public Task<ArgonUser> UpdateMe(UserEditInput request)
+    public Task<ArgonUser> UpdateMe(UserEditInput request, CancellationToken ct = default)
         => throw new NotImplementedException();
 
-    public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode)
+    public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default)
     {
         var invite = this.GetGrain<IInviteGrain>(inviteCode.inviteCode);
         var result = await invite.AcceptAsync();
@@ -49,15 +49,15 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
         return new SuccessJoin(space.ToDto());
     }
 
-    public async Task BroadcastPresence(UserActivityPresence presence)
+    public async Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).BroadcastPresenceAsync(presence);
 
-    public async Task RemoveBroadcastPresence()
+    public async Task RemoveBroadcastPresence(CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync();
 
-    public async Task<IonArray<FeatureFlag>> GetMyFeatures()
+    public async Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default)
         => IonArray<FeatureFlag>.Empty;
 
-    public async Task<ArgonUserProfile> GetMyProfile()
+    public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
 }

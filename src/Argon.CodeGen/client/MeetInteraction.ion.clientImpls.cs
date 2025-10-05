@@ -32,7 +32,7 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
 
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Join(string __invitecode, string __username)
+    public async Task Join(string __invitecode, string __username, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IMeetingInteraction), Join_Ref.Value);
 
@@ -47,10 +47,10 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<string> CreateMeetingLink()
+    public async Task<string> CreateMeetingLink(CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IMeetingInteraction), CreateMeetingLink_Ref.Value);
     
@@ -64,10 +64,10 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<string>(writer.Encode());
+        return await req.CallAsync<string>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SetDefaultPermissions(string __roomid, i8 __permissions)
+    public async Task SetDefaultPermissions(string __roomid, i8 __permissions, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IMeetingInteraction), SetDefaultPermissions_Ref.Value);
 
@@ -82,10 +82,10 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<string> BeginRecordAsync(string __roomid)
+    public async Task<string> BeginRecordAsync(string __roomid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IMeetingInteraction), BeginRecordAsync_Ref.Value);
     
@@ -99,10 +99,10 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<string>(writer.Encode());
+        return await req.CallAsync<string>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task EndRecordAsync(string __roomid)
+    public async Task EndRecordAsync(string __roomid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IMeetingInteraction), EndRecordAsync_Ref.Value);
 
@@ -116,7 +116,7 @@ public sealed class Ion_MeetingInteraction_ClientImpl(IonClientContext context) 
         
         writer.WriteEndArray();
 
-        await req.CallAsync(writer.Encode());
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

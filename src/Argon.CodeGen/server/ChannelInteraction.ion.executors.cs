@@ -18,7 +18,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task CreateChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.CreateChannel(__spaceid, __channelid, __request);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task DeleteChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task DeleteChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -51,7 +51,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.DeleteChannel(__spaceid, __channelid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetChannels_Execute(CborReader reader, CborWriter writer)
+    public async Task GetChannels_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -69,7 +69,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<RealtimeChannel>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task QueryMessages_Execute(CborReader reader, CborWriter writer)
+    public async Task QueryMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -89,7 +89,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<ArgonMessage>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task SendMessage_Execute(CborReader reader, CborWriter writer)
+    public async Task SendMessage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -110,7 +110,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<u8>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMessages_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -130,7 +130,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<ArgonMessage>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -146,7 +146,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.DisconnectFromVoiceChannel(__spaceid, __channelid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Interlink_Execute(CborReader reader, CborWriter writer)
+    public async Task Interlink_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -164,7 +164,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<IInterlinkResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer)
+    public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
@@ -186,41 +186,49 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("CreateChannel", StringComparison.InvariantCultureIgnoreCase))
-            return CreateChannel_Execute(reader, writer);
+            return CreateChannel_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteChannel", StringComparison.InvariantCultureIgnoreCase))
-            return DeleteChannel_Execute(reader, writer);
+            return DeleteChannel_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannels", StringComparison.InvariantCultureIgnoreCase))
-            return GetChannels_Execute(reader, writer);
+            return GetChannels_Execute(reader, writer, ct);
         if (methodName.Equals("QueryMessages", StringComparison.InvariantCultureIgnoreCase))
-            return QueryMessages_Execute(reader, writer);
+            return QueryMessages_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessage", StringComparison.InvariantCultureIgnoreCase))
-            return SendMessage_Execute(reader, writer);
+            return SendMessage_Execute(reader, writer, ct);
         if (methodName.Equals("GetMessages", StringComparison.InvariantCultureIgnoreCase))
-            return GetMessages_Execute(reader, writer);
+            return GetMessages_Execute(reader, writer, ct);
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
-            return DisconnectFromVoiceChannel_Execute(reader, writer);
+            return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))
-            return Interlink_Execute(reader, writer);
+            return Interlink_Execute(reader, writer, ct);
         if (methodName.Equals("KickMemberFromChannel", StringComparison.InvariantCultureIgnoreCase))
-            return KickMemberFromChannel_Execute(reader, writer);
+            return KickMemberFromChannel_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 
 public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : IServiceExecutorRouter, IServiceStreamExecutorRouter
 {
     
-    public async IAsyncEnumerable<Memory<byte>> ForServer_Execute(CborReader reader)
+    public async IAsyncEnumerable<Memory<byte>> ForServer_Execute(CborReader reader, IAsyncEnumerable<ReadOnlyMemory<byte>>? inputStream, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IEventBus>();
 
         const int argumentSize = 1;
+        
+        
 
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
             
@@ -228,7 +236,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
 
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
 
-        await foreach (var e in service.ForServer(__spaceid))
+        await foreach (var e in service.ForServer(__spaceid, ct))
         {
             var writer = new CborWriter();
 
@@ -244,7 +252,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
         }
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task Dispatch_Execute(CborReader reader, CborWriter writer)
+    public async Task Dispatch_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IEventBus>();
     
@@ -258,26 +266,74 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
     
         await service.Dispatch(__ev);
     }
+    public async IAsyncEnumerable<Memory<byte>> Pipe_Execute(CborReader reader, IAsyncEnumerable<ReadOnlyMemory<byte>>? inputStream, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IEventBus>();
+
+        const int argumentSize = 0;
+        
+        var inputStreamCasted = inputStream is null
+? null
+: inputStream.Select(bytes =>
+{
+    var reader = new CborReader(bytes);
+    var arr = reader.ReadStartArray();
+    var result = IonFormatterStorage<IArgonClientEvent>.Read(reader);
+    reader.ReadEndArray();
+
+    return result;
+});
+
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+            
+        
+
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+
+        await foreach (var e in service.Pipe(inputStreamCasted, ct))
+        {
+            var writer = new CborWriter();
+
+            IonFormatterStorage<IArgonEvent>.Write(writer, e);
+
+            var mem = MemoryPool<byte>.Shared.Rent(writer.BytesWritten);
+
+            writer.Encode(mem.Memory.Span);
+
+            yield return mem.Memory;
+
+            mem.Dispose();
+        }
+    }
 
     
-        public IAsyncEnumerable<Memory<byte>> StreamRouteExecuteAsync(string methodName, CborReader reader, [EnumeratorCancellation] CancellationToken ct)
+    
+    public IAsyncEnumerable<Memory<byte>> StreamRouteExecuteAsync(string methodName, CborReader reader, IAsyncEnumerable<ReadOnlyMemory<byte>>? inputStream, [EnumeratorCancellation] CancellationToken ct)
     {
         
         if (methodName.Equals("ForServer", StringComparison.InvariantCultureIgnoreCase))
-            return ForServer_Execute(reader);
+            return ForServer_Execute(reader, inputStream, ct);
+        if (methodName.Equals("Pipe", StringComparison.InvariantCultureIgnoreCase))
+            return Pipe_Execute(reader, inputStream, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("Dispatch", StringComparison.InvariantCultureIgnoreCase))
-            return Dispatch_Execute(reader, writer);
+            return Dispatch_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        "Pipe"
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

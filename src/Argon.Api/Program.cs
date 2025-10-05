@@ -1,3 +1,4 @@
+using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
 using Argon.Api.Migrations;
 using Argon.Features.Env;
@@ -12,6 +13,7 @@ else if (builder.Environment.IsSingleRegion())
     builder.AddSingleRegionWorkloads();
 else
     builder.AddMultiRegionWorkloads();
+builder.Services.AddSingleton<SubscriptionController>();
 
 builder.Services.AddIonProtocol((x) => {
     x.AddInterceptor<ArgonTransactionInterceptor>();

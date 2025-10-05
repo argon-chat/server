@@ -18,7 +18,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMe_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMe_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -35,7 +35,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ArgonUser>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateSpace_Execute(CborReader reader, CborWriter writer)
+    public async Task CreateSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -52,7 +52,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ICreateSpaceResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetSpaces_Execute(CborReader reader, CborWriter writer)
+    public async Task GetSpaces_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -69,7 +69,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ArgonSpaceBase>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task UpdateMe_Execute(CborReader reader, CborWriter writer)
+    public async Task UpdateMe_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -86,7 +86,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ArgonUser>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task JoinToSpace_Execute(CborReader reader, CborWriter writer)
+    public async Task JoinToSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -103,7 +103,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<IJoinToSpaceResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BroadcastPresence_Execute(CborReader reader, CborWriter writer)
+    public async Task BroadcastPresence_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -118,7 +118,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         await service.BroadcastPresence(__presence);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task RemoveBroadcastPresence_Execute(CborReader reader, CborWriter writer)
+    public async Task RemoveBroadcastPresence_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -133,7 +133,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         await service.RemoveBroadcastPresence();
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMyFeatures_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMyFeatures_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -150,7 +150,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<FeatureFlag>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMyProfile_Execute(CborReader reader, CborWriter writer)
+    public async Task GetMyProfile_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -170,30 +170,36 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
     
     
-        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer)
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
         if (methodName.Equals("GetMe", StringComparison.InvariantCultureIgnoreCase))
-            return GetMe_Execute(reader, writer);
+            return GetMe_Execute(reader, writer, ct);
         if (methodName.Equals("CreateSpace", StringComparison.InvariantCultureIgnoreCase))
-            return CreateSpace_Execute(reader, writer);
+            return CreateSpace_Execute(reader, writer, ct);
         if (methodName.Equals("GetSpaces", StringComparison.InvariantCultureIgnoreCase))
-            return GetSpaces_Execute(reader, writer);
+            return GetSpaces_Execute(reader, writer, ct);
         if (methodName.Equals("UpdateMe", StringComparison.InvariantCultureIgnoreCase))
-            return UpdateMe_Execute(reader, writer);
+            return UpdateMe_Execute(reader, writer, ct);
         if (methodName.Equals("JoinToSpace", StringComparison.InvariantCultureIgnoreCase))
-            return JoinToSpace_Execute(reader, writer);
+            return JoinToSpace_Execute(reader, writer, ct);
         if (methodName.Equals("BroadcastPresence", StringComparison.InvariantCultureIgnoreCase))
-            return BroadcastPresence_Execute(reader, writer);
+            return BroadcastPresence_Execute(reader, writer, ct);
         if (methodName.Equals("RemoveBroadcastPresence", StringComparison.InvariantCultureIgnoreCase))
-            return RemoveBroadcastPresence_Execute(reader, writer);
+            return RemoveBroadcastPresence_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyFeatures", StringComparison.InvariantCultureIgnoreCase))
-            return GetMyFeatures_Execute(reader, writer);
+            return GetMyFeatures_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyProfile", StringComparison.InvariantCultureIgnoreCase))
-            return GetMyProfile_Execute(reader, writer);
+            return GetMyProfile_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 

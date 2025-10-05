@@ -23,32 +23,6 @@ public class OtpWorkflow
     [WorkflowRun]
     public async Task RunAsync(Guid userId, string email, OtpPurpose purpose, string? deviceId, string ip)
     {
-       
-
-        //var expireAt = Workflow.UtcNow.AddMinutes(10);
-
-        //while (Workflow.UtcNow < expireAt && !_isVerified)
-        //{
-        //    var left = expireAt - Workflow.UtcNow;
-        //    var got  = await Workflow.WaitConditionAsync(() => _pendingCode is not null, left);
-        //    if (!got)
-        //        break;
-
-        //    var code = _pendingCode!;
-        //    _pendingCode = null;
-
-        //    var ok = await Workflow.ExecuteActivityAsync(
-        //        (OtpActivities a) => a.VerifyOtpAsync(email, purpose, code, deviceId),
-        //        new()
-        //        {
-        //            StartToCloseTimeout = TimeSpan.FromSeconds(10),
-        //            RetryPolicy         = new() { MaximumAttempts = 1 }
-        //        });
-
-        //    if (!ok) continue;
-        //    _isVerified = true;
-        //    return;
-        //}
     }
 }
 public class OtpActivities(IOtpService otp)

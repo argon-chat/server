@@ -19,7 +19,7 @@ public interface IUserGrain : IGrainWithGuidKey
     Task<List<ArgonSpaceBase>> GetMyServers();
 
     [Alias(nameof(GetMyServersIds))]
-    Task<List<Guid>> GetMyServersIds();
+    Task<List<Guid>> GetMyServersIds(CancellationToken ct = default);
 
     [Alias(nameof(BroadcastPresenceAsync))]
     ValueTask BroadcastPresenceAsync(UserActivityPresence presence);

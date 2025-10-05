@@ -1,8 +1,8 @@
 namespace Argon.Grains;
 
 using Api.Features.CoreLogic.Otp;
+using Argon.Core.Features.Integrations.Phones;
 using Argon.Features.Auth;
-using Argon.Features.PhoneProviders;
 using Metrics;
 using Metrics.Gauges;
 using Orleans.Concurrency;
@@ -98,51 +98,52 @@ public class AuthorizationGrain(
 
     private async Task<Either<string, AuthorizationError>> AuthorizePhoneOtp(UserCredentialsInput input)
     {
-        if (string.IsNullOrEmpty(input.phone))
-            return AuthorizationError.BAD_CREDENTIALS;
+        throw new NotImplementedException();
+        //if (string.IsNullOrEmpty(input.phone))
+        //    return AuthorizationError.BAD_CREDENTIALS;
 
-        await using var ctx = await context.CreateDbContextAsync();
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.PhoneNumber == input.phone);
-        if (user is null)
-        {
-            logger.LogWarning("Not found user with phone '{phone}'", input.phone);
-            return AuthorizationError.BAD_CREDENTIALS;
-        }
+        //await using var ctx = await context.CreateDbContextAsync();
+        //var user = await ctx.Users.FirstOrDefaultAsync(u => u.PhoneNumber == input.phone);
+        //if (user is null)
+        //{
+        //    logger.LogWarning("Not found user with phone '{phone}'", input.phone);
+        //    return AuthorizationError.BAD_CREDENTIALS;
+        //}
 
-        if (string.IsNullOrEmpty(input.otpCode))
-        {
-            var requestId = await phoneProvider.SendCode(input.phone);
-            if (string.IsNullOrEmpty(requestId))
-            {
-                logger.LogError("Phone provider did not return requestId for {phone}", input.phone);
-                return AuthorizationError.BAD_OTP;
-            }
+        //if (string.IsNullOrEmpty(input.otpCode))
+        //{
+        //    var requestId = await phoneProvider.SendCode(input.phone);
+        //    if (string.IsNullOrEmpty(requestId))
+        //    {
+        //        logger.LogError("Phone provider did not return requestId for {phone}", input.phone);
+        //        return AuthorizationError.BAD_OTP;
+        //    }
 
-            await cache.StringSetAsync($"otp_phone:{user.Id}", requestId, TimeSpan.FromMinutes(5));
+        //    await cache.StringSetAsync($"otp_phone:{user.Id}", requestId, TimeSpan.FromMinutes(5));
 
-            logger.LogInformation("Sent login OTP to phone {phone} with requestId {requestId}", input.phone, requestId);
-            return AuthorizationError.REQUIRED_OTP;
-        }
+        //    logger.LogInformation("Sent login OTP to phone {phone} with requestId {requestId}", input.phone, requestId);
+        //    return AuthorizationError.REQUIRED_OTP;
+        //}
 
-        var requestIdCached = await cache.StringGetAsync($"otp_phone:{user.Id}");
-        if (string.IsNullOrEmpty(requestIdCached))
-        {
-            logger.LogWarning("OTP requestId not found/expired for user '{phone}'", input.phone);
-            return AuthorizationError.BAD_OTP;
-        }
+        //var requestIdCached = await cache.StringGetAsync($"otp_phone:{user.Id}");
+        //if (string.IsNullOrEmpty(requestIdCached))
+        //{
+        //    logger.LogWarning("OTP requestId not found/expired for user '{phone}'", input.phone);
+        //    return AuthorizationError.BAD_OTP;
+        //}
 
-        var verified = await phoneProvider.VerifyCode(input.phone, requestIdCached, input.otpCode);
-        if (!verified)
-        {
-            logger.LogWarning("User '{phone}' entered invalid otp code", input.phone);
-            return AuthorizationError.BAD_OTP;
-        }
+        //var verified = await phoneProvider.VerifyCode(input.phone, requestIdCached, input.otpCode);
+        //if (!verified)
+        //{
+        //    logger.LogWarning("User '{phone}' entered invalid otp code", input.phone);
+        //    return AuthorizationError.BAD_OTP;
+        //}
 
-        await cache.KeyDeleteAsync($"otp_phone:{user.Id}");
+        //await cache.KeyDeleteAsync($"otp_phone:{user.Id}");
 
-        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+        //await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
 
-        return await GenerateJwt(user, this.GetUserMachineId());
+        //return await GenerateJwt(user, this.GetUserMachineId());
     }
 
     public async Task<Either<string, FailedRegistration>> Register(NewUserCredentialsInput input)

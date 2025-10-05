@@ -5,19 +5,19 @@ using InviteCode = ArgonContracts.InviteCode;
 
 public class ServerInteractionImpl : IServerInteraction
 {
-    public async Task<IonArray<RealtimeServerMember>> GetMembers(Guid spaceId)
+    public async Task<IonArray<RealtimeServerMember>> GetMembers(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<ISpaceGrain>(spaceId)
            .GetMembers();
         return new IonArray<RealtimeServerMember>(result);
     }
 
-    public async Task<RealtimeServerMember> GetMember(Guid spaceId, Guid userId)
+    public async Task<RealtimeServerMember> GetMember(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(spaceId)
            .GetMember(userId);
 
-    public async Task<IonArray<InviteCodeEntity>> GetInviteCodes(Guid spaceId)
+    public async Task<IonArray<InviteCodeEntity>> GetInviteCodes(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IServerInvitesGrain>(spaceId)
            .GetInviteCodes();
@@ -25,7 +25,7 @@ public class ServerInteractionImpl : IServerInteraction
             => new InviteCodeEntity(new InviteCode(x.code.inviteCode), x.serverId, x.issuerId, x.expireTime.UtcDateTime, (ulong)x.used)));
     }
 
-    public async Task<InviteCode> CreateInviteCode(Guid spaceId)
+    public async Task<InviteCode> CreateInviteCode(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this
            .GetGrain<IServerInvitesGrain>(spaceId)
@@ -33,53 +33,53 @@ public class ServerInteractionImpl : IServerInteraction
         return new InviteCode(result.inviteCode);
     }
 
-    public async Task<ArgonUser> PrefetchUser(Guid spaceId, Guid userId)
+    public async Task<ArgonUser> PrefetchUser(Guid spaceId, Guid userId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IUserGrain>(userId).GetMe();
         return result.ToDto();
     }
 
-    public async Task<ArgonUserProfile> PrefetchProfile(Guid spaceId, Guid userId)
+    public async Task<ArgonUserProfile> PrefetchProfile(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchProfile(userId);
 
-    public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId)
+    public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, CancellationToken ct = default)
         => new(await this.GetGrain<ISpaceGrain>(spaceId)
            .GetChannels());
 
-    public async Task<IonArray<Archetype>> GetServerArchetypes(Guid spaceId)
+    public async Task<IonArray<Archetype>> GetServerArchetypes(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetServerArchetypes();
 
-    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(Guid spaceId)
+    public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetFullyServerArchetypes();
 }
 
 public class ChannelInteractionImpl : IChannelInteraction
 {
-    public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request)
+    public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(request.spaceId)
            .CreateChannel(new ChannelInput(request.name, request.desc, request.kind));
 
-    public async Task DeleteChannel(Guid spaceId, Guid channelId)
+    public async Task DeleteChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(spaceId)
            .DeleteChannel(channelId);
 
-    public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId)
+    public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => new(await this.GetGrain<ISpaceGrain>(spaceId)
            .GetChannels());
 
-    public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, ulong? from, int limit)
+    public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, ulong? from, int limit, CancellationToken ct = default)
         => IonArray<ArgonMessage>.Empty;
 
 
     public async Task<ulong> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
-        ulong? replyTo)
+        ulong? replyTo, CancellationToken ct = default)
         => await this
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), replyTo);
 
-    public async Task<IonArray<ArgonMessage>> GetMessages(Guid spaceId, Guid channelId, int count, ulong offset)
+    public async Task<IonArray<ArgonMessage>> GetMessages(Guid spaceId, Guid channelId, int count, ulong offset, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IChannelGrain>(channelId)
            .GetMessages(count, offset);
@@ -87,12 +87,12 @@ public class ChannelInteractionImpl : IChannelInteraction
         return result.Select(x => x.ToDto()).ToList();
     }
 
-    public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId)
+    public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this
            .GetGrain<IChannelGrain>(channelId)
            .Leave(this.GetUserId());
 
-    public async Task<IInterlinkResult> Interlink(Guid spaceId, Guid channelId)
+    public async Task<IInterlinkResult> Interlink(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<IChannelGrain>(channelId).Join();
 
@@ -102,6 +102,6 @@ public class ChannelInteractionImpl : IChannelInteraction
         return new SuccessJoinVoice(rtc, result.Value);
     }
 
-    public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId)
+    public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
 }

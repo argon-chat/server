@@ -25,12 +25,12 @@ public sealed record Archetype(guid id, guid spaceId, string name, string descri
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IArchetypeInteraction : IIonService
 {
-    Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId);
-    Task<Archetype> CreateArchetype(guid spaceId, string name);
-    Task<Archetype> UpdateArchetype(guid spaceId, Archetype data);
-    Task<bool> SetArchetypeToMember(guid spaceId, guid memberId, guid archetypeId, bool isGrant);
-    Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId);
-    Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid spaceId, guid channelId, guid archetypeId, ArgonEntitlement deny, ArgonEntitlement allow);
+    Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId, CancellationToken ct = default);
+    Task<Archetype> CreateArchetype(guid spaceId, string name, CancellationToken ct = default);
+    Task<Archetype> UpdateArchetype(guid spaceId, Archetype data, CancellationToken ct = default);
+    Task<bool> SetArchetypeToMember(guid spaceId, guid memberId, guid archetypeId, bool isGrant, CancellationToken ct = default);
+    Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId, CancellationToken ct = default);
+    Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid spaceId, guid channelId, guid archetypeId, ArgonEntitlement deny, ArgonEntitlement allow, CancellationToken ct = default);
 }
 
 
