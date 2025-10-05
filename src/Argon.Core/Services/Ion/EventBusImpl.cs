@@ -15,7 +15,7 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
             yield return e;
     }
 
-    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => await DispatchTree(ev);
+    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => await DispatchTree(ev, this.GetClusterClient());
 
     public async IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent>? dispatchEvents, 
         [EnumeratorCancellation] CancellationToken ct = default)
