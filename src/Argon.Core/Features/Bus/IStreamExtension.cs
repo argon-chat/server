@@ -71,9 +71,11 @@ public class SubscriptionController(IClusterClient client)
         Guid userId,
         [EnumeratorCancellation] CancellationToken ct)
     {
+        if (sessions.ContainsKey(sessionId))
+            CleanupSession(sessionId);
+
         var ctx = new SessionContext(sessionId, userId, ct);
-        if (!sessions.TryAdd(sessionId, ctx))
-            throw new InvalidOperationException($"Session {sessionId} already exists");
+        sessions[sessionId] = ctx;
 
         try
         {
