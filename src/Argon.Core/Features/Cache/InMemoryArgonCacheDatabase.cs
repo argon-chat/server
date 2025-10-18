@@ -41,6 +41,12 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
         return !string.IsNullOrEmpty(r);
     }
 
+    public Task<long> StringIncrementAsync(string key, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
     public Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
         => throw new NotImplementedException();
 
