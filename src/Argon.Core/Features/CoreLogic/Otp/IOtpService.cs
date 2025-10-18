@@ -16,14 +16,14 @@ public interface IOtpService
     Task<bool> VerifyAsync(VerifyOtpRequest req, CancellationToken ct = default);
 }
 
-public sealed class OtpService(IArgonCacheDatabase cache, IClusterClient clusterClient) : IOtpService
+public sealed class OtpService(IArgonCacheDatabase cache, IClusterClient clusterClient, ILogger<IOtpService> logger) : IOtpService
 {
 
     private static readonly TimeSpan OtpTtl         = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan Cooldown       = TimeSpan.FromSeconds(30);
-    private const           int      MaxAttempts    = 5;
-    private const           int      HourlyPerEmail = 5;
-    private const           int      HourlyPerIp    = 20;
+    private const           int      MaxAttempts    = 10;
+    private const           int      HourlyPerEmail = 10;
+    private const           int      HourlyPerIp    = 30;
 
     private static string KeyActive(string email, OtpPurpose p)   => $"otp:{p}:{email.ToLowerInvariant()}:active";
     private static string KeyCooldown(string email, OtpPurpose p) => $"otp:{p}:{email.ToLowerInvariant()}:cooldown";
@@ -38,12 +38,21 @@ public sealed class OtpService(IArgonCacheDatabase cache, IClusterClient cluster
         var rlIpKey     = KeyRlIp(ip);
 
         if (await cache.KeyExistsAsync(cooldownKey, ct))
+        {
+            logger.LogWarning("Failed to send email otp code, cooldownKey is exist in cache, key: {cooldownKey}", cooldownKey);
             return;
+        }
 
         if (!await CheckRateLimitAsync(rlEmailKey, HourlyPerEmail, TimeSpan.FromHours(1), ct))
+        {
+            logger.LogWarning("Failed to send email otp code, rate limited applied by email, key: {rlEmailKey}", rlEmailKey);
             return;
+        }
         if (!await CheckRateLimitAsync(rlIpKey, HourlyPerIp, TimeSpan.FromHours(1), ct))
+        {
+            logger.LogWarning("Failed to send email otp code, rate limited applied by up, key: {rlEmailKey}", rlIpKey);
             return;
+        }
 
         var code = OtpSecurity.GenerateNumericCode(6);
         var salt = OtpSecurity.GenerateSalt(16);
