@@ -1,8 +1,5 @@
 namespace Argon.Services;
 
-using Grpc.Core;
-using Microsoft.Extensions.ObjectPool;
-
 public interface IArgonCacheDatabase
 {
     Task          StringSetAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default);
@@ -11,6 +8,9 @@ public interface IArgonCacheDatabase
     Task<string?> StringGetAsync(string key, CancellationToken ct = default);
     Task          KeyDeleteAsync(string key, CancellationToken ct = default);
     Task<bool>    KeyExistsAsync(string key, CancellationToken ct = default);
+
+    Task<long> StringIncrementAsync(string key, CancellationToken ct = default);
+    Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default);
 
 
     IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default);
