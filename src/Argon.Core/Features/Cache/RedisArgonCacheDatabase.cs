@@ -42,6 +42,20 @@ public class RedisArgonCacheDatabase(IRedisPoolConnections pool) : IArgonCacheDa
         return scope.GetDatabase().KeyExistsAsync(key).WaitAsync(ct);
     }
 
+    public Task<long> StringIncrementAsync(string key, CancellationToken ct = default)
+    {
+        using var scope = pool.Rent();
+
+        return scope.GetDatabase().StringIncrementAsync(key);
+    }
+
+    public async Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
+    {
+        using var scope = pool.Rent();
+
+        return await scope.GetDatabase().StringGetSetExpiryAsync(key, window);
+    }
+
     public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default)
     {
         using var scope = pool.Rent();

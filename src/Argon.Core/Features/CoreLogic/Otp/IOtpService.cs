@@ -118,14 +118,10 @@ public sealed class OtpService(IArgonCacheDatabase cache, IClusterClient cluster
 
     private async Task<bool> CheckRateLimitAsync(string key, int max, TimeSpan window, CancellationToken ct)
     {
-        var raw                                      = await cache.StringGetAsync(key, ct);
-        if (!int.TryParse(raw, out var count)) count = 0;
-        count++;
+        var count = (int)await cache.StringIncrementAsync(key, ct);
 
         if (count == 1)
-            await cache.StringSetAsync(key, count.ToString(), window, ct);
-        else
-            await cache.StringSetAsync(key, count.ToString(), ct);
+            await cache.KeyExpireAsync(key, window, ct);
 
         return count <= max;
     }
