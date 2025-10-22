@@ -39,6 +39,15 @@ public sealed record NewUserCredentialsInput(string email, string username, stri
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum UploadFileError
+{
+    NONE = 0,
+    NOT_AUTHORIZED = 1,
+    INTERNAL_ERROR = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum CreateSpaceError
 {
     UNKNOWN = 0,
@@ -107,6 +116,134 @@ public interface IUserInteraction : IIonService
     Task RemoveBroadcastPresence(CancellationToken ct = default);
     Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default);
     Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default);
+    Task CompleteUploadAvatar(guid blobId, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default);
+    Task CompleteUploadProfileHeader(guid blobId, CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IUploadFileResult : IIonUnion<IUploadFileResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessUploadFile => this is SuccessUploadFile;
+
+    internal bool IsFailedUploadFile => this is FailedUploadFile;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessUploadFile(guid blobId) : IUploadFileResult
+{
+    public string UnionKey => nameof(SuccessUploadFile);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedUploadFile(UploadFileError error) : IUploadFileResult
+{
+    public string UnionKey => nameof(FailedUploadFile);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IUploadFileResult_Formatter : IonFormatter<IUploadFileResult>
+{
+    public IUploadFileResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IUploadFileResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessUploadFile>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedUploadFile>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IUploadFileResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessUploadFile n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessUploadFile>.Write(writer, n_0);
+        }
+
+        else if (value is FailedUploadFile n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedUploadFile>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessUploadFile_Formatter : IonFormatter<SuccessUploadFile>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessUploadFile Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__blobid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessUploadFile value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.blobId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedUploadFile_Formatter : IonFormatter<FailedUploadFile>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedUploadFile Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<UploadFileError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedUploadFile value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<UploadFileError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

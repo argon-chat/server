@@ -173,6 +173,72 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         
         IonFormatterStorage<ArchetypeGroup>.WriteArray(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadSpaceProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadSpaceProfileHeader(__spaceid);
+        
+        IonFormatterStorage<guid>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadSpaceProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CompleteUploadSpaceProfileHeader(__spaceid, __blobid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadSpaceAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadSpaceAvatar(__spaceid);
+        
+        IonFormatterStorage<guid>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadSpaceAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CompleteUploadSpaceAvatar(__spaceid, __blobid);
+    }
 
     
     
@@ -198,6 +264,14 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return GetServerArchetypes_Execute(reader, writer, ct);
         if (methodName.Equals("GetDetailedServerArchetypes", StringComparison.InvariantCultureIgnoreCase))
             return GetDetailedServerArchetypes_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadSpaceProfileHeader", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadSpaceProfileHeader_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadSpaceProfileHeader", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadSpaceProfileHeader_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadSpaceAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadSpaceAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadSpaceAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadSpaceAvatar_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

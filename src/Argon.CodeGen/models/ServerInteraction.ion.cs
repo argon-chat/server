@@ -117,6 +117,10 @@ public interface IServerInteraction : IIonService
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, CancellationToken ct = default);
     Task<IonArray<Archetype>> GetServerArchetypes(guid spaceId, CancellationToken ct = default);
     Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId, CancellationToken ct = default);
+    Task<guid> BeginUploadSpaceProfileHeader(guid spaceId, CancellationToken ct = default);
+    Task CompleteUploadSpaceProfileHeader(guid spaceId, guid blobId, CancellationToken ct = default);
+    Task<guid> BeginUploadSpaceAvatar(guid spaceId, CancellationToken ct = default);
+    Task CompleteUploadSpaceAvatar(guid spaceId, guid blobId, CancellationToken ct = default);
 }
 
 

@@ -1,7 +1,5 @@
 namespace Argon.Grains.Interfaces;
 
-using Orleans.Concurrency;
-using Users;
 
 [Alias("Argon.Grains.Interfaces.IUserGrain")]
 public interface IUserGrain : IGrainWithGuidKey
@@ -39,4 +37,20 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(UpdateUserDeviceHistory))]
     //[OneWay]
     ValueTask UpdateUserDeviceHistory();
+
+    [Alias(nameof(BeginUploadUserFile))]
+    ValueTask<Either<BlobId, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteUploadUserFile))]
+    ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default);
+}
+
+
+public record BlobId(Guid Id);
+
+
+public enum UserFileKind
+{
+    Avatar,
+    ProfileHeader
 }

@@ -51,6 +51,18 @@ public class ServerInteractionImpl : IServerInteraction
 
     public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetFullyServerArchetypes();
+
+    public Task<Guid> BeginUploadSpaceProfileHeader(Guid spaceId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task<Guid> BeginUploadSpaceAvatar(Guid spaceId, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public Task CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => throw new NotImplementedException();
 }
 
 public class ChannelInteractionImpl : IChannelInteraction

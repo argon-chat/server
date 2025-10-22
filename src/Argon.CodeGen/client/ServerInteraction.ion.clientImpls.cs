@@ -36,6 +36,14 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(GetServerArchetypes), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetDetailedServerArchetypes_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(GetDetailedServerArchetypes), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadSpaceProfileHeader_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(BeginUploadSpaceProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadSpaceProfileHeader_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(CompleteUploadSpaceProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadSpaceAvatar_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(BeginUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadSpaceAvatar_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(CompleteUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -194,6 +202,76 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         writer.WriteEndArray();
     
         return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<guid> BeginUploadSpaceProfileHeader(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), BeginUploadSpaceProfileHeader_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<guid>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadSpaceProfileHeader(guid __spaceid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), CompleteUploadSpaceProfileHeader_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<guid> BeginUploadSpaceAvatar(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), BeginUploadSpaceAvatar_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<guid>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadSpaceAvatar(guid __spaceid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), CompleteUploadSpaceAvatar_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

@@ -69,11 +69,13 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CreateServerRequest>.Value = new Ion_CreateServerRequest_Formatter();
       IonFormatterStorage<UserCredentialsInput>.Value = new Ion_UserCredentialsInput_Formatter();
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
+      IonFormatterStorage<UploadFileError>.Value = new Ion_UploadFileError_Formatter();
       IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
       IonFormatterStorage<AcceptInviteError>.Value = new Ion_AcceptInviteError_Formatter();
       IonFormatterStorage<AuthorizationError>.Value = new Ion_AuthorizationError_Formatter();
       IonFormatterStorage<RegistrationError>.Value = new Ion_RegistrationError_Formatter();
       IonFormatterStorage<LockdownReason>.Value = new Ion_LockdownReason_Formatter();
+      IonFormatterStorage<IUploadFileResult>.Value = new Ion_IUploadFileResult_Formatter();
       IonFormatterStorage<ICreateSpaceResult>.Value = new Ion_ICreateSpaceResult_Formatter();
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
@@ -108,6 +110,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SubscribeToMySpaces>.Value = new Ion_SubscribeToMySpaces_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
+      IonFormatterStorage<SuccessUploadFile>.Value = new Ion_SuccessUploadFile_Formatter();
+      IonFormatterStorage<FailedUploadFile>.Value = new Ion_FailedUploadFile_Formatter();
       IonFormatterStorage<SuccessCreateSpace>.Value = new Ion_SuccessCreateSpace_Formatter();
       IonFormatterStorage<FailedCreateSpace>.Value = new Ion_FailedCreateSpace_Formatter();
       IonFormatterStorage<SuccessAuthorize>.Value = new Ion_SuccessAuthorize_Formatter();

@@ -36,6 +36,14 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(GetMyFeatures), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMyProfile_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(GetMyProfile), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadAvatar_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(BeginUploadAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadAvatar_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(CompleteUploadAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadProfileHeader_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(BeginUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadProfileHeader_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(CompleteUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -191,6 +199,74 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
     
         return await req.CallAsync<ArgonUserProfile>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), BeginUploadAvatar_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadAvatar(guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), CompleteUploadAvatar_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), BeginUploadProfileHeader_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadProfileHeader(guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), CompleteUploadProfileHeader_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

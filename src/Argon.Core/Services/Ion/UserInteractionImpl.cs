@@ -60,4 +60,28 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
 
     public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
+
+    public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.Avatar, ct);
+
+        if (result.IsSuccess)
+            return new SuccessUploadFile(result.Value.Id);
+        return new FailedUploadFile(result.Error);
+    }
+
+    public async Task CompleteUploadAvatar(Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.Avatar, ct);
+
+    public async Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.ProfileHeader, ct);
+
+        if (result.IsSuccess)
+            return new SuccessUploadFile(result.Value.Id);
+        return new FailedUploadFile(result.Error);
+    }
+
+    public async Task CompleteUploadProfileHeader(Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.ProfileHeader, ct);
 }

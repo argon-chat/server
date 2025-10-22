@@ -191,7 +191,7 @@ public static class HostModeExtensions
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();
-        builder.AddContentDeliveryNetwork();
+        builder.AddKineticaFSApi();
         builder.AddSelectiveForwardingUnit();
         builder.AddOtpCodes();
         builder.AddCaptchaFeature();

@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Features.Logic;
+using Features.MediaStorage;
 using ion.runtime;
 using Orleans;
 using Orleans.Concurrency;
@@ -8,10 +9,10 @@ using Services;
 
 [StatelessWorker]
 public class UserGrain(
-    IPasswordHashingService passwordHashingService,
     IDbContextFactory<ApplicationDbContext> context,
     IUserPresenceService presenceService,
-    ILogger<IUserGrain> logger) : Grain, IUserGrain
+    ILogger<IUserGrain> logger,
+    IKineticaFSApi kineticaFs) : Grain, IUserGrain
 {
     public async Task<UserEntity> UpdateUser(UserEditInput input)
     {
@@ -48,7 +49,7 @@ public class UserGrain(
     {
         var caller = this.GetUserId();
 
-        await using var ctx     = await context.CreateDbContextAsync();
+        await using var ctx = await context.CreateDbContextAsync();
         var profile = await ctx.UserProfiles
            .AsNoTracking()
            .FirstAsync(x => x.UserId == caller);
@@ -185,5 +186,84 @@ public class UserGrain(
         {
             logger.LogCritical(e, "failed update user device history");
         }
+    }
+
+    private uint GetLimitFor(UserFileKind kind)
+        => kind switch
+        {
+            UserFileKind.Avatar        => 2,
+            UserFileKind.ProfileHeader => 4,
+            _                          => 1
+        };
+
+    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default)
+    {
+        try
+        {
+            var result = await kineticaFs.CreateUploadUrlAsync(GetLimitFor(kind), null, ct);
+
+            return new BlobId(result);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed upload user file {kind}", kind);
+            return UploadFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default)
+    {
+        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        await UpdateFileIdFor(kind, fileId, ct);
+    }
+
+    private ValueTask UpdateFileIdFor(UserFileKind kind, Guid fileId, CancellationToken ct = default)
+        => kind switch
+        {
+            UserFileKind.Avatar        => UpdateAvatarFileId(fileId, ct),
+            UserFileKind.ProfileHeader => UpdateProfileHeaderFileId(fileId, ct),
+            _                          => throw new NotImplementedException()
+        };
+
+    private async ValueTask UpdateAvatarFileId(Guid fileId, CancellationToken ct = default)
+    {
+        await using var ctx    = await context.CreateDbContextAsync(ct);
+        var             userId = this.GetUserId();
+
+        var user = await ctx.Users.FirstAsync(x => x.Id == userId, cancellationToken: ct);
+
+        user.AvatarFileId = fileId.ToString();
+
+        await ctx.SaveChangesAsync(ct);
+
+        var userServers = await GetMyServersIds(ct);
+
+        await Task.WhenAll(userServers
+           .Select(id => GrainFactory
+               .GetGrain<ISpaceGrain>(id)
+               .DoUserUpdatedAsync()
+               .AsTask())
+           .ToArray());
+    }
+
+    private async ValueTask UpdateProfileHeaderFileId(Guid fileId, CancellationToken ct = default)
+    {
+        await using var ctx    = await context.CreateDbContextAsync(ct);
+        var             userId = this.GetUserId();
+
+        var user = await ctx.UserProfiles.FirstAsync(x => x.UserId == userId, cancellationToken: ct);
+
+        user.BannerFileId = fileId.ToString();
+
+        await ctx.SaveChangesAsync(ct);
+
+        var userServers = await GetMyServersIds(ct);
+
+        await Task.WhenAll(userServers
+           .Select(id => GrainFactory
+               .GetGrain<ISpaceGrain>(id)
+               .DoUserUpdatedAsync()
+               .AsTask())
+           .ToArray());
     }
 }

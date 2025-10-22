@@ -166,6 +166,70 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         
         IonFormatterStorage<ArgonUserProfile>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadAvatar();
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CompleteUploadAvatar(__blobid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadProfileHeader();
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CompleteUploadProfileHeader(__blobid);
+    }
 
     
     
@@ -191,6 +255,14 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetMyFeatures_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyProfile", StringComparison.InvariantCultureIgnoreCase))
             return GetMyProfile_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadProfileHeader", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadProfileHeader_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadProfileHeader", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadProfileHeader_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
