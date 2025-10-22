@@ -31,7 +31,7 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
                .PostJsonAsync(new
                 {
                     regionId,
-                    fileSizeLimit = limitMb * 1024
+                    fileSizeLimit = limitMb * 1024 * 1024
                 }, cancellationToken: ct);
 
             if (!response.ResponseMessage.IsSuccessStatusCode)
