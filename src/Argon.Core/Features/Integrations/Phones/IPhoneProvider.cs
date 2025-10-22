@@ -50,7 +50,7 @@ public static class PhoneProviderEx
 {
     public static void AddPhoneOtpProvider(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton<IPhoneProvider, DefaultPhoneProvider>();
+        builder.Services.AddSingleton<IPhoneProvider, NullPhoneProvider>();
         builder.AddPreludeGateway();
         builder.AddTelegramGateway();
     }

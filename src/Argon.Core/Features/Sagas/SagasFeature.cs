@@ -9,8 +9,15 @@ public static class SagasFeature
 {
     public static void AddSagas(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<TemporalClientConnectOptions>(builder.Configuration.GetSection("Sagas"));
-        builder.Services.Configure<TemporalWorkerServiceOptions>(builder.Configuration.GetSection("Sagas"));
+        var sagasSection = builder.Configuration.GetSection("Sagas");
+        var enabled      = sagasSection.GetValue<bool>("Enabled");
+
+        if (!enabled)
+            return;
+
+        builder.Services.Configure<TemporalClientConnectOptions>(sagasSection);
+        builder.Services.Configure<TemporalWorkerServiceOptions>(sagasSection);
+
         builder.Services.AddTemporalClient();
 
         builder.Services
