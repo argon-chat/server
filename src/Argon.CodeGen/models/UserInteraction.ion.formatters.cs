@@ -143,6 +143,31 @@ public sealed class Ion_UserCredentialsInput_Formatter : IonFormatter<UserCreden
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserLoginInput_Formatter : IonFormatter<UserLoginInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserLoginInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __email = reader.ReadNullable<string>();
+        var __phone = reader.ReadNullable<string>();
+        var __username = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__email, __phone, __username);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserLoginInput value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<string>.WriteNullable(writer, value.email);
+        IonFormatterStorage<string>.WriteNullable(writer, value.phone);
+        IonFormatterStorage<string>.WriteNullable(writer, value.username);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUserCredentialsInput>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

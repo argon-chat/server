@@ -14,10 +14,11 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
 
     public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default)
     {
+#if !DEBUG
         var callerId = this.GetUserId();
-
         if (!betaOptions.Value.AllowedCreationSpaceUsers.Contains(callerId))
             return new FailedCreateSpace(CreateSpaceError.LIMIT_REACHED);
+#endif
 
         try
         {

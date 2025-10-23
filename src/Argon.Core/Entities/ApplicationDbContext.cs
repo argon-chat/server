@@ -29,6 +29,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
@@ -42,11 +43,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.Entity<UserEntity>().HasData(new UserEntity
         {
             Username           = "system",
+            NormalizedUsername = "system",
             DisplayName        = "System",
             Email              = "system@argon.gl",
             Id                 = UserEntity.SystemUser,
-            PasswordDigest     = null,
-            NormalizedUsername = "system"
+            PasswordDigest     = null
         });
 
         modelBuilder.Entity<SpaceEntity>().HasData(new SpaceEntity

@@ -23,3 +23,7 @@ deploy/docker/argon_vault/
 src/Argon.Contracts/Properties/launchSettings.json
 
 src/Argon.Metrics/Properties/launchSettings.json
+
+deploy/certs/localhost-key.pem
+
+*.pem

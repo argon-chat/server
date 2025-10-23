@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Api.Features.CoreLogic.Otp;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -30,6 +31,11 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
 
     public DateOnly? DateOfBirth { get; set; }
 
+    [MaxLength(512)]
+    public string? TotpSecret { get; set; }
+
+    public ArgonAuthMode PreferredAuthMode  { get; set; }
+    public OtpMethod     PreferredOtpMethod { get; set; }
 
     public virtual UserProfileEntity Profile { get; set; }
 
@@ -39,8 +45,7 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public void Configure(EntityTypeBuilder<UserEntity> builder)
     {
         builder.HasKey(x => x.Id);
-        builder.HasIndex(x => x.Email).IsUnique();
         builder.HasIndex(x => x.NormalizedUsername).IsUnique();
-        builder.HasIndex(x => x.DisplayName);
+        builder.HasIndex(x => x.Email).IsUnique();
     }
 }

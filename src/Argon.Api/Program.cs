@@ -5,6 +5,19 @@ using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
+using Npgsql;
+
+AppContext.SetSwitch("Npgsql.EnablePreparedStatements", false);
+//var       cs   = "Host=localhost;Port=5433;Username=postgres;Password=postgres;Database=argon-chat-v2;Include Error Detail=true;ConnectionIdleLifetime=15;ConnectionPruningInterval=10"; // замени под себя
+//using var conn = new NpgsqlConnection(cs);
+//conn.Open();
+
+//using var cmd = new NpgsqlCommand("SELECT pg_typeof(@p)", conn);
+//var       p   = new NpgsqlParameter("p", new DateOnly(2004, 4, 8));
+//cmd.Parameters.Add(p);
+
+//var result = cmd.ExecuteScalar();
+//Console.WriteLine(result);
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())

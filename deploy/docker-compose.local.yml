@@ -1,0 +1,235 @@
+networks:
+  argon:
+    name: argon
+    driver: bridge
+
+services:
+  nats:
+    image: nats
+    container_name: argon-nats
+    ports:
+      - "4222:4222"
+    command: "--http_port 8222 --server_name nats-server-1 --jetstream"
+    networks:
+      - argon
+
+  scylla:
+    image: scylladb/scylla:5.4
+    container_name: argon-scylla
+    restart: unless-stopped
+    ports:
+      - "9042:9042"
+    volumes:
+      - scylla-data:/var/lib/scylla
+      - scylla-logs:/var/log/scylla
+    networks:
+      - argon
+    healthcheck:
+      test: ["CMD-SHELL", "cqlsh -e 'SHOW VERSION;' || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 20
+      start_period: 30s
+
+  yb-node-1:
+    image: yugabytedb/yugabyte:2024.2.3.3-b4
+    container_name: yb-node-1
+    hostname: yb-node-1
+    command: [
+      "bash", "-lc",
+      "bin/yugabyted start \
+        --background=false \
+        --base_dir=/home/yugabyte/yb_data \
+        --advertise_address=yb-node-1 \
+        --master_flags=use_node_to_node_encryption=false \
+        --tserver_flags=use_node_to_node_encryption=false"
+    ]
+    volumes:
+      - yb-node-1-data:/home/yugabyte/yb_data
+    ports:
+      - "7000:7000"   # master web ui
+      - "9000:9000"   # tserver web ui
+      - "15433:15433" # ysql web ui
+      - "5433:5433"   # ysql
+    networks:
+      - argon
+    healthcheck:
+      test: ["CMD", "bash", "-lc", "bin/yugabyted status --base_dir=/home/yugabyte/yb_data | grep -q 'Status *: Running'" ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+  yb-node-2:
+    image: yugabytedb/yugabyte:2024.2.3.3-b4
+    container_name: yb-node-2
+    hostname: yb-node-2
+    volumes:
+      - yb-node-2-data:/home/yugabyte/yb_data
+    depends_on:
+      - yb-node-1
+    restart: on-failure
+    command: [
+      "bash", "-lc",
+      "for i in {1..60}; do (echo > /dev/tcp/yb-node-1/15433) >/dev/null 2>&1 && break; echo 'waiting for yb-node-1:15433'; sleep 2; done; bin/yugabyted start --background=false --base_dir=/home/yugabyte/yb_data --advertise_address=yb-node-2 --join=yb-node-1 --master_flags=use_node_to_node_encryption=false --tserver_flags=use_node_to_node_encryption=false"
+    ]
+    networks:
+      - argon
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+  yb-node-3:
+    image: yugabytedb/yugabyte:2024.2.3.3-b4
+    container_name: yb-node-3
+    hostname: yb-node-3
+    volumes:
+      - yb-node-3-data:/home/yugabyte/yb_data
+    depends_on:
+      - yb-node-1
+    restart: on-failure
+    command: [
+      "bash", "-lc",
+      "for i in {1..60}; do (echo > /dev/tcp/yb-node-1/15433) >/dev/null 2>&1 && break; echo 'waiting for yb-node-1:15433'; sleep 2; done; bin/yugabyted start --background=false --base_dir=/home/yugabyte/yb_data --advertise_address=yb-node-3 --join=yb-node-1 --master_flags=use_node_to_node_encryption=false --tserver_flags=use_node_to_node_encryption=false"
+    ]
+    networks:
+      - argon
+    ulimits:
+      nofile:
+        soft: 1048576
+        hard: 1048576
+
+  postgresql:
+    image: postgres:15
+    container_name: temporal-postgres
+    environment:
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_USER: temporal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -U temporal -p 5432"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "55432:5432"
+    volumes:
+      - temporal-pgdata:/var/lib/postgresql/data
+    networks:
+      - argon
+
+  temporal:
+    image: temporalio/auto-setup:1.25.0
+    container_name: temporal
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    restart: unless-stopped
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgresql
+      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
+      - TEMPORAL_ADDRESS=temporal:7233
+      - TEMPORAL_CLI_ADDRESS=temporal:7233
+    ports:
+      - "7233:7233"
+    networks:
+      - argon
+    volumes:
+      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
+  temporal-ui:
+    image: temporalio/ui:2.26.2
+    container_name: temporal-ui
+    depends_on:
+      - temporal
+    environment:
+      - TEMPORAL_ADDRESS=temporal:7233
+    ports:
+      - "8080:8080"
+    networks:
+      - argon
+
+  argon-s3:
+    image: chrislusf/seaweedfs
+    container_name: argon-storage-s3
+    command: "server -s3 -dir /data"
+    ports:
+      - "8333:8333"
+      - "9321:9321"
+    volumes:
+      - argon-s3:/data
+    environment:
+      S3_ACCESS_KEY: argon
+      S3_SECRET_KEY: argon
+    networks:
+      - argon
+
+  kineticafs:
+    image: argonchat/kineticafs:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      scylla:
+        condition: service_healthy
+    environment:
+      - KINETICAFS_SCYLLA=scylla:9042
+      - KINETICAFS_SCYLLA_KEYSPACE=kin
+    restart: unless-stopped
+    networks:
+      - argon
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: argon-dragonfly
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - argon-cache-data:/data
+    ulimits:
+      memlock: -1
+    networks:
+      - argon
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+      - "60000-60010:60000-60010/udp"
+    depends_on:
+      - livekit-caddy
+    command: >
+      --dev
+      --bind 0.0.0.0
+      --config /config/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/config/livekit.yaml:ro
+  livekit-caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "9443:9443"
+
+    restart: unless-stopped
+    volumes:
+      - ./certs:/certs:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  scylla-data:
+  scylla-logs:
+  yb-node-1-data:
+  yb-node-2-data:
+  yb-node-3-data:
+  argon-s3:
+  argon-cache-data:
+  temporal-pgdata:

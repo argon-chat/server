@@ -5,9 +5,16 @@ namespace Argon.Api.Features.CoreLogic.Otp;
 using Temporalio.Activities;
 using Temporalio.Workflows;
 
+public enum OtpMethod
+{
+    Email,
+    Phone,
+    Totp
+}
+
 public enum OtpPurpose { SignIn, ChangeEmail, ResetPassword }
-public sealed record SendOtpRequest(string Email, OtpPurpose Purpose, string? DeviceId);
-public sealed record VerifyOtpRequest(string Email, OtpPurpose Purpose, string Code, string? DeviceId);
+public record SendOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string DeviceId, OtpMethod Method);
+public record VerifyOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string Code, string DeviceId, OtpMethod Method);
 
 public sealed record OtpRecord(
     string HashBase64,

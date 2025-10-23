@@ -1,15 +1,12 @@
 namespace Argon.Grains;
 
 using Api.Features.CoreLogic.Otp;
-using Argon.Core.Features.Integrations.Phones;
-using Argon.Features.Auth;
+using k8s.KubeConfigModels;
 using Metrics;
 using Metrics.Gauges;
 using Orleans.Concurrency;
 using Services;
-using Temporalio.Api.Enums.V1;
-using Temporalio.Client;
-using Temporalio.Exceptions;
+using Temporalio.Api.Update.V1;
 
 [StatelessWorker]
 public class AuthorizationGrain(
@@ -17,139 +14,103 @@ public class AuthorizationGrain(
     ILogger<AuthorizationGrain> logger,
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
-    IDbContextFactory<ApplicationDbContext> context,
-    IArgonCacheDatabase cache,
+    IDbContextFactory<ApplicationDbContext> dbFactory,
     IMetricsCollector metrics,
-    IOptions<ArgonAuthOptions> authOptions,
-    IPhoneProvider phoneProvider,
-    ITemporalClient temporalClient,
-    IOtpService otpService) : Grain, IAuthorizationGrain
+    IOtpService otpService
+) : Grain, IAuthorizationGrain
 {
-    private readonly CountPerTagGauge authSuccess    = new(metrics, new("auth_success"));
-    private readonly CountPerTagGauge authFailure    = new(metrics, new("auth_failed"));
+    private readonly CountPerTagGauge authSuccess = new(metrics, new("auth_success"));
+    private readonly CountPerTagGauge authFailure = new(metrics, new("auth_failed"));
     private readonly CountPerTagGauge registerStatus = new(metrics, new("auth_register"));
-    private readonly CountPerTagGauge resetCounter   = new(metrics, new("auth_reset"));
+    private readonly CountPerTagGauge resetCounter = new(metrics, new("auth_reset"));
 
     public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input)
-        => authOptions.Value.Scenario switch
-        {
-            AuthorizationScenario.Email_Pwd_Otp => await AuthorizeEmailPwdOtp(input, true),
-            AuthorizationScenario.Email_Otp     => await AuthorizeEmailPwdOtp(input, false),
-            AuthorizationScenario.Phone_Otp     => await AuthorizePhoneOtp(input),
-            _                                   => AuthorizationError.NONE
-        };
-
-
-    private async Task<Either<string, AuthorizationError>> AuthorizeEmailPwdOtp(UserCredentialsInput input, bool validatePassword)
     {
-        await using var ctx = await context.CreateDbContextAsync();
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+
         if (user is null)
         {
-            logger.LogWarning("Not found user '{email}'", input.email);
+            logger.LogWarning("User '{email}' not found", input.email);
+            await authFailure.CountAsync("reason", "user_not_found");
             return AuthorizationError.BAD_CREDENTIALS;
         }
 
-        if (validatePassword)
+        return user.PreferredAuthMode switch
         {
-            var verified = passwordHashingService.VerifyPassword(input.password, user);
-            if (!verified)
-            {
-                logger.LogWarning("User '{email}' entered bad password", input.email);
-                return AuthorizationError.BAD_CREDENTIALS;
-            }
+            ArgonAuthMode.EmailPassword => await AuthorizePassword(user, input),
+            ArgonAuthMode.EmailOtp => await AuthorizeWithOtp(user, input, requirePassword: false),
+            ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true),
+            _ => AuthorizationError.NONE
+        };
+    }
+
+    private async Task<Either<string, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input)
+    {
+        if (string.IsNullOrEmpty(input.password))
+            return AuthorizationError.BAD_CREDENTIALS;
+
+        var verified = passwordHashingService.VerifyPassword(input.password, user);
+        if (!verified)
+        {
+            logger.LogWarning("User '{email}' entered invalid password", user.Email);
+            await authFailure.CountAsync("reason", "bad_password");
+            return AuthorizationError.BAD_CREDENTIALS;
         }
 
-        var workflowId = $"otp-auth:{user.Id}";
-        var userIp     = this.GetUserIp();
-        var machineId  = this.GetUserMachineId();
-
-        if (string.IsNullOrEmpty(input.otpCode))
-        {
-            await otpService.SendAsync(new SendOtpRequest(user.Email, OtpPurpose.SignIn, machineId), userIp ?? "unk");
-
-            logger.LogInformation("User '{email}' requested otp code (workflow {WorkflowId})", input.email, workflowId);
-            return AuthorizationError.REQUIRED_OTP;
-        }
-
-        try
-        {
-            var verified = await otpService.VerifyAsync(new VerifyOtpRequest(user.Email, OtpPurpose.SignIn, input.otpCode, machineId));
-            if (!verified)
-            {
-                logger.LogError("User '{email}' entered invalid otp", input.email);
-                return AuthorizationError.BAD_OTP;
-            }
-        }
-        catch (RpcException ex) when (ex.Code == RpcException.StatusCode.NotFound)
-        {
-            logger.LogWarning("OTP workflow not found for '{email}'", input.email);
-            return AuthorizationError.BAD_OTP;
-        }
-        catch (WorkflowFailedException ex)
-        {
-            logger.LogError(ex, "OTP workflow failed for '{email}'", input.email);
-            return AuthorizationError.BAD_OTP;
-        }
-
+        await authSuccess.CountAsync("mode", "pwd");
         await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
         return await GenerateJwt(user, this.GetUserMachineId());
     }
 
-    private async Task<Either<string, AuthorizationError>> AuthorizePhoneOtp(UserCredentialsInput input)
+    private async Task<Either<string, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input, bool requirePassword)
     {
-        throw new NotImplementedException();
-        //if (string.IsNullOrEmpty(input.phone))
-        //    return AuthorizationError.BAD_CREDENTIALS;
+        if (requirePassword)
+        {
+            if (string.IsNullOrEmpty(input.password) || !passwordHashingService.VerifyPassword(input.password, user))
+            {
+                logger.LogWarning("Invalid password for '{email}'", user.Email);
+                await authFailure.CountAsync("reason", "bad_password");
+                return AuthorizationError.BAD_CREDENTIALS;
+            }
+        }
 
-        //await using var ctx = await context.CreateDbContextAsync();
-        //var user = await ctx.Users.FirstOrDefaultAsync(u => u.PhoneNumber == input.phone);
-        //if (user is null)
-        //{
-        //    logger.LogWarning("Not found user with phone '{phone}'", input.phone);
-        //    return AuthorizationError.BAD_CREDENTIALS;
-        //}
+        var userIp = this.GetUserIp() ?? "unknown";
+        var machineId = this.GetUserMachineId();
+        var method = user.PreferredOtpMethod;
 
-        //if (string.IsNullOrEmpty(input.otpCode))
-        //{
-        //    var requestId = await phoneProvider.SendCode(input.phone);
-        //    if (string.IsNullOrEmpty(requestId))
-        //    {
-        //        logger.LogError("Phone provider did not return requestId for {phone}", input.phone);
-        //        return AuthorizationError.BAD_OTP;
-        //    }
+        if (string.IsNullOrEmpty(input.otpCode))
+        {
+            await otpService.SendAsync(
+                new SendOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, machineId, method),
+                userIp
+            );
 
-        //    await cache.StringSetAsync($"otp_phone:{user.Id}", requestId, TimeSpan.FromMinutes(5));
+            logger.LogInformation("OTP sent via {method} to {email}", method, user.Email);
+            return AuthorizationError.REQUIRED_OTP;
+        }
 
-        //    logger.LogInformation("Sent login OTP to phone {phone} with requestId {requestId}", input.phone, requestId);
-        //    return AuthorizationError.REQUIRED_OTP;
-        //}
+        var verified = await otpService.VerifyAsync(
+            new VerifyOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, input.otpCode, machineId, method)
+        );
 
-        //var requestIdCached = await cache.StringGetAsync($"otp_phone:{user.Id}");
-        //if (string.IsNullOrEmpty(requestIdCached))
-        //{
-        //    logger.LogWarning("OTP requestId not found/expired for user '{phone}'", input.phone);
-        //    return AuthorizationError.BAD_OTP;
-        //}
+        if (!verified)
+        {
+            logger.LogWarning("Invalid OTP for '{email}' via {method}", user.Email, method);
+            await authFailure.CountAsync("reason", "bad_otp");
+            return AuthorizationError.BAD_OTP;
+        }
 
-        //var verified = await phoneProvider.VerifyCode(input.phone, requestIdCached, input.otpCode);
-        //if (!verified)
-        //{
-        //    logger.LogWarning("User '{phone}' entered invalid otp code", input.phone);
-        //    return AuthorizationError.BAD_OTP;
-        //}
-
-        //await cache.KeyDeleteAsync($"otp_phone:{user.Id}");
-
-        //await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
-
-        //return await GenerateJwt(user, this.GetUserMachineId());
+        await authSuccess.CountAsync("mode", $"{(requirePassword ? "pwd+" : "")}otp:{method}");
+        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+        return await GenerateJwt(user, machineId);
     }
 
     public async Task<Either<string, FailedRegistration>> Register(NewUserCredentialsInput input)
     {
-        await using var sw  = metrics.StartTimer(new MeasurementId("register_latency"));
-        await using var ctx = await context.CreateDbContextAsync();
+        await using var sw = metrics.StartTimer(new MeasurementId("register_latency"));
+        await using var ctx = await dbFactory.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
         if (user is not null)
@@ -186,38 +147,37 @@ public class AuthorizationGrain(
 
         // TODO check banned emails
         var strategy = ctx.Database.CreateExecutionStrategy();
-        await strategy.ExecuteAsync(async () =>
-        {
+        await strategy.ExecuteAsync(async () => {
             await using var transaction = await ctx.Database.BeginTransactionAsync();
             try
             {
                 var userId = Guid.NewGuid();
                 user = new UserEntity()
                 {
-                    AvatarFileId       = null,
-                    CreatedAt          = DateTime.UtcNow,
-                    Email              = input.email,
-                    Id                 = userId,
-                    Username           = input.username,
+                    AvatarFileId = null,
+                    CreatedAt = DateTime.UtcNow,
+                    Email = input.email,
+                    Id = userId,
+                    Username = input.username,
                     NormalizedUsername = normalizedUserName,
-                    PasswordDigest     = passwordHashingService.HashPassword(input.password),
-                    DisplayName        = input.displayName,
-                    DateOfBirth        = input.birthDate
+                    PasswordDigest = passwordHashingService.HashPassword(input.password),
+                    DisplayName = input.displayName,
+                    DateOfBirth = input.birthDate
                 };
                 await ctx.Users.AddAsync(user);
 
                 var agreements = new UserAgreements()
                 {
-                    AgreeTOS                  = input.argreeTos,
+                    AgreeTOS = input.argreeTos,
                     AllowedSendOptionalEmails = input.argreeOptionalEmails,
-                    UserId                    = userId
+                    UserId = userId
                 };
                 await ctx.UserAgreements.AddAsync(agreements);
 
                 await ctx.UserProfiles.AddAsync(new UserProfileEntity
                 {
                     UserId = userId,
-                    Id     = Guid.NewGuid(),
+                    Id = Guid.NewGuid(),
                     Badges = [],
                 });
 
@@ -242,27 +202,24 @@ public class AuthorizationGrain(
     {
         await using var sw = metrics.StartTimer(new MeasurementId("begin_pass_reset_latency"));
         await resetCounter.CountAsync("stage", "begin");
-        await using var ctx = await context.CreateDbContextAsync();
+        await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user is null)
         {
-            logger.LogWarning("Email not registered '{email}' cannot be reset pass", email);
+            logger.LogWarning("Email not registered '{email}' cannot reset password", email);
             return true;
         }
 
-        var userIp        = this.GetUserIp() ?? throw new InvalidOperationException("UserIp is required");
-        var userMachineId = this.GetUserMachineId();
-        var workflowId    = $"otp-reset:{user.Id}";
+        var userIp = this.GetUserIp() ?? "unknown";
+        var machineId = this.GetUserMachineId();
 
-        //await temporalClient.StartWorkflowAsync(
-        //    (OtpWorkflow wf) => wf.RunAsync(email, OtpPurpose.ResetPassword, userMachineId, userIp),
-        //    new WorkflowOptions(id: workflowId, taskQueue: "argon-task-queue")
-        //    {
-        //        IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
-        //    });
+        await otpService.SendAsync(
+            new SendOtpRequest(user.Email, user.Id, OtpPurpose.ResetPassword, machineId, user.PreferredOtpMethod),
+            userIp
+        );
 
-        logger.LogInformation("User '{email}' requested password reset (workflow {WorkflowId})", email, workflowId);
+        logger.LogInformation("User '{email}' requested password reset via {method}", email, user.PreferredOtpMethod);
         return true;
     }
 
@@ -270,49 +227,46 @@ public class AuthorizationGrain(
     {
         await using var sw = metrics.StartTimer(new MeasurementId("pass_reset_latency"));
         await resetCounter.CountAsync("stage", "apply");
-        await using var ctx = await context.CreateDbContextAsync();
+        await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user is null)
         {
-            logger.LogWarning("Email not registered '{email}' cannot be reset pass", email);
+            logger.LogWarning("Email not registered '{email}' cannot reset password", email);
             return AuthorizationError.BAD_OTP;
         }
 
-        var workflowId = $"otp-reset:{user.Id}";
-        var handle     = temporalClient.GetWorkflowHandle<OtpWorkflow, bool>(workflowId);
+        var machineId = this.GetUserMachineId();
 
-        try
-        {
-            //await handle.SignalAsync(wf => wf.SubmitCodeAsync(otpCode));
+        var verified = await otpService.VerifyAsync(
+            new VerifyOtpRequest(user.Email, user.Id, OtpPurpose.ResetPassword, otpCode, machineId, user.PreferredOtpMethod)
+        );
 
-            var ok = await handle.GetResultAsync();
-            if (!ok)
-            {
-                logger.LogError("User '{email}' entered invalid/expired reset code", email);
-                return AuthorizationError.BAD_OTP;
-            }
-        }
-        catch (RpcException ex) when (ex.Code == RpcException.StatusCode.NotFound)
+        if (!verified)
         {
-            logger.LogWarning("No reset workflow found for '{email}'", email);
+            logger.LogWarning("Invalid OTP during password reset for '{email}'", email);
             return AuthorizationError.BAD_OTP;
         }
-        catch (WorkflowFailedException ex)
-        {
-            logger.LogError(ex, "Reset workflow failed for '{email}'", email);
-            return AuthorizationError.BAD_OTP;
-        }
-
-        await grainFactory.GetGrain<IEmailManager>(Guid.NewGuid())
-           .SendNotificationResetPasswordAsync(email);
 
         user.PasswordDigest = passwordHashingService.HashPassword(newPassword);
-        ctx.Users.Update(user);
-        await ctx.SaveChangesAsync();
+        await db.SaveChangesAsync();
 
-        return await GenerateJwt(user, this.GetUserMachineId());
+        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+        return await GenerateJwt(user, machineId);
     }
 
-    private async Task<string> GenerateJwt(UserEntity User, string machineId) => await managerService.GenerateJwt(User.Id, machineId);
+    public async Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct)
+    {
+        await using var db              = await dbFactory.CreateDbContextAsync(ct);
+        var             normalizedEmail = data.email?.ToLowerInvariant();
+        var             user            = await db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
+
+        if (user is null)
+            return "";
+
+        return user.PreferredAuthMode.ToString();
+    }
+
+    private async Task<string> GenerateJwt(UserEntity user, string machineId)
+        => await managerService.GenerateJwt(user.Id, machineId);
 }

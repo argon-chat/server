@@ -27,6 +27,8 @@ public interface IIdentityInteraction : IIonService
     Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword, CancellationToken ct = default);
     [AllowAnonymous()]
     Task<string> GetAuthorizationScenario(CancellationToken ct = default);
+    [AllowAnonymous()]
+    Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default);
 }
 
 

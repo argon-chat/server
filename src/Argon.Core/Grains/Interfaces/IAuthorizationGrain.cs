@@ -1,7 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
 using Orleans.Concurrency;
-using Users;
 
 [Alias("Argon.Grains.Interfaces.IAuthorizationGrain"), Unordered]
 public interface IAuthorizationGrain : IGrainWithGuidKey
@@ -17,4 +16,7 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
 
     [Alias("ResetPass"), AlwaysInterleave]
     Task<Either<string, AuthorizationError>> ResetPass(string email, string otpCode, string newPassword);
+
+    [Alias(nameof(GetAuthorizationScenarioFor))]
+    Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct);
 }

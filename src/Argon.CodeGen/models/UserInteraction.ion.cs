@@ -35,6 +35,10 @@ public sealed record UserCredentialsInput(string? email, string? phone, string? 
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserLoginInput(string? email, string? phone, string? username);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record NewUserCredentialsInput(string email, string username, string password, string displayName, bool argreeTos, dateonly birthDate, bool argreeOptionalEmails, string? captchaToken);
 
 

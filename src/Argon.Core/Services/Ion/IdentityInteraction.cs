@@ -44,5 +44,8 @@ public class IdentityInteraction(IOptions<ArgonAuthOptions> authOptions) : IIden
     }
 
     public Task<string> GetAuthorizationScenario(CancellationToken ct = default)
-        => Task.FromResult(authOptions.Value.Scenario.ToString());
+        => Task.FromResult("Email_Otp");
+
+    public Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default)
+        => this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).GetAuthorizationScenarioFor(data, ct);
 }

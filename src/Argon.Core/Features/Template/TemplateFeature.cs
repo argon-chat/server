@@ -46,9 +46,25 @@ public class EMailFormLoader(EMailFormStorage storage, ILogger<EMailFormLoader> 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         if (IsLoaded) return;
-        if (!Directory.Exists("./Resources")) return;
 
-        var formFiles = Directory.EnumerateFiles("./Resources", "*.html").ToList();
+        var exeDir       = AppContext.BaseDirectory;
+        var resourcesDir = Path.Combine(exeDir, "Resources");
+
+        if (!Directory.Exists(resourcesDir) && !Directory.Exists("./Resources"))
+            return;
+
+        var formFiles = new List<string>();
+
+        if (Directory.Exists("./Resources"))
+            formFiles.AddRange(Directory.EnumerateFiles("./Resources", "*.html"));
+
+        if (Directory.Exists(resourcesDir))
+            formFiles.AddRange(Directory.EnumerateFiles(resourcesDir, "*.html"));
+
+        formFiles = formFiles
+           .Select(Path.GetFullPath)
+           .Distinct(StringComparer.OrdinalIgnoreCase)
+           .ToList();
 
         logger.LogInformation("Found '{count}' email forms", formFiles.Count);
 

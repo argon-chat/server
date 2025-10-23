@@ -68,6 +68,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FeatureFlagParameter>.Value = new Ion_FeatureFlagParameter_Formatter();
       IonFormatterStorage<CreateServerRequest>.Value = new Ion_CreateServerRequest_Formatter();
       IonFormatterStorage<UserCredentialsInput>.Value = new Ion_UserCredentialsInput_Formatter();
+      IonFormatterStorage<UserLoginInput>.Value = new Ion_UserLoginInput_Formatter();
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
       IonFormatterStorage<UploadFileError>.Value = new Ion_UploadFileError_Formatter();
       IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
