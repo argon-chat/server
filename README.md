@@ -54,6 +54,8 @@ This script will:
 
 ## 🚀 Starting the Environment
 
+> The `docker-compose.local.yml` file is located in the `/deploy` directory.
+
 To launch the local infrastructure, run:
 
 ```bash
