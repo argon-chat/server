@@ -8,16 +8,15 @@ using Cassandra.Mapping;
 public class ArgonCassandraDbContext(CassandraConfiguration config, IServiceProvider serviceProvider, ILogger<ArgonCassandraDbContext> logger)
     : CassandraDbContext(config, serviceProvider, logger)
 {
-    public CassandraDbSet<ArgonMessageEntity>        ArgonMessages              => Set<ArgonMessageEntity>();
-    public CassandraDbSet<ArgonMessageDeduplication> ArgonMessagesDeduplication => Set<ArgonMessageDeduplication>();
-    public CassandraDbSet<ArgonChannelMetadata>      ArgonChannelMetadata       => Set<ArgonChannelMetadata>();
+    public CassandraDbSet<ArgonMessageEntity>         ArgonMessages              => Set<ArgonMessageEntity>();
+    public CassandraDbSet<ArgonMessageDeduplication>  ArgonMessagesDeduplication => Set<ArgonMessageDeduplication>();
 
 
     protected override void OnConfigureModels(IEntityMetadataContext metadataContext)
     {
-        metadataContext.ForTable<ArgonMessageEntity>()
+        metadataContext.ForTable<ArgonMessageEntity>("argonmessage")
            .WithClusteringKey(x => x.MessageId, 0)
-           .WithPartitionKey(x => x.ServerId, 0)
+           .WithPartitionKey(x => x.SpaceId, 0)
            .WithPartitionKey(x => x.ChannelId, 1)
            .WithProperty(x => x.Entities).WithConverter<MessageEntityConverter>()
            .WithProperty(x => x.CreatedAt).WithConverter<DateTimeConverter>()
@@ -26,13 +25,8 @@ public class ArgonCassandraDbContext(CassandraConfiguration config, IServiceProv
 
         metadataContext.ForTable<ArgonMessageDeduplication>()
            .WithClusteringKey(x => x.RandomId, 0)
-           .WithPartitionKey(x => x.ServerId, 0)
+           .WithPartitionKey(x => x.spaceId, 0)
            .WithPartitionKey(x => x.ChannelId, 1)
            .WithProperty(x => x.MessageId);
-
-        metadataContext.ForTable<ArgonChannelMetadata>()
-           .WithPartitionKey(x => x.ServerId, 0)
-           .WithPartitionKey(x => x.ChannelId, 1)
-           .WithProperty(x => x.LastMessageId);
     }
 }
