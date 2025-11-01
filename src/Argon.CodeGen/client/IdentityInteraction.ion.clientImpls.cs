@@ -30,6 +30,8 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         typeof(IIdentityInteraction).GetMethod(nameof(GetAuthorizationScenario), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAuthorizationScenarioFor_Ref = new(() =>
         typeof(IIdentityInteraction).GetMethod(nameof(GetAuthorizationScenarioFor), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyAuthorization_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(GetMyAuthorization), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -136,6 +138,24 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         writer.WriteEndArray();
     
         return await req.CallAsync<string>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IMyAuthStatus> GetMyAuthorization(string __token, string? __refreshtoken, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), GetMyAuthorization_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __token);
+        IonFormatterStorage<string>.WriteNullable(writer, __refreshtoken);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IMyAuthStatus>(writer.Encode(), ct: ct);
     }
 
 }

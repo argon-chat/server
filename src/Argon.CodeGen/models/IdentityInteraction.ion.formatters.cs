@@ -13,3 +13,20 @@
 
 
 namespace ArgonContracts;
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_BadAuthKind_Formatter : IonFormatter<BadAuthKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public BadAuthKind Read(CborReader reader)
+    {
+         return (BadAuthKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, BadAuthKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+

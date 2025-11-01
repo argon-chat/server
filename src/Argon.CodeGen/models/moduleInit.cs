@@ -39,6 +39,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<FriendRequestStatus>.Value = new Ion_FriendRequestStatus_Formatter();
+      IonFormatterStorage<BadAuthKind>.Value = new Ion_BadAuthKind_Formatter();
+      IonFormatterStorage<IMyAuthStatus>.Value = new Ion_IMyAuthStatus_Formatter();
       IonFormatterStorage<InventoryItem>.Value = new Ion_InventoryItem_Formatter();
       IonFormatterStorage<DetailedInventoryItem>.Value = new Ion_DetailedInventoryItem_Formatter();
       IonFormatterStorage<InventoryNotification>.Value = new Ion_InventoryNotification_Formatter();
@@ -76,6 +78,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AuthorizationError>.Value = new Ion_AuthorizationError_Formatter();
       IonFormatterStorage<RegistrationError>.Value = new Ion_RegistrationError_Formatter();
       IonFormatterStorage<LockdownReason>.Value = new Ion_LockdownReason_Formatter();
+      IonFormatterStorage<LockdownSeverity>.Value = new Ion_LockdownSeverity_Formatter();
       IonFormatterStorage<IUploadFileResult>.Value = new Ion_IUploadFileResult_Formatter();
       IonFormatterStorage<ICreateSpaceResult>.Value = new Ion_ICreateSpaceResult_Formatter();
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
@@ -109,6 +112,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
       IonFormatterStorage<SubscribeToMySpaces>.Value = new Ion_SubscribeToMySpaces_Formatter();
+      IonFormatterStorage<GoodAuthStatus>.Value = new Ion_GoodAuthStatus_Formatter();
+      IonFormatterStorage<BadAuthStatus>.Value = new Ion_BadAuthStatus_Formatter();
+      IonFormatterStorage<LockedAuthStatus>.Value = new Ion_LockedAuthStatus_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
       IonFormatterStorage<SuccessUploadFile>.Value = new Ion_SuccessUploadFile_Formatter();

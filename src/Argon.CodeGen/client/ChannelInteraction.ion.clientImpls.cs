@@ -28,8 +28,6 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(QueryMessages), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendMessage_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(SendMessage), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> GetMessages_Ref = new(() =>
-        typeof(IChannelInteraction).GetMethod(nameof(GetMessages), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DisconnectFromVoiceChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(DisconnectFromVoiceChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Interlink_Ref = new(() =>
@@ -95,7 +93,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, u8? __from, i4 __limit, CancellationToken ct = default)
+    public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, i8? __from, i4 __limit, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), QueryMessages_Ref.Value);
     
@@ -107,7 +105,7 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         
         IonFormatterStorage<guid>.Write(writer, __spaceid);
         IonFormatterStorage<guid>.Write(writer, __channelid);
-        IonFormatterStorage<u8>.WriteNullable(writer, __from);
+        IonFormatterStorage<i8>.WriteNullable(writer, __from);
         IonFormatterStorage<i4>.Write(writer, __limit);
         
         writer.WriteEndArray();
@@ -115,13 +113,13 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<u8> SendMessage(guid __spaceid, guid __channelid, string __text, IonArray<IMessageEntity> __entities, u8? __replyto, CancellationToken ct = default)
+    public async Task<i8> SendMessage(guid __spaceid, guid __channelid, string __text, IonArray<IMessageEntity> __entities, i8 __randomid, i8? __replyto, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), SendMessage_Ref.Value);
     
         var writer = new CborWriter();
         
-        const int argsSize = 5;
+        const int argsSize = 6;
     
         writer.WriteStartArray(argsSize);
         
@@ -129,31 +127,12 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         IonFormatterStorage<guid>.Write(writer, __channelid);
         IonFormatterStorage<string>.Write(writer, __text);
         IonFormatterStorage<IMessageEntity>.WriteArray(writer, __entities);
-        IonFormatterStorage<u8>.WriteNullable(writer, __replyto);
+        IonFormatterStorage<i8>.Write(writer, __randomid);
+        IonFormatterStorage<i8>.WriteNullable(writer, __replyto);
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<u8>(writer.Encode(), ct: ct);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<ArgonMessage>> GetMessages(guid __spaceid, guid __channelid, i4 __count, u8 __offset, CancellationToken ct = default)
-    {
-        var req = new IonRequest(context, typeof(IChannelInteraction), GetMessages_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 4;
-    
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<guid>.Write(writer, __spaceid);
-        IonFormatterStorage<guid>.Write(writer, __channelid);
-        IonFormatterStorage<i4>.Write(writer, __count);
-        IonFormatterStorage<u8>.Write(writer, __offset);
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsyncWithArray<ArgonMessage>(writer.Encode(), ct: ct);
+        return await req.CallAsync<i8>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)

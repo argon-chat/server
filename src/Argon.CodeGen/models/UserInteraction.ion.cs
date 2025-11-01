@@ -97,14 +97,31 @@ public enum RegistrationError
 public enum LockdownReason
 {
     NONE = 0,
-    SPAM_SCAM_ACCOUNT = 1,
-    INCITING_MOMENT = 2,
-    NON_BINARY_PERSON = 3,
-    TOS_VIOLATION = 4,
-    LGBT_AGITATION = 5,
-    DRUG_VIOLATION = 6,
-    TERRORISM_AGITATION = 7,
-    CHILD_ABUSE = 8,
+    UNDER_INVESTIGATION = 1,
+    COMPROMISED_ACCOUNT = 2,
+    PAYMENT_FRAUD = 3,
+    MULTI_ACCOUNT_ABUSE = 4,
+    DOXXING = 5,
+    CSAM = 6,
+    SPAM_SCAM_ACCOUNT = 7,
+    INCITING_MOMENT = 8,
+    NON_BINARY_PERSON = 9,
+    TOS_VIOLATION = 10,
+    LGBT_AGITATION = 11,
+    DRUG_VIOLATION = 12,
+    TERRORISM_AGITATION = 13,
+    TERRORISM_CONTENT = 14,
+    SELF_HARM_PROMOTION = 15,
+    CHILD_ABUSE = 16,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum LockdownSeverity
+{
+    Low = 0,
+    Middle = 1,
+    Critical = 2,
 }
 
 

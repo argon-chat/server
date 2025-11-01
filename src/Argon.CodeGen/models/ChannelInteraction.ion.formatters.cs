@@ -101,8 +101,8 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
     public ArgonMessage Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __messageid = IonFormatterStorage<u8>.Read(reader);
-        var __replyid = reader.ReadNullable<u8>();
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __replyid = reader.ReadNullable<i8>();
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __text = IonFormatterStorage<string>.Read(reader);
@@ -117,8 +117,8 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
     public void Write(CborWriter writer, ArgonMessage value)
     {
         writer.WriteStartArray(8);
-        IonFormatterStorage<u8>.Write(writer, value.messageId);
-        IonFormatterStorage<u8>.WriteNullable(writer, value.replyId);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<i8>.WriteNullable(writer, value.replyId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.text);

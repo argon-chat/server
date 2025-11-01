@@ -15,6 +15,15 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum BadAuthKind
+{
+    SESSION_EXPIRED = 0,
+    REQUIRED_RELOGIN = 1,
+    BAD_TOKEN = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IIdentityInteraction : IIonService
 {
     [AllowAnonymous()]
@@ -29,6 +38,178 @@ public interface IIdentityInteraction : IIonService
     Task<string> GetAuthorizationScenario(CancellationToken ct = default);
     [AllowAnonymous()]
     Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default);
+    [AllowAnonymous()]
+    Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IMyAuthStatus : IIonUnion<IMyAuthStatus>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsGoodAuthStatus => this is GoodAuthStatus;
+
+    internal bool IsBadAuthStatus => this is BadAuthStatus;
+
+    internal bool IsLockedAuthStatus => this is LockedAuthStatus;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record GoodAuthStatus(string token) : IMyAuthStatus
+{
+    public string UnionKey => nameof(GoodAuthStatus);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record BadAuthStatus(BadAuthKind error) : IMyAuthStatus
+{
+    public string UnionKey => nameof(BadAuthStatus);
+    public uint UnionIndex => 1;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LockedAuthStatus(LockdownReason? lockdownReason, datetime? lockDownExpiration, bool isAppealable, LockdownSeverity severity) : IMyAuthStatus
+{
+    public string UnionKey => nameof(LockedAuthStatus);
+    public uint UnionIndex => 2;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IMyAuthStatus_Formatter : IonFormatter<IMyAuthStatus>
+{
+    public IMyAuthStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IMyAuthStatus result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<GoodAuthStatus>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<BadAuthStatus>.Read(reader);
+
+        else if (unionIndex == 2)
+            result = IonFormatterStorage<LockedAuthStatus>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IMyAuthStatus value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is GoodAuthStatus n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<GoodAuthStatus>.Write(writer, n_0);
+        }
+
+        else if (value is BadAuthStatus n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<BadAuthStatus>.Write(writer, n_1);
+        }
+
+        else if (value is LockedAuthStatus n_2)
+        {
+            if (n_2.UnionIndex != 2)
+                throw new InvalidOperationException();
+            IonFormatterStorage<LockedAuthStatus>.Write(writer, n_2);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_GoodAuthStatus_Formatter : IonFormatter<GoodAuthStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public GoodAuthStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __token = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__token);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, GoodAuthStatus value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<string>.Write(writer, value.token);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_BadAuthStatus_Formatter : IonFormatter<BadAuthStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public BadAuthStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<BadAuthKind>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, BadAuthStatus value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<BadAuthKind>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_LockedAuthStatus_Formatter : IonFormatter<LockedAuthStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public LockedAuthStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __lockdownreason = reader.ReadNullable<LockdownReason>();
+        var __lockdownexpiration = reader.ReadNullable<datetime>();
+        var __isappealable = IonFormatterStorage<bool>.Read(reader);
+        var __severity = IonFormatterStorage<LockdownSeverity>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__lockdownreason, __lockdownexpiration, __isappealable, __severity);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, LockedAuthStatus value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<LockdownReason>.WriteNullable(writer, value.lockdownReason);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lockDownExpiration);
+        IonFormatterStorage<bool>.Write(writer, value.isAppealable);
+        IonFormatterStorage<LockdownSeverity>.Write(writer, value.severity);
+        writer.WriteEndArray();
+    }
 }
 
 

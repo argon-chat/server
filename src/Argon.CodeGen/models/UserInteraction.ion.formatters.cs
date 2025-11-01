@@ -304,3 +304,20 @@ public sealed class Ion_LockdownReason_Formatter : IonFormatter<LockdownReason>
     }
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_LockdownSeverity_Formatter : IonFormatter<LockdownSeverity>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public LockdownSeverity Read(CborReader reader)
+    {
+         return (LockdownSeverity)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, LockdownSeverity value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+

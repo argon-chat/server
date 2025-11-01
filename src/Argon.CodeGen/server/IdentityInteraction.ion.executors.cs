@@ -121,6 +121,24 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         
         IonFormatterStorage<string>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyAuthorization_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __token = IonFormatterStorage<string>.Read(reader);
+        var __refreshtoken = reader.ReadNullable<string>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyAuthorization(__token, __refreshtoken);
+        
+        IonFormatterStorage<IMyAuthStatus>.Write(writer, result);
+    }
 
     
     
@@ -140,6 +158,8 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
             return GetAuthorizationScenario_Execute(reader, writer, ct);
         if (methodName.Equals("GetAuthorizationScenarioFor", StringComparison.InvariantCultureIgnoreCase))
             return GetAuthorizationScenarioFor_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyAuthorization", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyAuthorization_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

@@ -27,7 +27,7 @@ public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonMessage(u8 messageId, u8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender);
+public sealed record ArgonMessage(i8 messageId, i8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -104,10 +104,8 @@ public interface IChannelInteraction : IIonService
     Task CreateChannel(guid spaceId, guid channelId, CreateChannelRequest request, CancellationToken ct = default);
     Task DeleteChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId, CancellationToken ct = default);
-    Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, u8? from, i4 limit, CancellationToken ct = default);
-    Task<u8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, u8? replyTo, CancellationToken ct = default);
-    [Obsolete]
-    Task<IonArray<ArgonMessage>> GetMessages(guid spaceId, guid channelId, i4 count, u8 offset, CancellationToken ct = default);
+    Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, i8? from, i4 limit, CancellationToken ct = default);
+    Task<i8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);

@@ -79,7 +79,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __from = reader.ReadNullable<u8>();
+        var __from = reader.ReadNullable<i8>();
         var __limit = IonFormatterStorage<i4>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
@@ -93,7 +93,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
-        const int argumentSize = 5;
+        const int argumentSize = 6;
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
@@ -101,33 +101,14 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __text = IonFormatterStorage<string>.Read(reader);
         var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
-        var __replyto = reader.ReadNullable<u8>();
+        var __randomid = IonFormatterStorage<i8>.Read(reader);
+        var __replyto = reader.ReadNullable<i8>();
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.SendMessage(__spaceid, __channelid, __text, __entities, __replyto);
+        var result = await service.SendMessage(__spaceid, __channelid, __text, __entities, __randomid, __replyto);
         
-        IonFormatterStorage<u8>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
-    
-        const int argumentSize = 4;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __spaceid = IonFormatterStorage<guid>.Read(reader);
-        var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __count = IonFormatterStorage<i4>.Read(reader);
-        var __offset = IonFormatterStorage<u8>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.GetMessages(__spaceid, __channelid, __count, __offset);
-        
-        IonFormatterStorage<ArgonMessage>.WriteArray(writer, result);
+        IonFormatterStorage<i8>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -199,8 +180,6 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return QueryMessages_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessage", StringComparison.InvariantCultureIgnoreCase))
             return SendMessage_Execute(reader, writer, ct);
-        if (methodName.Equals("GetMessages", StringComparison.InvariantCultureIgnoreCase))
-            return GetMessages_Execute(reader, writer, ct);
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
             return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))
