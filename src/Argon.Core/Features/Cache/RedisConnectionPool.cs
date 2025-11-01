@@ -1,16 +1,11 @@
 namespace Argon.Services;
 
-using Metrics;
-using Metrics.Gauges;
-using Microsoft.Extensions.Caching.StackExchangeRedis;
 using StackExchange.Redis;
-using static Metrics.MeasurementId;
 
 public class RedisConnectionPool(
     IConfiguration cfg,
     ILogger<RedisConnectionPool> logger,
-    IOptions<RedisConnectionPoolOptions> options,
-    IMetricsCollector metrics) : BackgroundService, IRedisPoolConnections
+    IOptions<RedisConnectionPoolOptions> options) : BackgroundService, IRedisPoolConnections
 {
     private readonly ConcurrentBag<IConnectionMultiplexer> ConnectionPool = new();
 
@@ -23,11 +18,6 @@ public class RedisConnectionPool(
     private       ulong DefaultSize = 16;
     private       ulong MaxSizeOveruseCounter;
     private const ulong MaxOveruseThreshold = 5;
-
-    private readonly EmaGauge             takenGauge          = new(metrics, RedisMetrics.PoolTaken);
-    private readonly DeltaGauge           allocatedDelta      = new(metrics, RedisMetrics.PoolAllocated);
-    private readonly CountPerTagGauge     cleanupErrorCounter = new(metrics, RedisMetrics.PoolCleanupError);
-    private readonly HistogramBucketGauge cleanupHistogram    = new(metrics, RedisMetrics.PoolCleanup, [1, 2, 5, 10, 20]);
 
     public ConnectionScope Rent()
     {
@@ -58,8 +48,7 @@ public class RedisConnectionPool(
 
     private IConnectionMultiplexer EnsureNew()
     {
-        var value = Interlocked.Increment(ref Allocated);
-        _ = allocatedDelta.ObserveAsync(value);
+        Interlocked.Increment(ref Allocated);
         return ConnectionMultiplexer.Connect(cfg.GetConnectionString("cache")!);
     }
 
@@ -97,11 +86,8 @@ public class RedisConnectionPool(
             catch (Exception e)
             {
                 logger.LogError(e, "Failed to clean up Redis connection.");
-                _ = cleanupErrorCounter.CountAsync("type", e.GetType().Name);
             }
         }
-
-        _ = cleanupHistogram.ObserveAsync(removed);
     }
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
@@ -117,8 +103,6 @@ public class RedisConnectionPool(
                 var taken     = Interlocked.Read(ref Taken);
 
                 logger.LogDebug("Cleaning up redis pool call, allocated: {allocated}, taken: {taken}", allocated, taken);
-
-                _ = takenGauge.ObserveAsync(taken);
 
                 await Cleanup();
             }
@@ -149,12 +133,6 @@ public class RedisConnectionPool(
 
         var increment = current < 20 ? 2u : current < 50 ? 5u : 10u;
         var proposed  = Math.Min(MaxAllowedSize, current + increment);
-
-        _ = metrics.CountAsync(RedisMetrics.PoolScaleUp, 1, new()
-        {
-            ["from"] = current.ToString(),
-            ["to"]   = proposed.ToString()
-        });
 
         if (proposed <= current)
             return;
