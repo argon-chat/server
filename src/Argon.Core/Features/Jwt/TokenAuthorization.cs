@@ -5,46 +5,55 @@ using Microsoft.IdentityModel.Tokens;
 
 public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthorization> logger)
 {
-    public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token)
+    public async ValueTask<Either<TokenUserData, TokenValidationError>> AuthorizeByToken(string token, string machineId)
     {
         if (string.IsNullOrEmpty(token))
             return TokenValidationError.BAD_TOKEN;
 
         await using var scope = provider.CreateAsyncScope();
 
-        var tokenValidation = scope.ServiceProvider.GetRequiredKeyedService<TokenValidationParameters>("argon-validator");
+        var tokenValidation = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>();
         var tokenHandler    = new JwtSecurityTokenHandler();
         var tokenData       = tokenHandler.ReadJwtToken(token);
 
-        if (string.IsNullOrEmpty(tokenData.Header.Kid))
-            return TokenValidationError.BAD_TOKEN;
+        //if (string.IsNullOrEmpty(tokenData.Header.Kid))
+        //    return TokenValidationError.BAD_TOKEN;
 
         try
         {
-            var principal = tokenHandler.ValidateToken(token, tokenValidation, out var validatedToken);
+            var (userId, _, scopes) = tokenValidation.ValidateAccessToken(token, machineId, "argon.app");
 
-            if (validatedToken is not JwtSecurityToken jwtToken ||
-                !jwtToken.Header.Alg.Equals(SecurityAlgorithms.HmacSha512, StringComparison.InvariantCultureIgnoreCase))
-                return TokenValidationError.BAD_TOKEN;
-            var idClaim        = principal.FindFirst("id");
-            var machineIdClaim = principal.FindFirst("mid");
-
-            if (idClaim != null && machineIdClaim != null &&
-                Guid.TryParse(idClaim.Value, out var id))
-                return new TokenUserData(id, machineIdClaim.Value);
-
-            return TokenValidationError.BAD_TOKEN;
+            return new TokenUserData(userId, machineId);
         }
         catch (SecurityTokenExpiredException)
         {
             return TokenValidationError.EXPIRED_TOKEN;
         }
+        catch (NotAllowedScopeException)
+        {
+            return TokenValidationError.BAD_TOKEN;
+        }
+        catch (BadUserIdException)
+        {
+            return TokenValidationError.BAD_TOKEN;
+        }
+        catch (MachineIdNotMatchedException)
+        {
+            return TokenValidationError.BAD_TOKEN;
+        }
+        catch (TokenTypeNotAllowed)
+        {
+            return TokenValidationError.BAD_TOKEN;
+        }
         catch (Exception e)
         {
-            
-            var existKid  = tokenValidation.IssuerSigningKeyResolver("", null, "", null).First().KeyId;
-            logger.LogCritical(e, "Failed validate token, kid from key {kid}, kid in system: {existKid}", tokenData.Header.Kid, existKid);
+            logger.LogCritical(e, "Failed validate token, kid from key {kid}", tokenData.Header.Kid);
             return TokenValidationError.BAD_TOKEN;
         }
     }
 }
+
+/*public class NotAllowedScopeException() : Exception();
+public class BadUserIdException() : Exception();
+public class MachineIdNotMatchedException() : Exception();
+public class TokenTypeNotAllowed() : Exception();*/
