@@ -38,6 +38,7 @@ public static class ServiceEx
         => ArgonRequestContext.Current.ClusterClient.GetGrain<T>(grainKey);
 
     public static Guid GetUserId(this IIonService service) => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
+    public static string GetMachineId(this IIonService service) => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
     public static Guid GetSessionId(this IIonService service) => ArgonRequestContext.Current.SessionId;
     public static string GetUserCountry(this IIonService service) => ArgonRequestContext.Current.Region;
 }

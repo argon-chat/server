@@ -79,7 +79,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
 
         var token = auth["Bearer ".Length..].Trim();
 
-        var authResult = await validationParameters.AuthorizeByToken(token);
+        var authResult = await validationParameters.AuthorizeByToken(token, ResolveMachineId(headers));
 
         if (authResult.IsSuccess)
             return authResult.Value.id;
@@ -100,7 +100,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         if (headers.TryGetValue("Sec-Ner", out var secNer) || headers.TryGetValue("X-Sec-Ner", out secNer))
             return secNer;
 
-        throw new InvalidOperationException("SessionId is not defined");
+        throw new InvalidOperationException("AppId is not defined");
     }
 
     private static string ResolveMachineId(IDictionary<string, string> headers)
