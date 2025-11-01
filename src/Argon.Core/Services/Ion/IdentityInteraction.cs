@@ -10,7 +10,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Authorize(data);
 
         if (result.IsSuccess)
-            return new SuccessAuthorize(result.Value, null);
+            return result.Value;
         return new FailedAuthorize(result.Error);
     }
 
@@ -27,7 +27,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Register(data);
 
         if (result.IsSuccess)
-            return new SuccessRegistration(result.Value, null);
+            return new SuccessRegistration(result.Value.token, result.Value.refreshToken);
         return new FailedRegistration(result.Error.error, result.Error.field, result.Error.message);
     }
 
@@ -39,7 +39,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).ResetPass(email, otpCode, newPassword);
 
         if (result.IsSuccess)
-            return new SuccessAuthorize(result.Value, null);
+            return result.Value;
         return new FailedAuthorize(result.Error);
     }
 

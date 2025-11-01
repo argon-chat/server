@@ -14,7 +14,7 @@ public class AuthorizationGrain(
     IOtpService otpService
 ) : Grain, IAuthorizationGrain
 {
-    public async Task<Either<string, AuthorizationError>> Authorize(UserCredentialsInput input)
+    public async Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -35,7 +35,7 @@ public class AuthorizationGrain(
         };
     }
 
-    private async Task<Either<string, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input)
+    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input)
     {
         if (string.IsNullOrEmpty(input.password))
             return AuthorizationError.BAD_CREDENTIALS;
@@ -51,7 +51,7 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, this.GetUserMachineId());
     }
 
-    private async Task<Either<string, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input, bool requirePassword)
+    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input, bool requirePassword)
     {
         if (requirePassword)
         {
@@ -91,7 +91,7 @@ public class AuthorizationGrain(
         return await GenerateJwt(user, machineId);
     }
 
-    public async Task<Either<string, FailedRegistration>> Register(NewUserCredentialsInput input)
+    public async Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input)
     {
         await using var ctx = await dbFactory.CreateDbContextAsync();
 
@@ -178,7 +178,7 @@ public class AuthorizationGrain(
         return true;
     }
 
-    public async Task<Either<string, AuthorizationError>> ResetPass(string email, string otpCode, string newPassword)
+    public async Task<Either<SuccessAuthorize, AuthorizationError>> ResetPass(string email, string otpCode, string newPassword)
     {
         await using var db = await dbFactory.CreateDbContextAsync();
 
@@ -220,6 +220,6 @@ public class AuthorizationGrain(
         return user.PreferredAuthMode.ToString();
     }
 
-    private async Task<string> GenerateJwt(UserEntity user, string machineId)
+    private async Task<SuccessAuthorize> GenerateJwt(UserEntity user, string machineId)
         => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"]);
 }
