@@ -83,7 +83,6 @@ public abstract class CassandraDbContext : IAsyncDisposable, IDisposable
         if (session != null) return session;
 
         var builder = Cluster.Builder()
-           .WithTypeSerializers(new TypeSerializerDefinitions().Define(new ULongAsBigIntSerializer()))
            .AddContactPoints(Configuration.ContactPoints)
            .WithPort(Configuration.Port);
 
