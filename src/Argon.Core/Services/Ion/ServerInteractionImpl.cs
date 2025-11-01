@@ -22,7 +22,7 @@ public class ServerInteractionImpl : IServerInteraction
         var result = await this.GetGrain<IServerInvitesGrain>(spaceId)
            .GetInviteCodes();
         return new(result.Select(x
-            => new InviteCodeEntity(new InviteCode(x.code.inviteCode), x.serverId, x.issuerId, x.expireTime.UtcDateTime, (ulong)x.used)));
+            => new InviteCodeEntity(new InviteCode(x.code.inviteCode), x.spaceId, x.issuerId, x.expireTime.UtcDateTime, (ulong)x.used)));
     }
 
     public async Task<InviteCode> CreateInviteCode(Guid spaceId, CancellationToken ct = default)
