@@ -1,8 +1,5 @@
 namespace Argon.Entities;
 
-using Api.Migrations;
-using Microsoft.Extensions.DependencyInjection;
-
 public static class BeforeMigrationHandleFeature
 {
     public static void AddBeforeMigrations(this WebApplicationBuilder builder)
