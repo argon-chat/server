@@ -1,13 +1,13 @@
 namespace Argon.Features.HostMode;
 
 using System.Security.Cryptography.X509Certificates;
+using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Api.Features.CoreLogic.Social;
 using Argon.Core.Features.Integrations.Captcha;
 using Auth;
 using EF;
 using Env;
-using FluentValidation;
 using GeoIP;
 using global::Sentry.Infrastructure;
 using Jwt;
@@ -15,7 +15,6 @@ using k8s;
 using Logging;
 using Logic;
 using MediaStorage;
-using Metrics;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.WebSockets;
 using Middlewares;
@@ -25,8 +24,8 @@ using Repositories;
 using Sagas;
 using Serilog;
 using Services;
-using Services.Ion;
 using Sfu;
+using SnowflakeId.DependencyInjection;
 using Template;
 using Vault;
 using Web;
@@ -165,7 +164,6 @@ public static class HostModeExtensions
         builder.MapBetaOptions();
         builder.AddVaultConfiguration();
         builder.AddVaultClient();
-        builder.AddMetrics();
         builder.AddArgonCacheDatabase();
         builder.Services.AddServerTiming();
         builder.WebHost.UseQuic();
@@ -183,9 +181,16 @@ public static class HostModeExtensions
         {
             builder.AddBeforeMigrations();
             builder.AddPooledDatabase<ApplicationDbContext>();
+            builder.AddCassandraPooledContext();
             builder.AddEfRepositories();
             builder.AddArgonPermissions();
             builder.AddSagas();
+            builder.AddMessagesLayout();
+            builder.Services.AddSnowflakeUniqueId(options =>
+            {
+                options.DataCenterId  = 1; 
+                options.UseConsoleLog = true;
+            });
         }
 
         builder.AddArgonAuthorization();
