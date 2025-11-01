@@ -3,18 +3,13 @@ namespace Argon.Features;
 using Api.Features;
 using Api.Features.Orleans.Consul;
 using Argon.Api.Features.Utils;
-using Argon.Api.Services.Metrics;
-using Argon.Services.Ion;
+using Services.Ion;
 using EntryPoint;
 using Env;
-using ion.runtime;
 using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Hosting;
-using Orleans.Providers;
 using Orleans.Serialization;
-using Sentry;
-using Services;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -139,8 +134,6 @@ public static class OrleansExtension
                    .AddInMemoryGrainDirectory("channels")
                    .UseLocalhostClustering();
         });
-        if (builder.IsGatewayRole() || builder.IsHybridRole())
-            builder.Services.AddHostedService<OrleansMetricCollector>();
         return builder;
     }
 
