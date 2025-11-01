@@ -10,6 +10,12 @@ public class CassandraMigrationController(
 
     public async Task BeginMigrations()
     {
+        if (options.Value.Disabled)
+        {
+            logger.LogWarning($"Cassandra adapter has disabled by config, skip migrations and ensure keyspace...");
+            return;
+        }
+
         await using var ctx = await dbCtx.CreateDbContextAsync();
         await EnsureKeyspaceCreated(ctx.Context);
         await EnsureExistMigrationTable(ctx.Context);

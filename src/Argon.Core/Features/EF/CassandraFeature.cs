@@ -9,10 +9,6 @@ public static class CassandraFeature
 {
     public static void AddCassandraPooledContext(this WebApplicationBuilder builder)
     {
-        var featureOptions = builder.GetFeatureOptions();
-
-        if (!featureOptions.UseCassandra) return;
-
         builder.Services.Configure<CassandraOptions>(builder.Configuration.GetSection("Cassandra"));
 
         builder.Services.AddSingleton<ICluster>(sp =>
@@ -56,4 +52,5 @@ public record CassandraOptions
 {
     public string[] ContactPoints { get; set; } = [];
     public string   KeySpace      { get; set; }
+    public bool     Disabled      { get; set; }
 }
