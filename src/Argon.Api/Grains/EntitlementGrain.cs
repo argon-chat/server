@@ -33,10 +33,10 @@ public class EntitlementGrain(
         if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageArchetype))
             return archetypes.Select(x => new ArchetypeGroup(x, IonArray<Guid>.Empty)).ToList();
 
-        var serverId = this.GetPrimaryKey();
+        var spaceId = this.GetPrimaryKey();
 
         var members = await ctx.UsersToServerRelations
-           .Where(m => m.ServerId == serverId)
+           .Where(m => m.SpaceId == spaceId)
            .Include(m => m.SpaceMemberArchetypes)
            .ToListAsync();
 
@@ -97,7 +97,7 @@ public class EntitlementGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var invoker = await ctx.UsersToServerRelations
-           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
@@ -109,7 +109,7 @@ public class EntitlementGrain(
         if (invoker is null)
         {
             logger.LogError(
-                "User {userId} tried to change the {archetypeId} right on server {serverId}, although he is not a member of the server.",
+                "User {userId} tried to change the {archetypeId} right on server {spaceId}, although he is not a member of the server.",
                 callerId, dto.id, this.GetPrimaryKey()
             );
             return null;
@@ -120,7 +120,7 @@ public class EntitlementGrain(
         if (entity is null)
         {
             logger.LogError(
-                "User {userId} tried to change the {archetypeId} right on server {serverId}, but the right is not part of the server.",
+                "User {userId} tried to change the {archetypeId} right on server {spaceId}, but the right is not part of the server.",
                 callerId, dto.id, this.GetPrimaryKey()
             );
             return null;
@@ -294,7 +294,7 @@ public class EntitlementGrain(
         await using var ctx      = await context.CreateDbContextAsync();
 
         var invoker = await ctx.UsersToServerRelations
-           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
@@ -322,7 +322,7 @@ public class EntitlementGrain(
 
         if (isGrant)
         {
-            await ctx.ServerMemberArchetypes.AddAsync(new SpaceMemberArchetypeEntity()
+            await ctx.MemberArchetypes.AddAsync(new SpaceMemberArchetypeEntity()
             {
                 ArchetypeId    = archetypeId,
                 SpaceMemberId = memberId
@@ -332,12 +332,12 @@ public class EntitlementGrain(
         }
 
         var e = await ctx
-           .ServerMemberArchetypes
+           .MemberArchetypes
            .FirstOrDefaultAsync(x => x.SpaceMemberId == memberId && x.ArchetypeId == archetypeId);
 
         if (e is null) return false;
 
-        ctx.ServerMemberArchetypes.Remove(e);
+        ctx.MemberArchetypes.Remove(e);
         Ensure.That(await ctx.SaveChangesAsync() == 1);
         return true;
     }
@@ -345,7 +345,7 @@ public class EntitlementGrain(
     private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
     {
         var invoker = await ctx.UsersToServerRelations
-           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
