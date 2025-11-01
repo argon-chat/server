@@ -14,20 +14,14 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("Leave")]
     Task Leave(Guid userId);
 
-    [Alias("GetChannel")]
-    Task<ChannelEntity> GetChannel();
-
     [Alias("UpdateChannel")]
     Task<ChannelEntity> UpdateChannel(ChannelInput input);
 
     [Alias(nameof(SendMessage))]
-    Task<ulong> SendMessage(string text, List<IMessageEntity> entities, ulong? replyTo);
-
-    [Alias(nameof(GetMessages))]
-    Task<List<ArgonMessageEntity>> GetMessages(int count, ulong offset);
+    Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo);
 
     [Alias(nameof(QueryMessages))]
-    Task<List<ArgonMessageEntity>> QueryMessages(ulong? @from, int limit);
+    Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit);
 
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();

@@ -43,6 +43,9 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteUploadUserFile))]
     ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(GetLimitationForUser))]
+    ValueTask<LockedAuthStatus> GetLimitationForUser();
 }
 
 
