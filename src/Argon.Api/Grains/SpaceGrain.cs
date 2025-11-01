@@ -51,9 +51,16 @@ public class SpaceGrain(
     public async Task<ArgonSpaceBase> GetSpaceBase()
     {
         await using var ctx = await context.CreateDbContextAsync();
-        var result = await ctx.Servers
+        var result = await ctx.Spaces
            .AsNoTracking()
-           .Select(x => new { x.Id, x.Name, x.Description, x.AvatarFileId, x.TopBannedFileId })
+           .Select(x => new
+            {
+                x.Id,
+                x.Name,
+                x.Description,
+                x.AvatarFileId,
+                x.TopBannedFileId
+            })
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
         return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId);
     }
@@ -61,7 +68,7 @@ public class SpaceGrain(
     public async Task<SpaceEntity> GetSpace()
     {
         await using var ctx = await context.CreateDbContextAsync();
-        return await ctx.Servers
+        return await ctx.Spaces
            .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
@@ -70,7 +77,7 @@ public class SpaceGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var server = await ctx.Servers
+        var server = await ctx.Spaces
            .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
@@ -80,10 +87,10 @@ public class SpaceGrain(
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
-        ctx.Servers.Update(server);
+        ctx.Spaces.Update(server);
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified( /*ObjDiff.Compare(copy, server)*/this.GetPrimaryKey(), IonArray<string>.Empty));
-        return await ctx.Servers
+        return await ctx.Spaces
            .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
     }
@@ -95,7 +102,7 @@ public class SpaceGrain(
         var x = await ctx
            .UsersToServerRelations
            .AsNoTracking()
-           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(x => x.SpaceId == this.GetPrimaryKey())
            .Where(x => x.UserId == userId)
            .Include(x => x.User)
            .Include(x => x.SpaceMemberArchetypes)
@@ -124,7 +131,7 @@ public class SpaceGrain(
            .UsersToServerRelations
            .AsNoTracking()
            .Include(x => x.User)
-           .Where(x => x.ServerId == this.GetPrimaryKey())
+           .Where(x => x.SpaceId == this.GetPrimaryKey())
            .Include(x => x.SpaceMemberArchetypes)
            .ToListAsync();
 
@@ -141,20 +148,20 @@ public class SpaceGrain(
         var             callerId = this.GetUserId();
         await using var ctx      = await context.CreateDbContextAsync();
 
-        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == callerId && x.ServerId == this.GetPrimaryKey());
+        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == callerId && x.SpaceId == this.GetPrimaryKey());
         var serverMemberId = serverMember.Id;
-        var serverId       = this.GetPrimaryKey();
+        var spaceId        = this.GetPrimaryKey();
 
         var member = await ctx.UsersToServerRelations
            .AsNoTracking()
            .Include(m => m.SpaceMemberArchetypes)
            .ThenInclude(sma => sma.Archetype)
-           .FirstAsync(m => m.Id == serverMemberId && m.ServerId == serverId);
+           .FirstAsync(m => m.Id == serverMemberId && m.SpaceId == spaceId);
 
         var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
 
         var channels = await ctx.Channels
-           .Where(c => c.SpaceId == serverId)
+           .Where(c => c.SpaceId == spaceId)
            .Include(c => c.EntitlementOverwrites)
            .ToListAsync();
 
@@ -176,11 +183,11 @@ public class SpaceGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var userId   = this.GetUserId();
-        var serverId = this.GetPrimaryKey();
+        var userId  = this.GetUserId();
+        var spaceId = this.GetPrimaryKey();
 
         var exists = await ctx.UsersToServerRelations
-           .AnyAsync(x => x.ServerId == serverId && x.UserId == userId);
+           .AnyAsync(x => x.SpaceId == spaceId && x.UserId == userId);
 
         if (exists)
             return;
@@ -188,13 +195,13 @@ public class SpaceGrain(
         var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
         {
-            Id       = member,
-            ServerId = serverId,
-            UserId   = userId
+            Id      = member,
+            SpaceId = spaceId,
+            UserId  = userId
         });
         await ctx.SaveChangesAsync();
 
-        await serverRepository.GrantDefaultArchetypeTo(ctx, serverId, member);
+        await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
         await UserJoined(userId);
     }
 
@@ -213,7 +220,7 @@ public class SpaceGrain(
 
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
-        var targetMember = await ctx.Servers
+        var targetMember = await ctx.Spaces
            .AsNoTracking()
            .SelectMany(server => server.Users)
            .Where(member => userIds.Contains(member.UserId))
@@ -281,7 +288,7 @@ public class SpaceGrain(
     {
         var invoker = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .Where(x => x.ServerId == this.GetPrimaryKey() && x.UserId == callerId)
+           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
