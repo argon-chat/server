@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS ArgonMessage (
     MessageId BIGINT,
-    ServerId UUID,
+    SpaceId UUID,
     ChannelId UUID,
     CreatorId UUID,
     Reply BIGINT,
@@ -10,5 +10,5 @@ CREATE TABLE IF NOT EXISTS ArgonMessage (
     IsDeleted BOOLEAN,
     DeletedAt TIMESTAMP,
     UpdatedAt TIMESTAMP,
-    PRIMARY KEY ((ServerId, ChannelId), MessageId)
+    PRIMARY KEY ((SpaceId, ChannelId), MessageId)
 ) WITH CLUSTERING ORDER BY (MessageId ASC)

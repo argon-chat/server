@@ -9,18 +9,19 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Argon.Api.Migrations
+namespace Argon.Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20250924223417_DateOfBirth")]
-    partial class DateOfBirth
+    [Migration("20251101075823_Initial")]
+    partial class Initial
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.8")
+                .HasAnnotation("ProductVersion", "9.0.10")
+                .HasAnnotation("Regional:MultiRegion", "{\"Primary\":\"ru-central\",\"Regions\":[\"us-east\",\"eu-central\",\"ru-central\"],\"Survive\":\"REGION FAILURE\"}")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -34,17 +35,17 @@ namespace Argon.Api.Migrations
                     b.Property<string>("Code")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("varchar(64)");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
@@ -61,14 +62,14 @@ namespace Argon.Api.Migrations
                     b.Property<Guid?>("ReferenceItemEntityId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<long>("ValidFrom")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("ValidFrom")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<long>("ValidTo")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("ValidTo")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -89,8 +90,8 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("CouponId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("RedeemedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("RedeemedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -108,11 +109,11 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsAffectBadge")
                         .HasColumnType("boolean");
@@ -147,10 +148,10 @@ namespace Argon.Api.Migrations
                     b.Property<string>("TemplateId")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("varchar(255)");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<int?>("UseVector")
                         .HasColumnType("integer");
@@ -186,12 +187,13 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("InventoryItemId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("TemplateId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(255)
+                        .HasColumnType("varchar(255)");
 
                     b.HasKey("OwnerUserId", "InventoryItemId");
 
@@ -214,7 +216,7 @@ namespace Argon.Api.Migrations
                     b.Property<string>("ScenarioType")
                         .IsRequired()
                         .HasMaxLength(21)
-                        .HasColumnType("character varying(21)");
+                        .HasColumnType("text");
 
                     b.HasKey("Key");
 
@@ -234,26 +236,24 @@ namespace Argon.Api.Migrations
                     b.Property<int>("Colour")
                         .HasColumnType("integer");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .IsRequired()
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
+                        .HasColumnType("text");
 
-                    b.Property<decimal>("Entitlement")
-                        .HasColumnType("numeric(20,0)");
+                    b.Property<long>("Entitlement")
+                        .HasColumnType("BIGINT");
 
                     b.Property<string>("IconFileId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsDefault")
                         .HasColumnType("boolean");
@@ -275,14 +275,13 @@ namespace Argon.Api.Migrations
 
                     b.Property<string>("Name")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -297,10 +296,10 @@ namespace Argon.Api.Migrations
                         {
                             Id = new Guid("11111111-3333-0000-1111-111111111111"),
                             Colour = -8355712,
-                            CreatedAt = 1732377674205L,
+                            CreatedAt = new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
-                            Description = "Default role for everyone in this server",
-                            Entitlement = 15761383m,
+                            Description = "Default role for everyone in this space",
+                            Entitlement = 15761383L,
                             IsDefault = false,
                             IsDeleted = false,
                             IsGroup = false,
@@ -309,16 +308,16 @@ namespace Argon.Api.Migrations
                             IsMentionable = true,
                             Name = "everyone",
                             SpaceId = new Guid("11111111-0000-1111-1111-111111111111"),
-                            UpdatedAt = -62135596800000L
+                            UpdatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         },
                         new
                         {
                             Id = new Guid("11111111-4444-0000-1111-111111111111"),
                             Colour = -8355712,
-                            CreatedAt = 1732377674205L,
+                            CreatedAt = new DateTimeOffset(new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
-                            Description = "Default role for owner in this server",
-                            Entitlement = -1m,
+                            Description = "Default role for owner in this space",
+                            Entitlement = -1L,
                             IsDefault = false,
                             IsDeleted = false,
                             IsGroup = false,
@@ -327,30 +326,31 @@ namespace Argon.Api.Migrations
                             IsMentionable = false,
                             Name = "owner",
                             SpaceId = new Guid("11111111-0000-1111-1111-111111111111"),
-                            UpdatedAt = -62135596800000L
+                            UpdatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
                 });
 
             modelBuilder.Entity("Argon.Entities.ArgonMessageEntity", b =>
                 {
-                    b.Property<Guid>("ServerId")
+                    b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
-                    b.Property<decimal>("MessageId")
+                    b.Property<long>("MessageId")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(20,0)");
+                        .HasColumnType("BIGINT")
+                        .HasDefaultValueSql("unique_rowid()");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Entities")
                         .IsRequired()
@@ -359,23 +359,23 @@ namespace Argon.Api.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<decimal?>("Reply")
-                        .HasColumnType("numeric(20,0)");
+                    b.Property<long?>("Reply")
+                        .HasColumnType("BIGINT");
 
                     b.Property<string>("Text")
                         .IsRequired()
-                        .HasMaxLength(2048)
-                        .HasColumnType("character varying(2048)");
+                        .HasColumnType("text");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.HasKey("ServerId", "ChannelId", "MessageId");
+                    b.HasKey("SpaceId", "ChannelId", "MessageId");
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId", "ChannelId", "MessageId")
-                        .IsUnique();
+                    b.HasIndex("SpaceId", "ChannelId", "CreatedAt");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SpaceId", "ChannelId", "CreatedAt"), new[] { "Text", "Entities" });
 
                     b.ToTable("Messages");
                 });
@@ -395,14 +395,14 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("ChannelId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<decimal>("Deny")
                         .HasColumnType("numeric(20,0)");
@@ -413,14 +413,11 @@ namespace Argon.Api.Migrations
                     b.Property<int>("Scope")
                         .HasColumnType("integer");
 
-                    b.Property<Guid?>("SpaceCategoryEntityId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid?>("SpaceMemberId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
@@ -429,8 +426,6 @@ namespace Argon.Api.Migrations
                     b.HasIndex("ChannelId");
 
                     b.HasIndex("CreatorId");
-
-                    b.HasIndex("SpaceCategoryEntityId");
 
                     b.HasIndex("SpaceMemberId");
 
@@ -443,24 +438,21 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("CategoryId")
-                        .HasColumnType("uuid");
-
                     b.Property<int>("ChannelType")
                         .HasColumnType("integer");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("DoNotRestrictBoosters")
                         .HasColumnType("boolean");
@@ -468,7 +460,7 @@ namespace Argon.Api.Migrations
                     b.Property<string>("FractionalIndex")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -476,7 +468,7 @@ namespace Argon.Api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<TimeSpan?>("SlowMode")
                         .HasColumnType("interval");
@@ -484,99 +476,16 @@ namespace Argon.Api.Migrations
                     b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("CategoryId");
 
                     b.HasIndex("CreatorId");
 
                     b.HasIndex("SpaceId");
-
-                    b.HasIndex("Id", "SpaceId");
 
                     b.ToTable("Channels");
-                });
-
-            modelBuilder.Entity("Argon.Entities.ServerInvite", b =>
-                {
-                    b.Property<decimal>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(20,0)");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CreatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("Expired")
-                        .HasColumnType("bigint");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("SpaceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatorId");
-
-                    b.HasIndex("SpaceId");
-
-                    b.ToTable("ServerInvites");
-                });
-
-            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("CreatorId")
-                        .HasColumnType("uuid");
-
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<string>("FractionalIndex")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid>("SpaceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CreatorId");
-
-                    b.HasIndex("SpaceId");
-
-                    b.ToTable("Categories");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceEntity", b =>
@@ -587,20 +496,20 @@ namespace Argon.Api.Migrations
 
                     b.Property<string>("AvatarFileId")
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Description")
                         .HasMaxLength(1024)
-                        .HasColumnType("character varying(1024)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
@@ -608,33 +517,70 @@ namespace Argon.Api.Migrations
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<string>("TopBannedFileId")
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
                     b.HasIndex("CreatorId");
 
-                    b.ToTable("Servers");
+                    b.ToTable("Spaces");
 
                     b.HasData(
                         new
                         {
                             Id = new Guid("11111111-0000-1111-1111-111111111111"),
                             AvatarFileId = "",
-                            CreatedAt = -62135596800000L,
+                            CreatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             CreatorId = new Guid("11111111-2222-1111-2222-111111111111"),
                             Description = "",
                             IsDeleted = false,
                             Name = "system_server",
-                            UpdatedAt = -62135596800000L
+                            UpdatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
+                });
+
+            modelBuilder.Entity("Argon.Entities.SpaceInvite", b =>
+                {
+                    b.Property<long>("Id")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("CreatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("ExpireAt")
+                        .HasColumnType("TIMESTAMPTZ");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatorId");
+
+                    b.HasIndex("SpaceId");
+
+                    b.ToTable("Invites");
+
+                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpireAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":5000,\"DeleteBatchSize\":5000,\"RangeConcurrency\":4,\"DeleteRateLimit\":52428800}");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceMemberArchetypeEntity", b =>
@@ -649,7 +595,7 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("ArchetypeId");
 
-                    b.ToTable("ServerMemberArchetypes");
+                    b.ToTable("MemberArchetypes");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
@@ -658,26 +604,26 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("CreatorId")
                         .HasColumnType("uuid");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("JoinedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("JoinedAt")
+                        .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid>("ServerId")
+                    b.Property<Guid>("SpaceId")
                         .HasColumnType("uuid");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -686,39 +632,11 @@ namespace Argon.Api.Migrations
 
                     b.HasIndex("CreatorId");
 
-                    b.HasIndex("ServerId");
+                    b.HasIndex("SpaceId");
 
                     b.HasIndex("UserId");
 
                     b.ToTable("UsersToServerRelations");
-                });
-
-            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("AgreeTOS")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("AllowedSendOptionalEmails")
-                        .HasColumnType("boolean");
-
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("UserAgreements");
                 });
 
             modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>
@@ -728,12 +646,12 @@ namespace Argon.Api.Migrations
 
                     b.Property<string>("MachineId")
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<string>("AppId")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<int>("DeviceType")
                         .HasColumnType("integer");
@@ -741,15 +659,15 @@ namespace Argon.Api.Migrations
                     b.Property<string>("LastKnownIP")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
-                    b.Property<long?>("LastLoginTime")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("LastLoginTime")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("RegionAddress")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.HasKey("UserId", "MachineId");
 
@@ -762,64 +680,84 @@ namespace Argon.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("AvatarFileId")
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                    b.Property<bool>("AgreeTOS")
+                        .HasColumnType("boolean");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<bool>("AllowedSendOptionalEmails")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("AvatarFileId")
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateOnly?>("DateOfBirth")
                         .HasColumnType("date");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("DisplayName")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Email")
                         .IsRequired()
                         .HasMaxLength(255)
-                        .HasColumnType("character varying(255)");
+                        .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<long?>("LockDownExpiration")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("LockDownExpiration")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("LockDownIsAppealable")
+                        .HasColumnType("boolean");
 
                     b.Property<int>("LockdownReason")
                         .HasColumnType("integer");
 
+                    b.Property<string>("NormalizedEmail")
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("varchar(255)")
+                        .HasComputedColumnSql("lower(\"Email\")", true);
+
                     b.Property<string>("NormalizedUsername")
                         .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("varchar(64)")
+                        .HasComputedColumnSql("lower(\"Username\")", true);
 
                     b.Property<string>("PasswordDigest")
-                        .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
+                        .HasColumnType("text");
 
                     b.Property<string>("PhoneNumber")
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<int>("PreferredAuthMode")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("PreferredOtpMethod")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TotpSecret")
+                        .HasMaxLength(512)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Username")
                         .IsRequired()
                         .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
+                        .HasColumnType("text");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DisplayName");
-
-                    b.HasIndex("Email")
+                    b.HasIndex("NormalizedEmail")
                         .IsUnique();
 
                     b.HasIndex("NormalizedUsername")
@@ -831,13 +769,17 @@ namespace Argon.Api.Migrations
                         new
                         {
                             Id = new Guid("11111111-2222-1111-2222-111111111111"),
-                            CreatedAt = -62135596800000L,
+                            AgreeTOS = false,
+                            AllowedSendOptionalEmails = false,
+                            CreatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             DisplayName = "System",
                             Email = "system@argon.gl",
                             IsDeleted = false,
+                            LockDownIsAppealable = false,
                             LockdownReason = 0,
-                            NormalizedUsername = "system",
-                            UpdatedAt = -62135596800000L,
+                            PreferredAuthMode = 0,
+                            PreferredOtpMethod = 0,
+                            UpdatedAt = new DateTimeOffset(new DateTime(1, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Username = "system"
                         });
                 });
@@ -854,34 +796,34 @@ namespace Argon.Api.Migrations
 
                     b.Property<string>("BannerFileId")
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("Bio")
                         .HasMaxLength(512)
-                        .HasColumnType("character varying(512)");
+                        .HasColumnType("text");
 
-                    b.Property<long>("CreatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("CustomStatus")
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<string>("CustomStatusIconId")
                         .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
+                        .HasColumnType("text");
 
                     b.Property<DateOnly?>("DateOfBirth")
                         .HasColumnType("date");
 
-                    b.Property<long?>("DeletedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("boolean");
 
-                    b.Property<long>("UpdatedAt")
-                        .HasColumnType("bigint");
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<Guid>("UserId")
                         .HasColumnType("uuid");
@@ -908,7 +850,8 @@ namespace Argon.Api.Migrations
 
                     b.Property<string>("NormalizedUserName")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
 
                     b.Property<string>("UserName")
                         .IsRequired()
@@ -1040,10 +983,6 @@ namespace Argon.Api.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("Argon.Entities.SpaceCategoryEntity", null)
-                        .WithMany("EntitlementOverwrites")
-                        .HasForeignKey("SpaceCategoryEntityId");
-
                     b.HasOne("Argon.Entities.SpaceMemberEntity", "SpaceMember")
                         .WithMany()
                         .HasForeignKey("SpaceMemberId")
@@ -1058,37 +997,19 @@ namespace Argon.Api.Migrations
 
             modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
                 {
-                    b.HasOne("Argon.Entities.SpaceCategoryEntity", "Category")
-                        .WithMany("Channels")
-                        .HasForeignKey("CategoryId")
-                        .OnDelete(DeleteBehavior.Cascade);
-
                     b.HasOne("Argon.Entities.SpaceEntity", "Space")
                         .WithMany("Channels")
                         .HasForeignKey("SpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("Category");
-
                     b.Navigation("Space");
                 });
 
-            modelBuilder.Entity("Argon.Entities.ServerInvite", b =>
+            modelBuilder.Entity("Argon.Entities.SpaceInvite", b =>
                 {
                     b.HasOne("Argon.Entities.SpaceEntity", "Space")
                         .WithMany("ServerInvites")
-                        .HasForeignKey("SpaceId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Space");
-                });
-
-            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
-                {
-                    b.HasOne("Argon.Entities.SpaceEntity", "Space")
-                        .WithMany("SpaceCategories")
                         .HasForeignKey("SpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
@@ -1119,7 +1040,7 @@ namespace Argon.Api.Migrations
                 {
                     b.HasOne("Argon.Entities.SpaceEntity", "Space")
                         .WithMany("Users")
-                        .HasForeignKey("ServerId")
+                        .HasForeignKey("SpaceId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -1130,17 +1051,6 @@ namespace Argon.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Space");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Argon.Entities.UserAgreements", b =>
-                {
-                    b.HasOne("Argon.Entities.UserEntity", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
 
                     b.Navigation("User");
                 });
@@ -1198,13 +1108,6 @@ namespace Argon.Api.Migrations
                     b.Navigation("EntitlementOverwrites");
                 });
 
-            modelBuilder.Entity("Argon.Entities.SpaceCategoryEntity", b =>
-                {
-                    b.Navigation("Channels");
-
-                    b.Navigation("EntitlementOverwrites");
-                });
-
             modelBuilder.Entity("Argon.Entities.SpaceEntity", b =>
                 {
                     b.Navigation("Archetypes");
@@ -1212,8 +1115,6 @@ namespace Argon.Api.Migrations
                     b.Navigation("Channels");
 
                     b.Navigation("ServerInvites");
-
-                    b.Navigation("SpaceCategories");
 
                     b.Navigation("Users");
                 });
