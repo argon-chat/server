@@ -16,20 +16,19 @@ public class ChannelGrain(
     IPersistentState<ChannelGrainState> state,
     IArgonSelectiveForwardingUnit sfu,
     IDbContextFactory<ApplicationDbContext> context,
-    ICassandraDbContextFactory<ArgonCassandraDbContext> cassandraContext) : Grain, IChannelGrain
+    IMessagesLayout messagesLayout) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
-
-    private ChannelEntity        _self     { get; set; }
-    private ArgonServerId  ServerId  => new(_self.SpaceId);
-    private ArgonChannelId ChannelId => new(ServerId, this.GetPrimaryKey());
+    private ChannelEntity  _self     { get; set; }
+    private ArgonSpaceId   SpaceId   => new(_self.SpaceId);
+    private ArgonChannelId ChannelId => new(SpaceId, this.GetPrimaryKey());
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        _self = await GetChannel();
+        _self = await Get();
 
-        _userStateEmitter = await this.Streams().CreateServerStreamFor(ServerId.id);
+        _userStateEmitter = await this.Streams().CreateServerStreamFor(SpaceId.id);
 
         await state.ReadStateAsync(cancellationToken);
 
@@ -43,31 +42,7 @@ public class ChannelGrain(
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
         await _userStateEmitter.DisposeAsync();
     }
-
-    public async Task<List<ArgonMessageEntity>> GetMessages(int count, ulong offset)
-    {
-        //await using var ctx = await context.CreateDbContextAsync();
-        //var messages = await ctx.Messages
-        //   .Where(m => m.ChannelId == this.GetPrimaryKey())
-        //   .OrderByDescending(m => m.MessageId)
-        //   .Skip(offset)
-        //   .Take(count)
-        //   .AsNoTracking()
-        //   .ToListAsync();
-
-        //return messages;
-        return [];
-    }
-
-    public async Task<List<ArgonMessageEntity>> QueryMessages(ulong? @from, int limit)
-    {
-        await using var ctx = await cassandraContext.CreateDbContextAsync();
-
-        var processor = new MessageProcessor(ctx.Context);
-
-        return await processor.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
-    }
-
+    
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
 
@@ -80,11 +55,11 @@ public class ChannelGrain(
 
     [OneWay]
     public async ValueTask OnTypingEmit()
-        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), ServerId.id, ChannelId.channelId));
+        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), SpaceId.id, ChannelId.channelId));
 
     [OneWay]
     public async ValueTask OnTypingStopEmit()
-        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), ServerId.id, ChannelId.channelId));
+        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), SpaceId.id, ChannelId.channelId));
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
     {
@@ -92,13 +67,13 @@ public class ChannelGrain(
             return false;
 
         await using var ctx = await context.CreateDbContextAsync();
-
+        
         var userId = this.GetUserId();
 
         if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
             return false;
 
-        return await sfu.KickParticipantAsync(new ArgonUserId(memberId), new ArgonChannelId(this.ServerId, this.GetPrimaryKey()));
+        return await sfu.KickParticipantAsync(new ArgonUserId(memberId), new ArgonChannelId(this.SpaceId, this.GetPrimaryKey()));
     }
 
 
@@ -107,7 +82,7 @@ public class ChannelGrain(
     {
         var invoker = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .Where(x => x.ServerId == ServerId.id && x.UserId == callerId)
+           .Where(x => x.SpaceId == SpaceId.id && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
@@ -132,14 +107,14 @@ public class ChannelGrain(
         var userId = this.GetUserId();
 
         if (state.State.Users.ContainsKey(userId))
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
         else
         {
             state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
             await state.WriteStateAsync();
         }
 
-        await _userStateEmitter.Fire(new JoinedToChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
+        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -153,15 +128,12 @@ public class ChannelGrain(
     public async Task Leave(Guid userId)
     {
         state.State.Users.Remove(userId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(ServerId.id, this.GetPrimaryKey(), userId));
+        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)
             this.DelayDeactivation(TimeSpan.MinValue);
     }
-
-    public async Task<ChannelEntity> GetChannel()
-        => await Get();
 
     public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
     {
@@ -176,39 +148,32 @@ public class ChannelGrain(
         return (await Get());
     }
 
-    public async Task<ulong> SendMessage(string text, List<IMessageEntity> entities, ulong? replyTo)
+    public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
+        => await messagesLayout.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
+
+    public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
         var senderId = this.GetUserId();
-
-        await using var csCtx = await cassandraContext.CreateDbContextAsync();
-
-        var processor = new MessageProcessor(csCtx.Context);
-
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var msgId = await ctx.GenerateNextMessageId(_self.SpaceId, this.GetPrimaryKey());
-
-        var rand = (unchecked((ulong)Random.Shared.NextInt64(long.MinValue, long.MaxValue)));
-
-        var message = new ArgonMessageEntity()
+        var message = new ArgonMessageEntity
         {
-            ServerId = _self.SpaceId,
+            SpaceId   = _self.SpaceId,
             ChannelId = this.GetPrimaryKey(),
             CreatorId = senderId,
-            Entities = entities,
-            Text = text,
-            MessageId = msgId,
+            Entities  = entities,
+            Text      = text,
             CreatedAt = DateTimeOffset.UtcNow,
-            Reply = replyTo,
+            Reply     = replyTo,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        var dup = await processor.CheckDuplicationAsync(message, rand);
+        var dup = await messagesLayout.CheckDuplicationAsync(message, randomId);
 
-        if (dup) return msgId;
+        if (dup is not null) return dup.Value;
 
-        await processor.ExecuteInsertMessage(msgId, message, rand);
+        var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
+
+        message.MessageId = msgId;
 
         await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, message.ToDto()));
         return msgId;
