@@ -2,8 +2,6 @@ namespace Argon.Core.Features.Integrations.Phones;
 
 using Argon.Features.Integrations.Phones.Prelude;
 using Argon.Features.Integrations.Phones.Telegram;
-using Temporalio.Api.Enums.V1;
-using Temporalio.Client;
 
 public interface IPhoneProvider
 {
@@ -20,29 +18,32 @@ public class NullPhoneProvider : IPhoneProvider
         => throw new NotImplementedException();
 }
 
-public class DefaultPhoneProvider(ITemporalClient client) : IPhoneProvider
+public class DefaultPhoneProvider() : IPhoneProvider
 {
     public async Task SendCode(string phone, string ip, string ua, string appVersion)
-        => await client.StartWorkflowAsync(
-            (PhoneOtpWorkflow wf) => wf.RunAsync(phone, ip, ua, appVersion, 6, 3,
-                TimeSpan.FromMinutes(5),
-                TimeSpan.FromSeconds(5)),
-            new($"otp:{phone}", "otp-queue")
-            {
-                IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
-            });
+    {
+        //await client.StartWorkflowAsync(
+        //    (PhoneOtpWorkflow wf) => wf.RunAsync(phone, ip, ua, appVersion, 6, 3,
+        //        TimeSpan.FromMinutes(5),
+        //        TimeSpan.FromSeconds(5)),
+        //    new($"otp:{phone}", "otp-queue")
+        //    {
+        //        IdConflictPolicy = WorkflowIdConflictPolicy.UseExisting
+        //    });
+    }
 
     public async Task<VerifyResult> VerifyCode(string phone, string requestId, string otpCode)
     {
-        var handle = client.GetWorkflowHandle<PhoneOtpWorkflow>(
-            $"otp:{phone}"
-        );
+        //var handle = client.GetWorkflowHandle<PhoneOtpWorkflow>(
+        //    $"otp:{phone}"
+        //);
 
-        var result = await handle.ExecuteUpdateAsync(
-            wf => wf.VerifyAsync(otpCode)
-        );
+        //var result = await handle.ExecuteUpdateAsync(
+        //    wf => wf.VerifyAsync(otpCode)
+        //);
 
-        return result;
+        //return result;
+        throw new InvalidOperationException();
     }
 }
 
