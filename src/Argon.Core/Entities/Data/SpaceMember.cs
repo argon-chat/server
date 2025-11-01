@@ -5,8 +5,8 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfiguration<SpaceMemberEntity>, IMapper<SpaceMemberEntity, SpaceMember>
 {
-    public Guid ServerId { get; set; }
-    public Guid UserId   { get; set; }
+    public Guid SpaceId { get; set; }
+    public Guid UserId  { get; set; }
 
     public virtual UserEntity  User  { get; set; }
     public virtual SpaceEntity Space { get; set; }
@@ -18,10 +18,10 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
 
     public static SpaceMember Map(scoped in SpaceMemberEntity self)
         => new(
-            self.UserId, 
-            self.ServerId, 
-            self.JoinedAt.UtcDateTime, 
-            self.Id, 
+            self.UserId,
+            self.SpaceId,
+            self.JoinedAt.UtcDateTime,
+            self.Id,
             UserEntity.Map(self.User),
             new IonArray<SpaceMemberArchetype>(IMapper<SpaceMemberArchetypeEntity, SpaceMemberArchetype>.MapCollection(self.SpaceMemberArchetypes)));
 
@@ -30,7 +30,7 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
     {
         builder.HasOne(x => x.Space)
            .WithMany(x => x.Users)
-           .HasForeignKey(x => x.ServerId);
+           .HasForeignKey(x => x.SpaceId);
 
         builder.HasOne(x => x.User)
            .WithMany(x => x.ServerMembers)
