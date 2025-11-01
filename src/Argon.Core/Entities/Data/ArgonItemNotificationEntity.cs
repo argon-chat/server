@@ -30,5 +30,6 @@ public record ArgonItemNotificationEntity : IEntityTypeConfiguration<ArgonItemNo
            .OnDelete(DeleteBehavior.Cascade);
 
         builder.HasIndex(x => x.TemplateId);
+        builder.Property(x => x.TemplateId).HasMaxLength(255);
     }
 }
