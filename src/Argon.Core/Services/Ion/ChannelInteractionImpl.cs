@@ -18,23 +18,20 @@ public class ChannelInteractionImpl : IChannelInteraction
         => new(await this.GetGrain<ISpaceGrain>(spaceId)
            .GetChannels());
 
-    public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, ulong? from, int limit, CancellationToken ct = default)
-        => IonArray<ArgonMessage>.Empty;
-
-
-    public async Task<ulong> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
-        ulong? replyTo, CancellationToken ct = default)
-        => await this
-           .GetGrain<IChannelGrain>(channelId)
-           .SendMessage(text, entities.Values.ToList(), replyTo);
-
-    public async Task<IonArray<ArgonMessage>> GetMessages(Guid spaceId, Guid channelId, int count, ulong offset, CancellationToken ct = default)
+    public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, long? from, int limit, CancellationToken ct = default)
     {
-        var result = await this.GetGrain<IChannelGrain>(channelId)
-           .GetMessages(count, offset);
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .QueryMessages(from, limit);
 
         return result.Select(x => x.ToDto()).ToList();
     }
+
+    public async Task<long> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
+        long? replyTo, CancellationToken ct = default)
+        => await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
 
     public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this
