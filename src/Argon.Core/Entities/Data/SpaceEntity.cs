@@ -4,7 +4,7 @@ using ion.runtime;
 
 public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper<SpaceEntity, ArgonSpace>
 {
-    public static readonly Guid DefaultSystemServer
+    public static readonly Guid DefaultSystemSpace
         = Guid.Parse("11111111-0000-1111-1111-111111111111");
 
     [MaxLength(64)]
@@ -20,9 +20,7 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public virtual ICollection<SpaceMemberEntity> Users             { get; set; } = new List<SpaceMemberEntity>();
     public virtual ICollection<ArchetypeEntity>   Archetypes        { get; set; } = new List<ArchetypeEntity>();
     public         ICollection<IArchetype>        SubjectArchetypes => Archetypes.OfType<IArchetype>().ToList();
-    public virtual ICollection<ServerInvite>      ServerInvites     { get; set; } = new List<ServerInvite>();
-
-    public virtual ICollection<SpaceCategoryEntity> SpaceCategories { get; set; } = new List<SpaceCategoryEntity>();
+    public virtual ICollection<SpaceInvite>      ServerInvites     { get; set; } = new List<SpaceInvite>();
 
     public static ArgonSpace Map(scoped in SpaceEntity self)
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,
