@@ -21,7 +21,6 @@ COPY ["Directory.Build.props", "."]
 COPY ["src/Argon.Api/Argon.Api.csproj", "src/Argon.Api/"]
 COPY ["src/Argon.Core/Argon.Core.csproj", "src/Argon.Core/"]
 COPY ["src/Argon.CodeGen/Argon.Ion.CodeGen.csproj", "src/Argon.CodeGen/"]
-COPY ["src/Argon.Metrics/Argon.Metrics.csproj", "src/Argon.Metrics/"]
 COPY ["src/Argon.Cassandra/Argon.Cassandra.csproj", "src/Argon.Cassandra/"]
 RUN dotnet restore "./src/Argon.Api/Argon.Api.csproj"
 COPY . .
