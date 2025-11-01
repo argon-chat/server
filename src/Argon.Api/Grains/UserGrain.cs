@@ -80,7 +80,7 @@ public class UserGrain(
            .Include(user => user.ServerMembers)
            .Where(u => u.Id == this.GetPrimaryKey())
            .SelectMany(x => x.ServerMembers)
-           .Select(x => x.ServerId)
+           .Select(x => x.SpaceId)
            .ToListAsync(cancellationToken: ct);
     }
 
@@ -217,6 +217,26 @@ public class UserGrain(
         await UpdateFileIdFor(kind, fileId, ct);
     }
 
+    public async ValueTask<LockedAuthStatus> GetLimitationForUser()
+    {
+        var user = await GetMe();
+
+        if (user.LockdownReason is LockdownReason.NONE)
+            return new LockedAuthStatus(null, null, false, LockdownSeverity.Low);
+
+        return new LockedAuthStatus(user.LockdownReason, user.LockDownExpiration?.UtcDateTime ?? DateTime.Now.AddYears(20),
+            user.LockDownIsAppealable, DetermineSeverity(user.LockdownReason));
+
+        LockdownSeverity DetermineSeverity(LockdownReason reason)
+            => reason switch
+            {
+                LockdownReason.NONE                => LockdownSeverity.Low,
+                LockdownReason.UNDER_INVESTIGATION => LockdownSeverity.Middle,
+                LockdownReason.INCITING_MOMENT     => LockdownSeverity.Middle,
+                _                                  => LockdownSeverity.Critical
+            };
+    }
+
     private ValueTask UpdateFileIdFor(UserFileKind kind, Guid fileId, CancellationToken ct = default)
         => kind switch
         {
@@ -232,9 +252,23 @@ public class UserGrain(
 
         var user = await ctx.Users.FirstAsync(x => x.Id == userId, cancellationToken: ct);
 
+        var currentFileId = user.AvatarFileId;
+
         user.AvatarFileId = fileId.ToString();
 
         await ctx.SaveChangesAsync(ct);
+
+        if (!string.IsNullOrEmpty(currentFileId))
+        {
+            try
+            {
+                await kineticaFs.DecrementByFileIdAsync(currentFileId, ct);
+            }
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed decrement fileId");
+            }
+        }
 
         var userServers = await GetMyServersIds(ct);
 
@@ -253,9 +287,23 @@ public class UserGrain(
 
         var user = await ctx.UserProfiles.FirstAsync(x => x.UserId == userId, cancellationToken: ct);
 
+        var currentFileId = user.BannerFileId;
+
         user.BannerFileId = fileId.ToString();
 
         await ctx.SaveChangesAsync(ct);
+
+        if (!string.IsNullOrEmpty(currentFileId))
+        {
+            try
+            {
+                await kineticaFs.DecrementByFileIdAsync(currentFileId, ct);
+            }
+            catch (Exception e)
+            {
+                logger.LogCritical(e, "failed decrement fileId");
+            }
+        }
 
         var userServers = await GetMyServersIds(ct);
 
