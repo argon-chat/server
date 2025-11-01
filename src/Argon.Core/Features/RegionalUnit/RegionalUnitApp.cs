@@ -20,9 +20,6 @@ public class RegionalUnitApp
             builder.WebHost.UseUrls("http://localhost:5000");
         //else
         //    builder.WebHost.UseUrls("https://localhost:5001");
-        var featureOptions = builder.Configuration.GetSection("Features").Get<FeaturesOptions>() ?? throw new Exception();
-        builder.Services.Configure<FeaturesOptions>(builder.Configuration.GetSection("Features"));
-        builder.SetFeatureOptions(featureOptions);
 
         if (true) // builder.Environment.IsSingleInstance() 
         {
