@@ -1,11 +1,8 @@
 namespace Argon.Grains;
 
-using System.Diagnostics.Metrics;
 using Argon.Api.Features.Bus;
 using Features.Logic;
 using MessagePipe;
-using Metrics;
-using Metrics.Gauges;
 using Orleans;
 using Orleans.Concurrency;
 using Orleans.Streams;
@@ -18,18 +15,9 @@ public class UserSessionGrain(
     ILogger<IUserSessionGrain> logger,
     IUserPresenceService presenceService,
     IArgonCacheDatabase cache,
-    IRedisEventStorage eventStorage,
-    IMetricsCollector metrics,
-    ICounters globalCounters)
+    IRedisEventStorage eventStorage)
     : Grain, IUserSessionGrain, IAsyncObserver<IArgonEvent>
 {
-    private readonly MeasurementId    total_user_active       = new("total_user_active");
-    private readonly RateCounter      heartbeatRate           = new(metrics, new("user_session_heartbeat_rate"));
-    private readonly RateCounter      tickRate                = new(metrics, new("user_session_tick"));
-    private readonly CountPerTagGauge sessionDestroyed        = new(metrics, new("user_session_destroyed"));
-    private readonly CountPerTagGauge statusChangeCounter     = new(metrics, new("user_session_status_change"));
-    private readonly CountPerTagGauge sessionHeartbeatCounter = new(metrics, new("user_session_heartbeat"));
-
     private Guid   _userId;
     private string _machineId;
     private Guid   _shadowUserId;
@@ -44,16 +32,11 @@ public class UserSessionGrain(
     private DateTime? _lastHeartbeatTime;
     private DateTime? _lastDebouncedHeartbeatTime;
 
-    public async ValueTask SelfDestroy()
+    private async ValueTask SelfDestroy()
         => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        globalCounters.Decrement(total_user_active);
-        var reasonTag = reason.ReasonCode == ApplicationRequested
-            ? "graceful"
-            : "force";
-        _ = sessionDestroyed.CountAsync("reason", reasonTag);
         if (reason.ReasonCode != ApplicationRequested)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
         logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
@@ -65,7 +48,6 @@ public class UserSessionGrain(
 
     public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
     {
-        globalCounters.Increment(total_user_active);
         _preferredStatus = preferredStatus;
         _userId          = this.GetUserId();
         _shadowUserId    = _userId;
@@ -134,17 +116,15 @@ public class UserSessionGrain(
         }
 
         logger.LogInformation("This is not last user session, destroy only this session grain");
-        await sessionDestroyed.CountAsync("reason", "expired_but_other_sessions_alive");
         await SelfDestroy();
     }
 
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
-        tickRate.Increment();
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
-           .GetMyServersIds();
+           .GetMyServersIds(arg);
         foreach (var server in servers)
             await grainFactory
                .GetGrain<ISpaceGrain>(server)
@@ -183,15 +163,11 @@ public class UserSessionGrain(
 
         if (_preferredStatus != status)
         {
-            await statusChangeCounter.CountAsync("from", _preferredStatus?.ToString() ?? "unset");
             _preferredStatus = status;
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());
         }
         DelayDeactivation(TimeSpan.FromMinutes(2));
-        heartbeatRate.Increment();
-        await heartbeatRate.FlushAsync();
-        await sessionHeartbeatCounter.CountAsync("status", status.ToString());
         return true;
     }
 
