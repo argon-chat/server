@@ -1,7 +1,6 @@
 namespace Argon.Features.EF;
 
-using System.Data.Common;
-using Api.Migrations;
+using Argon.Core.Features.EF;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Npgsql;
@@ -11,45 +10,38 @@ public static class DatabaseFeature
 {
     public static void AddPooledDatabase<T>(this WebApplicationBuilder builder) where T : DbContext
     {
+        AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
+        DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection("Database"));
         builder.Services.AddSingleton<IVaultDbCredentialsProvider, VaultDbCredentialsProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IVaultDbCredentialsProvider>());
-        builder.Services.AddPooledDbContextFactory<T>((sp, options) =>
+        builder.Services.Configure<DatabaseRegionOptions>(builder.Configuration.GetSection("Database:Regions"));
+        builder.Services.AddPooledDbContextFactory<T>((_, options) =>
         {
-            var credentialsProvider = sp.GetRequiredService<IVaultDbCredentialsProvider>();
-            var connStr             = credentialsProvider.BuildConnectionString();
-
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               .UseNpgsql(connStr, npgsql => npgsql.ConfigureDataSource(q => q.EnableDynamicJson().UseJsonNet()))
-               .ReplaceService<IHistoryRepository, YugabyteHistoryRepository>()
-               .AddInterceptors(new TimeStampAndSoftDeleteInterceptor(),
-                    new RotatableConnectionInterceptor(credentialsProvider));
+               
+               .UseNpgsql(builder.Configuration.GetConnectionString("Default"), npgsql =>
+                {
+                    npgsql.UseNodaTime();
+                    npgsql.EnableRetryOnFailure(
+                        maxRetryCount: 5,
+                        maxRetryDelay: TimeSpan.FromSeconds(2),
+                        errorCodesToAdd: ["40001"]);
+                    npgsql.MaxBatchSize(50);
+                    npgsql.ConfigureDataSource(q => q.EnableDynamicJson().UseJsonNet());
+                    npgsql.UseQuerySplittingBehavior(QuerySplittingBehavior.SplitQuery);
+                })
+               .ReplaceService<IHistoryRepository, NoLockHistoryRepository>()
+               .ConfigureWarnings(w => w.Ignore(RelationalEventId.AmbientTransactionWarning))
+               .AddInterceptors(new TimeStampAndSoftDeleteInterceptor())
+               .UseMultiregionalCompatibility();
         }, 512);
-        builder.AddCassandraPooledContext();
     }
 }
 
-
-public class RotatableConnectionInterceptor(IVaultDbCredentialsProvider credentialsProvider) : DbConnectionInterceptor
+public class DatabaseRegionOptions
 {
-    public async override ValueTask<InterceptionResult> ConnectionOpeningAsync(DbConnection connection, ConnectionEventData eventData,
-        InterceptionResult result,
-        CancellationToken cancellationToken = new())
-    {
-        var r = await base.ConnectionOpeningAsync(connection, eventData, result, cancellationToken);
-
-        if (connection is not NpgsqlConnection npgsql || !credentialsProvider.IsEnabled) 
-            return r;
-
-        var originalBuilder = new NpgsqlConnectionStringBuilder(npgsql.ConnectionString);
-        var current         = await credentialsProvider.GetCredentialsAsync();
-
-        originalBuilder.Username = current.username;
-        originalBuilder.Password = current.password;
-
-        npgsql.ConnectionString = originalBuilder.ConnectionString;
-
-        return r;
-    }
+    public required string PrimaryRegion { get; set; }
+    public required string[] ReplicateRegion { get; set; }
 }
