@@ -134,7 +134,7 @@ public static class EntitlementEvaluator
 
     public static ArgonEntitlement CalculatePermissions(SpaceMemberEntity member, SpaceEntity server)
     {
-        if (member.ServerId != server.Id)
+        if (member.SpaceId != server.Id)
             return ArgonEntitlement.None;
 
         var permissions = GetBasePermissions(member);
@@ -144,9 +144,9 @@ public static class EntitlementEvaluator
         return member.SpaceMemberArchetypes.Aggregate(ArgonEntitlement.None, (current, smr) => current | smr.Archetype.Entitlement);
     }
 
-    public static ArgonEntitlement CalculatePermissions(SpaceMemberEntity member, Guid serverId)
+    public static ArgonEntitlement CalculatePermissions(SpaceMemberEntity member, Guid spaceId)
     {
-        if (member.ServerId != serverId)
+        if (member.SpaceId != spaceId)
             return ArgonEntitlement.None;
 
         var permissions = GetBasePermissions(member);

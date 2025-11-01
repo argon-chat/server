@@ -17,11 +17,11 @@ public record ArgonUserId([field: Id(0)] Guid id)
 }
 
 
-public record ArgonServerId([field: Id(0)] Guid id);
+public record ArgonSpaceId([field: Id(0)] Guid id);
 
-public record ArgonChannelId([field: Id(0)] ArgonServerId serverId, [field: Id(1)] Guid channelId) : ISfuRoomDescriptor
+public record ArgonChannelId([field: Id(0)] ArgonSpaceId SpaceId, [field: Id(1)] Guid channelId) : ISfuRoomDescriptor
 {
-    public string ToRawRoomId() => $"{serverId.id}-{channelId}";
+    public string ToRawRoomId() => $"{SpaceId.id}-{channelId}";
 }
 
 

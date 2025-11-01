@@ -2,9 +2,6 @@ using Argon.Api.Features.CoreLogic.Otp;
 
 namespace Argon.Api.Features.CoreLogic.Otp;
 
-using Temporalio.Activities;
-using Temporalio.Workflows;
-
 public enum OtpMethod
 {
     Email,
@@ -24,10 +21,8 @@ public sealed record OtpRecord(
     string? RequestId,
     string? DeviceId
 );
-[Workflow]
 public class OtpWorkflow
 {
-    [WorkflowRun]
     public async Task RunAsync(Guid userId, string email, OtpPurpose purpose, string? deviceId, string ip)
     {
     }
