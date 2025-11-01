@@ -31,7 +31,9 @@ public class EntitlementGrain(
         var             archetypes = await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
         if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageArchetype))
-            return archetypes.Select(x => new ArchetypeGroup(x, IonArray<Guid>.Empty)).ToList();
+            return archetypes
+               .Select(x => new ArchetypeGroup(x, IonArray<Guid>.Empty))
+               .ToList();
 
         var spaceId = this.GetPrimaryKey();
 
@@ -42,17 +44,27 @@ public class EntitlementGrain(
 
         var membersWithArchetypes = members.Select(m => new
         {
-            MemberId       = m.Id,
+            MemberId     = m.Id,
             ArchetypeIds = m.SpaceMemberArchetypes.Select(sma => sma.ArchetypeId).ToList()
         }).ToList();
 
-        var result = archetypes.Select(a => new ArchetypeGroup(a, IonArray<Guid>.Empty)).ToDictionary(g => g.archetype.id);
+        var result = archetypes
+           .Select(a => new ArchetypeGroup(a, IonArray<Guid>.Empty))
+           .ToDictionary(g => g.archetype.id);
 
-        var memberList = new List<Guid>();
         foreach (var member in membersWithArchetypes)
+        {
             foreach (var archId in member.ArchetypeIds)
-                if (result.TryGetValue(archId, out var group))
-                    memberList.Add(member.MemberId);
+            {
+                if (!result.TryGetValue(archId, out var group)) 
+                    continue;
+                var updatedMembers = new Guid[group.members.Size + 1];
+                group.members.Values.ToArray().CopyTo(updatedMembers, 0);
+                updatedMembers[group.members.Size] = member.MemberId;
+
+                result[archId] = group with { members = new IonArray<Guid>(updatedMembers) };
+            }
+        }
 
         return result.Values.ToList();
     }
