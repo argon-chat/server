@@ -14,6 +14,44 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
     };
     private const string XApiTokenHeader = "X-Api-Token";
 
+    public async Task DecrementByFileIdAsync(string fileId, CancellationToken ct = default)
+    {
+        try
+        {
+            logger.LogInformation("Decrement ref for fileId {fileId}", fileId);
+
+            var response = await client
+               .WithHeader(XApiTokenHeader, options.Value.ApiToken)
+               .Request($"/api/v1/file/{fileId}/decrement")
+               .AllowAnyHttpStatus()
+               .PatchAsync(cancellationToken: ct);
+
+            if (!response.ResponseMessage.IsSuccessStatusCode)
+            {
+                logger.LogWarning("KineticaFS responded with HTTP {Status}: {Body}", response.StatusCode, await response.GetStringAsync());
+                throw new HttpRequestException($"Failed to create upload URL: {response.StatusCode}");
+            }
+
+            logger.LogInformation("Success decrement fileId");
+        }
+        catch (FlurlHttpTimeoutException ex)
+        {
+            logger.LogError(ex, "Timeout while decrement fileId");
+            throw;
+        }
+        catch (FlurlHttpException ex)
+        {
+            var content = await ex.GetResponseStringAsync();
+            logger.LogError(ex, "HTTP error while decrement fileIdL: {Content}", content);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Unexpected error while decrement fileId.");
+            throw;
+        }
+    }
+
     public async Task<Guid> CreateUploadUrlAsync(uint? limitMb = null, string? regionId = null, CancellationToken ct = default)
     {
         try
@@ -135,6 +173,7 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
 
 public interface IKineticaFSApi
 {
+    Task       DecrementByFileIdAsync(string fileId, CancellationToken ct = default);
     Task<Guid> CreateUploadUrlAsync(uint? limitMb = null, string? regionId = null, CancellationToken ct = default);
     Task<Guid> FinalizeUploadUrlAsync(Guid blobId, CancellationToken ct = default);
 }
