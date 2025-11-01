@@ -43,6 +43,6 @@
         <ProjectReference Include="..\Argon.Core\Argon.Core.csproj"/>
     </ItemGroup>
     <ItemGroup>
-        <InternalsVisibleTo Include="Argon.EE" />
+        <InternalsVisibleTo Include="Argon.EE"/>
     </ItemGroup>
 </Project>

@@ -27,3 +27,5 @@ src/Argon.Metrics/Properties/launchSettings.json
 deploy/certs/localhost-key.pem
 
 *.pem
+
+certs/jwt-keys/
