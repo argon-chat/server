@@ -26,10 +26,6 @@ public record ChannelEntity :
     public ICollection<IArchetypeOverwrite> Overwrites
         => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();
 
-    public virtual SpaceCategoryEntity? Category   { get; set; }
-    public         Guid?                CategoryId { get; set; }
-
-
     public static ArgonChannel Map(scoped in ChannelEntity self)
         => new(self.ChannelType, self.SpaceId, self.Id, self.Name, self.Description, Guid.Empty);
 
@@ -41,8 +37,7 @@ public record ChannelEntity :
 
         builder.HasIndex(x => new
         {
-            x.Id,
-            ServerId = x.SpaceId
+            x.SpaceId
         });
     }
 }
