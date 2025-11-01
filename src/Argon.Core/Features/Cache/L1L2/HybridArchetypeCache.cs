@@ -1,7 +1,6 @@
 namespace Argon.Services.L1L2;
 
 using Features.Repositories;
-using Metrics;
 using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
 
@@ -29,12 +28,12 @@ public static class L1L2CacheExtensions
 
 public class ArchetypeAgentHub(IArchetypeCache cache) : IArchetypeAgent
 {
-    public async Task<Archetype?> GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default)
-        => await cache.GetAsync(serverId, archetypeId);
+    public async Task<Archetype?> GetAsync(Guid spaceId, Guid archetypeId, CancellationToken ct = default)
+        => await cache.GetAsync(spaceId, archetypeId);
 
-    public async Task<List<Archetype>> GetAllAsync(Guid serverId, CancellationToken ct = default)
+    public async Task<List<Archetype>> GetAllAsync(Guid spaceId, CancellationToken ct = default)
     {
-        var e = await cache.GetAllAsync(serverId);
+        var e = await cache.GetAllAsync(spaceId);
         return [..e];
     }
 
@@ -52,8 +51,8 @@ public class ArchetypeAgentHub(IArchetypeCache cache) : IArchetypeAgent
 
 public interface IArchetypeAgent
 {
-    Task<Archetype?>      GetAsync(Guid serverId, Guid archetypeId, CancellationToken ct = default);
-    Task<List<Archetype>> GetAllAsync(Guid serverId, CancellationToken ct = default);
+    Task<Archetype?>      GetAsync(Guid spaceId, Guid archetypeId, CancellationToken ct = default);
+    Task<List<Archetype>> GetAllAsync(Guid spaceId, CancellationToken ct = default);
 
     Task<Archetype> DoCreatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
     Task<Archetype> DoUpdatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
@@ -62,91 +61,42 @@ public interface IArchetypeAgent
 public class HybridArchetypeCache(
     HybridCache cache,
     IArchetypeRepository repo,
-    IMetricsCollector metrics,
     INatsClient nats) : IArchetypeCache
 {
-    public async Task<Archetype?> GetAsync(Guid serverId, Guid archetypeId)
-    {
-        var tags = new Dictionary<string, string>
-        {
-            ["server"]    = serverId.ToString(),
-            ["archetype"] = archetypeId.ToString()
-        };
+    public async Task<Archetype?> GetAsync(Guid spaceId, Guid archetypeId)
+        => await cache.GetOrCreateAsync<Archetype>(
+            $"archetype:{spaceId}:{archetypeId}",
+            async ct => await repo.GetByIdAsync(spaceId, archetypeId, ct),
+            tags: [$"server:{spaceId}", "archetype"]
+        );
 
-        return await metrics.TimeAsync(HybridArchetypeCacheMetrics.GetDuration, async () =>
-        {
-            await metrics.CountAsync(HybridArchetypeCacheMetrics.GetCount, tags);
-            return await cache.GetOrCreateAsync<Archetype>(
-                $"archetype:{serverId}:{archetypeId}",
-                async ct => await repo.GetByIdAsync(serverId, archetypeId, ct),
-                tags: [$"server:{serverId}", "archetype"]
-            );
-        }, tags);
-    }
+    public async Task<IReadOnlyList<Archetype>> GetAllAsync(Guid spaceId)
+        => await cache.GetOrCreateAsync<IReadOnlyList<Archetype>>(
+            $"archetypes:{spaceId}",
+            async ct => await repo.GetAllAsync(spaceId, ct),
+            tags: [$"server:{spaceId}", "archetypes"]
+        );
 
-    public async Task<IReadOnlyList<Archetype>> GetAllAsync(Guid serverId)
-    {
-        var tags = new Dictionary<string, string>
-        {
-            ["server"] = serverId.ToString()
-        };
-        return await metrics.TimeAsync(HybridArchetypeCacheMetrics.GetAllDuration, async () =>
-        {
-            await metrics.CountAsync(HybridArchetypeCacheMetrics.GetAllCount, tags);
-            return await cache.GetOrCreateAsync<IReadOnlyList<Archetype>>(
-                $"archetypes:{serverId}",
-                async ct => await repo.GetAllAsync(serverId, ct),
-                tags: [$"server:{serverId}", "archetypes"]
-            );
-        }, tags);
-    }
+    public async Task InvalidateAsync(Guid spaceId, Guid archetypeId)
+        => await cache.RemoveByTagAsync($"server:{spaceId}");
 
-    public async Task InvalidateAsync(Guid serverId, Guid archetypeId)
+    public async Task SignalInvalidationAsync(Guid spaceId, Guid archetypeId, CancellationToken cancellationToken = default)
     {
-        var tags = new Dictionary<string, string>
-        {
-            ["server"]    = serverId.ToString(),
-            ["archetype"] = archetypeId.ToString()
-        };
-        await metrics.TimeAsync(HybridArchetypeCacheMetrics.InvalidateDuration, async () =>
-        {
-            await metrics.CountAsync(HybridArchetypeCacheMetrics.InvalidateCount, tags);
-            await cache.RemoveByTagAsync($"server:{serverId}");
-        }, tags);
-    }
-
-    public async Task SignalInvalidationAsync(Guid serverId, Guid archetypeId, CancellationToken cancellationToken = default)
-    {
-        await InvalidateAsync(serverId, archetypeId);
+        await InvalidateAsync(spaceId, archetypeId);
         await nats.PublishAsync(
             IArchetypeCache.InvalidationSubject,
-            new NatsArchetypeInvalidateEvent(serverId, archetypeId),
+            new NatsArchetypeInvalidateEvent(spaceId, archetypeId),
             cancellationToken: cancellationToken);
     }
 }
 
-public record NatsArchetypeInvalidateEvent(Guid ServerId, Guid ArchetypeId);
+public record NatsArchetypeInvalidateEvent(Guid SpaceId, Guid ArchetypeId);
 
-public static class HybridArchetypeCacheMetrics
-{
-    public static readonly MeasurementId ReceivedMsg             = new("archetypes.nats.received");
-    public static readonly MeasurementId CacheInvalidated        = new("archetypes.cache.invalidated");
-    public static readonly MeasurementId CacheInvalidationError  = new("archetypes.cache.invalidate.error");
-    public static readonly MeasurementId CacheInvalidateDuration = new("archetypes.cache.invalidate.duration");
-
-    public static readonly MeasurementId GetCount           = new("archetypes.cache.get");
-    public static readonly MeasurementId GetAllCount        = new("archetypes.cache.get_all");
-    public static readonly MeasurementId InvalidateCount    = new("archetypes.cache.invalidate");
-    public static readonly MeasurementId GetDuration        = new("archetypes.cache.get.duration");
-    public static readonly MeasurementId GetAllDuration     = new("archetypes.cache.get_all.duration");
-    public static readonly MeasurementId InvalidateDuration = new("archetypes.cache.invalidate.duration");
-}
 
 public class HybridArchetypeCacheAdapter(
     INatsClient nats,
     IServiceProvider provider,
-    ILogger<HybridArchetypeCacheAdapter> logger,
-    IMetricsCollector metrics) : BackgroundService
+    ILogger<HybridArchetypeCacheAdapter> logger) : BackgroundService
 {
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -156,33 +106,16 @@ public class HybridArchetypeCacheAdapter(
             if (msg.Data is null)
                 continue;
 
-            var tags = new Dictionary<string, string>
-            {
-                ["server"]    = msg.Data.ServerId.ToString(),
-                ["archetype"] = msg.Data.ArchetypeId.ToString()
-            };
-
-            await metrics.CountAsync(HybridArchetypeCacheMetrics.ReceivedMsg, tags);
-
-            var start = Stopwatch.GetTimestamp();
-
             try
             {
                 await using var scope = provider.CreateAsyncScope();
                 var             cache = scope.ServiceProvider.GetRequiredService<IArchetypeCache>();
-                await cache.InvalidateAsync(msg.Data.ServerId, msg.Data.ArchetypeId);
-                await metrics.CountAsync(HybridArchetypeCacheMetrics.CacheInvalidated, tags);
+                await cache.InvalidateAsync(msg.Data.SpaceId, msg.Data.ArchetypeId);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to invalidate archetype cache for server {ServerId}, role {RoleId}",
-                    msg.Data.ServerId, msg.Data.ArchetypeId);
-                await metrics.CountAsync(HybridArchetypeCacheMetrics.CacheInvalidationError, tags);
-            }
-            finally
-            {
-                var duration = Stopwatch.GetElapsedTime(start);
-                await metrics.DurationAsync(HybridArchetypeCacheMetrics.CacheInvalidateDuration, duration, tags);
+                logger.LogError(ex, "Failed to invalidate archetype cache for server {SpaceId}, role {RoleId}",
+                    msg.Data.SpaceId, msg.Data.ArchetypeId);
             }
         }
     }
@@ -192,9 +125,9 @@ public interface IArchetypeCache
 {
     public const string InvalidationSubject = "archetypes.invalidate";
 
-    Task<Archetype?>               GetAsync(Guid serverId, Guid archetypeId);
-    Task<IReadOnlyList<Archetype>> GetAllAsync(Guid serverId);
+    Task<Archetype?>               GetAsync(Guid spaceId, Guid archetypeId);
+    Task<IReadOnlyList<Archetype>> GetAllAsync(Guid spaceId);
 
-    Task InvalidateAsync(Guid serverId, Guid archetypeId);
-    Task SignalInvalidationAsync(Guid serverId, Guid roleId, CancellationToken cancellationToken = default);
+    Task InvalidateAsync(Guid spaceId, Guid archetypeId);
+    Task SignalInvalidationAsync(Guid spaceId, Guid roleId, CancellationToken cancellationToken = default);
 }
