@@ -8,9 +8,6 @@
     <File Path="src/AppHost/aspirate-output/docker-compose.yaml" />
   </Folder>
   <Folder Name="/src/">
-    <Project Path="../IonPath/src/ion.runtime.client/ion.runtime.client.csproj" />
-    <Project Path="../IonPath/src/ion.runtime.network/ion.runtime.network.csproj" />
-    <Project Path="../IonPath/src/ion.runtime/ion.runtime.csproj" />
     <Project Path="src/Argon.Api/Argon.Api.csproj" />
     <Project Path="src/Argon.Cassandra/Argon.Cassandra.csproj" Id="d4102e01-48e2-4796-8c3f-1ae701d44c65" />
     <Project Path="src/Argon.CodeGen/Argon.Ion.CodeGen.csproj" />
