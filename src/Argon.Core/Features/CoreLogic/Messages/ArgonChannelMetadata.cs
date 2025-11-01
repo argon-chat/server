@@ -1,8 +1,8 @@
 namespace Argon.Api.Features.CoreLogic.Messages;
 
-public class ArgonChannelMetadata
+public class ArgonChannelMessageCounter
 {
-    public Guid ServerId { get; set; }
+    public Guid SpaceId   { get; set; }
     public Guid ChannelId { get; set; }
-    public ulong LastMessageId { get; set; }
+    public long Value   { get; set; }
 }
