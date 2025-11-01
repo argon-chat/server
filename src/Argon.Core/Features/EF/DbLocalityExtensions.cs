@@ -185,8 +185,8 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
                .Append($"PRIMARY REGION {DelimitIdentifier(cfg.Primary)}");
 
             if (regions.Length > 0)
-                builder.Append($" REGIONS {regions}");
-            builder.Append($" SURVIVE {cfg.Survive}");
+                builder.Append($" REGIONS {regions}"); 
+            //builder.Append($" SURVIVE {cfg.Survive}");
         }
 
         
