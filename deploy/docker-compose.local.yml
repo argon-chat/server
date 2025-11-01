@@ -20,8 +20,8 @@ services:
     ports:
       - "9042:9042"
     volumes:
-      - scylla-data:/var/lib/scylla
-      - scylla-logs:/var/log/scylla
+      - scylla-data2:/var/lib/scylla
+      - scylla-logs2:/var/log/scylla
     networks:
       - argon
     healthcheck:
@@ -31,130 +31,70 @@ services:
       retries: 20
       start_period: 30s
 
-  yb-node-1:
-    image: yugabytedb/yugabyte:2024.2.3.3-b4
-    container_name: yb-node-1
-    hostname: yb-node-1
-    command: [
-      "bash", "-lc",
-      "bin/yugabyted start \
-        --background=false \
-        --base_dir=/home/yugabyte/yb_data \
-        --advertise_address=yb-node-1 \
-        --master_flags=use_node_to_node_encryption=false \
-        --tserver_flags=use_node_to_node_encryption=false"
-    ]
-    volumes:
-      - yb-node-1-data:/home/yugabyte/yb_data
+  cockroach1:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach1
+    hostname: cockroach1
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach1:26257
+      - --http-addr=cockroach1:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=ru-central,zone=ru-3
     ports:
-      - "7000:7000"   # master web ui
-      - "9000:9000"   # tserver web ui
-      - "15433:15433" # ysql web ui
-      - "5433:5433"   # ysql
-    networks:
-      - argon
-    healthcheck:
-      test: ["CMD", "bash", "-lc", "bin/yugabyted status --base_dir=/home/yugabyte/yb_data | grep -q 'Status *: Running'" ]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    ulimits:
-      nofile:
-        soft: 1048576
-        hard: 1048576
-
-  yb-node-2:
-    image: yugabytedb/yugabyte:2024.2.3.3-b4
-    container_name: yb-node-2
-    hostname: yb-node-2
-    volumes:
-      - yb-node-2-data:/home/yugabyte/yb_data
-    depends_on:
-      - yb-node-1
-    restart: on-failure
-    command: [
-      "bash", "-lc",
-      "for i in {1..60}; do (echo > /dev/tcp/yb-node-1/15433) >/dev/null 2>&1 && break; echo 'waiting for yb-node-1:15433'; sleep 2; done; bin/yugabyted start --background=false --base_dir=/home/yugabyte/yb_data --advertise_address=yb-node-2 --join=yb-node-1 --master_flags=use_node_to_node_encryption=false --tserver_flags=use_node_to_node_encryption=false"
-    ]
-    networks:
-      - argon
-    ulimits:
-      nofile:
-        soft: 1048576
-        hard: 1048576
-
-  yb-node-3:
-    image: yugabytedb/yugabyte:2024.2.3.3-b4
-    container_name: yb-node-3
-    hostname: yb-node-3
-    volumes:
-      - yb-node-3-data:/home/yugabyte/yb_data
-    depends_on:
-      - yb-node-1
-    restart: on-failure
-    command: [
-      "bash", "-lc",
-      "for i in {1..60}; do (echo > /dev/tcp/yb-node-1/15433) >/dev/null 2>&1 && break; echo 'waiting for yb-node-1:15433'; sleep 2; done; bin/yugabyted start --background=false --base_dir=/home/yugabyte/yb_data --advertise_address=yb-node-3 --join=yb-node-1 --master_flags=use_node_to_node_encryption=false --tserver_flags=use_node_to_node_encryption=false"
-    ]
-    networks:
-      - argon
-    ulimits:
-      nofile:
-        soft: 1048576
-        hard: 1048576
-
-  postgresql:
-    image: postgres:15
-    container_name: temporal-postgres
-    environment:
-      POSTGRES_PASSWORD: temporal
-      POSTGRES_USER: temporal
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -U temporal -p 5432"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    ports:
-      - "55432:5432"
-    volumes:
-      - temporal-pgdata:/var/lib/postgresql/data
-    networks:
-      - argon
-
-  temporal:
-    image: temporalio/auto-setup:1.25.0
-    container_name: temporal
-    depends_on:
-      postgresql:
-        condition: service_healthy
-    restart: unless-stopped
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=temporal
-      - POSTGRES_PWD=temporal
-      - POSTGRES_SEEDS=postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_ADDRESS=temporal:7233
-    ports:
-      - "7233:7233"
-    networks:
-      - argon
-    volumes:
-      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
-
-  temporal-ui:
-    image: temporalio/ui:2.26.2
-    container_name: temporal-ui
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-    ports:
+      - "26257:26257"
       - "8080:8080"
+    volumes:
+      - cockroach1:/cockroach/cockroach-data
     networks:
       - argon
+
+  cockroach2:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach2
+    hostname: cockroach2
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach2:26257
+      - --http-addr=cockroach2:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=eu-central,zone=eu-1
+    volumes:
+      - cockroach2:/cockroach/cockroach-data
+    networks:
+      - argon
+
+  cockroach3:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach3
+    hostname: cockroach3
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach3:26257
+      - --http-addr=cockroach3:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=us-east,zone=us-1
+    volumes:
+      - cockroach3:/cockroach/cockroach-data
+    networks:
+      - argon
+
+  init:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach-init
+    depends_on:
+      - cockroach1
+      - cockroach2
+      - cockroach3
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 10 && /cockroach/cockroach init --insecure --host=cockroach1:26257"
 
   argon-s3:
     image: chrislusf/seaweedfs
@@ -225,11 +165,10 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
 volumes:
-  scylla-data:
-  scylla-logs:
-  yb-node-1-data:
-  yb-node-2-data:
-  yb-node-3-data:
+  scylla-data2:
+  scylla-logs2:
+  cockroach1:
+  cockroach2:
+  cockroach3:
   argon-s3:
   argon-cache-data:
-  temporal-pgdata:
