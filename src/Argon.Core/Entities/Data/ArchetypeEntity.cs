@@ -11,27 +11,25 @@ public record ArchetypeEntity : ArgonEntityWithOwnership, IArchetype, IEntityTyp
     public static readonly Guid DefaultArchetype_Owner
         = Guid.Parse("11111111-4444-0000-1111-111111111111");
 
-    
-    public virtual SpaceEntity Space { get; set; }
-    
-    public Guid SpaceId { get; set; }
 
-    [MaxLength(64)]
-    public string Name { get; set; } = string.Empty;
-    [MaxLength(512)]
-    public string Description { get; set; } = string.Empty;
+
+    public         Guid        SpaceId { get; set; }
+    public virtual SpaceEntity Space   { get; set; }
+
+
+    public string Name        { get; init; } = string.Empty;
+    public string Description { get; init; } = string.Empty;
 
     public ArgonEntitlement Entitlement { get; set; }
 
     public bool IsMentionable { get; set; }
-    public bool IsLocked      { get; set; }
-    public bool IsHidden      { get; set; }
+    public bool IsLocked      { get; init; }
+    public bool IsHidden      { get; init; }
     public bool IsGroup       { get; set; }
     public bool IsDefault     { get; set; }
 
-    public Color Colour { get; set; }
-    [MaxLength(128)]
-    public string? IconFileId { get; set; } = null;
+    public Color   Colour     { get; set; }
+    public string? IconFileId { get; init; }
 
     public virtual ICollection<SpaceMemberArchetypeEntity> SpaceMemberRoles { get; set; }
         = new List<SpaceMemberArchetypeEntity>();
@@ -44,6 +42,13 @@ public record ArchetypeEntity : ArgonEntityWithOwnership, IArchetype, IEntityTyp
 
         builder.Property(x => x.Colour)
            .HasConversion<ColourConverter>();
+
+        builder.Property(x => x.Entitlement)
+           .HasColumnType("BIGINT")
+           .HasConversion(
+                v => (long)v,
+                v => (ArgonEntitlement)(ulong)v
+            );
     }
 
     public static Archetype Map(scoped in ArchetypeEntity self)
