@@ -21,10 +21,7 @@ public class AuthorizationGrain(
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
 
         if (user is null)
-        {
-            logger.LogWarning("User '{email}' not found", input.email);
             return AuthorizationError.BAD_CREDENTIALS;
-        }
 
         return user.PreferredAuthMode switch
         {
@@ -35,7 +32,25 @@ public class AuthorizationGrain(
         };
     }
 
-    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input)
+    public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync();
+
+        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+
+        if (user is null)
+            return AuthorizationError.BAD_CREDENTIALS;
+
+        return user.PreferredAuthMode switch
+        {
+            ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input, false),
+            ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, requiredMachineId: false),
+            ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, requiredMachineId: false),
+            _                              => AuthorizationError.NONE
+        };
+    }
+
+    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input, bool requiredMachineId = true)
     {
         if (string.IsNullOrEmpty(input.password))
             return AuthorizationError.BAD_CREDENTIALS;
@@ -47,11 +62,16 @@ public class AuthorizationGrain(
             return AuthorizationError.BAD_CREDENTIALS;
         }
 
-        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
-        return await GenerateJwt(user, this.GetUserMachineId());
+        
+        if (requiredMachineId)
+        {
+            await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+            return await GenerateJwt(user, this.GetUserMachineId());
+        }
+        return await GenerateJwt(user);
     }
 
-    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input, bool requirePassword)
+    private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input, bool requirePassword, bool requiredMachineId = true)
     {
         if (requirePassword)
         {
@@ -63,7 +83,7 @@ public class AuthorizationGrain(
         }
 
         var userIp    = this.GetUserIp() ?? "unknown";
-        var machineId = this.GetUserMachineId();
+        var machineId = requiredMachineId ? this.GetUserMachineId() : null;
         var method    = user.PreferredOtpMethod;
 
         if (string.IsNullOrEmpty(input.otpCode))
@@ -87,8 +107,12 @@ public class AuthorizationGrain(
             return AuthorizationError.BAD_OTP;
         }
 
-        await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
-        return await GenerateJwt(user, machineId);
+        if (requiredMachineId)
+        {
+            await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
+            return await GenerateJwt(user, this.GetUserMachineId());
+        }
+        return await GenerateJwt(user);
     }
 
     public async Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input)
@@ -222,4 +246,7 @@ public class AuthorizationGrain(
 
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user, string machineId)
         => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"]);
+
+    private async Task<SuccessAuthorize> GenerateJwt(UserEntity user)
+        => await managerService.GenerateJwt(user.Id, ["argon.app"]);
 }

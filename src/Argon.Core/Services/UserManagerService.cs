@@ -12,4 +12,12 @@ public class UserManagerService(ILogger<UserManagerService> logger, IServiceProv
         var             refresh = jwt.GenerateRefreshToken(id, machineId, scopes);
         return new SuccessAuthorize(access, refresh);
     }
+
+    public async Task<SuccessAuthorize> GenerateJwt(Guid id, string[] scopes)
+    {
+        await using var scope   = provider.CreateAsyncScope();
+        var             jwt     = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>();
+        var             access  = jwt.GenerateAccessToken(id, scopes);
+        return new SuccessAuthorize(access, null);
+    }
 }

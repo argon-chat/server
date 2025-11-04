@@ -10,8 +10,8 @@ public enum OtpMethod
 }
 
 public enum OtpPurpose { SignIn, ChangeEmail, ResetPassword }
-public record SendOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string DeviceId, OtpMethod Method);
-public record VerifyOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string Code, string DeviceId, OtpMethod Method);
+public record SendOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string? DeviceId, OtpMethod Method);
+public record VerifyOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string Code, string? DeviceId, OtpMethod Method);
 
 public sealed record OtpRecord(
     string HashBase64,

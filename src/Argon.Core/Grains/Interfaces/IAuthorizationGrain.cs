@@ -8,6 +8,9 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
     [Alias("Authorize"), AlwaysInterleave]
     Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input);
 
+    [Alias("ExternalAuthorize"), AlwaysInterleave]
+    Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input);
+
     [Alias("Register"), AlwaysInterleave]
     Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input);
 
@@ -19,4 +22,6 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetAuthorizationScenarioFor))]
     Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct);
+
+
 }
