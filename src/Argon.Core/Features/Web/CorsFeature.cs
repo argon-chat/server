@@ -4,13 +4,14 @@ public static class CorsFeature
 {
     public static List<(string scheme, string host)> AllowedHost =
     [
-        ("http", "localhost"), // for testing
-        ("https", "localhost"), // for testing
-        ("app", "index"), // origin in host
-        ("https", "argon.gl"), // base domain
-        ("https", "argon.zone"), // extended apps
-        ("https", "link.argon.gl"), // link app
-        ("https", "meet.argon.gl"), // meet
+        ("http", "localhost"),                        // for testing
+        ("https", "localhost"),                       // for testing
+        ("app", "index"),                             // origin in host
+        ("https", "argon.gl"),                        // base domain
+        ("https", "argon.zone"),                      // extended apps
+        ("https", "link.argon.gl"),                   // link app
+        ("https", "meet.argon.gl"),                   // meet
+        ("https", "aegis.argon.gl"),                  // identity
         ("https", "x-frontend-development.argon.gl"), // for testing
     ];
 

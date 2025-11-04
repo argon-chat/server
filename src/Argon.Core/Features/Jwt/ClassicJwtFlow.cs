@@ -28,6 +28,30 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             Convert.FromBase64String(mhToken));
     }
 
+    public string GenerateAccessToken(Guid userId, IEnumerable<string> scopes)
+    {
+        var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
+        var now   = DateTime.UtcNow;
+
+        var claims = new List<Claim>
+        {
+            new("sub", userId.ToString()),
+            new("type", "access")
+        };
+        claims.AddRange(scopes.Select(s => new Claim("scp", s)));
+
+        var token = new JwtSecurityToken(
+            issuer: _options.Issuer,
+            audience: _options.Audience,
+            claims: claims,
+            notBefore: now,
+            expires: now + _options.AccessTokenLifetime,
+            signingCredentials: creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     public string GenerateAccessToken(Guid userId, string machineId, IEnumerable<string> scopes)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
@@ -78,6 +102,9 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
     }
 
 
+    public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string requiredScope)
+        => ValidateToken(token, "", "access", requiredScope, validateMachineId: false);
+
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string machineId, string requiredScope)
         => ValidateToken(token, machineId, "access", requiredScope);
 
@@ -85,7 +112,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
         => ValidateToken(token, machineId, "refresh", null);
 
     private (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateToken(string token, string machineId, string expectedType,
-        string? requiredScope)
+        string? requiredScope, bool validateMachineId = true)
     {
         var handler = new JwtSecurityTokenHandler();
 
@@ -110,10 +137,14 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
         var type = principal.FindFirst("type")?.Value;
         if (type != expectedType)
             throw new TokenTypeNotAllowed();
-        var mh = principal.FindFirst("mh")?.Value;
-        if (!CompareMachineHash(machineId, mh))
-            throw new MachineIdNotMatchedException();
 
+        if (validateMachineId)
+        {
+            var mh = principal.FindFirst("mh")?.Value;
+            if (!CompareMachineHash(machineId, mh))
+                throw new MachineIdNotMatchedException();
+        }
+        
         var scopes = principal.FindAll("scp").Select(c => c.Value).ToArray();
 
         if (requiredScope != null && !scopes.Contains(requiredScope))

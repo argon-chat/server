@@ -234,7 +234,7 @@ public static class HostModeExtensions
 
 public static class RunHostModeExtensions
 {
-    public static WebApplication UseSingleInstanceWorkloads(this WebApplication app)
+    public static WebApplication UseSingleInstanceWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
     {
         app.UseServerTiming();
 
@@ -246,10 +246,12 @@ public static class RunHostModeExtensions
             app.MapRpcEndpoints();
             app.UseWebSockets();
         }
-        app.MapGet("/", () => new {
-            version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-        });
-        app.UsePreStopHook();
+        if (hasMapRoot)
+            app.MapGet("/", () => new {
+                version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+            });
+        if (hasMapHooks)
+            app.UsePreStopHook();
 
         return app;
     }
