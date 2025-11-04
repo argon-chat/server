@@ -21,6 +21,9 @@ public static class L1L2CacheExtensions
                 Flags                = HybridCacheEntryFlags.DisableCompression
             };
         });
+    }
+    public static void AddArchetypesCache(this WebApplicationBuilder builder)
+    {
         builder.Services.AddScoped<IArchetypeAgent, ArchetypeAgentHub>();
         builder.Services.AddScoped<IArchetypeCache, HybridArchetypeCache>();
     }
