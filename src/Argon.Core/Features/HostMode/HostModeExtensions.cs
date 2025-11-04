@@ -257,7 +257,7 @@ public static class RunHostModeExtensions
     }
 
 
-    public static WebApplication UseSingleRegionWorkloads(this WebApplication app)
+    public static WebApplication UseSingleRegionWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
     {
         app.UseServerTiming();
 
@@ -273,10 +273,12 @@ public static class RunHostModeExtensions
                 app.UseSerilogRequestLogging();
             app.UseRewrites();
         }
-        app.MapGet("/", () => new {
-            version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-        });
-        app.UsePreStopHook();
+        if (hasMapRoot)
+            app.MapGet("/", () => new {
+                version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+            });
+        if (hasMapHooks)
+            app.UsePreStopHook();
 
         return app;
     }
