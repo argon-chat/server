@@ -164,7 +164,6 @@ public static class HostModeExtensions
         builder.MapBetaOptions();
         builder.AddVaultConfiguration();
         builder.AddVaultClient();
-        builder.AddArgonCacheDatabase();
         builder.Services.AddServerTiming();
         builder.WebHost.UseQuic();
         builder.AddLogging();
@@ -191,6 +190,9 @@ public static class HostModeExtensions
                 options.DataCenterId  = 1; 
                 options.UseConsoleLog = true;
             });
+            builder.AddOtpCodes();
+            builder.AddArgonCacheDatabase();
+            builder.AddUserPresenceFeature();
         }
 
         builder.AddArgonAuthorization();
@@ -198,9 +200,7 @@ public static class HostModeExtensions
         builder.AddRewrites();
         builder.AddKineticaFSApi();
         builder.AddSelectiveForwardingUnit();
-        builder.AddOtpCodes();
         builder.AddCaptchaFeature();
-        builder.AddUserPresenceFeature();
         builder.AddSocialIntegrations();
         builder.Services.AddWebSockets(x =>
         {
@@ -221,8 +221,8 @@ public static class HostModeExtensions
                 builder.AddSingleOrleansClient();
             else if (builder.IsMultiRegion())
                 builder.AddMultiOrleansClient();
-            else
-                throw new InvalidOperationException("Cannot determine configuration for entry point role");
+            //else
+            //    throw new InvalidOperationException("Cannot determine configuration for entry point role");
         }
         else
             builder.AddWorkerOrleans();
