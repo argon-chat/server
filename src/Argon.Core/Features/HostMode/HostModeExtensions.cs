@@ -24,6 +24,7 @@ using Repositories;
 using Sagas;
 using Serilog;
 using Services;
+using Services.L1L2;
 using Sfu;
 using SnowflakeId.DependencyInjection;
 using Template;
@@ -176,25 +177,9 @@ public static class HostModeExtensions
             o.ProfilesSampleRate  = 1.0;
             o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
         });
-        if (!builder.IsEntryPointRole())
-        {
-            builder.AddBeforeMigrations();
-            builder.AddPooledDatabase<ApplicationDbContext>();
-            builder.AddCassandraPooledContext();
-            builder.AddEfRepositories();
-            builder.AddArgonPermissions();
-            builder.AddSagas();
-            builder.AddMessagesLayout();
-            builder.Services.AddSnowflakeUniqueId(options =>
-            {
-                options.DataCenterId  = 1; 
-                options.UseConsoleLog = true;
-            });
-            builder.AddOtpCodes();
-            builder.AddArgonCacheDatabase();
-            builder.AddUserPresenceFeature();
-        }
-
+       
+        builder.AddUserPresenceFeature();
+        builder.AddArgonCacheDatabase();
         builder.AddArgonAuthorization();
         builder.AddJwt();
         builder.AddRewrites();
@@ -207,6 +192,23 @@ public static class HostModeExtensions
             x.KeepAliveInterval = TimeSpan.FromMinutes(1);
             x.KeepAliveTimeout  = TimeSpan.MaxValue;
         });
+
+        if (!builder.IsEntryPointRole())
+        {
+            builder.AddBeforeMigrations();
+            builder.AddPooledDatabase<ApplicationDbContext>();
+            builder.AddCassandraPooledContext();
+            builder.AddEfRepositories();
+            builder.AddArgonPermissions();
+            builder.AddSagas();
+            builder.AddMessagesLayout();
+            builder.Services.AddSnowflakeUniqueId(options => {
+                options.DataCenterId  = 1;
+                options.UseConsoleLog = true;
+            });
+            builder.AddOtpCodes();
+            builder.AddArchetypesCache();
+        }
 
         if (builder.IsHybridRole())
         {
