@@ -105,16 +105,20 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
 
 
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string requiredScope)
-        => ValidateToken(token, "", "access", requiredScope, validateMachineId: false);
+        => ValidateToken(token, "", "access", requiredScope, out _, false);
+
+    public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string requiredScope,
+        out List<Claim> claims)
+        => ValidateToken(token, "", "access", requiredScope, out claims, validateMachineId: false);
 
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string machineId, string requiredScope)
-        => ValidateToken(token, machineId, "access", requiredScope);
+        => ValidateToken(token, machineId, "access", requiredScope, out _);
 
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateRefreshToken(string token, string machineId)
-        => ValidateToken(token, machineId, "refresh", null);
+        => ValidateToken(token, machineId, "refresh", null, out _);
 
     private (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateToken(string token, string machineId, string expectedType,
-        string? requiredScope, bool validateMachineId = true)
+        string? requiredScope, out List<Claim> claims, bool validateMachineId = true)
     {
         var handler = new JwtSecurityTokenHandler();
 
@@ -146,7 +150,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             if (!CompareMachineHash(machineId, mh))
                 throw new MachineIdNotMatchedException();
         }
-        
+
         var scopes = principal.FindAll("scp").Select(c => c.Value).ToArray();
 
         if (requiredScope != null && !scopes.Contains(requiredScope))
@@ -156,6 +160,9 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
                   principal.FindFirstValue("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
         if (!Guid.TryParse(sub, out var uid))
             throw new BadUserIdException();
+
+
+        claims = principal.Claims.ToList();
 
         return (uid, machineId, scopes);
     }
