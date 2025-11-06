@@ -28,7 +28,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             Convert.FromBase64String(mhToken));
     }
 
-    public string GenerateAccessToken(Guid userId, IEnumerable<string> scopes)
+    public string GenerateAccessToken(Guid userId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
         var now   = DateTime.UtcNow;
@@ -38,6 +38,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             new("sub", userId.ToString()),
             new("type", "access")
         };
+        claims.AddRange(additionalClaims ?? []);
         claims.AddRange(scopes.Select(s => new Claim("scp", s)));
 
         var token = new JwtSecurityToken(
@@ -52,7 +53,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public string GenerateAccessToken(Guid userId, string machineId, IEnumerable<string> scopes)
+    public string GenerateAccessToken(Guid userId, string machineId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
         var now   = DateTime.UtcNow;
@@ -63,6 +64,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             new("mh", HashMachineId(machineId)),
             new("type", "access")
         };
+        claims.AddRange(additionalClaims ?? []);
         claims.AddRange(scopes.Select(s => new Claim("scp", s)));
 
         var token = new JwtSecurityToken(
