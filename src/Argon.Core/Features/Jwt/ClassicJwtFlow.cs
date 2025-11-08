@@ -104,6 +104,29 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
     }
 
 
+    public string GenerateRefreshToken(Guid userId, IEnumerable<string> scopes)
+    {
+        var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
+
+        var claims = new List<Claim>
+        {
+            new("sub", userId.ToString()),
+            new("type", "refresh")
+        };
+        claims.AddRange(scopes.Select(s => new Claim("scp", s)));
+
+        var token = new JwtSecurityToken(
+            _options.Issuer,
+            _options.Audience,
+            claims,
+            DateTime.UtcNow,
+            DateTime.UtcNow.AddYears(10),
+            creds
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string requiredScope)
         => ValidateToken(token, "", "access", requiredScope, out _, false);
 
