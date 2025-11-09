@@ -1,6 +1,6 @@
 namespace Argon.Core.Entities.Data;
 
-using Argon.Api.Entities.Data;
+using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -9,6 +9,8 @@ public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeam
     public Guid TeamId { get; set; }
 
     public Guid OwnerId { get; set; }
+
+    public string Name { get; set; }
 
     public virtual UserEntity Owner { get; set; }
 
@@ -20,6 +22,7 @@ public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeam
 
     public void Configure(EntityTypeBuilder<DevTeamEntity> builder)
     {
+        builder.ToTable("DevTeamEntity");
         builder.HasKey(x => x.TeamId);
         builder.HasOne(x => x.Owner)
            .WithMany()
@@ -33,6 +36,46 @@ public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeam
         builder.HasMany(x => x.Applications)
            .WithOne(x => x.Team)
            .HasForeignKey(x => x.TeamId);
+    }
+}
+
+public class DevTeamMemberInvite : IEntityTypeConfiguration<DevTeamMemberInvite>
+{
+    public Guid TeamId     { get; set; }
+    public Guid FromUserId { get; set; }
+    public Guid ToUserId   { get; set; }
+
+    public          DateTime       CreatedAt { get; set; } = DateTime.UtcNow;
+    public          bool           Accepted  { get; set; }
+    public          bool           Revoked   { get; set; }
+    public required DateTimeOffset ExpireAt  { get; set; }
+
+    public virtual DevTeamEntity Team { get; set; } = null!;
+
+    public void Configure(EntityTypeBuilder<DevTeamMemberInvite> builder)
+    {
+        builder.HasKey(x => new
+        {
+            x.TeamId,
+            x.ToUserId
+        });
+        builder.HasIndex(x => new
+        {
+            x.TeamId,
+            x.ToUserId
+        }).IsUnique();
+
+        builder.HasOne(x => x.Team)
+           .WithMany()
+           .HasForeignKey(x => x.TeamId)
+           .OnDelete(DeleteBehavior.Cascade);
+
+        builder.Property(x => x.ExpireAt)
+           .HasColumnType("TIMESTAMPTZ")
+           .IsRequired();
+
+        builder.WithTTL(x => x.ExpireAt, CronValue.Daily,
+            batchSize: 5000, rangeConcurrency: 4, deleteRateLimit: 52428800);
     }
 }
 
@@ -85,6 +128,7 @@ public enum DevAppType
 {
     Application = 0,
     Bot         = 1,
+    WebAPp      = 2
 }
 
 public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEntity>

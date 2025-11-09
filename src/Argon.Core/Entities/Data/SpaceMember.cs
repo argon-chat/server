@@ -35,5 +35,13 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
         builder.HasOne(x => x.User)
            .WithMany(x => x.ServerMembers)
            .HasForeignKey(x => x.UserId);
+
+        builder.HasIndex(x => x.UserId)
+           .IncludeProperties(x => new
+            {
+                x.SpaceId,
+                x.IsDeleted
+            })
+           .IsCreatedConcurrently();
     }
 }
