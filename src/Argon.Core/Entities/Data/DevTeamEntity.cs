@@ -70,8 +70,13 @@ public class DevTeamMemberEntity : IEntityTypeConfiguration<DevTeamMemberEntity>
            .HasConversion(
                 v => JsonConvert.SerializeObject(v),
                 v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>())
+           .Metadata.SetValueComparer(
+                new ValueComparer<List<string>>(
+                    (left, right) => left.SequenceEqual(right),
+                    value => value.Aggregate(0, (hash, element) => HashCode.Combine(hash, element.GetHashCode())),
+                    value => value.ToList()));
+            builder.Property(x => x.Claims)
            .HasColumnType("jsonb");
-    }
 }
 public enum DevAppType
 {
