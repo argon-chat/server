@@ -1,6 +1,7 @@
 namespace Argon.Core.Entities.Data;
 
 using Argon.Api.Entities.Data;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeamEntity>
@@ -75,9 +76,11 @@ public class DevTeamMemberEntity : IEntityTypeConfiguration<DevTeamMemberEntity>
                     (left, right) => left.SequenceEqual(right),
                     value => value.Aggregate(0, (hash, element) => HashCode.Combine(hash, element.GetHashCode())),
                     value => value.ToList()));
-            builder.Property(x => x.Claims)
+        builder.Property(x => x.Claims)
            .HasColumnType("jsonb");
+    }
 }
+
 public enum DevAppType
 {
     Application = 0,
@@ -116,6 +119,7 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
         builder.HasIndex(x => x.ClientId).IsUnique();
     }
 }
+
 public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
 {
     public required string BotToken { get; set; }
