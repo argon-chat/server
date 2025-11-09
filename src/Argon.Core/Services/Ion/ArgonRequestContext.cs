@@ -7,7 +7,7 @@ public static class ArgonRequestContext
     public static ArgonRequestContextData Current
         => _current.Value ?? throw new InvalidOperationException("No active request context");
 
-    internal static void Set(ArgonRequestContextData data) => _current.Value = data;
+    public static   void Set(ArgonRequestContextData data) => _current.Value = data;
     internal static void Clear()                           => _current.Value = null;
 }
 
@@ -24,7 +24,9 @@ public sealed class ArgonRequestContextData
     public required Guid?             UserId     { get; init; }
     public required AsyncServiceScope Scope      { get; init; }
 
-    public IClusterClient ClusterClient => Scope.ServiceProvider.GetRequiredService<IClusterClient>();
+
+    public IDictionary<string, string> Props         { get; init; } = new Dictionary<string, string>();
+    public IClusterClient              ClusterClient => Scope.ServiceProvider.GetRequiredService<IClusterClient>();
 }
 
 public static class ServiceEx
@@ -34,11 +36,12 @@ public static class ServiceEx
 
     public static T GetGrain<T>(this IIonService service, Guid grainKey) where T : IGrainWithGuidKey
         => ArgonRequestContext.Current.ClusterClient.GetGrain<T>(grainKey);
+
     public static T GetGrain<T>(this IIonService service, string grainKey) where T : IGrainWithStringKey
         => ArgonRequestContext.Current.ClusterClient.GetGrain<T>(grainKey);
 
-    public static Guid GetUserId(this IIonService service) => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
-    public static string GetMachineId(this IIonService service) => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
-    public static Guid GetSessionId(this IIonService service) => ArgonRequestContext.Current.SessionId;
+    public static Guid   GetUserId(this IIonService service)      => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
+    public static string GetMachineId(this IIonService service)   => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
+    public static Guid   GetSessionId(this IIonService service)   => ArgonRequestContext.Current.SessionId;
     public static string GetUserCountry(this IIonService service) => ArgonRequestContext.Current.Region;
 }
