@@ -30,7 +30,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<DevTeamEntity>       TeamEntities       => Set<DevTeamEntity>();
     public DbSet<DevAppEntity>        AppEntities        => Set<DevAppEntity>();
     public DbSet<DevTeamMemberEntity> MemberTeamEntities => Set<DevTeamMemberEntity>();
-    public DbSet<DevTeamEntity>       BotEntities        => Set<DevTeamEntity>();
+    public DbSet<BotEntity>           BotEntities        => Set<BotEntity>();
 
     #endregion
 
