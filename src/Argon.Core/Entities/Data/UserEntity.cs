@@ -1,6 +1,7 @@
 namespace Argon.Entities;
 
 using Api.Features.CoreLogic.Otp;
+using Core.Entities.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -16,7 +17,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public          string? PasswordDigest { get; set; } = null;
     public          string? AvatarFileId   { get; set; } = null;
 
-    public ICollection<SpaceMemberEntity> ServerMembers { get; set; } = new List<SpaceMemberEntity>();
+    public         ICollection<SpaceMemberEntity>   ServerMembers   { get; set; } = new List<SpaceMemberEntity>();
+    public virtual ICollection<DevTeamMemberEntity> TeamMemberships { get; set; } = new List<DevTeamMemberEntity>();
 
     public DateOnly? DateOfBirth { get; set; }
 
@@ -35,7 +37,7 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public bool AllowedSendOptionalEmails { get; set; }
     public bool AgreeTOS                  { get; set; }
 
-
+    public virtual BotEntity BotEntity { get; set; }
 
 
     public LockdownReason  LockdownReason       { get; set; }

@@ -32,12 +32,33 @@ using Vault;
 using Web;
 public static class HostModeExtensions
 {
-    public static WebApplicationBuilder AddSingleInstanceWorkload(this WebApplicationBuilder builder)
+    extension (WebApplicationBuilder builder)
     {
-        builder.AddDefaultWorkloadServices();
-        builder.Services.AddServerTiming();
+        public WebApplicationBuilder AddSingleInstanceWorkload()
+        {
+            builder.AddDefaultWorkloadServices();
+            builder.Services.AddServerTiming();
 
-        if (builder.IsEntryPointRole())
+            if (builder.IsEntryPointRole())
+            {
+                builder.UseKestrelDefaults();
+            }
+
+            if (builder.IsEntryPointRole() || builder.IsHybridRole())
+            {
+                builder.AddDefaultCors();
+                builder.Services.AddControllers()
+                   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+                builder.Services.AddAuthorization();
+            }
+            if (builder.IsHybridRole())
+                builder.AddTemplateEngine();
+
+
+            return builder;
+        }
+
+        public WebApplicationBuilder UseKestrelDefaults()
         {
             builder.WebHost.ConfigureKestrel(options => {
                 options.ListenAnyIP(5002, listenOptions => {
@@ -78,158 +99,108 @@ public static class HostModeExtensions
                     listenOptions.UseConnectionLogging();
                 });
             });
+            return builder;
         }
 
-        if (builder.IsEntryPointRole() || builder.IsHybridRole())
+        public WebApplicationBuilder AddSingleRegionWorkloads()
         {
-            builder.AddDefaultCors();
-            builder.Services.AddControllers()
-               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-            builder.Services.AddAuthorization();
-        }
-        if (builder.IsHybridRole())
+            builder.Services.AddSingleton<IArgonRegionalBus, ArgonRegionalBus>();
+            builder.AddDefaultWorkloadServices();
+            builder.AddGeoIpSupport();
+            if (builder.IsEntryPointRole() || builder.IsHybridRole())
+            {
+                builder.AddDefaultCors();
+                builder.UseKestrelDefaults();
+                builder.Services.AddControllers()
+                   .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+                builder.Services.AddAuthorization();
+            }
+
+            builder.AddKubeResources();
             builder.AddTemplateEngine();
 
-
-        return builder;
-    }
-
-    public static WebApplicationBuilder AddSingleRegionWorkloads(this WebApplicationBuilder builder)
-    {
-        builder.Services.AddSingleton<IArgonRegionalBus, ArgonRegionalBus>();
-        builder.AddDefaultWorkloadServices();
-        builder.AddGeoIpSupport();
-        if (builder.IsEntryPointRole() || builder.IsHybridRole())
-        {
-            builder.AddDefaultCors();
-            builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5002, listenOptions => {
-                    if (builder.IsUseLocalHostCerts())
-                    {
-                        static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
-                        {
-                            if (!File.Exists("localhost.pfx"))
-                                throw new Exception("Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
-
-                            var cert = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
-
-                            var hash    = SHA256.HashData(cert.RawData);
-                            var certStr = Convert.ToBase64String(hash);
-
-                            builder.Configuration["Transport:CertificateFingerprint"] = certStr;
-
-                            return cert;
-                        }
-
-                        listenOptions.UseHttps(LoadLocalhostCerts(builder));
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
-                    }
-                    else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
-                    {
-                        listenOptions.UseHttps(x => {
-                            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
-                                "/etc/tls/tls.crt",
-                                "/etc/tls/tls.key"
-                            );
-                        });
-                        listenOptions.DisableAltSvcHeader = false;
-                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
-                    }
-                    else
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-
-                    listenOptions.UseConnectionLogging();
-                });
-            });
-            builder.Services.AddControllers()
-               .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
-            builder.Services.AddAuthorization();
+            return builder;
         }
 
-        builder.AddKubeResources();
-        builder.AddTemplateEngine();
+        public WebApplicationBuilder AddMultiRegionWorkloads()
+        {
+            throw null;
+            builder.AddSingleRegionWorkloads();
+            // TODO
+            return builder;
+        }
 
-        return builder;
-    }
-
-    public static WebApplicationBuilder AddMultiRegionWorkloads(this WebApplicationBuilder builder)
-    {
-        throw null;
-        builder.AddSingleRegionWorkloads();
-        // TODO
-        return builder;
-    }
-
-    public static WebApplicationBuilder AddDefaultWorkloadServices(this WebApplicationBuilder builder)
-    {
-        builder.MapBetaOptions();
-        builder.AddVaultConfiguration();
-        builder.AddVaultClient();
-        builder.Services.AddServerTiming();
-        builder.WebHost.UseQuic();
-        builder.AddLogging();
-        builder.Services.AddMessagePipe();
-        builder.WebHost.UseSentry(o => {
-            o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
-            o.Debug               = true;
-            o.AutoSessionTracking = true;
-            o.TracesSampleRate    = 1.0;
-            o.ProfilesSampleRate  = 1.0;
-            o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
-        });
+        public WebApplicationBuilder AddDefaultWorkloadServices()
+        {
+            builder.MapBetaOptions();
+            builder.AddVaultConfiguration();
+            builder.AddVaultClient();
+            builder.Services.AddServerTiming();
+            builder.WebHost.UseQuic();
+            builder.AddLogging();
+            builder.Services.AddMessagePipe();
+            builder.WebHost.UseSentry(o => {
+                o.Dsn                 = builder.Configuration.GetConnectionString("Sentry");
+                o.Debug               = true;
+                o.AutoSessionTracking = true;
+                o.TracesSampleRate    = 1.0;
+                o.ProfilesSampleRate  = 1.0;
+                o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
+            });
        
-        builder.AddUserPresenceFeature();
-        builder.AddArgonCacheDatabase();
-        builder.AddArgonAuthorization();
-        builder.AddJwt();
-        builder.AddRewrites();
-        builder.AddKineticaFSApi();
-        builder.AddSelectiveForwardingUnit();
-        builder.AddCaptchaFeature();
-        builder.AddSocialIntegrations();
-        builder.Services.AddWebSockets(x =>
-        {
-            x.KeepAliveInterval = TimeSpan.FromMinutes(1);
-            x.KeepAliveTimeout  = TimeSpan.MaxValue;
-        });
-
-        if (!builder.IsEntryPointRole())
-        {
-            builder.AddBeforeMigrations();
-            builder.AddPooledDatabase<ApplicationDbContext>();
-            builder.AddCassandraPooledContext();
-            builder.AddEfRepositories();
-            builder.AddArgonPermissions();
-            builder.AddSagas();
-            builder.AddMessagesLayout();
-            builder.Services.AddSnowflakeUniqueId(options => {
-                options.DataCenterId  = 1;
-                options.UseConsoleLog = true;
+            builder.AddUserPresenceFeature();
+            builder.AddArgonCacheDatabase();
+            builder.AddArgonAuthorization();
+            builder.AddJwt();
+            builder.AddRewrites();
+            builder.AddKineticaFSApi();
+            builder.AddSelectiveForwardingUnit();
+            builder.AddCaptchaFeature();
+            builder.AddSocialIntegrations();
+            builder.Services.AddWebSockets(x =>
+            {
+                x.KeepAliveInterval = TimeSpan.FromMinutes(1);
+                x.KeepAliveTimeout  = TimeSpan.MaxValue;
             });
-            builder.AddOtpCodes();
-            builder.AddArchetypesCache();
-        }
 
-        if (builder.IsHybridRole())
-        {
-            if (!builder.IsSingleInstance())
-                throw new InvalidOperationException("Hybrid role is only allowed in single instance mode");
-            builder.AddWorkerOrleans();
-            builder.AddShimsForHybridRole();
-        }
-        else if (builder.IsEntryPointRole())
-        {
-            if (builder.IsSingleRegion())
-                builder.AddSingleOrleansClient();
-            else if (builder.IsMultiRegion())
-                builder.AddMultiOrleansClient();
-            //else
-            //    throw new InvalidOperationException("Cannot determine configuration for entry point role");
-        }
-        else
-            builder.AddWorkerOrleans();
+            if (!builder.IsEntryPointRole())
+            {
+                builder.AddBeforeMigrations();
+                builder.AddPooledDatabase<ApplicationDbContext>();
+                builder.AddCassandraPooledContext();
+                builder.AddEfRepositories();
+                builder.AddArgonPermissions();
+                builder.AddSagas();
+                builder.AddMessagesLayout();
+                builder.Services.AddSnowflakeUniqueId(options => {
+                    options.DataCenterId  = 1;
+                    options.UseConsoleLog = true;
+                });
+                builder.AddOtpCodes();
+                builder.AddArchetypesCache();
+            }
 
-        return builder;
+            if (builder.IsHybridRole())
+            {
+                if (!builder.IsSingleInstance())
+                    throw new InvalidOperationException("Hybrid role is only allowed in single instance mode");
+                builder.AddWorkerOrleans();
+                builder.AddShimsForHybridRole();
+            }
+            else if (builder.IsEntryPointRole())
+            {
+                if (builder.IsSingleRegion())
+                    builder.AddSingleOrleansClient();
+                else if (builder.IsMultiRegion())
+                    builder.AddMultiOrleansClient();
+                //else
+                //    throw new InvalidOperationException("Cannot determine configuration for entry point role");
+            }
+            else
+                builder.AddWorkerOrleans();
+
+            return builder;
+        }
     }
 }
 
