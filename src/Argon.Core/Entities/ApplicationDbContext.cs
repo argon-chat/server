@@ -1,6 +1,7 @@
 namespace Argon.Entities;
 
 using Api.Entities.Data;
+using Argon.Core.Entities.Data;
 using Argon.Features.EF;
 using System.Drawing;
 using static ArgonEntitlement;
@@ -23,6 +24,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonItemNotificationEntity>       UnreadInventoryItems         => Set<ArgonItemNotificationEntity>();
     public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
+
+    #region Apps
+
+    public DbSet<DevTeamEntity>       TeamEntities       => Set<DevTeamEntity>();
+    public DbSet<DevAppEntity>        AppEntities        => Set<DevAppEntity>();
+    public DbSet<DevTeamMemberEntity> MemberTeamEntities => Set<DevTeamMemberEntity>();
+    public DbSet<BotEntity>           BotEntities        => Set<BotEntity>();
+
+    #endregion
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());

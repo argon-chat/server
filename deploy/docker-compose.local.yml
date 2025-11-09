@@ -92,6 +92,8 @@ services:
       - cockroach1
       - cockroach2
       - cockroach3
+    networks:
+      - argon
     entrypoint: ["/bin/sh", "-c"]
     command: >
       "sleep 10 && /cockroach/cockroach init --insecure --host=cockroach1:26257"
