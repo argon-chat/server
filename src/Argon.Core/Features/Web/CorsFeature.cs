@@ -13,6 +13,7 @@ public static class CorsFeature
         ("https", "meet.argon.gl"),                   // meet
         ("https", "aegis.argon.gl"),                  // identity
         ("https", "x-frontend-development.argon.gl"), // for testing
+        ("https", "local.argon.gl")                   // for testing
     ];
 
     public static void AddDefaultCors(this WebApplicationBuilder builder)
