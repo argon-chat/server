@@ -5,6 +5,86 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
 
+public sealed class OAuthJwtFlow(IOptions<JwtOptions> options, WrapperForSignKey keyProvider)
+{
+    public string Generate(ClaimsPrincipal principal)
+    {
+        var creds   = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
+        var handler = new JwtSecurityTokenHandler();
+        var token = handler.CreateJwtSecurityToken(
+            issuer: "https://aegis.argon.gl",
+            audience: "ArgonExternal",
+            subject: (ClaimsIdentity)principal.Identity!,
+            expires: DateTime.UtcNow.AddDays(3),
+            signingCredentials: creds
+        );
+        return handler.WriteToken(token);
+    }
+
+    public string GenerateServiceToken(string clientId)
+    {
+        var principal = new ClaimsPrincipal(new ClaimsIdentity(
+            [new Claim("client_id", clientId)], "ServiceToken"));
+        return Generate(principal);
+    }
+
+    public string GenerateRefreshToken(string clientId, ClaimsPrincipal principal)
+    {
+        var creds   = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
+        var handler = new JwtSecurityTokenHandler();
+        var jti     = Guid.NewGuid().ToString("N");
+        var token = handler.CreateJwtSecurityToken(
+
+            new SecurityTokenDescriptor()
+            {
+                Issuer = "https://aegis.argon.gl",
+                SigningCredentials = creds,
+                Claims = new Dictionary<string, object>()
+                {
+                    {JwtRegisteredClaimNames.Jti, jti},
+                    {"client_id", clientId}
+                },
+                Audience = "ArgonExternal",
+                Subject = (ClaimsIdentity)principal.Identity!,
+                Expires = DateTime.UtcNow.AddDays(30),
+            }
+            
+        );
+        return handler.WriteToken(token);
+    }
+
+    public bool ValidateRefreshToken(string token, out ClaimsPrincipal principal)
+    {
+        var creds   = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
+        var handler = new JwtSecurityTokenHandler();
+        try
+        {
+            var p = handler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidIssuer              = "https://aegis.argon.gl",
+                ValidAudience            = "ArgonExternal",
+                IssuerSigningKey         = creds.Key,
+                ValidateIssuerSigningKey = true,
+                ValidateLifetime         = true
+            }, out _);
+            principal = p;
+            return true;
+        }
+        catch
+        {
+            principal = new ClaimsPrincipal();
+            return false;
+        }
+    }
+
+    public string ExtractId(string token)
+    {
+        var handler = new JwtSecurityTokenHandler();
+        var jwt     = handler.ReadJwtToken(token);
+        return jwt.Id;
+    }
+}
+
 public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignKey keyProvider)
 {
     private readonly JwtOptions _options = options.Value;
@@ -139,6 +219,54 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
 
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateRefreshToken(string token, string machineId)
         => ValidateToken(token, machineId, "refresh", null, out _);
+
+    public bool TryValidateRefreshToken(string token, string machineId, out (Guid userId, string machineId, IReadOnlyList<string> scopes) data)
+    {
+        try
+        {
+            data = ValidateToken(token, machineId, "refresh", null, out _);
+            return true;
+        }
+        catch(MachineIdNotMatchedException)
+        {
+            data = default;
+            return false;
+        }
+        catch (BadUserIdException)
+        {
+            data = default;
+            return false;
+        }
+        catch (TokenTypeNotAllowed)
+        {
+            data = default;
+            return false;
+        }
+    }
+
+    public bool TryValidateRefreshToken(string token, out (Guid userId, string machineId, IReadOnlyList<string> scopes) data)
+    {
+        try
+        {
+            data = ValidateToken(token, "", "refresh", null, out _, false);
+            return true;
+        }
+        catch (MachineIdNotMatchedException)
+        {
+            data = default;
+            return false;
+        }
+        catch (BadUserIdException)
+        {
+            data = default;
+            return false;
+        }
+        catch (TokenTypeNotAllowed)
+        {
+            data = default;
+            return false;
+        }
+    }
 
     private (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateToken(string token, string machineId, string expectedType,
         string? requiredScope, out List<Claim> claims, bool validateMachineId = true)
