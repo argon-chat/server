@@ -7,7 +7,7 @@ public interface IAppsManagementGrain : IGrainWithGuidKey
     //Task<Guid> CreateTeamAsync(Guid ownerId, string name, CancellationToken ct = default);
 
     [Alias("GetCredentialsForBotAsync")]
-    Task<BotCredentialsInfo> GetCredentialsForBotAsync(string clientId, CancellationToken ct = default);
+    Task<BotCredentialsInfo?> GetCredentialsForBotAsync(string clientId, CancellationToken ct = default);
 }
 
 public record BotCredentialsInfo(
