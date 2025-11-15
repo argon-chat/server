@@ -139,14 +139,16 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
     public         Guid          TeamId { get; set; }
     public virtual DevTeamEntity Team   { get; set; } = null!;
 
-    public required string  Name        { get; set; }
-    public          string? Description { get; set; }
+    public          bool    IsInternalApp { get; set; }
+    public required string  Name          { get; set; }
+    public          string? Description   { get; set; }
 
     public string  ClientId        { get; set; } = null!;
     public string  ClientSecret    { get; set; } = null!;
     public string? VerificationKey { get; set; }
 
     public List<string> RequiredScopes { get; set; } = new();
+    public List<string> AllowedRedirects { get; set; } = new();
 
     public DevAppType AppType { get; set; } = DevAppType.Application;
 
@@ -166,6 +168,10 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
 
         builder
            .Property(x => x.RequiredScopes)
+           .HasColumnType("text[]");
+
+        builder
+           .Property(x => x.AllowedRedirects)
            .HasColumnType("text[]");
     }
 }
