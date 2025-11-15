@@ -21,12 +21,12 @@ public record JwtOptions
 }
 
 public record KeyPair(string privateKey, string publicKey, string? password);
-
 public sealed class WrapperForSignKey
 {
     public SecurityKey PrivateKey { get; }
-    public SecurityKey PublicKey  { get; }
-    public string      Algorithm  { get; }
+    public SecurityKey PublicKey { get; }
+    public string Algorithm { get; }
+    public string Kid { get; }
 
     public WrapperForSignKey(IOptions<JwtOptions> options)
     {
@@ -36,15 +36,49 @@ public sealed class WrapperForSignKey
             throw new InvalidOperationException("JwtOptions: both PrivateKey and PublicKey must be specified.");
 
         PrivateKey = LoadKey(jwt.privateKey, jwt.password, isPrivate: true);
-        PublicKey  = LoadKey(jwt.publicKey, jwt.password, isPrivate: false);
+        PublicKey = LoadKey(jwt.publicKey, jwt.password, isPrivate: false);
 
         Algorithm = GetDefaultAlgorithm(PrivateKey);
+
+        Kid = ComputeKid(PublicKey); 
+    }
+
+    private static string ComputeKid(SecurityKey key)
+    {
+        using var sha = SHA256.Create();
+
+        if (key is ECDsaSecurityKey ec)
+        {
+            var p = ec.ECDsa.ExportParameters(false);
+
+            // concat X || Y
+            var data = new byte[p.Q.X.Length + p.Q.Y.Length];
+            Buffer.BlockCopy(p.Q.X, 0, data, 0, p.Q.X.Length);
+            Buffer.BlockCopy(p.Q.Y, 0, data, p.Q.X.Length, p.Q.Y.Length);
+
+            var hash = sha.ComputeHash(data);
+            return Base64UrlEncoder.Encode(hash);
+        }
+
+        if (key is RsaSecurityKey rsa)
+        {
+            var p = rsa.Rsa.ExportParameters(false);
+
+            // concat N || E
+            var data = new byte[p.Modulus.Length + p.Exponent.Length];
+            Buffer.BlockCopy(p.Modulus, 0, data, 0, p.Modulus.Length);
+            Buffer.BlockCopy(p.Exponent, 0, data, p.Modulus.Length, p.Exponent.Length);
+
+            var hash = sha.ComputeHash(data);
+            return Base64UrlEncoder.Encode(hash);
+        }
+
+        throw new NotSupportedException($"Unsupported key type: {key.GetType().Name}");
     }
 
     private static SecurityKey LoadKey(string input, string? password, bool isPrivate)
     {
         input = input.Trim();
-        // PEM
         if (input.Contains("BEGIN", StringComparison.OrdinalIgnoreCase))
         {
             if (input.Contains("EC", StringComparison.OrdinalIgnoreCase))
@@ -124,14 +158,13 @@ public sealed class WrapperForSignKey
 
     private static string GetDefaultAlgorithm(SecurityKey key) => key switch
     {
-        ECDsaSecurityKey                                                        => SecurityAlgorithms.EcdsaSha256,
-        RsaSecurityKey                                                          => SecurityAlgorithms.RsaSha256,
+        ECDsaSecurityKey => SecurityAlgorithms.EcdsaSha256,
+        RsaSecurityKey => SecurityAlgorithms.RsaSha256,
         X509SecurityKey x509 when x509.Certificate.GetECDsaPrivateKey() != null => SecurityAlgorithms.EcdsaSha256,
-        X509SecurityKey x509 when x509.Certificate.GetRSAPrivateKey() != null   => SecurityAlgorithms.RsaSha256,
-        _                                                                       => SecurityAlgorithms.RsaSha256
+        X509SecurityKey x509 when x509.Certificate.GetRSAPrivateKey() != null => SecurityAlgorithms.RsaSha256,
+        _ => SecurityAlgorithms.RsaSha256
     };
 }
-
 public enum TokenValidationError
 {
     BAD_TOKEN,
