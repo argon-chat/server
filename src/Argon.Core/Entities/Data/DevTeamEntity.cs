@@ -146,6 +146,8 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
     public string  ClientSecret    { get; set; } = null!;
     public string? VerificationKey { get; set; }
 
+    public List<string> RequiredScopes { get; set; } = new();
+
     public DevAppType AppType { get; set; } = DevAppType.Application;
 
     public void Configure(EntityTypeBuilder<DevAppEntity> builder)
@@ -161,6 +163,10 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
 
         builder.Property(x => x.ClientId).HasMaxLength(256);
         builder.HasIndex(x => x.ClientId).IsUnique();
+
+        builder
+           .Property(x => x.RequiredScopes)
+           .HasColumnType("text[]");
     }
 }
 
