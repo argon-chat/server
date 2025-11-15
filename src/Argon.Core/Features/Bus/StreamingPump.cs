@@ -11,7 +11,7 @@ public static class StreamingPumpEx
         => collection.AddSingleton<PumpStreamStorage>();
 
     public static IPumpingStreamStore Streams(this IIonService ionService)
-        => ArgonRequestContext.Current.Scope.ServiceProvider.GetRequiredService<IPumpingStreamStore>();
+        => ArgonRequestContext.Current.Scope.GetRequiredService<IPumpingStreamStore>();
 }
 
 

@@ -55,7 +55,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
                 MachineId  = ResolveMachineId(headers),
                 AppId      = ResolveAppId(headers),
                 UserId     = user,
-                Scope      = context.AsyncServiceScope
+                Scope      = context.ServiceProvider
             };
 
             ArgonRequestContext.Set(data);

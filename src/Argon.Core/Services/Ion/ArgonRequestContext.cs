@@ -22,11 +22,11 @@ public sealed class ArgonRequestContextData
     public required Guid              SessionId  { get; init; }
     public required string            MachineId  { get; init; }
     public required Guid?             UserId     { get; init; }
-    public required AsyncServiceScope Scope      { get; init; }
+    public required IServiceProvider Scope      { get; init; }
 
 
     public IDictionary<string, string> Props         { get; init; } = new Dictionary<string, string>();
-    public IClusterClient              ClusterClient => Scope.ServiceProvider.GetRequiredService<IClusterClient>();
+    public IClusterClient              ClusterClient => Scope.GetRequiredService<IClusterClient>();
 }
 
 public static class ServiceEx
