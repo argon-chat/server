@@ -17,10 +17,65 @@ public record JwtOptions
     /// </summary>
     public KeyPair? CertificateBase64 { get; set; }
 
+    public RsaKeyPair? EncryptionBase64 { get; set; }
+
     public required TimeSpan AccessTokenLifetime { get; set; }
+
+
 }
 
+public record RsaKeyPair(string PrivateKeyBase64, string PublicKeyBase64);
 public record KeyPair(string privateKey, string publicKey, string? password);
+
+public sealed class WrapperForEncryptionKey
+{
+    public SecurityKey PrivateKey { get; }
+    public SecurityKey PublicKey  { get; }
+    public string      Kid        { get; }
+
+    public WrapperForEncryptionKey(IOptions<JwtOptions> options)
+    {
+        var jwt = options.Value;
+
+        var pair = jwt.EncryptionBase64
+            ?? throw new InvalidOperationException("JwtOptions: EncryptionBase64 must be specified for encryption.");
+
+        PrivateKey = LoadRsaKey(pair.PrivateKeyBase64, isPrivate: true);
+        PublicKey  = LoadRsaKey(pair.PublicKeyBase64, isPrivate: false);
+
+        Kid              = ComputeKid(PublicKey);
+        PrivateKey.KeyId = Kid;
+        PublicKey.KeyId  = Kid;
+    }
+
+    private static SecurityKey LoadRsaKey(string input, bool isPrivate)
+    {
+        var raw = Convert.FromBase64String(input);
+        var rsa = RSA.Create();
+
+        if (isPrivate)
+            rsa.ImportRSAPrivateKey(raw, out _);
+        else
+            rsa.ImportSubjectPublicKeyInfo(raw, out _);
+
+        return new RsaSecurityKey(rsa);
+    }
+
+    private static string ComputeKid(SecurityKey key)
+    {
+        using var sha = SHA256.Create();
+        var       rsa = (RsaSecurityKey)key;
+        var       p   = rsa.Rsa.ExportParameters(false);
+
+        var data = new byte[p.Modulus.Length + p.Exponent.Length];
+        Buffer.BlockCopy(p.Modulus, 0, data, 0, p.Modulus.Length);
+        Buffer.BlockCopy(p.Exponent, 0, data, p.Modulus.Length, p.Exponent.Length);
+
+        var hash = sha.ComputeHash(data);
+        return Base64UrlEncoder.Encode(hash);
+    }
+}
+
 public sealed class WrapperForSignKey
 {
     public SecurityKey PrivateKey { get; }
@@ -40,7 +95,10 @@ public sealed class WrapperForSignKey
 
         Algorithm = GetDefaultAlgorithm(PrivateKey);
 
-        Kid = ComputeKid(PublicKey); 
+        Kid = ComputeKid(PublicKey);
+
+        PublicKey.KeyId  = Kid;
+        PrivateKey.KeyId = Kid;
     }
 
     private static string ComputeKid(SecurityKey key)
@@ -154,6 +212,20 @@ public sealed class WrapperForSignKey
                 throw new InvalidOperationException("Unknown key or certificate format. Supported: PEM, Base64(PFX), Base64(CER), Base64(DER).");
             }
         }
+    }
+
+    private static SecurityKey LoadRsaFromBase64(string input, bool isPrivate)
+    {
+        var raw = Convert.FromBase64String(input);
+
+        var rsa = RSA.Create();
+
+        if (isPrivate)
+            rsa.ImportPkcs8PrivateKey(raw, out _);
+        else
+            rsa.ImportSubjectPublicKeyInfo(raw, out _);
+
+        return new RsaSecurityKey(rsa);
     }
 
     private static string GetDefaultAlgorithm(SecurityKey key) => key switch

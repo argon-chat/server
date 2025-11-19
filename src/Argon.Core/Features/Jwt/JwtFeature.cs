@@ -9,6 +9,7 @@ public static class JwtFeature
         builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
 
         builder.Services.AddScoped<WrapperForSignKey>();
+        builder.Services.AddScoped<WrapperForEncryptionKey>();
         builder.Services.AddScoped<ClassicJwtFlow>();
         builder.Services.AddSingleton<TokenAuthorization>();
         return builder.Services;
