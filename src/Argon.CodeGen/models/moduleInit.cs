@@ -47,11 +47,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
-      IonFormatterStorage<JoinMeetResponse>.Value = new Ion_JoinMeetResponse_Formatter();
-      IonFormatterStorage<MeetInfo>.Value = new Ion_MeetInfo_Formatter();
-      IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
-      IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
-      IonFormatterStorage<MeetJoinError>.Value = new Ion_MeetJoinError_Formatter();
       IonFormatterStorage<ArgonSpaceBase>.Value = new Ion_ArgonSpaceBase_Formatter();
       IonFormatterStorage<ArgonSpace>.Value = new Ion_ArgonSpace_Formatter();
       IonFormatterStorage<ArchetypeGroup>.Value = new Ion_ArchetypeGroup_Formatter();
@@ -133,7 +128,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_FriendsInteraction_ServiceExecutor>("IFriendsInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
-      IonExecutorMetadataStorage.AddExecutor<Ion_MeetingInteraction_ServiceExecutor>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_UserInteraction_ServiceExecutor>("IUserInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_PreferenceInteraction_ServiceExecutor>("IPreferenceInteraction");
@@ -144,7 +138,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_FriendsInteraction_ClientImpl>("IFriendsInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
-      IonExecutorMetadataStorage.AddClient<Ion_MeetingInteraction_ClientImpl>("IMeetingInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_UserInteraction_ClientImpl>("IUserInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_PreferenceInteraction_ClientImpl>("IPreferenceInteraction");
