@@ -11,7 +11,7 @@ public class RedisEventHandler(IRedisPoolConnections pool, IAsyncPublisher<OnRed
         var scope = pool.Rent();
 
         var k = new RedisChannel("__keyevent@0__:expired", RedisChannel.PatternMode.Auto);
-        var s = scope.GetMultiplexer().GetSubscriber();
+        var s = scope.Connection.GetSubscriber();
         var c = new CacheSubscriber(k, s, scope);
         var w = await s.SubscribeAsync(k);
         logger.LogInformation("Registered event handler subscription for '__keyevent@0__:expired'");

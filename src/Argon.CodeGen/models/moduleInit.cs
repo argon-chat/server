@@ -79,6 +79,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
+      IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
+      IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
       IonFormatterStorage<MessageEntityMention>.Value = new Ion_MessageEntityMention_Formatter();
       IonFormatterStorage<MessageEntityEmail>.Value = new Ion_MessageEntityEmail_Formatter();
       IonFormatterStorage<MessageEntityHashTag>.Value = new Ion_MessageEntityHashTag_Formatter();

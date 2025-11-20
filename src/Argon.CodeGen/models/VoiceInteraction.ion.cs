@@ -15,6 +15,14 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record RtcEndpoint(string endpoint, IonArray<IceEndpoint> ices);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record IceEndpoint(string endpoint, string username, string password);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IVoiceInteraction : IIonService
 {
     Task<bool> DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);

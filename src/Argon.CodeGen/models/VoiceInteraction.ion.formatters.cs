@@ -13,3 +13,51 @@
 
 
 namespace ArgonContracts;
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_RtcEndpoint_Formatter : IonFormatter<RtcEndpoint>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public RtcEndpoint Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __endpoint = IonFormatterStorage<string>.Read(reader);
+        var __ices = IonFormatterStorage<IceEndpoint>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__endpoint, __ices);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, RtcEndpoint value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.endpoint);
+        IonFormatterStorage<IceEndpoint>.WriteArray(writer, value.ices);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IceEndpoint_Formatter : IonFormatter<IceEndpoint>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IceEndpoint Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __endpoint = IonFormatterStorage<string>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __password = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__endpoint, __username, __password);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IceEndpoint value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<string>.Write(writer, value.endpoint);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.password);
+        writer.WriteEndArray();
+    }
+}
+

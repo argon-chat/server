@@ -3,9 +3,6 @@ namespace Argon.Grains.Interfaces;
 [Alias("Argon.Grains.Interfaces.IMeetGrain")]
 public interface IMeetGrain : IGrainWithStringKey
 {
-    [Alias("JoinAsync")]
-    Task<Either<JoinMeetResponse, MeetJoinError>> JoinAsync(string userName);
-
     [Alias("CreateMeetingLinkAsync")]
     Task<string> CreateMeetingLinkAsync();
 
