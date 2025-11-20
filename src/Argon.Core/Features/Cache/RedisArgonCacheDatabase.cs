@@ -3,51 +3,76 @@ namespace Argon.Services;
 using System.Runtime.CompilerServices;
 using StackExchange.Redis;
 
-public class RedisArgonCacheDatabase(IRedisPoolConnections pool) : IArgonCacheDatabase
+public class RedisArgonCacheDatabase(IRedisPoolConnections pool, ILogger<IArgonCacheDatabase> logger) : IArgonCacheDatabase
 {
-    private async Task<T> ExecWithRetry<T>(Func<IDatabase, Task<T>> action)
+    private async Task<T> ExecWithRetry<T>(
+    Func<IDatabase, Task<T>> action,
+    [CallerMemberName] string caller = "")
     {
+        var sw = Stopwatch.StartNew();
         var attempt = 0;
 
         while (true)
         {
             attempt++;
+
             await using var scope = pool.Rent();
-            var             db    = scope.GetDatabase();
+            var db = scope.GetDatabase();
 
             try
             {
-                return await action(db);
+                logger.LogDebug("Redis Exec ({Caller}) attempt {Attempt} started", caller, attempt);
+                var result = await action(db);
+                logger.LogDebug("Redis Exec ({Caller}) attempt {Attempt} succeeded", caller, attempt);
+                return result;
             }
-            catch (Exception ex) when (RedisErrorClassifier.IsReplicaWriteError(ex) && attempt < 2)
+            catch (Exception ex)
             {
+                var retryable = RedisErrorClassifier.IsReplicaWriteError(ex, logger);
+
+                logger.LogError(
+                    ex,
+                    "Redis Exec ({Caller}) FAILED on attempt {Attempt}. Retryable={Retryable}. Elapsed={Elapsed}ms",
+                    caller,
+                    attempt,
+                    retryable,
+                    sw.ElapsedMilliseconds
+                );
+
+                if (!retryable)
+                {
+                    logger.LogCritical(
+                        "Redis Exec ({Caller}) FAILED and NOT retryable. Throwing.",
+                        caller);
+                    throw;
+                }
+
                 scope.MarkFaulted();
+
+                if (sw.ElapsedMilliseconds < 500)
+                {
+                    logger.LogWarning(
+                        "Redis Exec ({Caller}) RETRYING after READONLY/LOADING etc. Delay=5ms",
+                        caller);
+
+                    await Task.Delay(5);
+                    continue;
+                }
+
+                logger.LogCritical(
+                    "Redis Exec ({Caller}) hit retry timeout. Throwing final failure.",
+                    caller);
+
+                throw;
             }
         }
     }
 
-    private async Task ExecWithRetry(Func<IDatabase, Task> action)
-    {
-        var attempt = 0;
+    private async Task ExecWithRetry(Func<IDatabase, Task> action,
+        [CallerMemberName] string caller = "")
+        => await ExecWithRetry(async db => { await action(db); return true; }, caller);
 
-        while (true)
-        {
-            attempt++;
-            await using var scope = pool.Rent();
-            var             db    = scope.GetDatabase();
 
-            try
-            {
-                await action(db);
-                return;
-            }
-            catch (Exception ex) when (RedisErrorClassifier.IsReplicaWriteError(ex) && attempt < 2)
-            {
-                scope.MarkFaulted();
-                continue;
-            }
-        }
-    }
     public Task StringSetAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default)
         => ExecWithRetry(db => db.StringSetAsync(key, value, expiration));
 
