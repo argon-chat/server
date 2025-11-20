@@ -29,7 +29,7 @@ public struct ConnectionScope(IConnectionMultiplexer connection, RedisConnection
         }
         else
         {
-            pool.Return(connection);
+            await pool.ReturnAsync(connection);
         }
     }
 }

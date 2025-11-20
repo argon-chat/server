@@ -63,13 +63,13 @@ public sealed class RedisConnectionPool(
         }
     }
 
-    internal void Return(IConnectionMultiplexer connection)
+    internal async Task ReturnAsync(IConnectionMultiplexer connection)
     {
         Interlocked.Decrement(ref taken);
 
         if (!IsUsable(connection))
         {
-            _ = DisposeMuxAsync(connection);
+            await DisposeMuxAsync(connection);
             Interlocked.Decrement(ref allocated);
             return;
         }
