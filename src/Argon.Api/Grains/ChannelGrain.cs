@@ -83,13 +83,13 @@ public class ChannelGrain(
         if (state.State.EgressActive)
             return false;
 
-        var result = new EgressId(await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
-           .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct));
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+           .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct);
 
         await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
 
         state.State.EgressActive      = true;
-        state.State.EgressId          = result.id;
+        state.State.EgressId          = result;
         state.State.UserCreatedEgress = this.GetUserId();
 
         return true;
