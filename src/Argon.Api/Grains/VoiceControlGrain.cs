@@ -55,34 +55,42 @@ public class VoiceControlGrain(
 
     public async Task<string> BeginRecordAsync(ArgonRoomId channelId, CancellationToken ct = default)
     {
-        var cfg = settings.Value.Sfu.S3;
-
-        var result = await egressClient.StartRoomCompositeEgress(new RoomCompositeEgressRequest()
+        try
         {
-            AudioOnly = false,
-            RoomName  = channelId.ToRawRoomId(),
-            Preset    = EncodingOptionsPreset.H264720P30,
-            Layout    = "grid",
-            SegmentOutputs =
-            {
-                new SegmentedFileOutput
-                {
-                    S3 = new S3Upload
-                    {
-                        Bucket    = cfg.Bucket,
-                        AccessKey = cfg.AccessKey,
-                        Region    = cfg.Region,
-                        Endpoint  = cfg.Endpoint,
-                        Secret    = cfg.Secret
-                    },
-                    SegmentDuration = 2,
-                    PlaylistName    = "output.m3u8",
-                    FilenamePrefix  = $"recordings/{channelId.ToRawRoomId()}"
-                }
-            }
-        });
+            var cfg = settings.Value.Sfu.S3;
 
-        return result.EgressId;
+            var result = await egressClient.StartRoomCompositeEgress(new RoomCompositeEgressRequest()
+            {
+                AudioOnly = false,
+                RoomName  = channelId.ToRawRoomId(),
+                Preset    = EncodingOptionsPreset.H264720P30,
+                Layout    = "grid",
+                SegmentOutputs =
+                {
+                    new SegmentedFileOutput
+                    {
+                        S3 = new S3Upload
+                        {
+                            Bucket    = cfg.Bucket,
+                            AccessKey = cfg.AccessKey,
+                            Region    = cfg.Region,
+                            Endpoint  = cfg.Endpoint,
+                            Secret    = cfg.Secret
+                        },
+                        SegmentDuration = 2,
+                        PlaylistName    = "output.m3u8",
+                        FilenamePrefix  = $"recordings/{channelId.ToRawRoomId()}"
+                    }
+                }
+            });
+
+            return result.EgressId;
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "failed start recording");
+            throw;
+        }
     }
 
     public async Task<RtcEndpoint> GetRtcEndpointAsync(CancellationToken ct = default)
