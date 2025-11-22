@@ -1,3 +1,4 @@
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 LABEL org.opencontainers.image.title="Argon.Api" \
       org.opencontainers.image.description="Argon communication platform API service" \
       org.opencontainers.image.url="https://argon.gl" \
@@ -8,7 +9,6 @@ LABEL org.opencontainers.image.title="Argon.Api" \
       org.opencontainers.image.licenses="BSL 1.1" \
       org.opencontainers.image.created="$BUILD_DATE"
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
 WORKDIR /app
 
 
