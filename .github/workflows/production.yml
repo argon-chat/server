@@ -73,44 +73,6 @@ jobs:
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
 
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign GHCR images
-        run: |
-          cosign sign --yes ghcr.io/argon-chat/orleans:${{ github.run_number }}
-          cosign sign --yes ghcr.io/argon-chat/orleans:latest
-
-      - name: Generate SLSA provenance attestation (GHCR)
-        run: |
-          cat > provenance-ghcr.json <<EOF
-          {
-            "_type": "https://slsa.dev/provenance/v1",
-            "subject": [{
-              "name": "ghcr.io/argon-chat/orleans:${{ github.run_number }}",
-              "digest": {}
-            }],
-            "buildType": "github-actions",
-            "builder": {
-              "id": "https://github.com/${{ github.repository }}/.github/workflows/${{ github.workflow }}"
-            },
-            "buildConfig": {
-              "repo": "https://github.com/${{ github.repository }}",
-              "commit": "${{ github.sha }}",
-              "run_id": "${{ github.run_id }}",
-              "run_attempt": "${{ github.run_attempt }}"
-            }
-          }
-          EOF
-
-      - name: Upload SLSA provenance attestation to GHCR
-        run: |
-          cosign attest \
-            --predicate provenance-ghcr.json \
-            --type slsaprovenance \
-            ghcr.io/argon-chat/orleans:${{ github.run_number }}
-
-
   build-dockerhub:
     runs-on: ubuntu-latest
     needs: test
@@ -148,40 +110,3 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
-
-      - name: Install cosign
-        uses: sigstore/cosign-installer@v3
-
-      - name: Sign Docker Hub images
-        run: |
-          cosign sign --yes argonchat/argon-server:${{ github.run_number }}
-          cosign sign --yes argonchat/argon-server:latest
-
-      - name: Generate SLSA provenance attestation (DockerHub)
-        run: |
-          cat > provenance-dockerhub.json <<EOF
-          {
-            "_type": "https://slsa.dev/provenance/v1",
-            "subject": [{
-              "name": "argonchat/argon-server:${{ github.run_number }}",
-              "digest": {}
-            }],
-            "buildType": "github-actions",
-            "builder": {
-              "id": "https://github.com/${{ github.repository }}/.github/workflows/${{ github.workflow }}"
-            },
-            "buildConfig": {
-              "repo": "https://github.com/${{ github.repository }}",
-              "commit": "${{ github.sha }}",
-              "run_id": "${{ github.run_id }}",
-              "run_attempt": "${{ github.run_attempt }}"
-            }
-          }
-          EOF
-
-      - name: Upload SLSA provenance attestation to Docker Hub
-        run: |
-          cosign attest \
-            --predicate provenance-dockerhub.json \
-            --type slsaprovenance \
-            argonchat/argon-server:${{ github.run_number }}
