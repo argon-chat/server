@@ -12,64 +12,124 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: 'recursive'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
+
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: 9.0.x
-      - name: Install dependencies
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+
+      - name: Restore
         run: dotnet restore
+
       - name: Build
         run: dotnet build --no-restore --verbosity normal
+
       - name: Test
         run: dotnet test --no-build --verbosity normal
 
+
   build-ghcr:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: 'recursive'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
 
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v1
+      - name: Docker login GHCR
+        uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.ARGON_GHCR_PAT }}
 
-      - name: Build and push to GitHub Container Registry
-        uses: docker/build-push-action@v2
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to GHCR
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
-          tags: ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          tags: |
+            ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ github.run_number }}
+            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign GHCR image
+        run: |
+          cosign sign \
+            --keyless \
+            ghcr.io/argon-chat/orleans:${{ github.run_number }}
+
 
   build-dockerhub:
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write 
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          submodules: 'recursive'
-          token: ${{ secrets.GITHUB_TOKEN }}
+          submodules: recursive
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v1
+      - name: Docker login Docker Hub
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKER_HUB_USERNAME }}
           password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
 
-      - name: Build and push to Docker Hub
-        uses: docker/build-push-action@v2
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image to Docker Hub
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./src/Argon.Api/Dockerfile
           push: true
           tags: |
             argonchat/argon-server:${{ github.run_number }}
+            argonchat/argon-server:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ github.run_number }}
+            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Docker Hub image (tag run_number)
+        run: |
+          cosign sign \
+            --keyless \
+            argonchat/argon-server:${{ github.run_number }}
+
+      - name: Sign Docker Hub image (tag latest)
+        run: |
+          cosign sign \
+            --keyless \
             argonchat/argon-server:latest
