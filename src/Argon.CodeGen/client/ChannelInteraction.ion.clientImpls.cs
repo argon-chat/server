@@ -34,6 +34,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(Interlink), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> KickMemberFromChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(KickMemberFromChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginRecord_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(BeginRecord), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> StopRecord_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(StopRecord), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -184,6 +188,43 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         IonFormatterStorage<guid>.Write(writer, __spaceid);
         IonFormatterStorage<guid>.Write(writer, __channelid);
         IonFormatterStorage<guid>.Write(writer, __memberid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<EgressId> BeginRecord(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), BeginRecord_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<EgressId>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<bool> StopRecord(guid __spaceid, guid __channelid, EgressId __id, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), StopRecord_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<EgressId>.Write(writer, __id);
         
         writer.WriteEndArray();
     

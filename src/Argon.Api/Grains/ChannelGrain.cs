@@ -77,6 +77,14 @@ public class ChannelGrain(
            .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
     }
 
+    public async Task<EgressId> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => new(await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+           .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct));
+
+    public async Task<bool> StopRecord(Guid spaceId, Guid channelId, EgressId id, CancellationToken ct = default)
+        => await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+           .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), id.id, ct);
+
 
     // TODO
     private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)

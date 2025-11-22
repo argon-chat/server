@@ -35,6 +35,10 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EgressId(string id);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserActivityPresence(ActivityPresenceKind kind, u8 startTimestampSeconds, string titleName);
 
 
@@ -109,6 +113,8 @@ public interface IChannelInteraction : IIonService
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
+    Task<EgressId> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<bool> StopRecord(guid spaceId, guid channelId, EgressId id, CancellationToken ct = default);
 }
 
 

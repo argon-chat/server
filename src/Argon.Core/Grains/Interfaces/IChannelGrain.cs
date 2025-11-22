@@ -35,6 +35,11 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias("KickMemberFromChannel")]
     Task<bool> KickMemberFromChannel(Guid memberId);
+
+    [Alias("BeginRecord")]
+    Task<EgressId> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default);
+    [Alias("StopRecord")]
+    Task<bool> StopRecord(Guid spaceId, Guid channelId, EgressId id, CancellationToken ct = default);
 }
 
 

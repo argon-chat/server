@@ -163,6 +163,43 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         
         IonFormatterStorage<bool>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginRecord_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginRecord(__spaceid, __channelid);
+        
+        IonFormatterStorage<EgressId>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task StopRecord_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __id = IonFormatterStorage<EgressId>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.StopRecord(__spaceid, __channelid, __id);
+        
+        IonFormatterStorage<bool>.Write(writer, result);
+    }
 
     
     
@@ -186,6 +223,10 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return Interlink_Execute(reader, writer, ct);
         if (methodName.Equals("KickMemberFromChannel", StringComparison.InvariantCultureIgnoreCase))
             return KickMemberFromChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginRecord", StringComparison.InvariantCultureIgnoreCase))
+            return BeginRecord_Execute(reader, writer, ct);
+        if (methodName.Equals("StopRecord", StringComparison.InvariantCultureIgnoreCase))
+            return StopRecord_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
