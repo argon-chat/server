@@ -78,8 +78,8 @@ jobs:
 
       - name: Sign GHCR images
         run: |
-          cosign sign ghcr.io/argon-chat/orleans:${{ github.run_number }}
-          cosign sign ghcr.io/argon-chat/orleans:latest
+          cosign sign --yes ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          cosign sign --yes ghcr.io/argon-chat/orleans:latest
 
       - name: Generate SLSA provenance attestation (GHCR)
         run: |
@@ -154,8 +154,8 @@ jobs:
 
       - name: Sign Docker Hub images
         run: |
-          cosign sign argonchat/argon-server:${{ github.run_number }}
-          cosign sign argonchat/argon-server:latest
+          cosign sign --yes argonchat/argon-server:${{ github.run_number }}
+          cosign sign --yes argonchat/argon-server:latest
 
       - name: Generate SLSA provenance attestation (DockerHub)
         run: |
