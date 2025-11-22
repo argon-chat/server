@@ -35,10 +35,6 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record EgressId(string id);
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserActivityPresence(ActivityPresenceKind kind, u8 startTimestampSeconds, string titleName);
 
 

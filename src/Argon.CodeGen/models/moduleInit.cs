@@ -27,7 +27,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
-      IonFormatterStorage<EgressId>.Value = new Ion_EgressId_Formatter();
       IonFormatterStorage<UserActivityPresence>.Value = new Ion_UserActivityPresence_Formatter();
       IonFormatterStorage<ChannelType>.Value = new Ion_ChannelType_Formatter();
       IonFormatterStorage<JoinToChannelError>.Value = new Ion_JoinToChannelError_Formatter();

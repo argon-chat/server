@@ -153,27 +153,6 @@ public sealed class Ion_RealtimeChannelUser_Formatter : IonFormatter<RealtimeCha
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_EgressId_Formatter : IonFormatter<EgressId>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public EgressId Read(CborReader reader)
-    {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __id = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 1);
-        return new(__id);
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, EgressId value)
-    {
-        writer.WriteStartArray(1);
-        IonFormatterStorage<string>.Write(writer, value.id);
-        writer.WriteEndArray();
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserActivityPresence_Formatter : IonFormatter<UserActivityPresence>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
