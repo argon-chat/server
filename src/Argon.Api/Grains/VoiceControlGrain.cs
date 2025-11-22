@@ -1,56 +1,48 @@
-namespace Argon.Sfu;
+namespace Argon.Grains;
 
-using Services;
-using Grpc.Core;
-using LiveKit.Proto;
-using Microsoft.AspNetCore.Mvc;
+using Argon.Core.Grains.Interfaces;
+using Livekit.Server.Sdk.Dotnet;
 using Microsoft.IdentityModel.Tokens;
+using Sfu;
 using System.IdentityModel.Tokens.Jwt;
 using Flurl.Http;
+using Microsoft.Extensions.Caching.Hybrid;
 
-//#if DEBUG
-//public class ArgonSfuTestController : ControllerBase
-//{
-//    [HttpGet("/sfu/create_channel")]
-//    public async ValueTask<IActionResult> GetData([FromServices] IArgonSelectiveForwardingUnit sfu, [FromQuery] Guid serverId,
-//        [FromQuery] Guid channelId) => Ok(await sfu.EnsureEphemeralChannelAsync(new ArgonChannelId(new ArgonServerId(serverId), channelId), 15));
-
-//    [HttpPost("/sfu/token")]
-//    public async ValueTask<IActionResult> GetToken([FromServices] IArgonSelectiveForwardingUnit sfu, [FromBody] ArgonChannelId roomId) =>
-//        Ok(await sfu.IssueAuthorizationTokenAsync(new ArgonUserId(Guid.NewGuid()), roomId, SfuPermission.DefaultUser));
-//}
-//#endif
-
-public class ArgonSelectiveForwardingUnit(
+public class VoiceControlGrain(
     IOptions<CallKitOptions> settings,
-    TwirlRoomServiceClient roomClient,
-    TwirlEgressClient egressClient,
-    ILogger<IArgonSelectiveForwardingUnit> logger) : IArgonSelectiveForwardingUnit
+    RoomServiceClient roomClient,
+    EgressServiceClient egressClient,
+    IngressServiceClient ingressClient,
+    SipServiceClient sipClient,
+    ILogger<IVoiceControlGrain> logger,
+    HybridCache cache) : Grain, IVoiceControlGrain
 {
-    private static readonly Guid SystemUser = new([2, 26, 77, 5, 231, 16, 198, 72, 164, 29, 136, 207, 134, 192, 33, 33]);
+    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermission permission,
+        CancellationToken ct = default)
+        => CreateJwt(roomId, userId, permission, settings);
 
-    public ValueTask<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ISfuRoomDescriptor channelId, SfuPermission permission) =>
-        new(CreateJwt(channelId, userId, permission, settings));
+    public async Task<bool> SetMuteParticipantAsync(bool isMuted, string sid, ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default)
+    {
+        var result = await roomClient.MutePublishedTrack(new MuteRoomTrackRequest()
+        {
+            Identity = userId.ToRawIdentity(),
+            Muted    = isMuted,
+            Room     = channelId.ToRawRoomId(),
+            TrackSid = sid
+        });
+        return result.Track.Muted;
+    }
 
-    public ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, ISfuRoomDescriptor channelId, SfuPermission permission) =>
-        new(CreateMeetJwt(channelId, userName, permission, settings));
-
-    public ValueTask<string> IssueAuthorizationTokenForMeetAsync(string userName, Guid sharedId, SfuPermission permission) =>
-        new(CreateMeetJwt(sharedId, userName, permission, settings));
-
-    public ValueTask<bool> SetMuteParticipantAsync(bool isMuted, ArgonUserId userId, ISfuRoomDescriptor channelId)
-        => throw new NotImplementedException();
-
-    public async ValueTask<bool> KickParticipantAsync(ArgonUserId userId, ISfuRoomDescriptor channelId)
+    public async Task<bool> KickParticipantAsync(ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default)
     {
         try
         {
             logger.LogInformation("Goto kick '{userId}' from '{roomId}' room", userId.id, channelId.ToRawRoomId());
-            await roomClient.RemoveParticipantAsync(new RoomParticipantIdentity
+            await roomClient.RemoveParticipant(new RoomParticipantIdentity()
             {
                 Identity = userId.ToRawIdentity(),
                 Room     = channelId.ToRawRoomId(),
-            }, CreateAuthHeader(channelId));
+            });
             return true;
         }
         catch (Exception e)
@@ -61,36 +53,11 @@ public class ArgonSelectiveForwardingUnit(
         }
     }
 
-    public async ValueTask<EphemeralChannelInfo> EnsureEphemeralChannelAsync(ISfuRoomDescriptor channelId, uint maxParticipants)
-    {
-        var result = await roomClient.CreateRoomAsync(new CreateRoomRequest
-        {
-            Name             = channelId.ToRawRoomId(),
-            Metadata         = channelId.ToRawRoomId(),
-            MaxParticipants  = maxParticipants,
-            DepartureTimeout = 10,
-            EmptyTimeout     = 2,
-            SyncStreams      = true
-        }, CreateAuthHeader(channelId));
-
-
-        return new EphemeralChannelInfo(channelId, result.Sid, result);
-    }
-
-    public async ValueTask<bool> PruneEphemeralChannelAsync(ISfuRoomDescriptor channelId)
-    {
-        await roomClient.DeleteRoomAsync(new DeleteRoomRequest
-        {
-            Room = channelId.ToRawRoomId()
-        }, CreateAuthHeader(channelId));
-        return true;
-    }
-
-    public async ValueTask<string> BeginRecordAsync(ISfuRoomDescriptor channelId)
+    public async Task<string> BeginRecordAsync(ArgonRoomId channelId, CancellationToken ct = default)
     {
         var cfg = settings.Value.Sfu.S3;
 
-        var result = await egressClient.StartRoomCompositeEgressAsync(new RoomCompositeEgressRequest
+        var result = await egressClient.StartRoomCompositeEgress(new RoomCompositeEgressRequest()
         {
             AudioOnly = false,
             RoomName  = channelId.ToRawRoomId(),
@@ -118,7 +85,7 @@ public class ArgonSelectiveForwardingUnit(
         return result.EgressId;
     }
 
-    public async ValueTask<RtcEndpoint> GetRtcEndpointAsync()
+    public async Task<RtcEndpoint> GetRtcEndpointAsync(CancellationToken ct = default)
     {
         var list = new List<IceEndpoint>();
 
@@ -137,6 +104,32 @@ public class ArgonSelectiveForwardingUnit(
         return new RtcEndpoint(settings.Value.Sfu.PublicUrl, list);
     }
 
+    public async Task<bool> StopRecordAsync(ArgonRoomId channelId, string egressId, CancellationToken ct = default)
+    {
+        var egress = await egressClient.StopEgress(new StopEgressRequest()
+        {
+            EgressId = egressId
+        });
+
+        logger.LogInformation($"Voice Channel has completed to record");
+        logger.LogInformation($"{egress.EgressId}: {egress.Details}, {egress.Error}({egress.ErrorCode}) - {egress.ManifestLocation} - {egress.RoomName} - {egress.RoomId}");
+        foreach (var fl in egress.FileResults)
+        {
+            logger.LogInformation($"{egress.EgressId}: file: {fl.Location}: {fl.Duration}, {fl.Filename}");
+        }
+
+        return true;
+    }
+
+    public Task<string> InterlinkCallToPhone(ArgonRoomId roomId, ArgonUserId from, string phoneNumberTo, CancellationToken ct = default)
+        => throw new NotImplementedException();
+
+    public async Task<string> InterlinkCallToPhone(ArgonRoomId roomId, ArgonUserId from, ArgonUserId to, CancellationToken ct = default)
+    {
+        return "";
+    }
+
+
     private record CloudflareIceRespItem(string? username, string? credential);
 
     private record CloudflareIceResp(List<CloudflareIceRespItem> iceServers);
@@ -146,46 +139,31 @@ public class ArgonSelectiveForwardingUnit(
 
     private async ValueTask<(string username, string password)?> ConsumeCloudflareCredentials(string clientId, string secret)
     {
-        if (_cache.TryGetValue(clientId, out var entry))
+        var result = await cache.GetOrCreateAsync(clientId, async token =>
         {
-            if (entry.Expiry > DateTimeOffset.UtcNow)
-                return entry.Creds;
-        }
+            var result = await $"https://rtc.live.cloudflare.com/v1/turn/keys/{clientId}/credentials/generate-ice-servers"
+               .WithOAuthBearerToken(secret)
+               .PostJsonAsync(new
+                {
+                    ttl = 86400
+                }, cancellationToken: token);
 
-        var result = await $"https://rtc.live.cloudflare.com/v1/turn/keys/{clientId}/credentials/generate-ice-servers"
-           .WithOAuthBearerToken(secret)
-           .PostJsonAsync(new
-            {
-                ttl = 86400
-            });
+            var creds = await result.GetJsonAsync<CloudflareIceResp>();
 
-        var creds = await result.GetJsonAsync<CloudflareIceResp>();
-
-        var s = creds.iceServers.FirstOrDefault(x => !string.IsNullOrEmpty(x.username) && !string.IsNullOrEmpty(x.credential));
-        if (s is null)
-            return null;
-
-        var expiry = DateTimeOffset.UtcNow.AddHours(23);
-
-        var tuple = (s.username!, s.credential!);
-        _cache[clientId] = (expiry, tuple);
-
-        return tuple;
-    }
-
-    public async ValueTask<bool> StopRecordAsync(ISfuRoomDescriptor channelId, string egressId)
-    {
-        await egressClient.StopEgressAsync(new StopEgressRequest
+            return creds.iceServers.FirstOrDefault(x => !string.IsNullOrEmpty(x.username) && !string.IsNullOrEmpty(x.credential));
+        }, new HybridCacheEntryOptions()
         {
-            EgressId = egressId
+            Expiration = TimeSpan.FromSeconds(86400 / 2),
         });
-        return true;
+
+        if (result is null or { username: null, credential: null })
+            return null;
+        return (result.username!, result.credential!);
     }
 
-    private string CreateSystemToken(ISfuRoomDescriptor channelId) =>
-        CreateJwt(channelId, new ArgonUserId(SystemUser), SfuPermission.DefaultSystem, settings);
+    #region JWT
 
-    private static string CreateJwt(ISfuRoomDescriptor roomName, ArgonUserId identity, SfuPermission permissions,
+    private static string CreateJwt(ArgonRoomId roomName, ArgonUserId identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
         var       now     = DateTime.UtcNow;
@@ -217,7 +195,7 @@ public class ArgonSelectiveForwardingUnit(
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    private static string CreateMeetJwt(ISfuRoomDescriptor roomName, string identity, SfuPermission permissions,
+    private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
         var       now     = DateTime.UtcNow;
@@ -248,14 +226,6 @@ public class ArgonSelectiveForwardingUnit(
         JwtSecurityToken token = new(headers, payload);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
-
-    private Metadata CreateAuthHeader(ISfuRoomDescriptor room)
-        => new()
-        {
-            {
-                "authorization", $"Bearer {CreateSystemToken(room)}"
-            }
-        };
 
     private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
@@ -288,4 +258,6 @@ public class ArgonSelectiveForwardingUnit(
         JwtSecurityToken token = new(headers, payload);
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
+
+#endregion
 }

@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net9.0</TargetFramework>
@@ -9,6 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="Livekit.Server.Sdk.Dotnet" Version="1.1.0" />
         <PackageReference Include="DnsClient" Version="1.8.0" />
         <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
@@ -28,7 +29,6 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="9.0.10" />
-        <PackageReference Include="Argon.Sfu.Protocol" Version="1.39.3" />
         <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="9.0.10" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.10">
             <PrivateAssets>all</PrivateAssets>

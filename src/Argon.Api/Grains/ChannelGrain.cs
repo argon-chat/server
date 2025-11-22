@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
 using Cassandra.Core;
+using Core.Grains.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Concurrency;
 using Orleans.GrainDirectory;
@@ -14,21 +15,20 @@ using Sfu;
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
-    IArgonSelectiveForwardingUnit sfu,
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
-    private ChannelEntity  _self     { get; set; }
-    private ArgonSpaceId   SpaceId   => new(_self.SpaceId);
-    private ArgonChannelId ChannelId => new(SpaceId, this.GetPrimaryKey());
+    private ChannelEntity _self     { get; set; }
+    private Guid          SpaceId   => _self.SpaceId;
+    private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         _self = await Get();
 
-        _userStateEmitter = await this.Streams().CreateServerStreamFor(SpaceId.id);
+        _userStateEmitter = await this.Streams().CreateServerStreamFor(SpaceId);
 
         await state.ReadStateAsync(cancellationToken);
 
@@ -42,7 +42,7 @@ public class ChannelGrain(
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
         await _userStateEmitter.DisposeAsync();
     }
-    
+
     public async Task<List<RealtimeChannelUser>> GetMembers()
         => state.State.Users.Select(x => x.Value).ToList();
 
@@ -55,11 +55,11 @@ public class ChannelGrain(
 
     [OneWay]
     public async ValueTask OnTypingEmit()
-        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), SpaceId.id, ChannelId.channelId));
+        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), SpaceId, ChannelId.ShardId));
 
     [OneWay]
     public async ValueTask OnTypingStopEmit()
-        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), SpaceId.id, ChannelId.channelId));
+        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), SpaceId, ChannelId.ShardId));
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
     {
@@ -67,13 +67,14 @@ public class ChannelGrain(
             return false;
 
         await using var ctx = await context.CreateDbContextAsync();
-        
+
         var userId = this.GetUserId();
 
         if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
             return false;
 
-        return await sfu.KickParticipantAsync(new ArgonUserId(memberId), new ArgonChannelId(this.SpaceId, this.GetPrimaryKey()));
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+           .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
     }
 
 
@@ -82,7 +83,7 @@ public class ChannelGrain(
     {
         var invoker = await ctx.UsersToServerRelations
            .AsNoTracking()
-           .Where(x => x.SpaceId == SpaceId.id && x.UserId == callerId)
+           .Where(x => x.SpaceId == SpaceId && x.UserId == callerId)
            .Include(x => x.SpaceMemberArchetypes)
            .ThenInclude(x => x.Archetype)
            .FirstOrDefaultAsync();
@@ -107,28 +108,26 @@ public class ChannelGrain(
         var userId = this.GetUserId();
 
         if (state.State.Users.ContainsKey(userId))
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         else
         {
             state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
             await state.WriteStateAsync();
         }
 
-        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
+        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
 
-        return await sfu.IssueAuthorizationTokenAsync(userId, ChannelId, SfuPermission.DefaultUser);
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
+            new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermission.DefaultUser);
     }
-
-    public async Task<RtcEndpoint> GetConfiguration()
-        => await sfu.GetRtcEndpointAsync();
 
     public async Task Leave(Guid userId)
     {
         state.State.Users.Remove(userId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId.id, this.GetPrimaryKey(), userId));
+        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)

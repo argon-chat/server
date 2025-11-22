@@ -1,5 +1,6 @@
 namespace Argon.Services.Ion;
 
+using Argon.Core.Grains.Interfaces;
 using ion.runtime;
 
 public class ChannelInteractionImpl : IChannelInteraction
@@ -44,7 +45,7 @@ public class ChannelInteractionImpl : IChannelInteraction
 
         if (!result.IsSuccess) 
             return new FailedJoinVoice(result.Error);
-        var rtc = await this.GetGrain<IChannelGrain>(channelId).GetConfiguration();
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).GetRtcEndpointAsync(ct);
         return new SuccessJoinVoice(rtc, result.Value);
     }
 

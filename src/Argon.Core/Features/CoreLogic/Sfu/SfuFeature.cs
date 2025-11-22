@@ -1,34 +1,31 @@
 namespace Argon.Sfu;
 
-using Argon.Sfu.Services;
-using Flurl.Http;
-using Flurl.Http.Newtonsoft;
-using Newtonsoft.Json.Serialization;
+using Livekit.Server.Sdk.Dotnet;
+using Microsoft.Extensions.DependencyInjection;
 
 public static class SfuFeature
 {
     public static IHostApplicationBuilder AddSelectiveForwardingUnit(this IHostApplicationBuilder builder)
     {
         builder.Services.Configure<CallKitOptions>(builder.Configuration.GetSection("CallKit"));
-
-        builder.Services.AddKeyedScoped<IFlurlClient>(IArgonSelectiveForwardingUnit.CHANNEL_KEY, (provider, _) =>
+        builder.Services.AddScoped<RoomServiceClient>(x =>
         {
-            var opt = provider.GetRequiredService<IOptions<CallKitOptions>>();
-
-            var client = new FlurlClient(opt.Value.Sfu.CommandUrl);
-
-            client.Settings.JsonSerializer = new NewtonsoftJsonSerializer(new JsonSerializerSettings()
-            {
-                ContractResolver = new CamelCasePropertyNamesContractResolver()
-            });
-
-            return client;
+            var options = x.GetRequiredService<IOptions<CallKitOptions>>();
+            return new RoomServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<TwirpClient>();
-        builder.Services.AddScoped<TwirlRoomServiceClient>();
-        builder.Services.AddScoped<TwirlEgressClient>();
-
-        builder.Services.AddTransient<IArgonSelectiveForwardingUnit, ArgonSelectiveForwardingUnit>();
+        builder.Services.AddScoped<EgressServiceClient>(x =>
+        {
+            var options = x.GetRequiredService<IOptions<CallKitOptions>>();
+            return new EgressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
+        });
+        builder.Services.AddScoped<IngressServiceClient>(x => {
+            var options = x.GetRequiredService<IOptions<CallKitOptions>>();
+            return new IngressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
+        });
+        builder.Services.AddScoped<SipServiceClient>(x => {
+            var options = x.GetRequiredService<IOptions<CallKitOptions>>();
+            return new SipServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
+        });
         return builder;
     }
 }

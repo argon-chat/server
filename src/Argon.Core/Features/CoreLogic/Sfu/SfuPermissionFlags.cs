@@ -1,8 +1,6 @@
 namespace Argon.Sfu;
 
-using Google.Protobuf.Reflection;
-using LiveKit.Proto;
-using YamlDotNet.Core;
+using Livekit.Server.Sdk.Dotnet;
 
 [Flags]
 public enum SfuPermissionFlags
@@ -37,7 +35,7 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
 
     public static readonly SfuPermission DefaultSystem = new(SfuPermissionFlags.ALL, []);
 
-    public Dictionary<string, object> ToDictionary(ISfuRoomDescriptor channelId)
+    public Dictionary<string, object> ToDictionary(ArgonRoomId channelId)
     {
         var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
         dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
