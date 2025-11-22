@@ -77,9 +77,7 @@ jobs:
 
       - name: Sign GHCR image
         run: |
-          cosign sign \
-            --keyless \
-            ghcr.io/argon-chat/orleans:${{ github.run_number }}
+          cosign sign ghcr.io/argon-chat/orleans:${{ github.run_number }}
 
 
   build-dockerhub:
@@ -124,9 +122,7 @@ jobs:
 
       - name: Sign Docker Hub image (tag run_number)
         run: |
-          cosign sign \
-            --keyless \
-            argonchat/argon-server:${{ github.run_number }}
+          cosign sign argonchat/argon-server:${{ github.run_number }}
 
       - name: Sign Docker Hub image (tag latest)
         run: |
