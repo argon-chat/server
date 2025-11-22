@@ -86,6 +86,11 @@ public class VoiceControlGrain(
 
             return result.EgressId;
         }
+        catch (Twirp.Exception e)
+        {
+            logger.LogCritical(e, $"failed start recording, {e.Type}-{e.Message}");
+            throw;
+        }
         catch (Exception e)
         {
             logger.LogCritical(e, "failed start recording");
