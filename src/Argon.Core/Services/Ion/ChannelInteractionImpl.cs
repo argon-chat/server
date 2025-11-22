@@ -52,9 +52,9 @@ public class ChannelInteractionImpl : IChannelInteraction
     public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
 
-    public Task<EgressId> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => this.GetGrain<IChannelGrain>(channelId).BeginRecord(spaceId, channelId, ct);
+    public Task<bool> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).BeginRecord(ct);
 
-    public Task<bool> StopRecord(Guid spaceId, Guid channelId, EgressId id, CancellationToken ct = default)
-        => this.GetGrain<IChannelGrain>(channelId).StopRecord(spaceId, channelId, id, ct);
+    public Task<bool> StopRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).StopRecord(ct);
 }

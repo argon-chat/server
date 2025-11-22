@@ -33,6 +33,7 @@ public class ChannelGrain(
         await state.ReadStateAsync(cancellationToken);
 
         state.State.Users.Clear();
+        state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
     }
@@ -77,13 +78,36 @@ public class ChannelGrain(
            .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
     }
 
-    public async Task<EgressId> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => new(await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+    public async Task<bool> BeginRecord(CancellationToken ct = default)
+    {
+        if (state.State.EgressActive)
+            return false;
+
+        var result = new EgressId(await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
            .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct));
 
-    public async Task<bool> StopRecord(Guid spaceId, Guid channelId, EgressId id, CancellationToken ct = default)
-        => await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
-           .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), id.id, ct);
+        await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
+
+        state.State.EgressActive      = true;
+        state.State.EgressId          = result.id;
+        state.State.UserCreatedEgress = this.GetUserId();
+
+        return true;
+    }
+
+    public async Task<bool> StopRecord(CancellationToken ct = default)
+    {
+        if (!state.State.EgressActive)
+            return false;
+        var egressId = state.State.EgressId;
+        await _userStateEmitter.Fire(new RecordEnded(this.SpaceId, this.GetPrimaryKey()), ct);
+        state.State.EgressActive      = false;
+        state.State.EgressId          = null;
+        state.State.UserCreatedEgress = null;
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+           .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), egressId!, ct);
+        return result;
+    }
 
 
     // TODO

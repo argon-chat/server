@@ -179,24 +179,23 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         var result = await service.BeginRecord(__spaceid, __channelid);
         
-        IonFormatterStorage<EgressId>.Write(writer, result);
+        IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task StopRecord_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
-        const int argumentSize = 3;
+        const int argumentSize = 2;
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __id = IonFormatterStorage<EgressId>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.StopRecord(__spaceid, __channelid, __id);
+        var result = await service.StopRecord(__spaceid, __channelid);
         
         IonFormatterStorage<bool>.Write(writer, result);
     }

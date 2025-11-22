@@ -106,6 +106,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UserChangedStatus>.Value = new Ion_UserChangedStatus_Formatter();
       IonFormatterStorage<MessageSent>.Value = new Ion_MessageSent_Formatter();
       IonFormatterStorage<ServerModified>.Value = new Ion_ServerModified_Formatter();
+      IonFormatterStorage<RecordStarted>.Value = new Ion_RecordStarted_Formatter();
+      IonFormatterStorage<RecordEnded>.Value = new Ion_RecordEnded_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
