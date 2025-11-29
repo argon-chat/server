@@ -1,0 +1,6 @@
+❌ *Build Failed!* ❌
+📦 *Image:* ${GITHUB_REPO}
+🔢 *Version:* ${BUILD_VERSION}
+🔨 *Commit:* [${GIT_SHA}](${COMMIT_URL})
+👤 *Author:* ${GIT_AUTHOR}
+📝 *Message:* ${GIT_MESSAGE}
