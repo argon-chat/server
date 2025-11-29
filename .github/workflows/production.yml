@@ -124,7 +124,8 @@ jobs:
               \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
               \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
               \"text\": \"$MESSAGE\",
-              \"parse_mode\": \"Markdown\"
+              \"parse_mode\": \"Markdown\",
+              \"disable_web_page_preview\": true
             }"
 
 
@@ -139,5 +140,6 @@ jobs:
               \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
               \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
               \"text\": \"$MESSAGE\",
-              \"parse_mode\": \"Markdown\"
+              \"parse_mode\": \"Markdown\",
+              \"disable_web_page_preview\": true
             }"
