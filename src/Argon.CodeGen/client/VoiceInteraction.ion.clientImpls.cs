@@ -65,3 +65,89 @@ public sealed class Ion_VoiceInteraction_ClientImpl(IonClientContext context) : 
 
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallInteraction_ClientImpl(IonClientContext context) : ICallInteraction
+{
+    
+    private static readonly Lazy<MethodInfo> DingDongCreep_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(DingDongCreep), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PickUpCall_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(PickUpCall), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RejectCall_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(RejectCall), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> HangupCall_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(HangupCall), BindingFlags.Public | BindingFlags.Instance)!);
+
+
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IBeginCallResult> DingDongCreep(guid __creepid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), DingDongCreep_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __creepid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IBeginCallResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IPickUpCallResult> PickUpCall(guid __callid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), PickUpCall_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __callid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IPickUpCallResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RejectCall(guid __callid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), RejectCall_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __callid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task HangupCall(guid __callid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), HangupCall_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __callid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+
+}
+

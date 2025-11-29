@@ -81,6 +81,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
       IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
       IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
+      IonFormatterStorage<CallFailedError>.Value = new Ion_CallFailedError_Formatter();
+      IonFormatterStorage<IBeginCallResult>.Value = new Ion_IBeginCallResult_Formatter();
+      IonFormatterStorage<IPickUpCallResult>.Value = new Ion_IPickUpCallResult_Formatter();
       IonFormatterStorage<MessageEntityMention>.Value = new Ion_MessageEntityMention_Formatter();
       IonFormatterStorage<MessageEntityEmail>.Value = new Ion_MessageEntityEmail_Formatter();
       IonFormatterStorage<MessageEntityHashTag>.Value = new Ion_MessageEntityHashTag_Formatter();
@@ -130,6 +133,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedRegistration>.Value = new Ion_FailedRegistration_Formatter();
       IonFormatterStorage<SuccessJoin>.Value = new Ion_SuccessJoin_Formatter();
       IonFormatterStorage<FailedJoin>.Value = new Ion_FailedJoin_Formatter();
+      IonFormatterStorage<SuccessDingDong>.Value = new Ion_SuccessDingDong_Formatter();
+      IonFormatterStorage<FailedDingDong>.Value = new Ion_FailedDingDong_Formatter();
+      IonFormatterStorage<SuccessPickUp>.Value = new Ion_SuccessPickUp_Formatter();
+      IonFormatterStorage<FailedPickUp>.Value = new Ion_FailedPickUp_Formatter();
       IonExecutorMetadataStorage.AddExecutor<Ion_ArchetypeInteraction_ServiceExecutor>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
@@ -140,6 +147,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_UserInteraction_ServiceExecutor>("IUserInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_PreferenceInteraction_ServiceExecutor>("IPreferenceInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_VoiceInteraction_ServiceExecutor>("IVoiceInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_CallInteraction_ServiceExecutor>("ICallInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ArchetypeInteraction_ClientImpl>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
@@ -150,6 +158,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_UserInteraction_ClientImpl>("IUserInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_PreferenceInteraction_ClientImpl>("IPreferenceInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_VoiceInteraction_ClientImpl>("IVoiceInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_CallInteraction_ClientImpl>("ICallInteraction");
 
     }
 }

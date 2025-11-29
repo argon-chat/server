@@ -15,12 +15,6 @@ public interface IUserCallSessionGrain : IGrainWithGuidKey
     Task<Guid?> GetActiveCallAsync(CancellationToken ct = default);
 }
 
-public enum CallFailedError
-{
-    None,
-    CalleeOffline
-}
-
 
 public enum CallStatus
 {

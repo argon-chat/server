@@ -4,13 +4,16 @@ using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Argon.Sfu;
 using Livekit.Server.Sdk.Dotnet;
+
 public sealed class CallGrain(
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
     ISfuAuthScope authScope,
     ILogger<CallGrain> logger) : Grain, ICallGrain
 {
-    private readonly CallInfo _state = new();
+    private readonly        CallInfo     _state = new();
+    private                 IGrainTimer? ringTimer;
+    private static readonly TimeSpan     RingTimeout = TimeSpan.FromSeconds(45);
 
     public async Task<Either<CallInfo, CallFailedError>> StartCallAsync(Guid callerId, Guid calleeId, CancellationToken ct = default)
     {
@@ -48,7 +51,20 @@ public sealed class CallGrain(
             sessions,
             new CallIncoming(calleeId, callId, callerId), ct);
 
+        ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, TimeSpan.MaxValue));
+
         return _state;
+    }
+
+
+    private async Task RingTimeoutReached(CancellationToken ct = default)
+    {
+        if (_state.Status != CallStatus.Ringing)
+            return;
+
+        _state.Status = CallStatus.Ended;
+
+        await HangupAsync(_state.CalleeId, "timeout", ct);
     }
 
     public async Task<AnswerResult> AnswerAsync(Guid userId, CancellationToken ct = default)
@@ -58,6 +74,12 @@ public sealed class CallGrain(
 
         if (userId != _state.CalleeId)
             return new AnswerResult(false, "not_callee");
+
+        if (ringTimer is not null)
+        {
+            ringTimer.Dispose();
+            ringTimer = null;
+        }
 
         _state.Status = CallStatus.Accepted;
 
@@ -76,6 +98,12 @@ public sealed class CallGrain(
     {
         if (_state.Status == CallStatus.Ended)
             return;
+
+        if (ringTimer is not null)
+        {
+            ringTimer.Dispose();
+            ringTimer = null;
+        }
 
         _state.Status = CallStatus.Ended;
 

@@ -23,10 +23,280 @@ public sealed record IceEndpoint(string endpoint, string username, string passwo
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CallFailedError
+{
+    None = 0,
+    CalleeOffline = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IVoiceInteraction : IIonService
 {
     Task<bool> DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ICallInteraction : IIonService
+{
+    Task<IBeginCallResult> DingDongCreep(guid creepId, CancellationToken ct = default);
+    Task<IPickUpCallResult> PickUpCall(guid callId, CancellationToken ct = default);
+    Task RejectCall(guid callId, CancellationToken ct = default);
+    Task HangupCall(guid callId, CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IBeginCallResult : IIonUnion<IBeginCallResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessDingDong => this is SuccessDingDong;
+
+    internal bool IsFailedDingDong => this is FailedDingDong;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessDingDong(string token, guid callId) : IBeginCallResult
+{
+    public string UnionKey => nameof(SuccessDingDong);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedDingDong(CallFailedError error) : IBeginCallResult
+{
+    public string UnionKey => nameof(FailedDingDong);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IBeginCallResult_Formatter : IonFormatter<IBeginCallResult>
+{
+    public IBeginCallResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IBeginCallResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessDingDong>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedDingDong>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IBeginCallResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessDingDong n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessDingDong>.Write(writer, n_0);
+        }
+
+        else if (value is FailedDingDong n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedDingDong>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessDingDong_Formatter : IonFormatter<SuccessDingDong>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessDingDong Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __token = IonFormatterStorage<string>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__token, __callid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessDingDong value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.token);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedDingDong_Formatter : IonFormatter<FailedDingDong>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedDingDong Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<CallFailedError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedDingDong value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<CallFailedError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IPickUpCallResult : IIonUnion<IPickUpCallResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessPickUp => this is SuccessPickUp;
+
+    internal bool IsFailedPickUp => this is FailedPickUp;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessPickUp(string token, guid callId) : IPickUpCallResult
+{
+    public string UnionKey => nameof(SuccessPickUp);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedPickUp(string error) : IPickUpCallResult
+{
+    public string UnionKey => nameof(FailedPickUp);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IPickUpCallResult_Formatter : IonFormatter<IPickUpCallResult>
+{
+    public IPickUpCallResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IPickUpCallResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessPickUp>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedPickUp>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IPickUpCallResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessPickUp n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessPickUp>.Write(writer, n_0);
+        }
+
+        else if (value is FailedPickUp n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedPickUp>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessPickUp_Formatter : IonFormatter<SuccessPickUp>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessPickUp Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __token = IonFormatterStorage<string>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__token, __callid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessPickUp value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.token);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedPickUp_Formatter : IonFormatter<FailedPickUp>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedPickUp Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedPickUp value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<string>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

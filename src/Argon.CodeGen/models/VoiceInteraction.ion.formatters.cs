@@ -61,3 +61,20 @@ public sealed class Ion_IceEndpoint_Formatter : IonFormatter<IceEndpoint>
     }
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallFailedError_Formatter : IonFormatter<CallFailedError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CallFailedError Read(CborReader reader)
+    {
+         return (CallFailedError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CallFailedError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+

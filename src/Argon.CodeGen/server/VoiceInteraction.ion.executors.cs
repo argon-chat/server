@@ -75,3 +75,97 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
     public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 
+public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope) : IServiceExecutorRouter
+{
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DingDongCreep_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __creepid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DingDongCreep(__creepid);
+        
+        IonFormatterStorage<IBeginCallResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PickUpCall_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PickUpCall(__callid);
+        
+        IonFormatterStorage<IPickUpCallResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RejectCall_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.RejectCall(__callid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task HangupCall_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.HangupCall(__callid);
+    }
+
+    
+    
+    
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        
+        if (methodName.Equals("DingDongCreep", StringComparison.InvariantCultureIgnoreCase))
+            return DingDongCreep_Execute(reader, writer, ct);
+        if (methodName.Equals("PickUpCall", StringComparison.InvariantCultureIgnoreCase))
+            return PickUpCall_Execute(reader, writer, ct);
+        if (methodName.Equals("RejectCall", StringComparison.InvariantCultureIgnoreCase))
+            return RejectCall_Execute(reader, writer, ct);
+        if (methodName.Equals("HangupCall", StringComparison.InvariantCultureIgnoreCase))
+            return HangupCall_Execute(reader, writer, ct);
+
+        
+        throw new InvalidOperationException("no method defined");
+    }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
+}
+
