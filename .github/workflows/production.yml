@@ -116,7 +116,7 @@ jobs:
       - name: Send success message to Telegram
         if: success()
         run: |
-          MESSAGE="✅ *Argon Production Build Successful*\n\Version: *${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+          MESSAGE="✅ *Argon Build Successful*\n\Image: *argon-orleans*📦\n\Version: *${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
@@ -125,7 +125,7 @@ jobs:
       - name: Send failure message to Telegram
         if: failure()
         run: |
-          MESSAGE="❌ *Argon Production Build Failed*\n\Build: *#${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+          MESSAGE="❌ *Argon Build Failed*\n\Image: *argon-orleans*📦\n\Build: *#${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
