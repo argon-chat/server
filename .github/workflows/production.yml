@@ -116,17 +116,28 @@ jobs:
       - name: Send success message to Telegram
         if: success()
         run: |
-          MESSAGE="✅ *Argon Build Successful*\n\Image: *argon-orleans*📦\n\Version: *${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+          MESSAGE="🎉 *Build Successful!*\n\📦 *Image:* \`${{ github.repository }}\`\n\🏷 *Version:* \`${{ github.run_number }}\`\n\🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\👤 *Author:* \`${{ github.actor }}\`\n\📝 *Message:* _${{ github.event.head_commit.message }}_"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }}, \"text\": \"$MESSAGE\", \"parse_mode\": \"Markdown\"}"
+            -d "{
+              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
+              \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
+              \"text\": \"$MESSAGE\",
+              \"parse_mode\": \"Markdown\"
+            }"
+
 
       - name: Send failure message to Telegram
         if: failure()
         run: |
-          MESSAGE="❌ *Argon Build Failed*\n\Image: *argon-orleans*📦\n\Build: *#${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+          MESSAGE="💥 *Build Failed!*\n\📦 *Image:* \`${{ github.repository }}\`\n\🏷 *Build:* \`#${{ github.run_number }}\`\n\🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\👤 *Author:* \`${{ github.actor }}\`\n\📝 *Message:* _${{ github.event.head_commit.message }}_"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
             -H "Content-Type: application/json" \
-            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }}, \"text\": \"$MESSAGE\", \"parse_mode\": \"Markdown\"}"
+            -d "{
+              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
+              \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
+              \"text\": \"$MESSAGE\",
+              \"parse_mode\": \"Markdown\"
+            }"
