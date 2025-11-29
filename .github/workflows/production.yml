@@ -2,7 +2,7 @@ name: Production
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   workflow_dispatch:
 
 jobs:
@@ -33,7 +33,6 @@ jobs:
 
       - name: Test
         run: dotnet test --no-build --verbosity normal
-
 
   build-ghcr:
     runs-on: ubuntu-latest
@@ -110,36 +109,27 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
-  
-
 
       - name: Send success message to Telegram
         if: success()
         run: |
-          MESSAGE="🎉 *Build Successful!*\n\📦 *Image:* \`${{ github.repository }}\`\n\🏷 *Version:* \`${{ github.run_number }}\`\n\🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\👤 *Author:* \`${{ github.actor }}\`\n\📝 *Message:* _${{ github.event.head_commit.message }}_"
+          MESSAGE="🎉 *Build Successful!*\n📦 *Image:* \`${{ github.repository }}\`\n🏷 *Version:* \`${{ github.run_number }}\`\n🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n👤 *Author:* \`${{ github.actor }}\`\n📝 *Message:* \`${{ github.event.head_commit.message }}\`"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
-              \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
-              \"text\": \"$MESSAGE\",
-              \"parse_mode\": \"Markdown\",
-              \"disable_web_page_preview\": true
-            }"
-
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data "parse_mode=Markdown" \
+            --data "disable_web_page_preview=true"
 
       - name: Send failure message to Telegram
         if: failure()
         run: |
-          MESSAGE="💥 *Build Failed!*\n\📦 *Image:* \`${{ github.repository }}\`\n\🏷 *Build:* \`#${{ github.run_number }}\`\n\🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\👤 *Author:* \`${{ github.actor }}\`\n\📝 *Message:* _${{ github.event.head_commit.message }}_"
+          MESSAGE="💥 *Build Failed!*\n📦 *Image:* \`${{ github.repository }}\`\n🏷 *Build:* \`#${{ github.run_number }}\`\n🔨 *Commit:* [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n👤 *Author:* \`${{ github.actor }}\`\n📝 *Message:* \`${{ github.event.head_commit.message }}\`"
 
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            -H "Content-Type: application/json" \
-            -d "{
-              \"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",
-              \"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }},
-              \"text\": \"$MESSAGE\",
-              \"parse_mode\": \"Markdown\",
-              \"disable_web_page_preview\": true
-            }"
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data "parse_mode=Markdown" \
+            --data "disable_web_page_preview=true"
