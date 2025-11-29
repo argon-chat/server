@@ -1,5 +1,6 @@
 namespace Argon.Features.Logic;
 
+using Argon.Core.Features.Logic;
 using Services;
 
 public static class UserPresenceFeature
@@ -7,6 +8,8 @@ public static class UserPresenceFeature
     public static IServiceCollection AddUserPresenceFeature(this IHostApplicationBuilder hostBuilder)
     {
         hostBuilder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
+        hostBuilder.Services.AddSingleton<IUserSessionDiscoveryService, LocalUserSessionDiscoveryService>();
+        hostBuilder.Services.AddSingleton<IUserSessionNotifier, UserStreamNotifier>();
         return hostBuilder.Services;
     }
 }

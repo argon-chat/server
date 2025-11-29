@@ -110,3 +110,23 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+  
+
+
+      - name: Send success message to Telegram
+        if: success()
+        run: |
+          MESSAGE="✅ *Argon Production Build Successful*\n\Version: *${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }}, \"text\": \"$MESSAGE\", \"parse_mode\": \"Markdown\"}"
+
+      - name: Send failure message to Telegram
+        if: failure()
+        run: |
+          MESSAGE="❌ *Argon Production Build Failed*\n\Build: *#${{ github.run_number }}*\n\Commit: [${{ github.sha }}](${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }})\n\Author: ${{ github.actor }}"
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            -H "Content-Type: application/json" \
+            -d "{\"chat_id\": \"${{ secrets.TELEGRAM_CHAT_ID }}\",\"message_thread_id\": ${{ secrets.TELEGRAM_TOPIC_ID }}, \"text\": \"$MESSAGE\", \"parse_mode\": \"Markdown\"}"

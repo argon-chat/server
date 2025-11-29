@@ -39,4 +39,5 @@ else
 
 await app.WarmUpCassandra();
 await app.WarmUpRotations();
-await app.WarmUp<ApplicationDbContext>().RunAsync();
+await app.WarmUp<ApplicationDbContext>();
+await app.RunAsync();

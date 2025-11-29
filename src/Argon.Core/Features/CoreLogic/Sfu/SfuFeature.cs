@@ -26,7 +26,33 @@ public static class SfuFeature
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new SipServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
+        builder.Services.AddSingleton<ISfuAuthScope, SfuAuthScope>();
         return builder;
+    }
+}
+
+public interface ISfuAuthScope
+{
+    string GenerateToken(string identity, string roomId, string displayName, VideoGrants grants, TimeSpan ttl);
+}
+
+public class SfuAuthScope(IOptions<CallKitOptions> options) : ISfuAuthScope
+{
+    public string GenerateToken(string identity, string roomId, string displayName, VideoGrants grants, TimeSpan ttl)
+    {
+        var token = new AccessToken(options.Value.Sfu.ClientId, options.Value.Sfu.Secret)
+           .WithIdentity(identity)
+           .WithName(displayName)
+           .WithGrants(new VideoGrants
+            {
+                RoomJoin     = true,
+                CanPublish   = true,
+                CanSubscribe = true,
+                RoomCreate   = true,
+                Room         = roomId
+            })
+           .WithTtl(ttl);
+        return token.ToJwt();
     }
 }
 

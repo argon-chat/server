@@ -627,6 +627,14 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsRecordEnded => this is RecordEnded;
 
+    internal bool IsCallIncoming => this is CallIncoming;
+
+    internal bool IsCallFinished => this is CallFinished;
+
+    internal bool IsCallAccepted => this is CallAccepted;
+
+    internal bool IsCallRejected => this is CallRejected;
+
 }
 
 
@@ -756,6 +764,34 @@ public sealed record RecordEnded(guid spaceId, guid channelId) : IArgonEvent
     public uint UnionIndex => 17;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CallIncoming(guid userId, guid callId, guid fromId) : IArgonEvent
+{
+    public string UnionKey => nameof(CallIncoming);
+    public uint UnionIndex => 18;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CallFinished(guid userId, guid callId) : IArgonEvent
+{
+    public string UnionKey => nameof(CallFinished);
+    public uint UnionIndex => 19;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CallAccepted(guid userId, guid callId, guid fromId) : IArgonEvent
+{
+    public string UnionKey => nameof(CallAccepted);
+    public uint UnionIndex => 20;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CallRejected(guid userId, guid callId, guid fromId) : IArgonEvent
+{
+    public string UnionKey => nameof(CallRejected);
+    public uint UnionIndex => 21;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -821,6 +857,18 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 17)
             result = IonFormatterStorage<RecordEnded>.Read(reader);
+
+        else if (unionIndex == 18)
+            result = IonFormatterStorage<CallIncoming>.Read(reader);
+
+        else if (unionIndex == 19)
+            result = IonFormatterStorage<CallFinished>.Read(reader);
+
+        else if (unionIndex == 20)
+            result = IonFormatterStorage<CallAccepted>.Read(reader);
+
+        else if (unionIndex == 21)
+            result = IonFormatterStorage<CallRejected>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -959,6 +1007,34 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_17.UnionIndex != 17)
                 throw new InvalidOperationException();
             IonFormatterStorage<RecordEnded>.Write(writer, n_17);
+        }
+
+        else if (value is CallIncoming n_18)
+        {
+            if (n_18.UnionIndex != 18)
+                throw new InvalidOperationException();
+            IonFormatterStorage<CallIncoming>.Write(writer, n_18);
+        }
+
+        else if (value is CallFinished n_19)
+        {
+            if (n_19.UnionIndex != 19)
+                throw new InvalidOperationException();
+            IonFormatterStorage<CallFinished>.Write(writer, n_19);
+        }
+
+        else if (value is CallAccepted n_20)
+        {
+            if (n_20.UnionIndex != 20)
+                throw new InvalidOperationException();
+            IonFormatterStorage<CallAccepted>.Write(writer, n_20);
+        }
+
+        else if (value is CallRejected n_21)
+        {
+            if (n_21.UnionIndex != 21)
+                throw new InvalidOperationException();
+            IonFormatterStorage<CallRejected>.Write(writer, n_21);
         }
     
         else
@@ -1396,6 +1472,104 @@ public sealed class Ion_RecordEnded_Formatter : IonFormatter<RecordEnded>
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallIncoming_Formatter : IonFormatter<CallIncoming>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CallIncoming Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        var __fromid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __callid, __fromid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CallIncoming value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        IonFormatterStorage<guid>.Write(writer, value.fromId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallFinished_Formatter : IonFormatter<CallFinished>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CallFinished Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__userid, __callid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CallFinished value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallAccepted_Formatter : IonFormatter<CallAccepted>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CallAccepted Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        var __fromid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __callid, __fromid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CallAccepted value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        IonFormatterStorage<guid>.Write(writer, value.fromId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CallRejected_Formatter : IonFormatter<CallRejected>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CallRejected Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __callid = IonFormatterStorage<guid>.Read(reader);
+        var __fromid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __callid, __fromid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CallRejected value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.callId);
+        IonFormatterStorage<guid>.Write(writer, value.fromId);
         writer.WriteEndArray();
     }
 }
