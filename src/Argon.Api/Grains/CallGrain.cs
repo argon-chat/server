@@ -51,8 +51,8 @@ public sealed class CallGrain(
             sessions,
             new CallIncoming(calleeId, callId, callerId), ct);
 
-        ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, TimeSpan.MaxValue));
-
+        ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
+        
         return _state;
     }
 
@@ -61,8 +61,6 @@ public sealed class CallGrain(
     {
         if (_state.Status != CallStatus.Ringing)
             return;
-
-        _state.Status = CallStatus.Ended;
 
         await HangupAsync(_state.CalleeId, "timeout", ct);
     }
@@ -99,14 +97,7 @@ public sealed class CallGrain(
         if (_state.Status == CallStatus.Ended)
             return;
 
-        if (ringTimer is not null)
-        {
-            ringTimer.Dispose();
-            ringTimer = null;
-        }
-
         _state.Status = CallStatus.Ended;
-
 
         var sessionsCaller = await sessionDiscovery.GetUserSessionsAsync(_state.CallerId, ct);
         var sessionsCallee = await sessionDiscovery.GetUserSessionsAsync(_state.CalleeId, ct);
@@ -118,6 +109,13 @@ public sealed class CallGrain(
         await notifier.NotifySessionsAsync(
             sessionsCallee,
             new CallFinished(_state.CalleeId, _state.CallId), ct);
+
+
+        if (ringTimer is not null)
+        {
+            ringTimer.Dispose();
+            ringTimer = null;
+        }
     }
 
     public Task<CallInfo> GetStateAsync(CancellationToken ct = default)

@@ -14,10 +14,11 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
         await db.Invites.AddAsync(new SpaceInvite
         {
             Id        = InviteCodeEntityData.EncodeToUlong(inviteCode),
-            CreatedAt = DateTime.Now,
+            CreatedAt = DateTime.UtcNow,
             CreatorId = issuer,
-            ExpireAt   = DateTime.UtcNow + expiration,
-            SpaceId  = this.GetPrimaryKey(),
+            UpdatedAt = DateTime.UtcNow,
+            ExpireAt  = DateTime.UtcNow + expiration,
+            SpaceId   = this.GetPrimaryKey(),
         });
         await db.SaveChangesAsync();
         return new InviteCode(inviteCode);
