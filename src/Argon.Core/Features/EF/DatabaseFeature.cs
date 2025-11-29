@@ -20,7 +20,6 @@ public static class DatabaseFeature
         {
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               
                .UseNpgsql(builder.Configuration.GetConnectionString("Default"), npgsql =>
                 {
                     npgsql.UseNodaTime();
@@ -42,6 +41,7 @@ public static class DatabaseFeature
 
 public class DatabaseRegionOptions
 {
+    public required bool IsMultiregionalDisabled { get; set; }
     public required string PrimaryRegion { get; set; }
     public required string[] ReplicateRegion { get; set; }
 }

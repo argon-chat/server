@@ -181,12 +181,15 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
             var cfg     = JsonConvert.DeserializeObject<MultiRegionAnnotation>(localityAnnotation)!;
             var regions = string.Join(", ", cfg.Regions.Select(DelimitIdentifier));
 
-            builder.AppendLine()
-               .Append($"PRIMARY REGION {DelimitIdentifier(cfg.Primary)}");
+            if (!string.IsNullOrEmpty(cfg.Primary))
+            {
+                builder.AppendLine()
+                   .Append($"PRIMARY REGION {DelimitIdentifier(cfg.Primary)}");
 
-            if (regions.Length > 0)
-                builder.Append($" REGIONS {regions}"); 
-            //builder.Append($" SURVIVE {cfg.Survive}");
+                if (regions.Length > 0)
+                    builder.Append($" REGIONS {regions}");
+                //builder.Append($" SURVIVE {cfg.Survive}");
+            }
         }
 
         
