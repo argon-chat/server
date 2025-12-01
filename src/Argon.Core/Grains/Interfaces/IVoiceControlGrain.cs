@@ -6,7 +6,7 @@ using Sfu;
 [Alias("IVoiceControlGrain")]
 public interface IVoiceControlGrain : IGrainWithGuidKey
 {
-    Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, VideoGrants permission, CancellationToken ct = default);
+    Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermissionKind permission, CancellationToken ct = default);
 
     Task<bool> SetMuteParticipantAsync(bool isMuted, string sid, ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default);
 

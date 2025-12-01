@@ -17,9 +17,9 @@ public class VoiceControlGrain(
     ILogger<IVoiceControlGrain> logger,
     HybridCache cache) : Grain, IVoiceControlGrain
 {
-    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, VideoGrants permission,
+    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermissionKind permission,
         CancellationToken ct = default)
-        => CreateJwt(roomId, userId, permission, settings);
+        => CreateJwt(roomId, userId, SfuPermission.For(permission, roomId.ToRawRoomId()), settings);
 
     public async Task<bool> SetMuteParticipantAsync(bool isMuted, string sid, ArgonUserId userId, ArgonRoomId channelId, CancellationToken ct = default)
     {

@@ -2,34 +2,24 @@ namespace Argon.Sfu;
 
 using Livekit.Server.Sdk.Dotnet;
 
-[Flags]
-public enum SfuPermissionFlags
+public enum SfuPermissionKind
 {
-    NONE = 0,
-    [FlagName("roomCreate")]
-    ROOM_CREATE = 1 << 1,
-    [FlagName("roomJoin")]
-    ROOM_JOIN = 1 << 2,
-    [FlagName("canUpdateOwnMetadata")]
-    UPDATE_METADATA = 1 << 3,
-    [FlagName("roomList")]
-    ROOM_LIST = 1 << 4,
-    [FlagName("roomRecord")]
-    ROOM_RECORD = 1 << 5,
-    [FlagName("roomAdmin")]
-    ROOM_ADMIN = 1 << 6,
-    [FlagName("canPublish")]
-    CAN_PUBLISH = 1 << 7,
-    [FlagName("canSubscribe")]
-    CAN_LISTEN = 1 << 8,
-    [FlagName("hidden")]
-    HIDDEN = 1 << 9,
-    ALL = ROOM_CREATE | ROOM_JOIN | UPDATE_METADATA | ROOM_LIST | CAN_PUBLISH | ROOM_RECORD | ROOM_ADMIN | CAN_LISTEN
+    DefaultUser,
+    DefaultAdmin,
+    DefaultBot
 }
 
-public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
+public record SfuPermission
 {
-    public static readonly VideoGrants DefaultUser =
+    public static VideoGrants For(SfuPermissionKind flag, string roomId)
+        => flag switch
+        {
+            SfuPermissionKind.DefaultUser  => DefaultUser(roomId),
+            SfuPermissionKind.DefaultAdmin => DefaultUser(roomId),
+            SfuPermissionKind.DefaultBot   => DefaultUser(roomId)
+        };
+
+    public static VideoGrants DefaultUser(string roomId) =>
         new()
         {
             CanPublish           = true,
@@ -37,42 +27,11 @@ public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedS
             CanSubscribeMetrics  = true,
             CanUpdateOwnMetadata = true,
             CanSubscribe         = true,
-            RoomCreate           = true
+            RoomCreate           = true,
+            Room                 = roomId,
+            DestinationRoom      = roomId,
+            CanPublishData       = true,
         };
-    
-
-    public static readonly VideoGrants VideoGrants = new()
-    {
-        CanPublish = true,
-        CanSubscribeMetrics = true,
-        RoomJoin = true,
-        CanSubscribe = true,
-        CanUpdateOwnMetadata = true,
-        RoomCreate = true,
-        CanPublishData = true,
-        Hidden = true,
-        Recorder = true,
-        IngressAdmin = true,
-        RoomList = true,
-        RoomAdmin = true,
-        RoomRecord = true
-    };
-
-    public Dictionary<string, object> ToDictionary(ArgonRoomId channelId)
-    {
-        var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
-        dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
-        dict.Add("room", channelId.ToRawRoomId());
-        return dict;
-    }
-
-    public Dictionary<string, object> ToDictionary(Guid sharedId)
-    {
-        var dict = flags.ToList().ToDictionary<string, string, object>(key => key, _ => true);
-        dict.Add("canPublishSources", allowedSources.Select(x => x.ToFormatString()).ToList());
-        dict.Add("room", $"shared-meet-{sharedId}");
-        return dict;
-    }
 }
 
 [AttributeUsage(AttributeTargets.Field)]

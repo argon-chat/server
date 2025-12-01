@@ -153,7 +153,7 @@ public class ChannelGrain(
             this.DelayDeactivation(TimeSpan.FromDays(1));
 
         return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
-            new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermission.DefaultUser);
+            new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
     }
 
     public async Task Leave(Guid userId)
