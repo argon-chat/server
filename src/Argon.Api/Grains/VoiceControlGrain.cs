@@ -192,65 +192,13 @@ public class VoiceControlGrain(
     private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
-        var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
-
-        JwtPayload payload = new()
-        {
-            {
-                "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
-            },
-            {
-                "iss", settings.Value.Sfu.ClientId
-            },
-            {
-                "nbf", 0
-            },
-            {
-                "sub", Guid.NewGuid().ToString()
-            },
-            {
-                "name", identity
-            },
-            {
-                "video", permissions.ToDictionary(roomName)
-            }
-        };
-
-        JwtSecurityToken token = new(headers, payload);
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        throw null;
     }
 
     private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
-        var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
-
-        JwtPayload payload = new()
-        {
-            {
-                "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
-            },
-            {
-                "iss", settings.Value.Sfu.ClientId
-            },
-            {
-                "nbf", 0
-            },
-            {
-                "sub", Guid.NewGuid().ToString()
-            },
-            {
-                "name", identity
-            },
-            {
-                "video", permissions.ToDictionary(roomName)
-            }
-        };
-
-        JwtSecurityToken token = new(headers, payload);
-        return new JwtSecurityTokenHandler().WriteToken(token);
+        throw null;
     }
 
 #endregion
