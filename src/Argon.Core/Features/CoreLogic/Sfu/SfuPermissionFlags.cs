@@ -29,11 +29,34 @@ public enum SfuPermissionFlags
 
 public record SfuPermission(SfuPermissionFlags flags, List<TrackSource> allowedSources)
 {
-    public static readonly SfuPermission DefaultUser = new(
-        SfuPermissionFlags.CAN_LISTEN | SfuPermissionFlags.CAN_PUBLISH | SfuPermissionFlags.ROOM_JOIN,
-        [TrackSource.Microphone, TrackSource.Camera, TrackSource.ScreenShare, TrackSource.ScreenShareAudio]);
+    public static readonly VideoGrants DefaultUser =
+        new()
+        {
+            CanPublish           = true,
+            RoomJoin             = true,
+            CanSubscribeMetrics  = true,
+            CanUpdateOwnMetadata = true,
+            CanSubscribe         = true,
+            RoomCreate           = true
+        };
+    
 
-    public static readonly SfuPermission DefaultSystem = new(SfuPermissionFlags.ALL, []);
+    public static readonly VideoGrants VideoGrants = new()
+    {
+        CanPublish = true,
+        CanSubscribeMetrics = true,
+        RoomJoin = true,
+        CanSubscribe = true,
+        CanUpdateOwnMetadata = true,
+        RoomCreate = true,
+        CanPublishData = true,
+        Hidden = true,
+        Recorder = true,
+        IngressAdmin = true,
+        RoomList = true,
+        RoomAdmin = true,
+        RoomRecord = true
+    };
 
     public Dictionary<string, object> ToDictionary(ArgonRoomId channelId)
     {

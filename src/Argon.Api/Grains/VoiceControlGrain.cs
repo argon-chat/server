@@ -17,7 +17,7 @@ public class VoiceControlGrain(
     ILogger<IVoiceControlGrain> logger,
     HybridCache cache) : Grain, IVoiceControlGrain
 {
-    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, SfuPermission permission,
+    public async Task<string> IssueAuthorizationTokenAsync(ArgonUserId userId, ArgonRoomId roomId, VideoGrants permission,
         CancellationToken ct = default)
         => CreateJwt(roomId, userId, permission, settings);
 
@@ -176,37 +176,18 @@ public class VoiceControlGrain(
 
     #region JWT
 
-    private static string CreateJwt(ArgonRoomId roomName, ArgonUserId identity, SfuPermission permissions,
+    private static string CreateJwt(ArgonRoomId roomName, ArgonUserId identity, VideoGrants permissions,
         IOptions<CallKitOptions> settings)
-    {
-        var       now     = DateTime.UtcNow;
-        JwtHeader headers = new(new SigningCredentials(new SymmetricSecurityKey(Encoding.UTF8.GetBytes(settings.Value.Sfu.Secret)), "HS256"));
-
-        JwtPayload payload = new()
-        {
+        => new AccessToken(settings.Value.Sfu.ClientId, settings.Value.Sfu.Secret)
+           .WithIdentity(identity.ToRawIdentity())
+           .WithName(identity.ToRawIdentity())
+           .WithTtl(TimeSpan.FromHours(2))
+           .WithGrants(permissions)
+           .WithRoomConfig(new RoomConfiguration
             {
-                "exp", new DateTimeOffset(now.AddHours(1)).ToUnixTimeSeconds()
-            },
-            {
-                "iss", settings.Value.Sfu.ClientId
-            },
-            {
-                "nbf", 0
-            },
-            {
-                "sub", identity.ToRawIdentity()
-            },
-            {
-                "name", identity.ToRawIdentity()
-            },
-            {
-                "video", permissions.ToDictionary(roomName)
-            }
-        };
-
-        JwtSecurityToken token = new(headers, payload);
-        return new JwtSecurityTokenHandler().WriteToken(token);
-    }
+                Name = roomName.ToRawRoomId()
+            })
+           .ToJwt();
 
     private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
