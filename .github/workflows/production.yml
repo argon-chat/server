@@ -71,6 +71,44 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+      - name: Send success message to Telegram
+        if: success()
+        run: |
+          export GITHUB_REPO="${{ github.repository }}"
+          export BUILD_VERSION="${{ github.run_number }}"
+          export GIT_SHA="${{ github.sha }}"
+          export GIT_AUTHOR="${{ github.actor }}"
+          export GIT_MESSAGE="${{ github.event.head_commit.message }}"
+          export COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+
+          MESSAGE=$(envsubst < .github/messages/telegram_success.txt)
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data "parse_mode=Markdown" \
+            --data "disable_web_page_preview=true"
+
+      - name: Send failure message to Telegram
+        if: failure()
+        run: |
+          export GITHUB_REPO="${{ github.repository }}"
+          export BUILD_VERSION="${{ github.run_number }}"
+          export GIT_SHA="${{ github.sha }}"
+          export GIT_AUTHOR="${{ github.actor }}"
+          export GIT_MESSAGE="${{ github.event.head_commit.message }}"
+          export COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
+
+          MESSAGE=$(envsubst < .github/messages/telegram_failure.txt)
+
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
+            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
+            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data "parse_mode=Markdown" \
+            --data "disable_web_page_preview=true"
+
 
   build-dockerhub:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -110,41 +148,3 @@ jobs:
             GIT_COMMIT=${{ github.sha }}
             VERSION=${{ github.run_number }}
             BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
-
-      - name: Send success message to Telegram
-        if: success()
-        run: |
-          export GITHUB_REPO="${{ github.repository }}"
-          export BUILD_VERSION="${{ github.run_number }}"
-          export GIT_SHA="${{ github.sha }}"
-          export GIT_AUTHOR="${{ github.actor }}"
-          export GIT_MESSAGE="${{ github.event.head_commit.message }}"
-          export COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-
-          MESSAGE=$(envsubst < .github/messages/telegram_success.txt)
-
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
-            --data-urlencode "text=${MESSAGE}" \
-            --data "parse_mode=Markdown" \
-            --data "disable_web_page_preview=true"
-
-      - name: Send failure message to Telegram
-        if: failure()
-        run: |
-          export GITHUB_REPO="${{ github.repository }}"
-          export BUILD_VERSION="${{ github.run_number }}"
-          export GIT_SHA="${{ github.sha }}"
-          export GIT_AUTHOR="${{ github.actor }}"
-          export GIT_MESSAGE="${{ github.event.head_commit.message }}"
-          export COMMIT_URL="${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}"
-
-          MESSAGE=$(envsubst < .github/messages/telegram_failure.txt)
-
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_TOKEN }}/sendMessage" \
-            --data-urlencode "chat_id=${{ secrets.TELEGRAM_CHAT_ID }}" \
-            --data-urlencode "message_thread_id=${{ secrets.TELEGRAM_TOPIC_ID }}" \
-            --data-urlencode "text=${MESSAGE}" \
-            --data "parse_mode=Markdown" \
-            --data "disable_web_page_preview=true"
