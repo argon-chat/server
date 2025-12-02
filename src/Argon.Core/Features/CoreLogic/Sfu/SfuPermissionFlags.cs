@@ -15,7 +15,7 @@ public record SfuPermission
         => flag switch
         {
             SfuPermissionKind.DefaultUser  => DefaultUser(roomId),
-            SfuPermissionKind.DefaultAdmin => DefaultUser(roomId),
+            SfuPermissionKind.DefaultAdmin => DefaultAdmin(roomId),
             SfuPermissionKind.DefaultBot   => DefaultUser(roomId)
         };
 
@@ -31,6 +31,26 @@ public record SfuPermission
             Room                 = roomId,
             DestinationRoom      = roomId,
             CanPublishData       = true,
+        };
+
+    public static VideoGrants DefaultAdmin(string roomId) =>
+        new()
+        {
+            CanPublish           = true,
+            RoomJoin             = true,
+            CanSubscribeMetrics  = true,
+            CanUpdateOwnMetadata = true,
+            CanSubscribe         = true,
+            RoomCreate           = true,
+            Room                 = roomId,
+            DestinationRoom      = roomId,
+            CanPublishData       = true,
+            Hidden               = true,
+            IngressAdmin         = true,
+            Recorder             = true,
+            RoomAdmin            = true,
+            RoomList             = true,
+            RoomRecord           = true
         };
 }
 

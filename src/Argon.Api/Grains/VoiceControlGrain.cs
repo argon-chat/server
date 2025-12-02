@@ -183,10 +183,6 @@ public class VoiceControlGrain(
            .WithName(identity.ToRawIdentity())
            .WithTtl(TimeSpan.FromHours(2))
            .WithGrants(permissions)
-           .WithRoomConfig(new RoomConfiguration
-            {
-                Name = roomName.ToRawRoomId()
-            })
            .ToJwt();
 
     private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
