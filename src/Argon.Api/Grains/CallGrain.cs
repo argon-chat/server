@@ -93,7 +93,7 @@ public sealed class CallGrain(
 
         ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
 
-        await this.GrainFactory.GetGrain<IEchoSessionGrain>(this.GetPrimaryKey())
+        _ = this.GrainFactory.GetGrain<IEchoSessionGrain>(this.GetPrimaryKey())
            .RequestJoinEchoAsync(new EchoJoinRequest(_state.RoomName, _state.CalleeToken, "girl_echo_01", "https://rts.argon.gl", callerId), ct);
 
         _state.Status = CallStatus.Accepted;
