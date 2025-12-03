@@ -147,7 +147,8 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
         {
             RequesterId = me,
             TargetId    = target.Value,
-            RequestedAt = DateTimeOffset.UtcNow
+            RequestedAt = DateTimeOffset.UtcNow,
+            ExpiredAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))
         });
 
         await ctx.SaveChangesAsync(ct);
