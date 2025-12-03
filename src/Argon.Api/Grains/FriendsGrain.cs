@@ -1,13 +1,27 @@
 namespace Argon.Grains;
 
-using System.Linq.Expressions;
+using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Core.Entities.Data;
 using Orleans.Concurrency;
+using System.Linq.Expressions;
 
 [StatelessWorker]
-public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogger<IFriendsGrain> logger) : Grain, IFriendsGrain
+public class FriendsGrain(
+    IDbContextFactory<ApplicationDbContext> context, 
+    ILogger<IFriendsGrain> logger,
+    IUserSessionDiscoveryService sessionDiscovery,
+    IUserSessionNotifier notifier) : Grain, IFriendsGrain
 {
+    private async Task NotifyAsync<T>(Guid userId, T payload) where T : IArgonEvent
+    {
+        var sessions = await sessionDiscovery.GetUserSessionsAsync(userId);
+
+        if (sessions.Count == 0) return;
+
+        await notifier.NotifySessionsAsync(sessions, payload);
+    }
+
     public async Task<List<UserBlock>> GetBlockListAsync(int limit, int offset, CancellationToken ct = default)
     {
         var             meUserId = this.GetUserId();
@@ -131,6 +145,14 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
                 await ctx.SaveChangesAsync(ct);
             }, ct);
 
+            var ts = DateTimeOffset.UtcNow.UtcDateTime;
+
+            await NotifyAsync(me,
+                new FriendRequestAcceptedEvent(target.Value, ts));
+
+            await NotifyAsync(target.Value,
+                new FriendRequestAcceptedEvent(me, ts));
+
             return SendFriendStatus.AutoAccepted;
         }
 
@@ -152,6 +174,12 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
         });
 
         await ctx.SaveChangesAsync(ct);
+
+        await NotifyAsync(target.Value,
+            new FriendRequestReceivedEvent(me, DateTimeOffset.UtcNow.UtcDateTime));
+
+        await NotifyAsync(me,
+            new FriendRequestSentEvent(target.Value, DateTimeOffset.UtcNow.UtcDateTime));
         return SendFriendStatus.SuccessSent;
     }
 
@@ -178,6 +206,9 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
         var affected = await ctx.Database.ExecuteSqlRawAsync(sql, [
             meUserId, userId
         ], ct);
+
+        await NotifyAsync(meUserId, new FriendshipRemovedEvent(userId));
+        await NotifyAsync(userId, new FriendshipRemovedEvent(meUserId));
 
         logger.LogInformation(
             "Removed friendship rows: {Count} for {UserId} and {FriendId}",
@@ -243,6 +274,14 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
             await ctx.SaveChangesAsync(ct);
         }, ct);
 
+        var ts = DateTimeOffset.UtcNow.UtcDateTime;
+
+        await NotifyAsync(me,
+            new FriendRequestAcceptedEvent(fromUserId, ts));
+
+        await NotifyAsync(fromUserId,
+            new FriendRequestAcceptedEvent(me, ts));
+
         logger.LogInformation("Successfully accepted friend request {User}<->{From}", me, fromUserId);
     }
 
@@ -264,6 +303,9 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
 
         ctx.FriendRequest.Remove(request);
         await ctx.SaveChangesAsync(ct);
+
+        await NotifyAsync(fromUserId,
+            new FriendRequestDeclinedEvent(me));
 
         logger.LogInformation("Successfully declined friend request {From}->{User}", fromUserId, me);
     }
@@ -287,6 +329,9 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
 
         ctx.FriendRequest.Remove(request);
         await ctx.SaveChangesAsync(ct);
+
+        await NotifyAsync(toUserId,
+            new FriendRequestCanceledEvent(me));
 
         logger.LogInformation("Canceled outgoing friend request {User}->{To}", me, toUserId);
     }
@@ -373,6 +418,8 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
                 }
 
                 await tx.CommitAsync(ct);
+
+                await NotifyAsync(meUserId, new UserBlockedEvent(userId));
             }
             catch (Exception ex)
             {
@@ -407,6 +454,8 @@ public class FriendsGrain(IDbContextFactory<ApplicationDbContext> context, ILogg
 
         ctx.UserBlocklist.Remove(block);
         await ctx.SaveChangesAsync(ct);
+
+        await NotifyAsync(meUserId, new UserUnblockedEvent(userId));
 
         logger.LogInformation("Successfully unblocked user: {User} -> {Blocked}", meUserId, userId);
     }

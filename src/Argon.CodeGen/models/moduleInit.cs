@@ -116,6 +116,14 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CallFinished>.Value = new Ion_CallFinished_Formatter();
       IonFormatterStorage<CallAccepted>.Value = new Ion_CallAccepted_Formatter();
       IonFormatterStorage<CallRejected>.Value = new Ion_CallRejected_Formatter();
+      IonFormatterStorage<FriendRequestReceivedEvent>.Value = new Ion_FriendRequestReceivedEvent_Formatter();
+      IonFormatterStorage<FriendRequestSentEvent>.Value = new Ion_FriendRequestSentEvent_Formatter();
+      IonFormatterStorage<FriendRequestAcceptedEvent>.Value = new Ion_FriendRequestAcceptedEvent_Formatter();
+      IonFormatterStorage<FriendRequestDeclinedEvent>.Value = new Ion_FriendRequestDeclinedEvent_Formatter();
+      IonFormatterStorage<FriendRequestCanceledEvent>.Value = new Ion_FriendRequestCanceledEvent_Formatter();
+      IonFormatterStorage<FriendshipRemovedEvent>.Value = new Ion_FriendshipRemovedEvent_Formatter();
+      IonFormatterStorage<UserBlockedEvent>.Value = new Ion_UserBlockedEvent_Formatter();
+      IonFormatterStorage<UserUnblockedEvent>.Value = new Ion_UserUnblockedEvent_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

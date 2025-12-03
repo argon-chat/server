@@ -635,6 +635,22 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsCallRejected => this is CallRejected;
 
+    internal bool IsFriendRequestReceivedEvent => this is FriendRequestReceivedEvent;
+
+    internal bool IsFriendRequestSentEvent => this is FriendRequestSentEvent;
+
+    internal bool IsFriendRequestAcceptedEvent => this is FriendRequestAcceptedEvent;
+
+    internal bool IsFriendRequestDeclinedEvent => this is FriendRequestDeclinedEvent;
+
+    internal bool IsFriendRequestCanceledEvent => this is FriendRequestCanceledEvent;
+
+    internal bool IsFriendshipRemovedEvent => this is FriendshipRemovedEvent;
+
+    internal bool IsUserBlockedEvent => this is UserBlockedEvent;
+
+    internal bool IsUserUnblockedEvent => this is UserUnblockedEvent;
+
 }
 
 
@@ -792,6 +808,62 @@ public sealed record CallRejected(guid userId, guid callId, guid fromId) : IArgo
     public uint UnionIndex => 21;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendRequestReceivedEvent(guid requesterId, datetime requestDate) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendRequestReceivedEvent);
+    public uint UnionIndex => 22;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendRequestSentEvent(guid targetId, datetime requestDate) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendRequestSentEvent);
+    public uint UnionIndex => 23;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendRequestAcceptedEvent(guid userId, datetime friendAt) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendRequestAcceptedEvent);
+    public uint UnionIndex => 24;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendRequestDeclinedEvent(guid targetId) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendRequestDeclinedEvent);
+    public uint UnionIndex => 25;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendRequestCanceledEvent(guid requesterId) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendRequestCanceledEvent);
+    public uint UnionIndex => 26;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FriendshipRemovedEvent(guid userId) : IArgonEvent
+{
+    public string UnionKey => nameof(FriendshipRemovedEvent);
+    public uint UnionIndex => 27;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserBlockedEvent(guid blockId) : IArgonEvent
+{
+    public string UnionKey => nameof(UserBlockedEvent);
+    public uint UnionIndex => 28;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserUnblockedEvent(guid blockId) : IArgonEvent
+{
+    public string UnionKey => nameof(UserUnblockedEvent);
+    public uint UnionIndex => 29;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -869,6 +941,30 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 21)
             result = IonFormatterStorage<CallRejected>.Read(reader);
+
+        else if (unionIndex == 22)
+            result = IonFormatterStorage<FriendRequestReceivedEvent>.Read(reader);
+
+        else if (unionIndex == 23)
+            result = IonFormatterStorage<FriendRequestSentEvent>.Read(reader);
+
+        else if (unionIndex == 24)
+            result = IonFormatterStorage<FriendRequestAcceptedEvent>.Read(reader);
+
+        else if (unionIndex == 25)
+            result = IonFormatterStorage<FriendRequestDeclinedEvent>.Read(reader);
+
+        else if (unionIndex == 26)
+            result = IonFormatterStorage<FriendRequestCanceledEvent>.Read(reader);
+
+        else if (unionIndex == 27)
+            result = IonFormatterStorage<FriendshipRemovedEvent>.Read(reader);
+
+        else if (unionIndex == 28)
+            result = IonFormatterStorage<UserBlockedEvent>.Read(reader);
+
+        else if (unionIndex == 29)
+            result = IonFormatterStorage<UserUnblockedEvent>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -1035,6 +1131,62 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_21.UnionIndex != 21)
                 throw new InvalidOperationException();
             IonFormatterStorage<CallRejected>.Write(writer, n_21);
+        }
+
+        else if (value is FriendRequestReceivedEvent n_22)
+        {
+            if (n_22.UnionIndex != 22)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendRequestReceivedEvent>.Write(writer, n_22);
+        }
+
+        else if (value is FriendRequestSentEvent n_23)
+        {
+            if (n_23.UnionIndex != 23)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendRequestSentEvent>.Write(writer, n_23);
+        }
+
+        else if (value is FriendRequestAcceptedEvent n_24)
+        {
+            if (n_24.UnionIndex != 24)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendRequestAcceptedEvent>.Write(writer, n_24);
+        }
+
+        else if (value is FriendRequestDeclinedEvent n_25)
+        {
+            if (n_25.UnionIndex != 25)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendRequestDeclinedEvent>.Write(writer, n_25);
+        }
+
+        else if (value is FriendRequestCanceledEvent n_26)
+        {
+            if (n_26.UnionIndex != 26)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendRequestCanceledEvent>.Write(writer, n_26);
+        }
+
+        else if (value is FriendshipRemovedEvent n_27)
+        {
+            if (n_27.UnionIndex != 27)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FriendshipRemovedEvent>.Write(writer, n_27);
+        }
+
+        else if (value is UserBlockedEvent n_28)
+        {
+            if (n_28.UnionIndex != 28)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserBlockedEvent>.Write(writer, n_28);
+        }
+
+        else if (value is UserUnblockedEvent n_29)
+        {
+            if (n_29.UnionIndex != 29)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserUnblockedEvent>.Write(writer, n_29);
         }
     
         else
@@ -1570,6 +1722,180 @@ public sealed class Ion_CallRejected_Formatter : IonFormatter<CallRejected>
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<guid>.Write(writer, value.callId);
         IonFormatterStorage<guid>.Write(writer, value.fromId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendRequestReceivedEvent_Formatter : IonFormatter<FriendRequestReceivedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendRequestReceivedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __requesterid = IonFormatterStorage<guid>.Read(reader);
+        var __requestdate = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__requesterid, __requestdate);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendRequestReceivedEvent value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.requesterId);
+        IonFormatterStorage<datetime>.Write(writer, value.requestDate);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendRequestSentEvent_Formatter : IonFormatter<FriendRequestSentEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendRequestSentEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        var __requestdate = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__targetid, __requestdate);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendRequestSentEvent value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.targetId);
+        IonFormatterStorage<datetime>.Write(writer, value.requestDate);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendRequestAcceptedEvent_Formatter : IonFormatter<FriendRequestAcceptedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendRequestAcceptedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __friendat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__userid, __friendat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendRequestAcceptedEvent value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<datetime>.Write(writer, value.friendAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendRequestDeclinedEvent_Formatter : IonFormatter<FriendRequestDeclinedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendRequestDeclinedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__targetid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendRequestDeclinedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.targetId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendRequestCanceledEvent_Formatter : IonFormatter<FriendRequestCanceledEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendRequestCanceledEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __requesterid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__requesterid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendRequestCanceledEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.requesterId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FriendshipRemovedEvent_Formatter : IonFormatter<FriendshipRemovedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FriendshipRemovedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__userid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FriendshipRemovedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserBlockedEvent_Formatter : IonFormatter<UserBlockedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserBlockedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __blockid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__blockid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserBlockedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.blockId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserUnblockedEvent_Formatter : IonFormatter<UserUnblockedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserUnblockedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __blockid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__blockid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserUnblockedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.blockId);
         writer.WriteEndArray();
     }
 }
