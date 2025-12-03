@@ -36,11 +36,14 @@ public sealed class CallGrain(
 
         var grants = new VideoGrants()
         {
-            CanPublish   = true,
-            CanSubscribe = true,
-            Room         = _state.RoomName,
-            RoomJoin     = true,
-            RoomCreate   = true
+            CanPublish           = true,
+            CanSubscribe         = true,
+            Room                 = _state.RoomName,
+            RoomJoin             = true,
+            RoomCreate           = true,
+            CanPublishData       = true,
+            CanSubscribeMetrics  = true,
+            CanUpdateOwnMetadata = true,
         };
 
 
@@ -52,7 +55,7 @@ public sealed class CallGrain(
             new CallIncoming(calleeId, callId, callerId), ct);
 
         ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
-        
+
         return _state;
     }
 

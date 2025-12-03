@@ -18,11 +18,13 @@ public static class SfuFeature
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new EgressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<IngressServiceClient>(x => {
+        builder.Services.AddScoped<IngressServiceClient>(x =>
+        {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new IngressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<SipServiceClient>(x => {
+        builder.Services.AddScoped<SipServiceClient>(x =>
+        {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new SipServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
@@ -45,11 +47,14 @@ public class SfuAuthScope(IOptions<CallKitOptions> options) : ISfuAuthScope
            .WithName(displayName)
            .WithGrants(new VideoGrants
             {
-                RoomJoin     = true,
-                CanPublish   = true,
-                CanSubscribe = true,
-                RoomCreate   = true,
-                Room         = roomId
+                RoomJoin             = true,
+                CanPublish           = true,
+                CanSubscribe         = true,
+                RoomCreate           = true,
+                CanPublishData       = true,
+                CanUpdateOwnMetadata = true,
+                CanSubscribeMetrics  = true,
+                Room                 = roomId
             })
            .WithTtl(ttl);
         return token.ToJwt();
@@ -58,8 +63,8 @@ public class SfuAuthScope(IOptions<CallKitOptions> options) : ISfuAuthScope
 
 public class CallKitOptions
 {
-    public List<IceCfg>   Ices { get; set; } = new();
-    public required SfuInstanceCfg Sfu { get; set; }
+    public          List<IceCfg>   Ices { get; set; } = new();
+    public required SfuInstanceCfg Sfu  { get; set; }
 }
 
 public enum IceKind
