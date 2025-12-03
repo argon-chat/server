@@ -37,8 +37,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IInterlinkResult>.Value = new Ion_IInterlinkResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
+      IonFormatterStorage<UserBlock>.Value = new Ion_UserBlock_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
-      IonFormatterStorage<FriendRequestStatus>.Value = new Ion_FriendRequestStatus_Formatter();
+      IonFormatterStorage<Friendship>.Value = new Ion_Friendship_Formatter();
+      IonFormatterStorage<SendFriendStatus>.Value = new Ion_SendFriendStatus_Formatter();
       IonFormatterStorage<BadAuthKind>.Value = new Ion_BadAuthKind_Formatter();
       IonFormatterStorage<IMyAuthStatus>.Value = new Ion_IMyAuthStatus_Formatter();
       IonFormatterStorage<InventoryItem>.Value = new Ion_InventoryItem_Formatter();

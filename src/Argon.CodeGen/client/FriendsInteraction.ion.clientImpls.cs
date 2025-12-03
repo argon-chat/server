@@ -18,9 +18,222 @@ namespace ArgonContracts;
 public sealed class Ion_FriendsInteraction_ClientImpl(IonClientContext context) : IFriendsInteraction
 {
     
+    private static readonly Lazy<MethodInfo> GetBlockList_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(GetBlockList), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyFriendPendingList_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(GetMyFriendPendingList), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyFriendOutgoingList_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(GetMyFriendOutgoingList), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyFriendships_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(GetMyFriendships), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SendFriendRequest_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(SendFriendRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RemoveFriend_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(RemoveFriend), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AcceptFriendRequest_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(AcceptFriendRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeclineFriendRequest_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(DeclineFriendRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CancelFriendRequest_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(CancelFriendRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BlockUser_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(BlockUser), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnblockUser_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(UnblockUser), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<UserBlock>> GetBlockList(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), GetBlockList_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<UserBlock>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<FriendRequest>> GetMyFriendPendingList(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), GetMyFriendPendingList_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<FriendRequest>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<FriendRequest>> GetMyFriendOutgoingList(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), GetMyFriendOutgoingList_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<FriendRequest>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<Friendship>> GetMyFriendships(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), GetMyFriendships_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<Friendship>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<SendFriendStatus> SendFriendRequest(string __username, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), SendFriendRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __username);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<SendFriendStatus>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RemoveFriend(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), RemoveFriend_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AcceptFriendRequest(guid __fromuserid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), AcceptFriendRequest_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __fromuserid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeclineFriendRequest(guid __fromuserid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), DeclineFriendRequest_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __fromuserid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CancelFriendRequest(guid __touserid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), CancelFriendRequest_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __touserid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BlockUser(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), BlockUser_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnblockUser(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), UnblockUser_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
 
 }
 

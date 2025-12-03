@@ -9,6 +9,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
 {
     public static readonly Guid SystemUser
         = Guid.Parse("11111111-2222-1111-2222-111111111111");
+    public static readonly Guid EchoUser
+        = Guid.Parse("44444444-2222-1111-2222-444444444444");
 
     public required string  Email          { get; set; }
     public required string  Username       { get; set; }

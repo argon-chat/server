@@ -25,7 +25,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
 
-    #region Apps
+#region Apps
 
     public DbSet<DevTeamEntity>       TeamEntities       => Set<DevTeamEntity>();
     public DbSet<DevAppEntity>        AppEntities        => Set<DevAppEntity>();
@@ -33,7 +33,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BotEntity>           BotEntities        => Set<BotEntity>();
     public DbSet<DevTeamMemberInvite> TeamInvites        => Set<DevTeamMemberInvite>();
 
-    #endregion
+#endregion
+
+#region Friends
+
+    public DbSet<UserBlockEntity>       UserBlocklist => Set<UserBlockEntity>();
+    public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
+    public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
+
+#endregion
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
@@ -97,5 +105,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 CreatedAt     = new DateTime(2025, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc).AddTicks(0)
             }
         ]);
+
+
+        modelBuilder.Entity<UserEntity>().HasData(new UserEntity
+        {
+            Username       = "echo",
+            DisplayName    = "Echo",
+            Email          = "echo@argon.gl",
+            Id             = UserEntity.EchoUser,
+            PasswordDigest = null,
+        });
     }
 }

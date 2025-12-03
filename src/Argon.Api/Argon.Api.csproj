@@ -17,20 +17,19 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <RuntimeHostConfigurationOption
-            Include="Microsoft.AspNetCore.Server.Kestrel.Experimental.WebTransportAndH3Datagrams" Value="true"/>
+        <RuntimeHostConfigurationOption Include="Microsoft.AspNetCore.Server.Kestrel.Experimental.WebTransportAndH3Datagrams" Value="true" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.8">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
     </ItemGroup>
 
     <ItemGroup>
-        <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs"/>
-        <None Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs"/>
+        <Compile Remove="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
+        <None Include="$(CompilerGeneratedFilesOutputPath)/**/*.cs" />
     </ItemGroup>
 
     <ItemGroup>
@@ -40,9 +39,9 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Core\Argon.Core.csproj"/>
+        <ProjectReference Include="..\Argon.Core\Argon.Core.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <InternalsVisibleTo Include="Argon.EE"/>
+        <InternalsVisibleTo Include="Argon.EE" />
     </ItemGroup>
 </Project>

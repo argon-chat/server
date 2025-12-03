@@ -14,21 +14,221 @@
 
 namespace ArgonContracts;
 
-public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope scope) : IServiceStreamExecutorRouter
+public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope scope) : IServiceExecutorRouter
 {
     
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetBlockList_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetBlockList(__limit, __offset);
+        
+        IonFormatterStorage<UserBlock>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyFriendPendingList_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyFriendPendingList(__limit, __offset);
+        
+        IonFormatterStorage<FriendRequest>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyFriendOutgoingList_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyFriendOutgoingList(__limit, __offset);
+        
+        IonFormatterStorage<FriendRequest>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyFriendships_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyFriendships(__limit, __offset);
+        
+        IonFormatterStorage<Friendship>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SendFriendRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __username = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SendFriendRequest(__username);
+        
+        IonFormatterStorage<SendFriendStatus>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RemoveFriend_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.RemoveFriend(__userid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AcceptFriendRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __fromuserid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.AcceptFriendRequest(__fromuserid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeclineFriendRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __fromuserid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.DeclineFriendRequest(__fromuserid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CancelFriendRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __touserid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CancelFriendRequest(__touserid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BlockUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.BlockUser(__userid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnblockUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UnblockUser(__userid);
+    }
 
     
     
-    public IAsyncEnumerable<Memory<byte>> StreamRouteExecuteAsync(string methodName, CborReader reader, IAsyncEnumerable<ReadOnlyMemory<byte>>? inputStream, [EnumeratorCancellation] CancellationToken ct)
+    
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
+        if (methodName.Equals("GetBlockList", StringComparison.InvariantCultureIgnoreCase))
+            return GetBlockList_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyFriendPendingList", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyFriendPendingList_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyFriendOutgoingList", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyFriendOutgoingList_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyFriendships", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyFriendships_Execute(reader, writer, ct);
+        if (methodName.Equals("SendFriendRequest", StringComparison.InvariantCultureIgnoreCase))
+            return SendFriendRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("RemoveFriend", StringComparison.InvariantCultureIgnoreCase))
+            return RemoveFriend_Execute(reader, writer, ct);
+        if (methodName.Equals("AcceptFriendRequest", StringComparison.InvariantCultureIgnoreCase))
+            return AcceptFriendRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("DeclineFriendRequest", StringComparison.InvariantCultureIgnoreCase))
+            return DeclineFriendRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("CancelFriendRequest", StringComparison.InvariantCultureIgnoreCase))
+            return CancelFriendRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("BlockUser", StringComparison.InvariantCultureIgnoreCase))
+            return BlockUser_Execute(reader, writer, ct);
+        if (methodName.Equals("UnblockUser", StringComparison.InvariantCultureIgnoreCase))
+            return UnblockUser_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
     }
-    
-    
     
     private static readonly string[] __allowedStreamingMethods = [
         

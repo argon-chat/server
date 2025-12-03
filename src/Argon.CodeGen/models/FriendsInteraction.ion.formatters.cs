@@ -14,43 +14,91 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserBlock_Formatter : IonFormatter<UserBlock>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserBlock Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __blockedid = IonFormatterStorage<guid>.Read(reader);
+        var __blockedat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __blockedid, __blockedat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserBlock value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.blockedId);
+        IonFormatterStorage<datetime>.Write(writer, value.blockedAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_FriendRequest_Formatter : IonFormatter<FriendRequest>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FriendRequest Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __requestid = IonFormatterStorage<guid>.Read(reader);
-        var __fromuser = IonFormatterStorage<guid>.Read(reader);
-        var __touser = IonFormatterStorage<guid>.Read(reader);
-        var __requesttime = IonFormatterStorage<datetime>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 4);
-        return new(__requestid, __fromuser, __touser, __requesttime);
+        var __requesterid = IonFormatterStorage<guid>.Read(reader);
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        var __requestedat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__requesterid, __targetid, __requestedat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, FriendRequest value)
     {
-        writer.WriteStartArray(4);
-        IonFormatterStorage<guid>.Write(writer, value.requestId);
-        IonFormatterStorage<guid>.Write(writer, value.fromUser);
-        IonFormatterStorage<guid>.Write(writer, value.toUser);
-        IonFormatterStorage<datetime>.Write(writer, value.requestTime);
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.requesterId);
+        IonFormatterStorage<guid>.Write(writer, value.targetId);
+        IonFormatterStorage<datetime>.Write(writer, value.requestedAt);
         writer.WriteEndArray();
     }
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_FriendRequestStatus_Formatter : IonFormatter<FriendRequestStatus>
+public sealed class Ion_Friendship_Formatter : IonFormatter<Friendship>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public FriendRequestStatus Read(CborReader reader)
+    public Friendship Read(CborReader reader)
     {
-         return (FriendRequestStatus)(IonFormatterStorage<u4>.Read(reader));
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __friendid = IonFormatterStorage<guid>.Read(reader);
+        var __friendat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __friendid, __friendat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, FriendRequestStatus value)
+    public void Write(CborWriter writer, Friendship value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.friendId);
+        IonFormatterStorage<datetime>.Write(writer, value.friendAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SendFriendStatus_Formatter : IonFormatter<SendFriendStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SendFriendStatus Read(CborReader reader)
+    {
+         return (SendFriendStatus)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SendFriendStatus value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

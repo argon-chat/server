@@ -15,24 +15,45 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record FriendRequest(guid requestId, guid fromUser, guid toUser, datetime requestTime);
+public sealed record UserBlock(guid userId, guid blockedId, datetime blockedAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum FriendRequestStatus
+public sealed record FriendRequest(guid requesterId, guid targetId, datetime requestedAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record Friendship(guid userId, guid friendId, datetime friendAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SendFriendStatus
 {
-    Pending = 0,
-    Accepted = 1,
-    Declined = 2,
-    Cancelled = 3,
-    Expired = 4,
-    Blocked = 5,
+    TargetNotFound = 0,
+    CannotFriendYourself = 1,
+    Blocked = 2,
+    AlreadyFriends = 3,
+    AutoAccepted = 4,
+    AlreadySent = 5,
+    SuccessSent = 6,
+    FailedSent = 7,
 }
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IFriendsInteraction : IIonService
 {
+    Task<IonArray<UserBlock>> GetBlockList(i4 limit, i4 offset, CancellationToken ct = default);
+    Task<IonArray<FriendRequest>> GetMyFriendPendingList(i4 limit, i4 offset, CancellationToken ct = default);
+    Task<IonArray<FriendRequest>> GetMyFriendOutgoingList(i4 limit, i4 offset, CancellationToken ct = default);
+    Task<IonArray<Friendship>> GetMyFriendships(i4 limit, i4 offset, CancellationToken ct = default);
+    Task<SendFriendStatus> SendFriendRequest(string username, CancellationToken ct = default);
+    Task RemoveFriend(guid userId, CancellationToken ct = default);
+    Task AcceptFriendRequest(guid fromUserId, CancellationToken ct = default);
+    Task DeclineFriendRequest(guid fromUserId, CancellationToken ct = default);
+    Task CancelFriendRequest(guid toUserId, CancellationToken ct = default);
+    Task BlockUser(guid userId, CancellationToken ct = default);
+    Task UnblockUser(guid userId, CancellationToken ct = default);
 }
 
 
