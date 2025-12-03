@@ -54,5 +54,5 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     }
 
     public static UserChat Map(scoped in UserChatEntity self)
-        => new (self.PeerId, self.IsPinned, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, 0);
+        => new (self.PeerId, self.IsPinned, self.UserId, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, 0);
 }

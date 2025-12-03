@@ -27,7 +27,7 @@ public sealed record Friendship(guid userId, guid friendId, datetime friendAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserChat(guid peerId, bool isPinned, string? lastMsg, datetime lastMessageAt, datetime? pinnedAt, i4 unreadCount);
+public sealed record UserChat(guid peerId, bool isPinned, guid userId, string? lastMsg, datetime lastMessageAt, datetime? pinnedAt, i4 unreadCount);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
