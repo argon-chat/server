@@ -237,3 +237,96 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
 }
 
+public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope scope) : IServiceExecutorRouter
+{
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetRecentChats_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetRecentChats(__limit, __offset);
+        
+        IonFormatterStorage<UserChat>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PinChat_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.PinChat(__peerid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnpinChat_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UnpinChat(__peerid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkChatRead_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MarkChatRead(__peerid);
+    }
+
+    
+    
+    
+        public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        
+        if (methodName.Equals("GetRecentChats", StringComparison.InvariantCultureIgnoreCase))
+            return GetRecentChats_Execute(reader, writer, ct);
+        if (methodName.Equals("PinChat", StringComparison.InvariantCultureIgnoreCase))
+            return PinChat_Execute(reader, writer, ct);
+        if (methodName.Equals("UnpinChat", StringComparison.InvariantCultureIgnoreCase))
+            return UnpinChat_Execute(reader, writer, ct);
+        if (methodName.Equals("MarkChatRead", StringComparison.InvariantCultureIgnoreCase))
+            return MarkChatRead_Execute(reader, writer, ct);
+
+        
+        throw new InvalidOperationException("no method defined");
+    }
+    
+    private static readonly string[] __allowedStreamingMethods = [
+        
+    ];
+    
+    public bool IsAllowInputStream(string methodName) => __allowedStreamingMethods.Contains(methodName);
+}
+

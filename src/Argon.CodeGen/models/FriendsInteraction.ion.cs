@@ -27,6 +27,10 @@ public sealed record Friendship(guid userId, guid friendId, datetime friendAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserChat(guid peerId, bool isPinned, string? lastMsg, datetime lastMessageAt, datetime? pinnedAt, i4 unreadCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SendFriendStatus
 {
     TargetNotFound = 0,
@@ -54,6 +58,16 @@ public interface IFriendsInteraction : IIonService
     Task CancelFriendRequest(guid toUserId, CancellationToken ct = default);
     Task BlockUser(guid userId, CancellationToken ct = default);
     Task UnblockUser(guid userId, CancellationToken ct = default);
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IUserChatInteractions : IIonService
+{
+    Task<IonArray<UserChat>> GetRecentChats(i4 limit, i4 offset, CancellationToken ct = default);
+    Task PinChat(guid peerId, CancellationToken ct = default);
+    Task UnpinChat(guid peerId, CancellationToken ct = default);
+    Task MarkChatRead(guid peerId, CancellationToken ct = default);
 }
 
 

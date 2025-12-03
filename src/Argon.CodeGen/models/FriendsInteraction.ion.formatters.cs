@@ -89,6 +89,37 @@ public sealed class Ion_Friendship_Formatter : IonFormatter<Friendship>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserChat_Formatter : IonFormatter<UserChat>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserChat Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __ispinned = IonFormatterStorage<bool>.Read(reader);
+        var __lastmsg = reader.ReadNullable<string>();
+        var __lastmessageat = IonFormatterStorage<datetime>.Read(reader);
+        var __pinnedat = reader.ReadNullable<datetime>();
+        var __unreadcount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__peerid, __ispinned, __lastmsg, __lastmessageat, __pinnedat, __unreadcount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserChat value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
+        IonFormatterStorage<bool>.Write(writer, value.isPinned);
+        IonFormatterStorage<string>.WriteNullable(writer, value.lastMsg);
+        IonFormatterStorage<datetime>.Write(writer, value.lastMessageAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.pinnedAt);
+        IonFormatterStorage<i4>.Write(writer, value.unreadCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SendFriendStatus_Formatter : IonFormatter<SendFriendStatus>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

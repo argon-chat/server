@@ -237,3 +237,90 @@ public sealed class Ion_FriendsInteraction_ClientImpl(IonClientContext context) 
 
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context) : IUserChatInteractions
+{
+    
+    private static readonly Lazy<MethodInfo> GetRecentChats_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(GetRecentChats), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PinChat_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(PinChat), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnpinChat_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(UnpinChat), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MarkChatRead_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(MarkChatRead), BindingFlags.Public | BindingFlags.Instance)!);
+
+
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<UserChat>> GetRecentChats(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), GetRecentChats_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<UserChat>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PinChat(guid __peerid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), PinChat_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnpinChat(guid __peerid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), UnpinChat_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkChatRead(guid __peerid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), MarkChatRead_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+
+}
+

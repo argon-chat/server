@@ -40,6 +40,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UserBlock>.Value = new Ion_UserBlock_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<Friendship>.Value = new Ion_Friendship_Formatter();
+      IonFormatterStorage<UserChat>.Value = new Ion_UserChat_Formatter();
       IonFormatterStorage<SendFriendStatus>.Value = new Ion_SendFriendStatus_Formatter();
       IonFormatterStorage<BadAuthKind>.Value = new Ion_BadAuthKind_Formatter();
       IonFormatterStorage<IMyAuthStatus>.Value = new Ion_IMyAuthStatus_Formatter();
@@ -124,6 +125,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FriendshipRemovedEvent>.Value = new Ion_FriendshipRemovedEvent_Formatter();
       IonFormatterStorage<UserBlockedEvent>.Value = new Ion_UserBlockedEvent_Formatter();
       IonFormatterStorage<UserUnblockedEvent>.Value = new Ion_UserUnblockedEvent_Formatter();
+      IonFormatterStorage<RecentChatUpdatedEvent>.Value = new Ion_RecentChatUpdatedEvent_Formatter();
+      IonFormatterStorage<ChatPinnedEvent>.Value = new Ion_ChatPinnedEvent_Formatter();
+      IonFormatterStorage<ChatUnpinnedEvent>.Value = new Ion_ChatUnpinnedEvent_Formatter();
+      IonFormatterStorage<ChatReadEvent>.Value = new Ion_ChatReadEvent_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
@@ -151,6 +156,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
       IonExecutorMetadataStorage.AddExecutor<Ion_FriendsInteraction_ServiceExecutor>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_UserChatInteractions_ServiceExecutor>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
@@ -162,6 +168,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
       IonExecutorMetadataStorage.AddClient<Ion_FriendsInteraction_ClientImpl>("IFriendsInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_UserChatInteractions_ClientImpl>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");

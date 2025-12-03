@@ -27,6 +27,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IArchetypeInteraction, ArchetypeInteraction>();
     x.AddService<ICallInteraction, CallInteraction>();
     x.AddService<IFriendsInteraction, FriendsInteractionImpl>();
+    x.AddService<IUserChatInteractions, UserChatInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
 

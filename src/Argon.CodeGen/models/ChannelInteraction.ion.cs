@@ -651,6 +651,14 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsUserUnblockedEvent => this is UserUnblockedEvent;
 
+    internal bool IsRecentChatUpdatedEvent => this is RecentChatUpdatedEvent;
+
+    internal bool IsChatPinnedEvent => this is ChatPinnedEvent;
+
+    internal bool IsChatUnpinnedEvent => this is ChatUnpinnedEvent;
+
+    internal bool IsChatReadEvent => this is ChatReadEvent;
+
 }
 
 
@@ -864,6 +872,34 @@ public sealed record UserUnblockedEvent(guid blockId) : IArgonEvent
     public uint UnionIndex => 29;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record RecentChatUpdatedEvent(guid peerId, string? lastMessage, datetime lastMessageAt) : IArgonEvent
+{
+    public string UnionKey => nameof(RecentChatUpdatedEvent);
+    public uint UnionIndex => 30;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChatPinnedEvent(guid peerId, datetime pinnedAt) : IArgonEvent
+{
+    public string UnionKey => nameof(ChatPinnedEvent);
+    public uint UnionIndex => 31;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChatUnpinnedEvent(guid peerId) : IArgonEvent
+{
+    public string UnionKey => nameof(ChatUnpinnedEvent);
+    public uint UnionIndex => 32;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChatReadEvent(guid peerId) : IArgonEvent
+{
+    public string UnionKey => nameof(ChatReadEvent);
+    public uint UnionIndex => 33;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -965,6 +1001,18 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 29)
             result = IonFormatterStorage<UserUnblockedEvent>.Read(reader);
+
+        else if (unionIndex == 30)
+            result = IonFormatterStorage<RecentChatUpdatedEvent>.Read(reader);
+
+        else if (unionIndex == 31)
+            result = IonFormatterStorage<ChatPinnedEvent>.Read(reader);
+
+        else if (unionIndex == 32)
+            result = IonFormatterStorage<ChatUnpinnedEvent>.Read(reader);
+
+        else if (unionIndex == 33)
+            result = IonFormatterStorage<ChatReadEvent>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -1187,6 +1235,34 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_29.UnionIndex != 29)
                 throw new InvalidOperationException();
             IonFormatterStorage<UserUnblockedEvent>.Write(writer, n_29);
+        }
+
+        else if (value is RecentChatUpdatedEvent n_30)
+        {
+            if (n_30.UnionIndex != 30)
+                throw new InvalidOperationException();
+            IonFormatterStorage<RecentChatUpdatedEvent>.Write(writer, n_30);
+        }
+
+        else if (value is ChatPinnedEvent n_31)
+        {
+            if (n_31.UnionIndex != 31)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChatPinnedEvent>.Write(writer, n_31);
+        }
+
+        else if (value is ChatUnpinnedEvent n_32)
+        {
+            if (n_32.UnionIndex != 32)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChatUnpinnedEvent>.Write(writer, n_32);
+        }
+
+        else if (value is ChatReadEvent n_33)
+        {
+            if (n_33.UnionIndex != 33)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChatReadEvent>.Write(writer, n_33);
         }
     
         else
@@ -1896,6 +1972,96 @@ public sealed class Ion_UserUnblockedEvent_Formatter : IonFormatter<UserUnblocke
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<guid>.Write(writer, value.blockId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_RecentChatUpdatedEvent_Formatter : IonFormatter<RecentChatUpdatedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public RecentChatUpdatedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __lastmessage = reader.ReadNullable<string>();
+        var __lastmessageat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__peerid, __lastmessage, __lastmessageat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, RecentChatUpdatedEvent value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.lastMessage);
+        IonFormatterStorage<datetime>.Write(writer, value.lastMessageAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChatPinnedEvent_Formatter : IonFormatter<ChatPinnedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChatPinnedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __pinnedat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__peerid, __pinnedat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChatPinnedEvent value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
+        IonFormatterStorage<datetime>.Write(writer, value.pinnedAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChatUnpinnedEvent_Formatter : IonFormatter<ChatUnpinnedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChatUnpinnedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__peerid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChatUnpinnedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChatReadEvent_Formatter : IonFormatter<ChatReadEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChatReadEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__peerid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChatReadEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
         writer.WriteEndArray();
     }
 }

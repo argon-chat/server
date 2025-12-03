@@ -37,9 +37,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #region Friends
 
-    public DbSet<UserBlockEntity>       UserBlocklist => Set<UserBlockEntity>();
+    public DbSet<UserBlockEntity>     UserBlocklist => Set<UserBlockEntity>();
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
+    public DbSet<UserChatEntity>      UserChatlist  => Set<UserChatEntity>();
 
 #endregion
 
