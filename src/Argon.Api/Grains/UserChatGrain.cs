@@ -160,11 +160,12 @@ public class UserChatGrain(
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
-        await NotifyAsync(me, new RecentChatUpdatedEvent(
-            peerId,
-            previewText,
-            timestamp.UtcDateTime
-        ));
+        //await NotifyAsync(me, new RecentChatUpdatedEvent(
+        //    peerId,
+            
+        //    previewText,
+        //    timestamp.UtcDateTime
+        //));
     }
 
 

@@ -21,12 +21,18 @@ public sealed class CallGrain(
 
         logger.LogInformation("Starting call {CallId}: {Caller} → {Callee}", callId, callerId, calleeId);
 
-        if (!await sessionDiscovery.IsUserOnlineAsync(callerId, ct))
-            return CallFailedError.CalleeOffline;
+        if (calleeId == UserEntity.EchoUser)
+        {
+            // detected call to Echo, re-route to echo
+            return await RouteToEchoCall(callerId, ct);
+        }
 
         var sessions = await sessionDiscovery.GetUserSessionsAsync(calleeId, ct);
         if (sessions.Count == 0)
-            return CallFailedError.CalleeOffline;
+        {
+            // no any found sessions for callee user, re-route call to void
+            return await CallRouteToVoid(callerId, calleeId, ct);
+        }
         _state.CallId   = callId;
         _state.CallerId = callerId;
         _state.CalleeId = calleeId;
@@ -53,6 +59,70 @@ public sealed class CallGrain(
         await notifier.NotifySessionsAsync(
             sessions,
             new CallIncoming(calleeId, callId, callerId), ct);
+
+        ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
+
+        return _state;
+    }
+
+    private async Task<Either<CallInfo, CallFailedError>> RouteToEchoCall(Guid callerId, CancellationToken ct)
+    {
+        var callId = this.GetPrimaryKey();
+        _state.CallId   = callId;
+        _state.CallerId = callerId;
+        _state.CalleeId = UserEntity.EchoUser;
+
+        _state.RoomName = $"call_{callId:N}";
+        _state.Status   = CallStatus.Ringing;
+
+        var grants = new VideoGrants()
+        {
+            CanPublish           = true,
+            CanSubscribe         = true,
+            Room                 = _state.RoomName,
+            RoomJoin             = true,
+            RoomCreate           = true,
+            CanPublishData       = true,
+            CanSubscribeMetrics  = true,
+            CanUpdateOwnMetadata = true,
+        };
+
+
+        _state.CallerToken = authScope.GenerateToken(callerId.ToString(), _state.RoomName, callerId.ToString(), grants, TimeSpan.FromHours(1));
+        _state.CalleeToken = authScope.GenerateToken(UserEntity.EchoUser.ToString(), _state.RoomName, UserEntity.EchoUser.ToString(), grants, TimeSpan.FromHours(1));
+
+        ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
+
+        await this.GrainFactory.GetGrain<IEchoSessionGrain>(this.GetPrimaryKey())
+           .RequestJoinEchoAsync(new EchoJoinRequest(_state.RoomName, _state.CalleeToken, "girl_echo_01", "https://rts.argon.gl", callerId), ct);
+        return _state;
+    }
+
+    private async Task<Either<CallInfo, CallFailedError>> CallRouteToVoid(Guid callerId, Guid calleeId, CancellationToken ct = default)
+    {
+        var callId = this.GetPrimaryKey();
+        
+        _state.CallId   = callId;
+        _state.CallerId = callerId;
+        _state.CalleeId = calleeId;
+
+        _state.RoomName = $"call_{callId:N}";
+        _state.Status   = CallStatus.Ringing;
+
+        var grants = new VideoGrants()
+        {
+            CanPublish           = true,
+            CanSubscribe         = true,
+            Room                 = _state.RoomName,
+            RoomJoin             = true,
+            RoomCreate           = true,
+            CanPublishData       = true,
+            CanSubscribeMetrics  = true,
+            CanUpdateOwnMetadata = true,
+        };
+
+
+        _state.CallerToken = authScope.GenerateToken(callerId.ToString(), _state.RoomName, callerId.ToString(), grants, TimeSpan.FromHours(1));
 
         ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
 
