@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251205024101_ComplexIndexForUserChats_Part2")]
-    partial class ComplexIndexForUserChats_Part2
+    [Migration("20251205025528_UserChatsWithComplexIndex")]
+    partial class UserChatsWithComplexIndex
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

@@ -1,5 +1,6 @@
 namespace Argon.Core.Entities.Data;
 
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConfiguration<UserChatEntity>
@@ -20,7 +21,8 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     public void Configure(EntityTypeBuilder<UserChatEntity> b)
     {
         b.ToTable(TableName);
-        b.HasKey(x => new {
+        b.HasKey(x => new
+        {
             x.UserId,
             x.PeerId
         });
@@ -49,5 +51,5 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     }
 
     public static UserChat Map(scoped in UserChatEntity self)
-        => new (self.PeerId, self.IsPinned, self.UserId, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, 0);
+        => new(self.PeerId, self.IsPinned, self.UserId, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, 0);
 }

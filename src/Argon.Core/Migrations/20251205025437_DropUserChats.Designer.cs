@@ -13,8 +13,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20251205010851_ComplexIndexForUserChats")]
-    partial class ComplexIndexForUserChats
+    [Migration("20251205025437_DropUserChats")]
+    partial class DropUserChats
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -459,38 +459,6 @@ namespace Argon.Core.Migrations
                         .HasDatabaseName("idx_user_blocks_user");
 
                     b.ToTable("user_blocks", (string)null);
-                });
-
-            modelBuilder.Entity("Argon.Core.Entities.Data.UserChatEntity", b =>
-                {
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("PeerId")
-                        .HasColumnType("uuid");
-
-                    b.Property<bool>("IsPinned")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false);
-
-                    b.Property<DateTimeOffset>("LastMessageAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LastMessageText")
-                        .HasMaxLength(2048)
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset?>("PinnedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("UserId", "PeerId");
-
-                    b.HasIndex("UserId", "IsPinned", "PinnedAt", "LastMessageAt")
-                        .IsDescending(false, true, true, true)
-                        .HasDatabaseName("ix_user_chats_sort");
-
-                    b.ToTable("user_chats", (string)null);
                 });
 
             modelBuilder.Entity("Argon.Entities.ArchetypeEntity", b =>

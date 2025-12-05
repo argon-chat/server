@@ -54,7 +54,6 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.UseUnsignedLongCompatibility();
         modelBuilder.UseSoftDeleteCompatibility();
 
-
         modelBuilder.Entity<UserEntity>().HasData(new UserEntity
         {
             Username       = "system",
