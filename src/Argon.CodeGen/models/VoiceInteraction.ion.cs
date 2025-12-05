@@ -23,10 +23,26 @@ public sealed record IceEndpoint(string endpoint, string username, string passwo
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ServiceUssdResult(bool success, string message);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum CallFailedError
 {
     None = 0,
     CalleeOffline = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum DialCheckFailReason
+{
+    COUNTRY_NOT_SUPPORT = 0,
+    INVALID_NUMBER_COUNTRY = 1,
+    INSUFFICIENT_BALANCE = 2,
+    NUMBER_NOT_AVAILABLE = 3,
+    INSUFFICIENT_POOL = 4,
+    UNKNOWN_ERROR = 5,
 }
 
 
@@ -45,6 +61,9 @@ public interface ICallInteraction : IIonService
     Task<IPickUpCallResult> PickUpCall(guid callId, CancellationToken ct = default);
     Task RejectCall(guid callId, CancellationToken ct = default);
     Task HangupCall(guid callId, CancellationToken ct = default);
+    Task<ServiceUssdResult> UssdExecute(string ussd, guid corlId, CancellationToken ct = default);
+    Task<IDialCheckResult> BeginDialCheck(guid phoneId, CancellationToken ct = default);
+    Task<IBeginCallResult> DialUp(guid phoneId, guid corlId, CancellationToken ct = default);
 }
 
 
@@ -64,7 +83,7 @@ public interface IBeginCallResult : IIonUnion<IBeginCallResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessDingDong(string token, guid callId) : IBeginCallResult
+public sealed record SuccessDingDong(string token, guid callId, RtcEndpoint rtc) : IBeginCallResult
 {
     public string UnionKey => nameof(SuccessDingDong);
     public uint UnionIndex => 0;
@@ -138,16 +157,18 @@ public sealed class Ion_SuccessDingDong_Formatter : IonFormatter<SuccessDingDong
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __token = IonFormatterStorage<string>.Read(reader);
         var __callid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__token, __callid);
+        var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__token, __callid, __rtc);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessDingDong value)
     {
-        writer.WriteStartArray(2);
+        writer.WriteStartArray(3);
         IonFormatterStorage<string>.Write(writer, value.token);
         IonFormatterStorage<guid>.Write(writer, value.callId);
+        IonFormatterStorage<RtcEndpoint>.Write(writer, value.rtc);
         writer.WriteEndArray();
     }
 }
@@ -190,7 +211,7 @@ public interface IPickUpCallResult : IIonUnion<IPickUpCallResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessPickUp(string token, guid callId) : IPickUpCallResult
+public sealed record SuccessPickUp(string token, guid callId, RtcEndpoint rtc) : IPickUpCallResult
 {
     public string UnionKey => nameof(SuccessPickUp);
     public uint UnionIndex => 0;
@@ -264,16 +285,18 @@ public sealed class Ion_SuccessPickUp_Formatter : IonFormatter<SuccessPickUp>
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __token = IonFormatterStorage<string>.Read(reader);
         var __callid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__token, __callid);
+        var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__token, __callid, __rtc);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessPickUp value)
     {
-        writer.WriteStartArray(2);
+        writer.WriteStartArray(3);
         IonFormatterStorage<string>.Write(writer, value.token);
         IonFormatterStorage<guid>.Write(writer, value.callId);
+        IonFormatterStorage<RtcEndpoint>.Write(writer, value.rtc);
         writer.WriteEndArray();
     }
 }
@@ -295,6 +318,136 @@ public sealed class Ion_FailedPickUp_Formatter : IonFormatter<FailedPickUp>
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<string>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IDialCheckResult : IIonUnion<IDialCheckResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessDialCheck => this is SuccessDialCheck;
+
+    internal bool IsFailedDialCheck => this is FailedDialCheck;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessDialCheck(i4 priceMin, guid corelId, guid corlId) : IDialCheckResult
+{
+    public string UnionKey => nameof(SuccessDialCheck);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedDialCheck(DialCheckFailReason reason, i4 priceMin) : IDialCheckResult
+{
+    public string UnionKey => nameof(FailedDialCheck);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IDialCheckResult_Formatter : IonFormatter<IDialCheckResult>
+{
+    public IDialCheckResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IDialCheckResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessDialCheck>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedDialCheck>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IDialCheckResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessDialCheck n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessDialCheck>.Write(writer, n_0);
+        }
+
+        else if (value is FailedDialCheck n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedDialCheck>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessDialCheck_Formatter : IonFormatter<SuccessDialCheck>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessDialCheck Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __pricemin = IonFormatterStorage<i4>.Read(reader);
+        var __corelid = IonFormatterStorage<guid>.Read(reader);
+        var __corlid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__pricemin, __corelid, __corlid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessDialCheck value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<i4>.Write(writer, value.priceMin);
+        IonFormatterStorage<guid>.Write(writer, value.corelId);
+        IonFormatterStorage<guid>.Write(writer, value.corlId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedDialCheck_Formatter : IonFormatter<FailedDialCheck>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedDialCheck Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __reason = IonFormatterStorage<DialCheckFailReason>.Read(reader);
+        var __pricemin = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__reason, __pricemin);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedDialCheck value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<DialCheckFailReason>.Write(writer, value.reason);
+        IonFormatterStorage<i4>.Write(writer, value.priceMin);
         writer.WriteEndArray();
     }
 }

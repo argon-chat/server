@@ -38,7 +38,7 @@ public class UserChatGrain(
                 PeerId   = UserEntity.EchoUser,
                 IsPinned = true,
                 PinnedAt = DateTime.UtcNow.AddDays(900),
-                UserId   = UserEntity.EchoUser
+                UserId   = Me
             });
         }
         else

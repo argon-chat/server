@@ -77,6 +77,12 @@ public sealed class Ion_CallInteraction_ClientImpl(IonClientContext context) : I
         typeof(ICallInteraction).GetMethod(nameof(RejectCall), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> HangupCall_Ref = new(() =>
         typeof(ICallInteraction).GetMethod(nameof(HangupCall), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UssdExecute_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(UssdExecute), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginDialCheck_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(BeginDialCheck), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DialUp_Ref = new(() =>
+        typeof(ICallInteraction).GetMethod(nameof(DialUp), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -147,6 +153,59 @@ public sealed class Ion_CallInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ServiceUssdResult> UssdExecute(string __ussd, guid __corlid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), UssdExecute_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __ussd);
+        IonFormatterStorage<guid>.Write(writer, __corlid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ServiceUssdResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IDialCheckResult> BeginDialCheck(guid __phoneid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), BeginDialCheck_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __phoneid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IDialCheckResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IBeginCallResult> DialUp(guid __phoneid, guid __corlid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ICallInteraction), DialUp_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __phoneid);
+        IonFormatterStorage<guid>.Write(writer, __corlid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IBeginCallResult>(writer.Encode(), ct: ct);
     }
 
 }

@@ -5,6 +5,7 @@ using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
 
+
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())
     builder.AddSingleInstanceWorkload();
@@ -44,3 +45,4 @@ await app.WarmUpCassandra();
 await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>();
 await app.RunAsync();
+

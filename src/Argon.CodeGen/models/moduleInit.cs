@@ -84,9 +84,12 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
       IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
       IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
+      IonFormatterStorage<ServiceUssdResult>.Value = new Ion_ServiceUssdResult_Formatter();
       IonFormatterStorage<CallFailedError>.Value = new Ion_CallFailedError_Formatter();
+      IonFormatterStorage<DialCheckFailReason>.Value = new Ion_DialCheckFailReason_Formatter();
       IonFormatterStorage<IBeginCallResult>.Value = new Ion_IBeginCallResult_Formatter();
       IonFormatterStorage<IPickUpCallResult>.Value = new Ion_IPickUpCallResult_Formatter();
+      IonFormatterStorage<IDialCheckResult>.Value = new Ion_IDialCheckResult_Formatter();
       IonFormatterStorage<MessageEntityMention>.Value = new Ion_MessageEntityMention_Formatter();
       IonFormatterStorage<MessageEntityEmail>.Value = new Ion_MessageEntityEmail_Formatter();
       IonFormatterStorage<MessageEntityHashTag>.Value = new Ion_MessageEntityHashTag_Formatter();
@@ -152,6 +155,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedDingDong>.Value = new Ion_FailedDingDong_Formatter();
       IonFormatterStorage<SuccessPickUp>.Value = new Ion_SuccessPickUp_Formatter();
       IonFormatterStorage<FailedPickUp>.Value = new Ion_FailedPickUp_Formatter();
+      IonFormatterStorage<SuccessDialCheck>.Value = new Ion_SuccessDialCheck_Formatter();
+      IonFormatterStorage<FailedDialCheck>.Value = new Ion_FailedDialCheck_Formatter();
       IonExecutorMetadataStorage.AddExecutor<Ion_ArchetypeInteraction_ServiceExecutor>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");

@@ -62,6 +62,29 @@ public sealed class Ion_IceEndpoint_Formatter : IonFormatter<IceEndpoint>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ServiceUssdResult_Formatter : IonFormatter<ServiceUssdResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ServiceUssdResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __message = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__success, __message);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ServiceUssdResult value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.Write(writer, value.message);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_CallFailedError_Formatter : IonFormatter<CallFailedError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -72,6 +95,23 @@ public sealed class Ion_CallFailedError_Formatter : IonFormatter<CallFailedError
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, CallFailedError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DialCheckFailReason_Formatter : IonFormatter<DialCheckFailReason>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DialCheckFailReason Read(CborReader reader)
+    {
+         return (DialCheckFailReason)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DialCheckFailReason value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

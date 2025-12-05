@@ -873,7 +873,7 @@ public sealed record UserUnblockedEvent(guid blockId) : IArgonEvent
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record RecentChatUpdatedEvent(guid peerId, string? lastMessage, datetime lastMessageAt) : IArgonEvent
+public sealed record RecentChatUpdatedEvent(guid peerId, guid userId, string? lastMessage, datetime lastMessageAt) : IArgonEvent
 {
     public string UnionKey => nameof(RecentChatUpdatedEvent);
     public uint UnionIndex => 30;
@@ -1984,17 +1984,19 @@ public sealed class Ion_RecentChatUpdatedEvent_Formatter : IonFormatter<RecentCh
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
         var __lastmessage = reader.ReadNullable<string>();
         var __lastmessageat = IonFormatterStorage<datetime>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 3);
-        return new(__peerid, __lastmessage, __lastmessageat);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__peerid, __userid, __lastmessage, __lastmessageat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, RecentChatUpdatedEvent value)
     {
-        writer.WriteStartArray(3);
+        writer.WriteStartArray(4);
         IonFormatterStorage<guid>.Write(writer, value.peerId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.WriteNullable(writer, value.lastMessage);
         IonFormatterStorage<datetime>.Write(writer, value.lastMessageAt);
         writer.WriteEndArray();

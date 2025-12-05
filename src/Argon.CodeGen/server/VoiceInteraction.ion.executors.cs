@@ -142,6 +142,59 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         await service.HangupCall(__callid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UssdExecute_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __ussd = IonFormatterStorage<string>.Read(reader);
+        var __corlid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UssdExecute(__ussd, __corlid);
+        
+        IonFormatterStorage<ServiceUssdResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginDialCheck_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __phoneid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginDialCheck(__phoneid);
+        
+        IonFormatterStorage<IDialCheckResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DialUp_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ICallInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __phoneid = IonFormatterStorage<guid>.Read(reader);
+        var __corlid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DialUp(__phoneid, __corlid);
+        
+        IonFormatterStorage<IBeginCallResult>.Write(writer, result);
+    }
 
     
     
@@ -157,6 +210,12 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
             return RejectCall_Execute(reader, writer, ct);
         if (methodName.Equals("HangupCall", StringComparison.InvariantCultureIgnoreCase))
             return HangupCall_Execute(reader, writer, ct);
+        if (methodName.Equals("UssdExecute", StringComparison.InvariantCultureIgnoreCase))
+            return UssdExecute_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginDialCheck", StringComparison.InvariantCultureIgnoreCase))
+            return BeginDialCheck_Execute(reader, writer, ct);
+        if (methodName.Equals("DialUp", StringComparison.InvariantCultureIgnoreCase))
+            return DialUp_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

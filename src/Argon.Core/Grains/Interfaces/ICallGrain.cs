@@ -8,13 +8,13 @@ public interface ICallGrain : IGrainWithGuidKey
     Task<CallInfo>     GetStateAsync(CancellationToken ct = default);
 }
 
-public interface IUserCallSessionGrain : IGrainWithGuidKey
+public interface ISipGrain : IGrainWithGuidKey
 {
-    Task<bool>  TryStartCallAsync(Guid callId, CancellationToken ct = default);
-    Task        ClearAsync(Guid callId, CancellationToken ct = default);
-    Task<Guid?> GetActiveCallAsync(CancellationToken ct = default);
+    Task<ServiceUssdResult> UssdExecute(string ussd, Guid corlId, CancellationToken ct = default);
+    Task<IDialCheckResult>  BeginDialCheck(Guid phoneId, CancellationToken ct = default);
+    Task<IBeginCallResult>  DialUp(Guid phoneId, Guid corlId, CancellationToken ct = default);
+    Task                    HangupCall(Guid callId, CancellationToken ct = default);
 }
-
 
 public enum CallStatus
 {

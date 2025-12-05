@@ -20,7 +20,10 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     public void Configure(EntityTypeBuilder<UserChatEntity> b)
     {
         b.ToTable(TableName);
-        b.HasKey(x => x.PeerId);
+        b.HasKey(x => new {
+            x.UserId,
+            x.PeerId
+        });
 
         b.Property(x => x.UserId).IsRequired();
         b.Property(x => x.PeerId).IsRequired();
@@ -33,14 +36,6 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
 
         b.Property(x => x.LastMessageText)
            .HasMaxLength(2048);
-
-        b.HasIndex(x => new
-            {
-                x.UserId,
-                x.PeerId
-            })
-           .IsUnique()
-           .HasDatabaseName("ux_user_chats_unique");
 
         b.HasIndex(x => new
             {
