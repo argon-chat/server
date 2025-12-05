@@ -10,10 +10,10 @@ public interface ICallGrain : IGrainWithGuidKey
 
 public interface ISipGrain : IGrainWithGuidKey
 {
-    Task<ServiceUssdResult> UssdExecute(string ussd, Guid corlId, CancellationToken ct = default);
-    Task<IDialCheckResult>  BeginDialCheck(Guid phoneId, CancellationToken ct = default);
-    Task<IBeginCallResult>  DialUp(Guid phoneId, Guid corlId, CancellationToken ct = default);
-    Task                    HangupCall(Guid callId, CancellationToken ct = default);
+    Task<ServiceUssdResult> UssdExecute(Guid userId, string ussd, Guid corlId, CancellationToken ct = default);
+    Task<IDialCheckResult>  BeginDialCheck(Guid userId, Guid phoneId, CancellationToken ct = default);
+    Task<IBeginCallResult>  DialUp(Guid userId, Guid phoneId, Guid corlId, CancellationToken ct = default);
+    Task                    HangupCall(Guid userId, Guid callId, CancellationToken ct = default);
 }
 
 public enum CallStatus

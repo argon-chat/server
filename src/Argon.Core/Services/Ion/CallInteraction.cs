@@ -32,11 +32,11 @@ public class CallInteraction : ICallInteraction
         => await this.GetGrain<ICallGrain>(callId).HangupAsync(this.GetUserId(), "complete", ct);
 
     public async Task<ServiceUssdResult> UssdExecute(string ussd, Guid corlId, CancellationToken ct = default)
-        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).UssdExecute(ussd, corlId, ct);
+        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).UssdExecute(this.GetUserId(), ussd, corlId, ct);
 
     public async Task<IDialCheckResult> BeginDialCheck(Guid phoneId, CancellationToken ct = default)
-        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).BeginDialCheck(phoneId, ct);
+        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).BeginDialCheck(this.GetUserId(), phoneId, ct);
 
     public async Task<IBeginCallResult> DialUp(Guid phoneId, Guid corlId, CancellationToken ct = default)
-        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).DialUp(phoneId, corlId, ct);
+        => await this.GetGrain<ISipGrain>(Guid.CreateVersion7()).DialUp(this.GetUserId(), phoneId, corlId, ct);
 }
