@@ -231,6 +231,7 @@ public class FriendsGrain(
             return;
         }
 
+        
         var iBlock  = await ctx.UserBlocklist.AnyAsync(x => x.UserId == me && x.BlockedId == fromUserId, ct);
         var heBlock = await ctx.UserBlocklist.AnyAsync(x => x.UserId == fromUserId && x.BlockedId == me, ct);
 
@@ -281,6 +282,26 @@ public class FriendsGrain(
 
         await NotifyAsync(fromUserId,
             new FriendRequestAcceptedEvent(me, ts));
+
+        var chatId = Guid.CreateVersion7();
+
+        var chatGrain = this.GrainFactory.GetGrain<IUserChatGrain>(chatId);
+
+        await Task.WhenAll(
+            chatGrain.UpdateChatForAsync(
+                userId: me,
+                peerId: fromUserId,
+                previewText: null,
+                timestamp: ts,
+                ct),
+
+            chatGrain.UpdateChatForAsync(
+                userId: fromUserId,
+                peerId: me,
+                previewText: null,
+                timestamp: ts,
+                ct)
+        );
 
         logger.LogInformation("Successfully accepted friend request {User}<->{From}", me, fromUserId);
     }

@@ -124,15 +124,15 @@ public class UserChatGrain(
         // TODO
     }
 
-    public async Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
+    public async Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
     {
-        var me = Me;
-        logger.LogDebug("UpdateChatAsync: {Me} <-> {Peer}", me, peerId);
+        var me = userId;
+
+        logger.LogDebug("UpdateChatForAsync: {Me} <-> {Peer}", me, peerId);
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        await ExecuteInTransactionAsync(ctx, async () =>
-        {
+        await ExecuteInTransactionAsync(ctx, async () => {
             var record = await ctx.UserChatlist
                .FirstOrDefaultAsync(x => x.UserId == me && x.PeerId == peerId, ct);
 
@@ -160,12 +160,18 @@ public class UserChatGrain(
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
-        //await NotifyAsync(me, new RecentChatUpdatedEvent(
-        //    peerId,
-            
-        //    previewText,
-        //    timestamp.UtcDateTime
-        //));
+        await NotifyAsync(me, new RecentChatUpdatedEvent(
+            peerId,
+            me,
+            previewText,
+            timestamp.UtcDateTime
+        ));
+    }
+
+    public async Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
+    {
+        var me = Me;
+        await UpdateChatForAsync(me, peerId, previewText, timestamp, ct);
     }
 
 
