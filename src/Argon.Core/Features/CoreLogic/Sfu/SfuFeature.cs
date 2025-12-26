@@ -28,6 +28,11 @@ public static class SfuFeature
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new SipServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
+        builder.Services.AddScoped<WebhookReceiver>(x =>
+        {
+            var options = x.GetRequiredService<IOptions<CallKitOptions>>();
+            return new WebhookReceiver(options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
+        });
         builder.Services.AddSingleton<ISfuAuthScope, SfuAuthScope>();
         return builder;
     }
