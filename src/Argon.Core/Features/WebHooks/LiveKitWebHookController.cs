@@ -13,9 +13,14 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
         var       postData = await reader.ReadToEndAsync();
 
         if (!Request.Headers.TryGetValue("Authorization", out var authHeader))
+        {
+            logger.LogWarning($"No Authorization header for webhook, return 401");
             return Unauthorized();
+        }
 
         var webhookEvent = webhookReceiver.Receive(postData, authHeader);
+        logger.LogWarning("Received #{WebhookEventId} {WebhookEventEvent} at {WebhookEventCreatedAt}", webhookEvent.Id, webhookEvent.Event,
+            webhookEvent.CreatedAt);
         if (webhookEvent.Event.Equals("participant_left"))
         {
             var userId    = webhookEvent.Participant.Identity;
@@ -26,7 +31,8 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
                 await client.GetGrain<IChannelGrain>(chId).Leave(usrId);
             }
             else
-                logger.LogInformation("Received participant_left, but channelId or userId not valid format: {ChannelId}, {UserId}", channelId, userId);
+                logger.LogInformation("Received participant_left, but channelId or userId not valid format: {ChannelId}, {UserId}", channelId,
+                    userId);
         }
         else if (webhookEvent.Event.Equals("room_finished"))
         {
