@@ -125,6 +125,7 @@ public class SpaceGrain(
         var members = await ctx
            .UsersToServerRelations
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(x => x.User)
            .Where(x => x.SpaceId == this.GetPrimaryKey())
            .Include(x => x.SpaceMemberArchetypes)
@@ -149,6 +150,7 @@ public class SpaceGrain(
 
         var member = await ctx.UsersToServerRelations
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(m => m.SpaceMemberArchetypes)
            .ThenInclude(sma => sma.Archetype)
            .FirstAsync(m => m.Id == serverMemberId && m.SpaceId == spaceId);
@@ -156,6 +158,8 @@ public class SpaceGrain(
         var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
 
         var channels = await ctx.Channels
+           .AsNoTracking()
+           .AsSplitQuery()
            .Where(c => c.SpaceId == spaceId)
            .Include(c => c.EntitlementOverwrites)
            .ToListAsync();
