@@ -170,13 +170,13 @@ public class ChannelGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var channel = await Get();
+        var channel = await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
         channel.Name        = input.Name;
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
-        ctx.Channels.Update(channel);
+        
         await ctx.SaveChangesAsync();
-        return (await Get());
+        return channel;
     }
 
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)

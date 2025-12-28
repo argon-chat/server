@@ -78,21 +78,15 @@ public class SpaceGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var server = await ctx.Spaces
-           .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
-        var copy = server with
-        {
-        };
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
-        ctx.Spaces.Update(server);
+        
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified( /*ObjDiff.Compare(copy, server)*/this.GetPrimaryKey(), IonArray<string>.Empty));
-        return await ctx.Spaces
-           .AsNoTracking()
-           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+        await _serverEvents.Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
+        return server;
     }
 
     public async Task<RealtimeServerMember> GetMember(Guid userId)
