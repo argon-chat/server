@@ -16,7 +16,8 @@ public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     IDbContextFactory<ApplicationDbContext> context,
-    IMessagesLayout messagesLayout) : Grain, IChannelGrain
+    IMessagesLayout messagesLayout,
+    IEntitlementChecker entitlementChecker) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -71,7 +72,7 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.KickMember))
             return false;
 
         return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
@@ -110,27 +111,6 @@ public class ChannelGrain(
     }
 
 
-    // TODO
-    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
-    {
-        var invoker = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == SpaceId && x.UserId == callerId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync();
-
-        if (invoker is null)
-            return false;
-
-        var invokerArchetypes = invoker
-           .SpaceMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        return invokerArchetypes.Any(x
-            => x.Entitlement.HasFlag(requiredEntitlement));
-    }
 
     public async Task<Either<string, JoinToChannelError>> Join()
     {

@@ -18,6 +18,7 @@ public class SpaceGrain(
     IServerRepository serverRepository,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
+    IEntitlementChecker entitlementChecker,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -275,27 +276,5 @@ public class SpaceGrain(
         ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelRemoved(this.GetPrimaryKey(), channelId));
-    }
-
-
-    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
-    {
-        var invoker = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync();
-
-        if (invoker is null)
-            return false;
-
-        var invokerArchetypes = invoker
-           .SpaceMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        return invokerArchetypes.Any(x
-            => x.Entitlement.HasFlag(requiredEntitlement));
     }
 }

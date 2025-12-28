@@ -26,6 +26,7 @@ public static class L1L2CacheExtensions
     {
         builder.Services.AddScoped<IArchetypeAgent, ArchetypeAgentHub>();
         builder.Services.AddScoped<IArchetypeCache, HybridArchetypeCache>();
+        builder.Services.AddScoped<IEntitlementChecker, EntitlementChecker>();
     }
 }
 
