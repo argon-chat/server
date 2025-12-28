@@ -86,10 +86,10 @@ public class UserGrain(
     {
         await presenceService.BroadcastActivityPresence(presence, this.GetPrimaryKey(), Guid.Empty);
         var servers = await GetMyServersIds();
-        foreach (var server in servers)
-            await GrainFactory
+        await Task.WhenAll(servers.Select(server =>
+            GrainFactory
                .GetGrain<ISpaceGrain>(server)
-               .SetUserPresence(this.GetPrimaryKey(), presence);
+               .SetUserPresence(this.GetPrimaryKey(), presence)));
     }
 
     public async ValueTask RemoveBroadcastPresenceAsync()
@@ -98,10 +98,10 @@ public class UserGrain(
         await presenceService.RemoveActivityPresence(this.GetPrimaryKey());
 
         var servers = await GetMyServersIds();
-        foreach (var server in servers)
-            await GrainFactory
+        await Task.WhenAll(servers.Select(server =>
+            GrainFactory
                .GetGrain<ISpaceGrain>(server)
-               .RemoveUserPresence(this.GetPrimaryKey());
+               .RemoveUserPresence(this.GetPrimaryKey())));
     }
 
     //public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
