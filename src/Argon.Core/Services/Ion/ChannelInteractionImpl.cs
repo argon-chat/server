@@ -45,7 +45,7 @@ public class ChannelInteractionImpl : IChannelInteraction
 
         if (!result.IsSuccess) 
             return new FailedJoinVoice(result.Error);
-        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).GetRtcEndpointAsync(ct);
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
         return new SuccessJoinVoice(rtc, result.Value);
     }
 

@@ -18,6 +18,7 @@ public class SpaceGrain(
     IServerRepository serverRepository,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
+    IEntitlementChecker entitlementChecker,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -78,21 +79,15 @@ public class SpaceGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         var server = await ctx.Spaces
-           .AsNoTracking()
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
 
-        var copy = server with
-        {
-        };
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
-        ctx.Spaces.Update(server);
+        
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified( /*ObjDiff.Compare(copy, server)*/this.GetPrimaryKey(), IonArray<string>.Empty));
-        return await ctx.Spaces
-           .AsNoTracking()
-           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+        await _serverEvents.Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
+        return server;
     }
 
     public async Task<RealtimeServerMember> GetMember(Guid userId)
@@ -130,6 +125,7 @@ public class SpaceGrain(
         var members = await ctx
            .UsersToServerRelations
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(x => x.User)
            .Where(x => x.SpaceId == this.GetPrimaryKey())
            .Include(x => x.SpaceMemberArchetypes)
@@ -154,6 +150,7 @@ public class SpaceGrain(
 
         var member = await ctx.UsersToServerRelations
            .AsNoTracking()
+           .AsSplitQuery()
            .Include(m => m.SpaceMemberArchetypes)
            .ThenInclude(sma => sma.Archetype)
            .FirstAsync(m => m.Id == serverMemberId && m.SpaceId == spaceId);
@@ -161,6 +158,8 @@ public class SpaceGrain(
         var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
 
         var channels = await ctx.Channels
+           .AsNoTracking()
+           .AsSplitQuery()
            .Where(c => c.SpaceId == spaceId)
            .Include(c => c.EntitlementOverwrites)
            .ToListAsync();
@@ -281,27 +280,5 @@ public class SpaceGrain(
         ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ChannelRemoved(this.GetPrimaryKey(), channelId));
-    }
-
-
-    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
-    {
-        var invoker = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync();
-
-        if (invoker is null)
-            return false;
-
-        var invokerArchetypes = invoker
-           .SpaceMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        return invokerArchetypes.Any(x
-            => x.Entitlement.HasFlag(requiredEntitlement));
     }
 }

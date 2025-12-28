@@ -67,10 +67,10 @@ public class UserSessionGrain(
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds();
         await presenceService.SetSessionOnlineAsync(_userId, this.GetPrimaryKey());
-        foreach (var server in servers)
-            await grainFactory
+        await Task.WhenAll(servers.Select(server => 
+            grainFactory
                .GetGrain<ISpaceGrain>(server)
-               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
+               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online)));
         _cacheSubscriber = bag.Build();
 
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
@@ -107,8 +107,8 @@ public class UserSessionGrain(
         {
             logger.LogInformation("This is last user session, become totally offline");
             var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds();
-            foreach (var server in servers)
-                await grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline);
+            await Task.WhenAll(servers.Select(server =>
+                grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline)));
             await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
             logger.LogInformation("All necessary steps completed, self destroy called soon");
             await SelfDestroy();
@@ -125,17 +125,17 @@ public class UserSessionGrain(
         var servers = await grainFactory
            .GetGrain<IUserGrain>(_userId)
            .GetMyServersIds(arg);
-        foreach (var server in servers)
-            await grainFactory
+        await Task.WhenAll(servers.Select(server =>
+            grainFactory
                .GetGrain<ISpaceGrain>(server)
-               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online);
+               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online)));
 
         if (!await presenceService.IsUserOnlineAsync(_userId, arg))
         {
-            foreach (var server in servers)
-                await grainFactory
+            await Task.WhenAll(servers.Select(server =>
+                grainFactory
                    .GetGrain<ISpaceGrain>(server)
-                   .SetUserStatus(_userId, UserStatus.Offline);
+                   .SetUserStatus(_userId, UserStatus.Offline)));
             refreshTimer?.Dispose();
             refreshTimer = null;
             await SelfDestroy();

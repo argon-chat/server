@@ -3,11 +3,13 @@ namespace Argon.Grains;
 using Argon.Core.Grains.Interfaces;
 using Livekit.Server.Sdk.Dotnet;
 using Microsoft.IdentityModel.Tokens;
+using Orleans.Concurrency;
 using Sfu;
 using System.IdentityModel.Tokens.Jwt;
 using Flurl.Http;
 using Microsoft.Extensions.Caching.Hybrid;
 
+[StatelessWorker]
 public class VoiceControlGrain(
     IOptions<CallKitOptions> settings,
     RoomServiceClient roomClient,

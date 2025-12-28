@@ -16,7 +16,8 @@ public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
     IDbContextFactory<ApplicationDbContext> context,
-    IMessagesLayout messagesLayout) : Grain, IChannelGrain
+    IMessagesLayout messagesLayout,
+    IEntitlementChecker entitlementChecker) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -71,10 +72,10 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.KickMember))
             return false;
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
     }
 
@@ -83,7 +84,7 @@ public class ChannelGrain(
         if (state.State.EgressActive)
             return false;
 
-        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct);
 
         await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
@@ -104,33 +105,12 @@ public class ChannelGrain(
         state.State.EgressActive      = false;
         state.State.EgressId          = null;
         state.State.UserCreatedEgress = null;
-        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), egressId!, ct);
         return result;
     }
 
 
-    // TODO
-    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
-    {
-        var invoker = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .Where(x => x.SpaceId == SpaceId && x.UserId == callerId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
-           .FirstOrDefaultAsync();
-
-        if (invoker is null)
-            return false;
-
-        var invokerArchetypes = invoker
-           .SpaceMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        return invokerArchetypes.Any(x
-            => x.Entitlement.HasFlag(requiredEntitlement));
-    }
 
     public async Task<Either<string, JoinToChannelError>> Join()
     {
@@ -152,7 +132,7 @@ public class ChannelGrain(
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
             new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
     }
 
@@ -170,13 +150,13 @@ public class ChannelGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var channel = await Get();
+        var channel = await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
         channel.Name        = input.Name;
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
-        ctx.Channels.Update(channel);
+        
         await ctx.SaveChangesAsync();
-        return (await Get());
+        return channel;
     }
 
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
