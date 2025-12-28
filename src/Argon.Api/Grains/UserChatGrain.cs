@@ -20,6 +20,7 @@ public class UserChatGrain(
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         var result = await ctx.UserChatlist
+           .AsNoTracking()
            .Where(x => x.UserId == Me)
            .OrderByDescending(x => x.IsPinned)
            .ThenByDescending(x => x.PinnedAt)

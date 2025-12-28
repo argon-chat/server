@@ -28,6 +28,7 @@ public class FriendsGrain(
         await using var ctx      = await context.CreateDbContextAsync(ct);
 
         var result = await ctx.UserBlocklist
+           .AsNoTracking()
            .Where(x => x.UserId == meUserId)
            .OrderByDescending(x => x.CreatedAt)
            .Skip(offset)
@@ -41,6 +42,7 @@ public class FriendsGrain(
         var             meUserId = this.GetUserId();
         await using var ctx      = await context.CreateDbContextAsync(ct);
         var result = await ctx.FriendRequest
+           .AsNoTracking()
            .Where(x => x.TargetId == meUserId)
            .OrderByDescending(x => x.RequestedAt)
            .Skip(offset)
@@ -56,6 +58,7 @@ public class FriendsGrain(
         await using var ctx      = await context.CreateDbContextAsync(ct);
 
         var result = await ctx.FriendRequest
+           .AsNoTracking()
            .Where(x => x.RequesterId == meUserId)
            .OrderByDescending(x => x.RequestedAt)
            .Skip(offset)
@@ -71,6 +74,7 @@ public class FriendsGrain(
         await using var ctx      = await context.CreateDbContextAsync(ct);
 
         var result = await ctx.Friends
+           .AsNoTracking()
            .Where(x => x.UserId == meUserId)
            .OrderBy(x => x.CreatedAt)
            .Skip(offset)
