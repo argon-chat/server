@@ -74,7 +74,7 @@ public class ChannelGrain(
         if (!await HasAccessAsync(ctx, userId, ArgonEntitlement.KickMember))
             return false;
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
     }
 
@@ -83,7 +83,7 @@ public class ChannelGrain(
         if (state.State.EgressActive)
             return false;
 
-        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct);
 
         await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
@@ -104,7 +104,7 @@ public class ChannelGrain(
         state.State.EgressActive      = false;
         state.State.EgressId          = null;
         state.State.UserCreatedEgress = null;
-        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid())
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), egressId!, ct);
         return result;
     }
@@ -152,7 +152,7 @@ public class ChannelGrain(
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
+        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
             new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
     }
 

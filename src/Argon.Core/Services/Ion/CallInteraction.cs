@@ -11,7 +11,7 @@ public class CallInteraction : ICallInteraction
         if (!result.IsSuccess) 
             return new FailedDingDong(result.Error);
 
-        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).GetRtcEndpointAsync(ct);
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
         return new SuccessDingDong(result.Value.CallerToken, result.Value.CallId, rtc);
     }
 
@@ -21,7 +21,7 @@ public class CallInteraction : ICallInteraction
 
         if (!string.IsNullOrEmpty(result.Error))
             return new FailedPickUp(result.Error);
-        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.NewGuid()).GetRtcEndpointAsync(ct);
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
         return new SuccessPickUp(result.RoomToken!, callId, rtc);
     }
 
