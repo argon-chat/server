@@ -149,7 +149,6 @@ cd deploy
 | Service | URL/Port | Notes |
 |----------|-----|-------|
 | **NATS** | `localhost:4222` | NATS client port |
-| **NATS Web UI** | [http://localhost:8222](http://localhost:8222) | Server monitoring |
 | **ScyllaDB CQL** | `localhost:9042` | CQL port |
 | **CockroachDB SQL** | `localhost:26257` | SQL port |
 | **CockroachDB UI** | [http://localhost:8080](http://localhost:8080) | Admin console |
