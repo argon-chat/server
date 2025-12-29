@@ -112,10 +112,10 @@ public class SpaceGrain(
         return new RealtimeServerMember(x.ToDto(), status, presence);
     }
 
-    public async ValueTask SetUserPresence(Guid userId, UserActivityPresence presence)
+    public async Task SetUserPresence(Guid userId, UserActivityPresence presence)
         => await _serverEvents.Fire(new OnUserPresenceActivityChanged(this.GetPrimaryKey(), userId, presence));
 
-    public async ValueTask RemoveUserPresence(Guid userId)
+    public async Task RemoveUserPresence(Guid userId)
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
 
 
@@ -179,7 +179,7 @@ public class SpaceGrain(
         return results.ToList();
     }
 
-    public async ValueTask DoJoinUserAsync()
+    public async Task DoJoinUserAsync()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -205,7 +205,7 @@ public class SpaceGrain(
         await UserJoined(userId);
     }
 
-    public async ValueTask DoUserUpdatedAsync()
+    public async Task DoUserUpdatedAsync()
     {
         var userId = this.GetUserId();
 
@@ -214,7 +214,7 @@ public class SpaceGrain(
         await _serverEvents.Fire(new UserUpdated(this.GetPrimaryKey(), user.ToDto()));
     }
 
-    public async ValueTask<ArgonUserProfile> PrefetchProfile(Guid userId)
+    public async Task<ArgonUserProfile> PrefetchProfile(Guid userId)
     {
         var caller = this.GetUserId();
 
@@ -242,7 +242,7 @@ public class SpaceGrain(
         await SetUserStatus(userId, UserStatus.Online);
     }
 
-    public async ValueTask SetUserStatus(Guid userId, UserStatus status)
+    public async Task SetUserStatus(Guid userId, UserStatus status)
     {
         state.State.UserStatuses[userId] = (DateTime.UtcNow, status);
         await _serverEvents.Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));

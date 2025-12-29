@@ -29,8 +29,7 @@ public class UserGrain(
         await Task.WhenAll(userServers
            .Select(id => GrainFactory
                .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync()
-               .AsTask())
+               .DoUserUpdatedAsync())
            .ToArray());
 
         return user;
@@ -273,8 +272,7 @@ public class UserGrain(
         await Task.WhenAll(userServers
            .Select(id => GrainFactory
                .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync()
-               .AsTask())
+               .DoUserUpdatedAsync())
            .ToArray());
     }
 
@@ -308,8 +306,7 @@ public class UserGrain(
         await Task.WhenAll(userServers
            .Select(id => GrainFactory
                .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync()
-               .AsTask())
+               .DoUserUpdatedAsync())
            .ToArray());
     }
 }

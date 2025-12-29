@@ -60,13 +60,13 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task DeleteChannel(Guid channelId);
 
     [Alias(nameof(SetUserStatus))]
-    ValueTask SetUserStatus(Guid userId, UserStatus status);
+    Task SetUserStatus(Guid userId, UserStatus status);
 
     [Alias(nameof(SetUserPresence))]
-    ValueTask SetUserPresence(Guid userId, UserActivityPresence presence);
+    Task SetUserPresence(Guid userId, UserActivityPresence presence);
 
     [Alias(nameof(RemoveUserPresence))]
-    ValueTask RemoveUserPresence(Guid userId);
+    Task RemoveUserPresence(Guid userId);
 
     [Alias(nameof(GetMembers))]
     Task<List<RealtimeServerMember>> GetMembers();
@@ -78,13 +78,13 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task<List<RealtimeChannel>> GetChannels();
 
     [Alias(nameof(DoJoinUserAsync))]
-    ValueTask DoJoinUserAsync();
+    Task DoJoinUserAsync();
 
     [Alias(nameof(DoUserUpdatedAsync))]
-    ValueTask DoUserUpdatedAsync();
+    Task DoUserUpdatedAsync();
 
     [Alias(nameof(PrefetchProfile))]
-    ValueTask<ArgonUserProfile> PrefetchProfile(Guid userId);
+    Task<ArgonUserProfile> PrefetchProfile(Guid userId);
 }
 
 public enum ServerCreationError
