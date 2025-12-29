@@ -76,6 +76,15 @@ public enum EntityType
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum StartStreamError
+{
+    NONE = 0,
+    BAD_PARAMS = 1,
+    INTERNAL_ERROR = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum ActivityPresenceKind
 {
     GAME = 0,
@@ -108,6 +117,7 @@ public interface IChannelInteraction : IIonService
     Task<i8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<IInterlinkStreamResult> InterlinkStream(guid spaceId, guid channelId, i4 density, CancellationToken ct = default);
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
     Task<bool> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
@@ -578,6 +588,134 @@ public sealed class Ion_FailedJoinVoice_Formatter : IonFormatter<FailedJoinVoice
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<JoinToChannelError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IInterlinkStreamResult : IIonUnion<IInterlinkStreamResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessStartStream => this is SuccessStartStream;
+
+    internal bool IsFailedStartStream => this is FailedStartStream;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessStartStream(RtcEndpoint rtc, string token, string whipEndpoint) : IInterlinkStreamResult
+{
+    public string UnionKey => nameof(SuccessStartStream);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedStartStream(StartStreamError error) : IInterlinkStreamResult
+{
+    public string UnionKey => nameof(FailedStartStream);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IInterlinkStreamResult_Formatter : IonFormatter<IInterlinkStreamResult>
+{
+    public IInterlinkStreamResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IInterlinkStreamResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessStartStream>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedStartStream>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IInterlinkStreamResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessStartStream n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessStartStream>.Write(writer, n_0);
+        }
+
+        else if (value is FailedStartStream n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedStartStream>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessStartStream_Formatter : IonFormatter<SuccessStartStream>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessStartStream Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
+        var __token = IonFormatterStorage<string>.Read(reader);
+        var __whipendpoint = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__rtc, __token, __whipendpoint);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessStartStream value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<RtcEndpoint>.Write(writer, value.rtc);
+        IonFormatterStorage<string>.Write(writer, value.token);
+        IonFormatterStorage<string>.Write(writer, value.whipEndpoint);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedStartStream_Formatter : IonFormatter<FailedStartStream>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedStartStream Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<StartStreamError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedStartStream value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<StartStreamError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }

@@ -32,6 +32,8 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(DisconnectFromVoiceChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Interlink_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(Interlink), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> InterlinkStream_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(InterlinkStream), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> KickMemberFromChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(KickMemberFromChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> BeginRecord_Ref = new(() =>
@@ -173,6 +175,25 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<IInterlinkResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IInterlinkStreamResult> InterlinkStream(guid __spaceid, guid __channelid, i4 __density, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), InterlinkStream_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i4>.Write(writer, __density);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IInterlinkStreamResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<bool> KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid, CancellationToken ct = default)

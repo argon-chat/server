@@ -29,8 +29,11 @@ public sealed record ServiceUssdResult(bool success, string message);
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum CallFailedError
 {
-    None = 0,
-    CalleeOffline = 1,
+    NONE = 0,
+    CALLEE_OFFLINE = 1,
+    INSUFFICIENT_BALANCE = 2,
+    VERIFICATION_FAILED = 3,
+    POOL_EMPTY_TRY_LATE = 4,
 }
 
 

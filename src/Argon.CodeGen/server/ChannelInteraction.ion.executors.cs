@@ -145,6 +145,25 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<IInterlinkResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task InterlinkStream_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __density = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.InterlinkStream(__spaceid, __channelid, __density);
+        
+        IonFormatterStorage<IInterlinkStreamResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task KickMemberFromChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -220,6 +239,8 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))
             return Interlink_Execute(reader, writer, ct);
+        if (methodName.Equals("InterlinkStream", StringComparison.InvariantCultureIgnoreCase))
+            return InterlinkStream_Execute(reader, writer, ct);
         if (methodName.Equals("KickMemberFromChannel", StringComparison.InvariantCultureIgnoreCase))
             return KickMemberFromChannel_Execute(reader, writer, ct);
         if (methodName.Equals("BeginRecord", StringComparison.InvariantCultureIgnoreCase))

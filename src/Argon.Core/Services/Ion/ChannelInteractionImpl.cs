@@ -1,9 +1,11 @@
 namespace Argon.Services.Ion;
 
 using Argon.Core.Grains.Interfaces;
+using Argon.Sfu;
 using ion.runtime;
+using Livekit.Server.Sdk.Dotnet;
 
-public class ChannelInteractionImpl : IChannelInteraction
+public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger<IChannelInteraction> logger) : IChannelInteraction
 {
     public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
         => await this
@@ -47,6 +49,42 @@ public class ChannelInteractionImpl : IChannelInteraction
             return new FailedJoinVoice(result.Error);
         var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
         return new SuccessJoinVoice(rtc, result.Value);
+    }
+
+    public async Task<IInterlinkStreamResult> InterlinkStream(Guid spaceId, Guid channelId, int density, CancellationToken ct = default)
+    {
+        // TODO check scoping
+        var ingressUrl = "";
+        var ingressKey = "";
+        try
+        {
+            var ingressResult = await ingressService.CreateIngress(new CreateIngressRequest()
+            {
+                Name                = $"Streaming.{spaceId}.{channelId}.{density}.{this.GetUserId()}>",
+                Enabled             = true,
+                InputType           = IngressInput.WhipInput,
+                RoomName            = ArgonRoomId.FromArgonChannel(spaceId, channelId).ToRawRoomId(),
+                ParticipantName     = this.GetUserId().ToString(),
+                ParticipantIdentity = this.GetUserId().ToString()
+            });
+
+            if (ingressResult is null)
+            {
+                return new FailedStartStream(StartStreamError.BAD_PARAMS);
+            }
+
+            ingressUrl = ingressResult.Url;
+            ingressKey = ingressResult.StreamKey;
+            // TODO enqueue to gc ingress
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed create ingress");
+            return new FailedStartStream(StartStreamError.INTERNAL_ERROR);
+        }
+
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
+        return new SuccessStartStream(rtc, ingressKey, ingressUrl);
     }
 
     public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId, CancellationToken ct = default)

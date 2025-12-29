@@ -229,6 +229,23 @@ public sealed class Ion_EntityType_Formatter : IonFormatter<EntityType>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_StartStreamError_Formatter : IonFormatter<StartStreamError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public StartStreamError Read(CborReader reader)
+    {
+         return (StartStreamError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, StartStreamError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_ActivityPresenceKind_Formatter : IonFormatter<ActivityPresenceKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

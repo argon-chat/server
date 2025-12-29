@@ -31,10 +31,12 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelType>.Value = new Ion_ChannelType_Formatter();
       IonFormatterStorage<JoinToChannelError>.Value = new Ion_JoinToChannelError_Formatter();
       IonFormatterStorage<EntityType>.Value = new Ion_EntityType_Formatter();
+      IonFormatterStorage<StartStreamError>.Value = new Ion_StartStreamError_Formatter();
       IonFormatterStorage<ActivityPresenceKind>.Value = new Ion_ActivityPresenceKind_Formatter();
       IonFormatterStorage<ChannelMemberState>.Value = new Ion_ChannelMemberState_Formatter();
       IonFormatterStorage<IMessageEntity>.Value = new Ion_IMessageEntity_Formatter();
       IonFormatterStorage<IInterlinkResult>.Value = new Ion_IInterlinkResult_Formatter();
+      IonFormatterStorage<IInterlinkStreamResult>.Value = new Ion_IInterlinkStreamResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
       IonFormatterStorage<UserBlock>.Value = new Ion_UserBlock_Formatter();
@@ -98,6 +100,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntityUrl>.Value = new Ion_MessageEntityUrl_Formatter();
       IonFormatterStorage<SuccessJoinVoice>.Value = new Ion_SuccessJoinVoice_Formatter();
       IonFormatterStorage<FailedJoinVoice>.Value = new Ion_FailedJoinVoice_Formatter();
+      IonFormatterStorage<SuccessStartStream>.Value = new Ion_SuccessStartStream_Formatter();
+      IonFormatterStorage<FailedStartStream>.Value = new Ion_FailedStartStream_Formatter();
       IonFormatterStorage<ArchetypeChanged>.Value = new Ion_ArchetypeChanged_Formatter();
       IonFormatterStorage<ArchetypeCreated>.Value = new Ion_ArchetypeCreated_Formatter();
       IonFormatterStorage<ChannelCreated>.Value = new Ion_ChannelCreated_Formatter();
