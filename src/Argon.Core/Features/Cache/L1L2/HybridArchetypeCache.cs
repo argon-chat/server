@@ -1,5 +1,6 @@
 namespace Argon.Services.L1L2;
 
+using Core.Services;
 using Features.Repositories;
 using Microsoft.Extensions.Caching.Hybrid;
 using NATS.Client.Core;
