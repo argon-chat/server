@@ -280,7 +280,7 @@ public class SpaceGrain(
            .OrderByDescending(g => g.FractionalIndex)
            .FirstOrDefaultAsync();
 
-        var fractionalIndex = lastGroup != null
+        var fractionalIndex = lastGroup != null && !string.IsNullOrEmpty(lastGroup.FractionalIndex)
             ? FractionalIndex.After(FractionalIndex.Parse(lastGroup.FractionalIndex))
             : FractionalIndex.Min();
 
@@ -288,13 +288,16 @@ public class SpaceGrain(
         {
             Name            = name,
             Description     = description,
-            SpaceId         = spaceId,
+            SpaceId         = spaceId,  
             CreatorId       = callerId,
             FractionalIndex = fractionalIndex.Value
         };
 
         await ctx.Set<ChannelGroupEntity>().AddAsync(group);
         await ctx.SaveChangesAsync();
+        
+        await _serverEvents.Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
+        
         return group;
     }
 
@@ -332,6 +335,8 @@ public class SpaceGrain(
         group.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
 
         await ctx.SaveChangesAsync();
+        
+        await _serverEvents.Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
     }
 
     public async Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false)
@@ -361,6 +366,11 @@ public class SpaceGrain(
         if (deleteChannels)
         {
             ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
+            
+            foreach (var channel in group.Channels)
+            {
+                await _serverEvents.Fire(new ChannelRemoved(spaceId, channel.Id));
+            }
         }
         else
         {
@@ -372,6 +382,8 @@ public class SpaceGrain(
 
         ctx.Set<ChannelGroupEntity>().Remove(group);
         await ctx.SaveChangesAsync();
+        
+        await _serverEvents.Fire(new ChannelGroupRemoved(spaceId, groupId));
     }
 
     public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
@@ -396,7 +408,7 @@ public class SpaceGrain(
            .OrderByDescending(c => c.FractionalIndex)
            .FirstOrDefaultAsync();
 
-        var fractionalIndex = lastChannel != null
+        var fractionalIndex = lastChannel != null && !string.IsNullOrEmpty(lastChannel.FractionalIndex)
             ? FractionalIndex.After(FractionalIndex.Parse(lastChannel.FractionalIndex))
             : FractionalIndex.Min();
 
@@ -453,6 +465,8 @@ public class SpaceGrain(
         channel.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
 
         await ctx.SaveChangesAsync();
+        
+        await _serverEvents.Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
     }
 
     public async Task DeleteChannel(Guid channelId)

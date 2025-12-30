@@ -805,6 +805,16 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsChatReadEvent => this is ChatReadEvent;
 
+    internal bool IsChannelGroupCreated => this is ChannelGroupCreated;
+
+    internal bool IsChannelGroupModified => this is ChannelGroupModified;
+
+    internal bool IsChannelGroupRemoved => this is ChannelGroupRemoved;
+
+    internal bool IsChannelGroupReordered => this is ChannelGroupReordered;
+
+    internal bool IsChannelReordered => this is ChannelReordered;
+
 }
 
 
@@ -1046,6 +1056,41 @@ public sealed record ChatReadEvent(guid peerId) : IArgonEvent
     public uint UnionIndex => 33;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelGroupCreated(guid spaceId, ChannelGroup data) : IArgonEvent
+{
+    public string UnionKey => nameof(ChannelGroupCreated);
+    public uint UnionIndex => 34;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelGroupModified(guid spaceId, guid groupId, IonArray<string> bag) : IArgonEvent
+{
+    public string UnionKey => nameof(ChannelGroupModified);
+    public uint UnionIndex => 35;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelGroupRemoved(guid spaceId, guid groupId) : IArgonEvent
+{
+    public string UnionKey => nameof(ChannelGroupRemoved);
+    public uint UnionIndex => 36;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelGroupReordered(guid spaceId, guid groupId, string fractionalIndex) : IArgonEvent
+{
+    public string UnionKey => nameof(ChannelGroupReordered);
+    public uint UnionIndex => 37;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelReordered(guid spaceId, guid channelId, guid? targetGroupId, string fractionalIndex) : IArgonEvent
+{
+    public string UnionKey => nameof(ChannelReordered);
+    public uint UnionIndex => 38;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1159,6 +1204,21 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 33)
             result = IonFormatterStorage<ChatReadEvent>.Read(reader);
+
+        else if (unionIndex == 34)
+            result = IonFormatterStorage<ChannelGroupCreated>.Read(reader);
+
+        else if (unionIndex == 35)
+            result = IonFormatterStorage<ChannelGroupModified>.Read(reader);
+
+        else if (unionIndex == 36)
+            result = IonFormatterStorage<ChannelGroupRemoved>.Read(reader);
+
+        else if (unionIndex == 37)
+            result = IonFormatterStorage<ChannelGroupReordered>.Read(reader);
+
+        else if (unionIndex == 38)
+            result = IonFormatterStorage<ChannelReordered>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -1409,6 +1469,41 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_33.UnionIndex != 33)
                 throw new InvalidOperationException();
             IonFormatterStorage<ChatReadEvent>.Write(writer, n_33);
+        }
+
+        else if (value is ChannelGroupCreated n_34)
+        {
+            if (n_34.UnionIndex != 34)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChannelGroupCreated>.Write(writer, n_34);
+        }
+
+        else if (value is ChannelGroupModified n_35)
+        {
+            if (n_35.UnionIndex != 35)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChannelGroupModified>.Write(writer, n_35);
+        }
+
+        else if (value is ChannelGroupRemoved n_36)
+        {
+            if (n_36.UnionIndex != 36)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChannelGroupRemoved>.Write(writer, n_36);
+        }
+
+        else if (value is ChannelGroupReordered n_37)
+        {
+            if (n_37.UnionIndex != 37)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChannelGroupReordered>.Write(writer, n_37);
+        }
+
+        else if (value is ChannelReordered n_38)
+        {
+            if (n_38.UnionIndex != 38)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChannelReordered>.Write(writer, n_38);
         }
     
         else
@@ -2210,6 +2305,129 @@ public sealed class Ion_ChatReadEvent_Formatter : IonFormatter<ChatReadEvent>
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<guid>.Write(writer, value.peerId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelGroupCreated_Formatter : IonFormatter<ChannelGroupCreated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelGroupCreated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __data = IonFormatterStorage<ChannelGroup>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __data);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelGroupCreated value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<ChannelGroup>.Write(writer, value.data);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelGroupModified_Formatter : IonFormatter<ChannelGroupModified>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelGroupModified Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __bag = IonFormatterStorage<string>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __groupid, __bag);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelGroupModified value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.groupId);
+        IonFormatterStorage<string>.WriteArray(writer, value.bag);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelGroupRemoved_Formatter : IonFormatter<ChannelGroupRemoved>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelGroupRemoved Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __groupid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelGroupRemoved value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.groupId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelGroupReordered_Formatter : IonFormatter<ChannelGroupReordered>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelGroupReordered Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __fractionalindex = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __groupid, __fractionalindex);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelGroupReordered value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.groupId);
+        IonFormatterStorage<string>.Write(writer, value.fractionalIndex);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelReordered_Formatter : IonFormatter<ChannelReordered>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelReordered Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __targetgroupid = reader.ReadNullable<guid>();
+        var __fractionalindex = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__spaceid, __channelid, __targetgroupid, __fractionalindex);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelReordered value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.targetGroupId);
+        IonFormatterStorage<string>.Write(writer, value.fractionalIndex);
         writer.WriteEndArray();
     }
 }

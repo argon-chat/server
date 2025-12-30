@@ -137,6 +137,11 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChatPinnedEvent>.Value = new Ion_ChatPinnedEvent_Formatter();
       IonFormatterStorage<ChatUnpinnedEvent>.Value = new Ion_ChatUnpinnedEvent_Formatter();
       IonFormatterStorage<ChatReadEvent>.Value = new Ion_ChatReadEvent_Formatter();
+      IonFormatterStorage<ChannelGroupCreated>.Value = new Ion_ChannelGroupCreated_Formatter();
+      IonFormatterStorage<ChannelGroupModified>.Value = new Ion_ChannelGroupModified_Formatter();
+      IonFormatterStorage<ChannelGroupRemoved>.Value = new Ion_ChannelGroupRemoved_Formatter();
+      IonFormatterStorage<ChannelGroupReordered>.Value = new Ion_ChannelGroupReordered_Formatter();
+      IonFormatterStorage<ChannelReordered>.Value = new Ion_ChannelReordered_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
