@@ -381,7 +381,12 @@ public class SpaceGrain(
                 ? FractionalIndex.Parse(beforeGroup.FractionalIndex)
                 : (FractionalIndex?)null;
 
-            newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+            if (afterIndex == null && beforeIndex is { IsMin: true })
+                newIndex = FractionalIndex.Min();
+            else if (beforeIndex is { IsMin: true } && afterIndex != null)
+                newIndex = FractionalIndex.Between(FractionalIndex.Min(), afterIndex.Value);
+            else
+                newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
         }
 
         group.FractionalIndex = newIndex.Value;
@@ -420,17 +425,11 @@ public class SpaceGrain(
             ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
             
             foreach (var channel in group.Channels)
-            {
                 await _serverEvents.Fire(new ChannelRemoved(spaceId, channel.Id));
-            }
         }
         else
-        {
             foreach (var channel in group.Channels)
-            {
                 channel.ChannelGroupId = null;
-            }
-        }
 
         ctx.Set<ChannelGroupEntity>().Remove(group);
         await ctx.SaveChangesAsync();
@@ -529,7 +528,12 @@ public class SpaceGrain(
                 ? FractionalIndex.Parse(beforeChannel.FractionalIndex)
                 : (FractionalIndex?)null;
 
-            newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+            if (afterIndex == null && beforeIndex is { IsMin: true })
+                newIndex = FractionalIndex.Min();
+            else if (beforeIndex is { IsMin: true } && afterIndex != null)
+                newIndex = FractionalIndex.Between(FractionalIndex.Min(), afterIndex.Value);
+            else
+                newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
         }
 
         channel.FractionalIndex = newIndex.Value;
