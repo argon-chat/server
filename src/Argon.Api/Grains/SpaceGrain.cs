@@ -20,7 +20,7 @@ public class SpaceGrain(
     IServerRepository serverRepository,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
-    IEntitlementChecker entitlementChecker, 
+    IEntitlementChecker entitlementChecker,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -266,7 +266,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
@@ -306,7 +306,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
@@ -322,8 +322,12 @@ public class SpaceGrain(
         var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
         var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
 
-        var afterIndex  = afterGroup != null ? FractionalIndex.Parse(afterGroup.FractionalIndex) : (FractionalIndex?)null;
-        var beforeIndex = beforeGroup != null ? FractionalIndex.Parse(beforeGroup.FractionalIndex) : (FractionalIndex?)null;
+        var afterIndex = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
+            ? FractionalIndex.Parse(afterGroup.FractionalIndex)
+            : (FractionalIndex?)null;
+        var beforeIndex = beforeGroup != null && !string.IsNullOrEmpty(beforeGroup.FractionalIndex)
+            ? FractionalIndex.Parse(beforeGroup.FractionalIndex)
+            : (FractionalIndex?)null;
 
         group.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
 
@@ -338,7 +342,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
@@ -378,7 +382,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
@@ -421,7 +425,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
@@ -439,8 +443,12 @@ public class SpaceGrain(
         var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
         var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
 
-        var afterIndex  = afterChannel != null ? FractionalIndex.Parse(afterChannel.FractionalIndex) : (FractionalIndex?)null;
-        var beforeIndex = beforeChannel != null ? FractionalIndex.Parse(beforeChannel.FractionalIndex) : (FractionalIndex?)null;
+        var afterIndex = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
+            ? FractionalIndex.Parse(afterChannel.FractionalIndex)
+            : (FractionalIndex?)null;
+        var beforeIndex = beforeChannel != null && !string.IsNullOrEmpty(beforeChannel.FractionalIndex)
+            ? FractionalIndex.Parse(beforeChannel.FractionalIndex)
+            : (FractionalIndex?)null;
 
         channel.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
 
@@ -455,7 +463,7 @@ public class SpaceGrain(
         var spaceId  = this.GetPrimaryKey();
 
         var hasPermission = await entitlementChecker.HasAccessAsync(
-            ctx, 
+            ctx,
             spaceId,
             callerId,
             ArgonEntitlement.ManageChannels
