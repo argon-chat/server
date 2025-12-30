@@ -239,6 +239,23 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         await service.CompleteUploadSpaceAvatar(__spaceid, __blobid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetChannelGroups_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetChannelGroups(__spaceid);
+        
+        IonFormatterStorage<ChannelGroup>.WriteArray(writer, result);
+    }
 
     
     
@@ -272,6 +289,8 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return BeginUploadSpaceAvatar_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadSpaceAvatar", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadSpaceAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("GetChannelGroups", StringComparison.InvariantCultureIgnoreCase))
+            return GetChannelGroups_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

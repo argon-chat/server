@@ -24,18 +24,20 @@ public sealed class Ion_CreateChannelRequest_Formatter : IonFormatter<CreateChan
         var __name = IonFormatterStorage<string>.Read(reader);
         var __kind = IonFormatterStorage<ChannelType>.Read(reader);
         var __desc = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 4);
-        return new(__spaceid, __name, __kind, __desc);
+        var __groupid = reader.ReadNullable<guid>();
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__spaceid, __name, __kind, __desc, __groupid);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, CreateChannelRequest value)
     {
-        writer.WriteStartArray(4);
+        writer.WriteStartArray(5);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<ChannelType>.Write(writer, value.kind);
         IonFormatterStorage<string>.Write(writer, value.desc);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.groupId);
         writer.WriteEndArray();
     }
 }
@@ -75,21 +77,23 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = reader.ReadNullable<string>();
-        var __categoryid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 6);
-        return new(__type, __spaceid, __channelid, __name, __description, __categoryid);
+        var __groupid = reader.ReadNullable<guid>();
+        var __fractionalindex = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonChannel value)
     {
-        writer.WriteStartArray(6);
+        writer.WriteStartArray(7);
         IonFormatterStorage<ChannelType>.Write(writer, value.type);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.WriteNullable(writer, value.description);
-        IonFormatterStorage<guid>.Write(writer, value.categoryId);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.groupId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.fractionalIndex);
         writer.WriteEndArray();
     }
 }
@@ -173,6 +177,37 @@ public sealed class Ion_UserActivityPresence_Formatter : IonFormatter<UserActivi
         IonFormatterStorage<ActivityPresenceKind>.Write(writer, value.kind);
         IonFormatterStorage<u8>.Write(writer, value.startTimestampSeconds);
         IonFormatterStorage<string>.Write(writer, value.titleName);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChannelGroup_Formatter : IonFormatter<ChannelGroup>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChannelGroup Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __desc = reader.ReadNullable<string>();
+        var __iscollapsed = IonFormatterStorage<bool>.Read(reader);
+        var __fractionalindex = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__spaceid, __groupid, __name, __desc, __iscollapsed, __fractionalindex);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChannelGroup value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.groupId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.desc);
+        IonFormatterStorage<bool>.Write(writer, value.isCollapsed);
+        IonFormatterStorage<string>.WriteNullable(writer, value.fractionalIndex);
         writer.WriteEndArray();
     }
 }

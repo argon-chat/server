@@ -35,6 +35,79 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.CreateChannel(__spaceid, __channelid, __request);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MoveChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __targetgroupid = reader.ReadNullable<guid>();
+        var __afterchannelid = reader.ReadNullable<guid>();
+        var __beforechannelid = reader.ReadNullable<guid>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MoveChannel(__spaceid, __channelid, __targetgroupid, __afterchannelid, __beforechannelid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteChannelGroup_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __deletechannels = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.DeleteChannelGroup(__spaceid, __channelid, __groupid, __deletechannels);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateChannelGroup_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __desk = reader.ReadNullable<string>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CreateChannelGroup(__spaceid, __channelid, __name, __desk);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MoveChannelGroup_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __aftergroupid = reader.ReadNullable<guid>();
+        var __beforegroupid = reader.ReadNullable<guid>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MoveChannelGroup(__spaceid, __channelid, __aftergroupid, __beforegroupid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DeleteChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -227,6 +300,14 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         
         if (methodName.Equals("CreateChannel", StringComparison.InvariantCultureIgnoreCase))
             return CreateChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("MoveChannel", StringComparison.InvariantCultureIgnoreCase))
+            return MoveChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteChannelGroup", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteChannelGroup_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateChannelGroup", StringComparison.InvariantCultureIgnoreCase))
+            return CreateChannelGroup_Execute(reader, writer, ct);
+        if (methodName.Equals("MoveChannelGroup", StringComparison.InvariantCultureIgnoreCase))
+            return MoveChannelGroup_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteChannel", StringComparison.InvariantCultureIgnoreCase))
             return DeleteChannel_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannels", StringComparison.InvariantCultureIgnoreCase))

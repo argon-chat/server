@@ -13,5 +13,7 @@
     <Project Path="src/Argon.CodeGen/Argon.Ion.CodeGen.csproj" />
     <Project Path="src/Argon.Core/Argon.Core.csproj" Id="40a1b0f1-5296-477d-91aa-aa12c936a85b" />
   </Folder>
-  <Folder Name="/tests/" />
+  <Folder Name="/tests/">
+    <Project Path="tests/ArgonComplexTest/ArgonComplexTest.csproj" Id="a8abb116-133f-4001-8399-f9b7fabc8a4a" />
+  </Folder>
 </Solution>

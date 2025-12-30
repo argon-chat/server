@@ -15,7 +15,7 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record CreateChannelRequest(guid spaceId, string name, ChannelType kind, string desc);
+public sealed record CreateChannelRequest(guid spaceId, string name, ChannelType kind, string desc, guid? groupId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -23,7 +23,7 @@ public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChan
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid categoryId);
+public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid? groupId, string? fractionalIndex);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -36,6 +36,10 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserActivityPresence(ActivityPresenceKind kind, u8 startTimestampSeconds, string titleName);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChannelGroup(guid spaceId, guid groupId, string name, string? desc, bool isCollapsed, string? fractionalIndex);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -111,6 +115,10 @@ public enum ChannelMemberState : u4
 public interface IChannelInteraction : IIonService
 {
     Task CreateChannel(guid spaceId, guid channelId, CreateChannelRequest request, CancellationToken ct = default);
+    Task MoveChannel(guid spaceId, guid channelId, guid? targetGroupId, guid? afterChannelId, guid? beforeChannelId, CancellationToken ct = default);
+    Task DeleteChannelGroup(guid spaceId, guid channelId, guid groupId, bool deleteChannels, CancellationToken ct = default);
+    Task CreateChannelGroup(guid spaceId, guid channelId, string name, string? desk, CancellationToken ct = default);
+    Task MoveChannelGroup(guid spaceId, guid channelId, guid? afterGroupId, guid? beforeGroupId, CancellationToken ct = default);
     Task DeleteChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, i8? from, i4 limit, CancellationToken ct = default);

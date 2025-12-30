@@ -121,6 +121,7 @@ public interface IServerInteraction : IIonService
     Task CompleteUploadSpaceProfileHeader(guid spaceId, guid blobId, CancellationToken ct = default);
     Task<guid> BeginUploadSpaceAvatar(guid spaceId, CancellationToken ct = default);
     Task CompleteUploadSpaceAvatar(guid spaceId, guid blobId, CancellationToken ct = default);
+    Task<IonArray<ChannelGroup>> GetChannelGroups(guid spaceId, CancellationToken ct = default);
 }
 
 

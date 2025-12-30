@@ -5,6 +5,15 @@ using InviteCode = ArgonContracts.InviteCode;
 
 public class ServerInteractionImpl : IServerInteraction
 {
+    public async Task<IonArray<ChannelGroup>> GetChannelGroups(Guid spaceId, CancellationToken ct = default)
+    {
+        var groups = await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .GetChannelGroups();
+
+        return new IonArray<ChannelGroup>(groups.Select(x => x.ToDto()).ToList());
+    }
+
     public async Task<IonArray<RealtimeServerMember>> GetMembers(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<ISpaceGrain>(spaceId)

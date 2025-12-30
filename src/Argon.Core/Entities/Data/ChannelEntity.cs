@@ -12,6 +12,8 @@ public record ChannelEntity :
     public         Guid        SpaceId     { get; set; }
     public virtual SpaceEntity Space       { get; set; }
 
+    public         Guid?               ChannelGroupId { get; set; }
+    public virtual ChannelGroupEntity? ChannelGroup   { get; set; }
 
     [MaxLength(128)]
     public string Name { get; set; } = string.Empty;
@@ -27,7 +29,8 @@ public record ChannelEntity :
         => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();
 
     public static ArgonChannel Map(scoped in ChannelEntity self)
-        => new(self.ChannelType, self.SpaceId, self.Id, self.Name, self.Description, Guid.Empty);
+        => new(self.ChannelType, self.SpaceId, self.Id, self.Name, self.Description, self.ChannelGroupId,
+            string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex);
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {
@@ -35,9 +38,16 @@ public record ChannelEntity :
            .WithMany(s => s.Channels)
            .HasForeignKey(c => c.SpaceId);
 
+        builder.HasOne(c => c.ChannelGroup)
+           .WithMany(g => g.Channels)
+           .HasForeignKey(c => c.ChannelGroupId)
+           .OnDelete(DeleteBehavior.SetNull);
+
         builder.HasIndex(x => new
         {
-            x.SpaceId
+            x.SpaceId,
+            x.ChannelGroupId,
+            x.FractionalIndex
         });
     }
 }

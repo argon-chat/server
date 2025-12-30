@@ -1,5 +1,6 @@
 namespace Argon.Services.Ion;
 
+using Argon.Api.Features.Utils;
 using Argon.Core.Grains.Interfaces;
 using Argon.Sfu;
 using ion.runtime;
@@ -7,10 +8,30 @@ using Livekit.Server.Sdk.Dotnet;
 
 public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger<IChannelInteraction> logger) : IChannelInteraction
 {
+    public async Task CreateChannelGroup(Guid spaceId, Guid channelId, string name, string? description, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .CreateChannelGroup(name, description);
+        
+    public async Task MoveChannelGroup(Guid spaceId, Guid groupId, Guid? afterGroupId, Guid? beforeGroupId, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .MoveChannelGroup(groupId, afterGroupId, beforeGroupId);
+
+    public async Task DeleteChannelGroup(Guid spaceId, Guid channelId, Guid groupId, bool deleteChannels, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .DeleteChannelGroup(groupId, deleteChannels);
+
     public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(request.spaceId)
-           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind));
+           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId);
+
+    public async Task MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .MoveChannel(channelId, targetGroupId, afterChannelId, beforeChannelId);
 
     public async Task DeleteChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this
@@ -60,7 +81,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
         {
             var ingressResult = await ingressService.CreateIngress(new CreateIngressRequest()
             {
-                Name                = $"Streaming.{spaceId}.{channelId}.{density}.{this.GetUserId()}>",
+                Name                = $"Streaming.{spaceId}.{channelId}.{density}.{this.GetUserId()}",
                 Enabled             = true,
                 InputType           = IngressInput.WhipInput,
                 RoomName            = ArgonRoomId.FromArgonChannel(spaceId, channelId).ToRawRoomId(),

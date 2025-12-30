@@ -44,6 +44,8 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(BeginUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadSpaceAvatar_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(CompleteUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetChannelGroups_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(GetChannelGroups), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -272,6 +274,23 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<ChannelGroup>> GetChannelGroups(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), GetChannelGroups_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<ChannelGroup>(writer.Encode(), ct: ct);
     }
 
 }

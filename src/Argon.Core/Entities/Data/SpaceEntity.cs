@@ -16,11 +16,12 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     [MaxLength(128)]
     public string? TopBannedFileId { get; set; }
 
-    public virtual ICollection<ChannelEntity>     Channels          { get; set; } = new List<ChannelEntity>();
-    public virtual ICollection<SpaceMemberEntity> Users             { get; set; } = new List<SpaceMemberEntity>();
-    public virtual ICollection<ArchetypeEntity>   Archetypes        { get; set; } = new List<ArchetypeEntity>();
-    public         ICollection<IArchetype>        SubjectArchetypes => Archetypes.OfType<IArchetype>().ToList();
-    public virtual ICollection<SpaceInvite>      ServerInvites     { get; set; } = new List<SpaceInvite>();
+    public virtual ICollection<ChannelEntity>      Channels       { get; set; } = new List<ChannelEntity>();
+    public virtual ICollection<ChannelGroupEntity> ChannelGroups  { get; set; } = new List<ChannelGroupEntity>();
+    public virtual ICollection<SpaceMemberEntity>  Users          { get; set; } = new List<SpaceMemberEntity>();
+    public virtual ICollection<ArchetypeEntity>    Archetypes     { get; set; } = new List<ArchetypeEntity>();
+    public         ICollection<IArchetype>         SubjectArchetypes => Archetypes.OfType<IArchetype>().ToList();
+    public virtual ICollection<SpaceInvite>        ServerInvites  { get; set; } = new List<SpaceInvite>();
 
     public static ArgonSpace Map(scoped in SpaceEntity self)
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,

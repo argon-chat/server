@@ -20,6 +20,14 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
     
     private static readonly Lazy<MethodInfo> CreateChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(CreateChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MoveChannel_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(MoveChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteChannelGroup_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(DeleteChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateChannelGroup_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(CreateChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MoveChannelGroup_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(MoveChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(DeleteChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetChannels_Ref = new(() =>
@@ -57,6 +65,87 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         IonFormatterStorage<guid>.Write(writer, __spaceid);
         IonFormatterStorage<guid>.Write(writer, __channelid);
         IonFormatterStorage<CreateChannelRequest>.Write(writer, __request);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MoveChannel(guid __spaceid, guid __channelid, guid? __targetgroupid, guid? __afterchannelid, guid? __beforechannelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), MoveChannel_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.WriteNullable(writer, __targetgroupid);
+        IonFormatterStorage<guid>.WriteNullable(writer, __afterchannelid);
+        IonFormatterStorage<guid>.WriteNullable(writer, __beforechannelid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteChannelGroup(guid __spaceid, guid __channelid, guid __groupid, bool __deletechannels, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), DeleteChannelGroup_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __groupid);
+        IonFormatterStorage<bool>.Write(writer, __deletechannels);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateChannelGroup(guid __spaceid, guid __channelid, string __name, string? __desk, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), CreateChannelGroup_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<string>.Write(writer, __name);
+        IonFormatterStorage<string>.WriteNullable(writer, __desk);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MoveChannelGroup(guid __spaceid, guid __channelid, guid? __aftergroupid, guid? __beforegroupid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), MoveChannelGroup_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.WriteNullable(writer, __aftergroupid);
+        IonFormatterStorage<guid>.WriteNullable(writer, __beforegroupid);
         
         writer.WriteEndArray();
 

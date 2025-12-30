@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using System.Linq;
 using Argon.Api.Features.Bus;
+using Argon.Api.Features.Utils;
 using Argon.Services.L1L2;
 using Core.Services;
 using Features.Logic;
@@ -19,7 +20,7 @@ public class SpaceGrain(
     IServerRepository serverRepository,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
-    IEntitlementChecker entitlementChecker,
+    IEntitlementChecker entitlementChecker, 
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -85,7 +86,7 @@ public class SpaceGrain(
         server.Name         = input.Name ?? server.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
-        
+
         await ctx.SaveChangesAsync();
         await _serverEvents.Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
         return server;
@@ -163,6 +164,8 @@ public class SpaceGrain(
            .AsSplitQuery()
            .Where(c => c.SpaceId == spaceId)
            .Include(c => c.EntitlementOverwrites)
+           .OrderBy(c => c.ChannelGroupId)
+           .ThenBy(c => c.FractionalIndex)
            .ToListAsync();
 
         var c = channels
@@ -255,31 +258,229 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync();
     }
 
-    public async Task<ChannelEntity> CreateChannel(ChannelInput input)
+    public async Task<ChannelGroupEntity> CreateChannelGroup(string name, string? description = null)
     {
         await using var ctx = await context.CreateDbContextAsync();
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var lastGroup = await ctx.Set<ChannelGroupEntity>()
+           .Where(g => g.SpaceId == spaceId)
+           .OrderByDescending(g => g.FractionalIndex)
+           .FirstOrDefaultAsync();
+
+        var fractionalIndex = lastGroup != null
+            ? FractionalIndex.After(FractionalIndex.Parse(lastGroup.FractionalIndex))
+            : FractionalIndex.Min();
+
+        var group = new ChannelGroupEntity
+        {
+            Name            = name,
+            Description     = description,
+            SpaceId         = spaceId,
+            CreatorId       = callerId,
+            FractionalIndex = fractionalIndex.Value
+        };
+
+        await ctx.Set<ChannelGroupEntity>().AddAsync(group);
+        await ctx.SaveChangesAsync();
+        return group;
+    }
+
+    public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var group = await ctx.Set<ChannelGroupEntity>().FindAsync(groupId);
+        if (group == null || group.SpaceId != spaceId)
+            return;
+
+        var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
+        var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
+
+        var afterIndex  = afterGroup != null ? FractionalIndex.Parse(afterGroup.FractionalIndex) : (FractionalIndex?)null;
+        var beforeIndex = beforeGroup != null ? FractionalIndex.Parse(beforeGroup.FractionalIndex) : (FractionalIndex?)null;
+
+        group.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
+
+        await ctx.SaveChangesAsync();
+    }
+
+    public async Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var group = await ctx.Set<ChannelGroupEntity>()
+           .Include(g => g.Channels)
+           .FirstOrDefaultAsync(g => g.Id == groupId && g.SpaceId == spaceId);
+
+        if (group == null)
+            return;
+
+        if (deleteChannels)
+        {
+            ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
+        }
+        else
+        {
+            foreach (var channel in group.Channels)
+            {
+                channel.ChannelGroupId = null;
+            }
+        }
+
+        ctx.Set<ChannelGroupEntity>().Remove(group);
+        await ctx.SaveChangesAsync();
+    }
+
+    public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var lastChannel = await ctx.Set<ChannelEntity>()
+           .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
+           .OrderByDescending(c => c.FractionalIndex)
+           .FirstOrDefaultAsync();
+
+        var fractionalIndex = lastChannel != null
+            ? FractionalIndex.After(FractionalIndex.Parse(lastChannel.FractionalIndex))
+            : FractionalIndex.Min();
 
         var channel = new ChannelEntity
         {
             Name            = input.Name,
-            CreatorId       = this.GetUserId(),
+            CreatorId       = callerId,
             Description     = input.Description,
             ChannelType     = input.ChannelType,
-            SpaceId         = this.GetPrimaryKey(),
-            FractionalIndex = ""
+            SpaceId         = spaceId,
+            ChannelGroupId  = groupId,
+            FractionalIndex = fractionalIndex.Value
         };
-        await ctx.Channels.AddAsync(channel);
+
+        await ctx.Set<ChannelEntity>().AddAsync(channel);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ChannelCreated(this.GetPrimaryKey(), channel.ToDto()));
+        await _serverEvents.Fire(new ChannelCreated(spaceId, channel.ToDto()));
         return channel;
+    }
+
+    public async Task MoveChannel(Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
+        if (channel == null || channel.SpaceId != spaceId)
+            return;
+
+        channel.ChannelGroupId = targetGroupId;
+
+        var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
+        var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
+
+        var afterIndex  = afterChannel != null ? FractionalIndex.Parse(afterChannel.FractionalIndex) : (FractionalIndex?)null;
+        var beforeIndex = beforeChannel != null ? FractionalIndex.Parse(beforeChannel.FractionalIndex) : (FractionalIndex?)null;
+
+        channel.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
+
+        await ctx.SaveChangesAsync();
     }
 
     public async Task DeleteChannel(Guid channelId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        ctx.Channels.Remove(await ctx.Channels.FindAsync(channelId)!);
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, 
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels
+        );
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var channel = await ctx.Set<ChannelEntity>().FindAsync(channelId);
+        if (channel == null || channel.SpaceId != spaceId)
+            return;
+
+        ctx.Set<ChannelEntity>().Remove(channel);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ChannelRemoved(this.GetPrimaryKey(), channelId));
+        await _serverEvents.Fire(new ChannelRemoved(spaceId, channelId));
+    }
+
+    public async Task<List<ChannelGroupEntity>> GetChannelGroups()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        return await ctx.Set<ChannelGroupEntity>()
+           .AsNoTracking()
+           .Where(g => g.SpaceId == this.GetPrimaryKey())
+           .OrderBy(g => g.FractionalIndex)
+           .ToListAsync();
     }
 }
