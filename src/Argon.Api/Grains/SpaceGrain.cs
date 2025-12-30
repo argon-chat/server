@@ -120,7 +120,7 @@ public class SpaceGrain(
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
 
 
-    public async Task<List<RealtimeServerMember>> GetMembers()
+    public async Task<List<RealtimeServerMember>> GetMembers()  
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -322,17 +322,35 @@ public class SpaceGrain(
         if (group == null || group.SpaceId != spaceId)
             return;
 
-        var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
-        var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
+        FractionalIndex newIndex;
 
-        var afterIndex = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
-            ? FractionalIndex.Parse(afterGroup.FractionalIndex)
-            : (FractionalIndex?)null;
-        var beforeIndex = beforeGroup != null && !string.IsNullOrEmpty(beforeGroup.FractionalIndex)
-            ? FractionalIndex.Parse(beforeGroup.FractionalIndex)
-            : (FractionalIndex?)null;
+        if (afterGroupId == null && beforeGroupId == null)
+        {
+            var lastGroup = await ctx.Set<ChannelGroupEntity>()
+               .Where(g => g.SpaceId == spaceId && g.Id != groupId)
+               .OrderByDescending(g => g.FractionalIndex)
+               .FirstOrDefaultAsync();
 
-        group.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
+            newIndex = lastGroup != null && !string.IsNullOrEmpty(lastGroup.FractionalIndex)
+                ? FractionalIndex.After(FractionalIndex.Parse(lastGroup.FractionalIndex))
+                : FractionalIndex.Min();
+        }
+        else
+        {
+            var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
+            var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
+
+            var afterIndex  = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
+                ? FractionalIndex.Parse(afterGroup.FractionalIndex)
+                : (FractionalIndex?)null;
+            var beforeIndex = beforeGroup != null && !string.IsNullOrEmpty(beforeGroup.FractionalIndex)
+                ? FractionalIndex.Parse(beforeGroup.FractionalIndex)
+                : (FractionalIndex?)null;
+
+            newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+        }
+
+        group.FractionalIndex = newIndex.Value;
 
         await ctx.SaveChangesAsync();
         
@@ -452,17 +470,35 @@ public class SpaceGrain(
 
         channel.ChannelGroupId = targetGroupId;
 
-        var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
-        var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
+        FractionalIndex newIndex;
 
-        var afterIndex = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
-            ? FractionalIndex.Parse(afterChannel.FractionalIndex)
-            : (FractionalIndex?)null;
-        var beforeIndex = beforeChannel != null && !string.IsNullOrEmpty(beforeChannel.FractionalIndex)
-            ? FractionalIndex.Parse(beforeChannel.FractionalIndex)
-            : (FractionalIndex?)null;
+        if (afterChannelId == null && beforeChannelId == null)
+        {
+            var lastChannel = await ctx.Set<ChannelEntity>()
+               .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == targetGroupId && c.Id != channelId)
+               .OrderByDescending(c => c.FractionalIndex)
+               .FirstOrDefaultAsync();
 
-        channel.FractionalIndex = FractionalIndex.Between(afterIndex, beforeIndex).Value;
+            newIndex = lastChannel != null && !string.IsNullOrEmpty(lastChannel.FractionalIndex)
+                ? FractionalIndex.After(FractionalIndex.Parse(lastChannel.FractionalIndex))
+                : FractionalIndex.Min();
+        }
+        else
+        {
+            var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
+            var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
+
+            var afterIndex  = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
+                ? FractionalIndex.Parse(afterChannel.FractionalIndex)
+                : (FractionalIndex?)null;
+            var beforeIndex = beforeChannel != null && !string.IsNullOrEmpty(beforeChannel.FractionalIndex)
+                ? FractionalIndex.Parse(beforeChannel.FractionalIndex)
+                : (FractionalIndex?)null;
+
+            newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+        }
+
+        channel.FractionalIndex = newIndex.Value;
 
         await ctx.SaveChangesAsync();
         
