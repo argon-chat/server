@@ -121,6 +121,7 @@ public interface IChannelInteraction : IIonService
     Task MoveChannelGroup(guid spaceId, guid channelId, guid? afterGroupId, guid? beforeGroupId, CancellationToken ct = default);
     Task DeleteChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task UpdateChannelGroup(guid spaceId, guid channelId, guid groupId, string? name, string? description, CancellationToken ct = default);
     Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, i8? from, i4 limit, CancellationToken ct = default);
     Task<i8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
@@ -1064,7 +1065,7 @@ public sealed record ChannelGroupCreated(guid spaceId, ChannelGroup data) : IArg
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ChannelGroupModified(guid spaceId, guid groupId, IonArray<string> bag) : IArgonEvent
+public sealed record ChannelGroupModified(guid spaceId, guid groupId, ChannelGroup data) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelGroupModified);
     public uint UnionIndex => 35;
@@ -2341,9 +2342,9 @@ public sealed class Ion_ChannelGroupModified_Formatter : IonFormatter<ChannelGro
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __groupid = IonFormatterStorage<guid>.Read(reader);
-        var __bag = IonFormatterStorage<string>.ReadArray(reader);
+        var __data = IonFormatterStorage<ChannelGroup>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 3);
-        return new(__spaceid, __groupid, __bag);
+        return new(__spaceid, __groupid, __data);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -2352,7 +2353,7 @@ public sealed class Ion_ChannelGroupModified_Formatter : IonFormatter<ChannelGro
         writer.WriteStartArray(3);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.groupId);
-        IonFormatterStorage<string>.WriteArray(writer, value.bag);
+        IonFormatterStorage<ChannelGroup>.Write(writer, value.data);
         writer.WriteEndArray();
     }
 }

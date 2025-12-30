@@ -301,6 +301,40 @@ public class SpaceGrain(
         return group;
     }
 
+    public async Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx,
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageChannels, ct);
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
+        var group = await ctx.Set<ChannelGroupEntity>()
+           .FirstOrDefaultAsync(g => g.Id == groupId && g.SpaceId == spaceId, cancellationToken: ct);
+
+        if (group == null)
+            throw new InvalidOperationException("Channel group not found");
+
+        group.Name        = name ?? group.Name;
+        group.Description = description ?? group.Description;
+        if (isCollapsed.HasValue)
+            group.IsCollapsed = isCollapsed.Value;
+
+        await ctx.SaveChangesAsync(ct);
+        
+        await _serverEvents.Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
+        
+        return group;
+    }
+
     public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
     {
         await using var ctx = await context.CreateDbContextAsync();

@@ -142,6 +142,25 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<RealtimeChannel>.WriteArray(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateChannelGroup_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __name = reader.ReadNullable<string>();
+        var __description = reader.ReadNullable<string>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UpdateChannelGroup(__spaceid, __channelid, __groupid, __name, __description);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task QueryMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -312,6 +331,8 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return DeleteChannel_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannels", StringComparison.InvariantCultureIgnoreCase))
             return GetChannels_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateChannelGroup", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateChannelGroup_Execute(reader, writer, ct);
         if (methodName.Equals("QueryMessages", StringComparison.InvariantCultureIgnoreCase))
             return QueryMessages_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessage", StringComparison.InvariantCultureIgnoreCase))

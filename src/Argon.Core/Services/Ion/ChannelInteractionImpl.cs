@@ -42,6 +42,11 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
         => new(await this.GetGrain<ISpaceGrain>(spaceId)
            .GetChannels());
 
+    public async Task UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .UpdateChannelGroup(groupId, name, description, null, ct);
+
     public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, long? from, int limit, CancellationToken ct = default)
     {
         var result = await this

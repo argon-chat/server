@@ -32,6 +32,8 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(DeleteChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetChannels_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(GetChannels), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateChannelGroup_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(UpdateChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> QueryMessages_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(QueryMessages), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendMessage_Ref = new(() =>
@@ -186,6 +188,27 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsyncWithArray<RealtimeChannel>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateChannelGroup(guid __spaceid, guid __channelid, guid __groupid, string? __name, string? __description, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), UpdateChannelGroup_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __groupid);
+        IonFormatterStorage<string>.WriteNullable(writer, __name);
+        IonFormatterStorage<string>.WriteNullable(writer, __description);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, i8? __from, i4 __limit, CancellationToken ct = default)

@@ -30,6 +30,9 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(DeleteChannelGroup))]
     Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false);
 
+    [Alias(nameof(UpdateChannelGroup))]
+    Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default);
+
     [Alias(nameof(CreateChannel))]
     Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null);
 
