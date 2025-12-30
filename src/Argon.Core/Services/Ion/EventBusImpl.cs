@@ -5,81 +5,124 @@ using Api.Features.Bus;
 
 public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
 {
-    public async IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, CancellationToken ct = default)
+    public async IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var client = this.GetClusterClient();
-
         await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).BeginRealtimeSession();
 
-        await foreach (var e in await this.GetClusterClient().Streams().CreateClientStream(spaceId))
+        await foreach (var e in await client.Streams().CreateClientStream(spaceId).ConfigureAwait(false))
             yield return e;
     }
-
-    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => await DispatchTree(ev, this.GetClusterClient());
+        
+    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => 
+        await DispatchTree(ev, this.GetClusterClient(), this.GetSessionId(), ct);
 
     public async IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent>? dispatchEvents, 
         [EnumeratorCancellation] CancellationToken ct = default)
     {
         var sessionId = this.GetSessionId();
-        var userId    = this.GetUserId();
-        var client    = this.GetClusterClient();
+        var userId = this.GetUserId();
+        var client = this.GetClusterClient();
 
         await client.GetGrain<IUserSessionGrain>(sessionId).BeginRealtimeSession();
 
-        var masterStream = await client.Streams()
-           .GetOrCreateSubscriptionCoupler(sessionId, userId, ct);
+        var masterStream = await client.Streams().GetOrCreateSubscriptionCoupler(sessionId, userId, ct);
+        var subscriptionTask = SubscribeTyMySpaces(userId, sessionId, client, ct);
 
-        await using var masterEnum = masterStream.GetAsyncEnumerator(ct);
-        await using var clientEnum = dispatchEvents?.GetAsyncEnumerator(ct);
+        await foreach (var ev in MergeStreams(masterStream, dispatchEvents, client, sessionId, ct).ConfigureAwait(false))
+            yield return ev;
 
-        var mvSpace  = masterEnum.MoveNextAsync().AsTask();
-        var mvClient = clientEnum != null ? clientEnum.MoveNextAsync().AsTask() : Task.FromResult(false);
-        var subs     = SubscribeTyMySpaces(userId, sessionId, client, ct);
+        await subscriptionTask;
+    }
+
+    private async static IAsyncEnumerable<IArgonEvent> MergeStreams(
+        IAsyncEnumerable<IArgonEvent> serverEvents,
+        IAsyncEnumerable<IArgonClientEvent>? clientEvents,
+        IClusterClient client,
+        Guid sessionId,
+        [EnumeratorCancellation] CancellationToken ct)
+    {
+        await using var serverEnum = serverEvents.GetAsyncEnumerator(ct);
+        await using var clientEnum = clientEvents?.GetAsyncEnumerator(ct);
+
+        var serverTask = GetNextOrNull(serverEnum, ct);
+        var clientTask = clientEnum != null ? ProcessNextClientEvent(clientEnum, client, sessionId, ct) : Task.FromResult(false);
 
         while (!ct.IsCancellationRequested)
         {
-            var finished = await Task.WhenAny(mvSpace, mvClient);
+            var completed = await Task.WhenAny(serverTask, clientTask);
 
-            if (finished == mvSpace)
+            if (completed == serverTask)
             {
-                if (!mvSpace.Result) break;
-                yield return masterEnum.Current;
-                mvSpace = masterEnum.MoveNextAsync().AsTask();
+                var serverEvent = await serverTask;
+                if (serverEvent == null) break;
+
+                yield return serverEvent;
+                serverTask = GetNextOrNull(serverEnum, ct);
             }
             else
             {
-                if (!mvClient.Result) break;
-                await DispatchTree(clientEnum!.Current, client);
-                mvClient = clientEnum.MoveNextAsync().AsTask();
+                if (!await clientTask) break;
+                clientTask = ProcessNextClientEvent(clientEnum!, client, sessionId, ct);
             }
         }
+    }
 
-        await subs;
+    private async static Task<IArgonEvent?> GetNextOrNull(IAsyncEnumerator<IArgonEvent> enumerator, CancellationToken ct)
+    {
+        try
+        {
+            return await enumerator.MoveNextAsync() ? enumerator.Current : null;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private async static Task<bool> ProcessNextClientEvent(
+        IAsyncEnumerator<IArgonClientEvent> enumerator,
+        IClusterClient client,
+        Guid sessionId,
+        CancellationToken ct)
+    {
+        try
+        {
+            if (!await enumerator.MoveNextAsync()) return false;
+            await DispatchTree(enumerator.Current, client, sessionId, ct);
+            return true;
+        }
+        catch (NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private async ValueTask SubscribeTyMySpaces(Guid userId, Guid sessionId, IClusterClient client, CancellationToken ct = default)
     {
         var spaceIds = await client.GetGrain<IUserGrain>(userId).GetMyServersIds(ct);
-        foreach (var spaceId in spaceIds)
-            await client.Streams().AssignSubscribe(sessionId, spaceId);
+        var tasks = spaceIds.Select(spaceId => client.Streams().AssignSubscribe(sessionId, spaceId).AsTask());
+        await Task.WhenAll(tasks);
     }
 
-    private async ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client)
+    private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
     {
+        var sessionGrain = client.GetGrain<IUserSessionGrain>(sessionId);
+
         switch (ev)
         {
             case IAmTypingEvent typing:
-                await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingEmit(typing.channelId);
+                await sessionGrain.OnTypingEmit(typing.channelId);
                 break;
             case IAmStopTypingEvent stopTyping:
-                await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).OnTypingStopEmit(stopTyping.channelId);
+                await sessionGrain.OnTypingStopEmit(stopTyping.channelId);
                 break;
             case HeartBeatEvent heartbeat:
-                if (!await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).HeartBeatAsync(heartbeat.status))
-                    throw new Exception("drop connection when session expired");
+                if (!await sessionGrain.HeartBeatAsync(heartbeat.status))
+                    throw new InvalidOperationException("Session expired, dropping connection");
                 break;
             case SubscribeToMySpaces:
-
+                break;
             default:
                 return;
         }
