@@ -31,6 +31,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<DevAppEntity>        AppEntities        => Set<DevAppEntity>();
     public DbSet<DevTeamMemberEntity> MemberTeamEntities => Set<DevTeamMemberEntity>();
     public DbSet<BotEntity>           BotEntities        => Set<BotEntity>();
+    public DbSet<ClientAppEntity>     AppClientEntities  => Set<ClientAppEntity>();
     public DbSet<DevTeamMemberInvite> TeamInvites        => Set<DevTeamMemberInvite>();
 
 #endregion

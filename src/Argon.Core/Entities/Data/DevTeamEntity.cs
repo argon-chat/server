@@ -128,7 +128,7 @@ public enum DevAppType
 {
     Application = 0,
     Bot         = 1,
-    WebAPp      = 2
+    WebApp      = 2
 }
 
 public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEntity>
@@ -147,7 +147,7 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
     public string  ClientSecret    { get; set; } = null!;
     public string? VerificationKey { get; set; }
 
-    public List<string> RequiredScopes { get; set; } = new();
+    public List<string> RequiredScopes   { get; set; } = new();
     public List<string> AllowedRedirects { get; set; } = new();
 
     public DevAppType AppType { get; set; } = DevAppType.Application;
@@ -173,6 +173,33 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
         builder
            .Property(x => x.AllowedRedirects)
            .HasColumnType("text[]");
+    }
+}
+
+public enum ClientAppPlatformKind
+{
+    WindowsDesktop,
+    MacOSDesktop,
+    LinuxDesktop,
+    WebBased,
+    iOS,
+    Android
+}
+
+public record ClientAppEntity : DevAppEntity, IEntityTypeConfiguration<ClientAppEntity>
+{
+    public required ClientAppPlatformKind Platform           { get; set; }
+    public required int                   RateLimitPerMinute { get; set; } = 60;
+    public          bool                  IsVerified         { get; set; }
+    public          bool                  IsPublic           { get; set; }
+    public          string?               WebsiteUrl         { get; set; }
+    public          string?               RepositoryUrl      { get; set; }
+
+    public void Configure(EntityTypeBuilder<ClientAppEntity> builder)
+    {
+        builder.ToTable("ClientApps");
+        builder.Property(x => x.Platform)
+           .IsRequired();
     }
 }
 
