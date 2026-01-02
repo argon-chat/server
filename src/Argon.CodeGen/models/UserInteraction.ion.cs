@@ -113,6 +113,7 @@ public enum LockdownReason
     TERRORISM_CONTENT = 14,
     SELF_HARM_PROMOTION = 15,
     CHILD_ABUSE = 16,
+    BAD_CLIENT = 17,
 }
 
 

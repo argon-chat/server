@@ -149,6 +149,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<GoodAuthStatus>.Value = new Ion_GoodAuthStatus_Formatter();
       IonFormatterStorage<BadAuthStatus>.Value = new Ion_BadAuthStatus_Formatter();
       IonFormatterStorage<LockedAuthStatus>.Value = new Ion_LockedAuthStatus_Formatter();
+      IonFormatterStorage<CertificateErrorAuthStatus>.Value = new Ion_CertificateErrorAuthStatus_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
       IonFormatterStorage<SuccessUploadFile>.Value = new Ion_SuccessUploadFile_Formatter();

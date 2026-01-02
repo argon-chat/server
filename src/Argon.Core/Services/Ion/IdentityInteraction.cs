@@ -49,10 +49,39 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
     public Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default)
         => this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).GetAuthorizationScenarioFor(data, ct);
 
+    private async Task<string?> IsBadClient()
+    {
+        try
+        {
+            _ = this.GetMachineId();
+        }
+        catch (Exception e)
+        {
+            return "Invalid machine ID";
+        }
+
+        try
+        {
+            _ = this.GetSessionId();
+        }
+        catch (Exception e)
+        {
+            return "Invalid session ID";
+        }
+
+        return null;
+    }
+
     public async Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default)
     {
         if (string.IsNullOrEmpty(refreshToken))
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
+
+        var badClientReason = await IsBadClient();
+
+        if (!string.IsNullOrEmpty(badClientReason))
+            return new CertificateErrorAuthStatus(badClientReason);
+
         try
         {
             var machineId = this.GetMachineId();

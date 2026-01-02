@@ -57,6 +57,8 @@ public interface IMyAuthStatus : IIonUnion<IMyAuthStatus>
 
     internal bool IsLockedAuthStatus => this is LockedAuthStatus;
 
+    internal bool IsCertificateErrorAuthStatus => this is CertificateErrorAuthStatus;
+
 }
 
 
@@ -81,6 +83,13 @@ public sealed record LockedAuthStatus(LockdownReason? lockdownReason, datetime? 
     public uint UnionIndex => 2;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CertificateErrorAuthStatus(string message) : IMyAuthStatus
+{
+    public string UnionKey => nameof(CertificateErrorAuthStatus);
+    public uint UnionIndex => 3;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -101,6 +110,9 @@ public sealed class Ion_IMyAuthStatus_Formatter : IonFormatter<IMyAuthStatus>
 
         else if (unionIndex == 2)
             result = IonFormatterStorage<LockedAuthStatus>.Read(reader);
+
+        else if (unionIndex == 3)
+            result = IonFormatterStorage<CertificateErrorAuthStatus>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -134,6 +146,13 @@ public sealed class Ion_IMyAuthStatus_Formatter : IonFormatter<IMyAuthStatus>
             if (n_2.UnionIndex != 2)
                 throw new InvalidOperationException();
             IonFormatterStorage<LockedAuthStatus>.Write(writer, n_2);
+        }
+
+        else if (value is CertificateErrorAuthStatus n_3)
+        {
+            if (n_3.UnionIndex != 3)
+                throw new InvalidOperationException();
+            IonFormatterStorage<CertificateErrorAuthStatus>.Write(writer, n_3);
         }
     
         else
@@ -208,6 +227,27 @@ public sealed class Ion_LockedAuthStatus_Formatter : IonFormatter<LockedAuthStat
         IonFormatterStorage<datetime>.WriteNullable(writer, value.lockDownExpiration);
         IonFormatterStorage<bool>.Write(writer, value.isAppealable);
         IonFormatterStorage<LockdownSeverity>.Write(writer, value.severity);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CertificateErrorAuthStatus_Formatter : IonFormatter<CertificateErrorAuthStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CertificateErrorAuthStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __message = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__message);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CertificateErrorAuthStatus value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<string>.Write(writer, value.message);
         writer.WriteEndArray();
     }
 }
