@@ -42,29 +42,52 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         Guid sessionId,
         [EnumeratorCancellation] CancellationToken ct)
     {
-        await using var serverEnum = serverEvents.GetAsyncEnumerator(ct);
-        await using var clientEnum = clientEvents?.GetAsyncEnumerator(ct);
+        var serverEnum = serverEvents.GetAsyncEnumerator(ct);
+        var clientEnum = clientEvents?.GetAsyncEnumerator(ct);
 
-        var serverTask = GetNextOrNull(serverEnum, ct);
-        var clientTask = clientEnum != null ? ProcessNextClientEvent(clientEnum, client, sessionId, ct) : Task.FromResult(false);
-
-        while (!ct.IsCancellationRequested)
+        try
         {
-            var completed = await Task.WhenAny(serverTask, clientTask);
+            var serverTask = GetNextOrNull(serverEnum, ct);
+            var clientTask = clientEnum != null ? ProcessNextClientEvent(clientEnum, client, sessionId, ct) : Task.FromResult(false);
 
-            if (completed == serverTask)
+            while (!ct.IsCancellationRequested)
             {
-                var serverEvent = await serverTask;
-                if (serverEvent == null) break;
+                var completed = await Task.WhenAny(serverTask, clientTask);
 
-                yield return serverEvent;
-                serverTask = GetNextOrNull(serverEnum, ct);
+                if (completed == serverTask)
+                {
+                    var serverEvent = await serverTask;
+                    if (serverEvent == null) break;
+
+                    yield return serverEvent;
+                    serverTask = GetNextOrNull(serverEnum, ct);
+                }
+                else
+                {
+                    if (!await clientTask) break;
+                    clientTask = ProcessNextClientEvent(clientEnum!, client, sessionId, ct);
+                }
             }
-            else
+        }
+        finally
+        {
+            await DisposeEnumeratorSafely(serverEnum);
+            if (clientEnum != null)
             {
-                if (!await clientTask) break;
-                clientTask = ProcessNextClientEvent(clientEnum!, client, sessionId, ct);
+                await DisposeEnumeratorSafely(clientEnum);
             }
+        }
+    }
+
+    private async static ValueTask DisposeEnumeratorSafely<T>(IAsyncEnumerator<T> enumerator)
+    {
+        try
+        {
+            await enumerator.DisposeAsync();
+        }
+        catch (NotSupportedException)
+        {
+            // Some stream implementations throw on dispose after cancellation
         }
     }
 
