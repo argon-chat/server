@@ -8,6 +8,7 @@ public static class CorsFeature
         ("https", "localhost"),
 
         ("app", "index"),
+        ("https", "app"),
 
         ("https", "argon.gl"),
         ("https", "argon.zone"),
@@ -46,6 +47,7 @@ public static class CorsFeature
             })
            .AllowAnyHeader()
            .AllowAnyMethod()
+           .AllowCredentials()
            .WithExposedHeaders("X-Wt-Upgrade", "X-Wt-Fingerprint", "X-Wt-AAT")
            .SetPreflightMaxAge(TimeSpan.FromDays(1))));
 }
