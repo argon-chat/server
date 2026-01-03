@@ -111,6 +111,15 @@ public static class HttpContextExtensions
                 throw new InvalidOperationException("MachineId invalid");
             }
 
+            // Priority 3: Alternate legacy header (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("X-Sec-Carry", out var xSecCarry) && !string.IsNullOrWhiteSpace(xSecCarry))
+            {
+                var machineId = xSecCarry.ToString();
+                if (!string.IsNullOrWhiteSpace(machineId))
+                    return machineId;
+                throw new InvalidOperationException("MachineId invalid");
+            }
+
             throw new InvalidOperationException("MachineId is not defined");
         }
 
