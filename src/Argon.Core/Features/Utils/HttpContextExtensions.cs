@@ -1,5 +1,6 @@
 namespace Argon.Features;
 
+using System.Reflection.PortableExecutable;
 using System.Security.Claims;
 
 public static class HttpContextExtensions
@@ -77,6 +78,20 @@ public static class HttpContextExtensions
             throw new InvalidOperationException("SessionId is not defined");
         }
 
+        public bool TryGetSessionId(out Guid sessionId)
+        {
+            try
+            {
+                sessionId = ctx.GetSessionId();
+                return true;
+            }
+            catch
+            {
+                sessionId = Guid.Empty;
+                return false;
+            }
+        }
+
         public string GetMachineId()
         {
             // Priority 1: ArgonSecure cookie
@@ -98,6 +113,21 @@ public static class HttpContextExtensions
 
             throw new InvalidOperationException("MachineId is not defined");
         }
+
+        public bool TryGetMachineId(out string machineId)
+        {
+            try
+            {
+                machineId = ctx.GetMachineId();
+                return true;
+            }
+            catch
+            {
+                machineId = string.Empty;
+                return false;
+            }
+        }
+
         public Guid GetUserId()
         {
             var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -107,6 +137,44 @@ public static class HttpContextExtensions
             if (Guid.TryParse(userId, out var result))
                 return result;
             throw new FormatException($"UserId by '{ClaimTypes.NameIdentifier} claim has value: '{userId}' - incorrect guid");
+        }
+
+
+        public string GetAppId()
+        {
+            // Priority 1: ArgonSecure cookie
+            if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
+            {
+                var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+                if (parsed.TryGetValue("ner", out var nerValue) && !string.IsNullOrWhiteSpace(nerValue))
+                    return nerValue.ToString();
+            }
+
+            // Priority 2: Legacy header (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("Sec-Ner", out var secNer) ||
+                ctx.Request.Headers.TryGetValue("X-Sec-Ner", out secNer))
+            {
+                var appId = secNer.ToString();
+                if (!string.IsNullOrWhiteSpace(appId))
+                    return appId;
+                throw new InvalidOperationException("AppId invalid");
+            }
+
+            throw new InvalidOperationException("AppId is not defined");
+        }
+
+        public bool TryGetAppId(out string appId)
+        {
+            try
+            {
+                appId = ctx.GetAppId();
+                return true;
+            }
+            catch
+            {
+                appId = string.Empty;
+                return false;
+            }
         }
     }
 }

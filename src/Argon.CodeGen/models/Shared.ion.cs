@@ -30,3 +30,9 @@ public sealed class MachineIdOptionalAttribute() : System.Attribute
 
 }
 
+[AttributeUsage(AttributeTargets.All)]
+public sealed class DoNotRequireSessionContextAttribute() : System.Attribute
+{
+
+}
+

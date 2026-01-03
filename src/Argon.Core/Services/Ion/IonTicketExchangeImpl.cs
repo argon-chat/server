@@ -10,7 +10,7 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
     {
         var req = ArgonRequestContext.Current;
 
-        var ticket = new ArgonIonTicket(req.UserId!.Value, req.Ip, req.Ray, req.ClientName, req.HostName, req.AppId, req.SessionId, req.MachineId,
+        var ticket = new ArgonIonTicket(req.UserId!.Value, req.Ip, req.Ray, req.ClientName, "", req.AppId, req.SessionId, req.MachineId,
             req.Region);
         var writer = new CborWriter();
         IonFormatterStorage<ArgonIonTicket>.Write(writer, ticket);
@@ -58,7 +58,6 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
             Scope      = provider,
             AppId      = t.appId,
             ClientName = t.clientName,
-            HostName   = t.hostName,
             Ip         = t.ip,
             SessionId  = t.sessionId,
             MachineId  = t.machineId,

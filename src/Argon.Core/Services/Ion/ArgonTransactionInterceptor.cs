@@ -4,7 +4,6 @@ using ion.runtime;
 using Features.Jwt;
 using AllowAnonymousAttribute = ArgonContracts.AllowAnonymousAttribute;
 
-
 public sealed class ArgonOrleansInterceptor : IIonInterceptor
 {
     public Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
@@ -16,11 +15,12 @@ public sealed class ArgonOrleansInterceptor : IIonInterceptor
             section.SetUserId(ctx.UserId!.Value);
         section.SetUserCountry(ctx.Region);
         section.SetUserIp(ctx.Ip);
-        section.SetUserMachineId(ctx.MachineId);
-        section.SetUserSessionId(ctx.SessionId);
+        if (!string.IsNullOrEmpty(ctx.MachineId))
+            section.SetUserMachineId(ctx.MachineId);
+        if (ctx.SessionId is not null)
+            section.SetUserSessionId(ctx.SessionId.Value);
         return next(context, ct);
     }
-
 }
 
 public sealed class ArgonTransactionInterceptor(TokenAuthorization validationParameters, ILogger<ArgonTransactionInterceptor> logger)
@@ -28,32 +28,45 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
 {
     public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
     {
-        var headers = context.RequestItems;
+        var httpAccessor = context.ServiceProvider.GetRequiredService<IHttpContextAccessor>();
+        var httpContext  = httpAccessor.HttpContext;
 
-        var allowAnonymous = context.MethodName.GetCustomAttribute<AllowAnonymousAttribute>() != null;
+        if (httpContext is null)
+            throw new InvalidOperationException("HttpContext is not available");
+
+        var allowAnonymous             = context.MethodName.GetCustomAttribute<AllowAnonymousAttribute>() != null;
+        var doNotRequireSessionContext = context.MethodName.GetCustomAttribute<DoNotRequireSessionContextAttribute>() is not null;
 
         Guid? user = null;
         if (!allowAnonymous)
         {
-            user = await Authorize(headers);
+            user = await Authorize(httpContext);
         }
-
 
         if (!allowAnonymous && user is null)
             throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
 
+        if (doNotRequireSessionContext)
+            SafeSetRequestContext(context, httpContext, user);
+        else
+            SetRequestContext(context, httpContext, user);
+
+        await next(context, ct);
+    }
+
+    private void SafeSetRequestContext(IIonCallContext context, HttpContext httpContext, Guid? user)
+    {
         try
         {
             var data = new ArgonRequestContextData
             {
-                Ip         = headers.TryGetValue("CF-Connecting-IP", out var ip) ? ip : "unknown",
-                Region     = headers.TryGetValue("CF-IPCountry", out var region) ? region : "unknown",
-                Ray        = headers.TryGetValue("CF-Ray", out var ray) ? ray : Guid.NewGuid().ToString(),
-                ClientName = headers.TryGetValue("User-Agent", out var ua) ? ua : "unknown",
-                HostName   = headers.TryGetValue("X-Host-Name", out var host) ? host : string.Empty,
-                SessionId  = ResolveSessionId(headers),
-                MachineId  = ResolveMachineId(headers),
-                AppId      = ResolveAppId(headers),
+                Ip         = httpContext.GetIpAddress(),
+                Region     = httpContext.GetRegion(),
+                Ray        = httpContext.GetRay(),
+                ClientName = httpContext.GetClientName(),
+                SessionId  = httpContext.TryGetSessionId(out var sessionId) ? sessionId : null,
+                MachineId  = httpContext.TryGetMachineId(out var id) ? id : null,
+                AppId      = httpContext.TryGetAppId(out var appId) ? appId : null,
                 UserId     = user,
                 Scope      = context.ServiceProvider
             };
@@ -65,50 +78,48 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
             logger.LogError(e, "Trying access to argon api, but incorrect configuration client");
             throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
         }
-
-        await next(context, ct);
     }
 
-    private async Task<Guid?> Authorize(IDictionary<string, string> headers)
+    private void SetRequestContext(IIonCallContext context, HttpContext httpContext, Guid? user)
     {
-        if (!headers.TryGetValue("Authorization", out var auth) || string.IsNullOrWhiteSpace(auth))
+        try
+        {
+            var data = new ArgonRequestContextData
+            {
+                Ip         = httpContext.GetIpAddress(),
+                Region     = httpContext.GetRegion(),
+                Ray        = httpContext.GetRay(),
+                ClientName = httpContext.GetClientName(),
+                SessionId  = httpContext.GetSessionId(),
+                MachineId  = httpContext.GetMachineId(),
+                AppId      = httpContext.GetAppId(),
+                UserId     = user,
+                Scope      = context.ServiceProvider
+            };
+
+            ArgonRequestContext.Set(data);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Trying access to argon api, but incorrect configuration client");
+            throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
+        }
+    }
+
+    private async Task<Guid?> Authorize(HttpContext httpContext)
+    {
+        if (!httpContext.Request.Headers.TryGetValue("Authorization", out var auth) || string.IsNullOrWhiteSpace(auth))
             throw new UnauthorizedAccessException("Authorization header missing");
 
-        if (!auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        if (!auth.ToString().StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
             throw new UnauthorizedAccessException("Authorization header must be Bearer");
 
-        var token = auth["Bearer ".Length..].Trim();
+        var token = auth.ToString()["Bearer ".Length..].Trim();
 
-        var authResult = await validationParameters.AuthorizeByToken(token, ResolveMachineId(headers));
+        var authResult = await validationParameters.AuthorizeByToken(token, httpContext.GetMachineId());
 
         if (authResult.IsSuccess)
             return authResult.Value.id;
         return null;
-    }
-
-    private static Guid ResolveSessionId(IDictionary<string, string> headers)
-    {
-        if (!headers.TryGetValue("Sec-Ref", out var secRef) && !headers.TryGetValue("X-Sec-Ref", out secRef))
-            throw new InvalidOperationException("SessionId is not defined");
-        if (Guid.TryParse(secRef, out var sid))
-            return sid;
-        throw new InvalidOperationException("SessionId invalid");
-    }
-
-    private static string ResolveAppId(IDictionary<string, string> headers)
-    {
-        if (headers.TryGetValue("Sec-Ner", out var secNer) || headers.TryGetValue("X-Sec-Ner", out secNer))
-            return secNer;
-
-        throw new InvalidOperationException("AppId is not defined");
-    }
-
-    private static string ResolveMachineId(IDictionary<string, string> headers)
-    {
-        if (!headers.TryGetValue("Sec-Carry", out var carry) && !headers.TryGetValue("X-Sec-Carry", out carry))
-            throw new InvalidOperationException("MachineId is not defined");
-        if (!string.IsNullOrEmpty(carry))
-            return carry;
-        throw new InvalidOperationException("MachineId invalid");
     }
 }

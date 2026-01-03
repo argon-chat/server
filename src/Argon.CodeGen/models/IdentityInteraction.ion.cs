@@ -39,6 +39,7 @@ public interface IIdentityInteraction : IIonService
     [AllowAnonymous()]
     Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default);
     [AllowAnonymous()]
+    [DoNotRequireSessionContext()]
     Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default);
 }
 

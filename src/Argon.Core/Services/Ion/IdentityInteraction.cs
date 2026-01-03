@@ -81,7 +81,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
 
         if (!string.IsNullOrEmpty(badClientReason))
             return new CertificateErrorAuthStatus(badClientReason);
-
+        
         try
         {
             var machineId = this.GetMachineId();
