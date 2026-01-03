@@ -75,6 +75,13 @@ public static class HttpContextExtensions
                 throw new InvalidOperationException("SessionId invalid");
             }
 
+            if (ctx.Request.Headers.TryGetValue("X-Sec-Ref", out var xSecRef) && !string.IsNullOrWhiteSpace(xSecRef))
+            {
+                if (Guid.TryParse(xSecRef.ToString(), out var legacySid))
+                    return legacySid;
+                throw new InvalidOperationException("SessionId invalid");
+            }
+
             throw new InvalidOperationException("SessionId is not defined");
         }
 
