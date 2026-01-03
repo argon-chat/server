@@ -10,7 +10,14 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
     {
         var req = ArgonRequestContext.Current;
 
-        var ticket = new ArgonIonTicket(req.UserId!.Value, req.Ip, req.Ray, req.ClientName, "", req.AppId, req.SessionId, req.MachineId,
+        if (string.IsNullOrEmpty(req.AppId))
+            throw new InvalidOperationException($"AppId is null");
+        if (string.IsNullOrEmpty(req.MachineId))
+            throw new InvalidOperationException($"MachineId is null");
+        if (req.SessionId is null)
+            throw new InvalidOperationException($"SessionId is null");
+
+        var ticket = new ArgonIonTicket(req.UserId!.Value, req.Ip, req.Ray, req.ClientName, "", req.AppId, req.SessionId.Value, req.MachineId,
             req.Region);
         var writer = new CborWriter();
         IonFormatterStorage<ArgonIonTicket>.Write(writer, ticket);
