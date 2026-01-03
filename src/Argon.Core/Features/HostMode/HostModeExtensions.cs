@@ -167,7 +167,6 @@ public static class HostModeExtensions
             {
                 builder.AddBeforeMigrations();
                 builder.AddPooledDatabase<ApplicationDbContext>();
-                builder.AddCassandraPooledContext();
                 builder.AddEfRepositories();
                 builder.AddArgonPermissions();
                 builder.AddSagas();

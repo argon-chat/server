@@ -65,7 +65,6 @@
     </ItemGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\Argon.Cassandra\Argon.Cassandra.csproj" />
         <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj" />
     </ItemGroup>
 

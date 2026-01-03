@@ -1,43 +1,41 @@
 namespace Argon.Entities;
 
-using Cassandra.Mapping;
+using Newtonsoft.Json.Linq;
+using ArgonContracts;
 
-public class MessageEntityConverter : ICassandraConverter<List<IMessageEntity>, string>
+public class MessageEntityConverter : JsonConverter<IMessageEntity>
 {
-    private static readonly JsonSerializerSettings _settings = new()
+    private readonly JsonSerializerSettings _internalSettings = new()
     {
-        TypeNameHandling = TypeNameHandling.All,
-        Formatting       = Formatting.None,
-        Converters       = [new PolymorphicListConverter<IMessageEntity>()]
+        TypeNameHandling = TypeNameHandling.All
     };
 
-    public string ConvertTo(List<IMessageEntity> @in)
-        => JsonConvert.SerializeObject(@in ?? [], _settings) ?? "[]";
-
-    public List<IMessageEntity> ConvertFrom(string @out)
-        => JsonConvert.DeserializeObject<List<IMessageEntity>>(@out ?? "[]", _settings) ?? [];
-}
-
-public class DateTimeConverter : ICassandraConverter<DateTimeOffset, long>
-{
-    public long ConvertTo(DateTimeOffset @in)
-        => @in.ToUnixTimeMilliseconds();
-
-    public DateTimeOffset ConvertFrom(long @out)
-        => DateTimeOffset.FromUnixTimeMilliseconds(@out);
-}
-
-public class DateTimeNullableConverter : ICassandraConverter<DateTimeOffset?, long?>
-{
-    public long? ConvertTo(DateTimeOffset? @in)
+    public override void WriteJson(JsonWriter writer, IMessageEntity? value, JsonSerializer serializer)
     {
-        if (@in is null) return null;
-        return @in.Value.ToUnixTimeMilliseconds();
+        if (value == null)
+        {
+            writer.WriteNull();
+            return;
+        }
+
+        var json = JsonConvert.SerializeObject(value, _internalSettings);
+        var token = JToken.Parse(json);
+        token.WriteTo(writer);
     }
 
-    public DateTimeOffset? ConvertFrom(long? @out)
+    public override IMessageEntity? ReadJson(JsonReader reader, Type objectType, IMessageEntity? existingValue, 
+        bool hasExistingValue, JsonSerializer serializer)
     {
-        if (@out is null) return null;
-        return DateTimeOffset.FromUnixTimeMilliseconds(@out.Value);
+        if (reader.TokenType == JsonToken.Null)
+            return null;
+
+        var jObject = JObject.Load(reader);
+        var typeToken = jObject["$type"];
+        
+        if (typeToken == null)
+            throw new JsonSerializationException("Missing $type in IMessageEntity");
+
+        var type = Type.GetType(typeToken.ToString(), throwOnError: true);
+        return (IMessageEntity)JsonConvert.DeserializeObject(jObject.ToString(), type!, _internalSettings)!;
     }
 }

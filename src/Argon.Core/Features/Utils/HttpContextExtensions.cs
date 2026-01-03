@@ -1,6 +1,5 @@
 namespace Argon.Features;
 
-using System.Reflection.PortableExecutable;
 using System.Security.Claims;
 
 public static class HttpContextExtensions

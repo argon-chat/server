@@ -13,24 +13,6 @@ services:
     networks:
       - argon
 
-  scylla:
-    image: scylladb/scylla:5.4
-    container_name: argon-scylla
-    restart: unless-stopped
-    ports:
-      - "9042:9042"
-    volumes:
-      - scylla-data2:/var/lib/scylla
-      - scylla-logs2:/var/log/scylla
-    networks:
-      - argon
-    healthcheck:
-      test: ["CMD-SHELL", "cqlsh -e 'SHOW VERSION;' || exit 1"]
-      interval: 15s
-      timeout: 10s
-      retries: 20
-      start_period: 30s
-
   cockroach1:
     image: cockroachdb/cockroach:v25.3.3
     container_name: cockroach1
@@ -121,8 +103,8 @@ services:
       scylla:
         condition: service_healthy
     environment:
-      - KINETICAFS_SCYLLA=scylla:9042
-      - KINETICAFS_SCYLLA_KEYSPACE=kin
+      - KINETICAFS_DATABASE=postgres
+      - KINETICAFS_POSTGRES=postgres://root@cockroach1:26257/kin?sslmode=disable
     restart: unless-stopped
     networks:
       - argon
@@ -167,8 +149,6 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
 
 volumes:
-  scylla-data2:
-  scylla-logs2:
   cockroach1:
   cockroach2:
   cockroach3:

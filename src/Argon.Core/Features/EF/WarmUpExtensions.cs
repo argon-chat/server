@@ -1,6 +1,5 @@
 namespace Argon.Core.Features.EF;
 
-using Argon.Features.EF;
 using Argon.Features.Env;
 using Argon.Features.Vault;
 using Microsoft.EntityFrameworkCore;
@@ -27,20 +26,6 @@ public static class WarmUpExtension
                 await db.MigrateCockroach(scope.ServiceProvider.GetRequiredService<ILogger<T>>());
             else
                 await db.Database.EnsureCreatedAsync();
-            return app;
-        }
-
-        public async Task<WebApplication> WarmUpCassandra()
-        {
-            if (app.Environment.IsEntryPoint())
-                return app;
-
-            using var scope = app.Services.CreateScope();
-
-            var controller = scope.ServiceProvider.GetRequiredService<CassandraMigrationController>();
-
-            await controller.BeginMigrations();
-
             return app;
         }
 

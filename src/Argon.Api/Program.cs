@@ -41,7 +41,6 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 
-await app.WarmUpCassandra();
 await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>();
 await app.RunAsync();
