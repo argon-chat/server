@@ -38,6 +38,13 @@ public class UserLevelGrain(
     private const int MaxLevel = 100;
 
     /// <summary>
+    /// Multiplier for expanding XP
+    ///
+    /// 8.42 ~= 144069 XP
+    /// </summary>
+    private const double Multiplier = 8.42;
+
+    /// <summary>
     /// Maximum coin tier per year.
     /// </summary>
     private const int MaxCoinTier = 5;
@@ -210,7 +217,7 @@ public class UserLevelGrain(
 
     /// <summary>
     /// Calculates level from total XP using the progression formula.
-    /// XP for level n = sum(50 * i^1.3) for i from 1 to n.
+    /// XP for level n = sum(Multiplier * i^1.3) for i from 1 to n.
     /// </summary>
     private static int CalculateLevelFromXp(int xp)
     {
@@ -219,7 +226,7 @@ public class UserLevelGrain(
 
         while (level <= MaxLevel)
         {
-            var xpForNextLevel = (int)(50 * Math.Pow(level, 1.3));
+            var xpForNextLevel = (int)(Multiplier * Math.Pow(level, 1.3));
             if (totalXpRequired + xpForNextLevel > xp)
                 break;
 
@@ -241,7 +248,7 @@ public class UserLevelGrain(
         var totalXp = 0;
         for (var i = 1; i < level; i++)
         {
-            totalXp += (int)(50 * Math.Pow(i, 1.3));
+            totalXp += (int)(Multiplier * Math.Pow(i, 1.3));
         }
 
         return totalXp;
