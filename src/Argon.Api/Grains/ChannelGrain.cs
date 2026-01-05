@@ -34,6 +34,7 @@ public class ChannelGrain(
         await state.ReadStateAsync(cancellationToken);
 
         state.State.Users.Clear();
+        state.State.UserJoinTimes.Clear();
         state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
@@ -41,6 +42,12 @@ public class ChannelGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        // Record voice time for all users still in channel
+        foreach (var (userId, joinTime) in state.State.UserJoinTimes)
+        {
+            await RecordVoiceTimeForUserAsync(userId, joinTime);
+        }
+
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
         await _userStateEmitter.DisposeAsync();
     }
@@ -124,7 +131,11 @@ public class ChannelGrain(
         else
         {
             state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
+            state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
             await state.WriteStateAsync();
+
+            // Track call joined for stats
+            _ = TrackCallJoinedAsync(userId);
         }
 
         await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
@@ -138,6 +149,13 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
+        // Calculate and record voice time before removing user
+        if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
+        {
+            await RecordVoiceTimeForUserAsync(userId, joinTime);
+            state.State.UserJoinTimes.Remove(userId);
+        }
+
         state.State.Users.Remove(userId);
         await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await state.WriteStateAsync();
@@ -187,7 +205,49 @@ public class ChannelGrain(
         message.MessageId = msgId;
 
         await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, message.ToDto()));
+
+        // Track message sent for stats
+        _ = TrackMessageSentAsync(senderId);
+
         return msgId;
+    }
+
+    private async Task RecordVoiceTimeForUserAsync(Guid userId, DateTimeOffset joinTime)
+    {
+        var duration = DateTimeOffset.UtcNow - joinTime;
+        var durationSeconds = (int)Math.Min(duration.TotalSeconds, int.MaxValue);
+
+        if (durationSeconds > 0)
+        {
+            var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
+            await statsGrain.RecordVoiceTimeAsync(durationSeconds, this.GetPrimaryKey(), SpaceId);
+        }
+    }
+
+    private async Task TrackCallJoinedAsync(Guid userId)
+    {
+        try
+        {
+            var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
+            await statsGrain.IncrementCallsAsync();
+        }
+        catch
+        {
+            // Fire and forget - stats tracking should not fail main operation
+        }
+    }
+
+    private async Task TrackMessageSentAsync(Guid userId)
+    {
+        try
+        {
+            var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
+            await statsGrain.IncrementMessagesAsync();
+        }
+        catch
+        {
+            // Fire and forget - stats tracking should not fail main operation
+        }
     }
 
     private async Task<ChannelEntity> Get()

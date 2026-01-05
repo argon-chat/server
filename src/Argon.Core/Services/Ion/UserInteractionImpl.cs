@@ -85,4 +85,22 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
 
     public async Task CompleteUploadProfileHeader(Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.ProfileHeader, ct);
+
+    public async Task<TodayStats> GetTodayStats(CancellationToken ct = default)
+    {
+        var statsGrain = this.GetGrain<IUserStatsGrain>(this.GetUserId());
+        return await statsGrain.GetTodayStatsAsync();
+    }
+
+    public async Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default)
+    {
+        var levelGrain = this.GetGrain<IUserLevelGrain>(this.GetUserId());
+        return await levelGrain.GetLevelDetailsAsync();
+    }
+
+    public async Task<bool> ClaimLevelCoin(CancellationToken ct = default)
+    {
+        var levelGrain = this.GetGrain<IUserLevelGrain>(this.GetUserId());
+        return await levelGrain.ClaimMedalAsync();
+    }
 }

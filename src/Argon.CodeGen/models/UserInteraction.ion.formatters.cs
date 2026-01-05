@@ -14,6 +14,60 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_TodayStats_Formatter : IonFormatter<TodayStats>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public TodayStats Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __timeinvoice = IonFormatterStorage<i4>.Read(reader);
+        var __callsmade = IonFormatterStorage<i4>.Read(reader);
+        var __messagessent = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__timeinvoice, __callsmade, __messagessent);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, TodayStats value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<i4>.Write(writer, value.timeInVoice);
+        IonFormatterStorage<i4>.Write(writer, value.callsMade);
+        IonFormatterStorage<i4>.Write(writer, value.messagesSent);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MyLevelDetails_Formatter : IonFormatter<MyLevelDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MyLevelDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __totalxp = IonFormatterStorage<i4>.Read(reader);
+        var __currentlevel = IonFormatterStorage<i4>.Read(reader);
+        var __xpfornextlevel = IonFormatterStorage<i4>.Read(reader);
+        var __xpforcurrentlevel = IonFormatterStorage<i4>.Read(reader);
+        var __readytoclaimcoin = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__totalxp, __currentlevel, __xpfornextlevel, __xpforcurrentlevel, __readytoclaimcoin);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MyLevelDetails value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<i4>.Write(writer, value.totalXp);
+        IonFormatterStorage<i4>.Write(writer, value.currentLevel);
+        IonFormatterStorage<i4>.Write(writer, value.xpForNextLevel);
+        IonFormatterStorage<i4>.Write(writer, value.xpForCurrentLevel);
+        IonFormatterStorage<bool>.Write(writer, value.readyToClaimCoin);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

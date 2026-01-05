@@ -44,6 +44,12 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(BeginUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadProfileHeader_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(CompleteUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetTodayStats_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetTodayStats), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyLevel_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetMyLevel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ClaimLevelCoin_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(ClaimLevelCoin), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -267,6 +273,57 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TodayStats> GetTodayStats(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetTodayStats_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TodayStats>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetMyLevel_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<MyLevelDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<bool> ClaimLevelCoin(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), ClaimLevelCoin_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
 
 }

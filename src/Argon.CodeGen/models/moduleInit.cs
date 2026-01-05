@@ -66,6 +66,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UserStatus>.Value = new Ion_UserStatus_Formatter();
       IonFormatterStorage<ArgonEntitlement>.Value = new Ion_ArgonEntitlement_Formatter();
       IonFormatterStorage<ArgonIonTicket>.Value = new Ion_ArgonIonTicket_Formatter();
+      IonFormatterStorage<TodayStats>.Value = new Ion_TodayStats_Formatter();
+      IonFormatterStorage<MyLevelDetails>.Value = new Ion_MyLevelDetails_Formatter();
       IonFormatterStorage<UserEditInput>.Value = new Ion_UserEditInput_Formatter();
       IonFormatterStorage<FeatureFlag>.Value = new Ion_FeatureFlag_Formatter();
       IonFormatterStorage<FeatureFlagParameter>.Value = new Ion_FeatureFlagParameter_Formatter();

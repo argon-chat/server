@@ -3,7 +3,6 @@ namespace Argon.Grains;
 using Api.Entities.Data;
 using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
-using k8s.KubeConfigModels;
 using Orleans.Concurrency;
 using System.Linq;
 
@@ -118,7 +117,32 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
     }
 
     public async Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, CancellationToken ct = default)
-        => false;
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // Coins are special items - they don't need reference items
+        // They are created directly with the template id
+        var coin = new ArgonItemEntity
+        {
+            Id            = Guid.NewGuid(),
+            OwnerId       = userId,
+            TemplateId    = coinTemplateId,
+            IsReference   = false,
+            IsUsable      = false,
+            IsGiftable    = false,
+            IsAffectBadge = true, // Coins affect user badge/profile
+            ReceivedFrom  = null,
+            CreatedAt     = DateTimeOffset.UtcNow
+        };
+
+        ctx.Set<ArgonItemEntity>().Add(coin);
+        await ctx.SaveChangesAsync(ct);
+
+        await EnsureUnreadAsync(ctx, userId, coin.Id, coinTemplateId, ct);
+
+        logger.LogInformation("Gave coin {TemplateId} to user {UserId}", coinTemplateId, userId);
+        return true;
+    }
 
     public async Task<List<InventoryItem>> GetItemsForUserAsync(Guid userId, CancellationToken ct = default)
         => await context.Select(ctx => ctx.Items

@@ -25,6 +25,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
 
+#region User Stats & Levels
+
+    public DbSet<UserDailyStatsEntity> UserDailyStats => Set<UserDailyStatsEntity>();
+    public DbSet<UserLevelEntity>      UserLevels     => Set<UserLevelEntity>();
+
+#endregion
+
 #region Apps
 
     public DbSet<DevTeamEntity>       TeamEntities       => Set<DevTeamEntity>();

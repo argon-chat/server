@@ -230,6 +230,57 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         await service.CompleteUploadProfileHeader(__blobid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetTodayStats_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetTodayStats();
+        
+        IonFormatterStorage<TodayStats>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyLevel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyLevel();
+        
+        IonFormatterStorage<MyLevelDetails>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ClaimLevelCoin_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ClaimLevelCoin();
+        
+        IonFormatterStorage<bool>.Write(writer, result);
+    }
 
     
     
@@ -263,6 +314,12 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return BeginUploadProfileHeader_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadProfileHeader", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadProfileHeader_Execute(reader, writer, ct);
+        if (methodName.Equals("GetTodayStats", StringComparison.InvariantCultureIgnoreCase))
+            return GetTodayStats_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyLevel", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyLevel_Execute(reader, writer, ct);
+        if (methodName.Equals("ClaimLevelCoin", StringComparison.InvariantCultureIgnoreCase))
+            return ClaimLevelCoin_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

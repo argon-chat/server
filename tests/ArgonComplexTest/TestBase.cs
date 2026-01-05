@@ -152,6 +152,12 @@ public abstract class TestBase
         return IonClient.ForService<IChannelInteraction>(provider);
     }
 
+    protected IInventoryInteraction GetInventoryService(IServiceProvider? serviceProvider = null)
+    {
+        var provider = serviceProvider ?? FactoryAsp.Services;
+        return IonClient.ForService<IInventoryInteraction>(provider);
+    }
+
     protected async Task<Guid> CreateSpaceAndGetIdAsync(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();

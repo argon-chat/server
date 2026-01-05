@@ -15,6 +15,14 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record TodayStats(i4 timeInVoice, i4 callsMade, i4 messagesSent);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MyLevelDetails(i4 totalXp, i4 currentLevel, i4 xpForNextLevel, i4 xpForCurrentLevel, bool readyToClaimCoin);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserEditInput(string? displayName, string? avatarId);
 
 
@@ -142,6 +150,9 @@ public interface IUserInteraction : IIonService
     Task CompleteUploadAvatar(guid blobId, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default);
     Task CompleteUploadProfileHeader(guid blobId, CancellationToken ct = default);
+    Task<TodayStats> GetTodayStats(CancellationToken ct = default);
+    Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default);
+    Task<bool> ClaimLevelCoin(CancellationToken ct = default);
 }
 
 
