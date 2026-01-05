@@ -12,6 +12,12 @@ public sealed partial record ChannelGrainState
     public string? EgressId          { get; set; }
     [DataMember(Order = 3), Id(3)]
     public Guid?   UserCreatedEgress { get; set; }
+
+    /// <summary>
+    /// Tracks when each user joined the voice channel for stats calculation.
+    /// </summary>
+    [DataMember(Order = 4), Id(4)]
+    public Dictionary<Guid, DateTimeOffset> UserJoinTimes { get; set; } = new();
 }
 
 [DataContract, Serializable, GenerateSerializer]
