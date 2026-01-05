@@ -70,6 +70,16 @@ public class UserStatsGrain(
 
     public async ValueTask RecordVoiceTimeAsync(int durationSeconds, Guid channelId, Guid spaceId)
     {
+        await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
+    }
+
+    public async ValueTask RecordVoiceTimeAndWaitAsync(int durationSeconds, Guid channelId, Guid spaceId)
+    {
+        await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
+    }
+
+    private async ValueTask RecordVoiceTimeInternalAsync(int durationSeconds, Guid channelId, Guid spaceId)
+    {
         EnsureCorrectDay();
 
         state.State.TimeInVoiceSeconds += durationSeconds;
@@ -92,6 +102,16 @@ public class UserStatsGrain(
 
     public async ValueTask IncrementCallsAsync()
     {
+        await IncrementCallsInternalAsync();
+    }
+
+    public async ValueTask IncrementCallsAndWaitAsync()
+    {
+        await IncrementCallsInternalAsync();
+    }
+
+    private async ValueTask IncrementCallsInternalAsync()
+    {
         EnsureCorrectDay();
 
         state.State.CallsMade++;
@@ -101,6 +121,16 @@ public class UserStatsGrain(
     }
 
     public async ValueTask IncrementMessagesAsync()
+    {
+        await IncrementMessagesInternalAsync();
+    }
+
+    public async ValueTask IncrementMessagesAndWaitAsync()
+    {
+        await IncrementMessagesInternalAsync();
+    }
+
+    private async ValueTask IncrementMessagesInternalAsync()
     {
         EnsureCorrectDay();
 

@@ -11,28 +11,43 @@ using Orleans.Concurrency;
 public interface IUserStatsGrain : IGrainWithGuidKey
 {
     /// <summary>
-    /// Records time spent in voice channel.
-    /// Should be called when user leaves a voice channel.
+    /// Records time spent in voice channel (fire-and-forget for production).
     /// </summary>
     [Alias(nameof(RecordVoiceTimeAsync))]
     [OneWay]
     ValueTask RecordVoiceTimeAsync(int durationSeconds, Guid channelId, Guid spaceId);
 
     /// <summary>
-    /// Increments the call counter for today.
-    /// Called when user joins a voice channel.
+    /// Increments the call counter for today (fire-and-forget for production).
     /// </summary>
     [Alias(nameof(IncrementCallsAsync))]
     [OneWay]
     ValueTask IncrementCallsAsync();
 
     /// <summary>
-    /// Increments the message counter for today.
-    /// Called when user sends a message.
+    /// Increments the message counter for today (fire-and-forget for production).
     /// </summary>
     [Alias(nameof(IncrementMessagesAsync))]
     [OneWay]
     ValueTask IncrementMessagesAsync();
+
+    /// <summary>
+    /// Records voice time and waits for completion (for testing).
+    /// </summary>
+    [Alias(nameof(RecordVoiceTimeAndWaitAsync))]
+    ValueTask RecordVoiceTimeAndWaitAsync(int durationSeconds, Guid channelId, Guid spaceId);
+
+    /// <summary>
+    /// Increments calls and waits for completion (for testing).
+    /// </summary>
+    [Alias(nameof(IncrementCallsAndWaitAsync))]
+    ValueTask IncrementCallsAndWaitAsync();
+
+    /// <summary>
+    /// Increments messages and waits for completion (for testing).
+    /// </summary>
+    [Alias(nameof(IncrementMessagesAndWaitAsync))]
+    ValueTask IncrementMessagesAndWaitAsync();
 
     /// <summary>
     /// Gets statistics for today.

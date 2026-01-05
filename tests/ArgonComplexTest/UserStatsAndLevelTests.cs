@@ -7,8 +7,18 @@ using Microsoft.Extensions.DependencyInjection;
 [TestFixture, Parallelizable(ParallelScope.None)]
 public class UserStatsAndLevelTests : TestBase
 {
-    // XP needed for level 100 with formula sum(50 * i^1.3) for i=1..99 ≈ 125,000
-    private const int XpForLevel100 = 130000;
+    // Calculate exact XP needed for level 100 using the same formula as UserLevelGrain
+    private static int CalculateXpForLevel100()
+    {
+        var totalXp = 0;
+        for (var level = 1; level < 100; level++)
+        {
+            totalXp += (int)(50 * Math.Pow(level, 1.3));
+        }
+        return totalXp + 1; // +1 to ensure we reach exactly level 100
+    }
+
+    private static readonly int XpForLevel100 = CalculateXpForLevel100();
 
     #region TodayStats Tests
 
@@ -45,8 +55,8 @@ public class UserStatsAndLevelTests : TestBase
                 spaceId, channelId, $"Message {i}", new ion.runtime.IonArray<IMessageEntity>([]), i, null, ct);
         }
 
-        // Wait for async stats tracking to complete
-        await Task.Delay(500, ct);
+        // Wait for async stats tracking to complete (OneWay methods)
+        await Task.Delay(1000, ct);
 
         var stats = await GetUserService(scope.ServiceProvider).GetTodayStats(ct);
 
@@ -154,7 +164,7 @@ public class UserStatsAndLevelTests : TestBase
 
         var level = await GetUserService(scope.ServiceProvider).GetMyLevel(ct);
 
-        Assert.That(level.currentLevel, Is.EqualTo(100));
+        Assert.That(level.currentLevel, Is.EqualTo(100), $"Expected level 100 with {XpForLevel100} XP, got level {level.currentLevel}");
         Assert.That(level.readyToClaimCoin, Is.True, "Should be ready to claim coin at level 100");
     }
 
@@ -194,7 +204,7 @@ public class UserStatsAndLevelTests : TestBase
 
         // Verify at level 100
         var levelBefore = await GetUserService(scope.ServiceProvider).GetMyLevel(ct);
-        Assert.That(levelBefore.currentLevel, Is.EqualTo(100));
+        Assert.That(levelBefore.currentLevel, Is.EqualTo(100), $"Expected level 100, got {levelBefore.currentLevel}");
         Assert.That(levelBefore.readyToClaimCoin, Is.True);
 
         // Claim coin
@@ -223,7 +233,8 @@ public class UserStatsAndLevelTests : TestBase
 
         // Reach level 100 and claim
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claimResult = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claimResult, Is.True, "Claim should succeed");
 
         // Check inventory via API - id field in InventoryItem is the templateId
         var inventory = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
@@ -232,7 +243,7 @@ public class UserStatsAndLevelTests : TestBase
         var coinTemplateId = $"year_{currentYear}_coin_lvl1";
 
         var coin = inventory.Values.FirstOrDefault(x => x.id == coinTemplateId);
-        Assert.That(coin, Is.Not.Null, $"Should have coin with template {coinTemplateId} in inventory");
+        Assert.That(coin, Is.Not.Null, $"Should have coin with template {coinTemplateId} in inventory. Found items: {string.Join(", ", inventory.Values.Select(x => x.id))}");
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(33)]
@@ -250,11 +261,13 @@ public class UserStatsAndLevelTests : TestBase
 
         // First claim - tier 1
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claim1 = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claim1, Is.True, "First claim should succeed");
 
         // Second claim - tier 2
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claim2 = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claim2, Is.True, "Second claim should succeed");
 
         // Check inventory for both coins via API
         var inventory = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
@@ -318,7 +331,8 @@ public class UserStatsAndLevelTests : TestBase
 
         // Reach level 100 and claim
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claimResult = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claimResult, Is.True, "Claim should succeed");
 
         // Check for unread notification
         var notifications = await GetInventoryService(scope.ServiceProvider).GetNotifications(ct);
@@ -327,7 +341,7 @@ public class UserStatsAndLevelTests : TestBase
         var coinTemplateId = $"year_{currentYear}_coin_lvl1";
 
         var notification = notifications.Values.FirstOrDefault(x => x.id == coinTemplateId);
-        Assert.That(notification, Is.Not.Null, "Should have notification for claimed coin");
+        Assert.That(notification, Is.Not.Null, $"Should have notification for claimed coin. Found: {string.Join(", ", notifications.Values.Select(x => x.id))}");
     }
 
     #endregion
@@ -347,11 +361,9 @@ public class UserStatsAndLevelTests : TestBase
         var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
         var statsGrain = grainFactory.GetGrain<IUserStatsGrain>(user.userId);
 
-        // Record 5 minutes (300 seconds) of voice time
-        await statsGrain.RecordVoiceTimeAsync(300, Guid.NewGuid(), Guid.NewGuid());
+        // Record 5 minutes (300 seconds) of voice time using awaitable version
+        await statsGrain.RecordVoiceTimeAndWaitAsync(300, Guid.NewGuid(), Guid.NewGuid());
 
-        // GetTodayStatsAsync is NOT OneWay - calling it ensures all previous OneWay calls are processed
-        // because Orleans processes messages sequentially within a grain
         var stats = await statsGrain.GetTodayStatsAsync();
 
         Assert.That(stats.timeInVoice, Is.EqualTo(5), "Should have 5 minutes of voice time");
@@ -370,11 +382,10 @@ public class UserStatsAndLevelTests : TestBase
         var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
         var statsGrain = grainFactory.GetGrain<IUserStatsGrain>(user.userId);
 
-        // IncrementCallsAsync is OneWay but Orleans queues messages sequentially
-        await statsGrain.IncrementCallsAsync();
-        await statsGrain.IncrementCallsAsync();
+        // Use awaitable version for tests
+        await statsGrain.IncrementCallsAndWaitAsync();
+        await statsGrain.IncrementCallsAndWaitAsync();
 
-        // This call waits for response, ensuring previous OneWay calls completed
         var stats = await statsGrain.GetTodayStatsAsync();
 
         Assert.That(stats.callsMade, Is.EqualTo(2), "Should have 2 calls made");
@@ -393,15 +404,9 @@ public class UserStatsAndLevelTests : TestBase
         var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
         var statsGrain = grainFactory.GetGrain<IUserStatsGrain>(user.userId);
 
-        // Record 10 minutes (600 seconds) of voice time
+        // Record 10 minutes (600 seconds) of voice time using awaitable version
         // Should award 10 * 2 = 20 XP
-        await statsGrain.RecordVoiceTimeAsync(600, Guid.NewGuid(), Guid.NewGuid());
-
-        // Ensure stats grain processing is complete
-        await statsGrain.GetTodayStatsAsync();
-
-        // Small delay for cross-grain XP award (stats grain calls level grain)
-        await Task.Delay(200, ct);
+        await statsGrain.RecordVoiceTimeAndWaitAsync(600, Guid.NewGuid(), Guid.NewGuid());
 
         var level = await GetUserService(scope.ServiceProvider).GetMyLevel(ct);
 
@@ -421,12 +426,11 @@ public class UserStatsAndLevelTests : TestBase
         var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
         var statsGrain = grainFactory.GetGrain<IUserStatsGrain>(user.userId);
 
-        // IncrementMessagesAsync is OneWay but Orleans queues messages sequentially
-        await statsGrain.IncrementMessagesAsync();
-        await statsGrain.IncrementMessagesAsync();
-        await statsGrain.IncrementMessagesAsync();
+        // Use awaitable version for tests
+        await statsGrain.IncrementMessagesAndWaitAsync();
+        await statsGrain.IncrementMessagesAndWaitAsync();
+        await statsGrain.IncrementMessagesAndWaitAsync();
 
-        // This call waits for response, ensuring previous OneWay calls completed
         var stats = await statsGrain.GetTodayStatsAsync();
 
         Assert.That(stats.messagesSent, Is.EqualTo(3), "Should have 3 messages sent");
@@ -450,7 +454,8 @@ public class UserStatsAndLevelTests : TestBase
         var levelGrain = grainFactory.GetGrain<IUserLevelGrain>(user.userId);
 
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claimResult = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claimResult, Is.True, "Claim should succeed");
 
         var inventory = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
 
@@ -476,7 +481,8 @@ public class UserStatsAndLevelTests : TestBase
         var levelGrain = grainFactory.GetGrain<IUserLevelGrain>(user.userId);
 
         await levelGrain.AwardXpAsync(XpForLevel100, XpSource.Event);
-        await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        var claimResult = await GetUserService(scope.ServiceProvider).ClaimLevelCoin(ct);
+        Assert.That(claimResult, Is.True, "Claim should succeed");
 
         var inventory = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
         var coin = inventory.Values.FirstOrDefault(x => x.id.StartsWith($"year_{DateTime.UtcNow.Year}_coin_lvl"));
