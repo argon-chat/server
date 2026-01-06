@@ -203,42 +203,47 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         await using var ctx    = await context.CreateDbContextAsync(ct);
         var             userId = this.GetUserId();
 
-        await using var trx = await ctx.Database.BeginTransactionAsync(ct);
+        var strategy = ctx.Database.CreateExecutionStrategy();
 
-        try
+        return await strategy.ExecuteAsync(async () =>
         {
-            var usableItem = await ctx.Set<ArgonItemEntity>()
-               .Include(i => i.Scenario)
-               .FirstOrDefaultAsync(i => i.Id == itemId && i.OwnerId == userId, cancellationToken: ct);
+            await using var trx = await ctx.Database.BeginTransactionAsync(ct);
 
-            if (usableItem is null) return false;
-            if (!usableItem.IsUsable) return false;
-            if (usableItem.Scenario is null) return false;
-
-            var newItemId = usableItem.Scenario switch
+            try
             {
-                QualifierBox qualifierBox => await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct),
-                _                         => null
-            };
+                var usableItem = await ctx.Set<ArgonItemEntity>()
+                   .Include(i => i.Scenario)
+                   .FirstOrDefaultAsync(i => i.Id == itemId && i.OwnerId == userId, cancellationToken: ct);
 
-            if (newItemId is null)
+                if (usableItem is null) return false;
+                if (!usableItem.IsUsable) return false;
+                if (usableItem.Scenario is null) return false;
+
+                var newItemId = usableItem.Scenario switch
+                {
+                    QualifierBox qualifierBox => await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct),
+                    _                         => null
+                };
+
+                if (newItemId is null)
+                {
+                    await trx.RollbackAsync(ct);
+                    return false;
+                }
+
+                await ctx.SaveChangesAsync(ct);
+                await trx.CommitAsync(ct);
+
+                await EnsureUnreadAsync(ctx, userId, newItemId.Value, usableItem.TemplateId, ct);
+                return true;
+            }
+            catch (Exception e)
             {
+                logger.LogCritical(e, "failed use item");
                 await trx.RollbackAsync(ct);
                 return false;
             }
-
-            await ctx.SaveChangesAsync(ct);
-            await trx.CommitAsync(ct);
-
-            await EnsureUnreadAsync(ctx, userId, newItemId.Value, usableItem.TemplateId, ct);
-            return true;
-        }
-        catch (Exception e)
-        {
-            logger.LogCritical(e, "failed use item");
-            await trx.RollbackAsync(ct);
-            return false;
-        }
+        });
     }
 
     private async Task<Guid?> UseQualifierBox(ApplicationDbContext ctx, QualifierBox box, Guid userId, ArgonItemEntity boxItem,
