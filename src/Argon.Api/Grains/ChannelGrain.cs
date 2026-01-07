@@ -65,11 +65,11 @@ public class ChannelGrain(
 
     [OneWay]
     public async ValueTask OnTypingEmit()
-        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), ChannelId.ShardId, SpaceId));
+        => await _userStateEmitter.Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
 
     [OneWay]
     public async ValueTask OnTypingStopEmit()
-        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), ChannelId.ShardId, SpaceId));
+        => await _userStateEmitter.Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
     {
