@@ -3,6 +3,7 @@ namespace Argon.Services.Ion;
 using ion.runtime;
 using Newtonsoft.Json;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 
 public class IonMaybeConverter : JsonConverter
@@ -64,20 +65,36 @@ public class IonArrayConverter : JsonConverter
 
         var type       = value.GetType();
         var valuesProp = type.GetProperty("Values")!;
-        var values     = valuesProp.GetValue(value);
-        serializer.Serialize(writer, values);
+        var values     = valuesProp.GetValue(value) as IEnumerable;
+        
+        // Write as array without type information to avoid ReadOnlyCollection vs List mismatch
+        writer.WriteStartArray();
+        if (values != null)
+        {
+            foreach (var item in values)
+            {
+                serializer.Serialize(writer, item);
+            }
+        }
+        writer.WriteEndArray();
     }
 
     public override object? ReadJson(JsonReader reader, Type objectType, object? existingValue, JsonSerializer serializer)
     {
+        if (reader.TokenType == JsonToken.Null)
+        {
+            var emptyProp = objectType.GetProperty("Empty", BindingFlags.Public | BindingFlags.Static)!;
+            return emptyProp.GetValue(null);
+        }
+
         var innerType = objectType.GetGenericArguments()[0];
         var listType  = typeof(List<>).MakeGenericType(innerType);
 
         var list = serializer.Deserialize(reader, listType);
 
         if (list != null) return Activator.CreateInstance(objectType, list);
-        var emptyProp = objectType.GetProperty("Empty", BindingFlags.Public | BindingFlags.Static)!;
-        return emptyProp.GetValue(null);
-
+        
+        var emptyProp2 = objectType.GetProperty("Empty", BindingFlags.Public | BindingFlags.Static)!;
+        return emptyProp2.GetValue(null);
     }
 }
