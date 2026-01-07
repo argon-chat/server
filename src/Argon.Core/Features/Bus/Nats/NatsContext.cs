@@ -1,7 +1,7 @@
 namespace Argon.Features.NatsStreaming;
 
 using Api.Features.Bus;
-using Argon.Features.Bus;
+using Bus;
 using Env;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
@@ -138,6 +138,7 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
         Formatting = Formatting.None,
         Converters =
         [
+            new MessageEntityConverter(),
             new IonArrayConverter(),
             new IonMaybeConverter()
         ]
