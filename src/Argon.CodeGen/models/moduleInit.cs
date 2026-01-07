@@ -44,6 +44,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<Friendship>.Value = new Ion_Friendship_Formatter();
       IonFormatterStorage<UserChat>.Value = new Ion_UserChat_Formatter();
+      IonFormatterStorage<DirectMessage>.Value = new Ion_DirectMessage_Formatter();
       IonFormatterStorage<SendFriendStatus>.Value = new Ion_SendFriendStatus_Formatter();
       IonFormatterStorage<BadAuthKind>.Value = new Ion_BadAuthKind_Formatter();
       IonFormatterStorage<IMyAuthStatus>.Value = new Ion_IMyAuthStatus_Formatter();
@@ -109,6 +110,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntityQuote>.Value = new Ion_MessageEntityQuote_Formatter();
       IonFormatterStorage<MessageEntityUnderline>.Value = new Ion_MessageEntityUnderline_Formatter();
       IonFormatterStorage<MessageEntityUrl>.Value = new Ion_MessageEntityUrl_Formatter();
+      IonFormatterStorage<MessageEntitySystemCallStarted>.Value = new Ion_MessageEntitySystemCallStarted_Formatter();
+      IonFormatterStorage<MessageEntitySystemCallEnded>.Value = new Ion_MessageEntitySystemCallEnded_Formatter();
+      IonFormatterStorage<MessageEntitySystemCallTimeout>.Value = new Ion_MessageEntitySystemCallTimeout_Formatter();
+      IonFormatterStorage<MessageEntitySystemUserJoined>.Value = new Ion_MessageEntitySystemUserJoined_Formatter();
       IonFormatterStorage<SuccessJoinVoice>.Value = new Ion_SuccessJoinVoice_Formatter();
       IonFormatterStorage<FailedJoinVoice>.Value = new Ion_FailedJoinVoice_Formatter();
       IonFormatterStorage<SuccessStartStream>.Value = new Ion_SuccessStartStream_Formatter();
@@ -152,6 +157,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelGroupRemoved>.Value = new Ion_ChannelGroupRemoved_Formatter();
       IonFormatterStorage<ChannelGroupReordered>.Value = new Ion_ChannelGroupReordered_Formatter();
       IonFormatterStorage<ChannelReordered>.Value = new Ion_ChannelReordered_Formatter();
+      IonFormatterStorage<DirectMessageSent>.Value = new Ion_DirectMessageSent_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

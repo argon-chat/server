@@ -18,6 +18,8 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     [MaxLength(2048)]
     public string? LastMessageText { get; set; }
 
+    public int UnreadCount { get; set; }
+
     public void Configure(EntityTypeBuilder<UserChatEntity> b)
     {
         b.ToTable(TableName);
@@ -39,6 +41,9 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
         b.Property(x => x.LastMessageText)
            .HasMaxLength(2048);
 
+        b.Property(x => x.UnreadCount)
+           .HasDefaultValue(0);
+
         b.HasIndex(x => new
             {
                 x.UserId,
@@ -51,5 +56,5 @@ public class UserChatEntity : IMapper<UserChatEntity, UserChat>, IEntityTypeConf
     }
 
     public static UserChat Map(scoped in UserChatEntity self)
-        => new(self.PeerId, self.IsPinned, self.UserId, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, 0);
+        => new(self.PeerId, self.IsPinned, self.UserId, self.LastMessageText, self.LastMessageAt.UtcDateTime, self.PinnedAt?.UtcDateTime, self.UnreadCount);
 }

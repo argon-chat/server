@@ -15,6 +15,9 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public string? AvatarFileId { get; set; } = string.Empty;
     [MaxLength(128)]
     public string? TopBannedFileId { get; set; }
+    
+    public bool IsCommunity { get; set; }
+    public Guid? DefaultChannelId { get; set; }
 
     public virtual ICollection<ChannelEntity>      Channels       { get; set; } = new List<ChannelEntity>();
     public virtual ICollection<ChannelGroupEntity> ChannelGroups  { get; set; } = new List<ChannelGroupEntity>();

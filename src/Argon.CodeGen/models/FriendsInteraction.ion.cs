@@ -31,6 +31,10 @@ public sealed record UserChat(guid peerId, bool isPinned, guid userId, string? l
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DirectMessage(i8 messageId, guid senderId, guid receiverId, string text, IonArray<IMessageEntity> entities, datetime createdAt, i8? replyTo);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SendFriendStatus
 {
     TargetNotFound = 0,
@@ -68,6 +72,8 @@ public interface IUserChatInteractions : IIonService
     Task PinChat(guid peerId, CancellationToken ct = default);
     Task UnpinChat(guid peerId, CancellationToken ct = default);
     Task MarkChatRead(guid peerId, CancellationToken ct = default);
+    Task<i8> SendDirectMessage(guid receiverId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
+    Task<IonArray<DirectMessage>> QueryDirectMessages(guid peerId, i8? from, i4 limit, CancellationToken ct = default);
 }
 
 

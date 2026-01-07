@@ -122,6 +122,39 @@ public sealed class Ion_UserChat_Formatter : IonFormatter<UserChat>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DirectMessage_Formatter : IonFormatter<DirectMessage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DirectMessage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __senderid = IonFormatterStorage<guid>.Read(reader);
+        var __receiverid = IonFormatterStorage<guid>.Read(reader);
+        var __text = IonFormatterStorage<string>.Read(reader);
+        var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __replyto = reader.ReadNullable<i8>();
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__messageid, __senderid, __receiverid, __text, __entities, __createdat, __replyto);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DirectMessage value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<guid>.Write(writer, value.senderId);
+        IonFormatterStorage<guid>.Write(writer, value.receiverId);
+        IonFormatterStorage<string>.Write(writer, value.text);
+        IonFormatterStorage<IMessageEntity>.WriteArray(writer, value.entities);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<i8>.WriteNullable(writer, value.replyTo);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SendFriendStatus_Formatter : IonFormatter<SendFriendStatus>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

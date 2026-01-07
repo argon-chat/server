@@ -303,6 +303,46 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         await service.MarkChatRead(__peerid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SendDirectMessage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __receiverid = IonFormatterStorage<guid>.Read(reader);
+        var __text = IonFormatterStorage<string>.Read(reader);
+        var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
+        var __randomid = IonFormatterStorage<i8>.Read(reader);
+        var __replyto = reader.ReadNullable<i8>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SendDirectMessage(__receiverid, __text, __entities, __randomid, __replyto);
+        
+        IonFormatterStorage<i8>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task QueryDirectMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __from = reader.ReadNullable<i8>();
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.QueryDirectMessages(__peerid, __from, __limit);
+        
+        IonFormatterStorage<DirectMessage>.WriteArray(writer, result);
+    }
 
     
     
@@ -318,6 +358,10 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
             return UnpinChat_Execute(reader, writer, ct);
         if (methodName.Equals("MarkChatRead", StringComparison.InvariantCultureIgnoreCase))
             return MarkChatRead_Execute(reader, writer, ct);
+        if (methodName.Equals("SendDirectMessage", StringComparison.InvariantCultureIgnoreCase))
+            return SendDirectMessage_Execute(reader, writer, ct);
+        if (methodName.Equals("QueryDirectMessages", StringComparison.InvariantCultureIgnoreCase))
+            return QueryDirectMessages_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

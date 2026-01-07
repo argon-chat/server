@@ -3,7 +3,7 @@ namespace Argon.Grains;
 using System.Linq;
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
-using Argon.Services.L1L2;
+using Services.L1L2;
 using Core.Services;
 using Features.Logic;
 using Features.Repositories;
@@ -21,6 +21,7 @@ public class SpaceGrain(
     IUserPresenceService userPresence,
     IArchetypeAgent archetypeAgent,
     IEntitlementChecker entitlementChecker,
+    ISystemMessageService systemMessageService,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -51,7 +52,7 @@ public class SpaceGrain(
         return await GetSpaceBase();
     }
 
-    public async Task<ArgonSpaceBase> GetSpaceBase()
+    private async Task<ArgonSpaceBase> GetSpaceBase()
     {
         await using var ctx = await context.CreateDbContextAsync();
         var result = await ctx.Spaces
@@ -206,6 +207,8 @@ public class SpaceGrain(
 
         await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
         await UserJoined(userId);
+        
+        _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
     }
 
     public async Task DoUserUpdatedAsync()

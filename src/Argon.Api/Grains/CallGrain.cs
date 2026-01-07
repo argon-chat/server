@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
+using Argon.Core.Services;
 using Argon.Sfu;
 using Livekit.Server.Sdk.Dotnet;
 
@@ -9,11 +10,13 @@ public sealed class CallGrain(
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
     ISfuAuthScope authScope,
+    ISystemMessageService systemMessageService,
     ILogger<CallGrain> logger) : Grain, ICallGrain
 {
-    private readonly        CallInfo     _state = new();
-    private                 IGrainTimer? ringTimer;
-    private static readonly TimeSpan     RingTimeout = TimeSpan.FromSeconds(45);
+    private readonly CallInfo        _state = new();
+    private          IGrainTimer?    ringTimer;
+    public static    TimeSpan        RingTimeout = TimeSpan.FromSeconds(45);
+    private          DateTimeOffset? _callStartTime;
 
     public async Task<Either<CallInfo, CallFailedError>> StartCallAsync(Guid callerId, Guid calleeId, CancellationToken ct = default)
     {
@@ -33,6 +36,7 @@ public sealed class CallGrain(
             // no any found sessions for callee user, re-route call to void
             return await CallRouteToVoid(callerId, calleeId, ct);
         }
+
         _state.CallId   = callId;
         _state.CallerId = callerId;
         _state.CalleeId = calleeId;
@@ -89,7 +93,8 @@ public sealed class CallGrain(
 
 
         _state.CallerToken = authScope.GenerateToken(callerId.ToString(), _state.RoomName, callerId.ToString(), grants, TimeSpan.FromHours(1));
-        _state.CalleeToken = authScope.GenerateToken(UserEntity.EchoUser.ToString(), _state.RoomName, UserEntity.EchoUser.ToString(), grants, TimeSpan.FromHours(1));
+        _state.CalleeToken = authScope.GenerateToken(UserEntity.EchoUser.ToString(), _state.RoomName, UserEntity.EchoUser.ToString(), grants,
+            TimeSpan.FromHours(1));
 
         ringTimer = this.RegisterGrainTimer(RingTimeoutReached, new GrainTimerCreationOptions(RingTimeout, Timeout.InfiniteTimeSpan));
 
@@ -103,7 +108,7 @@ public sealed class CallGrain(
     private async Task<Either<CallInfo, CallFailedError>> CallRouteToVoid(Guid callerId, Guid calleeId, CancellationToken ct = default)
     {
         var callId = this.GetPrimaryKey();
-        
+
         _state.CallId   = callId;
         _state.CallerId = callerId;
         _state.CalleeId = calleeId;
@@ -137,6 +142,10 @@ public sealed class CallGrain(
         if (_state.Status != CallStatus.Ringing)
             return;
 
+        logger.LogInformation("Call {CallId} timed out", _state.CallId);
+
+        await systemMessageService.SendCallTimeoutMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, ct);
+
         await HangupAsync(_state.CalleeId, "timeout", ct);
     }
 
@@ -154,7 +163,12 @@ public sealed class CallGrain(
             ringTimer = null;
         }
 
-        _state.Status = CallStatus.Accepted;
+        _state.Status  = CallStatus.Accepted;
+        _callStartTime = DateTimeOffset.UtcNow;
+
+        logger.LogInformation("Call {CallId} accepted, sending system message", _state.CallId);
+
+        _ = systemMessageService.SendCallStartedMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, ct);
 
         var callerSessions = await sessionDiscovery.GetUserSessionsAsync(_state.CallerId, ct);
         await notifier.NotifySessionsAsync(
@@ -172,7 +186,16 @@ public sealed class CallGrain(
         if (_state.Status == CallStatus.Ended)
             return;
 
+        var wasAccepted = _state.Status == CallStatus.Accepted;
         _state.Status = CallStatus.Ended;
+
+        if (wasAccepted && _callStartTime.HasValue)
+        {
+            var duration = (int)(DateTimeOffset.UtcNow - _callStartTime.Value).TotalSeconds;
+            logger.LogInformation("Call {CallId} ended after {Duration}s, sending system message", _state.CallId, duration);
+
+            _ = systemMessageService.SendCallEndedMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, duration, ct);
+        }
 
         var sessionsCaller = await sessionDiscovery.GetUserSessionsAsync(_state.CallerId, ct);
         var sessionsCallee = await sessionDiscovery.GetUserSessionsAsync(_state.CalleeId, ct);

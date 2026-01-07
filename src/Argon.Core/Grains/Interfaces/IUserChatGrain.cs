@@ -1,5 +1,7 @@
 namespace Argon.Core.Grains.Interfaces;
 
+using Entities.Data;
+
 [Alias(nameof(IUserChatGrain))]
 public interface IUserChatGrain : IGrainWithGuidKey
 {
@@ -20,4 +22,10 @@ public interface IUserChatGrain : IGrainWithGuidKey
 
     [Alias(nameof(UpdateChatForAsync))]
     Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);
+
+    [Alias(nameof(SendDirectMessageAsync))]
+    Task<long> SendDirectMessageAsync(Guid receiverId, string text, List<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default);
+
+    [Alias(nameof(QueryDirectMessagesAsync))]
+    Task<List<DirectMessage>> QueryDirectMessagesAsync(Guid peerId, long? from, int limit, CancellationToken ct = default);
 }

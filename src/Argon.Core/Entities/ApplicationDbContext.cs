@@ -49,6 +49,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
     public DbSet<UserChatEntity>      UserChatlist  => Set<UserChatEntity>();
+    public DbSet<DirectMessageEntity> DirectMessages => Set<DirectMessageEntity>();
 
 #endregion
 

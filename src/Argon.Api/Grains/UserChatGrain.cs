@@ -3,7 +3,6 @@ namespace Argon.Grains;
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Orleans.Concurrency;
-using System.Linq.Expressions;
 using Core.Entities.Data;
 
 [StatelessWorker]
@@ -122,7 +121,134 @@ public class UserChatGrain(
 
     public async Task MarkChatReadAsync(Guid peerId, CancellationToken ct = default)
     {
-        // TODO
+        logger.LogInformation("MarkChatRead: {Me} -> {Peer}", Me, peerId);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        await ExecuteInTransactionAsync(ctx, async () =>
+        {
+            var record = await ctx.UserChatlist
+                .FirstOrDefaultAsync(x => x.UserId == Me && x.PeerId == peerId, ct);
+
+            if (record is null)
+                return;
+
+            record.UnreadCount = 0;
+            ctx.UserChatlist.Update(record);
+
+            await ctx.SaveChangesAsync(ct);
+        }, ct);
+
+        //await NotifyAsync(Me, new ChatMarkedReadEvent(peerId));
+    }
+
+    public async Task<long> SendDirectMessageAsync(Guid receiverId, string text, List<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
+    {
+        var senderId = Me;
+
+        logger.LogInformation(
+            "SendDirectMessage: {SenderId} -> {ReceiverId}, TextLength={TextLength}, RandomId={RandomId}",
+            senderId, receiverId, text?.Length ?? 0, randomId);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var strategy = ctx.Database.CreateExecutionStrategy();
+
+        return await strategy.ExecuteAsync(async () =>
+        {
+            await using var transaction = await ctx.Database.BeginTransactionAsync(ct);
+
+            try
+            {
+                // Check for duplicate message using cache
+                var dedupKey = $"dm_dedup:{senderId}:{receiverId}:{randomId}";
+                // TODO: implement deduplication with cache similar to channel messages
+
+                // Create message entity
+                var message = new DirectMessageEntity
+                {
+                    SenderId = senderId,
+                    ReceiverId = receiverId,
+                    Text = text,
+                    Entities = entities ?? [],
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatorId = senderId,
+                    ReplyTo = replyTo
+                };
+
+                ctx.DirectMessages.Add(message);
+                await ctx.SaveChangesAsync(ct);
+
+                var messageId = message.MessageId;
+
+                // Update chat preview for sender
+                await UpdateChatPreviewAsync(ctx, senderId, receiverId, text, message.CreatedAt, false, ct);
+
+                // Update chat preview for receiver and increment unread count
+                await UpdateChatPreviewAsync(ctx, receiverId, senderId, text, message.CreatedAt, true, ct);
+
+                await ctx.SaveChangesAsync(ct);
+                await transaction.CommitAsync(ct);
+
+                // Create DTO for the message
+                var messageDto = message.ToDto();
+
+                // Notify both users
+                var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
+
+                _ = Task.Run(async () =>
+                {
+                    await NotifyAsync(senderId, dmEvent);
+                    await NotifyAsync(receiverId, dmEvent);
+                }, ct);
+
+                logger.LogInformation("DirectMessage sent: MessageId={MessageId}", messageId);
+
+                // Track message sent for stats
+                var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(senderId);
+                _ = statsGrain.IncrementMessagesAsync();
+
+                return messageId;
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to send direct message from {SenderId} to {ReceiverId}", senderId, receiverId);
+                await transaction.RollbackAsync(ct);
+                throw;
+            }
+        });
+    }
+
+    public async Task<List<DirectMessage>> QueryDirectMessagesAsync(Guid peerId, long? from, int limit, CancellationToken ct = default)
+    {
+        var me = Me;
+
+        logger.LogDebug("QueryDirectMessages: {Me} <-> {Peer}, From={From}, Limit={Limit}", me, peerId, from, limit);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // Query messages where either:
+        // - I'm sender and peer is receiver
+        // - Peer is sender and I'm receiver
+        // - System message for me (SenderId = SystemUser, ReceiverId = me)
+        var query = ctx.DirectMessages
+            .AsNoTracking()
+            .Where(m =>
+                (m.SenderId == me && m.ReceiverId == peerId) ||
+                (m.SenderId == peerId && m.ReceiverId == me) ||
+                (m.SenderId == UserEntity.SystemUser && m.ReceiverId == me));
+
+        if (from.HasValue)
+        {
+            query = query.Where(m => m.MessageId < from.Value);
+        }
+
+        var messages = await query
+            .OrderByDescending(m => m.MessageId)
+            .Take(limit)
+            .ToListAsync(ct);
+
+        return messages.Select(m => m.ToDto()).ToList();
     }
 
     public async Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
@@ -175,6 +301,47 @@ public class UserChatGrain(
         await UpdateChatForAsync(me, peerId, previewText, timestamp, ct);
     }
 
+    private async Task UpdateChatPreviewAsync(
+        ApplicationDbContext ctx,
+        Guid userId,
+        Guid peerId,
+        string? previewText,
+        DateTimeOffset timestamp,
+        bool incrementUnread,
+        CancellationToken ct)
+    {
+        var record = await ctx.UserChatlist
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.PeerId == peerId, ct);
+
+        if (record is null)
+        {
+            record = new UserChatEntity
+            {
+                UserId = userId,
+                PeerId = peerId,
+                LastMessageAt = timestamp,
+                LastMessageText = previewText,
+                IsPinned = false,
+                PinnedAt = null,
+                UnreadCount = incrementUnread ? 1 : 0
+            };
+
+            ctx.UserChatlist.Add(record);
+        }
+        else
+        {
+            record.LastMessageAt = timestamp;
+            record.LastMessageText = previewText;
+
+            if (incrementUnread)
+            {
+                record.UnreadCount++;
+            }
+
+            ctx.UserChatlist.Update(record);
+        }
+    }
+
 
     private async Task NotifyAsync<T>(Guid userId, T payload) where T : IArgonEvent
     {
@@ -198,23 +365,5 @@ public class UserChatGrain(
             await action();
             await transaction.CommitAsync(ct);
         });
-    }
-
-    private static string Q<T>(Expression<Func<T, object?>> expr)
-    {
-        var name = ExtractMemberName(expr.Body);
-        return $"\"{name}\"";
-    }
-
-    private static string ExtractMemberName(Expression expr)
-    {
-        expr = expr is UnaryExpression { NodeType: ExpressionType.Convert } u
-            ? u.Operand
-            : expr;
-        return expr switch
-        {
-            MemberExpression m => m.Member.Name,
-            _                  => throw new NotSupportedException($"Unsupported expression: {expr}")
-        };
     }
 }

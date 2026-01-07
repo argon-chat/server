@@ -1,5 +1,6 @@
 namespace Argon.Api.Features.CoreLogic.Messages;
 
+using Argon.Core.Services;
 using Services;
 
 public static class MessagesLayoutExtensions
@@ -8,6 +9,7 @@ public static class MessagesLayoutExtensions
     {
         builder.Services.AddScoped<MessageDeduplicationService>();
         builder.Services.AddScoped<IMessagesLayout, PgSqlMessagesLayout>();
+        builder.Services.AddScoped<ISystemMessageService, SystemMessageService>();
     }
 }
 

@@ -22,7 +22,7 @@ public class CallInteraction : ICallInteraction
         if (!string.IsNullOrEmpty(result.Error))
             return new FailedPickUp(result.Error);
         var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
-        return new SuccessPickUp(result.RoomToken!, callId, rtc);
+        return new SuccessPickUp(result.RoomToken ?? "", callId, rtc);
     }
 
     public async Task RejectCall(Guid callId, CancellationToken ct = default)

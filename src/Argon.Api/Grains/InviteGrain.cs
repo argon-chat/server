@@ -3,7 +3,7 @@ namespace Argon.Grains;
 using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 
-[StatelessWorker(1024)]
+[StatelessWorker(maxLocalWorkers: 1024)]
 public class InviteGrain(IDbContextFactory<ApplicationDbContext> context, HybridCache cache) : Grain, IInviteGrain
 {
     public async ValueTask<(Guid, AcceptInviteError)> AcceptAsync()

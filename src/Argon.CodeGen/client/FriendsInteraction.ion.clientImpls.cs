@@ -249,6 +249,10 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
         typeof(IUserChatInteractions).GetMethod(nameof(UnpinChat), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> MarkChatRead_Ref = new(() =>
         typeof(IUserChatInteractions).GetMethod(nameof(MarkChatRead), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SendDirectMessage_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(SendDirectMessage), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> QueryDirectMessages_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(QueryDirectMessages), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -320,6 +324,46 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<i8> SendDirectMessage(guid __receiverid, string __text, IonArray<IMessageEntity> __entities, i8 __randomid, i8? __replyto, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), SendDirectMessage_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __receiverid);
+        IonFormatterStorage<string>.Write(writer, __text);
+        IonFormatterStorage<IMessageEntity>.WriteArray(writer, __entities);
+        IonFormatterStorage<i8>.Write(writer, __randomid);
+        IonFormatterStorage<i8>.WriteNullable(writer, __replyto);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<i8>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<DirectMessage>> QueryDirectMessages(guid __peerid, i8? __from, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), QueryDirectMessages_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        IonFormatterStorage<i8>.WriteNullable(writer, __from);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<DirectMessage>(writer.Encode(), ct: ct);
     }
 
 }
