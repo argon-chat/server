@@ -32,6 +32,14 @@ public class UserStatsGrain(
     /// </summary>
     private const int XpPerVoiceMinute = 2;
 
+    /// <summary>
+    /// XP per message sent.
+    /// Capped at 50 XP per day from messages to prevent spam farming.
+    /// </summary>
+    private const int XpPerMessage = 1;
+    private const int MaxMessageXpPerDay = 50;
+    private const int MessagesPerXp = 10;
+
     public override async Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await state.ReadStateAsync(cancellationToken);
@@ -137,9 +145,28 @@ public class UserStatsGrain(
         state.State.MessagesSent++;
         state.State.IsDirty = true;
 
-        // Small XP bonus for messages (1 XP per message, capped at 50/day from messages)
+        // Small XP bonus for messages (1 XP per 10 messages, capped at 50/day from messages)
         // This prevents spam farming while still rewarding engagement
-        // Note: Could add rate limiting here if needed
+        if (state.State.MessageXpEarnedToday < MaxMessageXpPerDay && state.State.MessagesSent % MessagesPerXp == 0)
+        {
+            var xpToAward = XpPerMessage;
+            
+            // Check if we would exceed the cap
+            var potentialTotal = state.State.MessageXpEarnedToday + xpToAward;
+            if (potentialTotal > MaxMessageXpPerDay)
+            {
+                xpToAward = MaxMessageXpPerDay - state.State.MessageXpEarnedToday;
+            }
+
+            if (xpToAward > 0)
+            {
+                state.State.MessageXpEarnedToday += xpToAward;
+                state.State.XpEarnedToday += xpToAward;
+
+                var levelGrain = grainFactory.GetGrain<IUserLevelGrain>(this.GetPrimaryKey());
+                await levelGrain.AwardXpAsync(xpToAward, XpSource.Message);
+            }
+        }
         
         await state.WriteStateAsync();
     }

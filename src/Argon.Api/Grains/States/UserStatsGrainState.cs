@@ -38,6 +38,12 @@ public sealed partial record UserStatsGrainState
     public int XpEarnedToday { get; set; }
 
     /// <summary>
+    /// XP earned from messages today (for tracking the 50 XP/day cap).
+    /// </summary>
+    [DataMember(Order = 7), Id(7)]
+    public int MessageXpEarnedToday { get; set; }
+
+    /// <summary>
     /// Last time stats were flushed to database.
     /// </summary>
     [DataMember(Order = 5), Id(5)]
