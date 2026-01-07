@@ -189,12 +189,13 @@ public class ChannelGrain(
         var channelId = this.GetPrimaryKey();
         
         logger.LogInformation(
-            "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, Text={Text}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
-            channelId, senderId, text, entities?.Count ?? 0, randomId, replyTo);
+            "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, TextLength={TextLength}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
+            channelId, senderId, text?.Length ?? 0, entities?.Count ?? 0, randomId, replyTo);
         
         if (entities is { Count: > 0 })
         {
-            logger.LogDebug("Input entities: {Entities}", System.Text.Json.JsonSerializer.Serialize(entities));
+            logger.LogDebug("Input entities types: {EntityTypes}", 
+                string.Join(", ", entities.Select((e, i) => $"[{i}]={e.GetType().Name}")));
         }
         
         var message = new ArgonMessageEntity
@@ -209,9 +210,9 @@ public class ChannelGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        logger.LogDebug(
-            "Created ArgonMessageEntity: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}",
-            message.SpaceId, message.ChannelId, message.Entities?.Count ?? 0);
+        logger.LogInformation(
+            "Created ArgonMessageEntity: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}, EntitiesIsNull={EntitiesIsNull}",
+            message.SpaceId, message.ChannelId, message.Entities?.Count ?? 0, message.Entities == null);
 
         var dup = await messagesLayout.CheckDuplicationAsync(message, randomId);
 
@@ -225,20 +226,27 @@ public class ChannelGrain(
 
         message.MessageId = msgId;
 
-        logger.LogDebug(
+        logger.LogInformation(
             "Message inserted with MessageId={MessageId}, EntitiesCount={EntitiesCount}",
             msgId, message.Entities?.Count ?? 0);
 
         var dto = message.ToDto();
         
-        logger.LogDebug(
-            "Message DTO created: MessageId={MessageId}, EntitiesCount={EntitiesCount}",
+        logger.LogInformation(
+            "Message DTO created: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
             dto.messageId, dto.entities.Size);
 
         if (dto.entities.Size > 0)
-            logger.LogDebug("DTO entities: {Entities}", string.Join(',', dto.entities.Values.Select(x => x.GetType().Name)));
+        {
+            var entityTypes = dto.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
+            logger.LogInformation("DTO entities types: {EntityTypes}", string.Join(", ", entityTypes));
+        }
         else
-            logger.LogWarning("DTO entities are empty or null after ToDto() conversion!");
+        {
+            logger.LogWarning(
+                "DTO entities are empty after ToDto() conversion! Original EntitiesCount was {OriginalCount}",
+                message.Entities?.Count ?? 0);
+        }
 
         await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, dto));
         
