@@ -17,7 +17,8 @@ public class ChannelGrain(
     IPersistentState<ChannelGrainState> state,
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout,
-    IEntitlementChecker entitlementChecker) : Grain, IChannelGrain
+    IEntitlementChecker entitlementChecker,
+    ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
 
@@ -64,11 +65,11 @@ public class ChannelGrain(
 
     [OneWay]
     public async ValueTask OnTypingEmit()
-        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), SpaceId, ChannelId.ShardId));
+        => await _userStateEmitter.Fire(new UserTypingEvent(this.GetUserId(), ChannelId.ShardId, SpaceId));
 
     [OneWay]
     public async ValueTask OnTypingStopEmit()
-        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), SpaceId, ChannelId.ShardId));
+        => await _userStateEmitter.Fire(new UserStopTypingEvent(this.GetUserId(), ChannelId.ShardId, SpaceId));
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
     {
@@ -183,28 +184,65 @@ public class ChannelGrain(
     public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+        
         var senderId = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+        
+        logger.LogInformation(
+            "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, Text={Text}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
+            channelId, senderId, text, entities?.Count ?? 0, randomId, replyTo);
+        
+        if (entities is { Count: > 0 })
+        {
+            logger.LogDebug("Input entities: {Entities}", System.Text.Json.JsonSerializer.Serialize(entities));
+        }
+        
         var message = new ArgonMessageEntity
         {
             SpaceId   = _self.SpaceId,
-            ChannelId = this.GetPrimaryKey(),
+            ChannelId = channelId,
             CreatorId = senderId,
-            Entities  = entities,
+            Entities  = entities ?? [],
             Text      = text,
             CreatedAt = DateTimeOffset.UtcNow,
             Reply     = replyTo,
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
+        logger.LogDebug(
+            "Created ArgonMessageEntity: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}",
+            message.SpaceId, message.ChannelId, message.Entities?.Count ?? 0);
+
         var dup = await messagesLayout.CheckDuplicationAsync(message, randomId);
 
-        if (dup is not null) return dup.Value;
+        if (dup is not null)
+        {
+            logger.LogInformation("Duplicate message detected, returning existing MessageId={MessageId}", dup.Value);
+            return dup.Value;
+        }
 
         var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
 
         message.MessageId = msgId;
 
-        await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, message.ToDto()));
+        logger.LogDebug(
+            "Message inserted with MessageId={MessageId}, EntitiesCount={EntitiesCount}",
+            msgId, message.Entities?.Count ?? 0);
+
+        var dto = message.ToDto();
+        
+        logger.LogDebug(
+            "Message DTO created: MessageId={MessageId}, EntitiesCount={EntitiesCount}",
+            dto.messageId, dto.entities.Size);
+
+        if (dto.entities.Size > 0)
+            logger.LogDebug("DTO entities: {Entities}", string.Join(',', dto.entities.Values.Select(x => x.GetType().Name)));
+        else
+            logger.LogWarning("DTO entities are empty or null after ToDto() conversion!");
+
+        await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, dto));
+        
+        logger.LogInformation("MessageSent event fired for MessageId={MessageId}", msgId);
 
         // Track message sent for stats
         _ = TrackMessageSentAsync(senderId);
