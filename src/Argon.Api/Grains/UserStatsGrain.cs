@@ -40,7 +40,7 @@ public class UserStatsGrain(
     private const int MaxMessageXpPerDay = 50;
     private const int MessagesPerXp = 10;
 
-    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await state.ReadStateAsync(cancellationToken);
 
@@ -66,7 +66,7 @@ public class UserStatsGrain(
             FlushInterval);
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         _flushTimer?.Dispose();
 
@@ -77,14 +77,10 @@ public class UserStatsGrain(
     }
 
     public async ValueTask RecordVoiceTimeAsync(int durationSeconds, Guid channelId, Guid spaceId)
-    {
-        await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
-    }
+        => await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
 
     public async ValueTask RecordVoiceTimeAndWaitAsync(int durationSeconds, Guid channelId, Guid spaceId)
-    {
-        await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
-    }
+        => await RecordVoiceTimeInternalAsync(durationSeconds, channelId, spaceId);
 
     private async ValueTask RecordVoiceTimeInternalAsync(int durationSeconds, Guid channelId, Guid spaceId)
     {
@@ -109,14 +105,10 @@ public class UserStatsGrain(
     }
 
     public async ValueTask IncrementCallsAsync()
-    {
-        await IncrementCallsInternalAsync();
-    }
+        => await IncrementCallsInternalAsync();
 
     public async ValueTask IncrementCallsAndWaitAsync()
-    {
-        await IncrementCallsInternalAsync();
-    }
+        => await IncrementCallsInternalAsync();
 
     private async ValueTask IncrementCallsInternalAsync()
     {
@@ -129,14 +121,10 @@ public class UserStatsGrain(
     }
 
     public async ValueTask IncrementMessagesAsync()
-    {
-        await IncrementMessagesInternalAsync();
-    }
+        => await IncrementMessagesInternalAsync();
 
     public async ValueTask IncrementMessagesAndWaitAsync()
-    {
-        await IncrementMessagesInternalAsync();
-    }
+        => await IncrementMessagesInternalAsync();
 
     private async ValueTask IncrementMessagesInternalAsync()
     {

@@ -22,14 +22,11 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
 
     private InventoryItem? UnwrapScenarioForCase(ItemUseScenario? scenario, List<ArgonItemEntity> items)
     {
-        if (scenario is null) return null;
         if (scenario is not QualifierBox qualifierBox) return null;
 
         var containedItem = items.FirstOrDefault(x => x.Id == qualifierBox.ReferenceItemId);
 
-        if (containedItem is null) return null;
-
-        return containedItem.ToDto();
+        return containedItem?.ToDto();
     }
 
     public async Task<bool> GiveItemFor(Guid userId, Guid refItemId, CancellationToken ct = default)
@@ -54,6 +51,13 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+
+        if (!item.IsAffectBadge) 
+            return true;
+
+        await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
+        await ctx.SaveChangesAsync(ct);
+
         return true;
     }
 
@@ -139,6 +143,12 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, coin.Id, coinTemplateId, ct);
+
+        if (coin.IsAffectBadge)
+        {
+            await AddBadgeToProfileAsync(ctx, userId, coin.TemplateId, ct);
+            await ctx.SaveChangesAsync(ct);
+        }
 
         logger.LogInformation("Gave coin {TemplateId} to user {UserId}", coinTemplateId, userId);
         return true;
@@ -268,6 +278,12 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         };
 
         await ctx.AddAsync(granted, ct);
+        
+        if (granted.IsAffectBadge)
+        {
+            await AddBadgeToProfileAsync(ctx, userId, granted.TemplateId, ct);
+        }
+
         return granted.Id;
     }
 
@@ -329,6 +345,12 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
             await ctx.SaveChangesAsync(ct);
 
             await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+
+            if (item.IsAffectBadge)
+            {
+                await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
+                await ctx.SaveChangesAsync(ct);
+            }
         }
         else
         {
@@ -344,4 +366,23 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         INSERT INTO ""UnreadInventoryItems"" (""OwnerUserId"", ""InventoryItemId"", ""TemplateId"", ""CreatedAt"")
         VALUES ({ownerId}, {inventoryItemId}, {templateId}, {DateTimeOffset.UtcNow})
         ON CONFLICT (""OwnerUserId"", ""InventoryItemId"") DO NOTHING;", ct);
+
+    private async Task AddBadgeToProfileAsync(ApplicationDbContext ctx, Guid userId, string templateId, CancellationToken ct)
+    {
+        var profile = await ctx.UserProfiles
+            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+
+        if (profile is null)
+        {
+            logger.LogWarning("Profile not found for user {UserId}, cannot add badge {TemplateId}", userId, templateId);
+            return;
+        }
+
+        if (!profile.Badges.Contains(templateId))
+        {
+            profile.Badges.Add(templateId);
+            ctx.UserProfiles.Update(profile);
+            logger.LogInformation("Added badge {TemplateId} to user {UserId} profile", templateId, userId);
+        }
+    }
 }

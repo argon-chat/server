@@ -49,15 +49,13 @@ public class UserLevelGrain(
     /// </summary>
     private const int MaxCoinTier = 5;
 
-    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         await state.ReadStateAsync(cancellationToken);
 
         // Load from database if not initialized
         if (!state.State.IsInitialized)
-        {
             await LoadFromDatabaseAsync();
-        }
 
         // Set up periodic persist timer
         _persistTimer = this.RegisterGrainTimer(
@@ -67,14 +65,12 @@ public class UserLevelGrain(
             PersistInterval);
     }
 
-    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         _persistTimer?.Dispose();
 
         if (state.State.IsDirty)
-        {
             await PersistToDatabaseAsync();
-        }
     }
 
     public async ValueTask AwardXpAsync(int amount, XpSource source)
