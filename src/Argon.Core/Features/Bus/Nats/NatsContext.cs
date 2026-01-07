@@ -10,6 +10,7 @@ using NATS.Net;
 using Orleans.Runtime;
 using System.Buffers;
 using System.Threading.Channels;
+using Services.Ion;
 
 public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServiceProvider provider)
 {
@@ -50,11 +51,11 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
     }
 }
 
-public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILogger<NatsArgonWriteOnlyStream> logger) : IArgonStream<IArgonEvent>
+public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILogger<NatsArgonWriteOnlyStream> logger, ILogger<ArgonEventSerializer> serializerLogger) : IArgonStream<IArgonEvent>
 {
     public async ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
     {
-        var result = await js.PublishAsync(streamId.ToNatsStreamName(), ev, new ArgonEventSerializer(), cancellationToken: ct);
+        var result = await js.PublishAsync(streamId.ToNatsStreamName(), ev, new ArgonEventSerializer(serializerLogger), cancellationToken: ct);
 
         if (result.Error is not null)
             logger.LogCritical("Error when publish message to nats, {errorCode}, {code}, {msg}", result.Error.ErrCode, result.Error.Code,
@@ -82,10 +83,12 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
         => throw new WriteOnlyStreamException();
 }
 
-public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IArgonStream<IArgonEvent>
+public class NatsArgonReadOnlyStream(
+    StreamId streamId, 
+    INatsJSContext js,
+    ILogger<ArgonEventSerializer> serializerLogger) : IArgonStream<IArgonEvent>
 {
     private readonly Guid _streamListenerId = Guid.NewGuid();
-
 
     private INatsJSConsumer _consumer;
     private string          _consumerName => $"{streamId.ToString().Replace('/', '_')}_{_streamListenerId:N}";
@@ -108,7 +111,7 @@ public class NatsArgonReadOnlyStream(StreamId streamId, INatsJSContext js) : IAr
 
     public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
-        await foreach (var msg in _consumer.ConsumeAsync(new ArgonEventSerializer(), new NatsJSConsumeOpts()
+        await foreach (var msg in _consumer.ConsumeAsync(new ArgonEventSerializer(serializerLogger), new NatsJSConsumeOpts()
         {
             MaxMsgs = 30
         }, ct))
@@ -127,15 +130,45 @@ public static class NatsStreamExtensions
         => $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}".Replace(".", "_").Replace(" ", "").Replace('/', '_');
 }
 
-public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
+public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsSerializer<IArgonEvent>
 {
+    private static readonly JsonSerializerSettings Settings = new()
+    {
+        TypeNameHandling = TypeNameHandling.All,
+        Formatting = Formatting.None,
+        Converters =
+        [
+            new IonArrayConverter(),
+            new IonMaybeConverter()
+        ]
+    };
+
     public void Serialize(IBufferWriter<byte> bufferWriter, IArgonEvent value)
     {
-        var json = JsonConvert.SerializeObject(value, new JsonSerializerSettings
+        if (value is MessageSent msgSent)
         {
-            TypeNameHandling = TypeNameHandling.All,
-            Formatting       = Formatting.None
-        });
+            logger.LogInformation(
+                "Serializing MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
+                msgSent.message.messageId, msgSent.message.entities.Size);
+            
+            if (msgSent.message.entities.Size > 0)
+            {
+                var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
+                logger.LogInformation("MessageSent entities before JSON serialization: {EntityTypes}", string.Join(", ", entityTypes));
+            }
+        }
+
+        var json = JsonConvert.SerializeObject(value, Settings);
+
+        if (value is MessageSent msgSent2)
+        {
+            logger.LogInformation("MessageSent JSON length: {JsonLength}", json.Length);
+            
+            // Check if entities are in JSON
+            var containsEntities = json.Contains("\"entities\"") || json.Contains("Entities");
+            logger.LogInformation("JSON contains entities field: {ContainsEntities}", containsEntities);
+        }
+
         bufferWriter.Write(Encoding.UTF8.GetBytes(json));
     }
 
@@ -145,10 +178,27 @@ public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
         {
             var span = buffer.FirstSpan;
             var json = Encoding.UTF8.GetString(span);
-            return JsonConvert.DeserializeObject<IArgonEvent>(json, new JsonSerializerSettings
+            
+            var result = JsonConvert.DeserializeObject<IArgonEvent>(json, Settings);
+            
+            if (result is MessageSent msgSent)
             {
-                TypeNameHandling = TypeNameHandling.All
-            });
+                logger.LogInformation(
+                    "Deserialized MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
+                    msgSent.message.messageId, msgSent.message.entities.Size);
+                
+                if (msgSent.message.entities.Size > 0)
+                {
+                    var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
+                    logger.LogInformation("MessageSent entities after JSON deserialization: {EntityTypes}", string.Join(", ", entityTypes));
+                }
+                else
+                {
+                    logger.LogWarning("MessageSent entities are empty after deserialization! JSON: {Json}", json.Length > 500 ? json.Substring(0, 500) : json);
+                }
+            }
+            
+            return result;
         }
 
         using var memoryStream = new MemoryStream();
@@ -161,10 +211,16 @@ public class ArgonEventSerializer : INatsSerializer<IArgonEvent>
 
         using var streamReader = new StreamReader(memoryStream, Encoding.UTF8);
         using var jsonReader   = new JsonTextReader(streamReader);
-        return JsonSerializer.CreateDefault(new JsonSerializerSettings
+        var deserializedResult = JsonSerializer.CreateDefault(Settings).Deserialize<IArgonEvent>(jsonReader);
+        
+        if (deserializedResult is MessageSent msgSentMulti)
         {
-            TypeNameHandling = TypeNameHandling.All
-        }).Deserialize<IArgonEvent>(jsonReader);
+            logger.LogDebug(
+                "Deserialized MessageSent (multi-segment): MessageId={MessageId}, EntitiesSize={EntitiesSize}",
+                msgSentMulti.message.messageId, msgSentMulti.message.entities.Size);
+        }
+        
+        return deserializedResult;
     }
 
     public INatsSerializer<IArgonEvent> CombineWith(INatsSerializer<IArgonEvent> next)
