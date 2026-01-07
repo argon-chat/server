@@ -95,6 +95,14 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IBeginCallResult>.Value = new Ion_IBeginCallResult_Formatter();
       IonFormatterStorage<IPickUpCallResult>.Value = new Ion_IPickUpCallResult_Formatter();
       IonFormatterStorage<IDialCheckResult>.Value = new Ion_IDialCheckResult_Formatter();
+      IonFormatterStorage<MessageEntityBold>.Value = new Ion_MessageEntityBold_Formatter();
+      IonFormatterStorage<MessageEntityItalic>.Value = new Ion_MessageEntityItalic_Formatter();
+      IonFormatterStorage<MessageEntityStrikethrough>.Value = new Ion_MessageEntityStrikethrough_Formatter();
+      IonFormatterStorage<MessageEntitySpoiler>.Value = new Ion_MessageEntitySpoiler_Formatter();
+      IonFormatterStorage<MessageEntityMonospace>.Value = new Ion_MessageEntityMonospace_Formatter();
+      IonFormatterStorage<MessageEntityFraction>.Value = new Ion_MessageEntityFraction_Formatter();
+      IonFormatterStorage<MessageEntityOrdinal>.Value = new Ion_MessageEntityOrdinal_Formatter();
+      IonFormatterStorage<MessageEntityCapitalized>.Value = new Ion_MessageEntityCapitalized_Formatter();
       IonFormatterStorage<MessageEntityMention>.Value = new Ion_MessageEntityMention_Formatter();
       IonFormatterStorage<MessageEntityEmail>.Value = new Ion_MessageEntityEmail_Formatter();
       IonFormatterStorage<MessageEntityHashTag>.Value = new Ion_MessageEntityHashTag_Formatter();

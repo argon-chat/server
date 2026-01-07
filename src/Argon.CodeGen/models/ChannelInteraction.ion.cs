@@ -150,6 +150,22 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
     uint UnionIndex { get; }
     
     
+    internal bool IsMessageEntityBold => this is MessageEntityBold;
+
+    internal bool IsMessageEntityItalic => this is MessageEntityItalic;
+
+    internal bool IsMessageEntityStrikethrough => this is MessageEntityStrikethrough;
+
+    internal bool IsMessageEntitySpoiler => this is MessageEntitySpoiler;
+
+    internal bool IsMessageEntityMonospace => this is MessageEntityMonospace;
+
+    internal bool IsMessageEntityFraction => this is MessageEntityFraction;
+
+    internal bool IsMessageEntityOrdinal => this is MessageEntityOrdinal;
+
+    internal bool IsMessageEntityCapitalized => this is MessageEntityCapitalized;
+
     internal bool IsMessageEntityMention => this is MessageEntityMention;
 
     internal bool IsMessageEntityEmail => this is MessageEntityEmail;
@@ -166,45 +182,101 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityBold(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityBold);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityItalic(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityItalic);
+    public uint UnionIndex => 1;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityStrikethrough(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityStrikethrough);
+    public uint UnionIndex => 2;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntitySpoiler(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntitySpoiler);
+    public uint UnionIndex => 3;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityMonospace(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityMonospace);
+    public uint UnionIndex => 4;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityFraction(EntityType type, i4 offset, i4 length, i4 version, i4 numerator, i4 denominator) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityFraction);
+    public uint UnionIndex => 5;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityOrdinal(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityOrdinal);
+    public uint UnionIndex => 6;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityCapitalized(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityCapitalized);
+    public uint UnionIndex => 7;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityMention(EntityType type, i4 offset, i4 length, i4 version, guid userId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityMention);
-    public uint UnionIndex => 0;
+    public uint UnionIndex => 8;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityEmail(EntityType type, i4 offset, i4 length, i4 version, string email) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityEmail);
-    public uint UnionIndex => 1;
+    public uint UnionIndex => 9;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityHashTag(EntityType type, i4 offset, i4 length, i4 version, string hashtag) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityHashTag);
-    public uint UnionIndex => 2;
+    public uint UnionIndex => 10;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityQuote(EntityType type, i4 offset, i4 length, i4 version, guid quotedUserId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityQuote);
-    public uint UnionIndex => 3;
+    public uint UnionIndex => 11;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityUnderline(EntityType type, i4 offset, i4 length, i4 version, i4 colour) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityUnderline);
-    public uint UnionIndex => 4;
+    public uint UnionIndex => 12;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityUrl(EntityType type, i4 offset, i4 length, i4 version, string domain, string path) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityUrl);
-    public uint UnionIndex => 5;
+    public uint UnionIndex => 13;
 }
 
 
@@ -220,21 +292,45 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
         if (false) {}
         
         else if (unionIndex == 0)
-            result = IonFormatterStorage<MessageEntityMention>.Read(reader);
+            result = IonFormatterStorage<MessageEntityBold>.Read(reader);
 
         else if (unionIndex == 1)
-            result = IonFormatterStorage<MessageEntityEmail>.Read(reader);
+            result = IonFormatterStorage<MessageEntityItalic>.Read(reader);
 
         else if (unionIndex == 2)
-            result = IonFormatterStorage<MessageEntityHashTag>.Read(reader);
+            result = IonFormatterStorage<MessageEntityStrikethrough>.Read(reader);
 
         else if (unionIndex == 3)
-            result = IonFormatterStorage<MessageEntityQuote>.Read(reader);
+            result = IonFormatterStorage<MessageEntitySpoiler>.Read(reader);
 
         else if (unionIndex == 4)
-            result = IonFormatterStorage<MessageEntityUnderline>.Read(reader);
+            result = IonFormatterStorage<MessageEntityMonospace>.Read(reader);
 
         else if (unionIndex == 5)
+            result = IonFormatterStorage<MessageEntityFraction>.Read(reader);
+
+        else if (unionIndex == 6)
+            result = IonFormatterStorage<MessageEntityOrdinal>.Read(reader);
+
+        else if (unionIndex == 7)
+            result = IonFormatterStorage<MessageEntityCapitalized>.Read(reader);
+
+        else if (unionIndex == 8)
+            result = IonFormatterStorage<MessageEntityMention>.Read(reader);
+
+        else if (unionIndex == 9)
+            result = IonFormatterStorage<MessageEntityEmail>.Read(reader);
+
+        else if (unionIndex == 10)
+            result = IonFormatterStorage<MessageEntityHashTag>.Read(reader);
+
+        else if (unionIndex == 11)
+            result = IonFormatterStorage<MessageEntityQuote>.Read(reader);
+
+        else if (unionIndex == 12)
+            result = IonFormatterStorage<MessageEntityUnderline>.Read(reader);
+
+        else if (unionIndex == 13)
             result = IonFormatterStorage<MessageEntityUrl>.Read(reader);
 
         else
@@ -250,46 +346,102 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
 
         if (false) {}
         
-        else if (value is MessageEntityMention n_0)
+        else if (value is MessageEntityBold n_0)
         {
             if (n_0.UnionIndex != 0)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityMention>.Write(writer, n_0);
+            IonFormatterStorage<MessageEntityBold>.Write(writer, n_0);
         }
 
-        else if (value is MessageEntityEmail n_1)
+        else if (value is MessageEntityItalic n_1)
         {
             if (n_1.UnionIndex != 1)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityEmail>.Write(writer, n_1);
+            IonFormatterStorage<MessageEntityItalic>.Write(writer, n_1);
         }
 
-        else if (value is MessageEntityHashTag n_2)
+        else if (value is MessageEntityStrikethrough n_2)
         {
             if (n_2.UnionIndex != 2)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityHashTag>.Write(writer, n_2);
+            IonFormatterStorage<MessageEntityStrikethrough>.Write(writer, n_2);
         }
 
-        else if (value is MessageEntityQuote n_3)
+        else if (value is MessageEntitySpoiler n_3)
         {
             if (n_3.UnionIndex != 3)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityQuote>.Write(writer, n_3);
+            IonFormatterStorage<MessageEntitySpoiler>.Write(writer, n_3);
         }
 
-        else if (value is MessageEntityUnderline n_4)
+        else if (value is MessageEntityMonospace n_4)
         {
             if (n_4.UnionIndex != 4)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityUnderline>.Write(writer, n_4);
+            IonFormatterStorage<MessageEntityMonospace>.Write(writer, n_4);
         }
 
-        else if (value is MessageEntityUrl n_5)
+        else if (value is MessageEntityFraction n_5)
         {
             if (n_5.UnionIndex != 5)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityUrl>.Write(writer, n_5);
+            IonFormatterStorage<MessageEntityFraction>.Write(writer, n_5);
+        }
+
+        else if (value is MessageEntityOrdinal n_6)
+        {
+            if (n_6.UnionIndex != 6)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityOrdinal>.Write(writer, n_6);
+        }
+
+        else if (value is MessageEntityCapitalized n_7)
+        {
+            if (n_7.UnionIndex != 7)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityCapitalized>.Write(writer, n_7);
+        }
+
+        else if (value is MessageEntityMention n_8)
+        {
+            if (n_8.UnionIndex != 8)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityMention>.Write(writer, n_8);
+        }
+
+        else if (value is MessageEntityEmail n_9)
+        {
+            if (n_9.UnionIndex != 9)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityEmail>.Write(writer, n_9);
+        }
+
+        else if (value is MessageEntityHashTag n_10)
+        {
+            if (n_10.UnionIndex != 10)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityHashTag>.Write(writer, n_10);
+        }
+
+        else if (value is MessageEntityQuote n_11)
+        {
+            if (n_11.UnionIndex != 11)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityQuote>.Write(writer, n_11);
+        }
+
+        else if (value is MessageEntityUnderline n_12)
+        {
+            if (n_12.UnionIndex != 12)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityUnderline>.Write(writer, n_12);
+        }
+
+        else if (value is MessageEntityUrl n_13)
+        {
+            if (n_13.UnionIndex != 13)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityUrl>.Write(writer, n_13);
         }
     
         else
@@ -298,6 +450,226 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
     }
 }
 
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityBold_Formatter : IonFormatter<MessageEntityBold>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityBold Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityBold value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityItalic_Formatter : IonFormatter<MessageEntityItalic>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityItalic Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityItalic value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityStrikethrough_Formatter : IonFormatter<MessageEntityStrikethrough>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityStrikethrough Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityStrikethrough value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntitySpoiler_Formatter : IonFormatter<MessageEntitySpoiler>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntitySpoiler Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntitySpoiler value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityMonospace_Formatter : IonFormatter<MessageEntityMonospace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityMonospace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityMonospace value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityFraction_Formatter : IonFormatter<MessageEntityFraction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityFraction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __numerator = IonFormatterStorage<i4>.Read(reader);
+        var __denominator = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__type, __offset, __length, __version, __numerator, __denominator);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityFraction value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<i4>.Write(writer, value.numerator);
+        IonFormatterStorage<i4>.Write(writer, value.denominator);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityOrdinal_Formatter : IonFormatter<MessageEntityOrdinal>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityOrdinal Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityOrdinal value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityCapitalized_Formatter : IonFormatter<MessageEntityCapitalized>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityCapitalized Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityCapitalized value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_MessageEntityMention_Formatter : IonFormatter<MessageEntityMention>
