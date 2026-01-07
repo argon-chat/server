@@ -159,69 +159,92 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
             }
         }
 
-        var json = JsonConvert.SerializeObject(value, Settings);
-
-        if (value is MessageSent msgSent2)
+        try
         {
-            logger.LogInformation("MessageSent JSON length: {JsonLength}", json.Length);
-            
-            // Check if entities are in JSON
-            var containsEntities = json.Contains("\"entities\"") || json.Contains("Entities");
-            logger.LogInformation("JSON contains entities field: {ContainsEntities}", containsEntities);
-        }
+            var json = JsonConvert.SerializeObject(value, Settings);
 
-        bufferWriter.Write(Encoding.UTF8.GetBytes(json));
+            if (value is MessageSent msgSent2)
+            {
+                logger.LogInformation("MessageSent JSON length: {JsonLength}, First 200 chars: {JsonPreview}", 
+                    json.Length, 
+                    json.Length > 200 ? json.Substring(0, 200) : json);
+            }
+
+            bufferWriter.Write(Encoding.UTF8.GetBytes(json));
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to serialize event: {EventType}", value.GetType().Name);
+            throw;
+        }
     }
 
     public IArgonEvent? Deserialize(in ReadOnlySequence<byte> buffer)
     {
-        if (buffer.IsSingleSegment)
+        try
         {
-            var span = buffer.FirstSpan;
-            var json = Encoding.UTF8.GetString(span);
+            if (buffer.IsSingleSegment)
+            {
+                var span = buffer.FirstSpan;
+                var json = Encoding.UTF8.GetString(span);
+                
+                logger.LogDebug("Deserializing JSON length: {Length}, First 200 chars: {JsonPreview}", 
+                    json.Length, 
+                    json.Length > 200 ? json.Substring(0, 200) : json);
+                
+                var result = JsonConvert.DeserializeObject<IArgonEvent>(json, Settings);
+                
+                if (result is MessageSent msgSent)
+                {
+                    logger.LogInformation(
+                        "Deserialized MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
+                        msgSent.message.messageId, msgSent.message.entities.Size);
+                    
+                    if (msgSent.message.entities.Size > 0)
+                    {
+                        var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
+                        logger.LogInformation("MessageSent entities after JSON deserialization: {EntityTypes}", string.Join(", ", entityTypes));
+                    }
+                    else
+                    {
+                        logger.LogWarning("MessageSent entities are empty after deserialization!");
+                    }
+                }
+                
+                return result;
+            }
+
+            using var memoryStream = new MemoryStream();
+            foreach (var segment in buffer)
+            {
+                memoryStream.Write(segment.Span);
+            }
+
+            memoryStream.Position = 0;
+
+            using var streamReader = new StreamReader(memoryStream, Encoding.UTF8);
+            using var jsonReader   = new JsonTextReader(streamReader);
+            var deserializedResult = JsonSerializer.CreateDefault(Settings).Deserialize<IArgonEvent>(jsonReader);
             
-            var result = JsonConvert.DeserializeObject<IArgonEvent>(json, Settings);
-            
-            if (result is MessageSent msgSent)
+            if (deserializedResult is MessageSent msgSentMulti)
             {
                 logger.LogInformation(
-                    "Deserialized MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-                    msgSent.message.messageId, msgSent.message.entities.Size);
-                
-                if (msgSent.message.entities.Size > 0)
-                {
-                    var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
-                    logger.LogInformation("MessageSent entities after JSON deserialization: {EntityTypes}", string.Join(", ", entityTypes));
-                }
-                else
-                {
-                    logger.LogWarning("MessageSent entities are empty after deserialization! JSON: {Json}", json.Length > 500 ? json.Substring(0, 500) : json);
-                }
+                    "Deserialized MessageSent (multi-segment): MessageId={MessageId}, EntitiesSize={EntitiesSize}",
+                    msgSentMulti.message.messageId, msgSentMulti.message.entities.Size);
             }
             
-            return result;
+            return deserializedResult;
         }
-
-        using var memoryStream = new MemoryStream();
-        foreach (var segment in buffer)
+        catch (Exception ex)
         {
-            memoryStream.Write(segment.Span);
+            var bufferString = buffer.IsSingleSegment 
+                ? Encoding.UTF8.GetString(buffer.FirstSpan) 
+                : "<multi-segment>";
+            
+            logger.LogError(ex, "Failed to deserialize event. Buffer preview: {BufferPreview}", 
+                bufferString.Length > 500 ? bufferString.Substring(0, 500) : bufferString);
+            throw;
         }
-
-        memoryStream.Position = 0;
-
-        using var streamReader = new StreamReader(memoryStream, Encoding.UTF8);
-        using var jsonReader   = new JsonTextReader(streamReader);
-        var deserializedResult = JsonSerializer.CreateDefault(Settings).Deserialize<IArgonEvent>(jsonReader);
-        
-        if (deserializedResult is MessageSent msgSentMulti)
-        {
-            logger.LogDebug(
-                "Deserialized MessageSent (multi-segment): MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-                msgSentMulti.message.messageId, msgSentMulti.message.entities.Size);
-        }
-        
-        return deserializedResult;
     }
 
     public INatsSerializer<IArgonEvent> CombineWith(INatsSerializer<IArgonEvent> next)
