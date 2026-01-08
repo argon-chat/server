@@ -8,8 +8,7 @@ using ion.runtime;
 
 public class UserInteractionImpl(
     IOptions<BetaLimitationOptions> betaOptions,
-    ILogger<IUserInteraction> logger,
-    INotificationCounterService notificationCounter) : IUserInteraction
+    ILogger<IUserInteraction> logger) : IUserInteraction
 
 {
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
@@ -113,7 +112,7 @@ public class UserInteractionImpl(
     public async Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        var counters = await notificationCounter.GetAllCountersAsync(userId, ct);
+        var counters = await this.GetGrain<INotificationCounterGrain>(userId).GetAllCountersAsync();
 
         var result = new[]
         {
