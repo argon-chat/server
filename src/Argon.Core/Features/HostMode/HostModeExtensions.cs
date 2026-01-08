@@ -22,13 +22,13 @@ using Middlewares;
 using Pex;
 using RegionalUnit;
 using Repositories;
-using Sagas;
 using Serilog;
 using Services;
 using Services.L1L2;
 using Sfu;
 using SnowflakeId.DependencyInjection;
 using Template;
+using Testing;
 using Vault;
 using Web;
 public static class HostModeExtensions
@@ -137,6 +137,7 @@ public static class HostModeExtensions
             builder.AddVaultConfiguration();
             builder.AddVaultClient();
             builder.Services.AddServerTiming();
+            builder.Services.AddTestCodeStore();
             builder.WebHost.UseQuic();
             builder.AddLogging();
             builder.Services.AddMessagePipe();
@@ -171,7 +172,6 @@ public static class HostModeExtensions
                 builder.AddPooledDatabase<ApplicationDbContext>();
                 builder.AddEfRepositories();
                 builder.AddArgonPermissions();
-                builder.AddSagas();
                 builder.AddMessagesLayout();
                 builder.Services.AddSnowflakeUniqueId(options => {
                     options.DataCenterId  = 1;

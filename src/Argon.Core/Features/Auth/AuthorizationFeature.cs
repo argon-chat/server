@@ -1,6 +1,6 @@
 namespace Argon.Features.Auth;
 
-using Argon.Core.Features.Integrations.Phones;
+using Argon.Features.Integrations.Phones;
 using Services;
 
 public static class AuthorizationFeature
@@ -12,7 +12,7 @@ public static class AuthorizationFeature
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
         builder.Services.AddDataProtection();
-        builder.AddPhoneOtpProvider();
+        builder.AddPhoneVerification();
     }
 }
 

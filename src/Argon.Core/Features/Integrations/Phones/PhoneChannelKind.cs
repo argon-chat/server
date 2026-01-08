@@ -1,7 +1,9 @@
-namespace Argon.Core.Features.Integrations.Phones;
+namespace Argon.Features.Integrations.Phones;
 
 public enum PhoneChannelKind
 {
+    Null,
     Telegram,
-    Prelude
+    Prelude,
+    Twilio
 }

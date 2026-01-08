@@ -33,6 +33,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Security & Settings
+
+    public DbSet<UserPasskeyEntity>           Passkeys           => Set<UserPasskeyEntity>();
+    public DbSet<UserAutoDeleteSettingEntity> AutoDeleteSettings => Set<UserAutoDeleteSettingEntity>();
+    public DbSet<PendingEmailChangeEntity>    PendingEmailChanges => Set<PendingEmailChangeEntity>();
+    public DbSet<PendingPhoneChangeEntity>    PendingPhoneChanges => Set<PendingPhoneChangeEntity>();
+
+#endregion
+
 #region Apps
 
     public DbSet<DevTeamEntity>       TeamEntities       => Set<DevTeamEntity>();
@@ -49,12 +58,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserBlockEntity>     UserBlocklist => Set<UserBlockEntity>();
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
-    public DbSet<UserChatEntity>      UserChatlist  => Set<UserChatEntity>();
-    public DbSet<DirectMessageEntity> DirectMessages => Set<DirectMessageEntity>();
 
-    // New conversation-based DM system
+    // Conversation-based DM system
     public DbSet<ConversationEntity>     Conversations     => Set<ConversationEntity>();
-    public DbSet<DirectMessageV2Entity>  DirectMessagesV2  => Set<DirectMessageV2Entity>();
+    public DbSet<DirectMessageV2Entity>  DirectMessages    => Set<DirectMessageV2Entity>();
     public DbSet<UserConversationEntity> UserConversations => Set<UserConversationEntity>();
 
 #endregion

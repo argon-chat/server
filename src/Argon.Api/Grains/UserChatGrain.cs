@@ -203,7 +203,7 @@ public class UserChatGrain(
                     ReplyTo = replyTo
                 };
 
-                ctx.DirectMessagesV2.Add(message);
+                ctx.DirectMessages.Add(message);
                 await ctx.SaveChangesAsync(ct);
 
                 var messageId = message.MessageId;
@@ -264,7 +264,7 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var query = ctx.DirectMessagesV2
+        var query = ctx.DirectMessages
             .AsNoTracking()
             .Where(m => m.ConversationId == conversationId);
 

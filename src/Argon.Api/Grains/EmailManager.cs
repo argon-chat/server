@@ -6,6 +6,7 @@ using System.Threading;
 using DnsClient;
 using DnsClient.Protocol;
 using Features.Template;
+using Features.Testing;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,7 +15,11 @@ using Orleans.Concurrency;
 using SmtpClient = MailKit.Net.Smtp.SmtpClient;
 
 [StatelessWorker]
-public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager> logger, EMailFormStorage formStorage) : Grain, IEmailManager
+public class EmailManager(
+    IOptions<SmtpConfig> smtpOptions, 
+    ILogger<EmailManager> logger, 
+    EMailFormStorage formStorage,
+    ITestCodeStore? testCodeStore = null) : Grain, IEmailManager
 {
     private MimeMessage CreateMessage(string to, string subject, string bodyHtml)
     {
@@ -72,6 +77,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[OTP CODE]: {Email}, code: {OtpCode}", email, otpCode);
+            testCodeStore?.StoreCode(email, otpCode, TestCodeType.Email);
             return;
         }
 
@@ -95,6 +101,7 @@ public class EmailManager(IOptions<SmtpConfig> smtpOptions, ILogger<EmailManager
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[OTP RESET CODE]: {Email}, code: {OtpCode}", email, otpCode);
+            testCodeStore?.StoreCode(email, otpCode, TestCodeType.Email);
             return;
         }
 

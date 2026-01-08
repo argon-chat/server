@@ -1,6 +1,7 @@
 namespace ArgonComplexTest;
 
 using Argon.Features.Env;
+using Argon.Features.Testing;
 using ArgonContracts;
 using Argon.Core.Grains.Interfaces;
 using Bogus;
@@ -99,6 +100,9 @@ public abstract class TestBase
         return socket.ConnectAsync(uri, ct);
     }
 
+    /// <summary>
+    /// Registers a new user and returns the token. Also updates FakedTestCreds with the new user's credentials.
+    /// </summary>
     protected async Task<string> RegisterAndGetTokenAsync(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
@@ -113,9 +117,12 @@ public abstract class TestBase
            .RuleFor(u => u.argreeTos, f => true)
            .RuleFor(u => u.argreeOptionalEmails, f => true)
            .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
-           .RuleFor(u => u.password, f => f.Internet.Password());
+           .RuleFor(u => u.password, f => f.Internet.Password(8, false, "\\w", "Aa1!"));
 
         var creds = userFaker.Generate();
+        
+        // Update FakedTestCreds so tests can use the correct password
+        FakedTestCreds = creds;
         
         var result = await IonClient.ForService<IIdentityInteraction>(scope.ServiceProvider).Registration(
             new NewUserCredentialsInput(
@@ -174,6 +181,21 @@ public abstract class TestBase
         var provider = serviceProvider ?? FactoryAsp.Services;
         return IonClient.ForService<IInventoryInteraction>(provider);
     }
+
+    protected ISecurityInteraction GetSecurityService(IServiceProvider? serviceProvider = null)
+    {
+        var provider = serviceProvider ?? FactoryAsp.Services;
+        return IonClient.ForService<ISecurityInteraction>(provider);
+    }
+
+    protected ITestCodeStore GetTestCodeStore()
+        => FactoryAsp.Services.GetRequiredService<ITestCodeStore>();
+
+    protected async Task<string?> GetEmailCodeAsync(string email, TimeSpan? timeout = null, CancellationToken ct = default)
+        => await GetTestCodeStore().GetCodeAsync(email, TestCodeType.Email, timeout ?? TimeSpan.FromSeconds(5), ct);
+
+    protected async Task<string?> GetPhoneCodeAsync(string phone, TimeSpan? timeout = null, CancellationToken ct = default)
+        => await GetTestCodeStore().GetCodeAsync(phone, TestCodeType.Phone, timeout ?? TimeSpan.FromSeconds(5), ct);
 
     protected async Task<Guid> CreateSpaceAndGetIdAsync(CancellationToken ct = default)
     {

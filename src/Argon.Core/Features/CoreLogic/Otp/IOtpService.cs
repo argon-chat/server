@@ -1,7 +1,7 @@
 namespace Argon.Api.Features.CoreLogic.Otp;
 
-using Argon.Core.Features.Integrations.Phones;
-using Argon.Services;
+using Argon.Features.Integrations.Phones;
+using Services;
 using OtpNet;
 
 public static class OtpExtensions

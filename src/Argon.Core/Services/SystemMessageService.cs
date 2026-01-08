@@ -88,7 +88,7 @@ public class SystemMessageService(
             CreatorId = UserEntity.SystemUser
         };
 
-        ctx.DirectMessagesV2.Add(message);
+        ctx.DirectMessages.Add(message);
 
         // Update conversation metadata
         conversation.LastMessageAt = now;
