@@ -52,6 +52,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserChatEntity>      UserChatlist  => Set<UserChatEntity>();
     public DbSet<DirectMessageEntity> DirectMessages => Set<DirectMessageEntity>();
 
+    // New conversation-based DM system
+    public DbSet<ConversationEntity>     Conversations     => Set<ConversationEntity>();
+    public DbSet<DirectMessageV2Entity>  DirectMessagesV2  => Set<DirectMessageV2Entity>();
+    public DbSet<UserConversationEntity> UserConversations => Set<UserConversationEntity>();
+
 #endregion
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)

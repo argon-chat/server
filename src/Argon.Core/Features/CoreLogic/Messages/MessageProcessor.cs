@@ -10,6 +10,7 @@ public static class MessagesLayoutExtensions
         builder.Services.AddScoped<MessageDeduplicationService>();
         builder.Services.AddScoped<IMessagesLayout, PgSqlMessagesLayout>();
         builder.Services.AddScoped<ISystemMessageService, SystemMessageService>();
+        builder.Services.AddScoped<IConversationService, ConversationService>();
     }
 }
 
@@ -77,13 +78,13 @@ public class PgSqlMessagesLayout(
 
     public async Task<long> ExecuteInsertMessage(ArgonMessageEntity msg, long randomId, CancellationToken ct = default)
     {
-        logger.LogInformation(
+        logger.LogDebug(
             "ExecuteInsertMessage: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}, RandomId={RandomId}",
             msg.SpaceId, msg.ChannelId, msg.Entities?.Count ?? 0, randomId);
 
-        if (msg.Entities != null && msg.Entities.Count > 0)
+        if (msg.Entities is { Count: > 0 })
         {
-            logger.LogInformation("Before DB insert - entities types: {EntityTypes}",
+            logger.LogDebug("Before DB insert - entities types: {EntityTypes}",
                 string.Join(", ", msg.Entities.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}")));
         }
 
@@ -92,19 +93,15 @@ public class PgSqlMessagesLayout(
         await ctx.Messages.AddAsync(msg, ct);
         await ctx.SaveChangesAsync(ct);
 
-        logger.LogInformation(
+        logger.LogDebug(
             "After DB insert: MessageId={MessageId}, EntitiesCount={EntitiesCount}",
             msg.MessageId, msg.Entities?.Count ?? 0);
 
-        if (msg.Entities != null && msg.Entities.Count > 0)
-        {
-            logger.LogInformation("After DB insert - entities types: {EntityTypes}",
+        if (msg.Entities is { Count: > 0 })
+            logger.LogDebug("After DB insert - entities types: {EntityTypes}",
                 string.Join(", ", msg.Entities.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}")));
-        }
         else
-        {
             logger.LogWarning("After DB insert - entities are null or empty!");
-        }
 
         await deduplication.SetDeduplicationAsync(msg, randomId, ct);
 

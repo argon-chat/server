@@ -14,6 +14,7 @@ public interface ISystemMessageService
 
 public class SystemMessageService(
     IDbContextFactory<ApplicationDbContext> contextFactory,
+    IConversationService conversationService,
     ILogger<SystemMessageService> logger) : ISystemMessageService
 {
     public async Task<long> SendCallStartedMessageAsync(Guid senderId, Guid receiverId, Guid callId, CancellationToken ct = default)
@@ -21,40 +22,12 @@ public class SystemMessageService(
         logger.LogInformation("Sending call started system message: {SenderId} -> {ReceiverId}, CallId={CallId}",
             senderId, receiverId, callId);
 
-        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
-
-        // Create system message for both users in the conversation
-        var message1 = new DirectMessageEntity
-        {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = senderId,
-            Text       = $"Call started",
-            Entities =
-            [
-                new MessageEntitySystemCallStarted(EntityType.SystemCallStarted, 0, 0, 1, senderId, callId)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatorId = UserEntity.SystemUser
-        };
-
-        var message2 = new DirectMessageEntity
-        {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = receiverId,
-            Text       = $"Call started",
-            Entities =
-            [
-                new MessageEntitySystemCallStarted(EntityType.SystemCallStarted, 0, 0, 1, senderId, callId)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatorId = UserEntity.SystemUser
-        };
-
-        ctx.DirectMessages.Add(message1);
-        ctx.DirectMessages.Add(message2);
-        await ctx.SaveChangesAsync(ct);
-
-        return message1.MessageId;
+        return await SendSystemMessageToConversationAsync(
+            senderId,
+            receiverId,
+            "Call started",
+            [new MessageEntitySystemCallStarted(EntityType.SystemCallStarted, 0, 0, 1, senderId, callId)],
+            ct);
     }
 
     public async Task<long> SendCallEndedMessageAsync(Guid senderId, Guid receiverId, Guid callId, int durationSeconds,
@@ -63,41 +36,14 @@ public class SystemMessageService(
         logger.LogInformation("Sending call ended system message: {SenderId} -> {ReceiverId}, CallId={CallId}, Duration={Duration}s",
             senderId, receiverId, callId, durationSeconds);
 
-        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
-
         var text = $@"Call ended ({TimeSpan.FromSeconds(durationSeconds):hh\:mm\:ss})";
 
-        var message1 = new DirectMessageEntity
-        {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = senderId,
-            Text       = text,
-            Entities =
-            [
-                new MessageEntitySystemCallEnded(EntityType.SystemCallEnded, 0, 0, 1, senderId, callId, durationSeconds)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatorId = UserEntity.SystemUser
-        };
-
-        var message2 = new DirectMessageEntity
-        {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = receiverId,
-            Text       = text,
-            Entities =
-            [
-                new MessageEntitySystemCallEnded(EntityType.SystemCallEnded, 0, 0, 1, senderId, callId, durationSeconds)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatorId = UserEntity.SystemUser
-        };
-
-        ctx.DirectMessages.Add(message1);
-        ctx.DirectMessages.Add(message2);
-        await ctx.SaveChangesAsync(ct);
-
-        return message1.MessageId;
+        return await SendSystemMessageToConversationAsync(
+            senderId,
+            receiverId,
+            text,
+            [new MessageEntitySystemCallEnded(EntityType.SystemCallEnded, 0, 0, 1, senderId, callId, durationSeconds)],
+            ct);
     }
 
     public async Task<long> SendCallTimeoutMessageAsync(Guid senderId, Guid receiverId, Guid callId, CancellationToken ct = default)
@@ -105,39 +51,97 @@ public class SystemMessageService(
         logger.LogInformation("Sending call timeout system message: {SenderId} -> {ReceiverId}, CallId={CallId}",
             senderId, receiverId, callId);
 
+        return await SendSystemMessageToConversationAsync(
+            senderId,
+            receiverId,
+            "Call not answered",
+            [new MessageEntitySystemCallTimeout(EntityType.SystemCallTimeout, 0, 0, 1, senderId, callId)],
+            ct);
+    }
+
+    /// <summary>
+    /// Sends a system message to a conversation. The message is stored once per conversation,
+    /// visible to both participants.
+    /// </summary>
+    private async Task<long> SendSystemMessageToConversationAsync(
+        Guid user1,
+        Guid user2,
+        string text,
+        List<IMessageEntity> entities,
+        CancellationToken ct)
+    {
+        // Get or create conversation between the two users
+        var conversation = await conversationService.GetOrCreateConversationAsync(user1, user2, ct);
+
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        var message1 = new DirectMessageEntity
+        var now = DateTimeOffset.UtcNow;
+
+        // Create single message in the conversation
+        var message = new DirectMessageV2Entity
         {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = senderId,
-            Text       = "Call not answered",
-            Entities =
-            [
-                new MessageEntitySystemCallTimeout(EntityType.SystemCallTimeout, 0, 0, 1, senderId, callId)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
+            ConversationId = conversation.Id,
+            SenderId = UserEntity.SystemUser,
+            Text = text,
+            Entities = entities,
+            CreatedAt = now,
             CreatorId = UserEntity.SystemUser
         };
 
-        var message2 = new DirectMessageEntity
-        {
-            SenderId   = UserEntity.SystemUser,
-            ReceiverId = receiverId,
-            Text       = "Call not answered",
-            Entities =
-            [
-                new MessageEntitySystemCallTimeout(EntityType.SystemCallTimeout, 0, 0, 1, senderId, callId)
-            ],
-            CreatedAt = DateTimeOffset.UtcNow,
-            CreatorId = UserEntity.SystemUser
-        };
+        ctx.DirectMessagesV2.Add(message);
 
-        ctx.DirectMessages.Add(message1);
-        ctx.DirectMessages.Add(message2);
+        // Update conversation metadata
+        conversation.LastMessageAt = now;
+        conversation.LastMessageText = text;
+        conversation.LastMessageSenderId = UserEntity.SystemUser;
+        ctx.Conversations.Update(conversation);
+
+        // Update both users' conversation metadata
+        await UpdateUserConversationForSystemMessageAsync(ctx, user1, user2, conversation, text, now, ct);
+        await UpdateUserConversationForSystemMessageAsync(ctx, user2, user1, conversation, text, now, ct);
+
         await ctx.SaveChangesAsync(ct);
 
-        return message1.MessageId;
+        logger.LogInformation("System message sent to conversation {ConversationId}: MessageId={MessageId}",
+            conversation.Id, message.MessageId);
+
+        return message.MessageId;
+    }
+
+    private static async Task UpdateUserConversationForSystemMessageAsync(
+        ApplicationDbContext ctx,
+        Guid userId,
+        Guid peerId,
+        ConversationEntity conversation,
+        string? previewText,
+        DateTimeOffset timestamp,
+        CancellationToken ct)
+    {
+        var record = await ctx.UserConversations
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ConversationId == conversation.Id, ct);
+
+        if (record is null)
+        {
+            record = new UserConversationEntity
+            {
+                UserId = userId,
+                ConversationId = conversation.Id,
+                PeerId = peerId,
+                LastMessageAt = timestamp,
+                LastMessageText = previewText,
+                IsPinned = false,
+                PinnedAt = null,
+                UnreadCount = 0 // System messages don't increment unread count
+            };
+
+            ctx.UserConversations.Add(record);
+        }
+        else
+        {
+            record.LastMessageAt = timestamp;
+            record.LastMessageText = previewText;
+            ctx.UserConversations.Update(record);
+        }
     }
 
     public async Task SendUserJoinedMessageAsync(Guid spaceId, Guid userId, Guid? inviterId = null, CancellationToken ct = default)

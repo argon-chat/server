@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
+using Argon.Core.Services;
 using Orleans.Concurrency;
 using Core.Entities.Data;
 
@@ -11,7 +12,8 @@ public class UserChatGrain(
     ILogger<IUserChatGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
-    INotificationCounterService notificationCounter) : Grain, IUserChatGrain
+    INotificationCounterService notificationCounter,
+    IConversationService conversationService) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
 
@@ -19,38 +21,43 @@ public class UserChatGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var result = await ctx.UserChatlist
-           .AsNoTracking()
-           .Where(x => x.UserId == Me)
-           .OrderByDescending(x => x.IsPinned)
-           .ThenByDescending(x => x.PinnedAt)
-           .ThenByDescending(x => x.LastMessageAt)
-           .Skip(offset)
-           .Take(limit)
-           .ToListAsync(ct);
+        var result = await ctx.UserConversations
+            .AsNoTracking()
+            .Where(x => x.UserId == Me && !x.IsArchived)
+            .OrderByDescending(x => x.IsPinned)
+            .ThenByDescending(x => x.PinnedAt)
+            .ThenByDescending(x => x.LastMessageAt)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(ct);
 
-        // fixation echo chat at all time top pinned
+        // Fixation: echo chat at all time top pinned
         var echoChat = result.FirstOrDefault(x => x.PeerId == UserEntity.EchoUser);
 
         if (echoChat is null)
         {
-            result.Add(new UserChatEntity()
+            var echoConversationId = ConversationEntity.GenerateConversationId(Me, UserEntity.EchoUser);
+            result.Add(new UserConversationEntity
             {
-                PeerId   = UserEntity.EchoUser,
+                PeerId = UserEntity.EchoUser,
                 IsPinned = true,
-                PinnedAt = DateTime.UtcNow.AddDays(900),
-                UserId   = Me
+                PinnedAt = DateTimeOffset.UtcNow.AddDays(900),
+                UserId = Me,
+                ConversationId = echoConversationId,
+                LastMessageAt = DateTimeOffset.UtcNow
             });
         }
         else
-            echoChat.PinnedAt = DateTime.UtcNow.AddDays(900);
+        {
+            echoChat.PinnedAt = DateTimeOffset.UtcNow.AddDays(900);
+        }
 
         return result.Select(x => x.ToDto()).ToList();
     }
 
     public async Task PinChatAsync(Guid peerId, CancellationToken ct = default)
     {
-        // not allowed pin echo
+        // Not allowed to pin echo
         if (peerId == UserEntity.EchoUser)
             return;
 
@@ -61,28 +68,30 @@ public class UserChatGrain(
         await ExecuteInTransactionAsync(ctx, async () =>
         {
             var now = DateTimeOffset.UtcNow;
+            var conversationId = ConversationEntity.GenerateConversationId(Me, peerId);
 
-            var record = await ctx.UserChatlist
-               .FirstOrDefaultAsync(x => x.UserId == Me && x.PeerId == peerId, ct);
+            var record = await ctx.UserConversations
+                .FirstOrDefaultAsync(x => x.UserId == Me && x.ConversationId == conversationId, ct);
 
             if (record is null)
             {
-                record = new UserChatEntity
+                record = new UserConversationEntity
                 {
-                    UserId          = Me,
-                    PeerId          = peerId,
-                    LastMessageAt   = now,
-                    IsPinned        = true,
-                    PinnedAt        = now,
-                    LastMessageText = null,
+                    UserId = Me,
+                    ConversationId = conversationId,
+                    PeerId = peerId,
+                    LastMessageAt = now,
+                    IsPinned = true,
+                    PinnedAt = now,
+                    LastMessageText = null
                 };
-                ctx.UserChatlist.Add(record);
+                ctx.UserConversations.Add(record);
             }
             else
             {
                 record.IsPinned = true;
                 record.PinnedAt = now;
-                ctx.UserChatlist.Update(record);
+                ctx.UserConversations.Update(record);
             }
 
             await ctx.SaveChangesAsync(ct);
@@ -93,7 +102,7 @@ public class UserChatGrain(
 
     public async Task UnpinChatAsync(Guid peerId, CancellationToken ct = default)
     {
-        // not allowed unpin echo
+        // Not allowed to unpin echo
         if (peerId == UserEntity.EchoUser)
             return;
 
@@ -103,8 +112,10 @@ public class UserChatGrain(
 
         await ExecuteInTransactionAsync(ctx, async () =>
         {
-            var record = await ctx.UserChatlist
-               .FirstOrDefaultAsync(x => x.UserId == Me && x.PeerId == peerId, ct);
+            var conversationId = ConversationEntity.GenerateConversationId(Me, peerId);
+
+            var record = await ctx.UserConversations
+                .FirstOrDefaultAsync(x => x.UserId == Me && x.ConversationId == conversationId, ct);
 
             if (record is null)
                 return;
@@ -112,7 +123,7 @@ public class UserChatGrain(
             record.IsPinned = false;
             record.PinnedAt = null;
 
-            ctx.UserChatlist.Update(record);
+            ctx.UserConversations.Update(record);
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
@@ -130,15 +141,17 @@ public class UserChatGrain(
 
         await ExecuteInTransactionAsync(ctx, async () =>
         {
-            var record = await ctx.UserChatlist
-                .FirstOrDefaultAsync(x => x.UserId == Me && x.PeerId == peerId, ct);
+            var conversationId = ConversationEntity.GenerateConversationId(Me, peerId);
+
+            var record = await ctx.UserConversations
+                .FirstOrDefaultAsync(x => x.UserId == Me && x.ConversationId == conversationId, ct);
 
             if (record is null)
                 return;
 
             unreadCount = record.UnreadCount;
             record.UnreadCount = 0;
-            ctx.UserChatlist.Update(record);
+            ctx.UserConversations.Update(record);
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
@@ -149,13 +162,22 @@ public class UserChatGrain(
         }
     }
 
-    public async Task<long> SendDirectMessageAsync(Guid receiverId, string text, List<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
+    public async Task<long> SendDirectMessageAsync(
+        Guid receiverId,
+        string text,
+        List<IMessageEntity> entities,
+        long randomId,
+        long? replyTo,
+        CancellationToken ct = default)
     {
         var senderId = Me;
 
         logger.LogInformation(
             "SendDirectMessage: {SenderId} -> {ReceiverId}, TextLength={TextLength}, RandomId={RandomId}",
             senderId, receiverId, text?.Length ?? 0, randomId);
+
+        // Get or create conversation
+        var conversation = await conversationService.GetOrCreateConversationAsync(senderId, receiverId, ct);
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -167,39 +189,52 @@ public class UserChatGrain(
 
             try
             {
-                var message = new DirectMessageEntity
+                var now = DateTimeOffset.UtcNow;
+
+                // Create message in new table
+                var message = new DirectMessageV2Entity
                 {
+                    ConversationId = conversation.Id,
                     SenderId = senderId,
-                    ReceiverId = receiverId,
                     Text = text ?? "",
                     Entities = entities ?? [],
-                    CreatedAt = DateTimeOffset.UtcNow,
+                    CreatedAt = now,
                     CreatorId = senderId,
                     ReplyTo = replyTo
                 };
 
-                ctx.DirectMessages.Add(message);
+                ctx.DirectMessagesV2.Add(message);
                 await ctx.SaveChangesAsync(ct);
 
                 var messageId = message.MessageId;
+                var previewText = text?.Length > 200 ? text[..200] : text;
 
-                await UpdateChatPreviewAsync(ctx, senderId, receiverId, text, message.CreatedAt, false, ct);
+                // Update conversation metadata
+                conversation.LastMessageAt = now;
+                conversation.LastMessageText = previewText;
+                conversation.LastMessageSenderId = senderId;
+                ctx.Conversations.Update(conversation);
 
-                await UpdateChatPreviewAsync(ctx, receiverId, senderId, text, message.CreatedAt, true, ct);
+                // Update sender's chat (no unread increment)
+                await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, ct);
+
+                // Update receiver's chat (increment unread)
+                await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, true, ct);
 
                 await ctx.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
                 await notificationCounter.IncrementAsync(receiverId, NotificationCounterType.UnreadDirectMessages, 1, ct);
 
-                var messageDto = message.ToDto();
+                var messageDto = message.ToDto(receiverId);
 
                 var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
 
                 await NotifyAsync(senderId, dmEvent);
                 await NotifyAsync(receiverId, dmEvent);
 
-                logger.LogInformation("DirectMessage sent: MessageId={MessageId}", messageId);
+                logger.LogInformation("DirectMessage sent: MessageId={MessageId}, ConversationId={ConversationId}",
+                    messageId, conversation.Id);
 
                 var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(senderId);
                 _ = statsGrain.IncrementMessagesAsync();
@@ -215,20 +250,23 @@ public class UserChatGrain(
         });
     }
 
-    public async Task<List<DirectMessage>> QueryDirectMessagesAsync(Guid peerId, long? from, int limit, CancellationToken ct = default)
+    public async Task<List<DirectMessage>> QueryDirectMessagesAsync(
+        Guid peerId,
+        long? from,
+        int limit,
+        CancellationToken ct = default)
     {
         var me = Me;
 
         logger.LogDebug("QueryDirectMessages: {Me} <-> {Peer}, From={From}, Limit={Limit}", me, peerId, from, limit);
 
+        var conversationId = ConversationEntity.GenerateConversationId(me, peerId);
+
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        var query = ctx.DirectMessages
+        var query = ctx.DirectMessagesV2
             .AsNoTracking()
-            .Where(m =>
-                (m.SenderId == me && m.ReceiverId == peerId) ||
-                (m.SenderId == peerId && m.ReceiverId == me) ||
-                (m.SenderId == UserEntity.SystemUser && m.ReceiverId == me));
+            .Where(m => m.ConversationId == conversationId);
 
         if (from.HasValue)
         {
@@ -240,76 +278,76 @@ public class UserChatGrain(
             .Take(limit)
             .ToListAsync(ct);
 
-        return messages.Select(m => m.ToDto()).ToList();
+        // Determine receiver for each message
+        return messages.Select(m =>
+        {
+            var receiverId = m.SenderId == me ? peerId : me;
+            return m.ToDto(receiverId);
+        }).ToList();
     }
 
-    public async Task UpdateChatForAsync(Guid userId, Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
+    public async Task UpdateChatForAsync(
+        Guid userId,
+        Guid peerId,
+        string? previewText,
+        DateTimeOffset timestamp,
+        CancellationToken ct = default)
     {
-        var me = userId;
+        logger.LogDebug("UpdateChatForAsync: {UserId} <-> {Peer}", userId, peerId);
 
-        logger.LogDebug("UpdateChatForAsync: {Me} <-> {Peer}", me, peerId);
+        var conversation = await conversationService.GetOrCreateConversationAsync(userId, peerId, ct);
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        await ExecuteInTransactionAsync(ctx, async () => {
-            var record = await ctx.UserChatlist
-               .FirstOrDefaultAsync(x => x.UserId == me && x.PeerId == peerId, ct);
+        await ExecuteInTransactionAsync(ctx, async () =>
+        {
+            // Update conversation
+            conversation.LastMessageAt = timestamp;
+            conversation.LastMessageText = previewText;
+            ctx.Conversations.Update(conversation);
 
-            if (record is null)
-            {
-                record = new UserChatEntity
-                {
-                    UserId          = me,
-                    PeerId          = peerId,
-                    LastMessageAt   = timestamp,
-                    LastMessageText = previewText,
-                    IsPinned        = false,
-                    PinnedAt        = null
-                };
-
-                ctx.UserChatlist.Add(record);
-            }
-            else
-            {
-                record.LastMessageAt   = timestamp;
-                record.LastMessageText = previewText;
-
-                ctx.UserChatlist.Update(record);
-            }
+            // Update user conversation
+            await UpdateUserConversationAsync(ctx, userId, peerId, conversation, previewText, timestamp, false, ct);
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
-        await NotifyAsync(me, new RecentChatUpdatedEvent(
+
+        await NotifyAsync(userId, new RecentChatUpdatedEvent(
             peerId,
-            me,
+            userId,
             previewText,
             timestamp.UtcDateTime
         ));
     }
 
-    public async Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default)
+    public async Task UpdateChatAsync(
+        Guid peerId,
+        string? previewText,
+        DateTimeOffset timestamp,
+        CancellationToken ct = default)
     {
-        var me = Me;
-        await UpdateChatForAsync(me, peerId, previewText, timestamp, ct);
+        await UpdateChatForAsync(Me, peerId, previewText, timestamp, ct);
     }
 
-    private async Task UpdateChatPreviewAsync(
+    private static async Task UpdateUserConversationAsync(
         ApplicationDbContext ctx,
         Guid userId,
         Guid peerId,
+        ConversationEntity conversation,
         string? previewText,
         DateTimeOffset timestamp,
         bool incrementUnread,
         CancellationToken ct)
     {
-        var record = await ctx.UserChatlist
-            .FirstOrDefaultAsync(x => x.UserId == userId && x.PeerId == peerId, ct);
+        var record = await ctx.UserConversations
+            .FirstOrDefaultAsync(x => x.UserId == userId && x.ConversationId == conversation.Id, ct);
 
         if (record is null)
         {
-            record = new UserChatEntity
+            record = new UserConversationEntity
             {
                 UserId = userId,
+                ConversationId = conversation.Id,
                 PeerId = peerId,
                 LastMessageAt = timestamp,
                 LastMessageText = previewText,
@@ -318,7 +356,7 @@ public class UserChatGrain(
                 UnreadCount = incrementUnread ? 1 : 0
             };
 
-            ctx.UserChatlist.Add(record);
+            ctx.UserConversations.Add(record);
         }
         else
         {
@@ -330,10 +368,9 @@ public class UserChatGrain(
                 record.UnreadCount++;
             }
 
-            ctx.UserChatlist.Update(record);
+            ctx.UserConversations.Update(record);
         }
     }
-
 
     private async Task NotifyAsync<T>(Guid userId, T payload) where T : IArgonEvent
     {
@@ -344,8 +381,7 @@ public class UserChatGrain(
         await notifier.NotifySessionsAsync(sessions, payload);
     }
 
-
-    private async static Task ExecuteInTransactionAsync(
+    private static async Task ExecuteInTransactionAsync(
         ApplicationDbContext ctx,
         Func<Task> action,
         CancellationToken ct)
