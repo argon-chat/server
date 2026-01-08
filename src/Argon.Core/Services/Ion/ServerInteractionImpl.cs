@@ -61,15 +61,27 @@ public class ServerInteractionImpl : IServerInteraction
     public async Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).GetFullyServerArchetypes();
 
-    public Task<Guid> BeginUploadSpaceProfileHeader(Guid spaceId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async Task<Guid> BeginUploadSpaceProfileHeader(Guid spaceId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<ISpaceGrain>(spaceId).BeginUploadSpaceFile(SpaceFileKind.ProfileHeader, ct);
 
-    public Task CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+        if (result.IsSuccess)
+            return result.Value.Id;
+        throw new InvalidOperationException($"Failed to begin upload: {result.Error}");
+    }
 
-    public Task<Guid> BeginUploadSpaceAvatar(Guid spaceId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async Task CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.ProfileHeader, ct);
 
-    public Task CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async Task<Guid> BeginUploadSpaceAvatar(Guid spaceId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<ISpaceGrain>(spaceId).BeginUploadSpaceFile(SpaceFileKind.Avatar, ct);
+
+        if (result.IsSuccess)
+            return result.Value.Id;
+        throw new InvalidOperationException($"Failed to begin upload: {result.Error}");
+    }
+
+    public async Task CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.Avatar, ct);
 }

@@ -68,6 +68,12 @@ public interface ISpaceGrain : IGrainWithGuidKey
 
     [Alias(nameof(PrefetchProfile))]
     Task<ArgonUserProfile> PrefetchProfile(Guid userId);
+
+    [Alias(nameof(BeginUploadSpaceFile))]
+    ValueTask<Either<BlobId, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteUploadSpaceFile))]
+    ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);
 }
 
 public enum ServerCreationError
@@ -80,3 +86,9 @@ public sealed record ServerInput(
     string? Name,
     string? Description,
     string? AvatarUrl);
+
+public enum SpaceFileKind
+{
+    Avatar,
+    ProfileHeader
+}

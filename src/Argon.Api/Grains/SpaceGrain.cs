@@ -6,6 +6,7 @@ using Argon.Api.Features.Utils;
 using Services.L1L2;
 using Core.Services;
 using Features.Logic;
+using Features.MediaStorage;
 using Features.Repositories;
 using ion.runtime;
 using Orleans.GrainDirectory;
@@ -22,6 +23,7 @@ public class SpaceGrain(
     IArchetypeAgent archetypeAgent,
     IEntitlementChecker entitlementChecker,
     ISystemMessageService systemMessageService,
+    IKineticaFSApi kineticaFs,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
     private IDistributedArgonStream<IArgonEvent> _serverEvents;
@@ -581,5 +583,86 @@ public class SpaceGrain(
            .Where(g => g.SpaceId == this.GetPrimaryKey())
            .OrderBy(g => g.FractionalIndex)
            .ToListAsync();
+    }
+
+    private static uint GetLimitFor(SpaceFileKind kind)
+        => kind switch
+        {
+            SpaceFileKind.Avatar        => 4,
+            SpaceFileKind.ProfileHeader => 8,
+            _                           => 2
+        };
+
+    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx,
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageServer,
+            ct);
+
+        if (!hasPermission)
+            return UploadFileError.NOT_AUTHORIZED;
+
+        try
+        {
+            var result = await kineticaFs.CreateUploadUrlAsync(GetLimitFor(kind), null, ct);
+            return new BlobId(result);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed upload space file {kind} for space {spaceId}", kind, spaceId);
+            return UploadFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx,
+            spaceId,
+            callerId,
+            ArgonEntitlement.ManageServer,
+            ct);
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage server");
+
+        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        await UpdateFileIdFor(kind, fileId, ct);
+    }
+
+    private async ValueTask UpdateFileIdFor(SpaceFileKind kind, Guid fileId, CancellationToken ct = default)
+    {
+        var spaceId = this.GetPrimaryKey();
+
+        await using var ctx   = await context.CreateDbContextAsync(ct);
+        var             space = await ctx.Spaces.FirstAsync(x => x.Id == spaceId, cancellationToken: ct);
+
+        switch (kind)
+        {
+            case SpaceFileKind.Avatar:
+                space.AvatarFileId = fileId.ToString();
+                break;
+            case SpaceFileKind.ProfileHeader:
+                space.TopBannedFileId = fileId.ToString();
+                break;
+        }
+
+        await ctx.SaveChangesAsync(ct);
+
+        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId);
+        await _serverEvents.Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 }

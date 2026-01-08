@@ -183,6 +183,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<DirectMessageSent>.Value = new Ion_DirectMessageSent_Formatter();
       IonFormatterStorage<UpdatedNotificationCounters>.Value = new Ion_UpdatedNotificationCounters_Formatter();
       IonFormatterStorage<UserSecurityDetailsUpdated>.Value = new Ion_UserSecurityDetailsUpdated_Formatter();
+      IonFormatterStorage<SpaceDetailsUpdated>.Value = new Ion_SpaceDetailsUpdated_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

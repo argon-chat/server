@@ -1404,6 +1404,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsUserSecurityDetailsUpdated => this is UserSecurityDetailsUpdated;
 
+    internal bool IsSpaceDetailsUpdated => this is SpaceDetailsUpdated;
+
 }
 
 
@@ -1701,6 +1703,13 @@ public sealed record UserSecurityDetailsUpdated(guid userId, SecurityDetails det
     public uint UnionIndex => 41;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceDetailsUpdated(guid spaceId, ArgonSpaceBase details) : IArgonEvent
+{
+    public string UnionKey => nameof(SpaceDetailsUpdated);
+    public uint UnionIndex => 42;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1838,6 +1847,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 41)
             result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
+
+        else if (unionIndex == 42)
+            result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -2144,6 +2156,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_41.UnionIndex != 41)
                 throw new InvalidOperationException();
             IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_41);
+        }
+
+        else if (value is SpaceDetailsUpdated n_42)
+        {
+            if (n_42.UnionIndex != 42)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_42);
         }
     
         else
@@ -3139,6 +3158,29 @@ public sealed class Ion_UserSecurityDetailsUpdated_Formatter : IonFormatter<User
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<SecurityDetails>.Write(writer, value.details);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDetailsUpdated_Formatter : IonFormatter<SpaceDetailsUpdated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDetailsUpdated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __details = IonFormatterStorage<ArgonSpaceBase>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __details);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDetailsUpdated value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<ArgonSpaceBase>.Write(writer, value.details);
         writer.WriteEndArray();
     }
 }
