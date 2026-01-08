@@ -1,12 +1,21 @@
 namespace Argon.Features.Integrations.Phones.Prelude;
 
 using Flurl.Http;
+using Flurl.Http.Newtonsoft;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 public class PreludePhoneChannel : IPhoneChannel
 {
     private readonly IFlurlClient _client;
     private readonly ILogger<PreludePhoneChannel> _logger;
     private readonly PreludeChannelOptions _options;
+
+    private static readonly JsonSerializerSettings JsonSettings = new()
+    {
+        Converters = { new StringEnumConverter() },
+        NullValueHandling = NullValueHandling.Ignore
+    };
 
     public PreludePhoneChannel(
         ILogger<PreludePhoneChannel> logger,
@@ -16,7 +25,8 @@ public class PreludePhoneChannel : IPhoneChannel
         _options = options.Value.Prelude;
 
         _client = new FlurlClient(_options.Endpoint)
-            .WithOAuthBearerToken(_options.Token);
+            .WithOAuthBearerToken(_options.Token)
+            .WithSettings(s => s.JsonSerializer = new NewtonsoftJsonSerializer(JsonSettings));
     }
 
     public PhoneChannelKind Kind => PhoneChannelKind.Prelude;
@@ -81,8 +91,10 @@ public class PreludePhoneChannel : IPhoneChannel
         }
         catch (FlurlHttpException ex)
         {
-            _logger.LogWarning(ex, "Prelude send verification failed");
-            return new PhoneSendResult(false, ErrorReason: ex.Message);
+            var errorBody = await ex.GetResponseStringAsync();
+            _logger.LogWarning(ex, "Prelude send verification failed. Status: {StatusCode}, Body: {ErrorBody}",
+                ex.StatusCode, errorBody);
+            return new PhoneSendResult(false, ErrorReason: $"{ex.StatusCode}: {errorBody}");
         }
     }
 
@@ -101,7 +113,7 @@ public class PreludePhoneChannel : IPhoneChannel
         {
             _logger.LogInformation("Checking Prelude verification");
 
-            var result = await _client.Request("/v2/verification").PostJsonAsync(new
+            var result = await _client.Request("/v2/verification/check").PostJsonAsync(new
             {
                 target = new
                 {
@@ -126,7 +138,9 @@ public class PreludePhoneChannel : IPhoneChannel
         }
         catch (FlurlHttpException ex)
         {
-            _logger.LogWarning(ex, "Prelude verify code failed");
+            var errorBody = await ex.GetResponseStringAsync();
+            _logger.LogWarning(ex, "Prelude verify code failed. Status: {StatusCode}, Body: {ErrorBody}",
+                ex.StatusCode, errorBody);
             return new PhoneVerifyResult(PhoneVerifyStatus.Error);
         }
     }

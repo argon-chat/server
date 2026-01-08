@@ -1,12 +1,24 @@
 namespace Argon.Features.Integrations.Phones.Telegram;
 
 using Flurl.Http;
+using Flurl.Http.Newtonsoft;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
 
 public class TelegramPhoneChannel : IPhoneChannel
 {
     private readonly IFlurlClient _client;
     private readonly ILogger<TelegramPhoneChannel> _logger;
     private readonly TelegramChannelOptions _options;
+
+    private static readonly JsonSerializerSettings JsonSettings = new()
+    {
+        Converters = { new StringEnumConverter() },
+        NullValueHandling = NullValueHandling.Ignore
+    };
+
+    private const int MaxFloodWaitRetries = 3;
+    private const int MaxFloodWaitSeconds = 30;
 
     public TelegramPhoneChannel(
         ILogger<TelegramPhoneChannel> logger,
@@ -16,7 +28,8 @@ public class TelegramPhoneChannel : IPhoneChannel
         _options = options.Value.Telegram;
 
         _client = new FlurlClient(_options.Endpoint)
-            .WithOAuthBearerToken(_options.Token);
+            .WithOAuthBearerToken(_options.Token)
+            .WithSettings(s => s.JsonSerializer = new NewtonsoftJsonSerializer(JsonSettings));
     }
 
     public PhoneChannelKind Kind => PhoneChannelKind.Telegram;
@@ -44,7 +57,7 @@ public class TelegramPhoneChannel : IPhoneChannel
 
             var resp = await result.GetJsonAsync<TelegramGatewayResponse<CheckSendAbilityResp>>();
 
-            if (!resp.ok)
+            if (!resp.ok || resp.result is null)
             {
                 _logger.LogDebug("Telegram send ability check failed: {Error}", resp.error);
                 return false;
@@ -84,9 +97,14 @@ public class TelegramPhoneChannel : IPhoneChannel
             ["Channel"] = Kind
         });
 
+        return await SendCodeWithRetryAsync(request, 0, ct);
+    }
+
+    private async Task<PhoneSendResult> SendCodeWithRetryAsync(PhoneSendRequest request, int retryCount, CancellationToken ct)
+    {
         try
         {
-            _logger.LogInformation("Sending Telegram verification message");
+            _logger.LogInformation("Sending Telegram verification message (attempt {Attempt})", retryCount + 1);
 
             var result = await _client.Request("/sendVerificationMessage").PostJsonAsync(new
             {
@@ -97,10 +115,23 @@ public class TelegramPhoneChannel : IPhoneChannel
 
             var resp = await result.GetJsonAsync<TelegramGatewayResponse<SendVerificationMessageResp>>();
 
-            if (!resp.ok)
+            if (!resp.ok || resp.result is null)
             {
+                // Check for FLOOD_WAIT error
+                if (resp.error is not null && TryParseFloodWait(resp.error, out var waitSeconds))
+                {
+                    if (retryCount < MaxFloodWaitRetries && waitSeconds <= MaxFloodWaitSeconds)
+                    {
+                        _logger.LogWarning("Telegram FLOOD_WAIT_{Seconds}, waiting and retrying...", waitSeconds);
+                        await Task.Delay(TimeSpan.FromSeconds(waitSeconds), ct);
+                        return await SendCodeWithRetryAsync(request, retryCount + 1, ct);
+                    }
+
+                    _logger.LogWarning("Telegram FLOOD_WAIT_{Seconds} exceeded max retries or wait time", waitSeconds);
+                }
+
                 _logger.LogWarning("Telegram send failed: {Error}", resp.error);
-                return new PhoneSendResult(false, ErrorReason: resp.error?.ToString());
+                return new PhoneSendResult(false, ErrorReason: resp.error);
             }
 
             _logger.LogInformation(
@@ -117,6 +148,16 @@ public class TelegramPhoneChannel : IPhoneChannel
             _logger.LogWarning(ex, "Telegram sendVerificationMessage failed");
             return new PhoneSendResult(false, ErrorReason: ex.Message);
         }
+    }
+
+    private static bool TryParseFloodWait(string error, out int seconds)
+    {
+        seconds = 0;
+        if (!error.StartsWith("FLOOD_WAIT_", StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        var secondsPart = error["FLOOD_WAIT_".Length..];
+        return int.TryParse(secondsPart, out seconds) && seconds > 0;
     }
 
     public async Task<PhoneVerifyResult> VerifyCodeAsync(PhoneVerifyRequest request, CancellationToken ct = default)
@@ -145,7 +186,7 @@ public class TelegramPhoneChannel : IPhoneChannel
 
             var resp = await result.GetJsonAsync<TelegramGatewayResponse<CheckVerificationStatusResp>>();
 
-            if (!resp.ok)
+            if (!resp.ok || resp.result is null)
             {
                 _logger.LogWarning("Telegram verification check failed: {Error}", resp.error);
                 return new PhoneVerifyResult(PhoneVerifyStatus.Error);
@@ -172,13 +213,7 @@ public class TelegramPhoneChannel : IPhoneChannel
 
     #region Response DTOs
 
-    private enum TgGatewayError
-    {
-        PAYLOAD_INVALID,
-        PHONE_NUMBER_NOT_AVAILABLE
-    }
-
-    private record TelegramGatewayResponse<T>(bool ok, T result, TgGatewayError? error);
+    private record TelegramGatewayResponse<T>(bool ok, T? result, string? error);
 
     private record CheckSendAbilityResp(
         string request_id,
@@ -197,7 +232,7 @@ public class TelegramPhoneChannel : IPhoneChannel
     private record DeliveryStatusEntity(DeliveryStatusKind status, long updated_at);
 
     private enum VerificationStatusKind { code_valid, code_invalid, code_max_attempts_exceeded, expired }
-    private record VerificationStatusEntity(VerificationStatusKind status, long updated_at, string code_entered);
+    private record VerificationStatusEntity(VerificationStatusKind status, long updated_at, string? code_entered);
 
     private record CheckVerificationStatusResp(
         string request_id,

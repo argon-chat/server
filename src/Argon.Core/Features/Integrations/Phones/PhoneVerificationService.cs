@@ -6,7 +6,7 @@ using Twilio;
 
 /// <summary>
 /// Phone verification service with fallback logic.
-/// Priority: Telegram (free) -> Prelude/Twilio (paid fallback)
+/// Priority: Telegram -> Prelude/Twilio
 /// </summary>
 public class PhoneVerificationService(
     ILogger<PhoneVerificationService> logger,
