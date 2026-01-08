@@ -3,7 +3,6 @@ namespace Argon.Api.Features.Bus;
 using Argon.Features.NatsStreaming;
 using System.Runtime.CompilerServices;
 using System.Threading.Channels;
-using Consul;
 
 public interface IStreamExtension
 {
@@ -62,7 +61,7 @@ public readonly struct StreamForClusterClientExtension(IClusterClient client) : 
     }
 }
 
-public class SubscriptionController(IClusterClient client)
+public class SubscriptionController(IClusterClient client, ILogger<SubscriptionController> logger) : IAsyncDisposable
 {
     private readonly ConcurrentDictionary<Guid, SessionContext> sessions = new();
 
@@ -72,7 +71,7 @@ public class SubscriptionController(IClusterClient client)
         [EnumeratorCancellation] CancellationToken ct)
     {
         if (sessions.ContainsKey(sessionId))
-            CleanupSession(sessionId);
+            await CleanupSessionAsync(sessionId);
 
         var ctx = new SessionContext(sessionId, userId, ct);
         sessions[sessionId] = ctx;
@@ -86,7 +85,7 @@ public class SubscriptionController(IClusterClient client)
         }
         finally
         {
-            CleanupSession(sessionId);
+            await CleanupSessionAsync(sessionId);
         }
     }
 
@@ -104,39 +103,90 @@ public class SubscriptionController(IClusterClient client)
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.SessionToken);
         ctx.Topics[topicId] = linkedCts;
 
+        // Don't pass token to Task.Run - we handle cancellation inside the task
         _ = Task.Run(async () => {
+            IArgonStream<IArgonEvent>? stream = null;
             try
             {
-                var stream = await client.Streams().CreateClientStream(topicId);
+                stream = await client.Streams().CreateClientStream(topicId);
                 await foreach (var ev in stream.WithCancellation(linkedCts.Token))
                 {
                     ctx.EventChannel.Writer.TryWrite(ev);
                 }
             }
-            catch (OperationCanceledException) { }
+            catch (OperationCanceledException)
+            {
+                // Expected when topic is unsubscribed or session ends
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Error in topic subscription for session {SessionId}, topic {TopicId}", 
+                    ctx.SessionId, topicId);
+            }
             finally
             {
-                ctx.Topics.TryRemove(topicId, out _);
+                if (stream is not null)
+                {
+                    try
+                    {
+                        await stream.DisposeAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogWarning(ex, "Error disposing stream for topic {TopicId}", topicId);
+                    }
+                }
+                
+                if (ctx.Topics.TryRemove(topicId, out var cts))
+                    cts.Dispose();
             }
-        }, linkedCts.Token);
+        });
     }
 
     public void UnsubscribeTopic(SessionContext ctx, Guid topicId)
     {
         if (ctx.Topics.TryRemove(topicId, out var cts))
+        {
             cts.Cancel();
+            cts.Dispose();
+        }
     }
 
-    private void CleanupSession(Guid sessionId)
+    private async ValueTask CleanupSessionAsync(Guid sessionId)
     {
-        if (!sessions.TryRemove(sessionId, out var ctx)) return;
+        if (!sessions.TryRemove(sessionId, out var ctx)) 
+            return;
 
-        ctx.SessionCts.Cancel();
+        await ctx.SessionCts.CancelAsync();
 
-        foreach (var cts in ctx.Topics.Values)
-            cts.Cancel();
-
+        foreach (var (topicId, cts) in ctx.Topics)
+        {
+            try
+            {
+                await cts.CancelAsync();
+            }
+            finally
+            {
+                cts.Dispose();
+            }
+        }
+        
+        ctx.Topics.Clear();
+        ctx.SessionCts.Dispose();
         ctx.EventChannel.Writer.TryComplete();
+        
+        logger.LogDebug("Cleaned up session {SessionId}", sessionId);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        var sessionIds = sessions.Keys.ToArray();
+        foreach (var sessionId in sessionIds)
+        {
+            await CleanupSessionAsync(sessionId);
+        }
+        
+        logger.LogInformation("SubscriptionController disposed, cleaned up {Count} sessions", sessionIds.Length);
     }
 
     public record SessionContext(Guid SessionId, Guid UserId, CancellationToken SessionToken)

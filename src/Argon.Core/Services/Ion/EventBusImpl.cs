@@ -10,8 +10,16 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         var client = this.GetClusterClient();
         await client.GetGrain<IUserSessionGrain>(this.GetSessionId()).BeginRealtimeSession();
 
-        await foreach (var e in await client.Streams().CreateClientStream(spaceId).ConfigureAwait(false))
-            yield return e;
+        var stream = await client.Streams().CreateClientStream(spaceId);
+        try
+        {
+            await foreach (var e in stream.WithCancellation(ct))
+                yield return e;
+        }
+        finally
+        {
+            await stream.DisposeAsync();
+        }
     }
         
     public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => 
@@ -27,19 +35,20 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         await client.GetGrain<IUserSessionGrain>(sessionId).BeginRealtimeSession();
 
         var masterStream = await client.Streams().GetOrCreateSubscriptionCoupler(sessionId, userId, ct);
-        var subscriptionTask = SubscribeTyMySpaces(userId, sessionId, client, ct);
+        var subscriptionTask = SubscribeToMySpacesAsync(userId, sessionId, client, ct);
 
-        await foreach (var ev in MergeStreams(masterStream, dispatchEvents, client, sessionId, ct).ConfigureAwait(false))
+        await foreach (var ev in MergeStreams(masterStream, dispatchEvents, client, sessionId, logger, ct))
             yield return ev;
 
         await subscriptionTask;
     }
 
-    private async static IAsyncEnumerable<IArgonEvent> MergeStreams(
+    private static async IAsyncEnumerable<IArgonEvent> MergeStreams(
         IAsyncEnumerable<IArgonEvent> serverEvents,
         IAsyncEnumerable<IArgonClientEvent>? clientEvents,
         IClusterClient client,
         Guid sessionId,
+        ILogger logger,
         [EnumeratorCancellation] CancellationToken ct)
     {
         var serverEnum = serverEvents.GetAsyncEnumerator(ct);
@@ -47,8 +56,10 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
 
         try
         {
-            var serverTask = GetNextOrNull(serverEnum, ct);
-            var clientTask = clientEnum != null ? ProcessNextClientEvent(clientEnum, client, sessionId, ct) : Task.FromResult(false);
+            var serverTask = GetNextOrNullAsync(serverEnum);
+            var clientTask = clientEnum != null 
+                ? ProcessNextClientEventAsync(clientEnum, client, sessionId, logger) 
+                : Task.FromResult(false);
 
             while (!ct.IsCancellationRequested)
             {
@@ -60,75 +71,86 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
                     if (serverEvent == null) break;
 
                     yield return serverEvent;
-                    serverTask = GetNextOrNull(serverEnum, ct);
+                    serverTask = GetNextOrNullAsync(serverEnum);
                 }
                 else
                 {
                     if (!await clientTask) break;
-                    clientTask = ProcessNextClientEvent(clientEnum!, client, sessionId, ct);
+                    clientTask = ProcessNextClientEventAsync(clientEnum!, client, sessionId, logger);
                 }
             }
         }
         finally
         {
-            await DisposeEnumeratorSafely(serverEnum);
+            await DisposeEnumeratorSafelyAsync(serverEnum, logger);
             if (clientEnum != null)
             {
-                await DisposeEnumeratorSafely(clientEnum);
+                await DisposeEnumeratorSafelyAsync(clientEnum, logger);
             }
         }
     }
 
-    private async static ValueTask DisposeEnumeratorSafely<T>(IAsyncEnumerator<T> enumerator)
+    private static async ValueTask DisposeEnumeratorSafelyAsync<T>(IAsyncEnumerator<T> enumerator, ILogger logger)
     {
         try
         {
             await enumerator.DisposeAsync();
         }
-        catch (NotSupportedException)
+        catch (OperationCanceledException)
         {
-            // Some stream implementations throw on dispose after cancellation
+            // Expected on cancellation
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Error disposing enumerator");
         }
     }
 
-    private async static Task<IArgonEvent?> GetNextOrNull(IAsyncEnumerator<IArgonEvent> enumerator, CancellationToken ct)
+    private static async Task<IArgonEvent?> GetNextOrNullAsync(IAsyncEnumerator<IArgonEvent> enumerator)
     {
         try
         {
             return await enumerator.MoveNextAsync() ? enumerator.Current : null;
         }
-        catch (NotSupportedException)
+        catch (OperationCanceledException)
         {
             return null;
         }
     }
 
-    private async static Task<bool> ProcessNextClientEvent(
+    private static async Task<bool> ProcessNextClientEventAsync(
         IAsyncEnumerator<IArgonClientEvent> enumerator,
         IClusterClient client,
         Guid sessionId,
-        CancellationToken ct)
+        ILogger logger)
     {
         try
         {
-            if (!await enumerator.MoveNextAsync()) return false;
-            await DispatchTree(enumerator.Current, client, sessionId, ct);
+            if (!await enumerator.MoveNextAsync()) 
+                return false;
+            
+            await DispatchTree(enumerator.Current, client, sessionId);
             return true;
         }
-        catch (NotSupportedException)
+        catch (OperationCanceledException)
         {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error processing client event");
             return false;
         }
     }
 
-    private async ValueTask SubscribeTyMySpaces(Guid userId, Guid sessionId, IClusterClient client, CancellationToken ct = default)
+    private static async ValueTask SubscribeToMySpacesAsync(Guid userId, Guid sessionId, IClusterClient client, CancellationToken ct = default)
     {
         var spaceIds = await client.GetGrain<IUserGrain>(userId).GetMyServersIds(ct);
         var tasks = spaceIds.Select(spaceId => client.Streams().AssignSubscribe(sessionId, spaceId).AsTask());
         await Task.WhenAll(tasks);
     }
 
-    private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
+    private static async ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
     {
         var sessionGrain = client.GetGrain<IUserSessionGrain>(sessionId);
 
@@ -146,8 +168,6 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
                 break;
             case SubscribeToMySpaces:
                 break;
-            default:
-                return;
         }
     }
 }

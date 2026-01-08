@@ -15,18 +15,18 @@ public interface IDistributedArgonStream<T> : IAsyncDisposable where T : IArgonE
     ValueTask Fire(T ev, CancellationToken ct = default);
 }
 
-public class StreamManagement(IServiceProvider serviceProvider) : IStreamManagement
+public class StreamManagement(IServiceProvider serviceProvider, ILogger<StreamManagement> logger) : IStreamManagement, IDisposable
 {
     private readonly ConcurrentDictionary<StreamId, ServerStreamEntry<IArgonEvent>> cache = new();
-
-    private readonly AsyncLock guarder = new();
+    private readonly SemaphoreSlim _semaphore = new(1, 1);
 
     public ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStreamFor(Guid targetId)
         => CreateServerStream(StreamId.Create("@", targetId));
 
     public async ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStream(StreamId streamId)
     {
-        using (await guarder.WaitAsync())
+        await _semaphore.WaitAsync();
+        try
         {
             if (!cache.TryGetValue(streamId, out var entry))
             {
@@ -34,57 +34,94 @@ public class StreamManagement(IServiceProvider serviceProvider) : IStreamManagem
                    .GetRequiredService<NatsContext>()
                    .CreateWriteStream(streamId);
 
-                entry           = new ServerStreamEntry<IArgonEvent>(stream, () => cache.TryRemove(streamId, out _));
+                entry = new ServerStreamEntry<IArgonEvent>(stream, streamId, OnEntryEmpty, logger);
                 cache[streamId] = entry;
+                logger.LogDebug("Created new write stream for {StreamId}", streamId);
             }
 
             entry.Increment();
             return new DistributedArgonStream<IArgonEvent>(entry);
         }
+        finally
+        {
+            _semaphore.Release();
+        }
+    }
+    
+    private void OnEntryEmpty(StreamId streamId)
+    {
+        cache.TryRemove(streamId, out _);
+        logger.LogDebug("Removed write stream {StreamId} from cache (no references)", streamId);
+    }
+    
+    public void Dispose()
+    {
+        _semaphore.Dispose();
     }
 
     private sealed class DistributedArgonStream<T>(ServerStreamEntry<T> entry) : IDistributedArgonStream<T> where T : IArgonEvent
     {
+        private int _disposed;
+        
         public IArgonStream<T> Stream => entry.Stream;
 
         public ValueTask Fire(T ev, CancellationToken ct = default)
-            => Stream.Fire(ev, ct);
+        {
+            ObjectDisposedException.ThrowIf(_disposed == 1, this);
+            return Stream.Fire(ev, ct);
+        }
 
-        public ValueTask DisposeAsync()
-            => entry.DecrementAsync();
+        public async ValueTask DisposeAsync()
+        {
+            if (Interlocked.Exchange(ref _disposed, 1) == 1)
+                return;
+            
+            await entry.DecrementAsync();
+        }
     }
 
-    private sealed class ServerStreamEntry<T>(IArgonStream<T> stream, Action onEmpty) where T : IArgonEvent
+    private sealed class ServerStreamEntry<T>(
+        IArgonStream<T> stream, 
+        StreamId streamId, 
+        Action<StreamId> onEmpty,
+        ILogger logger) where T : IArgonEvent
     {
+        private readonly object _lock = new();
+        
         public  IArgonStream<T> Stream { get; } = stream;
         private int             _refCount;
 
-        public void Increment() => Interlocked.Increment(ref _refCount);
+        public void Increment()
+        {
+            lock (_lock)
+            {
+                _refCount++;
+            }
+        }
 
         public async ValueTask DecrementAsync()
         {
-            if (Interlocked.Decrement(ref _refCount) != 0)
+            bool shouldDispose;
+            lock (_lock)
+            {
+                _refCount--;
+                shouldDispose = _refCount == 0;
+            }
+
+            if (!shouldDispose)
                 return;
 
-            await Stream.DisposeAsync();
+            try
+            {
+                await Stream.DisposeAsync();
+                logger.LogDebug("Disposed write stream for {StreamId}", streamId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Error disposing write stream for {StreamId}", streamId);
+            }
 
-            onEmpty();
-        }
-    }
-
-    private sealed class AsyncLock
-    {
-        private readonly SemaphoreSlim _semaphore = new(1, 1);
-
-        public async Task<IDisposable> WaitAsync()
-        {
-            await _semaphore.WaitAsync();
-            return new Releaser(_semaphore);
-        }
-
-        private sealed class Releaser(SemaphoreSlim semaphore) : IDisposable
-        {
-            public void Dispose() => semaphore.Release();
+            onEmpty(streamId);
         }
     }
 }

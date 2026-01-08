@@ -318,7 +318,7 @@ public class SecurityGrain(
             var secret = await totpKeyStore.CreateSecret(UserId, ct);
             var base32Secret = Base32Encoding.ToString(secret);
 
-            var issuer = "Argon";
+            var issuer = "ArgonChat";
             var qrCodeUrl = $"otpauth://totp/{issuer}:{Uri.EscapeDataString(user.Email)}?secret={base32Secret}&issuer={issuer}";
 
             return new SuccessEnableOTP(base32Secret, qrCodeUrl);

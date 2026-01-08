@@ -15,15 +15,31 @@ public static class StreamingPumpEx
 }
 
 
-internal class StreamAdapter(IServiceProvider provider, StreamId streamId) : IStreamAdapter<IArgonEvent>
+internal class StreamAdapter(IServiceProvider provider, StreamId streamId, ILogger<StreamAdapter> logger) : IStreamAdapter<IArgonEvent>
 {
-    public async IAsyncEnumerable<IArgonEvent> BeginStream(CancellationToken ct = default)
+    public async IAsyncEnumerable<IArgonEvent> BeginStream([EnumeratorCancellation] CancellationToken ct = default)
     {
         var stream = await provider
            .GetRequiredService<NatsContext>()
            .CreateReadStream(streamId, ct);
-        await foreach (var e in stream.WithCancellation(ct))
-            yield return e;
+        
+        try
+        {
+            await foreach (var e in stream.WithCancellation(ct))
+                yield return e;
+        }
+        finally
+        {
+            try
+            {
+                await stream.DisposeAsync();
+                logger.LogDebug("Disposed read stream for {StreamId}", streamId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Error disposing read stream for {StreamId}", streamId);
+            }
+        }
     }
 }
 
@@ -38,12 +54,11 @@ public class PumpStreamStorage(ILogger<IStreamingPump<IArgonEvent>> logger, ISer
 
     public IStreamingPump<IArgonEvent> GetStreamFor(StreamId streamId)
     {
-        if (pumps.TryGetValue(streamId, out var pump))
-            return pump;
-        pumps.TryAdd(streamId, new StreamingPump<IArgonEvent>(logger, new StreamAdapter(provider, streamId)));
-        if (pumps.TryGetValue(streamId, out pump))
-            return pump;
-        throw new InvalidAsynchronousStateException();
+        return pumps.GetOrAdd(streamId, static (id, state) => 
+        {
+            var adapterLogger = state.provider.GetRequiredService<ILogger<StreamAdapter>>();
+            return new StreamingPump<IArgonEvent>(state.logger, new StreamAdapter(state.provider, id, adapterLogger), id);
+        }, (logger, provider));
     }
 }
 
@@ -55,17 +70,22 @@ public interface IStreamAdapter<out T>
 public interface IStreamingPump<out T>
 {
     IAsyncEnumerable<T> Subscribe(CancellationToken ct = default);
+    
+    bool IsIdle { get; }
 }
 
-public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamAdapter<T> sourceFactory) : IStreamingPump<T>
+public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamAdapter<T> sourceFactory, StreamId streamId) : IStreamingPump<T>
 {
     private readonly ConcurrentDictionary<int, Channel<T>> subscribers = new();
+    private readonly object _lock = new();
 
     private int subscriberCount;
     private int nextId;
 
     private CancellationTokenSource? pumpCts;
     private Task?                    pumpTask;
+
+    public bool IsIdle => subscriberCount == 0;
 
     public IAsyncEnumerable<T> Subscribe(CancellationToken ct = default)
     {
@@ -82,7 +102,8 @@ public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamA
 
         if (Interlocked.Increment(ref subscriberCount) == 1)
             StartPumpIfNeeded();
-        logger.LogInformation("Begin stream reading...");
+        
+        logger.LogDebug("Subscriber {SubscriberId} joined stream {StreamId}, total: {Count}", id, streamId, subscriberCount);
         return ReadLoop(id, channel.Reader, ct);
     }
 
@@ -100,46 +121,56 @@ public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamA
         {
             if (subscribers.TryRemove(id, out var ch))
                 ch.Writer.TryComplete();
-            logger.LogInformation("Stop stream reading...");
-            if (Interlocked.Decrement(ref subscriberCount) == 0)
+            
+            var remaining = Interlocked.Decrement(ref subscriberCount);
+            logger.LogDebug("Subscriber {SubscriberId} left stream {StreamId}, remaining: {Count}", id, streamId, remaining);
+            
+            if (remaining == 0)
                 StopPumpIfIdle();
         }
     }
 
     private void StartPumpIfNeeded()
     {
-        logger.LogInformation("Pump started...");
-        var cts      = new CancellationTokenSource();
-        var existing = Interlocked.CompareExchange(ref pumpCts, cts, null);
-        if (existing != null)
+        lock (_lock)
         {
-            cts.Dispose();
-            return;
+            if (pumpCts != null)
+                return;
+            
+            logger.LogInformation("Starting pump for stream {StreamId}", streamId);
+            var cts = new CancellationTokenSource();
+            pumpCts = cts;
+
+            var task = PumpAsync(cts.Token);
+            pumpTask = task;
+
+            _ = task.ContinueWith(t =>
+            {
+                if (t.IsFaulted)
+                    logger.LogWarning(t.Exception, "Pump for stream {StreamId} has failed", streamId);
+            }, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
         }
-
-        var task = PumpAsync(cts.Token);
-        pumpTask = task;
-
-        _ = task.ContinueWith(t =>
-        {
-            var _ = t.Exception;
-            logger.LogWarning(t.Exception, "Pump has failed");
-        }, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously);
     }
 
     private void StopPumpIfIdle()
     {
-        var cts = Interlocked.Exchange(ref pumpCts, null);
-        if (cts == null) return;
+        lock (_lock)
+        {
+            var cts = pumpCts;
+            if (cts == null) 
+                return;
 
-        try
-        {
-            cts.Cancel();
-        }
-        finally
-        {
-            cts.Dispose();
-            logger.LogInformation("Pump has stopped because no active reader");
+            pumpCts = null;
+            
+            try
+            {
+                cts.Cancel();
+            }
+            finally
+            {
+                cts.Dispose();
+                logger.LogInformation("Pump for stream {StreamId} stopped - no active readers", streamId);
+            }
         }
     }
 
@@ -158,16 +189,21 @@ public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamA
         }
         catch (OperationCanceledException)
         {
+            // Expected on shutdown
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "Pump for stream {StreamId} encountered an error", streamId);
             foreach (var ch in subscribers.Values)
                 ch.Writer.TryComplete(new OperationCanceledException("pump faulted"));
             throw;
         }
         finally
         {
-            pumpTask = null;
+            lock (_lock)
+            {
+                pumpTask = null;
+            }
         }
     }
 }

@@ -16,7 +16,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
 {
     public async Task<IArgonStream<IArgonEvent>> CreateWriteStream(StreamId id)
     {
-        logger.LogInformation("Begin create write stream for '{streamID}'", id);
+        logger.LogDebug("Creating write stream for '{StreamId}'", id);
 
         var stream = ActivatorUtilities.CreateInstance<NatsArgonWriteOnlyStream>(provider, id, client.CreateJetStreamContext());
 
@@ -26,7 +26,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, "Failed to create write stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
+            logger.LogCritical(e, "Failed to create write stream for '{StreamId}'->'{NatsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
 
@@ -35,7 +35,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
 
     public async Task<IArgonStream<IArgonEvent>> CreateReadStream(StreamId id, CancellationToken ct = default)
     {
-        logger.LogInformation("Begin create read stream for '{streamID}'", id);
+        logger.LogDebug("Creating read stream for '{StreamId}'", id);
         var stream = ActivatorUtilities.CreateInstance<NatsArgonReadOnlyStream>(provider, id, client.CreateJetStreamContext());
         try
         {
@@ -43,7 +43,7 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
         }
         catch (Exception e)
         {
-            logger.LogCritical(e, "Failed to create read stream for '{streamId}'->'{natsStreamId}'", id, id.ToNatsStreamName());
+            logger.LogCritical(e, "Failed to create read stream for '{StreamId}'->'{NatsStreamId}'", id, id.ToNatsStreamName());
             throw;
         }
 
@@ -51,15 +51,19 @@ public class NatsContext(INatsClient client, ILogger<NatsContext> logger, IServi
     }
 }
 
-public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILogger<NatsArgonWriteOnlyStream> logger, ILogger<ArgonEventSerializer> serializerLogger) : IArgonStream<IArgonEvent>
+public class NatsArgonWriteOnlyStream(
+    StreamId streamId, 
+    INatsJSContext js, 
+    ILogger<NatsArgonWriteOnlyStream> logger, 
+    ArgonEventSerializer serializer) : IArgonStream<IArgonEvent>
 {
     public async ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
     {
-        var result = await js.PublishAsync(streamId.ToNatsStreamName(), ev, new ArgonEventSerializer(serializerLogger), cancellationToken: ct);
+        var result = await js.PublishAsync(streamId.ToNatsStreamName(), ev, serializer, cancellationToken: ct);
 
         if (result.Error is not null)
-            logger.LogCritical("Error when publish message to nats, {errorCode}, {code}, {msg}", result.Error.ErrCode, result.Error.Code,
-                result.Error.Description);
+            logger.LogError("Failed to publish to NATS stream {StreamId}: {ErrorCode} {Code} {Description}", 
+                streamId, result.Error.ErrCode, result.Error.Code, result.Error.Description);
     }
 
     public async Task EnsureCreatedStream(CancellationToken ct = default)
@@ -75,29 +79,34 @@ public class NatsArgonWriteOnlyStream(StreamId streamId, INatsJSContext js, ILog
             Discard         = StreamConfigDiscard.Old
         }, ct);
 
-    public async ValueTask DisposeAsync()
+    public ValueTask DisposeAsync()
     {
+        logger.LogDebug("Disposed write stream for {StreamId}", streamId);
+        return ValueTask.CompletedTask;
     }
 
-    public IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken cancellationToken = new())
+    public IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken cancellationToken = default)
         => throw new WriteOnlyStreamException();
 }
 
 public class NatsArgonReadOnlyStream(
     StreamId streamId, 
     INatsJSContext js,
-    ILogger<ArgonEventSerializer> serializerLogger) : IArgonStream<IArgonEvent>
+    ILogger<NatsArgonReadOnlyStream> logger,
+    ArgonEventSerializer serializer) : IArgonStream<IArgonEvent>
 {
     private readonly Guid _streamListenerId = Guid.NewGuid();
+    private readonly string _consumerName = $"{streamId.ToString().Replace('/', '_')}_{Guid.NewGuid():N}";
 
-    private INatsJSConsumer _consumer;
-    private string          _consumerName => $"{streamId.ToString().Replace('/', '_')}_{_streamListenerId:N}";
+    private INatsJSConsumer? _consumer;
+    private int _disposed;
 
     public ValueTask Fire(IArgonEvent ev, CancellationToken ct = default)
-        => throw new NotImplementedException();
+        => throw new ReadOnlyStreamException();
 
     public async Task CreateSub(CancellationToken ct = default)
-        => _consumer = await js.CreateOrUpdateConsumerAsync(streamId.ToNatsStreamName(), new ConsumerConfig(_consumerName)
+    {
+        _consumer = await js.CreateOrUpdateConsumerAsync(streamId.ToNatsStreamName(), new ConsumerConfig(_consumerName)
         {
             AckPolicy     = ConsumerConfigAckPolicy.Explicit,
             DeliverPolicy = ConsumerConfigDeliverPolicy.New,
@@ -105,13 +114,40 @@ public class NatsArgonReadOnlyStream(
             MaxAckPending = 3,
             Direct        = false
         }, ct);
+        
+        logger.LogDebug("Created consumer {ConsumerName} for stream {StreamId}", _consumerName, streamId);
+    }
 
     public async ValueTask DisposeAsync()
-        => await js.DeleteConsumerAsync(streamId.ToNatsStreamName(), _consumerName);
-
-    public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = new())
     {
-        await foreach (var msg in _consumer.ConsumeAsync(new ArgonEventSerializer(serializerLogger), new NatsJSConsumeOpts()
+        if (Interlocked.Exchange(ref _disposed, 1) == 1)
+            return;
+        
+        if (_consumer is null)
+        {
+            logger.LogDebug("Disposing read stream {StreamId} - consumer was never created", streamId);
+            return;
+        }
+        
+        try
+        {
+            await js.DeleteConsumerAsync(streamId.ToNatsStreamName(), _consumerName);
+            logger.LogDebug("Deleted consumer {ConsumerName} for stream {StreamId}", _consumerName, streamId);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to delete consumer {ConsumerName} for stream {StreamId}", _consumerName, streamId);
+        }
+    }
+
+    public async IAsyncEnumerator<IArgonEvent> GetAsyncEnumerator(CancellationToken ct = default)
+    {
+        ObjectDisposedException.ThrowIf(_disposed == 1, this);
+        
+        if (_consumer is null)
+            throw new InvalidOperationException("Consumer not created. Call CreateSub first.");
+        
+        await foreach (var msg in _consumer.ConsumeAsync(serializer, new NatsJSConsumeOpts
         {
             MaxMsgs = 30
         }, ct))
@@ -146,31 +182,13 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
 
     public void Serialize(IBufferWriter<byte> bufferWriter, IArgonEvent value)
     {
-        if (value is MessageSent msgSent)
-        {
-            logger.LogInformation(
-                "Serializing MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-                msgSent.message.messageId, msgSent.message.entities.Size);
-            
-            if (msgSent.message.entities.Size > 0)
-            {
-                var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
-                logger.LogInformation("MessageSent entities before JSON serialization: {EntityTypes}", string.Join(", ", entityTypes));
-            }
-        }
-
         try
         {
             var json = JsonConvert.SerializeObject(value, Settings);
-
-            if (value is MessageSent msgSent2)
-            {
-                logger.LogInformation("MessageSent JSON length: {JsonLength}, First 200 chars: {JsonPreview}", 
-                    json.Length, 
-                    json.Length > 200 ? json.Substring(0, 200) : json);
-            }
-
-            bufferWriter.Write(Encoding.UTF8.GetBytes(json));
+            var byteCount = Encoding.UTF8.GetByteCount(json);
+            var span = bufferWriter.GetSpan(byteCount);
+            Encoding.UTF8.GetBytes(json, span);
+            bufferWriter.Advance(byteCount);
         }
         catch (Exception ex)
         {
@@ -185,36 +203,11 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
         {
             if (buffer.IsSingleSegment)
             {
-                var span = buffer.FirstSpan;
-                var json = Encoding.UTF8.GetString(span);
-                
-                logger.LogDebug("Deserializing JSON length: {Length}, First 200 chars: {JsonPreview}", 
-                    json.Length, 
-                    json.Length > 200 ? json.Substring(0, 200) : json);
-                
-                var result = JsonConvert.DeserializeObject<IArgonEvent>(json, Settings);
-                
-                if (result is MessageSent msgSent)
-                {
-                    logger.LogInformation(
-                        "Deserialized MessageSent: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-                        msgSent.message.messageId, msgSent.message.entities.Size);
-                    
-                    if (msgSent.message.entities.Size > 0)
-                    {
-                        var entityTypes = msgSent.message.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
-                        logger.LogInformation("MessageSent entities after JSON deserialization: {EntityTypes}", string.Join(", ", entityTypes));
-                    }
-                    else
-                    {
-                        logger.LogWarning("MessageSent entities are empty after deserialization!");
-                    }
-                }
-                
-                return result;
+                var json = Encoding.UTF8.GetString(buffer.FirstSpan);
+                return JsonConvert.DeserializeObject<IArgonEvent>(json, Settings);
             }
 
-            using var memoryStream = new MemoryStream();
+            using var memoryStream = new MemoryStream((int)buffer.Length);
             foreach (var segment in buffer)
             {
                 memoryStream.Write(segment.Span);
@@ -223,26 +216,12 @@ public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsS
             memoryStream.Position = 0;
 
             using var streamReader = new StreamReader(memoryStream, Encoding.UTF8);
-            using var jsonReader   = new JsonTextReader(streamReader);
-            var deserializedResult = JsonSerializer.CreateDefault(Settings).Deserialize<IArgonEvent>(jsonReader);
-            
-            if (deserializedResult is MessageSent msgSentMulti)
-            {
-                logger.LogInformation(
-                    "Deserialized MessageSent (multi-segment): MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-                    msgSentMulti.message.messageId, msgSentMulti.message.entities.Size);
-            }
-            
-            return deserializedResult;
+            using var jsonReader = new JsonTextReader(streamReader);
+            return JsonSerializer.CreateDefault(Settings).Deserialize<IArgonEvent>(jsonReader);
         }
         catch (Exception ex)
         {
-            var bufferString = buffer.IsSingleSegment 
-                ? Encoding.UTF8.GetString(buffer.FirstSpan) 
-                : "<multi-segment>";
-            
-            logger.LogError(ex, "Failed to deserialize event. Buffer preview: {BufferPreview}", 
-                bufferString.Length > 500 ? bufferString.Substring(0, 500) : bufferString);
+            logger.LogError(ex, "Failed to deserialize event from buffer of length {BufferLength}", buffer.Length);
             throw;
         }
     }
@@ -265,7 +244,7 @@ public static class NatsExtensions
         {
             var client = q.GetRequiredService<IHostEnvironment>().DetermineClientSpace();
 
-            return new NatsConnection(new NatsOpts()
+            return new NatsConnection(new NatsOpts
             {
                 Name                      = $"Argon {client}",
                 Url                       = q.GetRequiredService<IConfiguration>().GetConnectionString("nats")!,
