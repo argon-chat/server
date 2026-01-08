@@ -60,10 +60,13 @@ public abstract class TestBase
     [SetUp]
     public void Setup()
     {
+        // Add timestamp to ensure unique credentials for each test run
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        
         var userFaker = new Faker<NewUserCredentialsInputForTest>("en")
            .RuleFor(u => u.displayName, f => f.Internet.UserName())
-           .RuleFor(u => u.username, f => f.Random.AlphaNumeric(8))
-           .RuleFor(u => u.email, f => f.Internet.Email())
+           .RuleFor(u => u.username, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}")
+           .RuleFor(u => u.email, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}@test.local")
            .RuleFor(u => u.argreeTos, f => true)
            .RuleFor(u => u.argreeOptionalEmails, f => true)
            .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
@@ -100,16 +103,30 @@ public abstract class TestBase
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         
+        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+        var random = Guid.NewGuid().ToString("N")[..8];
+        
+        var userFaker = new Faker<NewUserCredentialsInputForTest>("en")
+           .RuleFor(u => u.displayName, f => f.Internet.UserName())
+           .RuleFor(u => u.username, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}_{random}")
+           .RuleFor(u => u.email, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}_{random}@test.local")
+           .RuleFor(u => u.argreeTos, f => true)
+           .RuleFor(u => u.argreeOptionalEmails, f => true)
+           .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
+           .RuleFor(u => u.password, f => f.Internet.Password());
+
+        var creds = userFaker.Generate();
+        
         var result = await IonClient.ForService<IIdentityInteraction>(scope.ServiceProvider).Registration(
             new NewUserCredentialsInput(
-                FakedTestCreds.email,
-                FakedTestCreds.username,
-                FakedTestCreds.password,
-                FakedTestCreds.displayName,
-                FakedTestCreds.argreeTos,
-                FakedTestCreds.birthDate,
-                FakedTestCreds.argreeOptionalEmails,
-                FakedTestCreds.captchaToken),
+                creds.email,
+                creds.username,
+                creds.password,
+                creds.displayName,
+                creds.argreeTos,
+                creds.birthDate,
+                creds.argreeOptionalEmails,
+                creds.captchaToken),
             ct);
 
         if (result is not SuccessRegistration sr)

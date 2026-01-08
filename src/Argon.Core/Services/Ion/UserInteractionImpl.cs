@@ -2,9 +2,15 @@ namespace Argon.Services.Ion;
 
 using Features.Logic;
 using ArgonContracts;
+using Argon.Core.Features.Logic;
+using Core.Entities.Data;
 using ion.runtime;
 
-public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, ILogger<IUserInteraction> logger) : IUserInteraction
+public class UserInteractionImpl(
+    IOptions<BetaLimitationOptions> betaOptions,
+    ILogger<IUserInteraction> logger,
+    INotificationCounterService notificationCounter) : IUserInteraction
+
 {
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
@@ -102,5 +108,20 @@ public class UserInteractionImpl(IOptions<BetaLimitationOptions> betaOptions, IL
     {
         var levelGrain = this.GetGrain<IUserLevelGrain>(this.GetUserId());
         return await levelGrain.ClaimMedalAsync();
+    }
+
+    public async Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default)
+    {
+        var userId = this.GetUserId();
+        var counters = await notificationCounter.GetAllCountersAsync(userId, ct);
+
+        var result = new[]
+        {
+            new NotificationCounterKv(NotificationCounterType.UnreadInventoryItems, counters.UnreadInventoryItems),
+            new NotificationCounterKv(NotificationCounterType.PendingFriendRequests, counters.PendingFriendRequests),
+            new NotificationCounterKv(NotificationCounterType.UnreadDirectMessages, counters.UnreadDirectMessages)
+        };
+
+        return new IonArray<NotificationCounterKv>(result);
     }
 }

@@ -3,11 +3,16 @@ namespace Argon.Grains;
 using Api.Entities.Data;
 using Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
+using Argon.Core.Features.Logic;
 using Orleans.Concurrency;
 using System.Linq;
+using Core.Entities.Data;
 
 [StatelessWorker]
-public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILogger<IInventoryGrain> logger) : Grain, IInventoryGrain
+public class InventoryGrain(
+    IDbContextFactory<ApplicationDbContext> context,
+    ILogger<IInventoryGrain> logger,
+    INotificationCounterService notificationCounter) : Grain, IInventoryGrain
 {
     public async Task<List<DetailedInventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
     {
@@ -51,6 +56,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+        await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
 
         if (!item.IsAffectBadge) 
             return true;
@@ -124,8 +130,6 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        // Coins are special items - they don't need reference items
-        // They are created directly with the template id
         var coin = new ArgonItemEntity
         {
             Id            = Guid.NewGuid(),
@@ -134,7 +138,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
             IsReference   = false,
             IsUsable      = false,
             IsGiftable    = false,
-            IsAffectBadge = true, // Coins affect user badge/profile
+            IsAffectBadge = true,
             ReceivedFrom  = null,
             CreatedAt     = DateTimeOffset.UtcNow
         };
@@ -143,6 +147,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, coin.Id, coinTemplateId, ct);
+        await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
 
         if (coin.IsAffectBadge)
         {
@@ -193,19 +198,34 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
     public async Task MarkSeenAsync(List<Guid> inventoryItemIds, CancellationToken ct = default)
     {
         if (inventoryItemIds.Count == 0) return;
+
+        var userId = this.GetUserId();
+        
         await using var ctx = await context.CreateDbContextAsync(ct);
-        await ctx.UnreadInventoryItems
-           .Where(x => x.OwnerUserId == this.GetUserId() && inventoryItemIds.Contains(x.InventoryItemId))
+        
+        var deleted = await ctx.UnreadInventoryItems
+           .Where(x => x.OwnerUserId == userId && inventoryItemIds.Contains(x.InventoryItemId))
            .ExecuteDeleteAsync(ct);
+
+        if (deleted > 0)
+        {
+            await notificationCounter.DecrementAsync(userId, NotificationCounterType.UnreadInventoryItems, deleted, ct);
+        }
     }
 
     [OneWay]
     public async Task MarkAllSeenAsync(Guid ownerUserId, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
-        await ctx.UnreadInventoryItems
+        
+        var deleted = await ctx.UnreadInventoryItems
            .Where(x => x.OwnerUserId == ownerUserId)
            .ExecuteDeleteAsync(ct);
+
+        if (deleted > 0)
+        {
+            await notificationCounter.ResetAsync(ownerUserId, NotificationCounterType.UnreadInventoryItems, ct);
+        }
     }
 
     public async Task<bool> UseItemAsync(Guid itemId, CancellationToken ct = default)
@@ -245,6 +265,8 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
                 await trx.CommitAsync(ct);
 
                 await EnsureUnreadAsync(ctx, userId, newItemId.Value, usableItem.TemplateId, ct);
+                await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
+                
                 return true;
             }
             catch (Exception e)
@@ -345,6 +367,7 @@ public class InventoryGrain(IDbContextFactory<ApplicationDbContext> context, ILo
             await ctx.SaveChangesAsync(ct);
 
             await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
+            await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
 
             if (item.IsAffectBadge)
             {

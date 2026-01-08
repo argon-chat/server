@@ -157,6 +157,29 @@ public sealed class Ion_RealtimeChannelUser_Formatter : IonFormatter<RealtimeCha
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_NotificationCounterKv_Formatter : IonFormatter<NotificationCounterKv>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public NotificationCounterKv Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __countertype = IonFormatterStorage<string>.Read(reader);
+        var __count = IonFormatterStorage<i8>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__countertype, __count);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, NotificationCounterKv value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.counterType);
+        IonFormatterStorage<i8>.Write(writer, value.count);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserActivityPresence_Formatter : IonFormatter<UserActivityPresence>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

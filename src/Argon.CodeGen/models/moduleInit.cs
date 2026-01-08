@@ -27,6 +27,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
+      IonFormatterStorage<NotificationCounterKv>.Value = new Ion_NotificationCounterKv_Formatter();
       IonFormatterStorage<UserActivityPresence>.Value = new Ion_UserActivityPresence_Formatter();
       IonFormatterStorage<ChannelGroup>.Value = new Ion_ChannelGroup_Formatter();
       IonFormatterStorage<ChannelType>.Value = new Ion_ChannelType_Formatter();
@@ -158,6 +159,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelGroupReordered>.Value = new Ion_ChannelGroupReordered_Formatter();
       IonFormatterStorage<ChannelReordered>.Value = new Ion_ChannelReordered_Formatter();
       IonFormatterStorage<DirectMessageSent>.Value = new Ion_DirectMessageSent_Formatter();
+      IonFormatterStorage<UpdatedNotificationCounters>.Value = new Ion_UpdatedNotificationCounters_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

@@ -50,6 +50,8 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(GetMyLevel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ClaimLevelCoin_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(ClaimLevelCoin), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetNotificationCounters_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetNotificationCounters), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -324,6 +326,23 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
     
         return await req.CallAsync<bool>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetNotificationCounters_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<NotificationCounterKv>(writer.Encode(), ct: ct);
     }
 
 }

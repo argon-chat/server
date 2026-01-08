@@ -5,6 +5,7 @@ using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Api.Features.CoreLogic.Social;
 using Argon.Core.Features.Integrations.Captcha;
+using Argon.Core.Features.Logic;
 using Auth;
 using EF;
 using Env;
@@ -149,6 +150,7 @@ public static class HostModeExtensions
             });
        
             builder.AddUserPresenceFeature();
+            builder.AddNotificationCounterFeature();
             builder.AddArgonCacheDatabase();
             builder.AddArgonAuthorization();
             builder.AddJwt();

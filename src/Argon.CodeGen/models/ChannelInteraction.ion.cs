@@ -35,6 +35,10 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record NotificationCounterKv(string counterType, i8 count);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserActivityPresence(ActivityPresenceKind kind, u8 startTimestampSeconds, string titleName);
 
 
@@ -1396,6 +1400,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsDirectMessageSent => this is DirectMessageSent;
 
+    internal bool IsUpdatedNotificationCounters => this is UpdatedNotificationCounters;
+
 }
 
 
@@ -1679,6 +1685,13 @@ public sealed record DirectMessageSent(guid senderId, guid receiverId, DirectMes
     public uint UnionIndex => 39;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UpdatedNotificationCounters(guid userId, IonArray<NotificationCounterKv> counters) : IArgonEvent
+{
+    public string UnionKey => nameof(UpdatedNotificationCounters);
+    public uint UnionIndex => 40;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1810,6 +1823,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 39)
             result = IonFormatterStorage<DirectMessageSent>.Read(reader);
+
+        else if (unionIndex == 40)
+            result = IonFormatterStorage<UpdatedNotificationCounters>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -2102,6 +2118,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_39.UnionIndex != 39)
                 throw new InvalidOperationException();
             IonFormatterStorage<DirectMessageSent>.Write(writer, n_39);
+        }
+
+        else if (value is UpdatedNotificationCounters n_40)
+        {
+            if (n_40.UnionIndex != 40)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UpdatedNotificationCounters>.Write(writer, n_40);
         }
     
         else
@@ -3051,6 +3074,29 @@ public sealed class Ion_DirectMessageSent_Formatter : IonFormatter<DirectMessage
         IonFormatterStorage<guid>.Write(writer, value.senderId);
         IonFormatterStorage<guid>.Write(writer, value.receiverId);
         IonFormatterStorage<DirectMessage>.Write(writer, value.message);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdatedNotificationCounters_Formatter : IonFormatter<UpdatedNotificationCounters>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdatedNotificationCounters Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __counters = IonFormatterStorage<NotificationCounterKv>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__userid, __counters);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdatedNotificationCounters value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<NotificationCounterKv>.WriteArray(writer, value.counters);
         writer.WriteEndArray();
     }
 }

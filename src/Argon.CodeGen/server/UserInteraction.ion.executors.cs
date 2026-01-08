@@ -281,6 +281,23 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         
         IonFormatterStorage<bool>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetNotificationCounters_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetNotificationCounters();
+        
+        IonFormatterStorage<NotificationCounterKv>.WriteArray(writer, result);
+    }
 
     
     
@@ -320,6 +337,8 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetMyLevel_Execute(reader, writer, ct);
         if (methodName.Equals("ClaimLevelCoin", StringComparison.InvariantCultureIgnoreCase))
             return ClaimLevelCoin_Execute(reader, writer, ct);
+        if (methodName.Equals("GetNotificationCounters", StringComparison.InvariantCultureIgnoreCase))
+            return GetNotificationCounters_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

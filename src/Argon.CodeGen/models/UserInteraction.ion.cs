@@ -153,6 +153,7 @@ public interface IUserInteraction : IIonService
     Task<TodayStats> GetTodayStats(CancellationToken ct = default);
     Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default);
     Task<bool> ClaimLevelCoin(CancellationToken ct = default);
+    Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default);
 }
 
 

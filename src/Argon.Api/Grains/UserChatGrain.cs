@@ -10,7 +10,8 @@ public class UserChatGrain(
     IDbContextFactory<ApplicationDbContext> context,
     ILogger<IUserChatGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
-    IUserSessionNotifier notifier) : Grain, IUserChatGrain
+    IUserSessionNotifier notifier,
+    INotificationCounterService notificationCounter) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
 
@@ -125,6 +126,8 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        var unreadCount = 0L;
+
         await ExecuteInTransactionAsync(ctx, async () =>
         {
             var record = await ctx.UserChatlist
@@ -133,13 +136,17 @@ public class UserChatGrain(
             if (record is null)
                 return;
 
+            unreadCount = record.UnreadCount;
             record.UnreadCount = 0;
             ctx.UserChatlist.Update(record);
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
 
-        //await NotifyAsync(Me, new ChatMarkedReadEvent(peerId));
+        if (unreadCount > 0)
+        {
+            await notificationCounter.DecrementAsync(Me, NotificationCounterType.UnreadDirectMessages, unreadCount, ct);
+        }
     }
 
     public async Task<long> SendDirectMessageAsync(Guid receiverId, string text, List<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
@@ -160,16 +167,11 @@ public class UserChatGrain(
 
             try
             {
-                // Check for duplicate message using cache
-                var dedupKey = $"dm_dedup:{senderId}:{receiverId}:{randomId}";
-                // TODO: implement deduplication with cache similar to channel messages
-
-                // Create message entity
                 var message = new DirectMessageEntity
                 {
                     SenderId = senderId,
                     ReceiverId = receiverId,
-                    Text = text,
+                    Text = text ?? "",
                     Entities = entities ?? [],
                     CreatedAt = DateTimeOffset.UtcNow,
                     CreatorId = senderId,
@@ -181,19 +183,17 @@ public class UserChatGrain(
 
                 var messageId = message.MessageId;
 
-                // Update chat preview for sender
                 await UpdateChatPreviewAsync(ctx, senderId, receiverId, text, message.CreatedAt, false, ct);
 
-                // Update chat preview for receiver and increment unread count
                 await UpdateChatPreviewAsync(ctx, receiverId, senderId, text, message.CreatedAt, true, ct);
 
                 await ctx.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
 
-                // Create DTO for the message
+                await notificationCounter.IncrementAsync(receiverId, NotificationCounterType.UnreadDirectMessages, 1, ct);
+
                 var messageDto = message.ToDto();
 
-                // Notify both users
                 var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
 
                 _ = Task.Run(async () =>
@@ -204,7 +204,6 @@ public class UserChatGrain(
 
                 logger.LogInformation("DirectMessage sent: MessageId={MessageId}", messageId);
 
-                // Track message sent for stats
                 var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(senderId);
                 _ = statsGrain.IncrementMessagesAsync();
 
@@ -230,13 +229,13 @@ public class UserChatGrain(
         // Query messages where either:
         // - I'm sender and peer is receiver
         // - Peer is sender and I'm receiver
-        // - System message for me (SenderId = SystemUser, ReceiverId = me)
+        // - System message for this conversation (SenderId = SystemUser, ReceiverId = me or peerId)
         var query = ctx.DirectMessages
             .AsNoTracking()
             .Where(m =>
                 (m.SenderId == me && m.ReceiverId == peerId) ||
                 (m.SenderId == peerId && m.ReceiverId == me) ||
-                (m.SenderId == UserEntity.SystemUser && m.ReceiverId == me));
+                (m.SenderId == UserEntity.SystemUser && (m.ReceiverId == me || m.ReceiverId == peerId)));
 
         if (from.HasValue)
         {

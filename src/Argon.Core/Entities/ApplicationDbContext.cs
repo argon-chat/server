@@ -24,6 +24,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonItemNotificationEntity>       UnreadInventoryItems         => Set<ArgonItemNotificationEntity>();
     public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
+    public DbSet<NotificationCounterEntity>         NotificationCounters         => Set<NotificationCounterEntity>();
 
 #region User Stats & Levels
 
