@@ -49,4 +49,7 @@ public interface ISecurityGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetAutoDeletePeriodAsync))]
     Task<AutoDeletePeriod> GetAutoDeletePeriodAsync(CancellationToken ct = default);
+
+    [Alias(nameof(GetSecurityDetailsAsync))]
+    Task<SecurityDetails> GetSecurityDetailsAsync(CancellationToken ct = default);
 }

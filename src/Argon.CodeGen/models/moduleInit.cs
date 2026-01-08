@@ -55,6 +55,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
+      IonFormatterStorage<SecurityDetails>.Value = new Ion_SecurityDetails_Formatter();
       IonFormatterStorage<Passkey>.Value = new Ion_Passkey_Formatter();
       IonFormatterStorage<AutoDeletePeriod>.Value = new Ion_AutoDeletePeriod_Formatter();
       IonFormatterStorage<EmailChangeError>.Value = new Ion_EmailChangeError_Formatter();
@@ -181,6 +182,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelReordered>.Value = new Ion_ChannelReordered_Formatter();
       IonFormatterStorage<DirectMessageSent>.Value = new Ion_DirectMessageSent_Formatter();
       IonFormatterStorage<UpdatedNotificationCounters>.Value = new Ion_UpdatedNotificationCounters_Formatter();
+      IonFormatterStorage<UserSecurityDetailsUpdated>.Value = new Ion_UserSecurityDetailsUpdated_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

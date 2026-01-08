@@ -15,6 +15,10 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SecurityDetails(bool otpEnabled, IonArray<Passkey> passkeys, string? email, string? phone, AutoDeletePeriod autoDeletePeriod);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record Passkey(guid id, string name, datetime createdAt, datetime? lastUsedAt);
 
 
@@ -114,6 +118,7 @@ public interface ISecurityInteraction : IIonService
     Task<IRemovePasskeyResult> RemovePasskey(guid passkeyId, CancellationToken ct = default);
     Task<ISetAutoDeleteResult> SetAutoDeletePeriod(i4? months, CancellationToken ct = default);
     Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default);
+    Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default);
 }
 
 

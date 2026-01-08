@@ -1402,6 +1402,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsUpdatedNotificationCounters => this is UpdatedNotificationCounters;
 
+    internal bool IsUserSecurityDetailsUpdated => this is UserSecurityDetailsUpdated;
+
 }
 
 
@@ -1692,6 +1694,13 @@ public sealed record UpdatedNotificationCounters(guid userId, IonArray<Notificat
     public uint UnionIndex => 40;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserSecurityDetailsUpdated(guid userId, SecurityDetails details) : IArgonEvent
+{
+    public string UnionKey => nameof(UserSecurityDetailsUpdated);
+    public uint UnionIndex => 41;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1826,6 +1835,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 40)
             result = IonFormatterStorage<UpdatedNotificationCounters>.Read(reader);
+
+        else if (unionIndex == 41)
+            result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -2125,6 +2137,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_40.UnionIndex != 40)
                 throw new InvalidOperationException();
             IonFormatterStorage<UpdatedNotificationCounters>.Write(writer, n_40);
+        }
+
+        else if (value is UserSecurityDetailsUpdated n_41)
+        {
+            if (n_41.UnionIndex != 41)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_41);
         }
     
         else
@@ -3097,6 +3116,29 @@ public sealed class Ion_UpdatedNotificationCounters_Formatter : IonFormatter<Upd
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<NotificationCounterKv>.WriteArray(writer, value.counters);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserSecurityDetailsUpdated_Formatter : IonFormatter<UserSecurityDetailsUpdated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserSecurityDetailsUpdated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __details = IonFormatterStorage<SecurityDetails>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__userid, __details);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserSecurityDetailsUpdated value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<SecurityDetails>.Write(writer, value.details);
         writer.WriteEndArray();
     }
 }

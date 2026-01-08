@@ -1,7 +1,10 @@
 namespace Argon.Grains;
 
+using Argon.Core.Features.Logic;
+using Argon.Core.Services;
 using Argon.Features.Integrations.Phones;
 using Api.Features.CoreLogic.Otp;
+using ion.runtime;
 using Orleans.Concurrency;
 using OtpNet;
 using Services;
@@ -12,6 +15,8 @@ public class SecurityGrain(
     IPasswordHashingService passwordHashingService,
     ITotpKeyStore totpKeyStore,
     IPhoneProvider phoneProvider,
+    IUserSessionDiscoveryService sessionDiscovery,
+    IUserSessionNotifier notifier,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
 {
     private const int MaxPasskeys = 10;
@@ -126,6 +131,8 @@ public class SecurityGrain(
             db.PendingEmailChanges.Remove(pending);
             await db.SaveChangesAsync(ct);
 
+            _ = NotifySecurityDetailsChangedAsync(ct);
+
             return new SuccessConfirmEmailChange();
         }
         catch (Exception e)
@@ -234,6 +241,8 @@ public class SecurityGrain(
             db.PendingPhoneChanges.Remove(pending);
             await db.SaveChangesAsync(ct);
 
+            _ = NotifySecurityDetailsChangedAsync(ct);
+
             return new SuccessConfirmPhoneChange();
         }
         catch (Exception e)
@@ -258,6 +267,8 @@ public class SecurityGrain(
 
             user.PhoneNumber = null;
             await db.SaveChangesAsync(ct);
+
+            _ = NotifySecurityDetailsChangedAsync(ct);
 
             return new SuccessRemovePhone();
         }
@@ -350,6 +361,8 @@ public class SecurityGrain(
                     .SetProperty(x => x.PreferredOtpMethod, OtpMethod.Totp)
                     .SetProperty(x => x.PreferredAuthMode, ArgonAuthMode.EmailPasswordOtp), ct);
 
+            _ = NotifySecurityDetailsChangedAsync(ct);
+
             return new SuccessVerifyOTP();
         }
         catch (Exception e)
@@ -380,6 +393,8 @@ public class SecurityGrain(
                 .ExecuteUpdateAsync(u => u
                     .SetProperty(x => x.PreferredOtpMethod, OtpMethod.Email)
                     .SetProperty(x => x.PreferredAuthMode, ArgonAuthMode.EmailPassword), ct);
+
+            _ = NotifySecurityDetailsChangedAsync(ct);
 
             return new SuccessDisableOTP();
         }
@@ -474,6 +489,8 @@ public class SecurityGrain(
 
             await db.SaveChangesAsync(ct);
 
+            _ = NotifySecurityDetailsChangedAsync(ct);
+
             var result = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime);
             return new SuccessCompletePasskey(result);
         }
@@ -499,6 +516,8 @@ public class SecurityGrain(
             passkey.UpdatedAt = DateTimeOffset.UtcNow;
 
             await db.SaveChangesAsync(ct);
+
+            _ = NotifySecurityDetailsChangedAsync(ct);
 
             return new SuccessRemovePasskey();
         }
@@ -546,6 +565,8 @@ public class SecurityGrain(
 
             await db.SaveChangesAsync(ct);
 
+            _ = NotifySecurityDetailsChangedAsync(ct);
+
             return new SuccessSetAutoDelete();
         }
         catch (Exception e)
@@ -572,6 +593,54 @@ public class SecurityGrain(
         {
             logger.LogError(e, "Failed to get auto-delete period for user {UserId}", UserId);
             return new AutoDeletePeriod(DefaultAutoDeleteMonths, true);
+        }
+    }
+
+    public async Task<SecurityDetails> GetSecurityDetailsAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId, ct);
+            if (user is null)
+                return new SecurityDetails(false, IonArray<Passkey>.Empty, null, null, new AutoDeletePeriod(DefaultAutoDeleteMonths, true));
+
+            var otpEnabled = !string.IsNullOrEmpty(user.TotpSecret) || 
+                             await totpKeyStore.GetSecret(UserId, ct) is not null;
+
+            var passkeys = await GetPasskeysAsync(ct);
+
+            var autoDeletePeriod = await GetAutoDeletePeriodAsync(ct);
+
+            return new SecurityDetails(
+                otpEnabled: otpEnabled,
+                passkeys: new IonArray<Passkey>(passkeys),
+                email: user.Email,
+                phone: user.PhoneNumber,
+                autoDeletePeriod: autoDeletePeriod);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to get security details for user {UserId}", UserId);
+            return new SecurityDetails(false, IonArray<Passkey>.Empty, null, null, new AutoDeletePeriod(DefaultAutoDeleteMonths, true));
+        }
+    }
+
+    private async Task NotifySecurityDetailsChangedAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            var details = await GetSecurityDetailsAsync(ct);
+            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId);
+
+            if (sessions.Count == 0) return;
+
+            await notifier.NotifySessionsAsync(sessions, new UserSecurityDetailsUpdated(UserId, details));
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to notify security details changed for user {UserId}", UserId);
         }
     }
 

@@ -14,6 +14,35 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SecurityDetails_Formatter : IonFormatter<SecurityDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SecurityDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __otpenabled = IonFormatterStorage<bool>.Read(reader);
+        var __passkeys = IonFormatterStorage<Passkey>.ReadArray(reader);
+        var __email = reader.ReadNullable<string>();
+        var __phone = reader.ReadNullable<string>();
+        var __autodeleteperiod = IonFormatterStorage<AutoDeletePeriod>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__otpenabled, __passkeys, __email, __phone, __autodeleteperiod);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SecurityDetails value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<bool>.Write(writer, value.otpEnabled);
+        IonFormatterStorage<Passkey>.WriteArray(writer, value.passkeys);
+        IonFormatterStorage<string>.WriteNullable(writer, value.email);
+        IonFormatterStorage<string>.WriteNullable(writer, value.phone);
+        IonFormatterStorage<AutoDeletePeriod>.Write(writer, value.autoDeletePeriod);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_Passkey_Formatter : IonFormatter<Passkey>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

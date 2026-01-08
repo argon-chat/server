@@ -48,6 +48,8 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         typeof(ISecurityInteraction).GetMethod(nameof(SetAutoDeletePeriod), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAutoDeletePeriod_Ref = new(() =>
         typeof(ISecurityInteraction).GetMethod(nameof(GetAutoDeletePeriod), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSecurityDetails_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(GetSecurityDetails), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -309,6 +311,23 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         writer.WriteEndArray();
     
         return await req.CallAsync<AutoDeletePeriod>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), GetSecurityDetails_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<SecurityDetails>(writer.Encode(), ct: ct);
     }
 
 }

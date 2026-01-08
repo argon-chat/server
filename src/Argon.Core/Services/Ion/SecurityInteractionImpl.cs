@@ -48,4 +48,7 @@ public class SecurityInteractionImpl : ISecurityInteraction
 
     public async Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetAutoDeletePeriodAsync(ct);
+
+    public async Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSecurityDetailsAsync(ct);
 }

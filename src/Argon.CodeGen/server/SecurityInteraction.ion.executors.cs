@@ -276,6 +276,23 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
         
         IonFormatterStorage<AutoDeletePeriod>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSecurityDetails_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSecurityDetails();
+        
+        IonFormatterStorage<SecurityDetails>.Write(writer, result);
+    }
 
     
     
@@ -313,6 +330,8 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
             return SetAutoDeletePeriod_Execute(reader, writer, ct);
         if (methodName.Equals("GetAutoDeletePeriod", StringComparison.InvariantCultureIgnoreCase))
             return GetAutoDeletePeriod_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSecurityDetails", StringComparison.InvariantCultureIgnoreCase))
+            return GetSecurityDetails_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
