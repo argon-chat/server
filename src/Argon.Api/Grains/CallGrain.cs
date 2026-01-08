@@ -195,6 +195,17 @@ public sealed class CallGrain(
             logger.LogInformation("Call {CallId} ended after {Duration}s, sending system message", _state.CallId, duration);
 
             _ = systemMessageService.SendCallEndedMessageAsync(_state.CallerId, _state.CalleeId, _state.CallId, duration, ct);
+
+            // Award XP for call time to both participants
+            var callerStatsGrain = this.GrainFactory.GetGrain<IUserStatsGrain>(_state.CallerId);
+            _ = callerStatsGrain.RecordVoiceTimeAsync(duration, Guid.Empty, Guid.Empty);
+
+            // Only award XP to callee if not a special user (Echo, System, Void)
+            if (_state.CalleeId != UserEntity.EchoUser && _state.CalleeId != UserEntity.SystemUser)
+            {
+                var calleeStatsGrain = this.GrainFactory.GetGrain<IUserStatsGrain>(_state.CalleeId);
+                _ = calleeStatsGrain.RecordVoiceTimeAsync(duration, Guid.Empty, Guid.Empty);
+            }
         }
 
         var sessionsCaller = await sessionDiscovery.GetUserSessionsAsync(_state.CallerId, ct);
