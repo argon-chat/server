@@ -196,11 +196,8 @@ public class UserChatGrain(
 
                 var dmEvent = new DirectMessageSent(senderId, receiverId, messageDto);
 
-                _ = Task.Run(async () =>
-                {
-                    await NotifyAsync(senderId, dmEvent);
-                    await NotifyAsync(receiverId, dmEvent);
-                }, ct);
+                await NotifyAsync(senderId, dmEvent);
+                await NotifyAsync(receiverId, dmEvent);
 
                 logger.LogInformation("DirectMessage sent: MessageId={MessageId}", messageId);
 
@@ -226,16 +223,12 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        // Query messages where either:
-        // - I'm sender and peer is receiver
-        // - Peer is sender and I'm receiver
-        // - System message for this conversation (SenderId = SystemUser, ReceiverId = me or peerId)
         var query = ctx.DirectMessages
             .AsNoTracking()
             .Where(m =>
                 (m.SenderId == me && m.ReceiverId == peerId) ||
                 (m.SenderId == peerId && m.ReceiverId == me) ||
-                (m.SenderId == UserEntity.SystemUser && (m.ReceiverId == me || m.ReceiverId == peerId)));
+                (m.SenderId == UserEntity.SystemUser && m.ReceiverId == me));
 
         if (from.HasValue)
         {
