@@ -326,7 +326,8 @@ public class SecurityGrain(
             if (!string.IsNullOrEmpty(user.TotpSecret))
                 return new FailedEnableOTP(OTPError.ALREADY_ENABLED);
 
-            var secret = await totpKeyStore.CreateSecret(UserId, ct);
+            // Generate secret and store in cache (not in DB yet)
+            var secret = await totpKeyStore.CreatePendingSecret(UserId, ct);
             var base32Secret = Base32Encoding.ToString(secret);
 
             var issuer = "ArgonChat";
@@ -345,7 +346,8 @@ public class SecurityGrain(
     {
         try
         {
-            var secret = await totpKeyStore.GetSecret(UserId, ct);
+            // Get pending secret from cache
+            var secret = await totpKeyStore.GetPendingSecret(UserId, ct);
             if (secret is null)
                 return new FailedVerifyOTP(OTPError.NOT_ENABLED);
 
@@ -353,13 +355,11 @@ public class SecurityGrain(
             if (!totp.VerifyTotp(code, out _, VerificationWindow.RfcSpecifiedNetworkDelay))
                 return new FailedVerifyOTP(OTPError.INVALID_CODE);
 
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            await db.Users
-                .Where(u => u.Id == UserId)
-                .ExecuteUpdateAsync(u => u
-                    .SetProperty(x => x.PreferredOtpMethod, OtpMethod.Totp)
-                    .SetProperty(x => x.PreferredAuthMode, ArgonAuthMode.EmailPasswordOtp), ct);
+            // Save secret to database only after successful verification
+            await totpKeyStore.SaveSecret(UserId, secret, ct);
+            
+            // Remove pending secret from cache
+            await totpKeyStore.DeletePendingSecret(UserId, ct);
 
             _ = NotifySecurityDetailsChangedAsync(ct);
 
@@ -385,14 +385,6 @@ public class SecurityGrain(
                 return new FailedDisableOTP(OTPError.INVALID_CODE);
 
             await totpKeyStore.DeleteSecret(UserId, ct);
-
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            await db.Users
-                .Where(u => u.Id == UserId)
-                .ExecuteUpdateAsync(u => u
-                    .SetProperty(x => x.PreferredOtpMethod, OtpMethod.Email)
-                    .SetProperty(x => x.PreferredAuthMode, ArgonAuthMode.EmailPassword), ct);
 
             _ = NotifySecurityDetailsChangedAsync(ct);
 
