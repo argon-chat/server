@@ -127,17 +127,21 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (state.State.Users.ContainsKey(userId))
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
-        else
+        if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
         {
-            state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
-            state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
-            await state.WriteStateAsync();
-
-            // Track call joined for stats
-            _ = TrackCallJoinedAsync(userId);
+            await RecordVoiceTimeForUserAsync(userId, joinTime);
+            state.State.UserJoinTimes.Remove(userId);
+            state.State.Users.Remove(userId);
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         }
+
+
+        state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
+        state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
+        await state.WriteStateAsync();
+
+        // Track call joined for stats
+        _ = TrackCallJoinedAsync(userId);
 
         await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
 

@@ -1,5 +1,6 @@
 namespace Argon.Services.Ion;
 
+using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using Api.Features.Bus;
 
@@ -43,7 +44,7 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         await subscriptionTask;
     }
 
-    private static async IAsyncEnumerable<IArgonEvent> MergeStreams(
+    private async static IAsyncEnumerable<IArgonEvent> MergeStreams(
         IAsyncEnumerable<IArgonEvent> serverEvents,
         IAsyncEnumerable<IArgonClientEvent>? clientEvents,
         IClusterClient client,
@@ -90,7 +91,7 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         }
     }
 
-    private static async ValueTask DisposeEnumeratorSafelyAsync<T>(IAsyncEnumerator<T> enumerator, ILogger logger)
+    private async static ValueTask DisposeEnumeratorSafelyAsync<T>(IAsyncEnumerator<T> enumerator, ILogger logger)
     {
         try
         {
@@ -100,13 +101,17 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         {
             // Expected on cancellation
         }
+        catch (WebSocketException)
+        {
+            // Expected when client disconnects abruptly
+        }
         catch (Exception ex)
         {
             logger.LogDebug(ex, "Error disposing enumerator");
         }
     }
 
-    private static async Task<IArgonEvent?> GetNextOrNullAsync(IAsyncEnumerator<IArgonEvent> enumerator)
+    private async static Task<IArgonEvent?> GetNextOrNullAsync(IAsyncEnumerator<IArgonEvent> enumerator)
     {
         try
         {
@@ -116,9 +121,14 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         {
             return null;
         }
+        catch (WebSocketException)
+        {
+            // Client disconnected
+            return null;
+        }
     }
 
-    private static async Task<bool> ProcessNextClientEventAsync(
+    private async static Task<bool> ProcessNextClientEventAsync(
         IAsyncEnumerator<IArgonClientEvent> enumerator,
         IClusterClient client,
         Guid sessionId,
@@ -136,21 +146,33 @@ public class EventBusImpl(ILogger<IEventBus> logger) : IEventBus
         {
             return false;
         }
+        catch (WebSocketException)
+        {
+            // Client disconnected abruptly - this is expected
+            logger.LogDebug("Client disconnected during event processing");
+            return false;
+        }
+        catch (IOException)
+        {
+            // Connection was aborted - also expected
+            logger.LogDebug("Connection aborted during event processing");
+            return false;
+        }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error processing client event");
+            logger.LogWarning(ex, "Unexpected error processing client event");
             return false;
         }
     }
 
-    private static async ValueTask SubscribeToMySpacesAsync(Guid userId, Guid sessionId, IClusterClient client, CancellationToken ct = default)
+    private async static ValueTask SubscribeToMySpacesAsync(Guid userId, Guid sessionId, IClusterClient client, CancellationToken ct = default)
     {
         var spaceIds = await client.GetGrain<IUserGrain>(userId).GetMyServersIds(ct);
         var tasks = spaceIds.Select(spaceId => client.Streams().AssignSubscribe(sessionId, spaceId).AsTask());
         await Task.WhenAll(tasks);
     }
 
-    private static async ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
+    private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
     {
         var sessionGrain = client.GetGrain<IUserSessionGrain>(sessionId);
 

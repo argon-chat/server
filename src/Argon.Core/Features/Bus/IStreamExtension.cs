@@ -101,54 +101,86 @@ public class SubscriptionController(IClusterClient client, ILogger<SubscriptionC
             return;
 
         var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ctx.SessionToken);
-        ctx.Topics[topicId] = linkedCts;
+        
+        if (!ctx.Topics.TryAdd(topicId, linkedCts))
+        {
+            // Another thread already added this topic
+            linkedCts.Dispose();
+            return;
+        }
 
-        // Don't pass token to Task.Run - we handle cancellation inside the task
-        _ = Task.Run(async () => {
-            IArgonStream<IArgonEvent>? stream = null;
-            try
+        _ = RunTopicSubscriptionAsync(ctx, topicId, linkedCts);
+    }
+    
+    private async Task RunTopicSubscriptionAsync(SessionContext ctx, Guid topicId, CancellationTokenSource linkedCts)
+    {
+        IArgonStream<IArgonEvent>? stream = null;
+        try
+        {
+            // Capture token before any await - if CTS is disposed, we'll get ObjectDisposedException here
+            var token = linkedCts.Token;
+            
+            stream = await client.Streams().CreateClientStream(topicId);
+            await foreach (var ev in stream.WithCancellation(token))
             {
-                stream = await client.Streams().CreateClientStream(topicId);
-                await foreach (var ev in stream.WithCancellation(linkedCts.Token))
+                ctx.EventChannel.Writer.TryWrite(ev);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when topic is unsubscribed or session ends
+        }
+        catch (ObjectDisposedException)
+        {
+            // CancellationTokenSource was disposed - session was cleaned up
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Error in topic subscription for session {SessionId}, topic {TopicId}", 
+                ctx.SessionId, topicId);
+        }
+        finally
+        {
+            if (stream is not null)
+            {
+                try
                 {
-                    ctx.EventChannel.Writer.TryWrite(ev);
+                    await stream.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    logger.LogDebug(ex, "Error disposing stream for topic {TopicId}", topicId);
                 }
             }
-            catch (OperationCanceledException)
+            
+            // Only dispose if we successfully removed it (wasn't already cleaned up)
+            if (ctx.Topics.TryRemove(topicId, out var cts))
             {
-                // Expected when topic is unsubscribed or session ends
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Error in topic subscription for session {SessionId}, topic {TopicId}", 
-                    ctx.SessionId, topicId);
-            }
-            finally
-            {
-                if (stream is not null)
+                try
                 {
-                    try
-                    {
-                        await stream.DisposeAsync();
-                    }
-                    catch (Exception ex)
-                    {
-                        logger.LogWarning(ex, "Error disposing stream for topic {TopicId}", topicId);
-                    }
-                }
-                
-                if (ctx.Topics.TryRemove(topicId, out var cts))
                     cts.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed by CleanupSessionAsync
+                }
             }
-        });
+        }
     }
 
     public void UnsubscribeTopic(SessionContext ctx, Guid topicId)
     {
         if (ctx.Topics.TryRemove(topicId, out var cts))
         {
-            cts.Cancel();
-            cts.Dispose();
+            try
+            {
+                cts.Cancel();
+                cts.Dispose();
+            }
+            catch (ObjectDisposedException)
+            {
+                // Already disposed
+            }
         }
     }
 
@@ -157,22 +189,57 @@ public class SubscriptionController(IClusterClient client, ILogger<SubscriptionC
         if (!sessions.TryRemove(sessionId, out var ctx)) 
             return;
 
-        await ctx.SessionCts.CancelAsync();
+        // Cancel first, then give tasks a moment to notice
+        try
+        {
+            await ctx.SessionCts.CancelAsync();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed
+        }
 
-        foreach (var (topicId, cts) in ctx.Topics)
+        // Cancel all topic subscriptions
+        foreach (var (_, cts) in ctx.Topics)
         {
             try
             {
                 await cts.CancelAsync();
             }
-            finally
+            catch (ObjectDisposedException)
             {
-                cts.Dispose();
+                // Already disposed by task
             }
         }
         
-        ctx.Topics.Clear();
-        ctx.SessionCts.Dispose();
+        // Small delay to let running tasks notice cancellation
+        await Task.Delay(50);
+        
+        // Now dispose remaining CTS (tasks should have finished by now)
+        foreach (var (topicId, cts) in ctx.Topics)
+        {
+            if (ctx.Topics.TryRemove(topicId, out _))
+            {
+                try
+                {
+                    cts.Dispose();
+                }
+                catch (ObjectDisposedException)
+                {
+                    // Already disposed by task
+                }
+            }
+        }
+        
+        try
+        {
+            ctx.SessionCts.Dispose();
+        }
+        catch (ObjectDisposedException)
+        {
+            // Already disposed
+        }
+        
         ctx.EventChannel.Writer.TryComplete();
         
         logger.LogDebug("Cleaned up session {SessionId}", sessionId);

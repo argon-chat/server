@@ -106,8 +106,6 @@ public class VaultConfigurationProvider : ConfigurationProvider
         var hasChanges = false;
         await foreach (var secretData in this.ReadKeysAsync(vaultClient, this.ConfigurationSource.BasePath))
         {
-            Log.Logger.Information($"VaultConfigurationProvider: got Vault data with key `{secretData.Key}`");
-
             var key = secretData.Key;
             var len = this.ConfigurationSource.BasePath.TrimStart('/').Length;
             key = key.TrimStart('/').Substring(len).TrimStart('/').Replace('/', ':');
@@ -129,11 +127,7 @@ public class VaultConfigurationProvider : ConfigurationProvider
 
             var shouldSetValue = true;
             if (this.versionsCache.TryGetValue(key, out var currentVersion))
-            {
                 shouldSetValue = secretData.SecretData.Metadata.Version > currentVersion;
-                var keyMsg = shouldSetValue ? "has new version" : "is outdated";
-                Log.Logger.Information($"{nameof(VaultConfigurationProvider)}: Data for key `{secretData.Key}` {keyMsg}");
-            }
 
             if (!shouldSetValue) continue;
             this.SetData(data, this.ConfigurationSource.Options.OmitVaultKeyName ? string.Empty : key);
