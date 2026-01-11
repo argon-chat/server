@@ -23,6 +23,12 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();
 
+    /// <summary>
+    /// Gets realtime state (members + meeting info) in a single call for efficiency.
+    /// </summary>
+    [Alias("GetRealtimeStateAsync")]
+    Task<ChannelRealtimeState> GetRealtimeStateAsync(CancellationToken ct = default);
+
     [OneWay, Alias("ClearChannel")]
     Task ClearChannel();
 
@@ -54,11 +60,25 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<string?> GetMeetingLinkAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// Gets full linked meeting info, if exists.
+    /// </summary>
+    [Alias("GetLinkedMeetingInfoAsync")]
+    Task<LinkedMeetingInfo?> GetLinkedMeetingInfoAsync(CancellationToken ct = default);
+
+    /// <summary>
     /// Ends the linked meeting.
     /// </summary>
     [Alias("EndLinkedMeetingAsync")]
     Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default);
 }
+
+/// <summary>
+/// Combined realtime state for a channel - members and meeting info.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record ChannelRealtimeState(
+    [property: Id(0)] List<RealtimeChannelUser> Members,
+    [property: Id(1)] LinkedMeetingInfo? MeetingInfo);
 
 
 public sealed record ChannelInput(
@@ -74,3 +94,9 @@ public sealed record ChannelMeetingResult(
     [property: Id(0)] Guid MeetId,
     [property: Id(1)] string InviteCode,
     [property: Id(2)] string InviteLink);
+
+public sealed record ParticipantInfo(
+    string UserId,
+    string UserName,
+    bool IsMicEnabled,
+    bool IsCameraEnabled);

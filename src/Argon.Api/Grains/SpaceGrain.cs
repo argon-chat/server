@@ -123,7 +123,7 @@ public class SpaceGrain(
         => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
 
 
-    public async Task<List<RealtimeServerMember>> GetMembers()  
+    public async Task<List<RealtimeServerMember>> GetMembers()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -171,7 +171,7 @@ public class SpaceGrain(
            .ThenBy(c => c.FractionalIndex)
            .ToListAsync();
 
-        var c = channels
+        var channelsFiltered = channels
            .Where(c =>
             {
                 var finalPerms = EntitlementEvaluator.ApplyPermissionOverwrites(basePermissions, member, c);
@@ -179,10 +179,15 @@ public class SpaceGrain(
             })
            .ToList();
 
-        var results = await Task.WhenAll(c
-           .Select(async x => new RealtimeChannel(x.ToDto(), new(await grainFactory.GetGrain<IChannelGrain>(x.Id).GetMembers()))).ToList());
+        // Batch fetch realtime state for all channels in parallel
+        var states = await Task.WhenAll(channelsFiltered
+           .Select(x => grainFactory.GetGrain<IChannelGrain>(x.Id).GetRealtimeStateAsync()));
 
-        return results.ToList();
+        var results = channelsFiltered
+           .Zip(states, (ch, s) => new RealtimeChannel(ch.ToDto(), new(s.Members), s.MeetingInfo))
+           .ToList();
+
+        return results;
     }
 
     public async Task DoJoinUserAsync()
@@ -209,7 +214,7 @@ public class SpaceGrain(
 
         await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
         await UserJoined(userId);
-        
+
         _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
     }
 
@@ -293,20 +298,21 @@ public class SpaceGrain(
         {
             Name            = name,
             Description     = description,
-            SpaceId         = spaceId,  
+            SpaceId         = spaceId,
             CreatorId       = callerId,
             FractionalIndex = fractionalIndex.Value
         };
 
         await ctx.Set<ChannelGroupEntity>().AddAsync(group);
         await ctx.SaveChangesAsync();
-        
+
         await _serverEvents.Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
-        
+
         return group;
     }
 
-    public async Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null, CancellationToken ct = default)
+    public async Task<ChannelGroupEntity> UpdateChannelGroup(Guid groupId, string? name = null, string? description = null, bool? isCollapsed = null,
+        CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -334,9 +340,9 @@ public class SpaceGrain(
             group.IsCollapsed = isCollapsed.Value;
 
         await ctx.SaveChangesAsync(ct);
-        
+
         await _serverEvents.Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
-        
+
         return group;
     }
 
@@ -379,7 +385,7 @@ public class SpaceGrain(
             var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
             var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
 
-            var afterIndex  = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
+            var afterIndex = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
                 ? FractionalIndex.Parse(afterGroup.FractionalIndex)
                 : (FractionalIndex?)null;
             var beforeIndex = beforeGroup != null && !string.IsNullOrEmpty(beforeGroup.FractionalIndex)
@@ -397,7 +403,7 @@ public class SpaceGrain(
         group.FractionalIndex = newIndex.Value;
 
         await ctx.SaveChangesAsync();
-        
+
         await _serverEvents.Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
     }
 
@@ -428,7 +434,7 @@ public class SpaceGrain(
         if (deleteChannels)
         {
             ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
-            
+
             foreach (var channel in group.Channels)
                 await _serverEvents.Fire(new ChannelRemoved(spaceId, channel.Id));
         }
@@ -438,7 +444,7 @@ public class SpaceGrain(
 
         ctx.Set<ChannelGroupEntity>().Remove(group);
         await ctx.SaveChangesAsync();
-        
+
         await _serverEvents.Fire(new ChannelGroupRemoved(spaceId, groupId));
     }
 
@@ -526,7 +532,7 @@ public class SpaceGrain(
             var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
             var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
 
-            var afterIndex  = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
+            var afterIndex = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
                 ? FractionalIndex.Parse(afterChannel.FractionalIndex)
                 : (FractionalIndex?)null;
             var beforeIndex = beforeChannel != null && !string.IsNullOrEmpty(beforeChannel.FractionalIndex)
@@ -544,7 +550,7 @@ public class SpaceGrain(
         channel.FractionalIndex = newIndex.Value;
 
         await ctx.SaveChangesAsync();
-        
+
         await _serverEvents.Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
     }
 

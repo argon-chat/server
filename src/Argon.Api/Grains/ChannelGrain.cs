@@ -53,8 +53,41 @@ public class ChannelGrain(
         await _userStateEmitter.DisposeAsync();
     }
 
-    public async Task<List<RealtimeChannelUser>> GetMembers()
-        => state.State.Users.Select(x => x.Value).ToList();
+    public Task<List<RealtimeChannelUser>> GetMembers()
+        => Task.FromResult(state.State.Users.Select(x => x.Value).ToList());
+
+    public async Task<ChannelRealtimeState> GetRealtimeStateAsync(CancellationToken ct = default)
+    {
+        var members = state.State.Users.Select(x => x.Value).ToList();
+        
+        LinkedMeetingInfo? meetInfo = null;
+        if (state.State.LinkedMeetId.HasValue && !string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
+        {
+            var meetId = state.State.LinkedMeetId.Value;
+            var inviteCode = state.State.LinkedMeetInviteCode;
+            
+            var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
+            var meetState = await meetGrain.GetStateAsync(ct);
+            
+            if (meetState is not null && !meetState.IsEnded)
+            {
+                meetInfo = new LinkedMeetingInfo(
+                    meetId,
+                    $"https://meet.argon.gl/i/{inviteCode}",
+                    inviteCode,
+                    meetState.CreatedAt.UtcDateTime);
+            }
+            else
+            {
+                // Meeting ended, clear the link
+                state.State.LinkedMeetId = null;
+                state.State.LinkedMeetInviteCode = null;
+                await state.WriteStateAsync(ct);
+            }
+        }
+        
+        return new ChannelRealtimeState(members, meetInfo);
+    }
 
     [OneWay]
     public Task ClearChannel()
@@ -176,13 +209,16 @@ public class ChannelGrain(
         state.State.LinkedMeetInviteCode = result.InviteCode;
         await state.WriteStateAsync(ct);
 
+        var meetUrl = $"https://meet.argon.gl/i/{result.InviteCode}";
+        var meetInfo = new LinkedMeetingInfo(meetId, meetUrl, result.InviteCode, DateTime.UtcNow);
+
+        // Fire event to notify all subscribers
+        await _userStateEmitter.Fire(new MeetingCreatedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
+
         logger.LogInformation("Created linked meeting {MeetId} for channel {ChannelId} in space {SpaceId}",
             meetId, this.GetPrimaryKey(), SpaceId);
 
-        return new ChannelMeetingResult(
-            meetId,
-            result.InviteCode,
-            $"https://meet.argon.gl/i/{result.InviteCode}");
+        return new ChannelMeetingResult(meetId, result.InviteCode, meetUrl);
     }
 
     public Task<string?> GetMeetingLinkAsync(CancellationToken ct = default)
@@ -193,12 +229,42 @@ public class ChannelGrain(
         return Task.FromResult<string?>($"https://meet.argon.gl/i/{state.State.LinkedMeetInviteCode}");
     }
 
+    public async Task<LinkedMeetingInfo?> GetLinkedMeetingInfoAsync(CancellationToken ct = default)
+    {
+        if (!state.State.LinkedMeetId.HasValue || string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
+            return null;
+
+        var meetId = state.State.LinkedMeetId.Value;
+        var inviteCode = state.State.LinkedMeetInviteCode;
+
+        // Check if meeting is still active
+        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
+        var meetState = await meetGrain.GetStateAsync(ct);
+
+        if (meetState is null || meetState.IsEnded)
+        {
+            // Meeting ended, clear the link
+            state.State.LinkedMeetId = null;
+            state.State.LinkedMeetInviteCode = null;
+            await state.WriteStateAsync(ct);
+            return null;
+        }
+
+        return new LinkedMeetingInfo(
+            meetId,
+            $"https://meet.argon.gl/i/{inviteCode}",
+            inviteCode,
+            meetState.CreatedAt.UtcDateTime);
+    }
+
     public async Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default)
     {
         if (!state.State.LinkedMeetId.HasValue)
             return false;
 
         var userId = this.GetUserId();
+        var meetId = state.State.LinkedMeetId.Value;
+        var inviteCode = state.State.LinkedMeetInviteCode!;
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -206,7 +272,8 @@ public class ChannelGrain(
         if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
             return false;
 
-        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(state.State.LinkedMeetId.Value.ToString());
+        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
+        var meetState = await meetGrain.GetStateAsync(ct);
         var ended = await meetGrain.EndMeetingAsync(userId, ct);
 
         if (ended)
@@ -214,6 +281,16 @@ public class ChannelGrain(
             state.State.LinkedMeetId = null;
             state.State.LinkedMeetInviteCode = null;
             await state.WriteStateAsync(ct);
+
+            var meetUrl = $"https://meet.argon.gl/i/{inviteCode}";
+            var meetInfo = new LinkedMeetingInfo(
+                meetId, 
+                meetUrl, 
+                inviteCode, 
+                meetState?.CreatedAt.UtcDateTime ?? DateTime.UtcNow);
+
+            // Fire event to notify all subscribers
+            await _userStateEmitter.Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
 
             logger.LogInformation("Ended linked meeting for channel {ChannelId} in space {SpaceId}",
                 this.GetPrimaryKey(), SpaceId);
