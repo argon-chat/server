@@ -220,6 +220,9 @@ public class ChannelGrain(
             user.AvatarFileId,
             ct);
 
+        // Add host to channel voice (done here to avoid deadlock - MeetingGrain can't call back to ChannelGrain)
+        await JoinFromMeetingInternalAsync(userId, user.DisplayName ?? user.Username, isGuest: false, ct);
+
         // Register invite code mapping - normalize by removing dashes and uppercasing
         var normalizedCode = result.InviteCode.Replace("-", "").Replace(" ", "").ToUpperInvariant();
         logger.LogDebug("Registering invite code {InviteCode} (normalized: {NormalizedCode}) for meeting {MeetId}", 
@@ -334,7 +337,10 @@ public class ChannelGrain(
         return bytes[..4].SequenceEqual(GuestIdPrefix);
     }
 
-    public async Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
+    public Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
+        => JoinFromMeetingInternalAsync(oderId, displayName, isGuest, ct);
+
+    private async Task JoinFromMeetingInternalAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
     {
         if (_self.ChannelType != ChannelType.Voice)
         {
