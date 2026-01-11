@@ -1,8 +1,7 @@
 namespace Argon.Grains;
 
 using Argon.Core.Features.Logic;
-using Argon.Core.Services;
-using Argon.Features.Integrations.Phones;
+using Features.Integrations.Phones;
 using Api.Features.CoreLogic.Otp;
 using ion.runtime;
 using Orleans.Concurrency;
@@ -624,11 +623,11 @@ public class SecurityGrain(
         try
         {
             var details = await GetSecurityDetailsAsync(ct);
-            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId);
+            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
 
             if (sessions.Count == 0) return;
 
-            await notifier.NotifySessionsAsync(sessions, new UserSecurityDetailsUpdated(UserId, details));
+            await notifier.NotifySessionsAsync(sessions, new UserSecurityDetailsUpdated(UserId, details), ct);
         }
         catch (Exception e)
         {

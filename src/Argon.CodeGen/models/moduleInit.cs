@@ -24,6 +24,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<Archetype>.Value = new Ion_Archetype_Formatter();
       IonFormatterStorage<CreateChannelRequest>.Value = new Ion_CreateChannelRequest_Formatter();
       IonFormatterStorage<RealtimeChannel>.Value = new Ion_RealtimeChannel_Formatter();
+      IonFormatterStorage<LinkedMeetingInfo>.Value = new Ion_LinkedMeetingInfo_Formatter();
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
@@ -184,6 +185,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UpdatedNotificationCounters>.Value = new Ion_UpdatedNotificationCounters_Formatter();
       IonFormatterStorage<UserSecurityDetailsUpdated>.Value = new Ion_UserSecurityDetailsUpdated_Formatter();
       IonFormatterStorage<SpaceDetailsUpdated>.Value = new Ion_SpaceDetailsUpdated_Formatter();
+      IonFormatterStorage<MeetingCreatedFor>.Value = new Ion_MeetingCreatedFor_Formatter();
+      IonFormatterStorage<MeetingDeletedFor>.Value = new Ion_MeetingDeletedFor_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
