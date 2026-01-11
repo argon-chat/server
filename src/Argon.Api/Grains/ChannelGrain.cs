@@ -153,8 +153,13 @@ public class ChannelGrain(
 
     public async Task<ChannelMeetingResult?> CreateLinkedMeetingAsync(CancellationToken ct = default)
     {
+        var channelId = this.GetPrimaryKey();
+        
         if (_self.ChannelType != ChannelType.Voice)
+        {
+            logger.LogWarning("Cannot create linked meeting for non-voice channel {ChannelId}", channelId);
             return null;
+        }
 
         var userId = this.GetUserId();
 
@@ -162,7 +167,11 @@ public class ChannelGrain(
 
         // Check if user has permission to create meetings
         if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+        {
+            logger.LogWarning("User {UserId} lacks permission to create linked meeting for channel {ChannelId}", 
+                userId, channelId);
             return null;
+        }
 
         // If there's already a linked meeting, return its info
         if (state.State.LinkedMeetId.HasValue && !string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
@@ -173,6 +182,8 @@ public class ChannelGrain(
             // If meeting is still active, return it
             if (existingState is { IsEnded: false })
             {
+                logger.LogInformation("Returning existing linked meeting {MeetId} for channel {ChannelId}", 
+                    state.State.LinkedMeetId.Value, channelId);
                 return new ChannelMeetingResult(
                     state.State.LinkedMeetId.Value,
                     state.State.LinkedMeetInviteCode,
@@ -180,6 +191,8 @@ public class ChannelGrain(
             }
             
             // Meeting ended, clear the link
+            logger.LogInformation("Previous linked meeting {MeetId} has ended, clearing link for channel {ChannelId}", 
+                state.State.LinkedMeetId.Value, channelId);
             state.State.LinkedMeetId = null;
             state.State.LinkedMeetInviteCode = null;
         }
@@ -187,20 +200,28 @@ public class ChannelGrain(
         // Get user info for host
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null)
+        {
+            logger.LogWarning("User {UserId} not found when creating linked meeting for channel {ChannelId}", 
+                userId, channelId);
             return null;
+        }
 
         var meetId = Guid.CreateVersion7();
+        logger.LogInformation("Creating linked meeting {MeetId} for channel {ChannelId} in space {SpaceId} with host {HostId}", 
+            meetId, channelId, SpaceId, userId);
+
         var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
 
         var result = await meetGrain.CreateLinkedAsync(
             SpaceId,
-            this.GetPrimaryKey(),
+            channelId,
             userId,
             user.DisplayName ?? user.Username,
             user.AvatarFileId,
             ct);
 
         // Register invite code mapping
+        logger.LogInformation("Registering invite code {InviteCode} for meeting {MeetId}", result.InviteCode, meetId);
         var inviteGrain = this.GrainFactory.GetGrain<IInviteCodeGrain>(result.InviteCode.ToUpperInvariant());
         await inviteGrain.RegisterAsync(meetId, ct);
 
@@ -213,10 +234,10 @@ public class ChannelGrain(
         var meetInfo = new LinkedMeetingInfo(meetId, meetUrl, result.InviteCode, DateTime.UtcNow);
 
         // Fire event to notify all subscribers
-        await _userStateEmitter.Fire(new MeetingCreatedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
+        await _userStateEmitter.Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
 
-        logger.LogInformation("Created linked meeting {MeetId} for channel {ChannelId} in space {SpaceId}",
-            meetId, this.GetPrimaryKey(), SpaceId);
+        logger.LogInformation("Created linked meeting {MeetId} with invite code {InviteCode} for channel {ChannelId} in space {SpaceId} by user {UserId}",
+            meetId, result.InviteCode, channelId, SpaceId, userId);
 
         return new ChannelMeetingResult(meetId, result.InviteCode, meetUrl);
     }
