@@ -220,9 +220,11 @@ public class ChannelGrain(
             user.AvatarFileId,
             ct);
 
-        // Register invite code mapping
-        logger.LogInformation("Registering invite code {InviteCode} for meeting {MeetId}", result.InviteCode, meetId);
-        var inviteGrain = this.GrainFactory.GetGrain<IInviteCodeGrain>(result.InviteCode.ToUpperInvariant());
+        // Register invite code mapping - normalize by removing dashes and uppercasing
+        var normalizedCode = result.InviteCode.Replace("-", "").Replace(" ", "").ToUpperInvariant();
+        logger.LogDebug("Registering invite code {InviteCode} (normalized: {NormalizedCode}) for meeting {MeetId}", 
+            result.InviteCode, normalizedCode, meetId);
+        var inviteGrain = this.GrainFactory.GetGrain<IInviteCodeGrain>(normalizedCode);
         await inviteGrain.RegisterAsync(meetId, ct);
 
         // Store the link
