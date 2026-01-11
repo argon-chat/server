@@ -118,6 +118,110 @@ public class ChannelGrain(
         return result;
     }
 
+    public async Task<ChannelMeetingResult?> CreateLinkedMeetingAsync(CancellationToken ct = default)
+    {
+        if (_self.ChannelType != ChannelType.Voice)
+            return null;
+
+        var userId = this.GetUserId();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // Check if user has permission to create meetings
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+            return null;
+
+        // If there's already a linked meeting, return its info
+        if (state.State.LinkedMeetId.HasValue && !string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
+        {
+            var existingMeetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(state.State.LinkedMeetId.Value.ToString());
+            var existingState = await existingMeetGrain.GetStateAsync(ct);
+            
+            // If meeting is still active, return it
+            if (existingState is { IsEnded: false })
+            {
+                return new ChannelMeetingResult(
+                    state.State.LinkedMeetId.Value,
+                    state.State.LinkedMeetInviteCode,
+                    $"https://meet.argon.gl/i/{state.State.LinkedMeetInviteCode}");
+            }
+            
+            // Meeting ended, clear the link
+            state.State.LinkedMeetId = null;
+            state.State.LinkedMeetInviteCode = null;
+        }
+
+        // Get user info for host
+        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+        if (user is null)
+            return null;
+
+        var meetId = Guid.CreateVersion7();
+        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
+
+        var result = await meetGrain.CreateLinkedAsync(
+            SpaceId,
+            this.GetPrimaryKey(),
+            userId,
+            user.DisplayName ?? user.Username,
+            user.AvatarFileId,
+            ct);
+
+        // Register invite code mapping
+        var inviteGrain = this.GrainFactory.GetGrain<IInviteCodeGrain>(result.InviteCode.ToUpperInvariant());
+        await inviteGrain.RegisterAsync(meetId, ct);
+
+        // Store the link
+        state.State.LinkedMeetId = meetId;
+        state.State.LinkedMeetInviteCode = result.InviteCode;
+        await state.WriteStateAsync(ct);
+
+        logger.LogInformation("Created linked meeting {MeetId} for channel {ChannelId} in space {SpaceId}",
+            meetId, this.GetPrimaryKey(), SpaceId);
+
+        return new ChannelMeetingResult(
+            meetId,
+            result.InviteCode,
+            $"https://meet.argon.gl/i/{result.InviteCode}");
+    }
+
+    public Task<string?> GetMeetingLinkAsync(CancellationToken ct = default)
+    {
+        if (!state.State.LinkedMeetId.HasValue || string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
+            return Task.FromResult<string?>(null);
+
+        return Task.FromResult<string?>($"https://meet.argon.gl/i/{state.State.LinkedMeetInviteCode}");
+    }
+
+    public async Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default)
+    {
+        if (!state.State.LinkedMeetId.HasValue)
+            return false;
+
+        var userId = this.GetUserId();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // Check if user has permission
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+            return false;
+
+        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(state.State.LinkedMeetId.Value.ToString());
+        var ended = await meetGrain.EndMeetingAsync(userId, ct);
+
+        if (ended)
+        {
+            state.State.LinkedMeetId = null;
+            state.State.LinkedMeetInviteCode = null;
+            await state.WriteStateAsync(ct);
+
+            logger.LogInformation("Ended linked meeting for channel {ChannelId} in space {SpaceId}",
+                this.GetPrimaryKey(), SpaceId);
+        }
+
+        return ended;
+    }
+
 
 
     public async Task<Either<string, JoinToChannelError>> Join()

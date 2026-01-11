@@ -18,6 +18,18 @@ public sealed partial record ChannelGrainState
     /// </summary>
     [DataMember(Order = 4), Id(4)]
     public Dictionary<Guid, DateTimeOffset> UserJoinTimes { get; set; } = new();
+
+    /// <summary>
+    /// ID of the linked meeting, if any.
+    /// </summary>
+    [DataMember(Order = 5), Id(5)]
+    public Guid? LinkedMeetId { get; set; }
+
+    /// <summary>
+    /// Invite code for the linked meeting.
+    /// </summary>
+    [DataMember(Order = 6), Id(6)]
+    public string? LinkedMeetInviteCode { get; set; }
 }
 
 [DataContract, Serializable, GenerateSerializer]

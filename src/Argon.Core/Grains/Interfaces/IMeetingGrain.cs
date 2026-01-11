@@ -140,6 +140,18 @@ public interface IMeetingGrain : IGrainWithStringKey
     /// </summary>
     [Alias("GetJoinRequestStatusAsync")]
     Task<JoinRequestStatusResult> GetJoinRequestStatusAsync(Guid requestId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a meeting linked to a space channel (chat disabled by default).
+    /// </summary>
+    [Alias("CreateLinkedAsync")]
+    Task<MeetingCreatedResult> CreateLinkedAsync(
+        Guid spaceId,
+        Guid channelId,
+        Guid hostUserId,
+        string hostDisplayName,
+        string? hostAvatarFileId,
+        CancellationToken ct = default);
 }
 
 [GenerateSerializer, Immutable]
