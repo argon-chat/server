@@ -121,4 +121,17 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public Task<bool> StopRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => this.GetGrain<IChannelGrain>(channelId).StopRecord(ct);
+
+    public async Task<LinkedMeetingInfo> CreateLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).CreateLinkedMeetingAsync(ct);
+
+        if (result is null)
+            throw new InvalidOperationException("");
+
+        return new LinkedMeetingInfo(result.MeetId, result.InviteLink, result.InviteCode, DateTime.UtcNow);
+    }
+
+    public async Task EndLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).EndLinkedMeetingAsync(ct);
 }

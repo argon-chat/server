@@ -50,6 +50,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(BeginRecord), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> StopRecord_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(StopRecord), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateLinkedMeeting_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(CreateLinkedMeeting), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> EndLinkedMeeting_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(EndLinkedMeeting), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -361,6 +365,42 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<bool>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<LinkedMeetingInfo> CreateLinkedMeeting(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), CreateLinkedMeeting_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<LinkedMeetingInfo>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task EndLinkedMeeting(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), EndLinkedMeeting_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

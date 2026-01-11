@@ -142,6 +142,8 @@ public interface IChannelInteraction : IIonService
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
     Task<bool> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<LinkedMeetingInfo> CreateLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task EndLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
 }
 
 
