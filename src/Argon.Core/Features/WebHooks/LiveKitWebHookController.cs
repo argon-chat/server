@@ -21,7 +21,7 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
         var webhookEvent = webhookReceiver.Receive(postData, authHeader);
         logger.LogWarning("Received #{WebhookEventId} {WebhookEventEvent} at {WebhookEventCreatedAt}", webhookEvent.Id, webhookEvent.Event,
             webhookEvent.CreatedAt);
-        if (webhookEvent.Event.Equals("participant_left"))
+        if (webhookEvent.Event.Equals("participant_left") || webhookEvent.Event.Equals("participant_connection_aborted"))
         {
             var userId    = webhookEvent.Participant.Identity;
             var channelId = string.Join("", webhookEvent.Room.Name.Skip(37).Take(36));
