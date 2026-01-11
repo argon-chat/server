@@ -43,10 +43,7 @@ public class ServerInteractionImpl : IServerInteraction
     }
 
     public async Task<ArgonUser> PrefetchUser(Guid spaceId, Guid userId, CancellationToken ct = default)
-    {
-        var result = await this.GetGrain<IUserGrain>(userId).GetMe();
-        return result.ToDto();
-    }
+        => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchUser(userId, ct);
 
     public async Task<ArgonUserProfile> PrefetchProfile(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchProfile(userId);

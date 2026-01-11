@@ -227,9 +227,26 @@ public class SpaceGrain(
         await _serverEvents.Fire(new UserUpdated(this.GetPrimaryKey(), user.ToDto()));
     }
 
+    /// <summary>
+    /// Prefix for ephemeral guest user IDs from meetings.
+    /// </summary>
+    private static readonly byte[] GuestIdPrefix = [0xFA, 0xFC, 0xCC, 0xCC];
+
+    private static bool IsGuestUserId(Guid userId)
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        userId.TryWriteBytes(bytes);
+        return bytes[..4].SequenceEqual(GuestIdPrefix);
+    }
+
+
     public async Task<ArgonUserProfile> PrefetchProfile(Guid userId)
     {
         var caller = this.GetUserId();
+
+        if (IsGuestUserId(userId))
+            return new ArgonUserProfile(userId, null, null, null, null, "Guest User", false, IonArray<string>.Empty,
+                IonArray<SpaceMemberArchetype>.Empty);
 
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
@@ -246,6 +263,25 @@ public class SpaceGrain(
         {
             archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto()))
         };
+    }
+
+    public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
+    {
+        if (IsGuestUserId(userId))
+            return new ArgonUser(userId, "guest", "Guest User", null);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        
+        var user = await ctx.Users
+           .AsNoTracking()
+           .Where(u => u.Id == userId)
+           .Select(u => new ArgonUser(u.Id, u.Username, u.DisplayName ?? u.Username, u.AvatarFileId))
+           .FirstOrDefaultAsync(ct);
+
+        if (user is null)
+            return new ArgonUser(userId, "unknown", "Unknown User", null);
+
+        return user;
     }
 
 
