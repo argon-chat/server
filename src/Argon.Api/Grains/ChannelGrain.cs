@@ -322,7 +322,91 @@ public class ChannelGrain(
         return ended;
     }
 
+    /// <summary>
+    /// Prefix for ephemeral guest user IDs from meetings.
+    /// </summary>
+    private static readonly byte[] GuestIdPrefix = [0xFA, 0xFC, 0xCC, 0xCC];
 
+    private static bool IsGuestUserId(Guid userId)
+    {
+        Span<byte> bytes = stackalloc byte[16];
+        userId.TryWriteBytes(bytes);
+        return bytes[..4].SequenceEqual(GuestIdPrefix);
+    }
+
+    public async Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
+    {
+        if (_self.ChannelType != ChannelType.Voice)
+        {
+            logger.LogWarning("Cannot join from meeting to non-voice channel {ChannelId}", this.GetPrimaryKey());
+            return;
+        }
+
+        var channelId = this.GetPrimaryKey();
+
+        // If user already in channel, handle rejoin
+        if (state.State.Users.ContainsKey(oderId))
+        {
+            logger.LogDebug("User {UserId} already in channel {ChannelId}, skipping join from meeting", oderId, channelId);
+            return;
+        }
+
+        // For non-guests, check if they have existing join time and handle it
+        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var existingJoinTime))
+        {
+            await RecordVoiceTimeForUserAsync(oderId, existingJoinTime);
+            state.State.UserJoinTimes.Remove(oderId);
+            state.State.Users.Remove(oderId);
+            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+        }
+
+        // Add user to channel
+        state.State.Users[oderId] = new RealtimeChannelUser(oderId, ChannelMemberState.NONE);
+
+        // Only track join times for non-guests (for stats)
+        if (!isGuest)
+        {
+            state.State.UserJoinTimes[oderId] = DateTimeOffset.UtcNow;
+            _ = TrackCallJoinedAsync(oderId);
+        }
+
+        await state.WriteStateAsync(ct);
+        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
+
+        if (state.State.Users.Count > 0)
+            this.DelayDeactivation(TimeSpan.FromDays(1));
+
+        logger.LogInformation("User {UserId} ({DisplayName}) joined channel {ChannelId} from meeting (guest: {IsGuest})",
+            oderId, displayName, channelId, isGuest);
+    }
+
+    public async Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default)
+    {
+        var channelId = this.GetPrimaryKey();
+        var isGuest = IsGuestUserId(oderId);
+
+        if (!state.State.Users.Remove(oderId))
+        {
+            logger.LogDebug("User {UserId} not in channel {ChannelId}, skipping leave from meeting", oderId, channelId);
+            return;
+        }
+
+        // Only record voice time for non-guests
+        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var joinTime))
+        {
+            await RecordVoiceTimeForUserAsync(oderId, joinTime);
+            state.State.UserJoinTimes.Remove(oderId);
+        }
+
+        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+        await state.WriteStateAsync(ct);
+
+        if (state.State.Users.Count == 0)
+            this.DelayDeactivation(TimeSpan.MinValue);
+
+        logger.LogInformation("User {UserId} left channel {ChannelId} from meeting (guest: {IsGuest})",
+            oderId, channelId, isGuest);
+    }
 
     public async Task<Either<string, JoinToChannelError>> Join()
     {

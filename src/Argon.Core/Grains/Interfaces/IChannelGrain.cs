@@ -70,6 +70,19 @@ public interface IChannelGrain : IGrainWithGuidKey
     /// </summary>
     [Alias("EndLinkedMeetingAsync")]
     Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Join channel voice from a linked meeting.
+    /// For guests, userId should start with FAFCCCCC prefix.
+    /// </summary>
+    [Alias("JoinFromMeetingAsync")]
+    Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default);
+
+    /// <summary>
+    /// Leave channel voice from a linked meeting.
+    /// </summary>
+    [Alias("LeaveFromMeetingAsync")]
+    Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default);
 }
 
 /// <summary>
