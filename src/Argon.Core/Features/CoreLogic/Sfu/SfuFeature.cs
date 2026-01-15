@@ -2,38 +2,39 @@ namespace Argon.Sfu;
 
 using Livekit.Server.Sdk.Dotnet;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 
 public static class SfuFeature
 {
     public static IHostApplicationBuilder AddSelectiveForwardingUnit(this IHostApplicationBuilder builder)
     {
         builder.Services.Configure<CallKitOptions>(builder.Configuration.GetSection("CallKit"));
-        builder.Services.AddScoped<RoomServiceClient>(x =>
+        builder.Services.TryAddScoped<RoomServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new RoomServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<EgressServiceClient>(x =>
+        builder.Services.TryAddScoped<EgressServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new EgressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<IngressServiceClient>(x =>
+        builder.Services.TryAddScoped<IngressServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new IngressServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<SipServiceClient>(x =>
+        builder.Services.TryAddScoped<SipServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new SipServiceClient(options.Value.Sfu.CommandUrl, options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddScoped<WebhookReceiver>(x =>
+        builder.Services.TryAddScoped<WebhookReceiver>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();
             return new WebhookReceiver(options.Value.Sfu.ClientId, options.Value.Sfu.Secret);
         });
-        builder.Services.AddSingleton<ISfuAuthScope, SfuAuthScope>();
+        builder.Services.TryAddScoped<ISfuAuthScope, SfuAuthScope>();
         return builder;
     }
 }
