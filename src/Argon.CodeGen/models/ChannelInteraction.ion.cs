@@ -19,7 +19,11 @@ public sealed record CreateChannelRequest(guid spaceId, string name, ChannelType
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChannelUser> users);
+public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChannelUser> users, LinkedMeetingInfo? meetInfo);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LinkedMeetingInfo(guid meetingId, string meetingUrl, string meetingCode, datetime startDate);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -138,6 +142,8 @@ public interface IChannelInteraction : IIonService
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
     Task<bool> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<LinkedMeetingInfo> CreateLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task EndLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
 }
 
 
@@ -1406,6 +1412,10 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsSpaceDetailsUpdated => this is SpaceDetailsUpdated;
 
+    internal bool IsMeetingCreatedFor => this is MeetingCreatedFor;
+
+    internal bool IsMeetingDeletedFor => this is MeetingDeletedFor;
+
 }
 
 
@@ -1710,6 +1720,20 @@ public sealed record SpaceDetailsUpdated(guid spaceId, ArgonSpaceBase details) :
     public uint UnionIndex => 42;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MeetingCreatedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
+{
+    public string UnionKey => nameof(MeetingCreatedFor);
+    public uint UnionIndex => 43;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MeetingDeletedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
+{
+    public string UnionKey => nameof(MeetingDeletedFor);
+    public uint UnionIndex => 44;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1850,6 +1874,12 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 42)
             result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
+
+        else if (unionIndex == 43)
+            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
+
+        else if (unionIndex == 44)
+            result = IonFormatterStorage<MeetingDeletedFor>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -2163,6 +2193,20 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_42.UnionIndex != 42)
                 throw new InvalidOperationException();
             IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_42);
+        }
+
+        else if (value is MeetingCreatedFor n_43)
+        {
+            if (n_43.UnionIndex != 43)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_43);
+        }
+
+        else if (value is MeetingDeletedFor n_44)
+        {
+            if (n_44.UnionIndex != 44)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_44);
         }
     
         else
@@ -3181,6 +3225,56 @@ public sealed class Ion_SpaceDetailsUpdated_Formatter : IonFormatter<SpaceDetail
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<ArgonSpaceBase>.Write(writer, value.details);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MeetingCreatedFor_Formatter : IonFormatter<MeetingCreatedFor>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MeetingCreatedFor Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __meetinfo = IonFormatterStorage<LinkedMeetingInfo>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __channelid, __meetinfo);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MeetingCreatedFor value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<LinkedMeetingInfo>.Write(writer, value.meetInfo);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MeetingDeletedFor_Formatter : IonFormatter<MeetingDeletedFor>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MeetingDeletedFor Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __meetinfo = IonFormatterStorage<LinkedMeetingInfo>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __channelid, __meetinfo);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MeetingDeletedFor value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<LinkedMeetingInfo>.Write(writer, value.meetInfo);
         writer.WriteEndArray();
     }
 }

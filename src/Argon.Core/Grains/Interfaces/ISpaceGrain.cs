@@ -69,6 +69,9 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(PrefetchProfile))]
     Task<ArgonUserProfile> PrefetchProfile(Guid userId);
 
+    [Alias(nameof(PrefetchUser))]
+    Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default);
+
     [Alias(nameof(BeginUploadSpaceFile))]
     ValueTask<Either<BlobId, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
 

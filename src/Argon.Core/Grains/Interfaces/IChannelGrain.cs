@@ -23,6 +23,12 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("GetMembers")]
     Task<List<RealtimeChannelUser>> GetMembers();
 
+    /// <summary>
+    /// Gets realtime state (members + meeting info) in a single call for efficiency.
+    /// </summary>
+    [Alias("GetRealtimeStateAsync")]
+    Task<ChannelRealtimeState> GetRealtimeStateAsync(CancellationToken ct = default);
+
     [OneWay, Alias("ClearChannel")]
     Task ClearChannel();
 
@@ -40,10 +46,70 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<bool> BeginRecord(CancellationToken ct = default);
     [Alias("StopRecord")]
     Task<bool> StopRecord(CancellationToken ct = default);
+
+    /// <summary>
+    /// Creates a linked meeting for this voice channel.
+    /// </summary>
+    [Alias("CreateLinkedMeetingAsync")]
+    Task<ChannelMeetingResult?> CreateLinkedMeetingAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the invite link for the linked meeting, if exists.
+    /// </summary>
+    [Alias("GetMeetingLinkAsync")]
+    Task<string?> GetMeetingLinkAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets full linked meeting info, if exists.
+    /// </summary>
+    [Alias("GetLinkedMeetingInfoAsync")]
+    Task<LinkedMeetingInfo?> GetLinkedMeetingInfoAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Ends the linked meeting.
+    /// </summary>
+    [Alias("EndLinkedMeetingAsync")]
+    Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Join channel voice from a linked meeting.
+    /// For guests, userId should start with FAFCCCCC prefix.
+    /// </summary>
+    [Alias("JoinFromMeetingAsync")]
+    Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default);
+
+    /// <summary>
+    /// Leave channel voice from a linked meeting.
+    /// </summary>
+    [Alias("LeaveFromMeetingAsync")]
+    Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// Combined realtime state for a channel - members and meeting info.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record ChannelRealtimeState(
+    [property: Id(0)] List<RealtimeChannelUser> Members,
+    [property: Id(1)] LinkedMeetingInfo? MeetingInfo);
 
 
 public sealed record ChannelInput(
     string Name,
     string? Description,
     ChannelType ChannelType);
+
+/// <summary>
+/// Result of creating a linked meeting from a channel.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record ChannelMeetingResult(
+    [property: Id(0)] Guid MeetId,
+    [property: Id(1)] string InviteCode,
+    [property: Id(2)] string InviteLink);
+
+public sealed record ParticipantInfo(
+    string UserId,
+    string UserName,
+    bool IsMicEnabled,
+    bool IsCameraEnabled);

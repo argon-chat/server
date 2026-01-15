@@ -35,11 +35,14 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
 
     public async Task<(IonProtocolError?, object? ticket)> OnExchangeTransactionAsync(ReadOnlyMemory<byte> exchangeToken)
     {
+        if (exchangeToken.Length != 16)
+            return (new IonProtocolError("BAD_TICKET", $"Invalid token length: expected 16 bytes, got {exchangeToken.Length}"), null);
+        
         var ticketId = new Guid(exchangeToken.Span);
         var key      = await cache.StringGetAsync($"ion_exchange_{ticketId}");
 
         if (key is null)
-            return (new IonProtocolError("BAD_TICKET", ""), null);
+            return (new IonProtocolError("BAD_TICKET", "Ticket not found or expired"), null);
 
         try
         {

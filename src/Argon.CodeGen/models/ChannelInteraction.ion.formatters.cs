@@ -51,16 +51,45 @@ public sealed class Ion_RealtimeChannel_Formatter : IonFormatter<RealtimeChannel
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __channel = IonFormatterStorage<ArgonChannel>.Read(reader);
         var __users = IonFormatterStorage<RealtimeChannelUser>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__channel, __users);
+        var __meetinfo = reader.ReadNullable<LinkedMeetingInfo>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__channel, __users, __meetinfo);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, RealtimeChannel value)
     {
-        writer.WriteStartArray(2);
+        writer.WriteStartArray(3);
         IonFormatterStorage<ArgonChannel>.Write(writer, value.channel);
         IonFormatterStorage<RealtimeChannelUser>.WriteArray(writer, value.users);
+        IonFormatterStorage<LinkedMeetingInfo>.WriteNullable(writer, value.meetInfo);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_LinkedMeetingInfo_Formatter : IonFormatter<LinkedMeetingInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public LinkedMeetingInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __meetingid = IonFormatterStorage<guid>.Read(reader);
+        var __meetingurl = IonFormatterStorage<string>.Read(reader);
+        var __meetingcode = IonFormatterStorage<string>.Read(reader);
+        var __startdate = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__meetingid, __meetingurl, __meetingcode, __startdate);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, LinkedMeetingInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.meetingId);
+        IonFormatterStorage<string>.Write(writer, value.meetingUrl);
+        IonFormatterStorage<string>.Write(writer, value.meetingCode);
+        IonFormatterStorage<datetime>.Write(writer, value.startDate);
         writer.WriteEndArray();
     }
 }
