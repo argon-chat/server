@@ -70,10 +70,7 @@ public class UserInteractionImpl(
     public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)
     {
         var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.Avatar, ct);
-
-        if (result.IsSuccess)
-            return new SuccessUploadFile(result.Value.Id);
-        return new FailedUploadFile(result.Error);
+        return MapUploadResult(result);
     }
 
     public async Task CompleteUploadAvatar(Guid blobId, CancellationToken ct = default)
@@ -82,14 +79,18 @@ public class UserInteractionImpl(
     public async Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default)
     {
         var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.ProfileHeader, ct);
-
-        if (result.IsSuccess)
-            return new SuccessUploadFile(result.Value.Id);
-        return new FailedUploadFile(result.Error);
+        return MapUploadResult(result);
     }
 
     public async Task CompleteUploadProfileHeader(Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.ProfileHeader, ct);
+
+    private static IUploadFileResult MapUploadResult(Either<BlobId, UploadFileError> result)
+    {
+        if (result.IsSuccess)
+            return new SuccessUploadFile(result.Value.Id);
+        return new FailedUploadFile(result.Error);
+    }
 
     public async Task<TodayStats> GetTodayStats(CancellationToken ct = default)
     {

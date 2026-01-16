@@ -61,10 +61,7 @@ public class ServerInteractionImpl : IServerInteraction
     public async Task<Guid> BeginUploadSpaceProfileHeader(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<ISpaceGrain>(spaceId).BeginUploadSpaceFile(SpaceFileKind.ProfileHeader, ct);
-
-        if (result.IsSuccess)
-            return result.Value.Id;
-        throw new InvalidOperationException($"Failed to begin upload: {result.Error}");
+        return UnwrapUploadResult(result);
     }
 
     public async Task CompleteUploadSpaceProfileHeader(Guid spaceId, Guid blobId, CancellationToken ct = default)
@@ -73,12 +70,16 @@ public class ServerInteractionImpl : IServerInteraction
     public async Task<Guid> BeginUploadSpaceAvatar(Guid spaceId, CancellationToken ct = default)
     {
         var result = await this.GetGrain<ISpaceGrain>(spaceId).BeginUploadSpaceFile(SpaceFileKind.Avatar, ct);
-
-        if (result.IsSuccess)
-            return result.Value.Id;
-        throw new InvalidOperationException($"Failed to begin upload: {result.Error}");
+        return UnwrapUploadResult(result);
     }
 
     public async Task CompleteUploadSpaceAvatar(Guid spaceId, Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).CompleteUploadSpaceFile(blobId, SpaceFileKind.Avatar, ct);
+
+    private static Guid UnwrapUploadResult(Either<BlobId, UploadFileError> result)
+    {
+        if (result.IsSuccess)
+            return result.Value.Id;
+        throw new InvalidOperationException($"Failed to begin upload: {result.Error}");
+    }
 }
