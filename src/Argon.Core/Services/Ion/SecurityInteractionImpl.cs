@@ -4,51 +4,53 @@ using ion.runtime;
 
 public class SecurityInteractionImpl : ISecurityInteraction
 {
+    private ISecurityGrain SecurityGrain => this.GetGrain<ISecurityGrain>(this.GetUserId());
+
     public async Task<IRequestEmailChangeResult> RequestEmailChange(string newEmail, string password, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RequestEmailChangeAsync(newEmail, password, ct);
+        => await SecurityGrain.RequestEmailChangeAsync(newEmail, password, ct);
 
     public async Task<IConfirmEmailChangeResult> ConfirmEmailChange(string verificationCode, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).ConfirmEmailChangeAsync(verificationCode, ct);
+        => await SecurityGrain.ConfirmEmailChangeAsync(verificationCode, ct);
 
     public async Task<IRequestPhoneChangeResult> RequestPhoneChange(string newPhone, string password, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RequestPhoneChangeAsync(newPhone, password, ct);
+        => await SecurityGrain.RequestPhoneChangeAsync(newPhone, password, ct);
 
     public async Task<IConfirmPhoneChangeResult> ConfirmPhoneChange(string verificationCode, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).ConfirmPhoneChangeAsync(verificationCode, ct);
+        => await SecurityGrain.ConfirmPhoneChangeAsync(verificationCode, ct);
 
     public async Task<IRemovePhoneResult> RemovePhone(string password, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RemovePhoneAsync(password, ct);
+        => await SecurityGrain.RemovePhoneAsync(password, ct);
 
     public async Task<IChangePasswordResult> ChangePassword(string currentPassword, string newPassword, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).ChangePasswordAsync(currentPassword, newPassword, ct);
+        => await SecurityGrain.ChangePasswordAsync(currentPassword, newPassword, ct);
 
     public async Task<IEnableOTPResult> EnableOTP(CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).EnableOTPAsync(ct);
+        => await SecurityGrain.EnableOTPAsync(ct);
 
     public async Task<IVerifyOTPResult> VerifyAndEnableOTP(string code, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).VerifyAndEnableOTPAsync(code, ct);
+        => await SecurityGrain.VerifyAndEnableOTPAsync(code, ct);
 
     public async Task<IDisableOTPResult> DisableOTP(string code, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).DisableOTPAsync(code, ct);
+        => await SecurityGrain.DisableOTPAsync(code, ct);
 
     public async Task<IonArray<Passkey>> GetPasskeys(CancellationToken ct = default)
-        => new(await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetPasskeysAsync(ct));
+        => new(await SecurityGrain.GetPasskeysAsync(ct));
 
     public async Task<IBeginPasskeyResult> BeginAddPasskey(string name, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).BeginAddPasskeyAsync(name, ct);
+        => await SecurityGrain.BeginAddPasskeyAsync(name, ct);
 
     public async Task<ICompletePasskeyResult> CompleteAddPasskey(Guid passkeyId, string publicKey, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).CompleteAddPasskeyAsync(passkeyId, publicKey, ct);
+        => await SecurityGrain.CompleteAddPasskeyAsync(passkeyId, publicKey, ct);
 
     public async Task<IRemovePasskeyResult> RemovePasskey(Guid passkeyId, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RemovePasskeyAsync(passkeyId, ct);
+        => await SecurityGrain.RemovePasskeyAsync(passkeyId, ct);
 
     public async Task<ISetAutoDeleteResult> SetAutoDeletePeriod(int? months, CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).SetAutoDeletePeriodAsync(months, ct);
+        => await SecurityGrain.SetAutoDeletePeriodAsync(months, ct);
 
     public async Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetAutoDeletePeriodAsync(ct);
+        => await SecurityGrain.GetAutoDeletePeriodAsync(ct);
 
     public async Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default)
-        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSecurityDetailsAsync(ct);
+        => await SecurityGrain.GetSecurityDetailsAsync(ct);
 }
