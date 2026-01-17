@@ -1,6 +1,7 @@
 namespace Argon.Api.Features.CoreLogic.Otp;
 
 using Argon.Features.Integrations.Phones;
+using Argon.Core.Features.CoreLogic.Passkeys;
 using Services;
 using OtpNet;
 
@@ -10,6 +11,7 @@ public static class OtpExtensions
     {
         builder.Services.AddSingleton<IOtpService, OtpService>();
         builder.Services.AddSingleton<ITotpKeyStore, TotpKeyStore>();
+        builder.Services.AddSingleton<IPendingPasskeyStore, PendingPasskeyStore>();
         builder.Services.AddSingleton<IOtpStrategy, PhoneOtpStrategy>();
         builder.Services.AddSingleton<IOtpStrategy, TotpOtpStrategy>();
         builder.Services.AddSingleton<IOtpStrategy, EmailOtpStrategy>();

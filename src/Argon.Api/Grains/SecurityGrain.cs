@@ -1,6 +1,7 @@
 namespace Argon.Grains;
 
 using Argon.Core.Features.Logic;
+using Argon.Core.Features.CoreLogic.Passkeys;
 using Features.Integrations.Phones;
 using Api.Features.CoreLogic.Otp;
 using ion.runtime;
@@ -13,6 +14,7 @@ public class SecurityGrain(
     IDbContextFactory<ApplicationDbContext> dbFactory,
     IPasswordHashingService passwordHashingService,
     ITotpKeyStore totpKeyStore,
+    IPendingPasskeyStore pendingPasskeyStore,
     IPhoneProvider phoneProvider,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
@@ -432,23 +434,11 @@ public class SecurityGrain(
             if (existingCount >= MaxPasskeys)
                 return new FailedBeginPasskey(PasskeyError.LIMIT_REACHED);
 
-            var challenge = Convert.ToBase64String(OtpSecurity.GenerateSalt(32));
+            if (string.IsNullOrWhiteSpace(name))
+                return new FailedBeginPasskey(PasskeyError.INVALID_PUBLIC_KEY);
 
-            var passkey = new UserPasskeyEntity
-            {
-                Id = Guid.CreateVersion7(),
-                UserId = UserId,
-                Name = name,
-                Challenge = challenge,
-                IsCompleted = false,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
-
-            await db.Passkeys.AddAsync(passkey, ct);
-            await db.SaveChangesAsync(ct);
-
-            return new SuccessBeginPasskey(passkey.Id, challenge);
+            var (passkeyId, challenge) = await pendingPasskeyStore.CreatePendingAsync(UserId, name, ct);
+            return new SuccessBeginPasskey(passkeyId, challenge);
         }
         catch (Exception e)
         {
@@ -461,24 +451,42 @@ public class SecurityGrain(
     {
         try
         {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-            var passkey = await db.Passkeys.FirstOrDefaultAsync(p => p.Id == passkeyId && p.UserId == UserId && !p.IsDeleted, ct);
-            if (passkey is null)
-                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
-
-            if (passkey.IsCompleted)
-                return new FailedCompletePasskey(PasskeyError.INTERNAL_ERROR);
-
             if (string.IsNullOrWhiteSpace(publicKey))
                 return new FailedCompletePasskey(PasskeyError.INVALID_PUBLIC_KEY);
 
-            passkey.PublicKey = publicKey;
-            passkey.Challenge = null;
-            passkey.IsCompleted = true;
-            passkey.UpdatedAt = DateTimeOffset.UtcNow;
+            // Retrieve pending passkey from cache
+            var pending = await pendingPasskeyStore.GetPendingAsync(UserId, passkeyId, ct);
+            if (pending is null)
+                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
 
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            // Check if passkey already exists in DB (shouldn't happen if flow is correct)
+            var existingPasskey = await db.Passkeys.FirstOrDefaultAsync(p => p.Id == passkeyId && p.UserId == UserId, ct);
+            if (existingPasskey is not null)
+            {
+                await pendingPasskeyStore.DeletePendingAsync(UserId, passkeyId, ct);
+                return new FailedCompletePasskey(PasskeyError.INTERNAL_ERROR);
+            }
+
+            // Create new passkey in database
+            var passkey = new UserPasskeyEntity
+            {
+                Id = passkeyId,
+                UserId = UserId,
+                Name = pending.Name,
+                PublicKey = publicKey,
+                Challenge = null,
+                IsCompleted = true,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+
+            await db.Passkeys.AddAsync(passkey, ct);
             await db.SaveChangesAsync(ct);
+
+            // Clean up cache
+            await pendingPasskeyStore.DeletePendingAsync(UserId, passkeyId, ct);
 
             _ = NotifySecurityDetailsChangedAsync(ct);
 
