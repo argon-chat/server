@@ -47,9 +47,9 @@ public static class CorsFeature
                                (uri.Host.EndsWith(".argon.gl", StringComparison.InvariantCulture));
                     });
                 }
-                catch (UriFormatException e)
+                catch (UriFormatException)
                 {
-                    throw new InvalidOperationException($"Invalid CORS origin format, origin: {origin}", e);
+                    return false;
                 }
             })
            .AllowAnyHeader()
