@@ -58,6 +58,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
       IonFormatterStorage<SecurityDetails>.Value = new Ion_SecurityDetails_Formatter();
       IonFormatterStorage<Passkey>.Value = new Ion_Passkey_Formatter();
+      IonFormatterStorage<PasskeyCredentialDescriptor>.Value = new Ion_PasskeyCredentialDescriptor_Formatter();
       IonFormatterStorage<AutoDeletePeriod>.Value = new Ion_AutoDeletePeriod_Formatter();
       IonFormatterStorage<EmailChangeError>.Value = new Ion_EmailChangeError_Formatter();
       IonFormatterStorage<PhoneChangeError>.Value = new Ion_PhoneChangeError_Formatter();
@@ -77,6 +78,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IBeginPasskeyResult>.Value = new Ion_IBeginPasskeyResult_Formatter();
       IonFormatterStorage<ICompletePasskeyResult>.Value = new Ion_ICompletePasskeyResult_Formatter();
       IonFormatterStorage<IRemovePasskeyResult>.Value = new Ion_IRemovePasskeyResult_Formatter();
+      IonFormatterStorage<IBeginPasskeyValidateResult>.Value = new Ion_IBeginPasskeyValidateResult_Formatter();
       IonFormatterStorage<ISetAutoDeleteResult>.Value = new Ion_ISetAutoDeleteResult_Formatter();
       IonFormatterStorage<ArgonSpaceBase>.Value = new Ion_ArgonSpaceBase_Formatter();
       IonFormatterStorage<ArgonSpace>.Value = new Ion_ArgonSpace_Formatter();
@@ -221,6 +223,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedCompletePasskey>.Value = new Ion_FailedCompletePasskey_Formatter();
       IonFormatterStorage<SuccessRemovePasskey>.Value = new Ion_SuccessRemovePasskey_Formatter();
       IonFormatterStorage<FailedRemovePasskey>.Value = new Ion_FailedRemovePasskey_Formatter();
+      IonFormatterStorage<SuccessBeginValidatePasskey>.Value = new Ion_SuccessBeginValidatePasskey_Formatter();
+      IonFormatterStorage<FailedBeginValidatePasskey>.Value = new Ion_FailedBeginValidatePasskey_Formatter();
       IonFormatterStorage<SuccessSetAutoDelete>.Value = new Ion_SuccessSetAutoDelete_Formatter();
       IonFormatterStorage<FailedSetAutoDelete>.Value = new Ion_FailedSetAutoDelete_Formatter();
       IonFormatterStorage<SuccessUploadFile>.Value = new Ion_SuccessUploadFile_Formatter();

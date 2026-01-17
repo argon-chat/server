@@ -293,6 +293,43 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
         
         IonFormatterStorage<SecurityDetails>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginValidatePasskey_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginValidatePasskey();
+        
+        IonFormatterStorage<IBeginPasskeyValidateResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteValidatePasskey_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __credentialid = IonFormatterStorage<string>.Read(reader);
+        var __signature = IonFormatterStorage<string>.Read(reader);
+        var __authenticatordata = IonFormatterStorage<string>.Read(reader);
+        var __clientdatajson = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CompleteValidatePasskey(__credentialid, __signature, __authenticatordata, __clientdatajson);
+        
+        IonFormatterStorage<ICompletePasskeyResult>.Write(writer, result);
+    }
 
     
     
@@ -332,6 +369,10 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
             return GetAutoDeletePeriod_Execute(reader, writer, ct);
         if (methodName.Equals("GetSecurityDetails", StringComparison.InvariantCultureIgnoreCase))
             return GetSecurityDetails_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginValidatePasskey", StringComparison.InvariantCultureIgnoreCase))
+            return BeginValidatePasskey_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteValidatePasskey", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteValidatePasskey_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

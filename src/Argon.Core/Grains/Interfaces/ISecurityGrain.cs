@@ -52,4 +52,10 @@ public interface ISecurityGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetSecurityDetailsAsync))]
     Task<SecurityDetails> GetSecurityDetailsAsync(CancellationToken ct = default);
+
+    [Alias(nameof(BeginValidatePasskeyAsync))]
+    Task<IBeginPasskeyValidateResult> BeginValidatePasskeyAsync(CancellationToken ct = default);
+
+    [Alias(nameof(CompleteValidatePasskeyAsync))]
+    Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default);
 }

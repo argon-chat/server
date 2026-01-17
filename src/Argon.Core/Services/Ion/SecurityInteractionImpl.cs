@@ -51,4 +51,10 @@ public class SecurityInteractionImpl : ISecurityInteraction
 
     public async Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSecurityDetailsAsync(ct);
+
+    public async Task<IBeginPasskeyValidateResult> BeginValidatePasskey(CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).BeginValidatePasskeyAsync(ct);
+
+    public async Task<ICompletePasskeyResult> CompleteValidatePasskey(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).CompleteValidatePasskeyAsync(credentialId, signature, authenticatorData, clientDataJSON, ct);
 }

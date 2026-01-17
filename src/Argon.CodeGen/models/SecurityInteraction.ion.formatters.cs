@@ -70,6 +70,29 @@ public sealed class Ion_Passkey_Formatter : IonFormatter<Passkey>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_PasskeyCredentialDescriptor_Formatter : IonFormatter<PasskeyCredentialDescriptor>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public PasskeyCredentialDescriptor Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __id = IonFormatterStorage<string>.Read(reader);
+        var __type = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__id, __type);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, PasskeyCredentialDescriptor value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.id);
+        IonFormatterStorage<string>.Write(writer, value.type);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_AutoDeletePeriod_Formatter : IonFormatter<AutoDeletePeriod>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

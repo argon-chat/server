@@ -618,6 +618,72 @@ public class SecurityGrain(
         }
     }
 
+    public async Task<IBeginPasskeyValidateResult> BeginValidatePasskeyAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var passkeys = await db.Passkeys
+                .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted)
+                .ToListAsync(ct);
+
+            if (passkeys.Count == 0)
+                return new FailedBeginValidatePasskey(PasskeyError.NOT_FOUND);
+
+            var challenge = Convert.ToBase64String(OtpSecurity.GenerateSalt(32));
+
+            var allowedCredentials = passkeys
+                .Select(p => new PasskeyCredentialDescriptor(p.Id.ToString(), "public-key"))
+                .ToList();
+
+            return new SuccessBeginValidatePasskey(challenge, new IonArray<PasskeyCredentialDescriptor>(allowedCredentials));
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to begin validate passkey for user {UserId}", UserId);
+            return new FailedBeginValidatePasskey(PasskeyError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(credentialId) || 
+                string.IsNullOrWhiteSpace(signature) || 
+                string.IsNullOrWhiteSpace(authenticatorData) || 
+                string.IsNullOrWhiteSpace(clientDataJSON))
+            {
+                return new FailedCompletePasskey(PasskeyError.INVALID_PUBLIC_KEY);
+            }
+
+            if (!Guid.TryParse(credentialId, out var passkeyId))
+                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var passkey = await db.Passkeys.FirstOrDefaultAsync(
+                p => p.Id == passkeyId && p.UserId == UserId && p.IsCompleted && !p.IsDeleted, ct);
+
+            if (passkey is null)
+                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
+
+            passkey.LastUsedAt = DateTimeOffset.UtcNow;
+            passkey.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await db.SaveChangesAsync(ct);
+
+            var result = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime);
+            return new SuccessCompletePasskey(result);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to complete validate passkey for user {UserId}", UserId);
+            return new FailedCompletePasskey(PasskeyError.INTERNAL_ERROR);
+        }
+    }
+
     private async Task NotifySecurityDetailsChangedAsync(CancellationToken ct = default)
     {
         try

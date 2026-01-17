@@ -50,6 +50,10 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         typeof(ISecurityInteraction).GetMethod(nameof(GetAutoDeletePeriod), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetSecurityDetails_Ref = new(() =>
         typeof(ISecurityInteraction).GetMethod(nameof(GetSecurityDetails), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginValidatePasskey_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(BeginValidatePasskey), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteValidatePasskey_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(CompleteValidatePasskey), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -328,6 +332,43 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         writer.WriteEndArray();
     
         return await req.CallAsync<SecurityDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IBeginPasskeyValidateResult> BeginValidatePasskey(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), BeginValidatePasskey_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IBeginPasskeyValidateResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ICompletePasskeyResult> CompleteValidatePasskey(string __credentialid, string __signature, string __authenticatordata, string __clientdatajson, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), CompleteValidatePasskey_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __credentialid);
+        IonFormatterStorage<string>.Write(writer, __signature);
+        IonFormatterStorage<string>.Write(writer, __authenticatordata);
+        IonFormatterStorage<string>.Write(writer, __clientdatajson);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ICompletePasskeyResult>(writer.Encode(), ct: ct);
     }
 
 }
