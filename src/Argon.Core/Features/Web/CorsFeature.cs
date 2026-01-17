@@ -31,19 +31,26 @@ public static class CorsFeature
     public static void AddDefaultCors(this WebApplicationBuilder builder)
         => builder.Services.AddCors(x => x.AddDefaultPolicy(z => z.SetIsOriginAllowed(origin =>
             {
-                var uri = new Uri(origin);
-
-                return AllowedHost.Any(w =>
+                try
                 {
-                    if (!uri.Scheme.Equals(w.scheme, StringComparison.InvariantCulture))
-                        return false;
+                    var uri = new Uri(origin);
 
-                    if (uri.Host.Equals(w.host, StringComparison.InvariantCulture))
-                        return true;
+                    return AllowedHost.Any(w =>
+                    {
+                        if (!uri.Scheme.Equals(w.scheme, StringComparison.InvariantCulture))
+                            return false;
 
-                    return w.host == "argon.gl" &&
-                           (uri.Host.EndsWith(".argon.gl", StringComparison.InvariantCulture));
-                });
+                        if (uri.Host.Equals(w.host, StringComparison.InvariantCulture))
+                            return true;
+
+                        return w.host == "argon.gl" &&
+                               (uri.Host.EndsWith(".argon.gl", StringComparison.InvariantCulture));
+                    });
+                }
+                catch (UriFormatException e)
+                {
+                    throw new InvalidOperationException($"Invalid CORS origin format, origin: {origin}", e);
+                }
             })
            .AllowAnyHeader()
            .AllowAnyMethod()
