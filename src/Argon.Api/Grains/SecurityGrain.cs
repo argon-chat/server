@@ -642,7 +642,7 @@ public class SecurityGrain(
             var challenge = Convert.ToBase64String(OtpSecurity.GenerateSalt(32));
 
             var allowedCredentials = passkeys
-                .Select(p => new PasskeyCredentialDescriptor(p.Id.ToString(), "public-key"))
+                .Select(p => new PasskeyCredentialDescriptor(p.PublicKey.ToString(), "public-key"))
                 .ToList();
 
             return new SuccessBeginValidatePasskey(challenge, new IonArray<PasskeyCredentialDescriptor>(allowedCredentials));
