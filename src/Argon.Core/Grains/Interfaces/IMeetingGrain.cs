@@ -18,6 +18,15 @@ public interface IMeetingGrain : IGrainWithStringKey
         CancellationToken ct = default);
 
     /// <summary>
+    /// Creates a new anonymous meeting without authentication.
+    /// </summary>
+    [Alias("CreateAnonymousAsync")]
+    Task<AnonymousMeetingCreatedResult> CreateAnonymousAsync(
+        AnonymousHostInfoDto hostInfo,
+        MeetingLimitsDto limits,
+        CancellationToken ct = default);
+
+    /// <summary>
     /// Gets the current meeting state.
     /// </summary>
     [Alias("GetStateAsync")]
@@ -187,6 +196,58 @@ public sealed record JoinRequestStatusResult(
     [property: Id(5)] IceEndpointDto[] IceEndpoints,
     [property: Id(6)] int Position);
 
+/// <summary>
+/// Result of creating an anonymous meeting.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record AnonymousMeetingCreatedResult(
+    [property: Id(0)] Guid MeetId,
+    [property: Id(1)] string InviteCode,
+    [property: Id(2)] string Token,
+    [property: Id(3)] Guid HostSessionId,
+    [property: Id(4)] string RtcEndpoint,
+    [property: Id(5)] IceEndpointDto[] IceEndpoints,
+    [property: Id(6)] MeetingLimitsDto AppliedLimits,
+    [property: Id(7)] DateTimeOffset ExpiresAt);
+
+/// <summary>
+/// Anonymous host information DTO for Orleans serialization.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record AnonymousHostInfoDto(
+    [property: Id(0)] Guid SessionId,
+    [property: Id(1)] string DisplayName,
+    [property: Id(2)] string IpAddress,
+    [property: Id(3)] string? ClientFingerprint,
+    [property: Id(4)] string? Region,
+    [property: Id(5)] DateTimeOffset CreatedAt);
+
+/// <summary>
+/// Meeting limits DTO for Orleans serialization.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record MeetingLimitsDto(
+    [property: Id(0)] int? MaxDurationMinutes,
+    [property: Id(1)] int MaxParticipants,
+    [property: Id(2)] bool AllowScreenShare,
+    [property: Id(3)] bool AllowRecording,
+    [property: Id(4)] bool AllowChat,
+    [property: Id(5)] bool AllowBreakoutRooms,
+    [property: Id(6)] bool AllowWaitingRoom,
+    [property: Id(7)] UserTierDto OwnerTier);
+
+/// <summary>
+/// User tier enumeration for meeting limits.
+/// </summary>
+[GenerateSerializer]
+public enum UserTierDto
+{
+    Anonymous = 0,
+    Free = 1,
+    Pro = 2,
+    Enterprise = 3
+}
+
 public enum MeetingJoinError
 {
     None = 0,
@@ -218,7 +279,8 @@ public sealed record MeetingState(
     [property: Id(7)] DateTimeOffset CreatedAt,
     [property: Id(8)] bool IsRecording,
     [property: Id(9)] string? RecorderIdentity,
-    [property: Id(10)] bool IsEnded);
+    [property: Id(10)] bool IsEnded,
+    [property: Id(11)] Guid? AnonymousHostSessionId = null);
 
 [GenerateSerializer, Immutable]
 public sealed record MeetingSettingsDto(
