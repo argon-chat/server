@@ -232,8 +232,8 @@ public sealed record MeetingLimitsDto(
     [property: Id(2)] bool AllowScreenShare,
     [property: Id(3)] bool AllowRecording,
     [property: Id(4)] bool AllowChat,
-    [property: Id(5)] bool AllowBreakoutRooms,
-    [property: Id(6)] bool AllowWaitingRoom,
+    [property: Id(5)] bool AllowWaitingRoom,
+    [property: Id(6)] bool AllowRoomSettings,
     [property: Id(7)] UserTierDto OwnerTier);
 
 /// <summary>
@@ -243,9 +243,7 @@ public sealed record MeetingLimitsDto(
 public enum UserTierDto
 {
     Anonymous = 0,
-    Free = 1,
-    Pro = 2,
-    Enterprise = 3
+    Registered = 1,
 }
 
 public enum MeetingJoinError
