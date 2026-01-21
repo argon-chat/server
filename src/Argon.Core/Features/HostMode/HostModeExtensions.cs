@@ -29,6 +29,7 @@ using Services.L1L2;
 using Sfu;
 using SnowflakeId.DependencyInjection;
 using System.Security.Cryptography.X509Certificates;
+using Otel;
 using Template;
 using Testing;
 using Vault;
@@ -135,6 +136,7 @@ public static class HostModeExtensions
 
         public WebApplicationBuilder AddDefaultWorkloadServices()
         {
+            builder.AddOtel();
             builder.MapBetaOptions();
             builder.AddVaultConfiguration();
             builder.AddVaultClient();
