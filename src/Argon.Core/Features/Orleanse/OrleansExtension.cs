@@ -8,6 +8,7 @@ using EntryPoint;
 using Env;
 using NatsStreaming;
 using Orleans.Configuration;
+using Orleans.Dashboard;
 using Orleans.Hosting;
 using Orleans.Serialization;
 
@@ -58,7 +59,8 @@ public static class OrleansExtension
             builder.AddNatsCtx();
             builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
             builder.Services.AddHostedService<EntryPointWatcher>();
-            builder.Services.AddOrleansClient(q => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
+            builder.Services.AddOrleansClient(q
+                => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
             return builder;
         }
 
@@ -84,7 +86,7 @@ public static class OrleansExtension
             builder.Host.UseOrleans(siloBuilder =>
             {
                 if (builder.IsGatewayRole() || builder.IsHybridRole())
-                    siloBuilder.ConfigureEndpoints(11111, 30000).UseDashboard(o => o.Port = 22832);
+                    siloBuilder.ConfigureEndpoints(11111, 30000).AddDashboard();
                 else if (builder.IsWorkerRole())
                     siloBuilder.ConfigureEndpoints(11111, 0);
                 else

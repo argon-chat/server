@@ -1,6 +1,5 @@
 namespace Argon.Features.HostMode;
 
-using System.Security.Cryptography.X509Certificates;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Api.Features.CoreLogic.Social;
@@ -19,6 +18,8 @@ using MediaStorage;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using Microsoft.AspNetCore.WebSockets;
 using Middlewares;
+using Orleans.Dashboard;
+using Orleans.Hosting;
 using Pex;
 using RegionalUnit;
 using Repositories;
@@ -27,6 +28,7 @@ using Services;
 using Services.L1L2;
 using Sfu;
 using SnowflakeId.DependencyInjection;
+using System.Security.Cryptography.X509Certificates;
 using Template;
 using Testing;
 using Vault;
@@ -211,7 +213,8 @@ public static class RunHostModeExtensions
     public static WebApplication UseSingleInstanceWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
     {
         app.UseServerTiming();
-
+        if (app.Environment.IsGateway() || app.Environment.IsHybrid())
+            app.MapOrleansDashboard("dashboard");
         if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
@@ -234,7 +237,8 @@ public static class RunHostModeExtensions
     public static WebApplication UseSingleRegionWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
     {
         app.UseServerTiming();
-
+        if (app.Environment.IsGateway() || app.Environment.IsHybrid())
+            app.MapOrleansDashboard("dashboard");
         if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
         {
             app.UseCors();
@@ -246,6 +250,7 @@ public static class RunHostModeExtensions
             if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
                 app.UseSerilogRequestLogging();
             app.UseRewrites();
+            
         }
         if (hasMapRoot)
             app.MapGet("/", () => new {
