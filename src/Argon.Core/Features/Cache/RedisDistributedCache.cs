@@ -1,6 +1,7 @@
 namespace Argon.Services;
 
 using System.Buffers;
+using System.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 
@@ -29,7 +30,17 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
 
 
     public byte[]? Get(string key)
-        => GetAndRefresh(key, true);
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            return GetAndRefresh(key, true);
+        }
+        finally
+        {
+            RecordOperation("Get", sw.Elapsed.TotalMilliseconds);
+        }
+    }
 
     private byte[]? GetAndRefresh(string key, bool getData)
     {
@@ -114,34 +125,86 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
     public async Task<byte[]?> GetAsync(string key, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
-        return await GetAndRefreshAsync(key, true, token).ConfigureAwait(false);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            return await GetAndRefreshAsync(key, true, token).ConfigureAwait(false);
+        }
+        finally
+        {
+            RecordOperation("GetAsync", sw.Elapsed.TotalMilliseconds);
+        }
     }
 
     public void Refresh(string key)
-        => this.GetAndRefresh(key, false);
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            this.GetAndRefresh(key, false);
+        }
+        finally
+        {
+            RecordOperation("Refresh", sw.Elapsed.TotalMilliseconds);
+        }
+    }
 
     public async Task RefreshAsync(string key, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
-        await this.GetAndRefreshAsync(key, false, token).ConfigureAwait(false);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            await this.GetAndRefreshAsync(key, false, token).ConfigureAwait(false);
+        }
+        finally
+        {
+            RecordOperation("RefreshAsync", sw.Elapsed.TotalMilliseconds);
+        }
     }
 
     public void Remove(string key)
     {
-        using var conn  = redis.Rent();
-        var       cache = conn.GetDatabase(options.Value.DbId);
-        cache.KeyDelete((RedisKey)key);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var conn  = redis.Rent();
+            var       cache = conn.GetDatabase(options.Value.DbId);
+            cache.KeyDelete((RedisKey)key);
+        }
+        finally
+        {
+            RecordOperation("Remove", sw.Elapsed.TotalMilliseconds);
+        }
     }
 
     public async Task RemoveAsync(string key, CancellationToken token = default)
     {
-        using var conn  = redis.Rent();
-        var       cache = conn.GetDatabase(options.Value.DbId);
-        await cache.KeyDeleteAsync((RedisKey)key).ConfigureAwait(false);
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            using var conn  = redis.Rent();
+            var       cache = conn.GetDatabase(options.Value.DbId);
+            await cache.KeyDeleteAsync((RedisKey)key).ConfigureAwait(false);
+        }
+        finally
+        {
+            RecordOperation("RemoveAsync", sw.Elapsed.TotalMilliseconds);
+        }
     }
 
     public void Set(string key, byte[] value, DistributedCacheEntryOptions opt)
-        => SetImpl(key, new(value), opt);
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            SetImpl(key, new(value), opt);
+        }
+        finally
+        {
+            RecordOperation("Set", sw.Elapsed.TotalMilliseconds);
+        }
+    }
 
     private void SetImpl(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions opt)
     {
@@ -202,7 +265,18 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
         return new(lease, 0, length);
     }
     public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = new())
-        => SetImplAsync(key, new(value), options, token);
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            return SetImplAsync(key, new(value), options, token);
+        }
+        finally
+        {
+            RecordOperation("SetAsync", sw.Elapsed.TotalMilliseconds);
+        }
+    }
+
     private async Task SetImplAsync(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions opt, CancellationToken token = default)
     {
         token.ThrowIfCancellationRequested();
@@ -260,5 +334,12 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
     public void Dispose()
     {
         
+    }
+
+    private static void RecordOperation(string operationType, double durationMs)
+    {
+        var tag = new KeyValuePair<string, object?>("operation", operationType);
+        CacheInstruments.DistributedCacheOperations.Add(1, tag);
+        CacheInstruments.DistributedCacheOperationDuration.Record(durationMs, tag);
     }
 }

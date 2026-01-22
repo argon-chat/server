@@ -28,9 +28,17 @@ public sealed class RedisConnectionPool(
     private const long     MaxOveruseThreshold = 5;
     private       DateTime lastScaleUp         = DateTime.UtcNow;
 
+    // Observable properties for metrics
+    internal static long ObservableTaken;
+    internal static long ObservableAllocated;
+    internal static long ObservableMaxSize;
+
     public ConnectionScope Rent()
     {
         Interlocked.Increment(ref taken);
+        ObservableTaken = Interlocked.Read(ref taken);
+        
+        CacheInstruments.ConnectionsRented.Add(1);
 
         var currentAllocated = Interlocked.Read(ref allocated);
         if (currentAllocated > Interlocked.Read(ref defaultSize))
@@ -52,6 +60,8 @@ public sealed class RedisConnectionPool(
 
             _ = DisposeMuxAsync(mux);
             Interlocked.Decrement(ref allocated);
+            ObservableAllocated = Interlocked.Read(ref allocated);
+            CacheInstruments.ConnectionsDeallocated.Add(1);
 
             var fresh = EnsureNew();
             return new ConnectionScope(fresh, this);
@@ -66,20 +76,27 @@ public sealed class RedisConnectionPool(
     internal async Task ReturnAsync(IConnectionMultiplexer connection)
     {
         Interlocked.Decrement(ref taken);
+        ObservableTaken = Interlocked.Read(ref taken);
 
         if (!IsUsable(connection))
         {
             await DisposeMuxAsync(connection);
             Interlocked.Decrement(ref allocated);
+            ObservableAllocated = Interlocked.Read(ref allocated);
+            CacheInstruments.ConnectionsDeallocated.Add(1);
+            CacheInstruments.ConnectionsReturnedFaulted.Add(1);
             return;
         }
 
         connectionPool.Add(connection);
+        CacheInstruments.ConnectionsReturned.Add(1);
     }
 
     internal async Task ReturnFaultedAsync(IConnectionMultiplexer connection)
     {
         Interlocked.Decrement(ref taken);
+        ObservableTaken = Interlocked.Read(ref taken);
+        CacheInstruments.ConnectionsReturnedFaulted.Add(1);
 
         try
         {
@@ -88,13 +105,18 @@ public sealed class RedisConnectionPool(
         finally
         {
             Interlocked.Decrement(ref allocated);
+            ObservableAllocated = Interlocked.Read(ref allocated);
+            CacheInstruments.ConnectionsDeallocated.Add(1);
         }
     }
 
     private IConnectionMultiplexer EnsureNew()
     {
-        var allocated = Interlocked.Increment(ref this.allocated);
-        logger.LogDebug("Allocating new Redis connection. Allocated: {Allocated}", allocated);
+        var newAllocated = Interlocked.Increment(ref this.allocated);
+        ObservableAllocated = newAllocated;
+        logger.LogDebug("Allocating new Redis connection. Allocated: {Allocated}", newAllocated);
+        
+        CacheInstruments.ConnectionsAllocated.Add(1);
 
         return ConnectionMultiplexer.Connect(cfg.GetConnectionString("cache")!);
     }
@@ -160,6 +182,8 @@ public sealed class RedisConnectionPool(
         var maxSize   = Interlocked.Read(ref defaultSize);
         var excess    = allocated - taken;
 
+        CacheInstruments.PoolCleanups.Add(1);
+
         if (excess <= maxSize)
             return;
 
@@ -174,6 +198,8 @@ public sealed class RedisConnectionPool(
             {
                 await DisposeMuxAsync(mux);
                 Interlocked.Decrement(ref this.allocated);
+                ObservableAllocated = Interlocked.Read(ref this.allocated);
+                CacheInstruments.ConnectionsDeallocated.Add(1);
                 rmRequired--;
                 removed++;
             }
@@ -183,12 +209,18 @@ public sealed class RedisConnectionPool(
             }
         }
 
-        logger.LogInformation("Removed {Removed} redis connections during cleanup", removed);
+        if (removed > 0)
+        {
+            CacheInstruments.PoolConnectionsRemoved.Add(removed);
+            logger.LogInformation("Removed {Removed} redis connections during cleanup", removed);
+        }
     }
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         logger.LogInformation("Starting RedisConnectionPool with default size {Size}", defaultSize);
+        
+        ObservableMaxSize = Interlocked.Read(ref defaultSize);
 
         PopulateInitial();
 
@@ -242,7 +274,10 @@ public sealed class RedisConnectionPool(
 
         logger.LogInformation("Auto-scaling Redis pool size from {Old} to {New}", current, proposed);
         Interlocked.Exchange(ref defaultSize, proposed);
+        ObservableMaxSize = proposed;
         lastScaleUp = now;
+        
+        CacheInstruments.PoolScaleUps.Add(1);
     }
 
     public async override Task StopAsync(CancellationToken cancellationToken)
@@ -254,6 +289,7 @@ public sealed class RedisConnectionPool(
         while (connectionPool.TryTake(out var mux))
         {
             await DisposeMuxAsync(mux);
+            CacheInstruments.ConnectionsDeallocated.Add(1);
         }
 
         await base.StopAsync(cancellationToken);

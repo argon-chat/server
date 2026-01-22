@@ -20,6 +20,7 @@ public class RedisEventHandler(IRedisPoolConnections pool, IAsyncPublisher<OnRed
             if (eventStorage is RedisEventStorage ev)
             {
                 logger.LogInformation("Key expired: {key}", message.Message.ToString());
+                CacheInstruments.KeyExpirationEvents.Add(1);
                 ev.OnKeyExpired.OnNext(new OnRedisKeyExpired(message.Message.ToString()));
             } else logger.LogError("redis event storage incorrect type");
         });
