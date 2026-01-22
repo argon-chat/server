@@ -120,7 +120,7 @@ public static class HostModeExtensions
                 builder.Services.AddAuthorization();
             }
 
-            builder.AddKubeResources();
+            // builder.AddKubeResources(); // Removed - KubeResources no longer used
             builder.AddTemplateEngine();
 
             return builder;
@@ -212,58 +212,66 @@ public static class HostModeExtensions
 
 public static class RunHostModeExtensions
 {
-    public static WebApplication UseSingleInstanceWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
+    extension(WebApplication app)
     {
-        app.UseServerTiming();
-        if (app.Environment.IsGateway() || app.Environment.IsHybrid())
-            app.MapOrleansDashboard("dashboard");
-        if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
+        public WebApplication UseSingleInstanceWorkloads(bool hasMapRoot = true, bool hasMapHooks = true)
         {
-            app.UseCors();
-            app.UseAuthentication();
-            app.UseAuthorization();
-            app.MapRpcEndpoints();
-            app.UseWebSockets();
+            app.UseServerTiming();
+            if (app.Environment.IsGateway() || app.Environment.IsHybrid())
+                app.MapOrleansDashboard("dashboard");
+            if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
+            {
+                app.UseCors();
+                app.UseAuthentication();
+                app.UseAuthorization();
+                app.MapRpcEndpoints();
+                app.UseWebSockets();
+            }
+            if (hasMapRoot)
+                app.MapGet("/", () => new {
+                    version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+                });
+            if (hasMapHooks)
+                app.UsePreStopHook();
+
+            if (Environment.GetEnvironmentVariable("PROMETHEUS_SCRAPING_ENDPOINT_ENABLE") is not null)
+                app.MapPrometheusScrapingEndpoint("/metrics");
+
+            return app;
         }
-        if (hasMapRoot)
-            app.MapGet("/", () => new {
-                version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-            });
-        if (hasMapHooks)
-            app.UsePreStopHook();
 
-        return app;
-    }
-
-
-    public static WebApplication UseSingleRegionWorkloads(this WebApplication app, bool hasMapRoot = true, bool hasMapHooks = true)
-    {
-        app.UseServerTiming();
-        if (app.Environment.IsGateway() || app.Environment.IsHybrid())
-            app.MapOrleansDashboard("dashboard");
-        if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
+        public WebApplication UseSingleRegionWorkloads(bool hasMapRoot = true, bool hasMapHooks = true)
         {
-            app.UseCors();
-            app.UseAuthentication();
-            app.UseAuthorization();
-            app.MapRpcEndpoints();
-            app.MapControllers();
-            app.UseWebSockets();
-            if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
-                app.UseSerilogRequestLogging();
-            app.UseRewrites();
+            app.UseServerTiming();
+            if (app.Environment.IsGateway() || app.Environment.IsHybrid())
+                app.MapOrleansDashboard("dashboard");
+            if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
+            {
+                app.UseCors();
+                app.UseAuthentication();
+                app.UseAuthorization();
+                app.MapRpcEndpoints();
+                app.MapControllers();
+                app.UseWebSockets();
+                if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)
+                    app.UseSerilogRequestLogging();
+                app.UseRewrites();
             
+            }
+            if (hasMapRoot)
+                app.MapGet("/", () => new {
+                    version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+                });
+            if (hasMapHooks)
+                app.UsePreStopHook();
+
+            if (Environment.GetEnvironmentVariable("PROMETHEUS_SCRAPING_ENDPOINT_ENABLE") is not null)
+                app.MapPrometheusScrapingEndpoint("/metrics");
+
+            return app;
         }
-        if (hasMapRoot)
-            app.MapGet("/", () => new {
-                version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-            });
-        if (hasMapHooks)
-            app.UsePreStopHook();
 
-        return app;
+        public WebApplication UseMultiRegionWorkloads()
+            => throw new InvalidOperationException();
     }
-
-    public static WebApplication UseMultiRegionWorkloads(this WebApplication app)
-        => throw new InvalidOperationException();
 }

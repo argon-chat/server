@@ -132,4 +132,29 @@ public static class InstrumentNames
     /// Tracks keyspace notifications for expired keys.
     /// </summary>
     public const string RedisKeyExpirationEvents = "argon-redis-key-expiration-events";
+
+    /// <summary>
+    /// Total number of Orleans rebalance checks performed (Counter).
+    /// Increments each time the rebalancer evaluates imbalance.
+    /// </summary>
+    public const string OrleansRebalanceChecks = "argon-orleans-rebalance-checks";
+
+    /// <summary>
+    /// Total number of times rebalancing was accepted (Counter).
+    /// Increments when imbalance is within tolerance and rebalancing proceeds.
+    /// </summary>
+    public const string OrleansRebalanceAccepted = "argon-orleans-rebalance-accepted";
+
+    /// <summary>
+    /// Total number of times rebalancing was rejected (Counter).
+    /// Increments when imbalance exceeds tolerance or cooldown period is active.
+    /// Tags: reason (threshold, cooldown)
+    /// </summary>
+    public const string OrleansRebalanceRejected = "argon-orleans-rebalance-rejected";
+
+    /// <summary>
+    /// Distribution of activation imbalance values (Histogram).
+    /// Tracks the imbalance metric used for rebalancing decisions.
+    /// </summary>
+    public const string OrleansImbalanceValue = "argon-orleans-imbalance-value";
 }

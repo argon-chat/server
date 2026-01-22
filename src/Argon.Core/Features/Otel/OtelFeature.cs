@@ -20,7 +20,8 @@ public static class OtelFeature
                    .AddMeter("Argon")
                    .AddMeter("System.Runtime")
                    .AddMeter("Microsoft.AspNetCore")
-                   .AddMeter("Microsoft.Orleans");
+                   .AddMeter("Microsoft.Orleans")
+                   .AddPrometheusExporter();
             })
            .WithTracing(tracing =>
             {
