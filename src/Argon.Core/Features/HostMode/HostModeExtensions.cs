@@ -234,8 +234,7 @@ public static class RunHostModeExtensions
             if (hasMapHooks)
                 app.UsePreStopHook();
 
-            if (Environment.GetEnvironmentVariable("PROMETHEUS_SCRAPING_ENDPOINT_ENABLE") is not null)
-                app.MapPrometheusScrapingEndpoint("/metrics");
+            app.MapOtelExportMetrics();
 
             return app;
         }
@@ -265,8 +264,7 @@ public static class RunHostModeExtensions
             if (hasMapHooks)
                 app.UsePreStopHook();
 
-            if (Environment.GetEnvironmentVariable("PROMETHEUS_SCRAPING_ENDPOINT_ENABLE") is not null)
-                app.MapPrometheusScrapingEndpoint("/metrics");
+            app.MapOtelExportMetrics();
 
             return app;
         }
