@@ -18,6 +18,7 @@ public static class OtelFeature
                    .AddHttpClientInstrumentation()
                    .AddRuntimeInstrumentation()
                    .AddMeter("Argon")
+                   .AddMeter("Ion")
                    .AddMeter("System.Runtime")
                    .AddMeter("Microsoft.AspNetCore")
                    .AddMeter("Microsoft.Orleans")
