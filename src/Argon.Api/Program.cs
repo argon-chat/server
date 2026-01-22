@@ -32,15 +32,17 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
+builder.Services.AddSentryTunneling("sentry.argon.gl");
 
 var app = builder.Build();
-
+app.UseSentryTunneling("/k");
 if (builder.Environment.IsSingleInstance())
     app.UseSingleInstanceWorkloads();
 else if (builder.Environment.IsSingleRegion())
     app.UseSingleRegionWorkloads();
 else
     app.UseMultiRegionWorkloads();
+app.UseSentryTracing();
 
 await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>();
