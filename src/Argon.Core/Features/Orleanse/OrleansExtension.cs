@@ -68,6 +68,11 @@ public static class OrleansExtension
         public WebApplicationBuilder AddWorkerOrleans()
         {
             builder.AddNatsCtx();
+            
+            // Register Orleans rebalancing providers explicitly
+            builder.Services.AddSingleton<ArgonRebalancerBackoffProvider>();
+            builder.Services.AddSingleton<ArgonImbalanceToleranceRule>();
+            
             builder.Services.AddSerializer(x =>
             {
                 x.AddNewtonsoftJsonSerializer(q => true, optionsBuilder =>
