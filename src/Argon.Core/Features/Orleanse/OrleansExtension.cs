@@ -107,7 +107,7 @@ public static class OrleansExtension
                    .AddStreaming()
                    .AddActivityPropagation()
                    .AddReminders()
-                   .AddActivationRebalancer<ArgonRebalancerBackoffProvider>()
+                   //.AddActivationRebalancer<ArgonRebalancerBackoffProvider>()
                    .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
                    .UseStorages([
                         IUserSessionGrain.StorageId,
