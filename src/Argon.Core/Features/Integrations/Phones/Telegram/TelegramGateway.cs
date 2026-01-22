@@ -4,6 +4,7 @@ using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using System.Diagnostics;
 
 public class TelegramPhoneChannel : IPhoneChannel
 {
@@ -59,28 +60,49 @@ public class TelegramPhoneChannel : IPhoneChannel
 
             if (!resp.ok || resp.result is null)
             {
+                PhoneInstrument.TelegramSendAbilityChecks.Add(1,
+                    new KeyValuePair<string, object?>("result", "error"));
+                
                 _logger.LogDebug("Telegram send ability check failed: {Error}", resp.error);
                 return false;
             }
 
             if (resp.result.remaining_balance <= 0)
             {
+                PhoneInstrument.TelegramSendAbilityChecks.Add(1,
+                    new KeyValuePair<string, object?>("result", "insufficient_balance"));
+                
+                PhoneInstrument.TelegramBalance.Record(resp.result.remaining_balance);
+                
                 _logger.LogCritical("Telegram Gateway: remaining balance is zero");
                 return false;
             }
 
             if (resp.result.remaining_balance - resp.result.request_cost < 0)
             {
+                PhoneInstrument.TelegramSendAbilityChecks.Add(1,
+                    new KeyValuePair<string, object?>("result", "insufficient_balance"));
+                
+                PhoneInstrument.TelegramBalance.Record(resp.result.remaining_balance);
+                
                 _logger.LogCritical("Telegram Gateway: insufficient balance. Balance: {Balance}, Cost: {Cost}",
                     resp.result.remaining_balance, resp.result.request_cost);
                 return false;
             }
+
+            PhoneInstrument.TelegramSendAbilityChecks.Add(1,
+                new KeyValuePair<string, object?>("result", "can_send"));
+            
+            PhoneInstrument.TelegramBalance.Record(resp.result.remaining_balance);
 
             _logger.LogDebug("Telegram can send. Balance: {Balance}", resp.result.remaining_balance);
             return true;
         }
         catch (FlurlHttpException ex)
         {
+            PhoneInstrument.TelegramSendAbilityChecks.Add(1,
+                new KeyValuePair<string, object?>("result", "error"));
+            
             _logger.LogWarning(ex, "Telegram checkSendAbility failed");
             return false;
         }
@@ -89,7 +111,12 @@ public class TelegramPhoneChannel : IPhoneChannel
     public async Task<PhoneSendResult> SendCodeAsync(PhoneSendRequest request, CancellationToken ct = default)
     {
         if (!IsEnabled)
+        {
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "failed"));
             return new PhoneSendResult(false, ErrorReason: "Telegram channel is disabled");
+        }
 
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -102,6 +129,7 @@ public class TelegramPhoneChannel : IPhoneChannel
 
     private async Task<PhoneSendResult> SendCodeWithRetryAsync(PhoneSendRequest request, int retryCount, CancellationToken ct)
     {
+        var sw = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Sending Telegram verification message (attempt {Attempt})", retryCount + 1);
@@ -114,6 +142,7 @@ public class TelegramPhoneChannel : IPhoneChannel
             }, cancellationToken: ct);
 
             var resp = await result.GetJsonAsync<TelegramGatewayResponse<SendVerificationMessageResp>>();
+            sw.Stop();
 
             if (!resp.ok || resp.result is null)
             {
@@ -130,9 +159,30 @@ public class TelegramPhoneChannel : IPhoneChannel
                     _logger.LogWarning("Telegram FLOOD_WAIT_{Seconds} exceeded max retries or wait time", waitSeconds);
                 }
 
+                PhoneInstrument.VerificationSent.Add(1,
+                    new KeyValuePair<string, object?>("channel", "telegram"),
+                    new KeyValuePair<string, object?>("status", "failed"));
+                
+                PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("channel", "telegram"),
+                    new KeyValuePair<string, object?>("status", "failed"));
+
                 _logger.LogWarning("Telegram send failed: {Error}", resp.error);
                 return new PhoneSendResult(false, ErrorReason: resp.error);
             }
+
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "success"));
+            
+            PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "success"));
+            
+            PhoneInstrument.VerificationCost.Add(resp.result.request_cost,
+                new KeyValuePair<string, object?>("channel", "telegram"));
+            
+            PhoneInstrument.TelegramBalance.Record(resp.result.remaining_balance);
 
             _logger.LogInformation(
                 "Telegram verification sent. RequestId: {RequestId}, Cost: {Cost}",
@@ -145,6 +195,16 @@ public class TelegramPhoneChannel : IPhoneChannel
         }
         catch (FlurlHttpException ex)
         {
+            sw.Stop();
+            
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "failed"));
+            
+            PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "failed"));
+
             _logger.LogWarning(ex, "Telegram sendVerificationMessage failed");
             return new PhoneSendResult(false, ErrorReason: ex.Message);
         }
@@ -163,10 +223,20 @@ public class TelegramPhoneChannel : IPhoneChannel
     public async Task<PhoneVerifyResult> VerifyCodeAsync(PhoneVerifyRequest request, CancellationToken ct = default)
     {
         if (!IsEnabled)
+        {
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "error"));
             return new PhoneVerifyResult(PhoneVerifyStatus.Error);
+        }
 
         if (string.IsNullOrEmpty(request.RequestId))
+        {
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "error"));
             return new PhoneVerifyResult(PhoneVerifyStatus.NotFound);
+        }
 
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -174,6 +244,7 @@ public class TelegramPhoneChannel : IPhoneChannel
             ["Channel"] = Kind
         });
 
+        var sw = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Checking Telegram verification status");
@@ -185,9 +256,17 @@ public class TelegramPhoneChannel : IPhoneChannel
             }, cancellationToken: ct);
 
             var resp = await result.GetJsonAsync<TelegramGatewayResponse<CheckVerificationStatusResp>>();
+            sw.Stop();
 
             if (!resp.ok || resp.result is null)
             {
+                PhoneInstrument.VerificationChecks.Add(1,
+                    new KeyValuePair<string, object?>("channel", "telegram"),
+                    new KeyValuePair<string, object?>("status", "error"));
+                
+                PhoneInstrument.CheckDuration.Record(sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("channel", "telegram"));
+
                 _logger.LogWarning("Telegram verification check failed: {Error}", resp.error);
                 return new PhoneVerifyResult(PhoneVerifyStatus.Error);
             }
@@ -201,11 +280,36 @@ public class TelegramPhoneChannel : IPhoneChannel
                 _ => PhoneVerifyStatus.Error
             };
 
+            var statusTag = status switch
+            {
+                PhoneVerifyStatus.Verified => "verified",
+                PhoneVerifyStatus.InvalidCode => "invalid",
+                PhoneVerifyStatus.TooManyAttempts => "too_many_attempts",
+                PhoneVerifyStatus.Expired => "expired",
+                _ => "error"
+            };
+
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", statusTag));
+            
+            PhoneInstrument.CheckDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "telegram"));
+
             _logger.LogInformation("Telegram verification result: {Status}", status);
             return new PhoneVerifyResult(status);
         }
         catch (FlurlHttpException ex)
         {
+            sw.Stop();
+            
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "telegram"),
+                new KeyValuePair<string, object?>("status", "error"));
+            
+            PhoneInstrument.CheckDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "telegram"));
+
             _logger.LogWarning(ex, "Telegram checkVerificationStatus failed");
             return new PhoneVerifyResult(PhoneVerifyStatus.Error);
         }

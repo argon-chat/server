@@ -76,10 +76,18 @@ public class PhoneVerificationService(
 
                 logger.LogWarning("Telegram send failed for {Phone}: {Error}, trying fallback",
                     phone, result.ErrorReason);
+                
+                PhoneInstrument.Fallbacks.Add(1,
+                    new KeyValuePair<string, object?>("from_channel", "telegram"),
+                    new KeyValuePair<string, object?>("to_channel", "prelude"));
             }
             else
             {
                 logger.LogDebug("Telegram cannot send to {Phone} (user not registered), trying fallback", phone);
+                
+                PhoneInstrument.Fallbacks.Add(1,
+                    new KeyValuePair<string, object?>("from_channel", "telegram"),
+                    new KeyValuePair<string, object?>("to_channel", "prelude"));
             }
         }
 
@@ -95,6 +103,10 @@ public class PhoneVerificationService(
             }
 
             logger.LogWarning("Prelude send failed for {Phone}: {Error}, trying Twilio", phone, result.ErrorReason);
+            
+            PhoneInstrument.Fallbacks.Add(1,
+                new KeyValuePair<string, object?>("from_channel", "prelude"),
+                new KeyValuePair<string, object?>("to_channel", "twilio"));
         }
 
         // Fallback to Twilio
@@ -109,6 +121,10 @@ public class PhoneVerificationService(
             }
 
             logger.LogWarning("Twilio send failed for {Phone}: {Error}", phone, result.ErrorReason);
+            
+            PhoneInstrument.Fallbacks.Add(1,
+                new KeyValuePair<string, object?>("from_channel", "twilio"),
+                new KeyValuePair<string, object?>("to_channel", "null"));
         }
 
         // Last resort: null channel (for development)

@@ -157,4 +157,175 @@ public static class InstrumentNames
     /// Tracks the imbalance metric used for rebalancing decisions.
     /// </summary>
     public const string OrleansImbalanceValue = "argon-orleans-imbalance-value";
+
+    /// <summary>
+    /// Total number of phone verification codes sent (Counter).
+    /// Tags: channel (telegram, prelude, twilio, null), status (success, failed)
+    /// </summary>
+    public const string PhoneVerificationSent = "argon-phone-verification-sent";
+
+    /// <summary>
+    /// Total number of phone verification checks performed (Counter).
+    /// Tags: channel (telegram, prelude, twilio, null), status (verified, invalid, expired, too_many_attempts, error)
+    /// </summary>
+    public const string PhoneVerificationChecks = "argon-phone-verification-checks";
+
+    /// <summary>
+    /// Duration of phone verification send operations in milliseconds (Histogram).
+    /// Tags: channel (telegram, prelude, twilio, null), status (success, failed)
+    /// </summary>
+    public const string PhoneVerificationSendDuration = "argon-phone-verification-send-duration";
+
+    /// <summary>
+    /// Duration of phone verification check operations in milliseconds (Histogram).
+    /// Tags: channel (telegram, prelude, twilio, null)
+    /// </summary>
+    public const string PhoneVerificationCheckDuration = "argon-phone-verification-check-duration";
+
+    /// <summary>
+    /// Total number of Telegram send ability checks (Counter).
+    /// Tags: result (can_send, insufficient_balance, error)
+    /// </summary>
+    public const string PhoneTelegramSendAbilityChecks = "argon-phone-telegram-send-ability-checks";
+
+    /// <summary>
+    /// Telegram Gateway remaining balance (Gauge).
+    /// Tracks the remaining balance for sending messages.
+    /// </summary>
+    public const string PhoneTelegramBalance = "argon-phone-telegram-balance";
+
+    /// <summary>
+    /// Total cost of phone verification requests (Counter).
+    /// Tags: channel (telegram, prelude, twilio)
+    /// Tracks cumulative cost across all channels.
+    /// </summary>
+    public const string PhoneVerificationCost = "argon-phone-verification-cost";
+
+    /// <summary>
+    /// Total number of phone verification fallback events (Counter).
+    /// Tags: from_channel (telegram, prelude, twilio), to_channel (prelude, twilio, null)
+    /// Increments when a channel fails and fallback is attempted.
+    /// </summary>
+    public const string PhoneVerificationFallbacks = "argon-phone-verification-fallbacks";
+
+    /// <summary>
+    /// Total number of user authorization attempts (Counter).
+    /// Tags: result (success, bad_credentials, bad_otp, required_otp), auth_mode (email_password, email_otp, email_password_otp)
+    /// </summary>
+    public const string AuthorizationAttempts = "argon-authorization-attempts";
+
+    /// <summary>
+    /// Duration of authorization operations in milliseconds (Histogram).
+    /// Tags: result (success, failed), auth_mode (email_password, email_otp, email_password_otp)
+    /// </summary>
+    public const string AuthorizationDuration = "argon-authorization-duration";
+
+    /// <summary>
+    /// Total number of user registrations (Counter).
+    /// Tags: result (success, email_taken, username_taken, username_reserved, error)
+    /// </summary>
+    public const string UserRegistrations = "argon-user-registrations";
+
+    /// <summary>
+    /// Duration of registration operations in milliseconds (Histogram).
+    /// Tags: result (success, failed)
+    /// </summary>
+    public const string UserRegistrationDuration = "argon-user-registration-duration";
+
+    /// <summary>
+    /// Total number of password reset requests (Counter).
+    /// Tags: stage (request, verify), result (success, failed)
+    /// </summary>
+    public const string PasswordResets = "argon-password-resets";
+
+    /// <summary>
+    /// Duration of password reset operations in milliseconds (Histogram).
+    /// Tags: stage (request, verify)
+    /// </summary>
+    public const string PasswordResetDuration = "argon-password-reset-duration";
+
+    /// <summary>
+    /// Total number of external authorization attempts (Counter).
+    /// Tags: result (success, failed), auth_mode (email_password, email_otp, email_password_otp)
+    /// Tracks OAuth/external provider authorizations.
+    /// </summary>
+    public const string ExternalAuthorizationAttempts = "argon-external-authorization-attempts";
+
+    /// <summary>
+    /// Total number of OTP sends during authorization flow (Counter).
+    /// Tags: purpose (sign_in, reset_password), method (email, phone)
+    /// </summary>
+    public const string AuthorizationOtpSent = "argon-authorization-otp-sent";
+
+    /// <summary>
+    /// Total number of messages sent in channels (Counter).
+    /// Tags: channel_type (text, voice)
+    /// </summary>
+    public const string ChannelMessagesSent = "argon-channel-messages-sent";
+
+    /// <summary>
+    /// Duration of message send operations in milliseconds (Histogram).
+    /// Tags: channel_type (text, voice), has_reply (true, false)
+    /// </summary>
+    public const string ChannelMessageSendDuration = "argon-channel-message-send-duration";
+
+    /// <summary>
+    /// Total number of voice channel joins (Counter).
+    /// Tags: source (direct, meeting)
+    /// </summary>
+    public const string ChannelVoiceJoins = "argon-channel-voice-joins";
+
+    /// <summary>
+    /// Total number of voice channel leaves (Counter).
+    /// Tags: source (direct, meeting)
+    /// </summary>
+    public const string ChannelVoiceLeaves = "argon-channel-voice-leaves";
+
+    /// <summary>
+    /// Duration of voice sessions in seconds (Histogram).
+    /// Tracks how long users stay in voice channels.
+    /// </summary>
+    public const string ChannelVoiceSessionDuration = "argon-channel-voice-session-duration";
+
+    /// <summary>
+    /// Current number of users in voice channels (Gauge).
+    /// Sampled per-channel on user join/leave events.
+    /// </summary>
+    public const string ChannelVoiceActiveUsers = "argon-channel-voice-active-users";
+
+    /// <summary>
+    /// Total number of channel recordings started (Counter).
+    /// Tags: result (success, already_active)
+    /// </summary>
+    public const string ChannelRecordingsStarted = "argon-channel-recordings-started";
+
+    /// <summary>
+    /// Total number of channel recordings stopped (Counter).
+    /// Tags: result (success, not_active)
+    /// </summary>
+    public const string ChannelRecordingsStopped = "argon-channel-recordings-stopped";
+
+    /// <summary>
+    /// Total number of linked meetings created (Counter).
+    /// Tags: result (success, already_exists, no_permission, error)
+    /// </summary>
+    public const string ChannelLinkedMeetingsCreated = "argon-channel-linked-meetings-created";
+
+    /// <summary>
+    /// Total number of linked meetings ended (Counter).
+    /// Tags: result (success, not_found, no_permission)
+    /// </summary>
+    public const string ChannelLinkedMeetingsEnded = "argon-channel-linked-meetings-ended";
+
+    /// <summary>
+    /// Total number of typing events emitted (Counter).
+    /// Tags: event_type (typing, stop_typing)
+    /// </summary>
+    public const string ChannelTypingEvents = "argon-channel-typing-events";
+
+    /// <summary>
+    /// Total number of channel member kicks (Counter).
+    /// Tags: result (success, no_permission, invalid_channel)
+    /// </summary>
+    public const string ChannelMemberKicks = "argon-channel-member-kicks";
 }

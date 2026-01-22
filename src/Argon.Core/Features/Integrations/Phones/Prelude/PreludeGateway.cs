@@ -4,6 +4,7 @@ using Flurl.Http;
 using Flurl.Http.Newtonsoft;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Converters;
+using System.Diagnostics;
 
 public class PreludePhoneChannel : IPhoneChannel
 {
@@ -38,7 +39,12 @@ public class PreludePhoneChannel : IPhoneChannel
     public async Task<PhoneSendResult> SendCodeAsync(PhoneSendRequest request, CancellationToken ct = default)
     {
         if (!IsEnabled)
+        {
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "failed"));
             return new PhoneSendResult(false, ErrorReason: "Prelude channel is disabled");
+        }
 
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -46,6 +52,7 @@ public class PreludePhoneChannel : IPhoneChannel
             ["Channel"] = Kind
         });
 
+        var sw = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Sending Prelude verification. IP: {UserIp}", request.UserIp);
@@ -72,9 +79,18 @@ public class PreludePhoneChannel : IPhoneChannel
             }, cancellationToken: ct);
 
             var resp = await result.GetJsonAsync<PreludeVerificationResp>();
+            sw.Stop();
 
             if (resp.status == PreludeStatus.success)
             {
+                PhoneInstrument.VerificationSent.Add(1,
+                    new KeyValuePair<string, object?>("channel", "prelude"),
+                    new KeyValuePair<string, object?>("status", "success"));
+                
+                PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                    new KeyValuePair<string, object?>("channel", "prelude"),
+                    new KeyValuePair<string, object?>("status", "success"));
+
                 _logger.LogInformation("Prelude verification sent. RequestId: {RequestId}, Method: {Method}",
                     resp.request_id, resp.method);
 
@@ -84,6 +100,14 @@ public class PreludePhoneChannel : IPhoneChannel
                     UsedChannel: Kind);
             }
 
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "failed"));
+            
+            PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "failed"));
+
             _logger.LogWarning("Prelude send failed. Status: {Status}, Reason: {Reason}",
                 resp.status, resp.reason);
 
@@ -91,6 +115,16 @@ public class PreludePhoneChannel : IPhoneChannel
         }
         catch (FlurlHttpException ex)
         {
+            sw.Stop();
+            
+            PhoneInstrument.VerificationSent.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "failed"));
+            
+            PhoneInstrument.SendDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "failed"));
+
             var errorBody = await ex.GetResponseStringAsync();
             _logger.LogWarning(ex, "Prelude send verification failed. Status: {StatusCode}, Body: {ErrorBody}",
                 ex.StatusCode, errorBody);
@@ -101,7 +135,12 @@ public class PreludePhoneChannel : IPhoneChannel
     public async Task<PhoneVerifyResult> VerifyCodeAsync(PhoneVerifyRequest request, CancellationToken ct = default)
     {
         if (!IsEnabled)
+        {
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "error"));
             return new PhoneVerifyResult(PhoneVerifyStatus.Error);
+        }
 
         using var scope = _logger.BeginScope(new Dictionary<string, object?>
         {
@@ -109,6 +148,7 @@ public class PreludePhoneChannel : IPhoneChannel
             ["Channel"] = Kind
         });
 
+        var sw = Stopwatch.StartNew();
         try
         {
             _logger.LogInformation("Checking Prelude verification");
@@ -124,6 +164,7 @@ public class PreludePhoneChannel : IPhoneChannel
             }, cancellationToken: ct);
 
             var resp = await result.GetJsonAsync<PreludeCheckResp>();
+            sw.Stop();
 
             var status = resp.status switch
             {
@@ -133,11 +174,35 @@ public class PreludePhoneChannel : IPhoneChannel
                 _ => PhoneVerifyStatus.Error
             };
 
+            var statusTag = status switch
+            {
+                PhoneVerifyStatus.Verified => "verified",
+                PhoneVerifyStatus.InvalidCode => "invalid",
+                PhoneVerifyStatus.Expired => "expired",
+                _ => "error"
+            };
+
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", statusTag));
+            
+            PhoneInstrument.CheckDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "prelude"));
+
             _logger.LogInformation("Prelude verification result: {Status}", status);
             return new PhoneVerifyResult(status);
         }
         catch (FlurlHttpException ex)
         {
+            sw.Stop();
+            
+            PhoneInstrument.VerificationChecks.Add(1,
+                new KeyValuePair<string, object?>("channel", "prelude"),
+                new KeyValuePair<string, object?>("status", "error"));
+            
+            PhoneInstrument.CheckDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("channel", "prelude"));
+
             var errorBody = await ex.GetResponseStringAsync();
             _logger.LogWarning(ex, "Prelude verify code failed. Status: {StatusCode}, Body: {ErrorBody}",
                 ex.StatusCode, errorBody);
