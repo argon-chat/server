@@ -234,7 +234,7 @@ public static class RunHostModeExtensions
             if (hasMapHooks)
                 app.UsePreStopHook();
 
-            app.MapOtelExportMetrics();
+            //app.MapOtelExportMetrics();
 
             return app;
         }
@@ -264,7 +264,7 @@ public static class RunHostModeExtensions
             if (hasMapHooks)
                 app.UsePreStopHook();
 
-            app.MapOtelExportMetrics();
+            //app.MapOtelExportMetrics();
 
             return app;
         }
