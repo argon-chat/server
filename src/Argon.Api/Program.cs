@@ -32,6 +32,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
+builder.Services.AddHttpClient();
 builder.Services.AddSentryTunneling("sentry.argon.gl");
 
 var app = builder.Build();
