@@ -10,6 +10,7 @@ public static class UserPresenceFeature
         hostBuilder.Services.AddSingleton<IUserPresenceService, UserPresenceService>();
         hostBuilder.Services.AddSingleton<IUserSessionDiscoveryService, LocalUserSessionDiscoveryService>();
         hostBuilder.Services.AddSingleton<IUserSessionNotifier, UserStreamNotifier>();
+        hostBuilder.Services.AddHostedService<UserPresenceMetricsService>();
         return hostBuilder.Services;
     }
 }

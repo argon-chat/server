@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Features.Logic;
+using Instruments;
 using MessagePipe;
 using Orleans;
 using Orleans.Concurrency;
@@ -31,19 +32,36 @@ public class UserSessionGrain(
 
     private DateTime? _lastHeartbeatTime;
     private DateTime? _lastDebouncedHeartbeatTime;
+    private DateTime? _sessionStartTime;
 
     private async ValueTask SelfDestroy()
         => GrainContext.Deactivate(new(ApplicationRequested, "omae wa mou shindeiru"));
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        if (reason.ReasonCode != ApplicationRequested)
+        var isGraceful = reason.ReasonCode == ApplicationRequested;
+        
+        if (!isGraceful)
             logger.LogCritical("Alert, deactivation user session grain is not graceful!, {reason}", reason);
+        
         logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
+        
         _cacheSubscriber?.Dispose();
         refreshTimer?.Dispose();
         await userStream.DisposeAsync();
         refreshTimer = null;
+
+        // Record session duration
+        if (_sessionStartTime.HasValue)
+        {
+            var duration = DateTime.UtcNow - _sessionStartTime.Value;
+            UserSessionGrainInstrument.SessionDuration.Record(duration.TotalSeconds);
+        }
+
+        UserSessionGrainInstrument.SessionsEnded.Add(1,
+            new KeyValuePair<string, object?>("reason", isGraceful ? "graceful" : "error"));
+        
+        UserSessionGrainInstrument.DecrementActiveSession();
     }
 
     public async ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null)
@@ -52,6 +70,7 @@ public class UserSessionGrain(
         _userId          = this.GetUserId();
         _shadowUserId    = _userId;
         _machineId       = this.GetUserMachineId();
+        _sessionStartTime = DateTime.UtcNow;
 
         logger.LogInformation("Grain for session {sessionId} has been activated, linkedUserId: {userId}", this.GetPrimaryKey(), _shadowUserId);
 
@@ -74,6 +93,9 @@ public class UserSessionGrain(
         _cacheSubscriber = bag.Build();
 
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
+
+        UserSessionGrainInstrument.SessionsStarted.Add(1);
+        UserSessionGrainInstrument.IncrementActiveSession();
     }
 
     private static readonly TimeSpan ExpireGrace = TimeSpan.FromSeconds(10);
@@ -110,10 +132,17 @@ public class UserSessionGrain(
             await Task.WhenAll(servers.Select(server =>
                 grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline)));
             await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
+            
+            UserSessionGrainInstrument.Expirations.Add(1,
+                new KeyValuePair<string, object?>("result", "offline"));
+            
             logger.LogInformation("All necessary steps completed, self destroy called soon");
             await SelfDestroy();
             return;
         }
+
+        UserSessionGrainInstrument.Expirations.Add(1,
+            new KeyValuePair<string, object?>("result", "switch_session"));
 
         logger.LogInformation("This is not last user session, destroy only this session grain");
         await SelfDestroy();
@@ -161,8 +190,32 @@ public class UserSessionGrain(
         if (status == UserStatus.Offline)
             status = UserStatus.Online;
 
+        var statusTag = status switch
+        {
+            UserStatus.Online => "online",
+            UserStatus.Away => "away",
+            UserStatus.DoNotDisturb => "dnd",
+            _ => "online"
+        };
+
+        UserSessionGrainInstrument.Heartbeats.Add(1,
+            new KeyValuePair<string, object?>("status", statusTag));
+
         if (_preferredStatus != status)
         {
+            var oldStatus = _preferredStatus ?? UserStatus.Online;
+            var oldStatusTag = oldStatus switch
+            {
+                UserStatus.Online => "online",
+                UserStatus.Away => "away",
+                UserStatus.DoNotDisturb => "dnd",
+                _ => "online"
+            };
+
+            UserSessionGrainInstrument.StatusChanges.Add(1,
+                new KeyValuePair<string, object?>("from_status", oldStatusTag),
+                new KeyValuePair<string, object?>("to_status", statusTag));
+
             _preferredStatus = status;
             await UserSessionTickAsync(CancellationToken.None);
             await presenceService.HeartbeatAsync(_userId, this.GetPrimaryKey());

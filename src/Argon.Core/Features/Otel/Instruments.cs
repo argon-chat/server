@@ -328,4 +328,54 @@ public static class InstrumentNames
     /// Tags: result (success, no_permission, invalid_channel)
     /// </summary>
     public const string ChannelMemberKicks = "argon-channel-member-kicks";
+
+    /// <summary>
+    /// Total number of user sessions started (Counter).
+    /// Increments when BeginRealtimeSession is called.
+    /// </summary>
+    public const string UserSessionsStarted = "argon-user-sessions-started";
+
+    /// <summary>
+    /// Total number of user sessions ended (Counter).
+    /// Tags: reason (graceful, expired, error)
+    /// </summary>
+    public const string UserSessionsEnded = "argon-user-sessions-ended";
+
+    /// <summary>
+    /// Total number of heartbeats received (Counter).
+    /// Tags: status (online, idle, dnd)
+    /// </summary>
+    public const string UserSessionHeartbeats = "argon-user-session-heartbeats";
+
+    /// <summary>
+    /// Current number of online users across all sessions (ObservableGauge).
+    /// Measured by querying IUserPresenceService directly to ensure accuracy.
+    /// This is aggregate across all silo instances.
+    /// </summary>
+    public const string UserOnlineCount = "argon-user-online-count";
+
+    /// <summary>
+    /// Current number of active sessions on this silo (Gauge).
+    /// Tracks local session grain activations.
+    /// </summary>
+    public const string UserSessionsActive = "argon-user-sessions-active";
+
+    /// <summary>
+    /// Duration of user sessions in seconds (Histogram).
+    /// Measured from BeginRealtimeSession to EndRealtimeSession/deactivation.
+    /// </summary>
+    public const string UserSessionDuration = "argon-user-session-duration";
+
+    /// <summary>
+    /// Total number of session expirations detected (Counter).
+    /// Tags: result (offline, switch_session)
+    /// Increments when OnKeyExpired is triggered.
+    /// </summary>
+    public const string UserSessionExpirations = "argon-user-session-expirations";
+
+    /// <summary>
+    /// Total number of status changes (Counter).
+    /// Tags: from_status (online, idle, dnd), to_status (online, idle, dnd)
+    /// </summary>
+    public const string UserStatusChanges = "argon-user-status-changes";
 }
