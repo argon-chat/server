@@ -38,6 +38,7 @@ public class ChannelGrain(
 
         state.State.Users.Clear();
         state.State.UserJoinTimes.Clear();
+        state.State.LastMembershipChange = DateTimeOffset.UtcNow;
         state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
@@ -45,11 +46,8 @@ public class ChannelGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        // Record voice time for all users still in channel
-        foreach (var (userId, joinTime) in state.State.UserJoinTimes)
-        {
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
-        }
+        // Settle XP for all users still in channel
+        await SettleXpForAllUsersAsync();
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
         await _userStateEmitter.DisposeAsync();
@@ -425,13 +423,16 @@ public class ChannelGrain(
         }
 
         // For non-guests, check if they have existing join time and handle it
-        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var existingJoinTime))
+        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out _))
         {
-            await RecordVoiceTimeForUserAsync(oderId, existingJoinTime);
+            await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(oderId);
             state.State.Users.Remove(oderId);
             await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         }
+
+        // Settle XP for existing users before adding new one
+        await SettleXpForAllUsersAsync();
 
         // Add user to channel
         state.State.Users[oderId] = new RealtimeChannelUser(oderId, ChannelMemberState.NONE);
@@ -463,22 +464,24 @@ public class ChannelGrain(
         var channelId = this.GetPrimaryKey();
         var isGuest = IsGuestUserId(oderId);
 
-        if (!state.State.Users.Remove(oderId))
+        if (!state.State.Users.ContainsKey(oderId))
         {
             logger.LogDebug("User {UserId} not in channel {ChannelId}, skipping leave from meeting", oderId, channelId);
             return;
         }
 
-        // Only record voice time for non-guests
+        // Settle XP for ALL users (including the one leaving) before removing
+        await SettleXpForAllUsersAsync();
+        
+        // Only record total session duration for metrics (not for XP, that's handled by settle)
         if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var joinTime))
         {
             var duration = DateTimeOffset.UtcNow - joinTime;
             ChannelGrainInstrument.VoiceSessionDuration.Record(duration.TotalSeconds);
-            
-            await RecordVoiceTimeForUserAsync(oderId, joinTime);
             state.State.UserJoinTimes.Remove(oderId);
         }
 
+        state.State.Users.Remove(oderId);
         await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         await state.WriteStateAsync(ct);
 
@@ -501,14 +504,16 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
+        if (state.State.UserJoinTimes.TryGetValue(userId, out _))
         {
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
+            await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
             await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         }
 
+        // Settle XP for existing users before adding new one
+        await SettleXpForAllUsersAsync();
 
         state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
@@ -533,13 +538,17 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
-        // Calculate and record voice time before removing user
+        if (!state.State.Users.ContainsKey(userId))
+            return;
+
+        // Settle XP for ALL users (including the one leaving) before removing
+        await SettleXpForAllUsersAsync();
+
+        // Only record total session duration for metrics
         if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
         {
             var duration = DateTimeOffset.UtcNow - joinTime;
             ChannelGrainInstrument.VoiceSessionDuration.Record(duration.TotalSeconds);
-            
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
             state.State.UserJoinTimes.Remove(userId);
         }
 
@@ -660,16 +669,37 @@ public class ChannelGrain(
         return msgId;
     }
 
-    private async Task RecordVoiceTimeForUserAsync(Guid userId, DateTimeOffset joinTime)
+    /// <summary>
+    /// Settles XP for all users based on time since last membership change.
+    /// Called before any Join/Leave to ensure correct memberCount for XP calculation.
+    /// Solo users (memberCount == 1) get no XP.
+    /// </summary>
+    private async Task SettleXpForAllUsersAsync()
     {
-        var duration = DateTimeOffset.UtcNow - joinTime;
+        var memberCount = state.State.Users.Count;
+        
+        // Solo = no XP
+        if (memberCount <= 1)
+        {
+            state.State.LastMembershipChange = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var duration = now - state.State.LastMembershipChange;
         var durationSeconds = (int)Math.Min(duration.TotalSeconds, int.MaxValue);
 
         if (durationSeconds > 0)
         {
-            var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
-            await statsGrain.RecordVoiceTimeAsync(durationSeconds, this.GetPrimaryKey(), SpaceId);
+            // Award XP to all current users for this period
+            foreach (var userId in state.State.UserJoinTimes.Keys)
+            {
+                var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
+                await statsGrain.RecordVoiceTimeAsync(durationSeconds, this.GetPrimaryKey(), SpaceId);
+            }
         }
+
+        state.State.LastMembershipChange = now;
     }
 
     private async Task TrackCallJoinedAsync(Guid userId)

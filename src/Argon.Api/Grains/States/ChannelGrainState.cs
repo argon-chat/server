@@ -30,6 +30,13 @@ public sealed partial record ChannelGrainState
     /// </summary>
     [DataMember(Order = 6), Id(6)]
     public string? LinkedMeetInviteCode { get; set; }
+
+    /// <summary>
+    /// Last time channel composition changed (user joined/left).
+    /// Used to calculate XP periods with correct member count.
+    /// </summary>
+    [DataMember(Order = 7), Id(7)]
+    public DateTimeOffset LastMembershipChange { get; set; } = DateTimeOffset.UtcNow;
 }
 
 [DataContract, Serializable, GenerateSerializer]

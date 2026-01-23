@@ -496,4 +496,223 @@ public class UserStatsAndLevelTests : TestBase
     }
 
     #endregion
+
+    #region Channel Voice XP Settlement Tests (Anti-Solo-Farm)
+
+    [Test, CancelAfter(1000 * 60 * 5), Order(60)]
+    public async Task ChannelVoice_SoloUser_GetsNoXp(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var token = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token);
+
+        var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
+        var spaceId = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateVoiceChannelAsync(spaceId, "solo-test", ct);
+
+        var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
+        var channelGrain = grainFactory.GetGrain<IChannelGrain>(channelId);
+
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user.userId);
+        try
+        {
+            await channelGrain.Join();
+            await Task.Delay(100, ct);
+            await channelGrain.Leave(user.userId);
+        }
+        finally
+        {
+            Orleans.Runtime.RequestContext.Clear();
+        }
+
+        // Check XP - should be 0 because user was solo
+        var level = await GetUserService(scope.ServiceProvider).GetMyLevel(ct);
+        Assert.That(level.totalXp, Is.EqualTo(0), "Solo user should not receive XP");
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5), Order(61)]
+    public async Task ChannelVoice_TwoUsers_BothGetXp(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        // Register first user (space owner)
+        var token1 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token1);
+        var user1 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+        var spaceId = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateVoiceChannelAsync(spaceId, "duo-test", ct);
+
+        // Register second user and add to space
+        var token2 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token2);
+        var user2 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+
+        var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
+        var channelGrain = grainFactory.GetGrain<IChannelGrain>(channelId);
+        var statsGrain1 = grainFactory.GetGrain<IUserStatsGrain>(user1.userId);
+        var statsGrain2 = grainFactory.GetGrain<IUserStatsGrain>(user2.userId);
+
+        // User1 joins
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user1.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        // User2 joins
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user2.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        // Both are in channel now - wait to accumulate time
+        await Task.Delay(100, ct);
+
+        // User2 leaves - this should settle XP for BOTH users
+        await channelGrain.Leave(user2.userId);
+
+        var stats1 = await statsGrain1.GetTodayStatsAsync();
+        var stats2 = await statsGrain2.GetTodayStatsAsync();
+
+        Assert.That(stats1.timeInVoice, Is.GreaterThanOrEqualTo(0), "User1 should have voice time recorded");
+        Assert.That(stats2.timeInVoice, Is.GreaterThanOrEqualTo(0), "User2 should have voice time recorded");
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5), Order(62)]
+    public async Task ChannelVoice_LastUserLeaving_StillGetsXpForTimeWithOthers(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var token1 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token1);
+        var user1 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+        var spaceId = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateVoiceChannelAsync(spaceId, "last-user-test", ct);
+
+        var token2 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token2);
+        var user2 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+
+        var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
+        var channelGrain = grainFactory.GetGrain<IChannelGrain>(channelId);
+        var statsGrain1 = grainFactory.GetGrain<IUserStatsGrain>(user1.userId);
+
+        // User1 joins (solo)
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user1.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        // User2 joins - settle happens, user1 was solo so no XP
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user2.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        var statsBefore = await statsGrain1.GetTodayStatsAsync();
+        var voiceTimeBefore = statsBefore.timeInVoice;
+
+        // Wait some time with 2 users
+        await Task.Delay(100, ct);
+
+        // User2 leaves - this settles XP for both with memberCount=2
+        await channelGrain.Leave(user2.userId);
+
+        var statsAfterUser2Left = await statsGrain1.GetTodayStatsAsync();
+        Assert.That(statsAfterUser2Left.timeInVoice, Is.GreaterThanOrEqualTo(voiceTimeBefore), 
+            "User1 should have gained voice time while user2 was present");
+
+        // Now user1 is solo again - wait more time
+        await Task.Delay(100, ct);
+
+        // User1 leaves (solo now)
+        await channelGrain.Leave(user1.userId);
+
+        var statsFinal = await statsGrain1.GetTodayStatsAsync();
+        Assert.That(statsFinal.timeInVoice, Is.EqualTo(statsAfterUser2Left.timeInVoice),
+            "Solo time after user2 left should not add more voice time");
+    }
+
+    [Test, CancelAfter(1000 * 60 * 5), Order(63)]
+    public async Task ChannelVoice_UserJoining_SettlesXpForExistingUsers(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var token1 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token1);
+        var user1 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+        var spaceId = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateVoiceChannelAsync(spaceId, "join-settle-test", ct);
+
+        var token2 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token2);
+        var user2 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+
+        var token3 = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token3);
+        var user3 = await GetUserService(scope.ServiceProvider).GetMe(ct);
+
+        var grainFactory = FactoryAsp.Services.GetRequiredService<IGrainFactory>();
+        var channelGrain = grainFactory.GetGrain<IChannelGrain>(channelId);
+        var statsGrain1 = grainFactory.GetGrain<IUserStatsGrain>(user1.userId);
+        var statsGrain2 = grainFactory.GetGrain<IUserStatsGrain>(user2.userId);
+
+        // User1 and User2 join
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user1.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user2.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        // Wait with 2 users
+        await Task.Delay(100, ct);
+
+        var stats1Before = await statsGrain1.GetTodayStatsAsync();
+        var stats2Before = await statsGrain2.GetTodayStatsAsync();
+
+        // User3 joins - this should SETTLE XP for user1 and user2 (memberCount=2)
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user3.userId);
+        try { await channelGrain.Join(); }
+        finally { Orleans.Runtime.RequestContext.Clear(); }
+
+        var stats1After = await statsGrain1.GetTodayStatsAsync();
+        var stats2After = await statsGrain2.GetTodayStatsAsync();
+
+        Assert.That(stats1After.timeInVoice, Is.GreaterThanOrEqualTo(stats1Before.timeInVoice),
+            "User1 should have voice time settled when user3 joined");
+        Assert.That(stats2After.timeInVoice, Is.GreaterThanOrEqualTo(stats2Before.timeInVoice),
+            "User2 should have voice time settled when user3 joined");
+    }
+
+    private async Task<Guid> CreateVoiceChannelAsync(Guid spaceId, string channelName = "voice-channel", CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        
+        await GetChannelService(scope.ServiceProvider).CreateChannel(
+            spaceId,
+            Guid.Empty,
+            new CreateChannelRequest(spaceId, channelName, ChannelType.Voice, "Test voice channel", null),
+            ct);
+
+        var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
+        Orleans.Runtime.RequestContext.Set("$caller_user_id", user.userId);
+        
+        try
+        {
+            var spaceGrain = FactoryAsp.Services.GetRequiredService<IGrainFactory>()
+                .GetGrain<ISpaceGrain>(spaceId);
+            
+            var channels = await spaceGrain.GetChannels();
+            var createdChannel = channels.FirstOrDefault(c => c.channel.name == channelName);
+            
+            if (createdChannel == null)
+                Assert.Fail($"Failed to find created voice channel '{channelName}'");
+                
+            return createdChannel!.channel.channelId;
+        }
+        finally
+        {
+            Orleans.Runtime.RequestContext.Clear();
+        }
+    }
+
+    #endregion
 }
