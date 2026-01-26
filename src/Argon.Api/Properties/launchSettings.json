@@ -8,8 +8,7 @@
         "ARGON_ROLE": "Hybrid",
         "ARGON_MODE": "SingleInstance",
         "NO_STRUCTURED_LOGS": "true",
-        "USE_LOCALHOST_CERTS": "true",
-        "OTEL_SERVICE_NAME": "argon-silo"
+        "USE_LOCALHOST_CERTS": "true"
       },
       "dotnetRunMessages": true
     },

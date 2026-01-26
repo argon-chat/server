@@ -12,6 +12,7 @@ using Orleans.Providers;
 using Persistence.States;
 using Sfu;
 using System.Diagnostics;
+using Core.Features.Transport;
 
 [GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
@@ -20,19 +21,19 @@ public class ChannelGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
+    AppHubServer appHubServer,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
-    private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
-
     private ChannelEntity _self     { get; set; }
     private Guid          SpaceId   => _self.SpaceId;
     private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
 
+    private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
+        => appHubServer.BroadcastSpace(ev, SpaceId, ct);
+
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         _self = await Get();
-
-        _userStateEmitter = await this.Streams().CreateServerStreamFor(SpaceId);
 
         await state.ReadStateAsync(cancellationToken);
 
@@ -50,7 +51,6 @@ public class ChannelGrain(
         await SettleXpForAllUsersAsync();
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
-        await _userStateEmitter.DisposeAsync();
     }
 
     public Task<List<RealtimeChannelUser>> GetMembers()
@@ -102,7 +102,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "typing"));
         
-        await _userStateEmitter.Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+        await Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
     }
 
     [OneWay]
@@ -111,7 +111,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "stop_typing"));
         
-        await _userStateEmitter.Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+        await Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
     }
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
@@ -155,7 +155,7 @@ public class ChannelGrain(
         var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct);
 
-        await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
+        await Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
 
         state.State.EgressActive      = true;
         state.State.EgressId          = result;
@@ -177,7 +177,7 @@ public class ChannelGrain(
         }
         
         var egressId = state.State.EgressId;
-        await _userStateEmitter.Fire(new RecordEnded(this.SpaceId, this.GetPrimaryKey()), ct);
+        await Fire(new RecordEnded(this.SpaceId, this.GetPrimaryKey()), ct);
         state.State.EgressActive      = false;
         state.State.EgressId          = null;
         state.State.UserCreatedEgress = null;
@@ -290,7 +290,7 @@ public class ChannelGrain(
         var meetInfo = new LinkedMeetingInfo(meetId, meetUrl, result.InviteCode, DateTime.UtcNow);
 
         // Fire event to notify all subscribers
-        await _userStateEmitter.Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
+        await Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
 
         ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
@@ -378,7 +378,7 @@ public class ChannelGrain(
                 meetState?.CreatedAt.UtcDateTime ?? DateTime.UtcNow);
 
             // Fire event to notify all subscribers
-            await _userStateEmitter.Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
+            await Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
 
             ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
                 new KeyValuePair<string, object?>("result", "success"));
@@ -428,7 +428,7 @@ public class ChannelGrain(
             await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(oderId);
             state.State.Users.Remove(oderId);
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+            await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         }
 
         // Settle XP for existing users before adding new one
@@ -445,7 +445,7 @@ public class ChannelGrain(
         }
 
         await state.WriteStateAsync(ct);
-        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
+        await Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -482,7 +482,7 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(oderId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+        await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         await state.WriteStateAsync(ct);
 
         if (state.State.Users.Count == 0)
@@ -509,7 +509,7 @@ public class ChannelGrain(
             await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+            await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         }
 
         // Settle XP for existing users before adding new one
@@ -522,7 +522,7 @@ public class ChannelGrain(
         // Track call joined for stats
         _ = TrackCallJoinedAsync(userId);
 
-        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -553,7 +553,7 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(userId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)
@@ -650,7 +650,7 @@ public class ChannelGrain(
                 message.Entities?.Count ?? 0);
         }
 
-        await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, dto));
+        await Fire(new MessageSent(_self.SpaceId, dto));
         
         sw.Stop();
         

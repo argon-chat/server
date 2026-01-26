@@ -1,9 +1,8 @@
 namespace Argon.Grains;
 
-using System.Linq;
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
-using Services.L1L2;
+using Argon.Core.Features.Transport;
 using Core.Services;
 using Features.Logic;
 using Features.MediaStorage;
@@ -11,6 +10,8 @@ using Features.Repositories;
 using ion.runtime;
 using Orleans.GrainDirectory;
 using Persistence.States;
+using Services.L1L2;
+using System.Linq;
 
 [GrainDirectory(GrainDirectoryName = "servers")]
 public class SpaceGrain(
@@ -24,24 +25,22 @@ public class SpaceGrain(
     IEntitlementChecker entitlementChecker,
     ISystemMessageService systemMessageService,
     IKineticaFSApi kineticaFs,
+    AppHubServer appHubServer,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
-    private IDistributedArgonStream<IArgonEvent> _serverEvents;
+
+    private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
+        => appHubServer.BroadcastSpace(ev, this.GetPrimaryKey(), ct);
 
     public async override Task OnActivateAsync(CancellationToken ct)
     {
         await state.ReadStateAsync(ct);
         state.State.UserStatuses.Clear();
         await state.WriteStateAsync(ct);
-
-        _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
-    {
-        await _serverEvents.DisposeAsync();
-        await state.WriteStateAsync(ct);
-    }
+        => await state.WriteStateAsync(ct);
 
     public async Task<Either<ArgonSpaceBase, ServerCreationError>> CreateSpace(ServerInput input)
     {
@@ -91,7 +90,7 @@ public class SpaceGrain(
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
 
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
+        await Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
         return server;
     }
 
@@ -117,10 +116,10 @@ public class SpaceGrain(
     }
 
     public async Task SetUserPresence(Guid userId, UserActivityPresence presence)
-        => await _serverEvents.Fire(new OnUserPresenceActivityChanged(this.GetPrimaryKey(), userId, presence));
+        => await Fire(new OnUserPresenceActivityChanged(this.GetPrimaryKey(), userId, presence));
 
     public async Task RemoveUserPresence(Guid userId)
-        => await _serverEvents.Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
+        => await Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
 
 
     public async Task<List<RealtimeServerMember>> GetMembers()
@@ -224,7 +223,7 @@ public class SpaceGrain(
 
         await using var ctx  = await context.CreateDbContextAsync();
         var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
-        await _serverEvents.Fire(new UserUpdated(this.GetPrimaryKey(), user.ToDto()));
+        await Fire(new UserUpdated(this.GetPrimaryKey(), user.ToDto()));
     }
 
     /// <summary>
@@ -287,14 +286,14 @@ public class SpaceGrain(
 
     public async ValueTask UserJoined(Guid userId)
     {
-        await _serverEvents.Fire(new JoinToServerUser(this.GetPrimaryKey(), userId));
+        await Fire(new JoinToServerUser(this.GetPrimaryKey(), userId));
         await SetUserStatus(userId, UserStatus.Online);
     }
 
     public async Task SetUserStatus(Guid userId, UserStatus status)
     {
         state.State.UserStatuses[userId] = (DateTime.UtcNow, status);
-        await _serverEvents.Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));
+        await Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));
     }
 
     public async Task DeleteSpace()
@@ -342,7 +341,7 @@ public class SpaceGrain(
         await ctx.Set<ChannelGroupEntity>().AddAsync(group);
         await ctx.SaveChangesAsync();
 
-        await _serverEvents.Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
+        await Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
 
         return group;
     }
@@ -377,7 +376,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync(ct);
 
-        await _serverEvents.Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
+        await Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
 
         return group;
     }
@@ -440,7 +439,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync();
 
-        await _serverEvents.Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
+        await Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
     }
 
     public async Task DeleteChannelGroup(Guid groupId, bool deleteChannels = false)
@@ -472,7 +471,7 @@ public class SpaceGrain(
             ctx.Set<ChannelEntity>().RemoveRange(group.Channels);
 
             foreach (var channel in group.Channels)
-                await _serverEvents.Fire(new ChannelRemoved(spaceId, channel.Id));
+                await Fire(new ChannelRemoved(spaceId, channel.Id));
         }
         else
             foreach (var channel in group.Channels)
@@ -481,7 +480,7 @@ public class SpaceGrain(
         ctx.Set<ChannelGroupEntity>().Remove(group);
         await ctx.SaveChangesAsync();
 
-        await _serverEvents.Fire(new ChannelGroupRemoved(spaceId, groupId));
+        await Fire(new ChannelGroupRemoved(spaceId, groupId));
     }
 
     public async Task<ChannelEntity> CreateChannel(ChannelInput input, Guid? groupId = null)
@@ -523,7 +522,7 @@ public class SpaceGrain(
 
         await ctx.Set<ChannelEntity>().AddAsync(channel);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ChannelCreated(spaceId, channel.ToDto()));
+        await Fire(new ChannelCreated(spaceId, channel.ToDto()));
         return channel;
     }
 
@@ -587,7 +586,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync();
 
-        await _serverEvents.Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
+        await Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
     }
 
     public async Task DeleteChannel(Guid channelId)
@@ -613,7 +612,7 @@ public class SpaceGrain(
 
         ctx.Set<ChannelEntity>().Remove(channel);
         await ctx.SaveChangesAsync();
-        await _serverEvents.Fire(new ChannelRemoved(spaceId, channelId));
+        await Fire(new ChannelRemoved(spaceId, channelId));
     }
 
     public async Task<List<ChannelGroupEntity>> GetChannelGroups()
@@ -705,6 +704,6 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync(ct);
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId);
-        await _serverEvents.Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
+        await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 }

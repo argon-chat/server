@@ -44,8 +44,7 @@ public sealed class UserPresenceMetricsService(
                 logger.LogWarning(ex, "Failed to update online users count");
             }
 
-            // Update every 15 seconds
-            await Task.Delay(TimeSpan.FromSeconds(15), stoppingToken);
+            await Task.Delay(TimeSpan.FromSeconds(15), CancellationToken.None);
         }
 
         logger.LogInformation("UserPresenceMetricsService stopped");

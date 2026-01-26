@@ -1,6 +1,7 @@
 namespace Argon.Core.Features.Logic;
 
 using Api.Features.Bus;
+using Argon.Core.Features.Transport;
 using Argon.Features.Logic;
 using Argon.Services;
 using Genbox.SimpleS3.Core.Abstracts.Region;
@@ -12,7 +13,7 @@ public interface IUserSessionDiscoveryService
 }
 
 public sealed record UserSessionDescriptor(
-    Guid SessionId,
+    string SessionId,
     Guid UserId,
     string Region,
     string ServerId
@@ -50,7 +51,7 @@ public sealed class LocalUserSessionDiscoveryService(
 }
 
 public sealed class UserStreamNotifier(
-    IStreamManagement streams,
+    IServiceProvider serviceProvider,
     ILogger<UserStreamNotifier> logger) : IUserSessionNotifier
 {
     public async Task NotifySessionsAsync<T>(
@@ -60,22 +61,18 @@ public sealed class UserStreamNotifier(
     {
         if (sessions.Count == 0)
             return;
+        await using var scope = serviceProvider.CreateAsyncScope();
 
-        var userId = sessions[0].UserId;
-
-        var stream = await streams.CreateServerStreamFor(userId);
+        var hubServer = scope.ServiceProvider.GetRequiredService<AppHubServer>();
+        var userId    = sessions[0].UserId;
 
         try
         {
-            await stream.Fire(payload, ct);
+            await hubServer.ForUser(payload, userId, ct);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Failed to publish event for user {UserId}", userId);
-        }
-        finally
-        {
-            await stream.DisposeAsync();
         }
     }
 }

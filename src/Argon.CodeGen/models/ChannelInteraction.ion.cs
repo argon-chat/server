@@ -153,6 +153,7 @@ public interface IEventBus : IIonService
     IAsyncEnumerable<IArgonEvent> ForServer(guid spaceId, CancellationToken ct = default);
     Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default);
     IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent>?  ev, CancellationToken ct = default);
+    Task<string> PickTicket(CancellationToken ct = default);
 }
 
 

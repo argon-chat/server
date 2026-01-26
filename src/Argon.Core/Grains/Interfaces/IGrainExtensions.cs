@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using Microsoft.AspNetCore.SignalR;
+
 public static class IGrainExtensions
 {
     public static Guid GetUserId(this Grain grain)
@@ -49,11 +51,17 @@ public static class IGrainExtensions
     // RequestContext.AllowCallChainReentrancy()
     public static void SetUserId(this IIonService that, Guid userId)
         => RequestContext.Set("$caller_user_id", userId);
+    public static void SetUserId(this Hub that, Guid userId)
+        => RequestContext.Set("$caller_user_id", userId);
     public static void SetUserIp(this IIonService that, string ip)
         => RequestContext.Set("$caller_user_ip", ip);
     public static void SetUserMachineId(this IIonService that, string machineId)
         => RequestContext.Set("$caller_machine_id", machineId);
+    public static void SetUserMachineId(this Hub that, string machineId)
+        => RequestContext.Set("$caller_machine_id", machineId);
     public static void SetUserSessionId(this IIonService that, Guid sessionId)
+        => RequestContext.Set("$caller_session_id", sessionId);
+    public static void SetUserSessionId(this Hub that, Guid sessionId)
         => RequestContext.Set("$caller_session_id", sessionId);
     public static void SetUserCountry(this IIonService that, string Country)
         => RequestContext.Set("$caller_country", Country);

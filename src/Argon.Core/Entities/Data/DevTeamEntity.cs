@@ -133,7 +133,7 @@ public enum DevAppType
 
 public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEntity>
 {
-    [Key]
+    [System.ComponentModel.DataAnnotations.Key]
     public Guid AppId { get; set; }
 
     public         Guid          TeamId { get; set; }

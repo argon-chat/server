@@ -17,11 +17,11 @@ public static class UserPresenceFeature
 
 public interface IUserPresenceService
 {
-    Task                         HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
+    Task                         HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default);
     Task<bool>                   IsUserOnlineAsync(Guid userId, CancellationToken ct = default);
     Task<Dictionary<Guid, bool>> AreUsersOnlineAsync(IEnumerable<Guid> userIds, CancellationToken ct = default);
-    Task                         SetSessionOnlineAsync(Guid userId, Guid sessionId, CancellationToken ct = default);
-    Task<List<Guid>>             GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
+    Task                         SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default);
+    Task<List<string>>             GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
 
     Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId);
 
@@ -34,7 +34,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 {
     public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(120);
 
-    private static string SessionKey(Guid userId, Guid sessionId)
+    private static string SessionKey(Guid userId, string sessionId)
         => $"presence:user:{userId}:session:{sessionId}";
 
     private static string SessionKeyPrefix(Guid userId)
@@ -46,28 +46,28 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string SessionPresenceKeyPrefix(Guid userId)
         => $"activity:user:{userId}:session:broadcast";
 
-    public Task SetSessionOnlineAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+    public Task SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default)
         => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
 
-    public Task SetSessionOnlineAsync(Guid userId, Guid sessionId, TimeSpan ttl, CancellationToken ct = default)
+    public Task SetSessionOnlineAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
         return cache.StringSetAsync(key, "1", ttl, ct);
     }
 
-    private Task UpdateSessionAsync(Guid userId, Guid sessionId, TimeSpan ttl, CancellationToken ct = default)
+    private Task UpdateSessionAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
         return cache.UpdateStringExpirationAsync(key, ttl, ct);
     }
 
-    public Task RemoveSessionAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+    public Task RemoveSessionAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
         return cache.KeyDeleteAsync(key, ct);
     }
 
-    public Task HeartbeatAsync(Guid userId, Guid sessionId, CancellationToken ct = default)
+    public Task HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default)
         => UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
 
     public async Task<bool> IsUserOnlineAsync(Guid userId, CancellationToken ct = default)
@@ -95,15 +95,15 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
            .ToDictionary(x => x.key, x => x.result);
     }
 
-    public async Task<List<Guid>> GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default)
+    public async Task<List<string>> GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default)
     {
-        var sessionIds = new List<Guid>();
+        var sessionIds = new List<string>();
         var prefix     = $"presence:user:{userId}:session:";
 
         await foreach (var key in cache.ScanKeysAsync(SessionKeyPrefix(userId)).WithCancellation(ct))
         {
             if (key.StartsWith(prefix))
-                sessionIds.Add(Guid.Parse(key[prefix.Length..]));
+                sessionIds.Add(key[prefix.Length..]);
         }
 
         return sessionIds;

@@ -21,9 +21,6 @@ public record DatabaseOptions
     public string? RotationHolderRoleName     { get; set; }
 }
 
-
-
-
 public class VaultDbCredentialsProvider(
     IServiceProvider provider,
     ILogger<VaultDbCredentialsProvider> logger,
@@ -69,7 +66,7 @@ public class VaultDbCredentialsProvider(
     public Task EnsureLoadedAsync()
     {
         var opt = options.Value;
-        if (opt.UseRotationHolder) 
+        if (opt.UseRotationHolder)
             return GetCredentialsAsync();
         logger.LogWarning("Security warning, credentials rotation is not configured, going use default connection string for database.");
         return Task.CompletedTask;
@@ -83,14 +80,15 @@ public class VaultDbCredentialsProvider(
         {
             try
             {
-                var opt         = options.Value;
+                var opt = options.Value;
                 if (!opt.UseRotationHolder)
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(300), stoppingToken);
+                    await Task.Delay(TimeSpan.FromSeconds(300), CancellationToken.None);
                     continue;
                 }
+
                 var credentials = await GetCredentialsAsync();
-                await Task.Delay(TimeSpan.FromSeconds(Math.Max(60, credentials.ttl - 60)), stoppingToken);
+                await Task.Delay(TimeSpan.FromSeconds(Math.Max(60, credentials.ttl - 60)), CancellationToken.None);
             }
             catch (Exception ex)
             {

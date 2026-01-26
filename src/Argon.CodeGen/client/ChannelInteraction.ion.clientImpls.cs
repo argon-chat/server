@@ -415,6 +415,8 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         typeof(IEventBus).GetMethod(nameof(Dispatch), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Pipe_Ref = new(() =>
         typeof(IEventBus).GetMethod(nameof(Pipe), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PickTicket_Ref = new(() =>
+        typeof(IEventBus).GetMethod(nameof(PickTicket), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -466,6 +468,23 @@ public sealed class Ion_EventBus_ClientImpl(IonClientContext context) : IEventBu
         writer.WriteEndArray();
     
         return ws.CallServerStreamingAsync<IArgonEvent, IArgonClientEvent>(writer.Encode(), inputStream, ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<string> PickTicket(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IEventBus), PickTicket_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<string>(writer.Encode(), ct: ct);
     }
 
 }
