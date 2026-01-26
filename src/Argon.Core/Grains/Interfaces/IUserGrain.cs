@@ -46,6 +46,13 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetLimitationForUser))]
     ValueTask<LockedAuthStatus> GetLimitationForUser();
+
+    /// <summary>
+    /// Aggregates status from all active sessions and broadcasts the result to all servers.
+    /// Called by UserSessionGrain when session status changes.
+    /// </summary>
+    [Alias(nameof(AggregateAndBroadcastStatusAsync))]
+    ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
 }
 
 

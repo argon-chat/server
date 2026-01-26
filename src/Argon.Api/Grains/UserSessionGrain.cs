@@ -50,6 +50,19 @@ public class UserSessionGrain(
         refreshTimer?.Dispose();
         refreshTimer = null;
 
+        // Clean up session status from Redis
+        if (_userId != Guid.Empty)
+        {
+            try
+            {
+                await presenceService.RemoveSessionStatusAsync(_userId, SessionId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to remove session status during deactivation");
+            }
+        }
+
         // Record session duration
         if (_sessionStartTime.HasValue)
         {
@@ -79,14 +92,11 @@ public class UserSessionGrain(
         refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
         eventStorage.OnKeyExpiredSubscribeAsync(OnKeyExpired).AddTo(bag);
-        var servers = await grainFactory
-           .GetGrain<IUserGrain>(_userId)
-           .GetMyServersIds();
+        
         await presenceService.SetSessionOnlineAsync(_userId, SessionId);
-        await Task.WhenAll(servers.Select(server => 
-            grainFactory
-               .GetGrain<ISpaceGrain>(server)
-               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online)));
+        await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus.Value);
+        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+        
         _cacheSubscriber = bag.Build();
 
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
@@ -122,6 +132,9 @@ public class UserSessionGrain(
 
         logger.LogInformation("Destroyed timer for session: {sessionId}, userId: {userId}", SessionId, _userId);
 
+        // Remove this session's status from Redis
+        await presenceService.RemoveSessionStatusAsync(_userId, SessionId, ct);
+
         if (!await presenceService.IsUserOnlineAsync(_userId, ct))
         {
             logger.LogInformation("This is last user session, become totally offline");
@@ -138,6 +151,9 @@ public class UserSessionGrain(
             return;
         }
 
+        // Re-aggregate status from remaining sessions
+        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(ct);
+
         UserSessionGrainInstrument.Expirations.Add(1,
             new KeyValuePair<string, object?>("result", "switch_session"));
 
@@ -148,16 +164,14 @@ public class UserSessionGrain(
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
-        var servers = await grainFactory
-           .GetGrain<IUserGrain>(_userId)
-           .GetMyServersIds(arg);
-        await Task.WhenAll(servers.Select(server =>
-            grainFactory
-               .GetGrain<ISpaceGrain>(server)
-               .SetUserStatus(_userId, _preferredStatus ?? UserStatus.Online)));
+        
+        // Update session status TTL and re-aggregate through UserGrain
+        await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus ?? UserStatus.Online, arg);
+        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(arg);
 
         if (!await presenceService.IsUserOnlineAsync(_userId, arg))
         {
+            var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds(arg);
             await Task.WhenAll(servers.Select(server =>
                 grainFactory
                    .GetGrain<ISpaceGrain>(server)
@@ -214,7 +228,10 @@ public class UserSessionGrain(
                 new KeyValuePair<string, object?>("to_status", statusTag));
 
             _preferredStatus = status;
-            await UserSessionTickAsync(CancellationToken.None);
+            
+            // Update this session's status and re-aggregate through UserGrain
+            await presenceService.SetSessionStatusAsync(_userId, SessionId, status);
+            await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
             await presenceService.HeartbeatAsync(_userId, SessionId);
         }
         DelayDeactivation(TimeSpan.FromMinutes(2));
