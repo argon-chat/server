@@ -165,9 +165,8 @@ public class UserSessionGrain(
     {
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
         
-        // Update session status TTL and re-aggregate through UserGrain
-        await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus ?? UserStatus.Online, arg);
-        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(arg);
+        // Only refresh TTL, don't broadcast - status hasn't changed
+        await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
 
         if (!await presenceService.IsUserOnlineAsync(_userId, arg))
         {
@@ -248,9 +247,33 @@ public class UserSessionGrain(
 
     public async ValueTask EndRealtimeSession()
     {
-        logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, go to expire session, linkedUserId: {userId}",
+        logger.LogInformation("Grain for session {sessionId} has been called EndRealtimeSession, linkedUserId: {userId}",
             SessionId, _shadowUserId);
-        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{SessionId}", TimeSpan.FromSeconds(60));
+
+        refreshTimer?.Dispose();
+        refreshTimer = null;
+
+        // Remove this session's status
+        await presenceService.RemoveSessionStatusAsync(_userId, SessionId);
+
+        if (!await presenceService.IsUserOnlineAsync(_userId))
+        {
+            // This was the last session - go offline
+            var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds();
+            await Task.WhenAll(servers.Select(server =>
+                grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline)));
+            await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
+        }
+        else
+        {
+            // Other sessions exist - re-aggregate status
+            await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+        }
+
+        // Expire presence key soon
+        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{SessionId}", TimeSpan.FromSeconds(1));
+        
+        await SelfDestroy();
     }
 }
 

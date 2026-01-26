@@ -31,8 +31,14 @@ public interface IUserPresenceService
 
     /// <summary>
     /// Sets the preferred status for a specific session and recalculates the aggregated status.
+    /// Does NOT refresh the session status TTL - use RefreshSessionStatusTtlAsync for that.
     /// </summary>
     Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default);
+
+    /// <summary>
+    /// Refreshes TTL for session status without recalculating aggregated status.
+    /// </summary>
+    Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default);
 
     /// <summary>
     /// Removes the status for a specific session and recalculates the aggregated status.
@@ -151,6 +157,12 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var key = SessionStatusKey(userId, sessionId);
         await cache.StringSetAsync(key, status.ToString(), DefaultTTL, ct);
         await RecalculateAggregatedStatusAsync(userId, ct);
+    }
+
+    public Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    {
+        var key = SessionStatusKey(userId, sessionId);
+        return cache.UpdateStringExpirationAsync(key, DefaultTTL, ct);
     }
 
     public async Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
