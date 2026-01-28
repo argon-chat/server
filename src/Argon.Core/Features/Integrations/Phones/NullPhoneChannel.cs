@@ -97,10 +97,18 @@ public class NullPhoneChannel(ILogger<NullPhoneChannel> logger, ITestCodeStore? 
 
     private static string GenerateCode(int length)
     {
-        var random = Random.Shared;
+        // Use cryptographically secure random even for test/dev environments
+        // to ensure proper security practices throughout the codebase
+        using var rng = RandomNumberGenerator.Create();
+        var randomBytes = new byte[length];
+        rng.GetBytes(randomBytes);
+        
         var code = new char[length];
         for (var i = 0; i < length; i++)
-            code[i] = (char)('0' + random.Next(10));
+        {
+            // Convert to digit 0-9
+            code[i] = (char)('0' + (randomBytes[i] % 10));
+        }
         return new string(code);
     }
 
