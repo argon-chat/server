@@ -125,5 +125,5 @@ Do NOT create public GitHub issues for security vulnerabilities.
 ## Additional Resources
 
 - [OWASP Secure Coding Practices](https://owasp.org/www-project-secure-coding-practices-quick-reference-guide/)
-- [ASP.NET Core Security Best Practices](https://docs.microsoft.com/en-us/aspnet/core/security/)
+- [ASP.NET Core Security Best Practices](https://learn.microsoft.com/en-us/aspnet/core/security/)
 - [HashiCorp Vault Documentation](https://www.vaultproject.io/docs)

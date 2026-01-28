@@ -99,15 +99,11 @@ public class NullPhoneChannel(ILogger<NullPhoneChannel> logger, ITestCodeStore? 
     {
         // Use cryptographically secure random even for test/dev environments
         // to ensure proper security practices throughout the codebase
-        using var rng = RandomNumberGenerator.Create();
-        var randomBytes = new byte[length];
-        rng.GetBytes(randomBytes);
-        
         var code = new char[length];
         for (var i = 0; i < length; i++)
         {
-            // Convert to digit 0-9
-            code[i] = (char)('0' + (randomBytes[i] % 10));
+            // Use RandomNumberGenerator.GetInt32 for uniform distribution without modulo bias
+            code[i] = (char)('0' + RandomNumberGenerator.GetInt32(0, 10));
         }
         return new string(code);
     }

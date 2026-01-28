@@ -21,7 +21,7 @@ public class PasswordHashingService(ILogger<IPasswordHashingService> logger) : I
     private const int MemorySize = 65536;   // 64 MB
     private const int DegreeOfParallelism = 4;
 
-    public unsafe string? HashPassword(string? password)
+    public string? HashPassword(string? password)
     {
         if (password is null) return null;
 
@@ -124,7 +124,10 @@ public class PasswordHashingService(ILogger<IPasswordHashingService> logger) : I
         }
 
         var legacyHash = Convert.ToBase64String(dest[..written]);
-        return legacyHash == passwordDigest;
+        // Use constant-time comparison to prevent timing attacks even for legacy hashes
+        return CryptographicOperations.FixedTimeEquals(
+            Encoding.UTF8.GetBytes(legacyHash),
+            Encoding.UTF8.GetBytes(passwordDigest));
     }
 
     public bool VerifyOtp(string? inputOtp, string? userOtp)
