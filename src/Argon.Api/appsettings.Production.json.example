@@ -1,0 +1,146 @@
+{
+  "_NOTE": "This is a template for production configuration. Copy to appsettings.Production.json and replace all values with environment-specific secrets.",
+  "_SECURITY_NOTICE": "NEVER commit actual production secrets to version control. Use environment variables, HashiCorp Vault, or another secure secret management system.",
+  
+  "ConnectionStrings": {
+    "cache": "${REDIS_CONNECTION_STRING}",
+    "nats": "${NATS_CONNECTION_STRING}",
+    "Sentry": "${SENTRY_DSN}",
+    "Default": "${DATABASE_CONNECTION_STRING}"
+  },
+  
+  "TicketJwt": {
+    "Key": "${TICKET_JWT_KEY}"
+  },
+  
+  "Database": {
+    "UseRotationHolder": true,
+    "Regions": {
+      "PrimaryRegion": "${PRIMARY_REGION}",
+      "ReplicateRegion": [
+        "${REPLICATE_REGION}"
+      ]
+    }
+  },
+  
+  "Metrics": {
+    "BasicAuth": {
+      "Username": "${METRICS_USERNAME}",
+      "Password": "${METRICS_PASSWORD}"
+    }
+  },
+  
+  "Totp": {
+    "ProtectorId": "${TOTP_PROTECTOR_ID}",
+    "SecretPart": "${TOTP_SECRET_PART}",
+    "HashMode": "Sha256",
+    "Duration": 15,
+    "RotationRadians": 3.9793506945470716
+  },
+  
+  "Smtp": {
+    "Host": "${SMTP_HOST}",
+    "Port": "${SMTP_PORT}",
+    "User": "${SMTP_USER}",
+    "Password": "${SMTP_PASSWORD}",
+    "UseSsl": true,
+    "Enabled": true
+  },
+  
+  "Rewriter": {
+    "Paths": [
+      {
+        "Origin": "${REWRITER_ORIGIN}",
+        "Path": "*"
+      }
+    ],
+    "ExtendedStatus": 412
+  },
+  
+  "Orleans": {
+    "ClusterId": "argon",
+    "ServiceId": "argon",
+    "Worker": {
+      "Address": "${ORLEANS_WORKER_ADDRESS}"
+    },
+    "EntryPoint": {
+      "Address": "${ORLEANS_ENTRYPOINT_ADDRESS}"
+    },
+    "Membership": {
+      "TTL": "00:00:15",
+      "DestroyTimeout": "00:00:30"
+    }
+  },
+  
+  "Captcha": {
+    "SiteKey": "${CAPTCHA_SITE_KEY}",
+    "SiteSecret": "${CAPTCHA_SITE_SECRET}",
+    "ChallengeEndpoint": "${CAPTCHA_ENDPOINT}",
+    "Kind": "${CAPTCHA_KIND}"
+  },
+  
+  "Transport": {
+    "Exchange": {
+      "HashKey": "${TRANSPORT_HASH_KEY}",
+      "DbId": 228
+    },
+    "Upgrade": "${TRANSPORT_UPGRADE_HOST}"
+  },
+  
+  "GeoIp": {
+    "Address": "${GEOIP_ADDRESS}"
+  },
+  
+  "redis": {
+    "l2": {
+      "DbId": 10
+    }
+  },
+  
+  "CallKit": {
+    "Ices": [],
+    "Sfu": {
+      "Region": "${SFU_REGION}",
+      "ClientId": "${SFU_CLIENT_ID}",
+      "PublicUrl": "${SFU_PUBLIC_URL}",
+      "CommandUrl": "${SFU_COMMAND_URL}",
+      "Secret": "${SFU_SECRET}",
+      "Geo": {
+        "ln": 0,
+        "lt": 0
+      }
+    }
+  },
+  
+  "Phone": {
+    "Enabled": true,
+    "Telegram": {
+      "Enabled": "${PHONE_TELEGRAM_ENABLED}",
+      "Endpoint": "${PHONE_TELEGRAM_ENDPOINT}",
+      "Token": "${PHONE_TELEGRAM_TOKEN}"
+    },
+    "Prelude": {
+      "Enabled": "${PHONE_PRELUDE_ENABLED}",
+      "Endpoint": "${PHONE_PRELUDE_ENDPOINT}",
+      "Token": "${PHONE_PRELUDE_TOKEN}"
+    },
+    "Twilio": {
+      "Enabled": "${PHONE_TWILIO_ENABLED}",
+      "AccountSid": "${PHONE_TWILIO_ACCOUNT_SID}",
+      "AuthToken": "${PHONE_TWILIO_AUTH_TOKEN}",
+      "VerifyServiceSid": "${PHONE_TWILIO_VERIFY_SERVICE_SID}"
+    }
+  },
+  
+  "Jwt": {
+    "Issuer": "Argon",
+    "Audience": "Argon",
+    "MachineSalt": "${JWT_MACHINE_SALT}",
+    "AccessTokenLifetime": "7.00:00:00",
+    "CertificateBase64": {
+      "privateKey": "${JWT_PRIVATE_KEY_BASE64}",
+      "publicKey": "${JWT_PUBLIC_KEY_BASE64}",
+      "password": "${JWT_CERTIFICATE_PASSWORD}"
+    }
+  }
+}

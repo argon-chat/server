@@ -2,6 +2,10 @@
 
 Backend server for [Argon](https://argon.gl) — voice communication platform.
 
+## ⚠️ Security Notice
+
+The `appsettings.json` file contains **development-only** configuration. For production deployments, see [SECURITY.md](SECURITY.md) for important security best practices.
+
 ## Requirements
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
@@ -38,6 +42,14 @@ tests/
 └── ArgonComplexTest/
 deploy/             # Docker configs
 ```
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for:
+- Production deployment best practices
+- Secret management guidelines
+- How to generate secure keys
+- Vulnerability reporting
 
 ## License
 

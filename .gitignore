@@ -12,6 +12,12 @@ src/Argon.Api/storage/
 
 secrets.json
 
+# Production configuration files with real secrets
+appsettings.Production.json
+appsettings.Staging.json
+*.Production.json
+*.Staging.json
+
 src/Argon.Api/Generated/
 
 src/Argon.Api/localhost.pfx
