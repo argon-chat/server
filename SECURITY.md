@@ -4,6 +4,26 @@
 
 This document outlines security best practices for deploying Argon Server in production environments.
 
+## Post-Quantum Cryptography
+
+**Q: Why use Argon2 instead of post-quantum algorithms available in .NET 10?**
+
+**A: Post-quantum algorithms (ML-DSA, ML-KEM) and password hashing functions (Argon2) serve different purposes:**
+
+- **ML-DSA/ML-KEM**: Digital signatures and key exchange (replacing RSA/ECDSA)
+- **Argon2**: Password hashing (memory-hard, intentionally slow)
+
+**Password hashing does NOT need post-quantum algorithms because:**
+1. Hash functions are inherently resistant to quantum attacks
+2. Grover's algorithm only provides √N speedup (easily compensated)
+3. Argon2's memory-hard design is particularly resistant
+4. Adding 1-2 characters to passwords compensates for any quantum advantage
+
+**See [WHY_ARGON2_NOT_POST_QUANTUM.md](WHY_ARGON2_NOT_POST_QUANTUM.md) for detailed technical explanation.**
+
+**Where post-quantum crypto IS useful:** JWT signing, API authentication, TLS certificates (future).
+**See [EXAMPLE_POST_QUANTUM_USAGE.cs](EXAMPLE_POST_QUANTUM_USAGE.cs) for implementation examples.**
+
 ## Configuration Security
 
 ### Development vs Production
