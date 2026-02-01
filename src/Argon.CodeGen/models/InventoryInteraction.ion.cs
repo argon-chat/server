@@ -19,7 +19,7 @@ public sealed record InventoryItem(string id, guid instanceId, datetime grantedD
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record DetailedInventoryItem(InventoryItem item, InventoryItem? containedItem);
+public sealed record DetailedInventoryItem(InventoryItem item, IonArray<InventoryItem> containedItems);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

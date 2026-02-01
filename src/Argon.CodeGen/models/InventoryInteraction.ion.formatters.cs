@@ -56,9 +56,9 @@ public sealed class Ion_DetailedInventoryItem_Formatter : IonFormatter<DetailedI
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __item = IonFormatterStorage<InventoryItem>.Read(reader);
-        var __containeditem = reader.ReadNullable<InventoryItem>();
+        var __containeditems = IonFormatterStorage<InventoryItem>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__item, __containeditem);
+        return new(__item, __containeditems);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -66,7 +66,7 @@ public sealed class Ion_DetailedInventoryItem_Formatter : IonFormatter<DetailedI
     {
         writer.WriteStartArray(2);
         IonFormatterStorage<InventoryItem>.Write(writer, value.item);
-        IonFormatterStorage<InventoryItem>.WriteNullable(writer, value.containedItem);
+        IonFormatterStorage<InventoryItem>.WriteArray(writer, value.containedItems);
         writer.WriteEndArray();
     }
 }

@@ -25,13 +25,24 @@ public class InventoryGrain(
         return items.Select(x => new DetailedInventoryItem(x.ToDto(), UnwrapScenarioForCase(x.Scenario, items))).ToList();
     }
 
-    private InventoryItem? UnwrapScenarioForCase(ItemUseScenario? scenario, List<ArgonItemEntity> items)
+    private List<InventoryItem> UnwrapScenarioForCase(ItemUseScenario? scenario, List<ArgonItemEntity> items)
     {
-        if (scenario is not QualifierBox qualifierBox) return null;
+        if (scenario is QualifierBox qualifierBox)
+        {
+            var containedItem = items.FirstOrDefault(x => x.Id == qualifierBox.ReferenceItemId);
+            return containedItem is not null ? [containedItem.ToDto()] : [];
+        }
 
-        var containedItem = items.FirstOrDefault(x => x.Id == qualifierBox.ReferenceItemId);
+        if (scenario is MultipleQualifierBox multipleQualifierBox)
+        {
+            return multipleQualifierBox.ReferenceItemIds
+               .Select(refId => items.FirstOrDefault(x => x.Id == refId))
+               .Where(x => x is not null)
+               .Select(x => x!.ToDto())
+               .ToList();
+        }
 
-        return containedItem?.ToDto();
+        return [];
     }
 
     public async Task<bool> GiveItemFor(Guid userId, Guid refItemId, CancellationToken ct = default)
@@ -58,7 +69,7 @@ public class InventoryGrain(
         await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
         await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
 
-        if (!item.IsAffectBadge) 
+        if (!item.IsAffectBadge)
             return true;
 
         await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
@@ -89,11 +100,11 @@ public class InventoryGrain(
         return item.Id;
     }
 
-    public async Task<Guid?> CreateCaseForReferenceItem(Guid refItemId, 
+    public async Task<Guid?> CreateCaseForReferenceItem(Guid refItemId,
         string caseTemplateId, CancellationToken ct = default)
     {
-        await using var ctx           = await context.CreateDbContextAsync(ct);
-        var             referenceItem = await ctx.Items
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        var referenceItem = await ctx.Items
            .FirstOrDefaultAsync(x => x.Id == refItemId && x.IsReference, ct);
 
         if (referenceItem is null)
@@ -112,7 +123,7 @@ public class InventoryGrain(
             IsAffectBadge = false,
             IsGiftable    = false,
             UseVector     = ItemUseVector.QualifierBox,
-            Scenario      = new QualifierBox
+            Scenario = new QualifierBox
             {
                 Key             = Guid.NewGuid(),
                 ReferenceItemId = referenceItem.Id
@@ -200,9 +211,9 @@ public class InventoryGrain(
         if (inventoryItemIds.Count == 0) return;
 
         var userId = this.GetUserId();
-        
+
         await using var ctx = await context.CreateDbContextAsync(ct);
-        
+
         var deleted = await ctx.UnreadInventoryItems
            .Where(x => x.OwnerUserId == userId && inventoryItemIds.Contains(x.InventoryItemId))
            .ExecuteDeleteAsync(ct);
@@ -217,7 +228,7 @@ public class InventoryGrain(
     public async Task MarkAllSeenAsync(Guid ownerUserId, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
-        
+
         var deleted = await ctx.UnreadInventoryItems
            .Where(x => x.OwnerUserId == ownerUserId)
            .ExecuteDeleteAsync(ct);
@@ -249,24 +260,48 @@ public class InventoryGrain(
                 if (!usableItem.IsUsable) return false;
                 if (usableItem.Scenario is null) return false;
 
-                var newItemId = usableItem.Scenario switch
-                {
-                    QualifierBox qualifierBox => await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct),
-                    _                         => null
-                };
+                List<Guid> grantedItemIds;
 
-                if (newItemId is null)
+                switch (usableItem.Scenario)
                 {
-                    await trx.RollbackAsync(ct);
-                    return false;
+                    case QualifierBox qualifierBox:
+                    {
+                        var itemId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct);
+                        if (itemId is null)
+                        {
+                            await trx.RollbackAsync(ct);
+                            return false;
+                        }
+
+                        grantedItemIds = [itemId.Value];
+                        break;
+                    }
+                    case MultipleQualifierBox multipleQualifierBox:
+                    {
+                        grantedItemIds = await UseMultipleQualifierBox(ctx, multipleQualifierBox, userId, usableItem, ct);
+                        if (grantedItemIds.Count == 0)
+                        {
+                            await trx.RollbackAsync(ct);
+                            return false;
+                        }
+
+                        break;
+                    }
+                    default:
+                        await trx.RollbackAsync(ct);
+                        return false;
                 }
 
                 await ctx.SaveChangesAsync(ct);
                 await trx.CommitAsync(ct);
 
-                await EnsureUnreadAsync(ctx, userId, newItemId.Value, usableItem.TemplateId, ct);
-                await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
-                
+                foreach (var grantedId in grantedItemIds)
+                {
+                    await EnsureUnreadAsync(ctx, userId, grantedId, usableItem.TemplateId, ct);
+                }
+
+                await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, grantedItemIds.Count, ct);
+
                 return true;
             }
             catch (Exception e)
@@ -300,13 +335,55 @@ public class InventoryGrain(
         };
 
         await ctx.AddAsync(granted, ct);
-        
+
         if (granted.IsAffectBadge)
         {
             await AddBadgeToProfileAsync(ctx, userId, granted.TemplateId, ct);
         }
 
         return granted.Id;
+    }
+
+    private async Task<List<Guid>> UseMultipleQualifierBox(ApplicationDbContext ctx, MultipleQualifierBox box, Guid userId, ArgonItemEntity boxItem,
+        CancellationToken ct = default)
+    {
+        var referenceItemIds = box.ReferenceItemIds.ToList();
+        if (referenceItemIds.Count == 0)
+            return [];
+
+        var protos = await ctx.Set<ArgonItemEntity>()
+           .AsNoTracking()
+           .Where(i => referenceItemIds.Contains(i.Id))
+           .ToListAsync(ct);
+
+        if (protos.Count == 0)
+            return [];
+
+        ctx.Remove(boxItem);
+
+        var grantedIds = new List<Guid>();
+
+        foreach (var proto in protos)
+        {
+            var granted = proto with
+            {
+                Id = Guid.NewGuid(),
+                OwnerId = userId,
+                IsReference = false,
+                CreatedAt = DateTimeOffset.UtcNow,
+                ReceivedFrom = null
+            };
+
+            await ctx.AddAsync(granted, ct);
+            grantedIds.Add(granted.Id);
+
+            if (granted.IsAffectBadge)
+            {
+                await AddBadgeToProfileAsync(ctx, userId, granted.TemplateId, ct);
+            }
+        }
+
+        return grantedIds;
     }
 
     public async Task<RedeemError?> RedeemCodeAsync(string code, CancellationToken ct = default)
@@ -369,17 +446,13 @@ public class InventoryGrain(
             await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
             await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
 
-            if (item.IsAffectBadge)
-            {
-                await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
-                await ctx.SaveChangesAsync(ct);
-            }
+            if (!item.IsAffectBadge) return null;
+            await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);
         }
         else
-        {
             coupon.RedemptionCount++;
-            await ctx.SaveChangesAsync(ct);
-        }
+
+        await ctx.SaveChangesAsync(ct);
 
         return null;
     }
@@ -393,7 +466,7 @@ public class InventoryGrain(
     private async Task AddBadgeToProfileAsync(ApplicationDbContext ctx, Guid userId, string templateId, CancellationToken ct)
     {
         var profile = await ctx.UserProfiles
-            .FirstOrDefaultAsync(p => p.UserId == userId, ct);
+           .FirstOrDefaultAsync(p => p.UserId == userId, ct);
 
         if (profile is null)
         {
