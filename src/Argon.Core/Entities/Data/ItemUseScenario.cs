@@ -15,6 +15,7 @@ public abstract record ItemUseScenario : IEntityTypeConfiguration<ItemUseScenari
            .HasValue<RedeemScenario>("RedeemCode")
            .HasValue<PremiumScenario>("Premium")
            .HasValue<QualifierBox>("QualifierBox")
+           .HasValue<MultipleQualifierBox>("MultipleQualifierBox")
            .HasValue<BoxScenario>("Box");
     }
 }
@@ -34,6 +35,12 @@ public record QualifierBox : ItemUseScenario
 {
     public         Guid             ReferenceItemId { get; set; }
     public virtual ArgonItemEntity? ReferenceItem   { get; set; }
+}
+
+public record MultipleQualifierBox : ItemUseScenario
+{
+    public virtual ICollection<Guid>             ReferenceItemIds { get; set; } = [];
+    public virtual ICollection<ArgonItemEntity>? ReferenceItems   { get; set; }
 }
 
 public record BoxScenario : ItemUseScenario
