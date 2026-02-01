@@ -8,6 +8,9 @@ public interface IAppsManagementGrain : IGrainWithGuidKey
 
     [Alias("GetCredentialsForBotAsync")]
     Task<BotCredentialsInfo?> GetCredentialsForBotAsync(string clientId, CancellationToken ct = default);
+
+    [Alias("CanBeLoginForAppAsync")]
+    Task<LoginAllowedResult> CanBeLoginForAppAsync(string clientId, Guid userId, CancellationToken ct = default);
 }
 
 public record BotCredentialsInfo(
@@ -16,4 +19,6 @@ public record BotCredentialsInfo(
     List<string> allowedRedirects,
     List<string> scopes,
     bool IsAllowedRefreshToken);
+
+public record LoginAllowedResult(bool IsAllowed, string? Reason);
 
