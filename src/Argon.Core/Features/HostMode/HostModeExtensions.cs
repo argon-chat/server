@@ -64,14 +64,23 @@ public static class HostModeExtensions
 
         public WebApplicationBuilder UseKestrelDefaults()
         {
-            builder.WebHost.ConfigureKestrel(options => {
-                options.ListenAnyIP(5002, listenOptions => {
+            var defaultPort = 5002;
+
+            if (Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p)
+                defaultPort = int.Parse(p);
+
+
+            builder.WebHost.ConfigureKestrel(options =>
+            {
+                options.ListenAnyIP(defaultPort, listenOptions =>
+                {
                     if (builder.IsUseLocalHostCerts())
                     {
                         static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
                         {
                             if (!File.Exists("localhost.pfx"))
-                                throw new Exception("Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
+                                throw new Exception(
+                                    "Argon running in single mode, ensure certificates with 'mkcert -pkcs12 -p12-file localhost.pfx localhost' command");
 
                             var cert = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
 

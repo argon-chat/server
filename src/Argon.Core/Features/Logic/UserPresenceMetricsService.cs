@@ -17,10 +17,10 @@ public sealed class UserPresenceMetricsService(
     
     private long _lastOnlineCount;
 
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
         // Wait a bit before starting to let the service initialize
-        await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+        await Task.Delay(TimeSpan.FromSeconds(5), CancellationToken.None);
 
         logger.LogInformation("UserPresenceMetricsService started");
 
