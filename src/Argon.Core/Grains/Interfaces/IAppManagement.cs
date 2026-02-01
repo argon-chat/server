@@ -11,6 +11,9 @@ public interface IAppsManagementGrain : IGrainWithGuidKey
 
     [Alias("CanBeLoginForAppAsync")]
     Task<LoginAllowedResult> CanBeLoginForAppAsync(string clientId, Guid userId, CancellationToken ct = default);
+
+    [Alias("GetOAuthAppInfoAsync")]
+    Task<OAuthAppInfo?> GetOAuthAppInfoAsync(string clientId, IReadOnlyList<string> requestedScopes, CancellationToken ct = default);
 }
 
 public record BotCredentialsInfo(
@@ -22,3 +25,14 @@ public record BotCredentialsInfo(
 
 public record LoginAllowedResult(bool IsAllowed, string? Reason);
 
+/// <summary>
+/// OAuth consent screen information.
+/// </summary>
+public record OAuthAppInfo(
+    string AppName,
+    string? AppDescription,
+    string? AppAvatarFileId,
+    string DeveloperName,
+    string? WebsiteUrl,
+    bool IsVerified,
+    IReadOnlyList<string> RequestedScopes);
