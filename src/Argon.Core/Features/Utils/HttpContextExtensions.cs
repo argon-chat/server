@@ -34,9 +34,14 @@ public static class HttpContextExtensions
         }
 
         public string GetRegion()
-            => ctx.Request.Headers.ContainsKey("CF-IPCountry")
-                ? ctx.Request.Headers["CF-IPCountry"].ToString()
-                : "unknown";
+        {
+            if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso))
+                return cfIso.ToString();
+            if (ctx.Request.Headers.TryGetValue("X-Country", out var dIso))
+                return dIso.ToString();
+
+            return "00";
+        }
 
         public string GetRay()
             => ctx.Request.Headers.ContainsKey("CF-Ray")

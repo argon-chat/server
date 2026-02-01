@@ -35,8 +35,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #region Security & Settings
 
-    public DbSet<UserPasskeyEntity>           Passkeys           => Set<UserPasskeyEntity>();
-    public DbSet<UserAutoDeleteSettingEntity> AutoDeleteSettings => Set<UserAutoDeleteSettingEntity>();
+    public DbSet<UserPasskeyEntity>           Passkeys            => Set<UserPasskeyEntity>();
+    public DbSet<UserAutoDeleteSettingEntity> AutoDeleteSettings  => Set<UserAutoDeleteSettingEntity>();
     public DbSet<PendingEmailChangeEntity>    PendingEmailChanges => Set<PendingEmailChangeEntity>();
     public DbSet<PendingPhoneChangeEntity>    PendingPhoneChanges => Set<PendingPhoneChangeEntity>();
 
