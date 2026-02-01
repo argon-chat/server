@@ -113,6 +113,7 @@ public class ConsulMembership(
                 IArgonUnitMembership.ArgonNameSpace,
                 hostEnvironment.IsWorker()  ? IArgonUnitMembership.WorkerUnit :
                 hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.EntryUnit,
+                Environment.MachineName
             ]).ToArray()
         };
 
