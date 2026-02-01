@@ -12,6 +12,7 @@ public static class AuthorizationFeature
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
         builder.Services.AddDataProtection();
+        builder.Services.AddScoped<IArgonAuthorizationService, ArgonAuthorizationService>();
         builder.AddPhoneVerification();
     }
 }
