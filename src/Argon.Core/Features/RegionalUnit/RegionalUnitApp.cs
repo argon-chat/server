@@ -14,10 +14,10 @@ public class RegionalUnitApp
         var builder = WebApplication.CreateBuilder(args);
 
         // for compatibility, it is overwritten to correct value when necessary
-        if (builder.IsEntryPointRole())
-            builder.WebHost.UseUrls("http://localhost:5002");
-        else if (builder.IsGatewayRole())
-            builder.WebHost.UseUrls("http://localhost:5000");
+        //if (builder.IsEntryPointRole())
+        //    builder.WebHost.UseUrls("http://localhost:5002");
+        //else if (builder.IsGatewayRole())
+        //    builder.WebHost.UseUrls("http://localhost:5000");
         //else
         //    builder.WebHost.UseUrls("https://localhost:5001");
 
