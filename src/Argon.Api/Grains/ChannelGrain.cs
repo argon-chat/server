@@ -4,12 +4,15 @@ using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
 using Core.Grains.Interfaces;
 using Core.Services;
+using Instruments;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Concurrency;
 using Orleans.GrainDirectory;
 using Orleans.Providers;
 using Persistence.States;
 using Sfu;
+using System.Diagnostics;
+using Core.Features.Transport;
 
 [GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
@@ -18,24 +21,25 @@ public class ChannelGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
+    AppHubServer appHubServer,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
-    private IDistributedArgonStream<IArgonEvent> _userStateEmitter = null!;
-
     private ChannelEntity _self     { get; set; }
     private Guid          SpaceId   => _self.SpaceId;
     private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
+
+    private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
+        => appHubServer.BroadcastSpace(ev, SpaceId, ct);
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         _self = await Get();
 
-        _userStateEmitter = await this.Streams().CreateServerStreamFor(SpaceId);
-
         await state.ReadStateAsync(cancellationToken);
 
         state.State.Users.Clear();
         state.State.UserJoinTimes.Clear();
+        state.State.LastMembershipChange = DateTimeOffset.UtcNow;
         state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
@@ -43,14 +47,10 @@ public class ChannelGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        // Record voice time for all users still in channel
-        foreach (var (userId, joinTime) in state.State.UserJoinTimes)
-        {
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
-        }
+        // Settle XP for all users still in channel
+        await SettleXpForAllUsersAsync();
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
-        await _userStateEmitter.DisposeAsync();
     }
 
     public Task<List<RealtimeChannelUser>> GetMembers()
@@ -98,41 +98,71 @@ public class ChannelGrain(
 
     [OneWay]
     public async ValueTask OnTypingEmit()
-        => await _userStateEmitter.Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+    {
+        ChannelGrainInstrument.TypingEvents.Add(1,
+            new KeyValuePair<string, object?>("event_type", "typing"));
+        
+        await Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+    }
 
     [OneWay]
     public async ValueTask OnTypingStopEmit()
-        => await _userStateEmitter.Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+    {
+        ChannelGrainInstrument.TypingEvents.Add(1,
+            new KeyValuePair<string, object?>("event_type", "stop_typing"));
+        
+        await Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+    }
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
     {
         if (_self.ChannelType != ChannelType.Voice)
+        {
+            ChannelGrainInstrument.MemberKicks.Add(1,
+                new KeyValuePair<string, object?>("result", "invalid_channel"));
             return false;
+        }
 
         await using var ctx = await context.CreateDbContextAsync();
 
         var userId = this.GetUserId();
 
         if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.KickMember))
+        {
+            ChannelGrainInstrument.MemberKicks.Add(1,
+                new KeyValuePair<string, object?>("result", "no_permission"));
             return false;
+        }
 
-        return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
+        var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .KickParticipantAsync(new ArgonUserId(memberId), new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()));
+
+        ChannelGrainInstrument.MemberKicks.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+
+        return result;
     }
 
     public async Task<bool> BeginRecord(CancellationToken ct = default)
     {
         if (state.State.EgressActive)
+        {
+            ChannelGrainInstrument.RecordingsStarted.Add(1,
+                new KeyValuePair<string, object?>("result", "already_active"));
             return false;
+        }
 
         var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .BeginRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), ct);
 
-        await _userStateEmitter.Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
+        await Fire(new RecordStarted(this.SpaceId, this.GetPrimaryKey(), this.GetUserId()), ct);
 
         state.State.EgressActive      = true;
         state.State.EgressId          = result;
         state.State.UserCreatedEgress = this.GetUserId();
+
+        ChannelGrainInstrument.RecordingsStarted.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
 
         return true;
     }
@@ -140,14 +170,23 @@ public class ChannelGrain(
     public async Task<bool> StopRecord(CancellationToken ct = default)
     {
         if (!state.State.EgressActive)
+        {
+            ChannelGrainInstrument.RecordingsStopped.Add(1,
+                new KeyValuePair<string, object?>("result", "not_active"));
             return false;
+        }
+        
         var egressId = state.State.EgressId;
-        await _userStateEmitter.Fire(new RecordEnded(this.SpaceId, this.GetPrimaryKey()), ct);
+        await Fire(new RecordEnded(this.SpaceId, this.GetPrimaryKey()), ct);
         state.State.EgressActive      = false;
         state.State.EgressId          = null;
         state.State.UserCreatedEgress = null;
         var result = await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty)
            .StopRecordAsync(new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), egressId!, ct);
+
+        ChannelGrainInstrument.RecordingsStopped.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+
         return result;
     }
 
@@ -157,6 +196,9 @@ public class ChannelGrain(
         
         if (_self.ChannelType != ChannelType.Voice)
         {
+            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
+                new KeyValuePair<string, object?>("result", "error"));
+            
             logger.LogWarning("Cannot create linked meeting for non-voice channel {ChannelId}", channelId);
             return null;
         }
@@ -168,6 +210,9 @@ public class ChannelGrain(
         // Check if user has permission to create meetings
         if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
         {
+            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
+                new KeyValuePair<string, object?>("result", "no_permission"));
+            
             logger.LogWarning("User {UserId} lacks permission to create linked meeting for channel {ChannelId}", 
                 userId, channelId);
             return null;
@@ -182,6 +227,9 @@ public class ChannelGrain(
             // If meeting is still active, return it
             if (existingState is { IsEnded: false })
             {
+                ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
+                    new KeyValuePair<string, object?>("result", "already_exists"));
+                
                 logger.LogInformation("Returning existing linked meeting {MeetId} for channel {ChannelId}", 
                     state.State.LinkedMeetId.Value, channelId);
                 return new ChannelMeetingResult(
@@ -201,6 +249,9 @@ public class ChannelGrain(
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
         if (user is null)
         {
+            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
+                new KeyValuePair<string, object?>("result", "error"));
+            
             logger.LogWarning("User {UserId} not found when creating linked meeting for channel {ChannelId}", 
                 userId, channelId);
             return null;
@@ -239,7 +290,10 @@ public class ChannelGrain(
         var meetInfo = new LinkedMeetingInfo(meetId, meetUrl, result.InviteCode, DateTime.UtcNow);
 
         // Fire event to notify all subscribers
-        await _userStateEmitter.Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
+        await Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
+
+        ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
 
         logger.LogInformation("Created linked meeting {MeetId} with invite code {InviteCode} for channel {ChannelId} in space {SpaceId} by user {UserId}",
             meetId, result.InviteCode, channelId, SpaceId, userId);
@@ -286,7 +340,11 @@ public class ChannelGrain(
     public async Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default)
     {
         if (!state.State.LinkedMeetId.HasValue)
+        {
+            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
+                new KeyValuePair<string, object?>("result", "not_found"));
             return false;
+        }
 
         var userId = this.GetUserId();
         var meetId = state.State.LinkedMeetId.Value;
@@ -296,7 +354,11 @@ public class ChannelGrain(
 
         // Check if user has permission
         if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+        {
+            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
+                new KeyValuePair<string, object?>("result", "no_permission"));
             return false;
+        }
 
         var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
         var meetState = await meetGrain.GetStateAsync(ct);
@@ -316,7 +378,10 @@ public class ChannelGrain(
                 meetState?.CreatedAt.UtcDateTime ?? DateTime.UtcNow);
 
             // Fire event to notify all subscribers
-            await _userStateEmitter.Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
+            await Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
+
+            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
+                new KeyValuePair<string, object?>("result", "success"));
 
             logger.LogInformation("Ended linked meeting for channel {ChannelId} in space {SpaceId}",
                 this.GetPrimaryKey(), SpaceId);
@@ -358,13 +423,16 @@ public class ChannelGrain(
         }
 
         // For non-guests, check if they have existing join time and handle it
-        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var existingJoinTime))
+        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out _))
         {
-            await RecordVoiceTimeForUserAsync(oderId, existingJoinTime);
+            await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(oderId);
             state.State.Users.Remove(oderId);
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+            await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         }
+
+        // Settle XP for existing users before adding new one
+        await SettleXpForAllUsersAsync();
 
         // Add user to channel
         state.State.Users[oderId] = new RealtimeChannelUser(oderId, ChannelMemberState.NONE);
@@ -377,10 +445,15 @@ public class ChannelGrain(
         }
 
         await state.WriteStateAsync(ct);
-        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
+        await Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
+
+        ChannelGrainInstrument.VoiceJoins.Add(1,
+            new KeyValuePair<string, object?>("source", "meeting"));
+        
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
 
         logger.LogInformation("User {UserId} ({DisplayName}) joined channel {ChannelId} from meeting (guest: {IsGuest})",
             oderId, displayName, channelId, isGuest);
@@ -391,24 +464,34 @@ public class ChannelGrain(
         var channelId = this.GetPrimaryKey();
         var isGuest = IsGuestUserId(oderId);
 
-        if (!state.State.Users.Remove(oderId))
+        if (!state.State.Users.ContainsKey(oderId))
         {
             logger.LogDebug("User {UserId} not in channel {ChannelId}, skipping leave from meeting", oderId, channelId);
             return;
         }
 
-        // Only record voice time for non-guests
+        // Settle XP for ALL users (including the one leaving) before removing
+        await SettleXpForAllUsersAsync();
+        
+        // Only record total session duration for metrics (not for XP, that's handled by settle)
         if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var joinTime))
         {
-            await RecordVoiceTimeForUserAsync(oderId, joinTime);
+            var duration = DateTimeOffset.UtcNow - joinTime;
+            ChannelGrainInstrument.VoiceSessionDuration.Record(duration.TotalSeconds);
             state.State.UserJoinTimes.Remove(oderId);
         }
 
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+        state.State.Users.Remove(oderId);
+        await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         await state.WriteStateAsync(ct);
 
         if (state.State.Users.Count == 0)
             this.DelayDeactivation(TimeSpan.MinValue);
+
+        ChannelGrainInstrument.VoiceLeaves.Add(1,
+            new KeyValuePair<string, object?>("source", "meeting"));
+        
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
 
         logger.LogInformation("User {UserId} left channel {ChannelId} from meeting (guest: {IsGuest})",
             oderId, channelId, isGuest);
@@ -421,14 +504,16 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
+        if (state.State.UserJoinTimes.TryGetValue(userId, out _))
         {
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
+            await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
-            await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+            await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         }
 
+        // Settle XP for existing users before adding new one
+        await SettleXpForAllUsersAsync();
 
         state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
@@ -437,10 +522,15 @@ public class ChannelGrain(
         // Track call joined for stats
         _ = TrackCallJoinedAsync(userId);
 
-        await _userStateEmitter.Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
+
+        ChannelGrainInstrument.VoiceJoins.Add(1,
+            new KeyValuePair<string, object?>("source", "direct"));
+        
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
 
         return await this.GrainFactory.GetGrain<IVoiceControlGrain>(Guid.Empty).IssueAuthorizationTokenAsync(new ArgonUserId(userId),
             new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
@@ -448,19 +538,31 @@ public class ChannelGrain(
 
     public async Task Leave(Guid userId)
     {
-        // Calculate and record voice time before removing user
+        if (!state.State.Users.ContainsKey(userId))
+            return;
+
+        // Settle XP for ALL users (including the one leaving) before removing
+        await SettleXpForAllUsersAsync();
+
+        // Only record total session duration for metrics
         if (state.State.UserJoinTimes.TryGetValue(userId, out var joinTime))
         {
-            await RecordVoiceTimeForUserAsync(userId, joinTime);
+            var duration = DateTimeOffset.UtcNow - joinTime;
+            ChannelGrainInstrument.VoiceSessionDuration.Record(duration.TotalSeconds);
             state.State.UserJoinTimes.Remove(userId);
         }
 
         state.State.Users.Remove(userId);
-        await _userStateEmitter.Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)
             this.DelayDeactivation(TimeSpan.MinValue);
+
+        ChannelGrainInstrument.VoiceLeaves.Add(1,
+            new KeyValuePair<string, object?>("source", "direct"));
+        
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
     public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
@@ -483,6 +585,7 @@ public class ChannelGrain(
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
         
+        var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
         
@@ -516,6 +619,7 @@ public class ChannelGrain(
 
         if (dup is not null)
         {
+            sw.Stop();
             logger.LogInformation("Duplicate message detected, returning existing MessageId={MessageId}", dup.Value);
             return dup.Value;
         }
@@ -546,7 +650,16 @@ public class ChannelGrain(
                 message.Entities?.Count ?? 0);
         }
 
-        await _userStateEmitter.Fire(new MessageSent(_self.SpaceId, dto));
+        await Fire(new MessageSent(_self.SpaceId, dto));
+        
+        sw.Stop();
+        
+        ChannelGrainInstrument.MessagesSent.Add(1,
+            new KeyValuePair<string, object?>("channel_type", "text"));
+        
+        ChannelGrainInstrument.MessageSendDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("channel_type", "text"),
+            new KeyValuePair<string, object?>("has_reply", replyTo.HasValue ? "true" : "false"));
         
         logger.LogInformation("MessageSent event fired for MessageId={MessageId}", msgId);
 
@@ -556,16 +669,37 @@ public class ChannelGrain(
         return msgId;
     }
 
-    private async Task RecordVoiceTimeForUserAsync(Guid userId, DateTimeOffset joinTime)
+    /// <summary>
+    /// Settles XP for all users based on time since last membership change.
+    /// Called before any Join/Leave to ensure correct memberCount for XP calculation.
+    /// Solo users (memberCount == 1) get no XP.
+    /// </summary>
+    private async Task SettleXpForAllUsersAsync()
     {
-        var duration = DateTimeOffset.UtcNow - joinTime;
+        var memberCount = state.State.Users.Count;
+        
+        // Solo = no XP
+        if (memberCount <= 1)
+        {
+            state.State.LastMembershipChange = DateTimeOffset.UtcNow;
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var duration = now - state.State.LastMembershipChange;
         var durationSeconds = (int)Math.Min(duration.TotalSeconds, int.MaxValue);
 
         if (durationSeconds > 0)
         {
-            var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
-            await statsGrain.RecordVoiceTimeAsync(durationSeconds, this.GetPrimaryKey(), SpaceId);
+            // Award XP to all current users for this period
+            foreach (var userId in state.State.UserJoinTimes.Keys)
+            {
+                var statsGrain = GrainFactory.GetGrain<IUserStatsGrain>(userId);
+                await statsGrain.RecordVoiceTimeAsync(durationSeconds, this.GetPrimaryKey(), SpaceId);
+            }
         }
+
+        state.State.LastMembershipChange = now;
     }
 
     private async Task TrackCallJoinedAsync(Guid userId)

@@ -4,7 +4,7 @@ using Orleans.Concurrency;
 using Users;
 
 [Alias($"Argon.Grains.Interfaces.{nameof(IUserSessionGrain)}")]
-public interface IUserSessionGrain : IGrainWithGuidKey
+public interface IUserSessionGrain : IGrainWithStringKey
 {
     [Alias(nameof(BeginRealtimeSession))]
     ValueTask BeginRealtimeSession(UserStatus? preferredStatus = null);

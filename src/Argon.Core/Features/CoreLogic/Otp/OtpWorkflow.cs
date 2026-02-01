@@ -21,27 +21,3 @@ public sealed record OtpRecord(
     string? RequestId,
     string? DeviceId
 );
-public class OtpWorkflow
-{
-    public async Task RunAsync(Guid userId, string email, OtpPurpose purpose, string? deviceId, string ip)
-    {
-    }
-}
-public class OtpActivities(IOtpService otp)
-{
-    //public Task<>
-
-    //[Activity]
-    //public Task SendOtpAsync(string email, OtpPurpose purpose, string? deviceId, string ip)
-    //{
-    //    var req = new SendOtpRequest(email, purpose, deviceId);
-    //    return otp.SendAsync(req, ip);
-    //}
-
-    //[Activity]
-    //public Task<bool> VerifyOtpAsync(string email, OtpPurpose purpose, string code, string? deviceId)
-    //{
-    //    var req = new VerifyOtpRequest(email, purpose, code, deviceId);
-    //    return otp.VerifyAsync(req);
-    //}
-}

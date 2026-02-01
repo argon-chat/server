@@ -1,25 +1,22 @@
 namespace Argon.Grains;
 
-using System.Drawing;
 using Argon.Api.Features.Bus;
+using Argon.Core.Features.Transport;
 using Features.Repositories;
 using ion.runtime;
 using Services.L1L2;
 using Shared;
+using System.Drawing;
 
 public class EntitlementGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IServerRepository serverRepository,
     IArchetypeAgent archetypeAgent,
+    AppHubServer appHubServer,
     ILogger<IEntitlementGrain> logger) : Grain, IEntitlementGrain
 {
-    private IDistributedArgonStream<IArgonEvent> _serverEvents;
-
-    public async override Task OnActivateAsync(CancellationToken ct)
-        => _serverEvents = await this.Streams().CreateServerStreamFor(this.GetPrimaryKey());
-
-    public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
-        => await _serverEvents.DisposeAsync();
+    private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
+        => appHubServer.BroadcastSpace(ev, this.GetPrimaryKey(), ct);
 
     public async Task<List<Archetype>> GetServerArchetypes()
         => await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
@@ -97,7 +94,7 @@ public class EntitlementGrain(
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-        await _serverEvents.Fire(new ArchetypeCreated(this.GetPrimaryKey(), arch.ToDto()));
+        await Fire(new ArchetypeCreated(this.GetPrimaryKey(), arch.ToDto()));
 
         return await archetypeAgent.DoCreatedAsync(arch);
     }
@@ -187,7 +184,7 @@ public class EntitlementGrain(
         {
             var result = value.ToDto();
             await archetypeAgent.DoUpdatedAsync(value);
-            await _serverEvents.Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
+            await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             return result;
         }
     }

@@ -1,8 +1,10 @@
 namespace Argon.Grains;
 
 using Api.Features.CoreLogic.Otp;
+using Instruments;
 using Orleans.Concurrency;
 using Services;
+using System.Diagnostics;
 
 [StatelessWorker]
 public class AuthorizationGrain(
@@ -16,38 +18,94 @@ public class AuthorizationGrain(
 {
     public async Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input)
     {
+        var sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
 
         if (user is null)
+        {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.AuthorizationAttempts.Add(1,
+                new KeyValuePair<string, object?>("result", "bad_credentials"),
+                new KeyValuePair<string, object?>("auth_mode", "unknown"));
+            
+            AuthorizationGrainInstrument.AuthorizationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"),
+                new KeyValuePair<string, object?>("auth_mode", "unknown"));
+            
             return AuthorizationError.BAD_CREDENTIALS;
+        }
 
-        return user.PreferredAuthMode switch
+        var authModeTag = user.PreferredAuthMode.ToString().ToLowerInvariant();
+        
+        var result = user.PreferredAuthMode switch
         {
             ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input),
             ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false),
             ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true),
             _                              => AuthorizationError.NONE
         };
+
+        sw.Stop();
+
+        var resultTag = result.IsSuccess 
+            ? "success" 
+            : result.Error switch
+            {
+                AuthorizationError.BAD_CREDENTIALS => "bad_credentials",
+                AuthorizationError.BAD_OTP => "bad_otp",
+                AuthorizationError.REQUIRED_OTP => "required_otp",
+                _ => "error"
+            };
+
+        AuthorizationGrainInstrument.AuthorizationAttempts.Add(1,
+            new KeyValuePair<string, object?>("result", resultTag),
+            new KeyValuePair<string, object?>("auth_mode", authModeTag));
+        
+        AuthorizationGrainInstrument.AuthorizationDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("result", result.IsSuccess ? "success" : "failed"),
+            new KeyValuePair<string, object?>("auth_mode", authModeTag));
+
+        return result;
     }
 
     public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input)
     {
+        var sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
 
         if (user is null)
+        {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.ExternalAuthorizationAttempts.Add(1,
+                new KeyValuePair<string, object?>("result", "failed"),
+                new KeyValuePair<string, object?>("auth_mode", "unknown"));
+            
             return AuthorizationError.BAD_CREDENTIALS;
+        }
 
-        return user.PreferredAuthMode switch
+        var authModeTag = user.PreferredAuthMode.ToString().ToLowerInvariant();
+        
+        var result = user.PreferredAuthMode switch
         {
             ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input, false),
             ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, requiredMachineId: false),
             ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, requiredMachineId: false),
             _                              => AuthorizationError.NONE
         };
+
+        sw.Stop();
+
+        AuthorizationGrainInstrument.ExternalAuthorizationAttempts.Add(1,
+            new KeyValuePair<string, object?>("result", result.IsSuccess ? "success" : "failed"),
+            new KeyValuePair<string, object?>("auth_mode", authModeTag));
+
+        return result;
     }
 
     private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizePassword(UserEntity user, UserCredentialsInput input, bool requiredMachineId = true)
@@ -93,6 +151,10 @@ public class AuthorizationGrain(
                 userIp
             );
 
+            AuthorizationGrainInstrument.AuthorizationOtpSent.Add(1,
+                new KeyValuePair<string, object?>("purpose", "sign_in"),
+                new KeyValuePair<string, object?>("method", method.ToString().ToLowerInvariant()));
+
             logger.LogInformation("OTP sent via {method} to {email}", method, user.Email);
             return AuthorizationError.REQUIRED_OTP;
         }
@@ -117,11 +179,20 @@ public class AuthorizationGrain(
 
     public async Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input)
     {
+        var sw = Stopwatch.StartNew();
         await using var ctx = await dbFactory.CreateDbContextAsync();
 
         var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
         if (user is not null)
         {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "email_taken"));
+            
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+
             logger.LogWarning("Email already registered '{email}'", input.email);
             return RegistrationErrorConstants.EmailAlreadyRegistered();
         }
@@ -131,6 +202,14 @@ public class AuthorizationGrain(
         user = await ctx.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == normalizedUserName);
         if (user is not null)
         {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "username_taken"));
+            
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+
             logger.LogWarning("Username already registered '{username}'", input.username);
             return RegistrationErrorConstants.UsernameAlreadyTaken();
         }
@@ -139,6 +218,16 @@ public class AuthorizationGrain(
 
         if (reserved is not null)
         {
+            sw.Stop();
+            
+            var resultTag = reserved.IsBanned ? "username_taken" : "username_reserved";
+            
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", resultTag));
+            
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+
             logger.LogWarning("Username reserved '{username}'", input.username);
             if (reserved.IsBanned)
                 return RegistrationErrorConstants.UsernameAlreadyTaken();
@@ -173,19 +262,46 @@ public class AuthorizationGrain(
 
             await ctx.SaveChangesAsync();
         });
+        
+        sw.Stop();
+        
         if (user is null)
+        {
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "error"));
+            
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+            
             return RegistrationErrorConstants.InternalError();
+        }
+
+        AuthorizationGrainInstrument.UserRegistrations.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+        
+        AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("result", "success"));
 
         return await GenerateJwt(user, this.GetUserMachineId());
     }
 
     public async Task<bool> BeginResetPass(string email)
     {
+        var sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user is null)
         {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.PasswordResets.Add(1,
+                new KeyValuePair<string, object?>("stage", "request"),
+                new KeyValuePair<string, object?>("result", "failed"));
+            
+            AuthorizationGrainInstrument.PasswordResetDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("stage", "request"));
+
             logger.LogWarning("Email not registered '{email}' cannot reset password", email);
             return true;
         }
@@ -198,17 +314,40 @@ public class AuthorizationGrain(
             userIp
         );
 
+        sw.Stop();
+
+        AuthorizationGrainInstrument.PasswordResets.Add(1,
+            new KeyValuePair<string, object?>("stage", "request"),
+            new KeyValuePair<string, object?>("result", "success"));
+        
+        AuthorizationGrainInstrument.PasswordResetDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("stage", "request"));
+        
+        AuthorizationGrainInstrument.AuthorizationOtpSent.Add(1,
+            new KeyValuePair<string, object?>("purpose", "reset_password"),
+            new KeyValuePair<string, object?>("method", user.PreferredOtpMethod.ToString().ToLowerInvariant()));
+
         logger.LogInformation("User '{email}' requested password reset via {method}", email, user.PreferredOtpMethod);
         return true;
     }
 
     public async Task<Either<SuccessAuthorize, AuthorizationError>> ResetPass(string email, string otpCode, string newPassword)
     {
+        var sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
         var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
         if (user is null)
         {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.PasswordResets.Add(1,
+                new KeyValuePair<string, object?>("stage", "verify"),
+                new KeyValuePair<string, object?>("result", "failed"));
+            
+            AuthorizationGrainInstrument.PasswordResetDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("stage", "verify"));
+
             logger.LogWarning("Email not registered '{email}' cannot reset password", email);
             return AuthorizationError.BAD_OTP;
         }
@@ -221,12 +360,30 @@ public class AuthorizationGrain(
 
         if (!verified)
         {
+            sw.Stop();
+            
+            AuthorizationGrainInstrument.PasswordResets.Add(1,
+                new KeyValuePair<string, object?>("stage", "verify"),
+                new KeyValuePair<string, object?>("result", "failed"));
+            
+            AuthorizationGrainInstrument.PasswordResetDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("stage", "verify"));
+
             logger.LogWarning("Invalid OTP during password reset for '{email}'", email);
             return AuthorizationError.BAD_OTP;
         }
 
         user.PasswordDigest = passwordHashingService.HashPassword(newPassword);
         await db.SaveChangesAsync();
+
+        sw.Stop();
+
+        AuthorizationGrainInstrument.PasswordResets.Add(1,
+            new KeyValuePair<string, object?>("stage", "verify"),
+            new KeyValuePair<string, object?>("result", "success"));
+        
+        AuthorizationGrainInstrument.PasswordResetDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("stage", "verify"));
 
         await grainFactory.GetGrain<IUserGrain>(user.Id).UpdateUserDeviceHistory();
         return await GenerateJwt(user, machineId);

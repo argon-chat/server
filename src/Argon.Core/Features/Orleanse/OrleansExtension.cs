@@ -1,9 +1,9 @@
+#pragma warning disable ORLEANSEXP002
 namespace Argon.Features;
 
 using Api.Features;
 using Api.Features.Orleans.Consul;
 using Argon.Api.Features.Utils;
-using Services.Ion;
 using EntryPoint;
 using Env;
 using NatsStreaming;
@@ -11,6 +11,7 @@ using Orleans.Configuration;
 using Orleans.Dashboard;
 using Orleans.Hosting;
 using Orleans.Serialization;
+using Services.Ion;
 
 #pragma warning disable ORLEANSEXP001
 
@@ -67,6 +68,11 @@ public static class OrleansExtension
         public WebApplicationBuilder AddWorkerOrleans()
         {
             builder.AddNatsCtx();
+            
+            // Register Orleans rebalancing providers explicitly
+            builder.Services.AddSingleton<ArgonRebalancerBackoffProvider>();
+            builder.Services.AddSingleton<ArgonImbalanceToleranceRule>();
+            
             builder.Services.AddSerializer(x =>
             {
                 x.AddNewtonsoftJsonSerializer(q => true, optionsBuilder =>
@@ -101,8 +107,8 @@ public static class OrleansExtension
                    .AddStreaming()
                    .AddActivityPropagation()
                    .AddReminders()
-                    //.AddIncomingGrainCallFilter<SentryGrainCallFilter>()
-                    //.AddIncomingGrainCallFilter<MetricGrainCallFilter>()
+                   //.AddActivationRebalancer<ArgonRebalancerBackoffProvider>()
+                   .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
                    .UseStorages([
                         IUserSessionGrain.StorageId,
                         IServerInvitesGrain.StorageId,

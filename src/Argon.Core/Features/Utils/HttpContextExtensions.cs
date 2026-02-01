@@ -50,6 +50,8 @@ public static class HttpContextExtensions
 
         public Guid GetSessionId()
         {
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return Guid.AllBitsSet;
             // Priority 1: ArgonSecure cookie
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
             {
@@ -100,6 +102,9 @@ public static class HttpContextExtensions
 
         public string GetMachineId()
         {
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return "1234";
+
             // Priority 1: ArgonSecure cookie
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
             {
@@ -157,6 +162,8 @@ public static class HttpContextExtensions
 
         public string GetAppId()
         {
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return "1234";
             // Priority 1: ArgonSecure cookie
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
             {

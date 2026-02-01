@@ -5,6 +5,7 @@
     <File Path=".gitignore" />
     <File Path=".gitmodules" />
     <File Path="GitVersion.yml" />
+    <File Path="README.md" />
     <File Path="src/AppHost/aspirate-output/docker-compose.yaml" />
   </Folder>
   <Folder Name="/src/">

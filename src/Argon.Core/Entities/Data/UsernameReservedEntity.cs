@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record UsernameReservedEntity : IEntityTypeConfiguration<UsernameReservedEntity>
 {
-    [Key]
+    [System.ComponentModel.DataAnnotations.Key]
     public Guid Id { get;                            set; }
     public required string UserName           { get; set; }
     public required string NormalizedUserName { get; set; }

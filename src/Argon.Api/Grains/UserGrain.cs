@@ -309,4 +309,18 @@ public class UserGrain(
                .DoUserUpdatedAsync())
            .ToArray());
     }
+
+    public async ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default)
+    {
+        var userId = this.GetPrimaryKey();
+        var aggregatedStatus = await presenceService.GetAggregatedStatusAsync(userId, ct);
+        
+        logger.LogDebug("Aggregated status for user {userId}: {status}", userId, aggregatedStatus);
+        
+        var servers = await GetMyServersIds(ct);
+        await Task.WhenAll(servers.Select(server =>
+            GrainFactory
+               .GetGrain<ISpaceGrain>(server)
+               .SetUserStatus(userId, aggregatedStatus)));
+    }
 }

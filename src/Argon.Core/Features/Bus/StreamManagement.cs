@@ -1,6 +1,8 @@
 namespace Argon.Api.Features.Bus;
 
 using Argon.Features.NatsStreaming;
+using Core.Features.Transport;
+using Microsoft.AspNetCore.SignalR;
 
 public interface IStreamManagement
 {
@@ -8,10 +10,22 @@ public interface IStreamManagement
     ValueTask<IDistributedArgonStream<IArgonEvent>> CreateServerStream(StreamId steamId);
 }
 
-public interface IDistributedArgonStream<T> : IAsyncDisposable where T : IArgonEvent
+public class SignalRDistributedArgonStream<T>(AppHubServer hub, Guid targetId, bool isSpaceKind) : IDistributedArgonStream<T> where T : IArgonEvent
 {
-    IArgonStream<T> Stream { get; }
+    public async ValueTask Fire(T ev, CancellationToken ct = default)
+    {
+        if (isSpaceKind)
+            await hub.BroadcastSpace(ev, targetId, ct);
+        else
+            await hub.ForUser(ev, targetId, ct);
+    }
 
+    public ValueTask DisposeAsync()
+        => ValueTask.CompletedTask;
+}
+
+public interface IDistributedArgonStream<in T> : IAsyncDisposable where T : IArgonEvent
+{
     ValueTask Fire(T ev, CancellationToken ct = default);
 }
 
@@ -55,9 +69,7 @@ public class StreamManagement(IServiceProvider serviceProvider, ILogger<StreamMa
     }
     
     public void Dispose()
-    {
-        _semaphore.Dispose();
-    }
+        => _semaphore.Dispose();
 
     private sealed class DistributedArgonStream<T>(ServerStreamEntry<T> entry) : IDistributedArgonStream<T> where T : IArgonEvent
     {
@@ -86,7 +98,7 @@ public class StreamManagement(IServiceProvider serviceProvider, ILogger<StreamMa
         Action<StreamId> onEmpty,
         ILogger logger) where T : IArgonEvent
     {
-        private readonly object _lock = new();
+        private readonly Lock _lock = new();
         
         public  IArgonStream<T> Stream { get; } = stream;
         private int             _refCount;

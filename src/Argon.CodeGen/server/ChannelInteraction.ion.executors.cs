@@ -485,6 +485,23 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
             mem.Dispose();
         }
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PickTicket_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IEventBus>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PickTicket();
+        
+        IonFormatterStorage<string>.Write(writer, result);
+    }
 
     
     
@@ -505,6 +522,8 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
         
         if (methodName.Equals("Dispatch", StringComparison.InvariantCultureIgnoreCase))
             return Dispatch_Execute(reader, writer, ct);
+        if (methodName.Equals("PickTicket", StringComparison.InvariantCultureIgnoreCase))
+            return PickTicket_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
