@@ -90,7 +90,7 @@ public class ConsulMembership(
 
     public async Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
     {
-        var extendedTags = membershipOptions.Value.ExtendedTags ?? new List<string>();
+        var extendedTags = membershipOptions.Value.ExtendedTags ?? [];
 
         var service = new AgentServiceRegistration()
         {
@@ -111,7 +111,8 @@ public class ConsulMembership(
             Tags = extendedTags.ToArray().Concat(
             [
                 IArgonUnitMembership.ArgonNameSpace,
-                hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.WorkerUnit
+                hostEnvironment.IsWorker()  ? IArgonUnitMembership.WorkerUnit :
+                hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.EntryUnit,
             ]).ToArray()
         };
 

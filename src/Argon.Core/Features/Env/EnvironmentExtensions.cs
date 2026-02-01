@@ -48,31 +48,44 @@ public enum ArgonEnvironmentKind
 
 public static class EnvironmentRoleExtensions
 {
-    public static bool IsGateway(this IHostEnvironment env)
-        => env.DetermineRole() == ArgonRoleKind.Gateway;
-    public static bool IsEntryPoint(this IHostEnvironment env)
-        => env.DetermineRole() == ArgonRoleKind.EntryPoint;
-    public static bool IsWorker(this IHostEnvironment env)
-        => env.DetermineRole() == ArgonRoleKind.Worker;
-    public static bool IsHybrid(this IHostEnvironment env)
-        => env.DetermineRole() == ArgonRoleKind.Hybrid;
+    extension(IHostEnvironment env)
+    {
+        public bool IsGateway()
+            => env.DetermineRole() == ArgonRoleKind.Gateway;
 
-    public static bool IsGatewayRole(this WebApplicationBuilder env)
-        => env.Environment.DetermineRole() == ArgonRoleKind.Gateway;
-    public static bool IsEntryPointRole(this WebApplicationBuilder env)
-        => env.Environment.DetermineRole() == ArgonRoleKind.EntryPoint;
-    public static bool IsWorkerRole(this WebApplicationBuilder env)
-        => env.Environment.DetermineRole() == ArgonRoleKind.Worker;
-    public static bool IsHybridRole(this WebApplicationBuilder env)
-        => env.Environment.DetermineRole() == ArgonRoleKind.Hybrid;
+        public bool IsEntryPoint()
+            => env.DetermineRole() == ArgonRoleKind.EntryPoint;
 
-    public static bool IsUseLocalHostCerts(this WebApplicationBuilder _)
-        => Environment.GetEnvironmentVariable("USE_LOCALHOST_CERTS") is not null;
+        public bool IsWorker()
+            => env.DetermineRole() == ArgonRoleKind.Worker;
 
-    public static void SetDatacenter(this WebApplicationBuilder builder, string dc)
-        => builder.Host.Properties.Add("dc", dc);
-    public static string GetDatacenter(this WebApplicationBuilder builder)
-        => builder.Host.Properties["dc"].As<object, string>();
+        public bool IsHybrid()
+            => env.DetermineRole() == ArgonRoleKind.Hybrid;
+    }
+
+    extension(WebApplicationBuilder env)
+    {
+        public bool IsGatewayRole()
+            => env.Environment.DetermineRole() == ArgonRoleKind.Gateway;
+
+        public bool IsEntryPointRole()
+            => env.Environment.DetermineRole() == ArgonRoleKind.EntryPoint;
+
+        public bool IsWorkerRole()
+            => env.Environment.DetermineRole() == ArgonRoleKind.Worker;
+
+        public bool IsHybridRole()
+            => env.Environment.DetermineRole() == ArgonRoleKind.Hybrid;
+
+        public bool IsUseLocalHostCerts()
+            => Environment.GetEnvironmentVariable("USE_LOCALHOST_CERTS") is not null;
+
+        public void SetDatacenter(string dc)
+            => env.Host.Properties.Add("dc", dc);
+
+        public string GetDatacenter()
+            => env.Host.Properties["dc"].As<object, string>();
+    }
 
     public static string DetermineClientSpace(this IHostEnvironment env)
     {
