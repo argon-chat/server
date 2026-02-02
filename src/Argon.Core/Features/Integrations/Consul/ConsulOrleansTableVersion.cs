@@ -4,8 +4,8 @@ public class ConsulOrleansTableVersion
 {
     public const string Path = "orleans/lock";
 
-    public string ETag    { get; set; }
-    public int    Version { get; set; }
+    public string ETag { get; set; } = string.Empty;
+    public int Version { get; set; }
 
     public static ConsulOrleansTableVersion Create(TableVersion version) => new()
     {

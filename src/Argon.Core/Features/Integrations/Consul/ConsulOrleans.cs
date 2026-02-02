@@ -3,12 +3,12 @@ namespace Argon.Api.Features.Orleans.Consul;
 using global::Orleans.Messaging;
 using global::Orleans.Runtime.Hosting;
 using Microsoft.Extensions.DependencyInjection;
-using Sentry.Protocol;
 
 public static class ConsulOrleans
 {
     public static IClientBuilder AddConsulClustering(this IClientBuilder builder)
         => builder.ConfigureServices(services => services.AddSingleton<IGatewayListProvider, ConsulGatewayListProvider>());
+
     extension(ISiloBuilder builder)
     {
         public ISiloBuilder AddConsulClustering()

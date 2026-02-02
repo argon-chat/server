@@ -11,6 +11,9 @@ public class ConsulMembershipOptions
 {
     public TimeSpan TTL            { get; set; } = TimeSpan.FromSeconds(15);
     public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
+    public TimeSpan StatusUpdateInterval { get; set; } = TimeSpan.FromSeconds(5);
+    public int MaxRetryAttempts { get; set; } = 3;
+    public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(100);
 
     public List<string>? ExtendedTags { get; set; }
 }
@@ -22,32 +25,55 @@ public class ConsulMembership(
     IOptions<ConsulMembershipOptions> membershipOptions,
     IHostApplicationLifetime lifetime,
     IHostEnvironment hostEnvironment,
-    ILocalSiloDetails localSiloDetails) : IArgonUnitMembership
+    ILocalSiloDetails localSiloDetails,
+    ISiloStatusOracle? siloStatusOracle = null) : IArgonUnitMembership, IDisposable
 {
-    private readonly JsonSerializerOptions opt = new(JsonSerializerOptions.Web)
-    {
-        IncludeFields = true
-    };
+    private readonly CancellationTokenSource _shutdownCts = new();
+    private Task? _statusUpdateTask;
+    private int _shutdownRegistered;
 
     private async Task<TableVersion> GetTableVersion()
     {
-        var ee = await client.KV.Get(ConsulOrleansTableVersion.Path);
-
-        if (ee.StatusCode == HttpStatusCode.OK)
-            return JsonSerializer.Deserialize<ConsulOrleansTableVersion>(Encoding.UTF8.GetString(ee.Response.Value), opt)!.ToTable();
-        var table = new TableVersion(0, "");
-        await client.KV.Put(new KVPair(ConsulOrleansTableVersion.Path)
+        try
         {
-            Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(ConsulOrleansTableVersion.Create(table), opt))
-        });
-        return table;
+            var ee = await client.KV.Get(ConsulOrleansTableVersion.Path);
+
+            if (ee.StatusCode == HttpStatusCode.OK)
+            {
+                var json = Encoding.UTF8.GetString(ee.Response.Value);
+                var consulVersion = JsonSerializer.Deserialize(json, ConsulJsonContext.Default.ConsulOrleansTableVersion)!;
+                return consulVersion.ToTable();
+            }
+
+            var table = new TableVersion(0, Guid.NewGuid().ToString());
+            var serialized = JsonSerializer.Serialize(ConsulOrleansTableVersion.Create(table), ConsulJsonContext.Default.ConsulOrleansTableVersion);
+            await client.KV.Put(new KVPair(ConsulOrleansTableVersion.Path)
+            {
+                Value = Encoding.UTF8.GetBytes(serialized)
+            });
+            return table;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to get table version from Consul");
+            throw;
+        }
     }
 
     private async Task UpdateTableVersion(TableVersion version)
-        => await client.KV.Put(new KVPair(ConsulOrleansTableVersion.Path)
+    {
+        await RetryAsync(async () =>
         {
-            Value = Encoding.UTF8.GetBytes(JsonSerializer.Serialize(ConsulOrleansTableVersion.Create(version), opt))
-        });
+            var serialized = JsonSerializer.Serialize(ConsulOrleansTableVersion.Create(version), ConsulJsonContext.Default.ConsulOrleansTableVersion);
+            var result = await client.KV.Put(new KVPair(ConsulOrleansTableVersion.Path)
+            {
+                Value = Encoding.UTF8.GetBytes(serialized)
+            });
+            
+            if (!result.Response)
+                throw new InvalidOperationException("Failed to update table version in Consul KV store");
+        }, "UpdateTableVersion");
+    }
 
     public Task InitializeMembershipTable(bool tryInitTableVersion) // not supported
         => Task.CompletedTask;
@@ -60,75 +86,103 @@ public class ConsulMembership(
 
     public async Task<MembershipTableData> ReadRow(SiloAddress key)
     {
-        var idSelector = new StringFieldSelector("ID");
-
-        var services = await client.Agent.Services(idSelector == key.ToString());
-
-        if (services.StatusCode != HttpStatusCode.OK)
-            throw new InvalidOperationException($"Selector ServiceID == '{key.ToString()}' return '{services.StatusCode}'");
-
-        return services.Response.Count switch
+        try
         {
-            0   => throw new InvalidOperationException($"Selector ServiceID == '{key.ToString()}' return empty list"),
-            > 1 => throw new InvalidOperationException($"Selector ServiceID == '{key.ToString()}' return multiple services"),
-            _ => new MembershipTableData(new Tuple<MembershipEntry, string>(EjectEntry(services.Response.First().Value), ""),
-                await GetTableVersion())
-        };
+            var idSelector = new StringFieldSelector("ID");
+            var services = await client.Agent.Services(idSelector == key.ToString());
+
+            if (services.StatusCode != HttpStatusCode.OK)
+            {
+                logger.LogWarning("Failed to read silo {SiloAddress} from Consul: {StatusCode}", key, services.StatusCode);
+                throw new InvalidOperationException($"Selector ServiceID == '{key}' returned '{services.StatusCode}'");
+            }
+
+            return services.Response.Count switch
+            {
+                0 => throw new InvalidOperationException($"Selector ServiceID == '{key}' returned empty list"),
+                > 1 => throw new InvalidOperationException($"Selector ServiceID == '{key}' returned multiple services"),
+                _ => new MembershipTableData(
+                    new Tuple<MembershipEntry, string>(EjectEntry(services.Response.First().Value), ""),
+                    await GetTableVersion())
+            };
+        }
+        catch (Exception ex) when (ex is not InvalidOperationException)
+        {
+            logger.LogError(ex, "Error reading row for silo {SiloAddress}", key);
+            throw;
+        }
     }
 
     public async Task<MembershipTableData> ReadAll()
     {
-        var services = await client.Health.Service(IArgonUnitMembership.ArgonServiceName, IArgonUnitMembership.ArgonNameSpace, true);
-        var table    = await GetTableVersion();
-        var list = services.Response
-           .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), table.VersionEtag))
-           .ToList();
+        try
+        {
+            var services = await client.Health.Service(IArgonUnitMembership.ArgonServiceName, IArgonUnitMembership.ArgonNameSpace, true);
+            var table = await GetTableVersion();
+            var list = services.Response
+                .Select(x => new Tuple<MembershipEntry, string>(EjectEntry(x.Service), table.VersionEtag))
+                .ToList();
 
-        return new MembershipTableData(list, table);
+            logger.LogDebug("Read {Count} silos from Consul", list.Count);
+            return new MembershipTableData(list, table);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to read all membership entries from Consul");
+            throw;
+        }
     }
 
 
     public async Task<bool> InsertRow(MembershipEntry entry, TableVersion tableVersion)
     {
-        var extendedTags = membershipOptions.Value.ExtendedTags ?? [];
-
-        var service = new AgentServiceRegistration()
+        try
         {
-            Name    = IArgonUnitMembership.ArgonServiceName,
-            Address = entry.SiloAddress.Endpoint.Address.ToString(),
-            Port    = entry.ProxyPort,
-            ID      = entry.SiloAddress.ToString(),
-            Meta    = GenerateMeta(entry),
-            Checks =
-            [
-                new AgentServiceCheck
-                {
-                    CheckID                        = $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
-                    TTL                            = membershipOptions.Value.TTL,
-                    DeregisterCriticalServiceAfter = membershipOptions.Value.DestroyTimeout
-                }
-            ],
-            Tags = extendedTags.ToArray().Concat(
-            [
-                IArgonUnitMembership.ArgonNameSpace,
-                hostEnvironment.IsWorker()  ? IArgonUnitMembership.WorkerUnit :
-                hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.EntryUnit,
-                Environment.MachineName
-            ]).ToArray()
-        };
+            var extendedTags = membershipOptions.Value.ExtendedTags ?? [];
 
+            var service = new AgentServiceRegistration()
+            {
+                Name = IArgonUnitMembership.ArgonServiceName,
+                Address = entry.SiloAddress.Endpoint.Address.ToString(),
+                Port = entry.ProxyPort,
+                ID = entry.SiloAddress.ToString(),
+                Meta = GenerateMeta(entry),
+                Checks =
+                [
+                    new AgentServiceCheck
+                    {
+                        CheckID = $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
+                        TTL = membershipOptions.Value.TTL,
+                        DeregisterCriticalServiceAfter = membershipOptions.Value.DestroyTimeout
+                    }
+                ],
+                Tags = extendedTags.ToArray().Concat(
+                [
+                    IArgonUnitMembership.ArgonNameSpace,
+                    hostEnvironment.IsWorker() ? IArgonUnitMembership.WorkerUnit :
+                    hostEnvironment.IsGateway() ? IArgonUnitMembership.GatewayUnit : IArgonUnitMembership.EntryUnit,
+                    Environment.MachineName
+                ]).ToArray()
+            };
 
-        var sr = await client.Agent.ServiceRegister(service);
+            await RetryAsync(async () =>
+            {
+                var sr = await client.Agent.ServiceRegister(service);
+                sr.Assert();
+            }, "ServiceRegister");
 
-        sr.Assert();
+            var currentTable = await GetTableVersion();
+            await UpdateTableVersion(new TableVersion(tableVersion.Version + 1, currentTable.VersionEtag));
+            await UpdateIAmAlive(entry);
 
-        var currentTable = await GetTableVersion();
-
-        await UpdateTableVersion(new TableVersion(tableVersion.Version + 1, currentTable.VersionEtag));
-
-        await UpdateIAmAlive(entry);
-
-        return true;
+            logger.LogInformation("Registered silo {SiloAddress} in Consul", entry.SiloAddress);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to insert row for silo {SiloAddress}", entry.SiloAddress);
+            throw;
+        }
     }
 
     public Task<bool> UpdateRow(MembershipEntry entry, string etag, TableVersion tableVersion)
@@ -136,60 +190,194 @@ public class ConsulMembership(
 
 
     public async Task UpdateIAmAlive(MembershipEntry entry)
-        => await client.Agent.UpdateTTL(
-            $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
-            $"Unit answered correctly!",
-            ToStatus(entry));
+    {
+        try
+        {
+            await client.Agent.UpdateTTL(
+                $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
+                "Unit answered correctly!",
+                ToStatus(entry));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to update TTL for silo {SiloAddress}", entry.SiloAddress);
+        }
+    }
+
+    public Task RegisterOnShutdownRules()
+    {
+        if (Interlocked.CompareExchange(ref _shutdownRegistered, 1, 0) != 0)
+        {
+            logger.LogWarning("RegisterOnShutdownRules was already called for silo {SiloAddress}", localSiloDetails.SiloAddress);
+            return Task.CompletedTask;
+        }
+
+        lifetime.ApplicationStopping.Register(() =>
+        {
+            try
+            {
+                logger.LogInformation("Deregistering silo {SiloAddress} from Consul", localSiloDetails.SiloAddress);
+                
+                RetryAsync(async () =>
+                {
+                    var result = await client.Agent.ServiceDeregister(localSiloDetails.SiloAddress.ToString());
+                    result.Assert();
+                }, "ServiceDeregister").GetAwaiter().GetResult();
+                
+                logger.LogInformation("Successfully deregistered silo {SiloAddress}", localSiloDetails.SiloAddress);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to deregister silo {SiloAddress} from Consul after retries", localSiloDetails.SiloAddress);
+            }
+        });
+
+        if (siloStatusOracle != null && (hostEnvironment.IsGateway() || hostEnvironment.IsWorker()))
+        {
+            _statusUpdateTask = Task.Run(() => StatusUpdateLoopAsync(_shutdownCts.Token), _shutdownCts.Token);
+        }
+
+        return Task.CompletedTask;
+    }
 
 
-    public async Task RegisterOnShutdownRules()
-        => lifetime
-           .ApplicationStopping
-           .Register(() => client
-               .Agent
-               .ServiceDeregister(localSiloDetails.SiloAddress.ToString()));
+    private async Task StatusUpdateLoopAsync(CancellationToken cancellationToken)
+    {
+        logger.LogInformation("Starting status update loop for silo {SiloAddress}", localSiloDetails.SiloAddress);
 
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Task.Delay(membershipOptions.Value.StatusUpdateInterval, cancellationToken);
+
+                if (siloStatusOracle == null)
+                    continue;
+
+                var currentStatus = siloStatusOracle.CurrentStatus;
+                var siloAddress = localSiloDetails.SiloAddress;
+
+                var entry = new MembershipEntry
+                {
+                    SiloAddress = siloAddress,
+                    Status = currentStatus,
+                    IAmAliveTime = DateTime.UtcNow
+                };
+
+                await UpdateIAmAlive(entry);
+                logger.LogDebug("Updated status for silo {SiloAddress}: {Status}", siloAddress, currentStatus);
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Error in status update loop for silo {SiloAddress}", localSiloDetails.SiloAddress);
+            }
+        }
+
+        logger.LogInformation("Status update loop stopped for silo {SiloAddress}", localSiloDetails.SiloAddress);
+    }
 
     private TTLStatus ToStatus(MembershipEntry entry)
         => entry.Status switch
         {
-            SiloStatus.None                                => TTLStatus.Pass,
-            SiloStatus.Created or SiloStatus.Joining       => TTLStatus.Pass,
-            SiloStatus.Active                              => TTLStatus.Pass,
-            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Pass,
-            SiloStatus.Dead                                => TTLStatus.Pass,
-            _                                              => throw new ArgumentOutOfRangeException()
+            SiloStatus.None => TTLStatus.Pass,
+            SiloStatus.Created or SiloStatus.Joining => TTLStatus.Pass,
+            SiloStatus.Active => TTLStatus.Pass,
+            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
+            SiloStatus.Dead => TTLStatus.Critical,
+            _ => throw new ArgumentOutOfRangeException(nameof(entry.Status), entry.Status, "Unknown silo status")
         };
 
     private MembershipEntry EjectEntry(AgentService service)
     {
         if (service.Meta.TryGetValue("json", out var json))
         {
-            var s = JsonSerializer.Deserialize<MembershipEntry>(json, opt)!;
-            s.IAmAliveTime = DateTime.Now - TimeSpan.FromSeconds(10);
-            return s;
+            try
+            {
+                var entry = JsonSerializer.Deserialize(json, ConsulJsonContext.Default.MembershipEntry);
+                if (entry == null)
+                    throw new InvalidOperationException("Deserialized MembershipEntry is null");
+
+                entry.IAmAliveTime = DateTime.UtcNow.AddSeconds(-10);
+                return entry;
+            }
+            catch (JsonException ex)
+            {
+                logger.LogError(ex, "Failed to deserialize MembershipEntry from Consul service {ServiceId}", service.ID);
+                throw new InvalidOperationException($"Failed to deserialize MembershipEntry from service {service.ID}", ex);
+            }
         }
 
-        throw new InvalidOperationException($"AgentService do not contains json meta");
+        throw new InvalidOperationException($"AgentService '{service.ID}' does not contain 'json' metadata");
     }
 
     private Dictionary<string, string> GenerateMeta(MembershipEntry entry)
-        => new()
+    {
+        try
         {
+            var suspectTimesJson = entry.SuspectTimes is { Count: > 0 }
+                ? JsonSerializer.Serialize(entry.SuspectTimes, ConsulJsonContext.Default.ListTupleSiloAddressDateTime)
+                : "[]";
+
+            return new Dictionary<string, string>
             {
-                "json", JsonSerializer.Serialize(entry, opt)
-            },
+                { "json", JsonSerializer.Serialize(entry, ConsulJsonContext.Default.MembershipEntry) },
+                { "gen", entry.SiloAddress.Generation.ToString() },
+                { "addr", JsonSerializer.Serialize(entry.SiloAddress, ConsulJsonContext.Default.SiloAddress) },
+                { "proxy-port", entry.ProxyPort.ToString() },
+                { "update-zone", entry.UpdateZone.ToString() },
+                { "fault-zone", entry.FaultZone.ToString() },
+                { "host-name", entry.HostName ?? string.Empty },
+                { "silo-name", entry.SiloName ?? string.Empty },
+                { "suspect-times", suspectTimesJson }
+            };
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to generate metadata for silo {SiloAddress}", entry.SiloAddress);
+            throw;
+        }
+    }
+
+    private async Task RetryAsync(Func<Task> operation, string operationName)
+    {
+        var maxAttempts = membershipOptions.Value.MaxRetryAttempts;
+        var delay = membershipOptions.Value.RetryDelay;
+
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
             {
-                "gen", entry.SiloAddress.Generation.ToString()
-            },
-            {
-                "addr", JsonSerializer.Serialize(entry.SiloAddress, opt)
-            },
-            {
-                "proxy-port", entry.ProxyPort.ToString()
-            },
-            {
-                "update-zone", entry.UpdateZone.ToString()
+                await operation();
+                
+                if (attempt > 1)
+                    logger.LogInformation("{Operation} succeeded on attempt {Attempt}", operationName, attempt);
+                
+                return;
             }
-        };
+            catch (Exception ex) when (attempt < maxAttempts)
+            {
+                var currentDelay = delay * Math.Pow(2, attempt - 1);
+                logger.LogWarning(ex, "{Operation} failed on attempt {Attempt}/{MaxAttempts}, retrying in {Delay}ms",
+                    operationName, attempt, maxAttempts, currentDelay.TotalMilliseconds);
+                
+                await Task.Delay(currentDelay, _shutdownCts.Token);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "{Operation} failed after {MaxAttempts} attempts", operationName, maxAttempts);
+                throw;
+            }
+        }
+    }
+
+    public void Dispose()
+    {
+        _shutdownCts.Cancel();
+        _statusUpdateTask?.GetAwaiter().GetResult();
+        _shutdownCts.Dispose();
+    }
 }
