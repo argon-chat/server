@@ -179,7 +179,8 @@ public static class OrleansExtension
                    .UseStorages([
                         IUserSessionGrain.StorageId,
                         IServerInvitesGrain.StorageId,
-                        "Default"
+                        "Default",
+                        "meets"
                     ], "Npgsql", "DefaultConnection")
                    .UseInMemoryReminderService()
                    .Configure<ClusterMembershipOptions>(options =>
