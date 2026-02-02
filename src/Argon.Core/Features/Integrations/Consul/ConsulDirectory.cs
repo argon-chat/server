@@ -106,17 +106,39 @@ public class ConsulDirectory(
         }, $"CreateSession({address})");
     }
 
+    private async Task<string> InvalidateAndRecreateSessionAsync(SiloAddress address)
+    {
+        await _sessionLock.WaitAsync();
+        try
+        {
+            _sessions.TryRemove(address, out var oldSession);
+            logger.LogWarning("Invalidated expired session {OldSession} for silo {SiloAddress}, creating new session", oldSession, address);
+
+            var newSession = await CreateSessionAsync(address);
+            _sessions[address] = newSession;
+            logger.LogInformation("Created replacement session {NewSession} for silo {SiloAddress}", newSession, address);
+            return newSession;
+        }
+        finally
+        {
+            _sessionLock.Release();
+        }
+    }
+
     public async Task<GrainAddress?> Register(GrainAddress address)
     {
         ArgumentNullException.ThrowIfNull(address.SiloAddress);
 
-        try
-        {
-            var consulKey = ToPath(address.GrainId);
-            var session = await EnsureSiloSessionAsync(address.SiloAddress, useGlobalSearch: true);
+        var maxAttempts = options.Value.MaxRetryAttempts;
+        var delay = options.Value.RetryDelay;
 
-            await RetryAsync(async () =>
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            try
             {
+                var consulKey = ToPath(address.GrainId);
+                var session = await EnsureSiloSessionAsync(address.SiloAddress, useGlobalSearch: true);
+
                 var json = JsonSerializer.Serialize(address, ConsulJsonContext.Default.GrainAddress);
                 var kvPair = new KVPair(consulKey)
                 {
@@ -125,22 +147,42 @@ public class ConsulDirectory(
                 };
 
                 var result = await client.KV.Acquire(kvPair);
-                
+
                 if (!result.Response)
                 {
                     logger.LogWarning("Failed to acquire lock for grain {GrainId} at {SiloAddress}", address.GrainId, address.SiloAddress);
                     throw new InvalidOperationException($"Failed to acquire Consul lock for grain {address.GrainId}");
                 }
-            }, $"Register({address.GrainId})");
 
-            logger.LogDebug("Registered grain {GrainId} at silo {SiloAddress}", address.GrainId, address.SiloAddress);
-            return address;
+                if (attempt > 1)
+                    logger.LogInformation("Register({GrainId}) succeeded on attempt {Attempt}", address.GrainId, attempt);
+
+                logger.LogDebug("Registered grain {GrainId} at silo {SiloAddress}", address.GrainId, address.SiloAddress);
+                return address;
+            }
+            catch (Exception ex) when (IsInvalidSessionError(ex) && attempt < maxAttempts)
+            {
+                logger.LogWarning(ex, "Invalid session detected for grain {GrainId}, recreating session (attempt {Attempt}/{MaxAttempts})",
+                    address.GrainId, attempt, maxAttempts);
+
+                await InvalidateAndRecreateSessionAsync(address.SiloAddress);
+            }
+            catch (Exception ex) when (attempt < maxAttempts && !IsInvalidSessionError(ex))
+            {
+                var currentDelay = delay * Math.Pow(2, attempt - 1);
+                logger.LogWarning(ex, "Register({GrainId}) failed on attempt {Attempt}/{MaxAttempts}, retrying in {Delay}ms",
+                    address.GrainId, attempt, maxAttempts, currentDelay.TotalMilliseconds);
+
+                await Task.Delay(currentDelay);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to register grain {GrainId}", address.GrainId);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to register grain {GrainId}", address.GrainId);
-            throw;
-        }
+
+        throw new InvalidOperationException($"Register({address.GrainId}) failed to complete after {maxAttempts} attempts");
     }
 
     public async Task<GrainAddress?> Register(GrainAddress address, GrainAddress? previousAddress)
@@ -388,5 +430,13 @@ public class ConsulDirectory(
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(options.Value.Directory, nameof(ConsulDirectoryOptions.Directory));
         return string.Format(ConsulPrefix, options.Value.Directory, grainId);
+    }
+
+    private static bool IsInvalidSessionError(Exception ex)
+    {
+        // Consul returns InternalServerError with "invalid session" message when session expires or is destroyed
+        return ex is ConsulRequestException consulEx &&
+               consulEx.StatusCode == HttpStatusCode.InternalServerError &&
+               consulEx.Message.Contains("invalid session", StringComparison.OrdinalIgnoreCase);
     }
 }
