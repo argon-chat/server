@@ -11,7 +11,6 @@ public class ConsulMembershipOptions
 {
     public TimeSpan TTL            { get; set; } = TimeSpan.FromSeconds(15);
     public TimeSpan DestroyTimeout { get; set; } = TimeSpan.FromSeconds(30);
-    public TimeSpan StatusUpdateInterval { get; set; } = TimeSpan.FromSeconds(5);
     public int MaxRetryAttempts { get; set; } = 3;
     public TimeSpan RetryDelay { get; set; } = TimeSpan.FromMilliseconds(100);
 
@@ -29,8 +28,6 @@ public class ConsulMembership(
     ISiloStatusOracle? siloStatusOracle = null) : IArgonUnitMembership, IDisposable
 {
     private readonly CancellationTokenSource _shutdownCts = new();
-    private Task? _statusUpdateTask;
-    private int _shutdownRegistered;
 
     private async Task<TableVersion> GetTableVersion()
     {
@@ -61,8 +58,7 @@ public class ConsulMembership(
     }
 
     private async Task UpdateTableVersion(TableVersion version)
-    {
-        await RetryAsync(async () =>
+        => await RetryAsync(async () =>
         {
             var serialized = JsonSerializer.Serialize(ConsulOrleansTableVersion.Create(version), ConsulJsonContext.Default.ConsulOrleansTableVersion);
             var result = await client.KV.Put(new KVPair(ConsulOrleansTableVersion.Path)
@@ -73,7 +69,6 @@ public class ConsulMembership(
             if (!result.Response)
                 throw new InvalidOperationException("Failed to update table version in Consul KV store");
         }, "UpdateTableVersion");
-    }
 
     public Task InitializeMembershipTable(bool tryInitTableVersion) // not supported
         => Task.CompletedTask;
@@ -165,11 +160,8 @@ public class ConsulMembership(
                 ]).ToArray()
             };
 
-            await RetryAsync(async () =>
-            {
-                var sr = await client.Agent.ServiceRegister(service);
-                sr.Assert();
-            }, "ServiceRegister");
+            var sr = await client.Agent.ServiceRegister(service);
+            sr.Assert();
 
             var currentTable = await GetTableVersion();
             await UpdateTableVersion(new TableVersion(tableVersion.Version + 1, currentTable.VersionEtag));
@@ -195,7 +187,7 @@ public class ConsulMembership(
         {
             await client.Agent.UpdateTTL(
                 $"{IArgonUnitMembership.LoopBackHealth}.{entry.SiloAddress}",
-                "Unit answered correctly!",
+                $"Unit answered correctly! Currently status {siloStatusOracle?.CurrentStatus.ToString() ?? "Ok"}",
                 ToStatus(entry));
         }
         catch (Exception ex)
@@ -206,90 +198,47 @@ public class ConsulMembership(
 
     public Task RegisterOnShutdownRules()
     {
-        if (Interlocked.CompareExchange(ref _shutdownRegistered, 1, 0) != 0)
-        {
-            logger.LogWarning("RegisterOnShutdownRules was already called for silo {SiloAddress}", localSiloDetails.SiloAddress);
-            return Task.CompletedTask;
-        }
-
         lifetime.ApplicationStopping.Register(() =>
         {
             try
             {
                 logger.LogInformation("Deregistering silo {SiloAddress} from Consul", localSiloDetails.SiloAddress);
-                
-                RetryAsync(async () =>
-                {
-                    var result = await client.Agent.ServiceDeregister(localSiloDetails.SiloAddress.ToString());
-                    result.Assert();
-                }, "ServiceDeregister").GetAwaiter().GetResult();
-                
+                client.Agent.ServiceDeregister(localSiloDetails.SiloAddress.ToString()).GetAwaiter().GetResult();
                 logger.LogInformation("Successfully deregistered silo {SiloAddress}", localSiloDetails.SiloAddress);
             }
             catch (Exception ex)
             {
-                logger.LogError(ex, "Failed to deregister silo {SiloAddress} from Consul after retries", localSiloDetails.SiloAddress);
+                logger.LogError(ex, "Failed to deregister silo {SiloAddress} from Consul", localSiloDetails.SiloAddress);
             }
         });
-
-        if (siloStatusOracle != null && (hostEnvironment.IsGateway() || hostEnvironment.IsWorker()))
-        {
-            _statusUpdateTask = Task.Run(() => StatusUpdateLoopAsync(_shutdownCts.Token), _shutdownCts.Token);
-        }
 
         return Task.CompletedTask;
     }
 
-
-    private async Task StatusUpdateLoopAsync(CancellationToken cancellationToken)
-    {
-        logger.LogInformation("Starting status update loop for silo {SiloAddress}", localSiloDetails.SiloAddress);
-
-        while (!cancellationToken.IsCancellationRequested)
-        {
-            try
-            {
-                await Task.Delay(membershipOptions.Value.StatusUpdateInterval, cancellationToken);
-
-                if (siloStatusOracle == null)
-                    continue;
-
-                var currentStatus = siloStatusOracle.CurrentStatus;
-                var siloAddress = localSiloDetails.SiloAddress;
-
-                var entry = new MembershipEntry
-                {
-                    SiloAddress = siloAddress,
-                    Status = currentStatus,
-                    IAmAliveTime = DateTime.UtcNow
-                };
-
-                await UpdateIAmAlive(entry);
-                logger.LogDebug("Updated status for silo {SiloAddress}: {Status}", siloAddress, currentStatus);
-            }
-            catch (OperationCanceledException)
-            {
-                break;
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Error in status update loop for silo {SiloAddress}", localSiloDetails.SiloAddress);
-            }
-        }
-
-        logger.LogInformation("Status update loop stopped for silo {SiloAddress}", localSiloDetails.SiloAddress);
-    }
-
     private TTLStatus ToStatus(MembershipEntry entry)
-        => entry.Status switch
+    {
+        if (siloStatusOracle?.CurrentStatus is null)
+            return entry.Status switch
+            {
+                SiloStatus.None => TTLStatus.Pass,
+                SiloStatus.Created or SiloStatus.Joining => TTLStatus.Pass,
+                SiloStatus.Active => TTLStatus.Pass,
+                SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
+                SiloStatus.Dead => TTLStatus.Critical,
+                _ => throw new ArgumentOutOfRangeException(nameof(entry.Status), entry.Status, "Unknown silo status")
+            };
+        return siloStatusOracle.CurrentStatus switch
         {
-            SiloStatus.None => TTLStatus.Pass,
-            SiloStatus.Created or SiloStatus.Joining => TTLStatus.Pass,
-            SiloStatus.Active => TTLStatus.Pass,
-            SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
-            SiloStatus.Dead => TTLStatus.Critical,
-            _ => throw new ArgumentOutOfRangeException(nameof(entry.Status), entry.Status, "Unknown silo status")
+            SiloStatus.None         => TTLStatus.Critical,
+            SiloStatus.Created      => TTLStatus.Warn,
+            SiloStatus.Joining      => TTLStatus.Warn,
+            SiloStatus.Active       => TTLStatus.Warn,
+            SiloStatus.ShuttingDown => TTLStatus.Critical,
+            SiloStatus.Stopping     => TTLStatus.Critical,
+            SiloStatus.Dead         => TTLStatus.Critical,
+            _                       => throw new ArgumentOutOfRangeException()
         };
+    }
 
     private MembershipEntry EjectEntry(AgentService service)
     {
@@ -377,7 +326,6 @@ public class ConsulMembership(
     public void Dispose()
     {
         _shutdownCts.Cancel();
-        _statusUpdateTask?.GetAwaiter().GetResult();
         _shutdownCts.Dispose();
     }
 }
