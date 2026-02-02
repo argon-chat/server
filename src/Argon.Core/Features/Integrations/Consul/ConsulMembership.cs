@@ -349,7 +349,15 @@ public class ConsulMembership(
 
     public void Dispose()
     {
-        _shutdownCts.Cancel();
-        _shutdownCts.Dispose();
+        try
+        {
+            _shutdownCts.Cancel();
+        }
+        catch { }
+        try
+        {
+            _shutdownCts.Dispose();
+        }
+        catch  { }
     }
 }

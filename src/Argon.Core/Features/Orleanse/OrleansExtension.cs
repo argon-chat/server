@@ -3,6 +3,7 @@
 
 namespace Argon.Features;
 
+using Api.Features;
 using Api.Features.Orleans.Consul;
 using Argon.Api.Features.Utils;
 using EntryPoint;
@@ -202,15 +203,26 @@ public static class OrleansExtension
                         options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
                         options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                     });
-
-                siloBuilder
-                   .AddConsulGrainDirectory("servers")
-                   .AddConsulGrainDirectory("channels")
-                   .AddConsulGrainDirectory("@meet/meetings")
-                   .AddConsulGrainDirectory("@meet/invite-codes")
-                   .AddConsulGrainDirectory("@meet/join-requests")
-                   .AddConsulGrainDirectory("@meet/meeting-quotas")
-                   .AddConsulClustering();
+                if (Environment.GetEnvironmentVariable("LOCAL_CLUSTERING") is not null)
+                    siloBuilder
+                       .UseLocalhostClustering()
+                       .AddInMemoryGrainDirectory("servers")
+                       .AddInMemoryGrainDirectory("channels")
+                       .AddInMemoryGrainDirectory("@meets/invites")
+                       .AddInMemoryGrainDirectory("@meets/join_requests")
+                       .AddInMemoryGrainDirectory("@meets/meetings")
+                       .AddInMemoryGrainDirectory("@meets/quotas");
+                else
+                {
+                    siloBuilder
+                       .AddConsulClustering()
+                       .AddConsulGrainDirectory("servers")
+                       .AddConsulGrainDirectory("channels")
+                       .AddConsulGrainDirectory("@meets/invites")
+                       .AddConsulGrainDirectory("@meets/join_requests")
+                       .AddConsulGrainDirectory("@meets/meetings")
+                       .AddConsulGrainDirectory("@meets/quotas");
+                }
             });
             return builder;
         }
