@@ -1,11 +1,12 @@
 namespace Argon.Api.Features.Orleans.Consul;
 
-using System.Linq;
-using System.Text.Json;
 using Argon.Features.Env;
 using global::Consul;
 using global::Consul.Filtering;
 using global::Orleans.Configuration;
+using System.Linq;
+using System.Text.Json;
+using VaultSharp.V1.SecretsEngines.Identity;
 
 public class ConsulMembershipOptions
 {
@@ -25,9 +26,11 @@ public class ConsulMembership(
     IHostApplicationLifetime lifetime,
     IHostEnvironment hostEnvironment,
     ILocalSiloDetails localSiloDetails,
-    ISiloStatusOracle? siloStatusOracle = null) : IArgonUnitMembership, IDisposable
+    IServiceProvider provider) : IArgonUnitMembership, IDisposable, ISiloStatusListener
 {
     private readonly CancellationTokenSource _shutdownCts = new();
+
+    private ISiloStatusOracle? siloStatusOracle => provider.GetService<ISiloStatusOracle>();
 
     private async Task<TableVersion> GetTableVersion()
     {
@@ -198,41 +201,62 @@ public class ConsulMembership(
 
     public Task RegisterOnShutdownRules()
     {
-        lifetime.ApplicationStopping.Register(() =>
+        lifetime.ApplicationStopping.Register(async (_) =>
         {
             try
             {
                 logger.LogInformation("Deregistering silo {SiloAddress} from Consul", localSiloDetails.SiloAddress);
-                client.Agent.ServiceDeregister(localSiloDetails.SiloAddress.ToString()).GetAwaiter().GetResult();
+                await client.Agent.ServiceDeregister(localSiloDetails.SiloAddress.ToString());
                 logger.LogInformation("Successfully deregistered silo {SiloAddress}", localSiloDetails.SiloAddress);
             }
             catch (Exception ex)
             {
                 logger.LogError(ex, "Failed to deregister silo {SiloAddress} from Consul", localSiloDetails.SiloAddress);
             }
-        });
+        }, null);
+
+        siloStatusOracle?.SubscribeToSiloStatusEvents(this);
 
         return Task.CompletedTask;
     }
 
+    public async void SiloStatusChangeNotification(SiloAddress updatedSilo, SiloStatus status)
+    {
+        try
+        {
+            await client.Agent.UpdateTTL(
+                $"{IArgonUnitMembership.LoopBackHealth}.{updatedSilo}",
+                $"Unit answered correctly! Currently status {siloStatusOracle?.CurrentStatus.ToString() ?? "Ok"}",
+                ToStatus(status));
+            logger.LogInformation("Silo status changed {UpdatedSilo} -> {SiloStatus}", updatedSilo, status);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to update TTL for silo {SiloAddress}", updatedSilo);
+        }
+    }
+
     private TTLStatus ToStatus(MembershipEntry entry)
+        => ToStatus(entry.Status);
+
+    private TTLStatus ToStatus(SiloStatus status)
     {
         if (siloStatusOracle?.CurrentStatus is null)
-            return entry.Status switch
+            return status switch
             {
                 SiloStatus.None => TTLStatus.Pass,
                 SiloStatus.Created or SiloStatus.Joining => TTLStatus.Pass,
                 SiloStatus.Active => TTLStatus.Pass,
                 SiloStatus.ShuttingDown or SiloStatus.Stopping => TTLStatus.Warn,
                 SiloStatus.Dead => TTLStatus.Critical,
-                _ => throw new ArgumentOutOfRangeException(nameof(entry.Status), entry.Status, "Unknown silo status")
+                _ => throw new ArgumentOutOfRangeException(nameof(status), status, "Unknown silo status")
             };
         return siloStatusOracle.CurrentStatus switch
         {
             SiloStatus.None         => TTLStatus.Critical,
             SiloStatus.Created      => TTLStatus.Warn,
-            SiloStatus.Joining      => TTLStatus.Warn,
-            SiloStatus.Active       => TTLStatus.Warn,
+            SiloStatus.Joining      => TTLStatus.Pass,
+            SiloStatus.Active       => TTLStatus.Pass,
             SiloStatus.ShuttingDown => TTLStatus.Critical,
             SiloStatus.Stopping     => TTLStatus.Critical,
             SiloStatus.Dead         => TTLStatus.Critical,
