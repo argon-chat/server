@@ -6,8 +6,10 @@ namespace Argon.Features;
 using Api.Features;
 using Api.Features.Orleans.Consul;
 using Argon.Api.Features.Utils;
+using Drains;
 using EntryPoint;
 using Env;
+using HealthChecks;
 using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Dashboard;
@@ -224,11 +226,16 @@ public static class OrleansExtension
                        .AddConsulGrainDirectory("@meets/quotas");
                 }
             });
+
+            if (builder.Environment.IsWorker() || builder.Environment.IsHybrid())
+            {
+                builder.Services.AddSingleton<ISiloDrainService, SiloDrainService>();
+                builder.Services.AddSiloHealthChecks();
+                builder.Services.AddDrainAwarePlacementFilter();
+            }
+
             return builder;
         }
-
-
-        
     }
 
     public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
