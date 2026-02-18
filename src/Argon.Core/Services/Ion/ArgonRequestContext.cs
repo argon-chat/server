@@ -41,9 +41,10 @@ public static class ServiceEx
         public T GetGrain<T>(string grainKey) where T : IGrainWithStringKey
             => ArgonRequestContext.Current.ClusterClient.GetGrain<T>(grainKey);
 
-        public Guid   GetUserId()      => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
-        public string GetMachineId()   => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
-        public Guid   GetSessionId()   => ArgonRequestContext.Current.SessionId ?? throw new InvalidOperationException();
-        public string GetUserCountry() => ArgonRequestContext.Current.Region;
+        public Guid    GetUserId()      => ArgonRequestContext.Current.UserId ?? throw new InvalidOperationException();
+        public string  GetMachineId()   => ArgonRequestContext.Current.MachineId ?? throw new InvalidOperationException();
+        public Guid    GetSessionId()   => ArgonRequestContext.Current.SessionId ?? throw new InvalidOperationException();
+        public string? GetClientId()    => ArgonRequestContext.Current.AppId;
+        public string  GetUserCountry() => ArgonRequestContext.Current.Region;
     }
 }

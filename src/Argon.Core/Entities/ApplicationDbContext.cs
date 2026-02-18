@@ -26,6 +26,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
     public DbSet<NotificationCounterEntity>         NotificationCounters         => Set<NotificationCounterEntity>();
 
+#region Feature Flags
+
+    public DbSet<FeatureFlagEntity>         FeatureFlags         => Set<FeatureFlagEntity>();
+    public DbSet<FeatureFlagOverrideEntity> FeatureFlagOverrides => Set<FeatureFlagOverrideEntity>();
+
+#endregion
+
 #region User Stats & Levels
 
     public DbSet<UserDailyStatsEntity> UserDailyStats => Set<UserDailyStatsEntity>();

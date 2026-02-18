@@ -42,6 +42,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IInterlinkStreamResult>.Value = new Ion_IInterlinkStreamResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
+      IonFormatterStorage<FeatureFlagData>.Value = new Ion_FeatureFlagData_Formatter();
       IonFormatterStorage<UserBlock>.Value = new Ion_UserBlock_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<Friendship>.Value = new Ion_Friendship_Formatter();
@@ -246,6 +247,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_ArchetypeInteraction_ServiceExecutor>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
+      IonExecutorMetadataStorage.AddExecutor<Ion_FeatureFlagInteractions_ServiceExecutor>("IFeatureFlagInteractions");
       IonExecutorMetadataStorage.AddExecutor<Ion_FriendsInteraction_ServiceExecutor>("IFriendsInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_UserChatInteractions_ServiceExecutor>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
@@ -259,6 +261,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_ArchetypeInteraction_ClientImpl>("IArchetypeInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
+      IonExecutorMetadataStorage.AddClient<Ion_FeatureFlagInteractions_ClientImpl>("IFeatureFlagInteractions");
       IonExecutorMetadataStorage.AddClient<Ion_FriendsInteraction_ClientImpl>("IFriendsInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_UserChatInteractions_ClientImpl>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
