@@ -30,6 +30,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IFriendsInteraction, FriendsInteractionImpl>();
     x.AddService<IUserChatInteractions, UserChatInteractionImpl>();
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
+    x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
 builder.AddSignalRAppHub();
