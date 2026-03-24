@@ -1,8 +1,6 @@
 namespace Argon.Features;
 
 using Api.Features.Orleans.Client;
-using Api.Features.Orleans.Consul;
-using Consul;
 using Env;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
@@ -10,6 +8,7 @@ using Orleans.Configuration;
 using Orleans.Serialization;
 using Orleans.Serialization.Configuration;
 using Services;
+using StackExchange.Redis;
 
 public interface IClusterClientFactory
 {
@@ -24,9 +23,6 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         
         services.AddKeyedSingleton("dc", dc);
 
-        services.Add(new ServiceDescriptor(typeof(IConsulClient), null,
-            (_, _) => provider.GetRequiredService(typeof(IConsulClient)),
-            ServiceLifetime.Singleton));
         services.Add(new ServiceDescriptor(typeof(ILoggerFactory), null,
             (_, _) => provider.GetRequiredService(typeof(ILoggerFactory)),
             ServiceLifetime.Singleton));
@@ -69,7 +65,8 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
         if (env.IsMultiRegion())
             x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
         if (!env.IsSingleInstance())
-            x.AddConsulClustering();
+            x.UseRedisClustering(z
+            => z.ConfigurationOptions = ConfigurationOptions.Parse(config.GetConnectionString("cache")!));
         else
             x.UseLocalhostClustering();
     }

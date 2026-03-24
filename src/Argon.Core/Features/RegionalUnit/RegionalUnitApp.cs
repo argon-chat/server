@@ -2,7 +2,6 @@ namespace Argon.Features.RegionalUnit;
 
 using Env;
 using Vault;
-using Consul;
 using Logging;
 
 public class RegionalUnitApp
@@ -27,8 +26,8 @@ public class RegionalUnitApp
             builder.SetDatacenter(Environment.GetEnvironmentVariable("ARGON_REGION_DC") ?? "ru-3");
             builder.Services.AddKeyedSingleton<string>("dc", Environment.GetEnvironmentVariable("ARGON_REGION_DC") ?? "ru-3");
             builder.AddLogging();
-            builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{builder.Environment.DetermineClientSpace()}"));
-            builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
+            //builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{builder.Environment.DetermineClientSpace()}"));
+            //builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
             return builder;
         }
 
@@ -39,49 +38,51 @@ public class RegionalUnitApp
 
         var key = entryBuilder.Environment.DetermineClientSpace();
 
-        entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
-        entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
+        //entryBuilder.Services.Configure<ConsulClientConfiguration>(entryBuilder.Configuration.GetSection($"Orleans:{key}"));
+        //entryBuilder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
-        builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
-        builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
+        //builder.Services.Configure<ConsulClientConfiguration>(builder.Configuration.GetSection($"Orleans:{key}"));
+        //builder.Services.AddSingleton<IConsulClient>(q => new ConsulClient(q.GetRequiredService<IOptions<ConsulClientConfiguration>>().Value));
 
-        var app = entryBuilder.Build();
-        app.RunAsync();
+        //var app = entryBuilder.Build();
+        //app.RunAsync();
 
-        await Task.Delay(1000);
+        //await Task.Delay(1000);
 
-        var unitContainer = app.Services;
+        //var unitContainer = app.Services;
 
-        var consul = unitContainer.GetRequiredService<IConsulClient>();
+        ////var consul = unitContainer.GetRequiredService<IConsulClient>();
 
-        var agent = await consul.Agent.Self();
+        //var agent = await consul.Agent.Self();
 
-        var dc = agent.Response["Config"]["Datacenter"] as string ?? 
-            throw new InvalidOperationException($"Invalid response from consul");
+        //var dc = agent.Response["Config"]["Datacenter"] as string ?? 
+        //    throw new InvalidOperationException($"Invalid response from consul");
 
-        builder.Services.AddKeyedSingleton(UNIT_DI_CONTAINER, unitContainer);
-        builder.Services.AddSingleton<IArgonClusterRouter, ClusterRouter>();
-        builder.SetDatacenter(dc);
-        builder.Services.AddKeyedSingleton("dc", dc);
+        //builder.Services.AddKeyedSingleton(UNIT_DI_CONTAINER, unitContainer);
+        //builder.Services.AddSingleton<IArgonClusterRouter, ClusterRouter>();
+        //builder.SetDatacenter(dc);
+        //builder.Services.AddKeyedSingleton("dc", dc);
 
-        if (!builder.Environment.IsMultiRegion())
-            return builder;
+        //if (!builder.Environment.IsMultiRegion())
+        //    return builder;
 
-        var allDatacenters = await consul.Catalog.Datacenters();
+        //var allDatacenters = await consul.Catalog.Datacenters();
 
-        if (allDatacenters.Response.Length == 0)
-            throw new InvalidOperationException($"No datacenter available found");
-        if (allDatacenters.Response.Length == 1)
-            throw new InvalidOperationException($"Single datacenter not support in Multi Regional mode");
+        //if (allDatacenters.Response.Length == 0)
+        //    throw new InvalidOperationException($"No datacenter available found");
+        //if (allDatacenters.Response.Length == 1)
+        //    throw new InvalidOperationException($"Single datacenter not support in Multi Regional mode");
 
-        var pos = await consul.KV.Get($"region/pos");
+        //var pos = await consul.KV.Get($"region/pos");
 
-        if (pos.Response is null)
-            throw new InvalidOperationException($"No defined argon configuration for '{dc}' datacenter");
+        //if (pos.Response is null)
+        //    throw new InvalidOperationException($"No defined argon configuration for '{dc}' datacenter");
 
-        var jsonData = JsonConvert.DeserializeObject<ArgonUnitDto>(Encoding.UTF8.GetString(pos.Response.Value))!;
+        //var jsonData = JsonConvert.DeserializeObject<ArgonUnitDto>(Encoding.UTF8.GetString(pos.Response.Value))!;
 
-        builder.Services.AddSingleton<ArgonUnitOptions>(_ => new ArgonUnitOptions(dc, key, jsonData.pos, IPAddress.Parse(jsonData.ip)));
-        return builder;
+        //builder.Services.AddSingleton<ArgonUnitOptions>(_ => new ArgonUnitOptions(dc, key, jsonData.pos, IPAddress.Parse(jsonData.ip)));
+        //return builder;
+
+        throw null;
     }
 }

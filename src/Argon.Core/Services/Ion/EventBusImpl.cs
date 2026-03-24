@@ -1,9 +1,6 @@
 namespace Argon.Services.Ion;
 
 using System.IdentityModel.Tokens.Jwt;
-using Api.Features.Bus;
-using Consul;
-using k8s.KubeConfigModels;
 using Microsoft.IdentityModel.Tokens;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
