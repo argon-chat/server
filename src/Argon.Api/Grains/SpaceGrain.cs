@@ -13,7 +13,6 @@ using Persistence.States;
 using Services.L1L2;
 using System.Linq;
 
-[GrainDirectory(GrainDirectoryName = "servers")]
 public class SpaceGrain(
     [PersistentState("realtime-server", IUserSessionGrain.StorageId)]
     IPersistentState<RealtimeServerGrainState> state,

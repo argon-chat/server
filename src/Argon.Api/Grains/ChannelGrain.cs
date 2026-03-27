@@ -14,7 +14,6 @@ using Sfu;
 using System.Diagnostics;
 using Core.Features.Transport;
 
-[GrainDirectory(GrainDirectoryName = "channels")]
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,

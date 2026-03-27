@@ -122,12 +122,7 @@ public static class OrleansExtension
 
 
                 siloBuilder
-                   .AddDistributedGrainDirectory("servers")
-                   .AddDistributedGrainDirectory("channels")
-                   .AddDistributedGrainDirectory("@meets/meetings")
-                   .AddDistributedGrainDirectory("@meets/invite-codes")
-                   .AddDistributedGrainDirectory("@meets/join-requests")
-                   .AddDistributedGrainDirectory("@meets/meeting-quotas")
+                   .AddDistributedGrainDirectory()
                    .UseRedisClustering(x
                         => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!));
             });
@@ -205,29 +200,10 @@ public static class OrleansExtension
                         options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
                         options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                     });
-                if (Environment.GetEnvironmentVariable("LOCAL_CLUSTERING") is not null)
-                    siloBuilder
-                       .UseLocalhostClustering()
-                       .AddDistributedGrainDirectory("servers")
-                       .AddDistributedGrainDirectory("channels")
-                       .AddDistributedGrainDirectory("@meets/invites")
-                       .AddDistributedGrainDirectory("@meets/join_requests")
-                       .AddDistributedGrainDirectory("@meets/meetings")
-                       .AddDistributedGrainDirectory("@meets/meeting-quotas")
-                       .AddDistributedGrainDirectory("@meets/quotas");
-                else
-                {
-                    siloBuilder
-                       .AddDistributedGrainDirectory("servers")
-                       .AddDistributedGrainDirectory("channels")
-                       .AddDistributedGrainDirectory("@meets/invites")
-                       .AddDistributedGrainDirectory("@meets/join_requests")
-                       .AddDistributedGrainDirectory("@meets/meetings")
-                       .AddDistributedGrainDirectory("@meets/meeting-quotas")
-                       .AddDistributedGrainDirectory("@meets/quotas")
-                       .UseRedisClustering(x
-                            => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!));
-                }
+                siloBuilder
+                   .AddDistributedGrainDirectory()
+                   .UseRedisClustering(x
+                        => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!));
             });
 
             if (builder.Environment.IsWorker() || builder.Environment.IsHybrid())
