@@ -40,9 +40,9 @@ public class UserLevelGrain(
     /// <summary>
     /// Multiplier for expanding XP
     ///
-    /// 8.42 ~= 144069 XP
+    /// 4.42 ~= 74069 XP
     /// </summary>
-    private const double Multiplier = 8.42;
+    private const double Multiplier = 4.42;
 
     /// <summary>
     /// Maximum coin tier per year.
