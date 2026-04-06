@@ -203,6 +203,28 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<i8>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SendMessageWithReadback_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 6;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __text = IonFormatterStorage<string>.Read(reader);
+        var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
+        var __randomid = IonFormatterStorage<i8>.Read(reader);
+        var __replyto = reader.ReadNullable<i8>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SendMessageWithReadback(__spaceid, __channelid, __text, __entities, __randomid, __replyto);
+        
+        IonFormatterStorage<SendMessageReadback>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -408,6 +430,8 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return QueryMessages_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessage", StringComparison.InvariantCultureIgnoreCase))
             return SendMessage_Execute(reader, writer, ct);
+        if (methodName.Equals("SendMessageWithReadback", StringComparison.InvariantCultureIgnoreCase))
+            return SendMessageWithReadback_Execute(reader, writer, ct);
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
             return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))

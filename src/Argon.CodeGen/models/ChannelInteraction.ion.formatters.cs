@@ -213,6 +213,33 @@ public sealed class Ion_AttachmentInfo_Formatter : IonFormatter<AttachmentInfo>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SendMessageReadback_Formatter : IonFormatter<SendMessageReadback>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SendMessageReadback Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __randomid = IonFormatterStorage<i8>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__messageid, __channelid, __spaceid, __randomid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SendMessageReadback value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<i8>.Write(writer, value.randomId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_NotificationCounterKv_Formatter : IonFormatter<NotificationCounterKv>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

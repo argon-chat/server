@@ -62,6 +62,16 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
 
+    public async Task<SendMessageReadback> SendMessageWithReadback(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
+        long randomId, long? replyTo,
+        CancellationToken ct = default)
+    {
+        var msgId = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
+        return new SendMessageReadback(msgId, channelId, spaceId, randomId);
+    }
+
     public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this
            .GetGrain<IChannelGrain>(channelId)

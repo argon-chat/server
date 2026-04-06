@@ -29,6 +29,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
       IonFormatterStorage<AttachmentInfo>.Value = new Ion_AttachmentInfo_Formatter();
+      IonFormatterStorage<SendMessageReadback>.Value = new Ion_SendMessageReadback_Formatter();
       IonFormatterStorage<NotificationCounterKv>.Value = new Ion_NotificationCounterKv_Formatter();
       IonFormatterStorage<UserActivityPresence>.Value = new Ion_UserActivityPresence_Formatter();
       IonFormatterStorage<ChannelGroup>.Value = new Ion_ChannelGroup_Formatter();

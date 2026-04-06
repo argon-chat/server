@@ -43,6 +43,10 @@ public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, s
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SendMessageReadback(i8 messageId, guid channelId, guid spaceId, i8 randomId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record NotificationCounterKv(string counterType, i8 count);
 
 
@@ -141,6 +145,7 @@ public interface IChannelInteraction : IIonService
     Task UpdateChannelGroup(guid spaceId, guid channelId, guid groupId, string? name, string? description, CancellationToken ct = default);
     Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, i8? from, i4 limit, CancellationToken ct = default);
     Task<i8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
+    Task<SendMessageReadback> SendMessageWithReadback(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkStreamResult> InterlinkStream(guid spaceId, guid channelId, i4 density, CancellationToken ct = default);
