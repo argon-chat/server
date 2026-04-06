@@ -13,6 +13,7 @@ using Persistence.States;
 using Sfu;
 using System.Diagnostics;
 using Core.Features.Transport;
+using Features.MediaStorage;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
@@ -21,6 +22,7 @@ public class ChannelGrain(
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
     AppHubServer appHubServer,
+    IKineticaFSApi kineticaFs,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -587,6 +589,17 @@ public class ChannelGrain(
         var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
+
+        if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment))
+        {
+            await using var ectx = await context.CreateDbContextAsync();
+            if (!await entitlementChecker.HasAccessAsync(ectx, SpaceId, senderId, ArgonEntitlement.AttachFiles))
+                throw new InvalidOperationException("User does not have AttachFiles permission");
+
+            var attachmentCount = entities.Count(e => e is MessageEntityAttachment);
+            if (attachmentCount > 10)
+                throw new InvalidOperationException("Maximum 10 attachments per message");
+        }
         
         logger.LogInformation(
             "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, TextLength={TextLength}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
@@ -732,5 +745,37 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
+    }
+
+    private const uint AttachmentFileLimitMb = 8;
+
+    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default)
+    {
+        try
+        {
+            var userId = this.GetUserId();
+            await using var ctx = await context.CreateDbContextAsync(ct);
+
+            if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.AttachFiles, ct))
+                return UploadFileError.NOT_AUTHORIZED;
+
+            var result = await kineticaFs.CreateUploadUrlAsync(AttachmentFileLimitMb, null, ct);
+            return new BlobId(result);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to begin upload attachment for channel {ChannelId}", this.GetPrimaryKey());
+            return UploadFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default)
+    {
+        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        // Re-read finalized file metadata is not available from KineticaFS API currently,
+        // so we return the fileId with placeholder metadata. The client already knows the file details.
+        return new AttachmentInfo(fileId, string.Empty, 0, string.Empty);
     }
 }

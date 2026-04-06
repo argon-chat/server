@@ -83,6 +83,12 @@ public interface IChannelGrain : IGrainWithGuidKey
     /// </summary>
     [Alias("LeaveFromMeetingAsync")]
     Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default);
+
+    [Alias(nameof(BeginUploadAttachment))]
+    ValueTask<Either<BlobId, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default);
+
+    [Alias(nameof(CompleteUploadAttachment))]
+    ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default);
 }
 
 /// <summary>

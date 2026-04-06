@@ -186,6 +186,33 @@ public sealed class Ion_RealtimeChannelUser_Formatter : IonFormatter<RealtimeCha
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AttachmentInfo_Formatter : IonFormatter<AttachmentInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AttachmentInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __fileid = IonFormatterStorage<guid>.Read(reader);
+        var __filename = IonFormatterStorage<string>.Read(reader);
+        var __filesize = IonFormatterStorage<i8>.Read(reader);
+        var __contenttype = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__fileid, __filename, __filesize, __contenttype);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AttachmentInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.fileId);
+        IonFormatterStorage<string>.Write(writer, value.fileName);
+        IonFormatterStorage<i8>.Write(writer, value.fileSize);
+        IonFormatterStorage<string>.Write(writer, value.contentType);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_NotificationCounterKv_Formatter : IonFormatter<NotificationCounterKv>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

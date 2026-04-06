@@ -134,4 +134,16 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public async Task EndLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).EndLinkedMeetingAsync(ct);
+
+    public async Task<IUploadFileResult> BeginUploadAttachment(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).BeginUploadAttachment(ct);
+
+        if (result.IsSuccess)
+            return new SuccessUploadFile(result.Value.Id);
+        return new FailedUploadFile(result.Error);
+    }
+
+    public async Task<AttachmentInfo> CompleteUploadAttachment(Guid spaceId, Guid channelId, Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).CompleteUploadAttachment(blobId, ct);
 }

@@ -344,6 +344,43 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         await service.EndLinkedMeeting(__spaceid, __channelid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadAttachment_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadAttachment(__spaceid, __channelid);
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadAttachment_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CompleteUploadAttachment(__spaceid, __channelid, __blobid);
+        
+        IonFormatterStorage<AttachmentInfo>.Write(writer, result);
+    }
 
     
     
@@ -387,6 +424,10 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return CreateLinkedMeeting_Execute(reader, writer, ct);
         if (methodName.Equals("EndLinkedMeeting", StringComparison.InvariantCultureIgnoreCase))
             return EndLinkedMeeting_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadAttachment_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadAttachment_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

@@ -54,6 +54,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(CreateLinkedMeeting), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> EndLinkedMeeting_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(EndLinkedMeeting), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadAttachment_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(BeginUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadAttachment_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(CompleteUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -401,6 +405,43 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadAttachment(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), BeginUploadAttachment_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AttachmentInfo> CompleteUploadAttachment(guid __spaceid, guid __channelid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), CompleteUploadAttachment_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AttachmentInfo>(writer.Encode(), ct: ct);
     }
 
 }

@@ -28,6 +28,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
+      IonFormatterStorage<AttachmentInfo>.Value = new Ion_AttachmentInfo_Formatter();
       IonFormatterStorage<NotificationCounterKv>.Value = new Ion_NotificationCounterKv_Formatter();
       IonFormatterStorage<UserActivityPresence>.Value = new Ion_UserActivityPresence_Formatter();
       IonFormatterStorage<ChannelGroup>.Value = new Ion_ChannelGroup_Formatter();
@@ -141,6 +142,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntitySystemCallEnded>.Value = new Ion_MessageEntitySystemCallEnded_Formatter();
       IonFormatterStorage<MessageEntitySystemCallTimeout>.Value = new Ion_MessageEntitySystemCallTimeout_Formatter();
       IonFormatterStorage<MessageEntitySystemUserJoined>.Value = new Ion_MessageEntitySystemUserJoined_Formatter();
+      IonFormatterStorage<MessageEntityAttachment>.Value = new Ion_MessageEntityAttachment_Formatter();
       IonFormatterStorage<SuccessJoinVoice>.Value = new Ion_SuccessJoinVoice_Formatter();
       IonFormatterStorage<FailedJoinVoice>.Value = new Ion_FailedJoinVoice_Formatter();
       IonFormatterStorage<SuccessStartStream>.Value = new Ion_SuccessStartStream_Formatter();

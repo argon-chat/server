@@ -39,6 +39,10 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, string contentType);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record NotificationCounterKv(string counterType, i8 count);
 
 
@@ -88,6 +92,7 @@ public enum EntityType
     SystemCallEnded = 15,
     SystemCallTimeout = 16,
     SystemUserJoined = 17,
+    Attachment = 18,
 }
 
 
@@ -144,6 +149,8 @@ public interface IChannelInteraction : IIonService
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<LinkedMeetingInfo> CreateLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
     Task EndLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadAttachment(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<AttachmentInfo> CompleteUploadAttachment(guid spaceId, guid channelId, guid blobId, CancellationToken ct = default);
 }
 
 
@@ -200,6 +207,8 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
     internal bool IsMessageEntitySystemCallTimeout => this is MessageEntitySystemCallTimeout;
 
     internal bool IsMessageEntitySystemUserJoined => this is MessageEntitySystemUserJoined;
+
+    internal bool IsMessageEntityAttachment => this is MessageEntityAttachment;
 
 }
 
@@ -330,6 +339,13 @@ public sealed record MessageEntitySystemUserJoined(EntityType type, i4 offset, i
     public uint UnionIndex => 17;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityAttachment(EntityType type, i4 offset, i4 length, i4 version, guid fileId, string fileName, i8 fileSize, string contentType, i4? width, i4? height, string? thumbHash) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityAttachment);
+    public uint UnionIndex => 18;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -395,6 +411,9 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
 
         else if (unionIndex == 17)
             result = IonFormatterStorage<MessageEntitySystemUserJoined>.Read(reader);
+
+        else if (unionIndex == 18)
+            result = IonFormatterStorage<MessageEntityAttachment>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -533,6 +552,13 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
             if (n_17.UnionIndex != 17)
                 throw new InvalidOperationException();
             IonFormatterStorage<MessageEntitySystemUserJoined>.Write(writer, n_17);
+        }
+
+        else if (value is MessageEntityAttachment n_18)
+        {
+            if (n_18.UnionIndex != 18)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityAttachment>.Write(writer, n_18);
         }
     
         else
@@ -1060,6 +1086,47 @@ public sealed class Ion_MessageEntitySystemUserJoined_Formatter : IonFormatter<M
         IonFormatterStorage<i4>.Write(writer, value.version);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<guid>.WriteNullable(writer, value.inviterId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityAttachment_Formatter : IonFormatter<MessageEntityAttachment>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityAttachment Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __fileid = IonFormatterStorage<guid>.Read(reader);
+        var __filename = IonFormatterStorage<string>.Read(reader);
+        var __filesize = IonFormatterStorage<i8>.Read(reader);
+        var __contenttype = IonFormatterStorage<string>.Read(reader);
+        var __width = reader.ReadNullable<i4>();
+        var __height = reader.ReadNullable<i4>();
+        var __thumbhash = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__type, __offset, __length, __version, __fileid, __filename, __filesize, __contenttype, __width, __height, __thumbhash);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityAttachment value)
+    {
+        writer.WriteStartArray(11);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<guid>.Write(writer, value.fileId);
+        IonFormatterStorage<string>.Write(writer, value.fileName);
+        IonFormatterStorage<i8>.Write(writer, value.fileSize);
+        IonFormatterStorage<string>.Write(writer, value.contentType);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.width);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.height);
+        IonFormatterStorage<string>.WriteNullable(writer, value.thumbHash);
         writer.WriteEndArray();
     }
 }
