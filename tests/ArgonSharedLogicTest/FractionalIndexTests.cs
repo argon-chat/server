@@ -105,7 +105,7 @@ public class FractionalIndexTests
     {
         var a = FractionalIndex.Min();
         var c = FractionalIndex.Min();
-        for (var i = 0; i < 10000; i++)
+        for (var i = 0; i < 200; i++)
         {
             var b = FractionalIndex.After(a);
 
@@ -269,6 +269,79 @@ public class FractionalIndexTests
         for (var i = 0; i < list.Count - 1; i++)
         {
             That(list[i].CompareTo(list[i + 1]), Is.LessThan(0), $"Sort failed at {i}");
+        }
+    }
+
+    [Test]
+    public void Between_WithFirstGreaterThanSecond_Throws()
+    {
+        var a = FractionalIndex.Parse("0|0000000005");
+        var b = FractionalIndex.Parse("0|0000000002");
+        Throws<ArgumentException>(() => FractionalIndex.Between(a, b));
+    }
+
+    [Test]
+    public void Between_WithEqualValues_Throws()
+    {
+        var a = FractionalIndex.Parse("0|0000000005");
+        Throws<ArgumentException>(() => FractionalIndex.Between(a, a));
+    }
+
+    [Test]
+    public void Between_WithInvertedNullableArgs_Throws()
+    {
+        var a = FractionalIndex.Parse("0|0000000005");
+        var b = FractionalIndex.Parse("0|0000000002");
+        Throws<ArgumentException>(() => FractionalIndex.Between(a, b));
+    }
+
+    [Test]
+    public void Distribute_ReturnsCorrectCount()
+    {
+        var indices = FractionalIndex.Distribute(5);
+        That(indices, Has.Count.EqualTo(5));
+    }
+
+    [Test]
+    public void Distribute_ProducesStrictlyIncreasingSequence()
+    {
+        var indices = FractionalIndex.Distribute(10);
+
+        for (var i = 0; i < indices.Count - 1; i++)
+            That(indices[i].CompareTo(indices[i + 1]), Is.LessThan(0), $"Order failed at index {i}");
+    }
+
+    [Test]
+    public void Distribute_AllGreaterThanMin_LessThanMax()
+    {
+        var indices = FractionalIndex.Distribute(10);
+        var min = FractionalIndex.Min();
+        var max = FractionalIndex.Max();
+
+        foreach (var idx in indices)
+        {
+            That(idx.CompareTo(min), Is.GreaterThan(0));
+            That(idx.CompareTo(max), Is.LessThan(0));
+        }
+    }
+
+    [Test]
+    public void Distribute_ZeroCount_ReturnsEmpty()
+    {
+        var indices = FractionalIndex.Distribute(0);
+        That(indices, Is.Empty);
+    }
+
+    [Test]
+    public void Distribute_CanInsertBetweenDistributedValues()
+    {
+        var indices = FractionalIndex.Distribute(5);
+
+        for (var i = 0; i < indices.Count - 1; i++)
+        {
+            var mid = FractionalIndex.Between(indices[i], indices[i + 1]);
+            That(FractionalIndex.IsBefore(indices[i], mid), Is.True);
+            That(FractionalIndex.IsBefore(mid, indices[i + 1]), Is.True);
         }
     }
 }

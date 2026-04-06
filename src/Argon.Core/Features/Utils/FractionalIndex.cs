@@ -42,10 +42,13 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
 
     public static FractionalIndex Between(FractionalIndex a, FractionalIndex b)
     {
+        if (a.CompareTo(b) >= 0)
+            throw new ArgumentException("First index must be less than second index");
+
         var ra = a.RankPart;
         var rb = b.RankPart;
 
-        var mid = MiddleString(ra, rb, RankLength);
+        var mid = MiddleString(ra, rb);
         if (mid == ra || mid == rb)
             throw new InvalidOperationException("Cannot generate between these two values — no space left");
 
@@ -84,15 +87,16 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
     public static bool IsAfter(FractionalIndex a, FractionalIndex b)
         => a.CompareTo(b) > 0;
 
-    private static string MiddleString(string a, string b, int _)
+    private static string MiddleString(string a, string b)
     {
-        if (a == b)
-            throw new ArgumentException("Cannot generate between identical strings");
+        if (string.Compare(a, b, StringComparison.Ordinal) >= 0)
+            throw new ArgumentException("First string must be lexicographically less than second string");
 
+        var maxIterations = Math.Max(a.Length, b.Length) + 2;
         var i      = 0;
         var result = "";
 
-        while (true)
+        while (i < maxIterations)
         {
             var ca = i < a.Length ? BaseChars.IndexOf(a[i]) : 0;
             var cb = i < b.Length ? BaseChars.IndexOf(b[i]) : Base - 1;
@@ -107,6 +111,8 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
             result += BaseChars[ca];
             i++;
         }
+
+        throw new InvalidOperationException("Cannot generate middle string — exceeded maximum precision");
     }
 
     public FractionalIndex Increment()
@@ -114,11 +120,27 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
         var rank   = RankPart;
         var bucket = BucketPart;
 
-        var n = Base36ToBigInt(rank);
-        if (n >= Base36ToBigInt(new string('z', RankLength)))
+        var chars = rank.ToCharArray();
+        var carry = 1;
+        for (var i = chars.Length - 1; i >= 0 && carry > 0; i--)
+        {
+            var val = BaseChars.IndexOf(chars[i]) + carry;
+            if (val >= Base)
+            {
+                chars[i] = BaseChars[0];
+                carry = 1;
+            }
+            else
+            {
+                chars[i] = BaseChars[val];
+                carry = 0;
+            }
+        }
+
+        if (carry > 0)
             throw new InvalidOperationException("Cannot increment beyond max");
 
-        var next = BigIntToBase36(n + 1).PadLeft(RankLength, '0');
+        var next = new string(chars);
         return new FractionalIndex($"{bucket}|{next}");
     }
 
@@ -128,11 +150,30 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
         var rank   = RankPart;
         var bucket = BucketPart;
 
-        var n = Base36ToBigInt(rank);
-        if (n == 0)
+        var chars = rank.ToCharArray();
+        var borrow = 1;
+        for (var i = chars.Length - 1; i >= 0 && borrow > 0; i--)
+        {
+            var val = BaseChars.IndexOf(chars[i]) - borrow;
+            if (val < 0)
+            {
+                chars[i] = BaseChars[Base - 1];
+                borrow = 1;
+            }
+            else
+            {
+                chars[i] = BaseChars[val];
+                borrow = 0;
+            }
+        }
+
+        if (borrow > 0)
             throw new InvalidOperationException("Cannot decrement beyond min");
 
-        var prev = BigIntToBase36(n - 1).PadLeft(RankLength, '0');
+        var prev = new string(chars);
+        if (prev.All(c => c == '0'))
+            throw new InvalidOperationException("Cannot decrement beyond min");
+
         return new FractionalIndex($"{bucket}|{prev}");
     }
 
@@ -162,5 +203,22 @@ public record struct FractionalIndex(string Value) : IComparable, IComparable<Fr
         return result;
     }
 
+    /// <summary>
+    /// Generates evenly-distributed FractionalIndex values across the available range.
+    /// </summary>
+    public static List<FractionalIndex> Distribute(int count)
+    {
+        if (count <= 0) return [];
 
+        var maxVal = Base36ToBigInt(new string('z', RankLength));
+        var step   = maxVal / (ulong)(count + 1);
+
+        var result = new List<FractionalIndex>(count);
+        for (var i = 0; i < count; i++)
+        {
+            var rank = BigIntToBase36(step * (ulong)(i + 1)).PadLeft(RankLength, '0');
+            result.Add(new FractionalIndex($"0|{rank}"));
+        }
+        return result;
+    }
 }

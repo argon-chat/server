@@ -380,6 +380,8 @@ public class SpaceGrain(
         return group;
     }
 
+    private const int RebalanceThreshold = 20;
+
     public async Task MoveChannelGroup(Guid groupId, Guid? afterGroupId, Guid? beforeGroupId)
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -416,8 +418,12 @@ public class SpaceGrain(
         }
         else
         {
-            var afterGroup  = afterGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(afterGroupId.Value) : null;
-            var beforeGroup = beforeGroupId.HasValue ? await ctx.Set<ChannelGroupEntity>().FindAsync(beforeGroupId.Value) : null;
+            var afterGroup = afterGroupId.HasValue
+                ? await ctx.Set<ChannelGroupEntity>().FirstOrDefaultAsync(g => g.Id == afterGroupId.Value && g.SpaceId == spaceId)
+                : null;
+            var beforeGroup = beforeGroupId.HasValue
+                ? await ctx.Set<ChannelGroupEntity>().FirstOrDefaultAsync(g => g.Id == beforeGroupId.Value && g.SpaceId == spaceId)
+                : null;
 
             var afterIndex = afterGroup != null && !string.IsNullOrEmpty(afterGroup.FractionalIndex)
                 ? FractionalIndex.Parse(afterGroup.FractionalIndex)
@@ -426,15 +432,33 @@ public class SpaceGrain(
                 ? FractionalIndex.Parse(beforeGroup.FractionalIndex)
                 : (FractionalIndex?)null;
 
+            if (afterIndex != null && beforeIndex != null && afterIndex.Value.CompareTo(beforeIndex.Value) >= 0)
+                return;
+
             if (afterIndex == null && beforeIndex is { IsMin: true })
+            {
+                var nextGroup = await ctx.Set<ChannelGroupEntity>()
+                   .Where(g => g.SpaceId == spaceId && g.Id != groupId && g.Id != beforeGroup!.Id)
+                   .Where(g => string.Compare(g.FractionalIndex, beforeGroup!.FractionalIndex) > 0)
+                   .OrderBy(g => g.FractionalIndex)
+                   .FirstOrDefaultAsync();
+
+                beforeGroup!.FractionalIndex = nextGroup != null && !string.IsNullOrEmpty(nextGroup.FractionalIndex)
+                    ? FractionalIndex.Between(beforeIndex.Value, FractionalIndex.Parse(nextGroup.FractionalIndex)).Value
+                    : FractionalIndex.After(beforeIndex.Value).Value;
+
                 newIndex = FractionalIndex.Min();
-            else if (beforeIndex is { IsMin: true } && afterIndex != null)
-                newIndex = FractionalIndex.Between(FractionalIndex.Min(), afterIndex.Value);
+            }
             else
+            {
                 newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+            }
         }
 
         group.FractionalIndex = newIndex.Value;
+
+        if (group.FractionalIndex.Length > RebalanceThreshold)
+            await RebalanceGroupOrder(ctx, spaceId);
 
         await ctx.SaveChangesAsync();
 
@@ -563,8 +587,12 @@ public class SpaceGrain(
         }
         else
         {
-            var afterChannel  = afterChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(afterChannelId.Value) : null;
-            var beforeChannel = beforeChannelId.HasValue ? await ctx.Set<ChannelEntity>().FindAsync(beforeChannelId.Value) : null;
+            var afterChannel = afterChannelId.HasValue
+                ? await ctx.Set<ChannelEntity>().FirstOrDefaultAsync(c => c.Id == afterChannelId.Value && c.SpaceId == spaceId)
+                : null;
+            var beforeChannel = beforeChannelId.HasValue
+                ? await ctx.Set<ChannelEntity>().FirstOrDefaultAsync(c => c.Id == beforeChannelId.Value && c.SpaceId == spaceId)
+                : null;
 
             var afterIndex = afterChannel != null && !string.IsNullOrEmpty(afterChannel.FractionalIndex)
                 ? FractionalIndex.Parse(afterChannel.FractionalIndex)
@@ -573,15 +601,33 @@ public class SpaceGrain(
                 ? FractionalIndex.Parse(beforeChannel.FractionalIndex)
                 : (FractionalIndex?)null;
 
+            if (afterIndex != null && beforeIndex != null && afterIndex.Value.CompareTo(beforeIndex.Value) >= 0)
+                return;
+
             if (afterIndex == null && beforeIndex is { IsMin: true })
+            {
+                var nextChannel = await ctx.Set<ChannelEntity>()
+                   .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == targetGroupId && c.Id != channelId && c.Id != beforeChannel!.Id)
+                   .Where(c => string.Compare(c.FractionalIndex, beforeChannel!.FractionalIndex) > 0)
+                   .OrderBy(c => c.FractionalIndex)
+                   .FirstOrDefaultAsync();
+
+                beforeChannel!.FractionalIndex = nextChannel != null && !string.IsNullOrEmpty(nextChannel.FractionalIndex)
+                    ? FractionalIndex.Between(beforeIndex.Value, FractionalIndex.Parse(nextChannel.FractionalIndex)).Value
+                    : FractionalIndex.After(beforeIndex.Value).Value;
+
                 newIndex = FractionalIndex.Min();
-            else if (beforeIndex is { IsMin: true } && afterIndex != null)
-                newIndex = FractionalIndex.Between(FractionalIndex.Min(), afterIndex.Value);
+            }
             else
+            {
                 newIndex = FractionalIndex.Between(afterIndex, beforeIndex);
+            }
         }
 
         channel.FractionalIndex = newIndex.Value;
+
+        if (channel.FractionalIndex.Length > RebalanceThreshold)
+            await RebalanceChannelOrder(ctx, spaceId, targetGroupId);
 
         await ctx.SaveChangesAsync();
 
@@ -704,5 +750,27 @@ public class SpaceGrain(
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
+    }
+
+    private static async Task RebalanceGroupOrder(ApplicationDbContext ctx, Guid spaceId)
+    {
+        var items = await ctx.Set<ChannelGroupEntity>()
+           .Where(g => g.SpaceId == spaceId)
+           .ToListAsync();
+        items.Sort((a, b) => string.Compare(a.FractionalIndex, b.FractionalIndex, StringComparison.Ordinal));
+        var indices = FractionalIndex.Distribute(items.Count);
+        for (var i = 0; i < items.Count; i++)
+            items[i].FractionalIndex = indices[i].Value;
+    }
+
+    private static async Task RebalanceChannelOrder(ApplicationDbContext ctx, Guid spaceId, Guid? groupId)
+    {
+        var items = await ctx.Set<ChannelEntity>()
+           .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == groupId)
+           .ToListAsync();
+        items.Sort((a, b) => string.Compare(a.FractionalIndex, b.FractionalIndex, StringComparison.Ordinal));
+        var indices = FractionalIndex.Distribute(items.Count);
+        for (var i = 0; i < items.Count; i++)
+            items[i].FractionalIndex = indices[i].Value;
     }
 }
