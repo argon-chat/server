@@ -12,7 +12,7 @@ public class FriendsGrain(
     ILogger<IFriendsGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
-    INotificationCounterService notificationCounter) : Grain, IFriendsGrain
+    ISystemNotificationService systemNotification) : Grain, IFriendsGrain
 {
     private async Task NotifyAsync<T>(Guid userId, T payload) where T : IArgonEvent
     {
@@ -150,8 +150,6 @@ public class FriendsGrain(
                 await ctx.SaveChangesAsync(ct);
             }, ct);
 
-            await notificationCounter.DecrementAsync(me, NotificationCounterType.PendingFriendRequests, 1, ct);
-
             var ts = DateTimeOffset.UtcNow.UtcDateTime;
 
             await NotifyAsync(me,
@@ -182,7 +180,7 @@ public class FriendsGrain(
 
         await ctx.SaveChangesAsync(ct);
 
-        await notificationCounter.IncrementAsync(target.Value, NotificationCounterType.PendingFriendRequests, 1, ct);
+        await systemNotification.CreateAsync(target.Value, SystemNotificationType.FriendRequestReceived, me, "New friend request", null, ct);
 
         await NotifyAsync(target.Value,
             new FriendRequestReceivedEvent(me, DateTimeOffset.UtcNow.UtcDateTime));
@@ -249,7 +247,6 @@ public class FriendsGrain(
             logger.LogWarning("Accept aborted due to blocklist: {User}<->{From}", me, fromUserId);
             ctx.FriendRequest.Remove(request);
             await ctx.SaveChangesAsync(ct);
-            await notificationCounter.DecrementAsync(me, NotificationCounterType.PendingFriendRequests, 1, ct);
             return;
         }
 
@@ -259,7 +256,6 @@ public class FriendsGrain(
             logger.LogInformation("Friendship already exists, removing pending request: {User}<->{From}", me, fromUserId);
             ctx.FriendRequest.Remove(request);
             await ctx.SaveChangesAsync(ct);
-            await notificationCounter.DecrementAsync(me, NotificationCounterType.PendingFriendRequests, 1, ct);
             return;
         }
 
@@ -286,7 +282,7 @@ public class FriendsGrain(
             await ctx.SaveChangesAsync(ct);
         }, ct);
 
-        await notificationCounter.DecrementAsync(me, NotificationCounterType.PendingFriendRequests, 1, ct);
+        await systemNotification.CreateAsync(fromUserId, SystemNotificationType.FriendRequestAccepted, me, "Friend request accepted", null, ct);
 
         var ts = DateTimeOffset.UtcNow.UtcDateTime;
 
@@ -338,8 +334,6 @@ public class FriendsGrain(
         ctx.FriendRequest.Remove(request);
         await ctx.SaveChangesAsync(ct);
 
-        await notificationCounter.DecrementAsync(me, NotificationCounterType.PendingFriendRequests, 1, ct);
-
         await NotifyAsync(fromUserId,
             new FriendRequestDeclinedEvent(me));
 
@@ -365,8 +359,6 @@ public class FriendsGrain(
 
         ctx.FriendRequest.Remove(request);
         await ctx.SaveChangesAsync(ct);
-
-        await notificationCounter.DecrementAsync(toUserId, NotificationCounterType.PendingFriendRequests, 1, ct);
 
         await NotifyAsync(toUserId,
             new FriendRequestCanceledEvent(me));

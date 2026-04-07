@@ -50,8 +50,20 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(GetMyLevel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ClaimLevelCoin_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(ClaimLevelCoin), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> GetNotificationCounters_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(GetNotificationCounters), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetGlobalBadges_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetGlobalBadges), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AckChannel_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(AckChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MuteTarget_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(MuteTarget), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnmuteTarget_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(UnmuteTarget), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetNotificationFeed_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetNotificationFeed), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MarkNotificationRead_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(MarkNotificationRead), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> MarkAllNotificationsRead_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(MarkAllNotificationsRead), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -328,9 +340,9 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default)
+    public async Task<GlobalBadges> GetGlobalBadges(CancellationToken ct = default)
     {
-        var req = new IonRequest(context, typeof(IUserInteraction), GetNotificationCounters_Ref.Value);
+        var req = new IonRequest(context, typeof(IUserInteraction), GetGlobalBadges_Ref.Value);
     
         var writer = new CborWriter();
         
@@ -342,7 +354,115 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<NotificationCounterKv>(writer.Encode(), ct: ct);
+        return await req.CallAsync<GlobalBadges>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AckChannel(guid __channelid, i8 __lastreadmessageid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), AckChannel_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __lastreadmessageid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MuteTarget(guid __targetid, MuteTargetKind __targettype, MuteLevelType __mutelevel, bool __suppresseveryone, datetime? __expiresat, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), MuteTarget_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __targetid);
+        IonFormatterStorage<MuteTargetKind>.Write(writer, __targettype);
+        IonFormatterStorage<MuteLevelType>.Write(writer, __mutelevel);
+        IonFormatterStorage<bool>.Write(writer, __suppresseveryone);
+        IonFormatterStorage<datetime>.WriteNullable(writer, __expiresat);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnmuteTarget(guid __targetid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), UnmuteTarget_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __targetid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<SystemNotificationDto>> GetNotificationFeed(i4 __limit, datetime? __before, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetNotificationFeed_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<datetime>.WriteNullable(writer, __before);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<SystemNotificationDto>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkNotificationRead(guid __notificationid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), MarkNotificationRead_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __notificationid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkAllNotificationsRead(string? __type, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), MarkAllNotificationsRead_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.WriteNullable(writer, __type);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
     }
 
 }

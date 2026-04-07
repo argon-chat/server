@@ -47,6 +47,11 @@ public class ConversationEntity : IEntityTypeConfiguration<ConversationEntity>
     /// </summary>
     public Guid? LastMessageSenderId { get; set; }
 
+    /// <summary>
+    /// ID of the last message in this conversation (for cursor-based read tracking).
+    /// </summary>
+    public long LastMessageId { get; set; }
+
     public void Configure(EntityTypeBuilder<ConversationEntity> b)
     {
         b.ToTable(TableName);

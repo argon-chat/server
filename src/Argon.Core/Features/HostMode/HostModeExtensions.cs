@@ -164,7 +164,7 @@ public static class HostModeExtensions
             });
        
             builder.AddUserPresenceFeature();
-            builder.AddNotificationCounterFeature();
+            builder.AddNotificationFeature();
             builder.AddArgonCacheDatabase();
             builder.AddArgonAuthorization();
             builder.AddJwt();

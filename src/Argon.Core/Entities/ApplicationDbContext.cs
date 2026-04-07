@@ -25,6 +25,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<ArgonCouponEntity>                 Coupons                      => Set<ArgonCouponEntity>();
     public DbSet<ArgonCouponRedemptionEntity>       CouponRedemption             => Set<ArgonCouponRedemptionEntity>();
     public DbSet<NotificationCounterEntity>         NotificationCounters         => Set<NotificationCounterEntity>();
+    public DbSet<ChannelReadStateEntity>             ChannelReadStates            => Set<ChannelReadStateEntity>();
+    public DbSet<MuteSettingsEntity>                 MuteSettings                 => Set<MuteSettingsEntity>();
+    public DbSet<SystemNotificationEntity>           SystemNotifications          => Set<SystemNotificationEntity>();
 
 #region Feature Flags
 

@@ -153,7 +153,13 @@ public interface IUserInteraction : IIonService
     Task<TodayStats> GetTodayStats(CancellationToken ct = default);
     Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default);
     Task<bool> ClaimLevelCoin(CancellationToken ct = default);
-    Task<IonArray<NotificationCounterKv>> GetNotificationCounters(CancellationToken ct = default);
+    Task<GlobalBadges> GetGlobalBadges(CancellationToken ct = default);
+    Task AckChannel(guid channelId, i8 lastReadMessageId, CancellationToken ct = default);
+    Task MuteTarget(guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, datetime? expiresAt, CancellationToken ct = default);
+    Task UnmuteTarget(guid targetId, CancellationToken ct = default);
+    Task<IonArray<SystemNotificationDto>> GetNotificationFeed(i4 limit, datetime? before, CancellationToken ct = default);
+    Task MarkNotificationRead(guid notificationId, CancellationToken ct = default);
+    Task MarkAllNotificationsRead(string? type, CancellationToken ct = default);
 }
 
 

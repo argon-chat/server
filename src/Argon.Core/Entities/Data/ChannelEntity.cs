@@ -23,6 +23,8 @@ public record ChannelEntity :
     public TimeSpan? SlowMode              { get; set; }
     public bool      DoNotRestrictBoosters { get; set; }
 
+    public long LastMessageId { get; set; }
+
     public virtual ICollection<ChannelEntitlementOverwriteEntity> EntitlementOverwrites { get; set; }
         = new List<ChannelEntitlementOverwriteEntity>();
     public ICollection<IArchetypeOverwrite> Overwrites
@@ -30,7 +32,7 @@ public record ChannelEntity :
 
     public static ArgonChannel Map(scoped in ChannelEntity self)
         => new(self.ChannelType, self.SpaceId, self.Id, self.Name, self.Description, self.ChannelGroupId,
-            string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex);
+            string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex, self.LastMessageId);
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {

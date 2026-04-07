@@ -14,6 +14,8 @@ using Sfu;
 using System.Diagnostics;
 using Core.Features.Transport;
 using Features.MediaStorage;
+using Argon.Core.Features.Logic;
+using Core.Entities.Data;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
@@ -663,6 +665,12 @@ public class ChannelGrain(
         }
 
         await Fire(new MessageSent(_self.SpaceId, dto));
+
+        // Update channel LastMessageId
+        _ = UpdateLastMessageIdAsync(msgId);
+
+        // Process mentions asynchronously (don't block message delivery)
+        _ = ProcessMentionsAsync(entities, msgId, senderId);
         
         sw.Stop();
         
@@ -737,6 +745,93 @@ public class ChannelGrain(
         catch
         {
             // Fire and forget - stats tracking should not fail main operation
+        }
+    }
+
+    private async Task UpdateLastMessageIdAsync(long messageId)
+    {
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync();
+            await ctx.Channels
+                .Where(c => c.Id == this.GetPrimaryKey())
+                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastMessageId, messageId));
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", this.GetPrimaryKey());
+        }
+    }
+
+    private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId)
+    {
+        if (entities is null or { Count: 0 }) return;
+
+        try
+        {
+            var readStateService = ServiceProvider.GetService<IReadStateService>();
+            if (readStateService is null) return;
+
+            var userMentions = entities.OfType<MessageEntityMention>().ToList();
+            foreach (var mention in userMentions)
+            {
+                if (mention.userId == senderId) continue;
+                await readStateService.IncrementMentionsAsync(mention.userId, this.GetPrimaryKey(), _self.SpaceId, 1);
+            }
+
+            var hasEveryoneMention = entities.OfType<MessageEntityMentionEveryone>().Any();
+            var roleMentions = entities.OfType<MessageEntityMentionRole>().ToList();
+
+            if (hasEveryoneMention || roleMentions.Count > 0)
+            {
+                var muteService = ServiceProvider.GetService<IMuteSettingsService>();
+                if (muteService is null) return;
+
+                await using var ctx = await context.CreateDbContextAsync();
+
+                if (hasEveryoneMention)
+                {
+                    var allMembers = await ctx.UsersToServerRelations
+                        .Where(m => m.SpaceId == _self.SpaceId && m.UserId != senderId)
+                        .Select(m => m.UserId)
+                        .ToListAsync();
+
+                    var mutedUsers = await muteService.FilterMutedUsersAsync(this.GetPrimaryKey(), _self.SpaceId, allMembers);
+                    var suppressUsers = await ctx.Set<MuteSettingsEntity>()
+                        .Where(m => allMembers.Contains(m.UserId) && m.SuppressEveryone && (m.TargetId == _self.SpaceId || m.TargetId == this.GetPrimaryKey()))
+                        .Select(m => m.UserId)
+                        .Distinct()
+                        .ToListAsync();
+
+                    var targetUsers = allMembers
+                        .Where(u => !mutedUsers.Contains(u) && !suppressUsers.Contains(u))
+                        .ToList();
+
+                    await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+
+                    await Fire(new BatchMentionOccurred(_self.SpaceId, this.GetPrimaryKey(), MentionTargetType.Everyone));
+                }
+
+                foreach (var roleMention in roleMentions)
+                {
+                    var roleMembers = await ctx.MemberArchetypes
+                        .Where(m => m.ArchetypeId == roleMention.archetypeId)
+                        .Select(m => m.ServerMember.UserId)
+                        .Where(u => u != senderId)
+                        .ToListAsync();
+
+                    var mutedUsers = await muteService.FilterMutedUsersAsync(this.GetPrimaryKey(), _self.SpaceId, roleMembers);
+                    var targetUsers = roleMembers.Where(u => !mutedUsers.Contains(u)).ToList();
+
+                    await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+
+                    await Fire(new BatchMentionOccurred(_self.SpaceId, this.GetPrimaryKey(), MentionTargetType.Role));
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to process mentions for message {MessageId} in channel {ChannelId}", messageId, this.GetPrimaryKey());
         }
     }
 

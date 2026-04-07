@@ -27,7 +27,7 @@ public sealed record LinkedMeetingInfo(guid meetingId, string meetingUrl, string
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid? groupId, string? fractionalIndex);
+public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid? groupId, string? fractionalIndex, i8 lastMessageId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -47,7 +47,27 @@ public sealed record SendMessageReadback(i8 messageId, guid channelId, guid spac
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record NotificationCounterKv(string counterType, i8 count);
+public sealed record ChannelReadState(guid channelId, guid? spaceId, i8 lastReadMessageId, i4 mentionCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MuteSettingsDto(guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, datetime? expiresAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SystemNotificationDto(guid id, string type, guid? referenceId, string title, string? body, bool isRead, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceBadge(guid spaceId, i4 unreadChannelCount, i4 totalMentions);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record NotificationBadges(i4 friendRequests, i4 inventory, i4 system);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record GlobalBadges(i4 unreadDmCount, IonArray<SpaceBadge> spaces, NotificationBadges notifications, IonArray<ChannelReadState> readStates, IonArray<MuteSettingsDto> muteSettings);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -80,23 +100,25 @@ public enum EntityType
 {
     Hashtag = 0,
     Mention = 1,
-    Email = 2,
-    Url = 3,
-    Monospace = 4,
-    Quote = 5,
-    Spoiler = 6,
-    Strikethrough = 7,
-    Bold = 8,
-    Italic = 9,
-    Underline = 10,
-    Fraction = 11,
-    Ordinal = 12,
-    Capitalized = 13,
-    SystemCallStarted = 14,
-    SystemCallEnded = 15,
-    SystemCallTimeout = 16,
-    SystemUserJoined = 17,
-    Attachment = 18,
+    MentionEveryone = 2,
+    MentionRole = 3,
+    Email = 4,
+    Url = 5,
+    Monospace = 6,
+    Quote = 7,
+    Spoiler = 8,
+    Strikethrough = 9,
+    Bold = 10,
+    Italic = 11,
+    Underline = 12,
+    Fraction = 13,
+    Ordinal = 14,
+    Capitalized = 15,
+    SystemCallStarted = 16,
+    SystemCallEnded = 17,
+    SystemCallTimeout = 18,
+    SystemUserJoined = 19,
+    Attachment = 20,
 }
 
 
@@ -106,6 +128,31 @@ public enum StartStreamError
     NONE = 0,
     BAD_PARAMS = 1,
     INTERNAL_ERROR = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum MuteLevelType
+{
+    None = 0,
+    OnlyMentions = 1,
+    All = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum MuteTargetKind
+{
+    Space = 0,
+    Channel = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum MentionTargetType
+{
+    Everyone = 0,
+    Role = 1,
 }
 
 
@@ -195,6 +242,10 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
 
     internal bool IsMessageEntityMention => this is MessageEntityMention;
 
+    internal bool IsMessageEntityMentionEveryone => this is MessageEntityMentionEveryone;
+
+    internal bool IsMessageEntityMentionRole => this is MessageEntityMentionRole;
+
     internal bool IsMessageEntityEmail => this is MessageEntityEmail;
 
     internal bool IsMessageEntityHashTag => this is MessageEntityHashTag;
@@ -282,73 +333,87 @@ public sealed record MessageEntityMention(EntityType type, i4 offset, i4 length,
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityMentionEveryone(EntityType type, i4 offset, i4 length, i4 version) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityMentionEveryone);
+    public uint UnionIndex => 9;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityMentionRole(EntityType type, i4 offset, i4 length, i4 version, guid archetypeId) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityMentionRole);
+    public uint UnionIndex => 10;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityEmail(EntityType type, i4 offset, i4 length, i4 version, string email) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityEmail);
-    public uint UnionIndex => 9;
+    public uint UnionIndex => 11;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityHashTag(EntityType type, i4 offset, i4 length, i4 version, string hashtag) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityHashTag);
-    public uint UnionIndex => 10;
+    public uint UnionIndex => 12;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityQuote(EntityType type, i4 offset, i4 length, i4 version, guid quotedUserId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityQuote);
-    public uint UnionIndex => 11;
+    public uint UnionIndex => 13;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityUnderline(EntityType type, i4 offset, i4 length, i4 version, i4 colour) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityUnderline);
-    public uint UnionIndex => 12;
+    public uint UnionIndex => 14;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityUrl(EntityType type, i4 offset, i4 length, i4 version, string domain, string path) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityUrl);
-    public uint UnionIndex => 13;
+    public uint UnionIndex => 15;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntitySystemCallStarted(EntityType type, i4 offset, i4 length, i4 version, guid callerId, guid callId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntitySystemCallStarted);
-    public uint UnionIndex => 14;
+    public uint UnionIndex => 16;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntitySystemCallEnded(EntityType type, i4 offset, i4 length, i4 version, guid callerId, guid callId, i4 durationSeconds) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntitySystemCallEnded);
-    public uint UnionIndex => 15;
+    public uint UnionIndex => 17;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntitySystemCallTimeout(EntityType type, i4 offset, i4 length, i4 version, guid callerId, guid callId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntitySystemCallTimeout);
-    public uint UnionIndex => 16;
+    public uint UnionIndex => 18;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntitySystemUserJoined(EntityType type, i4 offset, i4 length, i4 version, guid userId, guid? inviterId) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntitySystemUserJoined);
-    public uint UnionIndex => 17;
+    public uint UnionIndex => 19;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageEntityAttachment(EntityType type, i4 offset, i4 length, i4 version, guid fileId, string fileName, i8 fileSize, string contentType, i4? width, i4? height, string? thumbHash) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityAttachment);
-    public uint UnionIndex => 18;
+    public uint UnionIndex => 20;
 }
 
 
@@ -391,33 +456,39 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
             result = IonFormatterStorage<MessageEntityMention>.Read(reader);
 
         else if (unionIndex == 9)
-            result = IonFormatterStorage<MessageEntityEmail>.Read(reader);
+            result = IonFormatterStorage<MessageEntityMentionEveryone>.Read(reader);
 
         else if (unionIndex == 10)
-            result = IonFormatterStorage<MessageEntityHashTag>.Read(reader);
+            result = IonFormatterStorage<MessageEntityMentionRole>.Read(reader);
 
         else if (unionIndex == 11)
-            result = IonFormatterStorage<MessageEntityQuote>.Read(reader);
+            result = IonFormatterStorage<MessageEntityEmail>.Read(reader);
 
         else if (unionIndex == 12)
-            result = IonFormatterStorage<MessageEntityUnderline>.Read(reader);
+            result = IonFormatterStorage<MessageEntityHashTag>.Read(reader);
 
         else if (unionIndex == 13)
-            result = IonFormatterStorage<MessageEntityUrl>.Read(reader);
+            result = IonFormatterStorage<MessageEntityQuote>.Read(reader);
 
         else if (unionIndex == 14)
-            result = IonFormatterStorage<MessageEntitySystemCallStarted>.Read(reader);
+            result = IonFormatterStorage<MessageEntityUnderline>.Read(reader);
 
         else if (unionIndex == 15)
-            result = IonFormatterStorage<MessageEntitySystemCallEnded>.Read(reader);
+            result = IonFormatterStorage<MessageEntityUrl>.Read(reader);
 
         else if (unionIndex == 16)
-            result = IonFormatterStorage<MessageEntitySystemCallTimeout>.Read(reader);
+            result = IonFormatterStorage<MessageEntitySystemCallStarted>.Read(reader);
 
         else if (unionIndex == 17)
-            result = IonFormatterStorage<MessageEntitySystemUserJoined>.Read(reader);
+            result = IonFormatterStorage<MessageEntitySystemCallEnded>.Read(reader);
 
         else if (unionIndex == 18)
+            result = IonFormatterStorage<MessageEntitySystemCallTimeout>.Read(reader);
+
+        else if (unionIndex == 19)
+            result = IonFormatterStorage<MessageEntitySystemUserJoined>.Read(reader);
+
+        else if (unionIndex == 20)
             result = IonFormatterStorage<MessageEntityAttachment>.Read(reader);
 
         else
@@ -496,74 +567,88 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
             IonFormatterStorage<MessageEntityMention>.Write(writer, n_8);
         }
 
-        else if (value is MessageEntityEmail n_9)
+        else if (value is MessageEntityMentionEveryone n_9)
         {
             if (n_9.UnionIndex != 9)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityEmail>.Write(writer, n_9);
+            IonFormatterStorage<MessageEntityMentionEveryone>.Write(writer, n_9);
         }
 
-        else if (value is MessageEntityHashTag n_10)
+        else if (value is MessageEntityMentionRole n_10)
         {
             if (n_10.UnionIndex != 10)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityHashTag>.Write(writer, n_10);
+            IonFormatterStorage<MessageEntityMentionRole>.Write(writer, n_10);
         }
 
-        else if (value is MessageEntityQuote n_11)
+        else if (value is MessageEntityEmail n_11)
         {
             if (n_11.UnionIndex != 11)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityQuote>.Write(writer, n_11);
+            IonFormatterStorage<MessageEntityEmail>.Write(writer, n_11);
         }
 
-        else if (value is MessageEntityUnderline n_12)
+        else if (value is MessageEntityHashTag n_12)
         {
             if (n_12.UnionIndex != 12)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityUnderline>.Write(writer, n_12);
+            IonFormatterStorage<MessageEntityHashTag>.Write(writer, n_12);
         }
 
-        else if (value is MessageEntityUrl n_13)
+        else if (value is MessageEntityQuote n_13)
         {
             if (n_13.UnionIndex != 13)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityUrl>.Write(writer, n_13);
+            IonFormatterStorage<MessageEntityQuote>.Write(writer, n_13);
         }
 
-        else if (value is MessageEntitySystemCallStarted n_14)
+        else if (value is MessageEntityUnderline n_14)
         {
             if (n_14.UnionIndex != 14)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntitySystemCallStarted>.Write(writer, n_14);
+            IonFormatterStorage<MessageEntityUnderline>.Write(writer, n_14);
         }
 
-        else if (value is MessageEntitySystemCallEnded n_15)
+        else if (value is MessageEntityUrl n_15)
         {
             if (n_15.UnionIndex != 15)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntitySystemCallEnded>.Write(writer, n_15);
+            IonFormatterStorage<MessageEntityUrl>.Write(writer, n_15);
         }
 
-        else if (value is MessageEntitySystemCallTimeout n_16)
+        else if (value is MessageEntitySystemCallStarted n_16)
         {
             if (n_16.UnionIndex != 16)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntitySystemCallTimeout>.Write(writer, n_16);
+            IonFormatterStorage<MessageEntitySystemCallStarted>.Write(writer, n_16);
         }
 
-        else if (value is MessageEntitySystemUserJoined n_17)
+        else if (value is MessageEntitySystemCallEnded n_17)
         {
             if (n_17.UnionIndex != 17)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntitySystemUserJoined>.Write(writer, n_17);
+            IonFormatterStorage<MessageEntitySystemCallEnded>.Write(writer, n_17);
         }
 
-        else if (value is MessageEntityAttachment n_18)
+        else if (value is MessageEntitySystemCallTimeout n_18)
         {
             if (n_18.UnionIndex != 18)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageEntityAttachment>.Write(writer, n_18);
+            IonFormatterStorage<MessageEntitySystemCallTimeout>.Write(writer, n_18);
+        }
+
+        else if (value is MessageEntitySystemUserJoined n_19)
+        {
+            if (n_19.UnionIndex != 19)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntitySystemUserJoined>.Write(writer, n_19);
+        }
+
+        else if (value is MessageEntityAttachment n_20)
+        {
+            if (n_20.UnionIndex != 20)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityAttachment>.Write(writer, n_20);
         }
     
         else
@@ -818,6 +903,62 @@ public sealed class Ion_MessageEntityMention_Formatter : IonFormatter<MessageEnt
         IonFormatterStorage<i4>.Write(writer, value.length);
         IonFormatterStorage<i4>.Write(writer, value.version);
         IonFormatterStorage<guid>.Write(writer, value.userId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityMentionEveryone_Formatter : IonFormatter<MessageEntityMentionEveryone>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityMentionEveryone Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__type, __offset, __length, __version);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityMentionEveryone value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityMentionRole_Formatter : IonFormatter<MessageEntityMentionRole>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityMentionRole Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __archetypeid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__type, __offset, __length, __version, __archetypeid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityMentionRole value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<guid>.Write(writer, value.archetypeId);
         writer.WriteEndArray();
     }
 }
@@ -1479,7 +1620,13 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsDirectMessageSent => this is DirectMessageSent;
 
-    internal bool IsUpdatedNotificationCounters => this is UpdatedNotificationCounters;
+    internal bool IsReadStateUpdated => this is ReadStateUpdated;
+
+    internal bool IsSystemNotificationReceived => this is SystemNotificationReceived;
+
+    internal bool IsMuteSettingsChanged => this is MuteSettingsChanged;
+
+    internal bool IsBatchMentionOccurred => this is BatchMentionOccurred;
 
     internal bool IsUserSecurityDetailsUpdated => this is UserSecurityDetailsUpdated;
 
@@ -1773,38 +1920,59 @@ public sealed record DirectMessageSent(guid senderId, guid receiverId, DirectMes
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UpdatedNotificationCounters(guid userId, IonArray<NotificationCounterKv> counters) : IArgonEvent
+public sealed record ReadStateUpdated(guid userId, guid channelId, guid? spaceId, i8 lastReadMessageId, i4 mentionCount) : IArgonEvent
 {
-    public string UnionKey => nameof(UpdatedNotificationCounters);
+    public string UnionKey => nameof(ReadStateUpdated);
     public uint UnionIndex => 40;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SystemNotificationReceived(guid userId, SystemNotificationDto notification) : IArgonEvent
+{
+    public string UnionKey => nameof(SystemNotificationReceived);
+    public uint UnionIndex => 41;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MuteSettingsChanged(guid userId, guid targetId, MuteLevelType muteLevel) : IArgonEvent
+{
+    public string UnionKey => nameof(MuteSettingsChanged);
+    public uint UnionIndex => 42;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record BatchMentionOccurred(guid spaceId, guid channelId, MentionTargetType mentionType) : IArgonEvent
+{
+    public string UnionKey => nameof(BatchMentionOccurred);
+    public uint UnionIndex => 43;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserSecurityDetailsUpdated(guid userId, SecurityDetails details) : IArgonEvent
 {
     public string UnionKey => nameof(UserSecurityDetailsUpdated);
-    public uint UnionIndex => 41;
+    public uint UnionIndex => 44;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SpaceDetailsUpdated(guid spaceId, ArgonSpaceBase details) : IArgonEvent
 {
     public string UnionKey => nameof(SpaceDetailsUpdated);
-    public uint UnionIndex => 42;
+    public uint UnionIndex => 45;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MeetingCreatedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
 {
     public string UnionKey => nameof(MeetingCreatedFor);
-    public uint UnionIndex => 43;
+    public uint UnionIndex => 46;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MeetingDeletedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
 {
     public string UnionKey => nameof(MeetingDeletedFor);
-    public uint UnionIndex => 44;
+    public uint UnionIndex => 47;
 }
 
 
@@ -1940,18 +2108,27 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             result = IonFormatterStorage<DirectMessageSent>.Read(reader);
 
         else if (unionIndex == 40)
-            result = IonFormatterStorage<UpdatedNotificationCounters>.Read(reader);
+            result = IonFormatterStorage<ReadStateUpdated>.Read(reader);
 
         else if (unionIndex == 41)
-            result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
+            result = IonFormatterStorage<SystemNotificationReceived>.Read(reader);
 
         else if (unionIndex == 42)
-            result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
+            result = IonFormatterStorage<MuteSettingsChanged>.Read(reader);
 
         else if (unionIndex == 43)
-            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
+            result = IonFormatterStorage<BatchMentionOccurred>.Read(reader);
 
         else if (unionIndex == 44)
+            result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
+
+        else if (unionIndex == 45)
+            result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
+
+        else if (unionIndex == 46)
+            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
+
+        else if (unionIndex == 47)
             result = IonFormatterStorage<MeetingDeletedFor>.Read(reader);
 
         else
@@ -2247,39 +2424,60 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             IonFormatterStorage<DirectMessageSent>.Write(writer, n_39);
         }
 
-        else if (value is UpdatedNotificationCounters n_40)
+        else if (value is ReadStateUpdated n_40)
         {
             if (n_40.UnionIndex != 40)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UpdatedNotificationCounters>.Write(writer, n_40);
+            IonFormatterStorage<ReadStateUpdated>.Write(writer, n_40);
         }
 
-        else if (value is UserSecurityDetailsUpdated n_41)
+        else if (value is SystemNotificationReceived n_41)
         {
             if (n_41.UnionIndex != 41)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_41);
+            IonFormatterStorage<SystemNotificationReceived>.Write(writer, n_41);
         }
 
-        else if (value is SpaceDetailsUpdated n_42)
+        else if (value is MuteSettingsChanged n_42)
         {
             if (n_42.UnionIndex != 42)
                 throw new InvalidOperationException();
-            IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_42);
+            IonFormatterStorage<MuteSettingsChanged>.Write(writer, n_42);
         }
 
-        else if (value is MeetingCreatedFor n_43)
+        else if (value is BatchMentionOccurred n_43)
         {
             if (n_43.UnionIndex != 43)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_43);
+            IonFormatterStorage<BatchMentionOccurred>.Write(writer, n_43);
         }
 
-        else if (value is MeetingDeletedFor n_44)
+        else if (value is UserSecurityDetailsUpdated n_44)
         {
             if (n_44.UnionIndex != 44)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_44);
+            IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_44);
+        }
+
+        else if (value is SpaceDetailsUpdated n_45)
+        {
+            if (n_45.UnionIndex != 45)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_45);
+        }
+
+        else if (value is MeetingCreatedFor n_46)
+        {
+            if (n_46.UnionIndex != 46)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_46);
+        }
+
+        else if (value is MeetingDeletedFor n_47)
+        {
+            if (n_47.UnionIndex != 47)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_47);
         }
     
         else
@@ -3234,24 +3432,103 @@ public sealed class Ion_DirectMessageSent_Formatter : IonFormatter<DirectMessage
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_UpdatedNotificationCounters_Formatter : IonFormatter<UpdatedNotificationCounters>
+public sealed class Ion_ReadStateUpdated_Formatter : IonFormatter<ReadStateUpdated>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public UpdatedNotificationCounters Read(CborReader reader)
+    public ReadStateUpdated Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __userid = IonFormatterStorage<guid>.Read(reader);
-        var __counters = IonFormatterStorage<NotificationCounterKv>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__userid, __counters);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __spaceid = reader.ReadNullable<guid>();
+        var __lastreadmessageid = IonFormatterStorage<i8>.Read(reader);
+        var __mentioncount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__userid, __channelid, __spaceid, __lastreadmessageid, __mentioncount);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, UpdatedNotificationCounters value)
+    public void Write(CborWriter writer, ReadStateUpdated value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.spaceId);
+        IonFormatterStorage<i8>.Write(writer, value.lastReadMessageId);
+        IonFormatterStorage<i4>.Write(writer, value.mentionCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SystemNotificationReceived_Formatter : IonFormatter<SystemNotificationReceived>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SystemNotificationReceived Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __notification = IonFormatterStorage<SystemNotificationDto>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__userid, __notification);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SystemNotificationReceived value)
     {
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.userId);
-        IonFormatterStorage<NotificationCounterKv>.WriteArray(writer, value.counters);
+        IonFormatterStorage<SystemNotificationDto>.Write(writer, value.notification);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MuteSettingsChanged_Formatter : IonFormatter<MuteSettingsChanged>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MuteSettingsChanged Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        var __mutelevel = IonFormatterStorage<MuteLevelType>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __targetid, __mutelevel);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MuteSettingsChanged value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.targetId);
+        IonFormatterStorage<MuteLevelType>.Write(writer, value.muteLevel);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_BatchMentionOccurred_Formatter : IonFormatter<BatchMentionOccurred>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public BatchMentionOccurred Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __mentiontype = IonFormatterStorage<MentionTargetType>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __channelid, __mentiontype);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, BatchMentionOccurred value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<MentionTargetType>.Write(writer, value.mentionType);
         writer.WriteEndArray();
     }
 }

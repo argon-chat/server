@@ -12,7 +12,7 @@ using Core.Entities.Data;
 public class InventoryGrain(
     IDbContextFactory<ApplicationDbContext> context,
     ILogger<IInventoryGrain> logger,
-    INotificationCounterService notificationCounter) : Grain, IInventoryGrain
+    ISystemNotificationService systemNotification) : Grain, IInventoryGrain
 {
     public async Task<List<DetailedInventoryItem>> GetReferencesItemsAsync(CancellationToken ct = default)
     {
@@ -67,7 +67,7 @@ public class InventoryGrain(
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
-        await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
+        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct);
 
         if (!item.IsAffectBadge)
             return true;
@@ -158,7 +158,7 @@ public class InventoryGrain(
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, coin.Id, coinTemplateId, ct);
-        await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
+        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, coin.Id, $"New coin: {coinTemplateId}", null, ct);
 
         if (coin.IsAffectBadge)
         {
@@ -220,7 +220,7 @@ public class InventoryGrain(
 
         if (deleted > 0)
         {
-            await notificationCounter.DecrementAsync(userId, NotificationCounterType.UnreadInventoryItems, deleted, ct);
+            await systemNotification.MarkAllReadAsync(userId, SystemNotificationType.ItemReceived, ct);
         }
     }
 
@@ -235,7 +235,7 @@ public class InventoryGrain(
 
         if (deleted > 0)
         {
-            await notificationCounter.ResetAsync(ownerUserId, NotificationCounterType.UnreadInventoryItems, ct);
+            await systemNotification.MarkAllReadAsync(ownerUserId, SystemNotificationType.ItemReceived, ct);
         }
     }
 
@@ -300,7 +300,10 @@ public class InventoryGrain(
                     await EnsureUnreadAsync(ctx, userId, grantedId, usableItem.TemplateId, ct);
                 }
 
-                await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, grantedItemIds.Count, ct);
+                foreach (var grantedId in grantedItemIds)
+                {
+                    await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {usableItem.TemplateId}", null, ct);
+                }
 
                 return true;
             }
@@ -444,7 +447,7 @@ public class InventoryGrain(
             await ctx.SaveChangesAsync(ct);
 
             await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
-            await notificationCounter.IncrementAsync(userId, NotificationCounterType.UnreadInventoryItems, 1, ct);
+            await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct);
 
             if (!item.IsAffectBadge) return null;
             await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);

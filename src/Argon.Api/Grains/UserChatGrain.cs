@@ -12,7 +12,6 @@ public class UserChatGrain(
     ILogger<IUserChatGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
-    INotificationCounterService notificationCounter,
     IConversationService conversationService) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
@@ -155,11 +154,6 @@ public class UserChatGrain(
 
             await ctx.SaveChangesAsync(ct);
         }, ct);
-
-        if (unreadCount > 0)
-        {
-            await notificationCounter.DecrementAsync(Me, NotificationCounterType.UnreadDirectMessages, unreadCount, ct);
-        }
     }
 
     public async Task<long> SendDirectMessageAsync(
@@ -213,6 +207,7 @@ public class UserChatGrain(
                 conversation.LastMessageAt = now;
                 conversation.LastMessageText = previewText;
                 conversation.LastMessageSenderId = senderId;
+                conversation.LastMessageId = messageId;
                 ctx.Conversations.Update(conversation);
 
                 // Update sender's chat (no unread increment)
@@ -223,8 +218,6 @@ public class UserChatGrain(
 
                 await ctx.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
-
-                await notificationCounter.IncrementAsync(receiverId, NotificationCounterType.UnreadDirectMessages, 1, ct);
 
                 var messageDto = message.ToDto(receiverId);
 

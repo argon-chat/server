@@ -282,7 +282,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task GetNotificationCounters_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    public async Task GetGlobalBadges_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
     
@@ -294,9 +294,107 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.GetNotificationCounters();
+        var result = await service.GetGlobalBadges();
         
-        IonFormatterStorage<NotificationCounterKv>.WriteArray(writer, result);
+        IonFormatterStorage<GlobalBadges>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AckChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __lastreadmessageid = IonFormatterStorage<i8>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.AckChannel(__channelid, __lastreadmessageid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MuteTarget_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        var __targettype = IonFormatterStorage<MuteTargetKind>.Read(reader);
+        var __mutelevel = IonFormatterStorage<MuteLevelType>.Read(reader);
+        var __suppresseveryone = IonFormatterStorage<bool>.Read(reader);
+        var __expiresat = reader.ReadNullable<datetime>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MuteTarget(__targetid, __targettype, __mutelevel, __suppresseveryone, __expiresat);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnmuteTarget_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UnmuteTarget(__targetid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetNotificationFeed_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __before = reader.ReadNullable<datetime>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetNotificationFeed(__limit, __before);
+        
+        IonFormatterStorage<SystemNotificationDto>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkNotificationRead_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __notificationid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MarkNotificationRead(__notificationid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task MarkAllNotificationsRead_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __type = reader.ReadNullable<string>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.MarkAllNotificationsRead(__type);
     }
 
     
@@ -337,8 +435,20 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetMyLevel_Execute(reader, writer, ct);
         if (methodName.Equals("ClaimLevelCoin", StringComparison.InvariantCultureIgnoreCase))
             return ClaimLevelCoin_Execute(reader, writer, ct);
-        if (methodName.Equals("GetNotificationCounters", StringComparison.InvariantCultureIgnoreCase))
-            return GetNotificationCounters_Execute(reader, writer, ct);
+        if (methodName.Equals("GetGlobalBadges", StringComparison.InvariantCultureIgnoreCase))
+            return GetGlobalBadges_Execute(reader, writer, ct);
+        if (methodName.Equals("AckChannel", StringComparison.InvariantCultureIgnoreCase))
+            return AckChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("MuteTarget", StringComparison.InvariantCultureIgnoreCase))
+            return MuteTarget_Execute(reader, writer, ct);
+        if (methodName.Equals("UnmuteTarget", StringComparison.InvariantCultureIgnoreCase))
+            return UnmuteTarget_Execute(reader, writer, ct);
+        if (methodName.Equals("GetNotificationFeed", StringComparison.InvariantCultureIgnoreCase))
+            return GetNotificationFeed_Execute(reader, writer, ct);
+        if (methodName.Equals("MarkNotificationRead", StringComparison.InvariantCultureIgnoreCase))
+            return MarkNotificationRead_Execute(reader, writer, ct);
+        if (methodName.Equals("MarkAllNotificationsRead", StringComparison.InvariantCultureIgnoreCase))
+            return MarkAllNotificationsRead_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

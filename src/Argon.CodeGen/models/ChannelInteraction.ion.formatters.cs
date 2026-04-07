@@ -108,14 +108,15 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         var __description = reader.ReadNullable<string>();
         var __groupid = reader.ReadNullable<guid>();
         var __fractionalindex = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex);
+        var __lastmessageid = IonFormatterStorage<i8>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex, __lastmessageid);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonChannel value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(8);
         IonFormatterStorage<ChannelType>.Write(writer, value.type);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
@@ -123,6 +124,7 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         IonFormatterStorage<string>.WriteNullable(writer, value.description);
         IonFormatterStorage<guid>.WriteNullable(writer, value.groupId);
         IonFormatterStorage<string>.WriteNullable(writer, value.fractionalIndex);
+        IonFormatterStorage<i8>.Write(writer, value.lastMessageId);
         writer.WriteEndArray();
     }
 }
@@ -240,24 +242,169 @@ public sealed class Ion_SendMessageReadback_Formatter : IonFormatter<SendMessage
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_NotificationCounterKv_Formatter : IonFormatter<NotificationCounterKv>
+public sealed class Ion_ChannelReadState_Formatter : IonFormatter<ChannelReadState>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public NotificationCounterKv Read(CborReader reader)
+    public ChannelReadState Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __countertype = IonFormatterStorage<string>.Read(reader);
-        var __count = IonFormatterStorage<i8>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__countertype, __count);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __spaceid = reader.ReadNullable<guid>();
+        var __lastreadmessageid = IonFormatterStorage<i8>.Read(reader);
+        var __mentioncount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__channelid, __spaceid, __lastreadmessageid, __mentioncount);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, NotificationCounterKv value)
+    public void Write(CborWriter writer, ChannelReadState value)
     {
-        writer.WriteStartArray(2);
-        IonFormatterStorage<string>.Write(writer, value.counterType);
-        IonFormatterStorage<i8>.Write(writer, value.count);
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.spaceId);
+        IonFormatterStorage<i8>.Write(writer, value.lastReadMessageId);
+        IonFormatterStorage<i4>.Write(writer, value.mentionCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MuteSettingsDto_Formatter : IonFormatter<MuteSettingsDto>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MuteSettingsDto Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __targetid = IonFormatterStorage<guid>.Read(reader);
+        var __targettype = IonFormatterStorage<MuteTargetKind>.Read(reader);
+        var __mutelevel = IonFormatterStorage<MuteLevelType>.Read(reader);
+        var __suppresseveryone = IonFormatterStorage<bool>.Read(reader);
+        var __expiresat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__targetid, __targettype, __mutelevel, __suppresseveryone, __expiresat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MuteSettingsDto value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.targetId);
+        IonFormatterStorage<MuteTargetKind>.Write(writer, value.targetType);
+        IonFormatterStorage<MuteLevelType>.Write(writer, value.muteLevel);
+        IonFormatterStorage<bool>.Write(writer, value.suppressEveryone);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SystemNotificationDto_Formatter : IonFormatter<SystemNotificationDto>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SystemNotificationDto Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __id = IonFormatterStorage<guid>.Read(reader);
+        var __type = IonFormatterStorage<string>.Read(reader);
+        var __referenceid = reader.ReadNullable<guid>();
+        var __title = IonFormatterStorage<string>.Read(reader);
+        var __body = reader.ReadNullable<string>();
+        var __isread = IonFormatterStorage<bool>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__id, __type, __referenceid, __title, __body, __isread, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SystemNotificationDto value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.id);
+        IonFormatterStorage<string>.Write(writer, value.type);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.referenceId);
+        IonFormatterStorage<string>.Write(writer, value.title);
+        IonFormatterStorage<string>.WriteNullable(writer, value.body);
+        IonFormatterStorage<bool>.Write(writer, value.isRead);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceBadge_Formatter : IonFormatter<SpaceBadge>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceBadge Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __unreadchannelcount = IonFormatterStorage<i4>.Read(reader);
+        var __totalmentions = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __unreadchannelcount, __totalmentions);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceBadge value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<i4>.Write(writer, value.unreadChannelCount);
+        IonFormatterStorage<i4>.Write(writer, value.totalMentions);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_NotificationBadges_Formatter : IonFormatter<NotificationBadges>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public NotificationBadges Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __friendrequests = IonFormatterStorage<i4>.Read(reader);
+        var __inventory = IonFormatterStorage<i4>.Read(reader);
+        var __system = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__friendrequests, __inventory, __system);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, NotificationBadges value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<i4>.Write(writer, value.friendRequests);
+        IonFormatterStorage<i4>.Write(writer, value.inventory);
+        IonFormatterStorage<i4>.Write(writer, value.system);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_GlobalBadges_Formatter : IonFormatter<GlobalBadges>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public GlobalBadges Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __unreaddmcount = IonFormatterStorage<i4>.Read(reader);
+        var __spaces = IonFormatterStorage<SpaceBadge>.ReadArray(reader);
+        var __notifications = IonFormatterStorage<NotificationBadges>.Read(reader);
+        var __readstates = IonFormatterStorage<ChannelReadState>.ReadArray(reader);
+        var __mutesettings = IonFormatterStorage<MuteSettingsDto>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__unreaddmcount, __spaces, __notifications, __readstates, __mutesettings);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, GlobalBadges value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<i4>.Write(writer, value.unreadDmCount);
+        IonFormatterStorage<SpaceBadge>.WriteArray(writer, value.spaces);
+        IonFormatterStorage<NotificationBadges>.Write(writer, value.notifications);
+        IonFormatterStorage<ChannelReadState>.WriteArray(writer, value.readStates);
+        IonFormatterStorage<MuteSettingsDto>.WriteArray(writer, value.muteSettings);
         writer.WriteEndArray();
     }
 }
@@ -380,6 +527,57 @@ public sealed class Ion_StartStreamError_Formatter : IonFormatter<StartStreamErr
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, StartStreamError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MuteLevelType_Formatter : IonFormatter<MuteLevelType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MuteLevelType Read(CborReader reader)
+    {
+         return (MuteLevelType)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MuteLevelType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MuteTargetKind_Formatter : IonFormatter<MuteTargetKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MuteTargetKind Read(CborReader reader)
+    {
+         return (MuteTargetKind)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MuteTargetKind value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MentionTargetType_Formatter : IonFormatter<MentionTargetType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MentionTargetType Read(CborReader reader)
+    {
+         return (MentionTargetType)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MentionTargetType value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);
