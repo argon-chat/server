@@ -210,8 +210,8 @@ public class UserGrain(
 
     public async ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default)
     {
-        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
-        await UpdateFileIdFor(kind, fileId, ct);
+        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        await UpdateFileIdFor(kind, fileInfo.FileId, ct);
     }
 
     public async ValueTask<LockedAuthStatus> GetLimitationForUser()

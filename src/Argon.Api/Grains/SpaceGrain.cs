@@ -725,8 +725,8 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage server");
 
-        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
-        await UpdateFileIdFor(kind, fileId, ct);
+        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        await UpdateFileIdFor(kind, fileInfo.FileId, ct);
     }
 
     private async ValueTask UpdateFileIdFor(SpaceFileKind kind, Guid fileId, CancellationToken ct = default)

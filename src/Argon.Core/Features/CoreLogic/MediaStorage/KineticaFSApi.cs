@@ -102,7 +102,7 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
     }
 
 
-    public async Task<Guid> FinalizeUploadUrlAsync(Guid blobId, CancellationToken ct = default)
+    public async Task<FinalizedFileInfo> FinalizeUploadUrlAsync(Guid blobId, CancellationToken ct = default)
     {
         try
         {
@@ -128,7 +128,7 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
                 logger.LogWarning("File {Id} not marked as finalized after response.", result.Id);
 
             logger.LogInformation("Upload finalized successfully. File: {Name} ({Size} bytes)", result.Name, result.FileSize);
-            return result.Id;
+            return new FinalizedFileInfo(result.Id, result.Name, result.FileSize, result.ContentType);
         }
         catch (FlurlHttpTimeoutException ex)
         {
@@ -171,11 +171,13 @@ public class KineticaFSApi(ILogger<IKineticaFSApi> logger, IOptions<KineticaFSAp
         => client.Dispose();
 }
 
+public record FinalizedFileInfo(Guid FileId, string FileName, long FileSize, string ContentType);
+
 public interface IKineticaFSApi
 {
-    Task       DecrementByFileIdAsync(string fileId, CancellationToken ct = default);
-    Task<Guid> CreateUploadUrlAsync(uint? limitMb = null, string? regionId = null, CancellationToken ct = default);
-    Task<Guid> FinalizeUploadUrlAsync(Guid blobId, CancellationToken ct = default);
+    Task                   DecrementByFileIdAsync(string fileId, CancellationToken ct = default);
+    Task<Guid>             CreateUploadUrlAsync(uint? limitMb = null, string? regionId = null, CancellationToken ct = default);
+    Task<FinalizedFileInfo> FinalizeUploadUrlAsync(Guid blobId, CancellationToken ct = default);
 }
 
 public record KineticaFSApiOptions

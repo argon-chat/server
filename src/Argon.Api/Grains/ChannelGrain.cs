@@ -771,11 +771,8 @@ public class ChannelGrain(
 
     public async ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default)
     {
-        var fileId = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
 
-        await using var ctx = await context.CreateDbContextAsync(ct);
-        // Re-read finalized file metadata is not available from KineticaFS API currently,
-        // so we return the fileId with placeholder metadata. The client already knows the file details.
-        return new AttachmentInfo(fileId, string.Empty, 0, string.Empty);
+        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName, fileInfo.FileSize, fileInfo.ContentType);
     }
 }
