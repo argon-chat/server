@@ -134,7 +134,7 @@ public class SpaceGrain(
            .Include(x => x.SpaceMemberArchetypes)
            .ToListAsync();
 
-        var ids        = members.Select(x => x.UserId).ToList();
+        var ids        = members.Select(x => x.UserId).Distinct().ToList();
         var activities = await userPresence.BatchGetUsersActivityPresence(ids);
 
         return members.Select(x => new RealtimeServerMember(x.ToDto(), state.State.UserStatuses.TryGetValue(x.UserId, out var item)

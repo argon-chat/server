@@ -135,10 +135,11 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 
     public async Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds)
     {
-        var keys = await Task.WhenAll(userIds.Select(async x => (await cache.StringGetAsync(SessionPresenceKeyPrefix(x)), x)));
+        var distinctIds = userIds.Distinct().ToList();
+        var keys = await Task.WhenAll(distinctIds.Select(async x => (await cache.StringGetAsync(SessionPresenceKeyPrefix(x)), x)));
         var dict = new Dictionary<Guid, UserActivityPresence>();
         foreach (var (presence, userId) in keys.Where(x => !string.IsNullOrEmpty(x.Item1)))
-            dict.Add(userId, JsonConvert.DeserializeObject<UserActivityPresence>(presence!)!);
+            dict.TryAdd(userId, JsonConvert.DeserializeObject<UserActivityPresence>(presence!)!);
 
         return dict;
     }

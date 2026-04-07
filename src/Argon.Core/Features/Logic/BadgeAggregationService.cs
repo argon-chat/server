@@ -33,25 +33,24 @@ public class BadgeAggregationService(
 
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
-        var spaceIds = readStates
-            .Where(r => r.SpaceId.HasValue)
-            .Select(r => r.SpaceId!.Value)
+        var spaceIds = await ctx.UsersToServerRelations
+            .AsNoTracking()
+            .Where(x => x.UserId == userId)
+            .Select(x => x.SpaceId)
             .Distinct()
-            .ToList();
+            .ToListAsync(ct);
 
-        var channelLastMessages = new Dictionary<Guid, long>();
+        var spaceBadges = new List<SpaceBadge>();
+
         if (spaceIds.Count > 0)
         {
             var channels = await ctx.Channels
                 .AsNoTracking()
-                .Where(c => spaceIds.Contains(c.SpaceId))
+                .Where(c => spaceIds.Contains(c.SpaceId) && c.LastMessageId > 0)
                 .Select(c => new { c.Id, c.SpaceId, c.LastMessageId })
                 .ToListAsync(ct);
 
-            foreach (var ch in channels)
-                channelLastMessages[ch.Id] = ch.LastMessageId;
-
-            var spaceBadges = new List<SpaceBadge>();
+            var readStateMap = readStates.ToDictionary(r => r.ChannelId);
 
             foreach (var spaceId in spaceIds)
             {
@@ -67,7 +66,7 @@ public class BadgeAggregationService(
                     if (mutedTargets.Contains(ch.Id))
                         continue;
 
-                    var state = readStates.FirstOrDefault(r => r.ChannelId == ch.Id);
+                    readStateMap.TryGetValue(ch.Id, out var state);
                     var lastRead = state?.LastReadMessageId ?? 0;
 
                     if (ch.LastMessageId > lastRead)
@@ -80,40 +79,13 @@ public class BadgeAggregationService(
                 if (unreadCount > 0)
                     spaceBadges.Add(new SpaceBadge(spaceId, unreadCount, totalMentions));
             }
-
-            var ionReadStates = readStates.Select(r =>
-                new ChannelReadState(r.ChannelId, r.SpaceId, r.LastReadMessageId, r.MentionCount)
-            ).ToArray();
-
-            var ionMuteSettings = muteSettings.Select(m =>
-                new MuteSettingsDto(
-                    m.TargetId,
-                    m.TargetType == MuteTargetType.Space ? MuteTargetKind.Space : MuteTargetKind.Channel,
-                    m.MuteLevel switch
-                    {
-                        MuteLevel.OnlyMentions => MuteLevelType.OnlyMentions,
-                        MuteLevel.All          => MuteLevelType.All,
-                        _                      => MuteLevelType.None
-                    },
-                    m.SuppressEveryone,
-                    m.MuteExpiresAt?.UtcDateTime
-                )
-            ).ToArray();
-
-            return new GlobalBadges(
-                unreadDmCount,
-                new IonArray<SpaceBadge>(spaceBadges.ToArray()),
-                new NotificationBadges(badgeCounts.friendRequests, badgeCounts.inventory, badgeCounts.system),
-                new IonArray<ChannelReadState>(ionReadStates),
-                new IonArray<MuteSettingsDto>(ionMuteSettings)
-            );
         }
 
-        var rsArr = readStates.Select(r =>
+        var ionReadStates = readStates.Select(r =>
             new ChannelReadState(r.ChannelId, r.SpaceId, r.LastReadMessageId, r.MentionCount)
         ).ToArray();
 
-        var msArr = muteSettings.Select(m =>
+        var ionMuteSettings = muteSettings.Select(m =>
             new MuteSettingsDto(
                 m.TargetId,
                 m.TargetType == MuteTargetType.Space ? MuteTargetKind.Space : MuteTargetKind.Channel,
@@ -130,10 +102,10 @@ public class BadgeAggregationService(
 
         return new GlobalBadges(
             unreadDmCount,
-            IonArray<SpaceBadge>.Empty,
+            new IonArray<SpaceBadge>(spaceBadges.ToArray()),
             new NotificationBadges(badgeCounts.friendRequests, badgeCounts.inventory, badgeCounts.system),
-            new IonArray<ChannelReadState>(rsArr),
-            new IonArray<MuteSettingsDto>(msArr)
+            new IonArray<ChannelReadState>(ionReadStates),
+            new IonArray<MuteSettingsDto>(ionMuteSettings)
         );
     }
 

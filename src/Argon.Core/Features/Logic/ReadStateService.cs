@@ -26,6 +26,14 @@ public class ReadStateService(
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
+        if (spaceId is null)
+        {
+            spaceId = await ctx.Channels
+                .Where(c => c.Id == channelId)
+                .Select(c => (Guid?)c.SpaceId)
+                .FirstOrDefaultAsync(ct);
+        }
+
         var existing = await ctx.ChannelReadStates
             .FirstOrDefaultAsync(x => x.UserId == userId && x.ChannelId == channelId, ct);
 
@@ -49,6 +57,9 @@ public class ReadStateService(
             existing.LastReadMessageId = messageId;
             existing.MentionCount      = 0;
             existing.UpdatedAt         = DateTimeOffset.UtcNow;
+
+            if (existing.SpaceId is null && spaceId is not null)
+                existing.SpaceId = spaceId;
         }
 
         await ctx.SaveChangesAsync(ct);

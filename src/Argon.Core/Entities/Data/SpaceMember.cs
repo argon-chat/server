@@ -43,5 +43,10 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
                 x.IsDeleted
             })
            .IsCreatedConcurrently();
+
+        builder.HasIndex(x => new { x.SpaceId, x.UserId })
+           .IsUnique()
+           .HasFilter("\"IsDeleted\" = false")
+           .IsCreatedConcurrently();
     }
 }
