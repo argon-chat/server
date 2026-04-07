@@ -4,15 +4,12 @@ using Features.Logic;
 using ArgonContracts;
 using Argon.Core.Features.Logic;
 using Argon.Core.Entities.Data;
+using Argon.Core.Grains.Interfaces;
 using ion.runtime;
 
 public class UserInteractionImpl(
     IOptions<BetaLimitationOptions> betaOptions,
-    ILogger<IUserInteraction> logger,
-    IBadgeAggregationService badgeAggregation,
-    IReadStateService readStateService,
-    IMuteSettingsService muteSettingsService,
-    ISystemNotificationService systemNotificationService) : IUserInteraction
+    ILogger<IUserInteraction> logger) : IUserInteraction
 
 {
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
@@ -116,59 +113,43 @@ public class UserInteractionImpl(
     public async Task<GlobalBadges> GetGlobalBadges(CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        return await badgeAggregation.GetGlobalBadgesAsync(userId, ct);
+        return await this.GetGrain<INotificationGrain>(userId).GetGlobalBadgesAsync(ct);
     }
 
     public async Task AckChannel(Guid channelId, long lastReadMessageId, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await readStateService.AckAsync(userId, channelId, null, lastReadMessageId, ct);
+        await this.GetGrain<INotificationGrain>(userId).AckChannelAsync(channelId, null, lastReadMessageId, ct);
     }
 
     public async Task MuteTarget(Guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, DateTime? expiresAt, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await muteSettingsService.MuteAsync(
-            userId,
-            targetId,
-            targetType == MuteTargetKind.Space ? MuteTargetType.Space : MuteTargetType.Channel,
-            muteLevel switch
-            {
-                MuteLevelType.OnlyMentions => MuteLevel.OnlyMentions,
-                MuteLevelType.All          => MuteLevel.All,
-                _                          => MuteLevel.None
-            },
-            suppressEveryone,
-            expiresAt.HasValue ? new DateTimeOffset(expiresAt.Value, TimeSpan.Zero) : null,
-            ct);
+        await this.GetGrain<INotificationGrain>(userId).MuteAsync(targetId, targetType, muteLevel, suppressEveryone, expiresAt, ct);
     }
 
     public async Task UnmuteTarget(Guid targetId, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await muteSettingsService.UnmuteAsync(userId, targetId, ct);
+        await this.GetGrain<INotificationGrain>(userId).UnmuteAsync(targetId, ct);
     }
 
     public async Task<IonArray<SystemNotificationDto>> GetNotificationFeed(int limit, DateTime? before, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        var feed = await systemNotificationService.GetFeedAsync(
-            userId,
-            limit,
-            before.HasValue ? new DateTimeOffset(before.Value, TimeSpan.Zero) : null,
-            ct);
+        var feed = await this.GetGrain<INotificationGrain>(userId).GetNotificationFeedAsync(limit, before, ct);
         return new IonArray<SystemNotificationDto>(feed.ToArray());
     }
 
     public async Task MarkNotificationRead(Guid notificationId, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await systemNotificationService.MarkReadAsync(userId, notificationId, ct);
+        await this.GetGrain<INotificationGrain>(userId).MarkNotificationReadAsync(notificationId, ct);
     }
 
     public async Task MarkAllNotificationsRead(string? type, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await systemNotificationService.MarkAllReadAsync(userId, type, ct);
+        await this.GetGrain<INotificationGrain>(userId).MarkAllNotificationsReadAsync(type, ct);
     }
 }

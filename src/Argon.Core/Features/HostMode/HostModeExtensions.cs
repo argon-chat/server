@@ -164,7 +164,6 @@ public static class HostModeExtensions
             });
        
             builder.AddUserPresenceFeature();
-            builder.AddNotificationFeature();
             builder.AddArgonCacheDatabase();
             builder.AddArgonAuthorization();
             builder.AddJwt();
@@ -183,6 +182,7 @@ public static class HostModeExtensions
             {
                 builder.AddBeforeMigrations();
                 builder.AddPooledDatabase<ApplicationDbContext>();
+                builder.AddNotificationFeature();
                 builder.AddEfRepositories();
                 builder.AddArgonPermissions();
                 builder.AddMessagesLayout();
