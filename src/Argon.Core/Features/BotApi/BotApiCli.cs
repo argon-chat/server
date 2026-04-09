@@ -11,6 +11,10 @@ public static class BotApiCli
     /// </summary>
     public static bool TryHandleCommand(string[] args)
     {
+        // Skip leading "--" (passed by `dotnet run --`)
+        if (args.Length > 0 && args[0] == "--")
+            args = args[1..];
+
         if (args.Length < 2 || !string.Equals(args[0], "bot-api", StringComparison.OrdinalIgnoreCase))
             return false;
 
