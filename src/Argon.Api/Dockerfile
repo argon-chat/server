@@ -28,7 +28,8 @@ COPY . .
 
 WORKDIR /src/src/Argon.Api
 RUN dotnet build Argon.Api.csproj -c $BUILD_CONFIGURATION -o /app/build
-RUN dotnet /app/build/Argon.Api.dll -- bot-api verify
+RUN ASPNETCORE_ENVIRONMENT=Development ARGON_ROLE=Hybrid ARGON_MODE=SingleInstance NO_STRUCTURED_LOGS=true \
+    dotnet /app/build/Argon.Api.dll -- bot-api verify
 
 FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
