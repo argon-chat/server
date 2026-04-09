@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IEvents", 1)]
 [BotDescription("Subscribe to real-time events via Server-Sent Events (SSE). Receive messages, member changes, voice activity, and more.")]
-[StableContract("a2ad75fa17aa104019b95ac85beb1f65ccdf7d704af92b4bb4331866746cc4b4")]
+[StableContract("35629fed73f8ce99daf60846978838db329a2caf9bb3bfe661449a755941aba4")]
 [BotRoute("GET", "/Stream", ResponseType = typeof(BotSseEvent), Description = "Opens a persistent SSE connection. Pass intents as a bitmask to filter events. Supports reconnection via Last-Event-ID header or lastEventId query parameter.")]
 [BotError("/Stream", 403, "missing_intents", "No valid intents specified.")]
 public sealed class EventsV1(IGrainFactory grains) : IBotInterface
@@ -22,12 +22,6 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             var gateway  = grains.GetGrain<IBotGatewayGrain>(botUserId);
             var spaceIds = await gateway.ConnectAsync(requestedIntents);
 
-            // Resume support
-            List<BotSseEvent>? missedEvents = null;
-            var resumeId = lastEventId ?? ctx.Request.Headers["Last-Event-ID"].ToString();
-            if (!string.IsNullOrEmpty(resumeId))
-                missedEvents = await gateway.GetEventsSinceAsync(resumeId);
-
             ctx.Response.ContentType = "text/event-stream";
             ctx.Response.Headers["Cache-Control"] = "no-cache";
             ctx.Response.Headers["Connection"]    = "keep-alive";
@@ -38,31 +32,17 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             // READY event
             await WriteSseEvent(writer, new BotSseEvent
             {
-                Id   = "0",
+                Id   = "ready",
                 Type = BotEventType.Ready,
                 Data = new { intents = (long)requestedIntents, spaceIds }
             }, ct);
 
-            // Replay missed events
-            if (missedEvents is { Count: > 0 })
-            {
-                foreach (var missed in missedEvents)
-                    await WriteSseEvent(writer, missed, ct);
-
-                await WriteSseEvent(writer, new BotSseEvent
-                {
-                    Id   = "resumed",
-                    Type = BotEventType.Resumed,
-                    Data = new { replayed = missedEvents.Count }
-                }, ct);
-            }
-
-            // Stream live events via polling
+            // Stream live events via NATS consumers
             try
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    var events = await gateway.PollEventsAsync(50);
+                    var events = await gateway.ConsumeEventsAsync(50);
 
                     if (events.Count > 0)
                     {
@@ -71,8 +51,16 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                     }
                     else
                     {
-                        // No events — short delay before next poll
-                        await Task.Delay(100, ct);
+                        // Heartbeat with cursor — client can resume from this position
+                        var cursor = await gateway.GetCursor();
+                        await WriteSseEvent(writer, new BotSseEvent
+                        {
+                            Id   = cursor,
+                            Type = BotEventType.Heartbeat,
+                            Data = new { timestamp = DateTimeOffset.UtcNow }
+                        }, ct);
+
+                        await Task.Delay(500, ct);
                     }
                 }
             }

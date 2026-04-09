@@ -120,6 +120,12 @@ public static class BotEventMapping
 
     public static (BotEventType EventType, BotIntent RequiredIntent)? TryMap(string unionKey)
         => Map.TryGetValue(unionKey, out var result) ? result : null;
+
+    /// <summary>
+    /// Get the required intent for a given event type. Returns null for lifecycle events.
+    /// </summary>
+    public static BotIntent? GetRequiredIntent(BotEventType eventType)
+        => EventIntents.GetValueOrDefault(eventType);
     /// <summary>
     /// Short descriptions for each event type, used in documentation generation.
     /// </summary>

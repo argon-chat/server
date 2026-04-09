@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.Transport;
 
+using Argon.Features.BotApi;
 using Argon.Features.Env;
 using ion.runtime;
 using Microsoft.AspNetCore.Authentication;
@@ -82,7 +83,7 @@ public class AppHub(IGrainFactory factory) : Hub
     }
 }
 
-public class AppHubServer(IHubContext<AppHub> appHub, IGrainFactory grainFactory, ILogger<AppHubServer> logger)
+public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEventPublisher, ILogger<AppHubServer> logger)
 {
     public async Task BroadcastSpace<T>(T @event, Guid spaceId, CancellationToken ct = default)
         where T : IArgonEvent
@@ -93,10 +94,8 @@ public class AppHubServer(IHubContext<AppHub> appHub, IGrainFactory grainFactory
         await appHub.Clients.Group($"spaces/{spaceId}")
            .SendAsync("broadcastSpace", writer.Encode(), cancellationToken: ct);
 
-        // Dispatch to bots in this space (fire-and-forget to avoid
-        // reentrancy deadlock when called from within a grain method
-        // that also lives on ISpaceGrain — e.g. CreateSpace → UserJoined → Fire)
-        _ = Task.Run(() => DispatchToBots(@event, spaceId, CancellationToken.None));
+        // Publish to NATS for bots — single publish, bots consume independently
+        _ = botEventPublisher.PublishIfMappedAsync(@event, spaceId);
     }
 
     public async Task ForUser<T>(T @event, Guid userId, CancellationToken ct = default)
@@ -106,46 +105,6 @@ public class AppHubServer(IHubContext<AppHub> appHub, IGrainFactory grainFactory
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
         await appHub.Clients.User(userId.ToString())
            .SendAsync("forSelf", writer.Encode(), cancellationToken: ct);
-    }
-
-    private async Task DispatchToBots<T>(T @event, Guid spaceId, CancellationToken ct) where T : IArgonEvent
-    {
-        var mapping = Argon.Features.BotApi.BotEventMapping.TryMap(@event.UnionKey);
-        if (mapping is null)
-            return;
-
-        var (eventType, requiredIntent) = mapping.Value;
-
-        try
-        {
-            // Get bot members of this space from the space grain
-            var space   = grainFactory.GetGrain<ISpaceGrain>(spaceId);
-            var members = await space.GetMembers();
-
-            foreach (var member in members)
-            {
-                // Check if this member is a bot by trying to get its gateway grain
-                // A real bot will have a connected gateway grain
-                var gateway     = grainFactory.GetGrain<IBotGatewayGrain>(member.member.userId);
-                var isConnected = await gateway.IsConnectedAsync();
-                if (!isConnected)
-                    continue;
-
-                var botEvent = new Argon.Features.BotApi.BotSseEvent
-                {
-                    Id        = Guid.NewGuid().ToString("N"),
-                    Type      = eventType,
-                    SpaceId   = spaceId,
-                    Data      = @event
-                };
-
-                await gateway.DispatchEventAsync(botEvent, requiredIntent);
-            }
-        }
-        catch (Exception ex)
-        {
-            logger.LogWarning(ex, "Failed to dispatch event {EventType} to bots in space {SpaceId}", @event.UnionKey, spaceId);
-        }
     }
 }
 
@@ -180,6 +139,8 @@ public static class SignalRHubExtensions
 
         builder.Services
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
+           .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
+           .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
            .AddScoped<AppHubServer>()
            .AddSignalR()
            //.AddMessagePackProtocol()

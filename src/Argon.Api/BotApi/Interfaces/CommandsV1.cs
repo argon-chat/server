@@ -7,7 +7,7 @@ using Argon.Grains.Interfaces;
 
 [BotInterface("ICommands", 1)]
 [BotDescription("Register, update, list, and delete slash commands for your bot.")]
-[StableContract("9287d91b57d858e8f8d10a5d3fb4a5dde39adf9af17a33da4e41517d15fc365e")]
+[StableContract("0c93ed62652e9b973dd2f36606148bf1131cff23d3eb5b4199d64af5138e016b")]
 [BotRoute("POST",   "/Register",     RequestType = typeof(RegisterCommandRequest), ResponseType = typeof(CommandRegisteredResponse), Description = "Registers a new slash command. Commands can be global or scoped to a specific space. Max 50 commands per scope.")]
 [BotRoute("PATCH",  "/Update",       RequestType = typeof(UpdateCommandRequest),   ResponseType = typeof(BotCommand), Description = "Updates an existing slash command's description, options, or default permission.")]
 [BotRoute("DELETE", "/Delete",       ResponseType = typeof(DeletedResponse), Description = "Deletes a slash command by its commandId (query parameter).")]

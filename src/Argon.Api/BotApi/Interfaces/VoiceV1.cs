@@ -7,7 +7,7 @@ using Argon.Sfu;
 
 [BotInterface("IVoice", 1)]
 [BotDescription("Get voice streaming tokens for audio ingress. Bots stream Opus audio directly to a WebSocket endpoint — no WebRTC needed.")]
-[StableContract("b310f9ba915b4ab2089eabfb5c83c6ea2bb35b096fe0e4df4d782b004370533e")]
+[StableContract("31906fba806393345abaa611bacc5c0d7f86b3a06c9ef9023845bf1f89ca1b53")]
 [BotRoute("POST", "/StreamToken", RequestType = typeof(VoiceStreamTokenRequest), ResponseType = typeof(VoiceStreamTokenResponse), Description = "Gets a LiveKit JWT token and WebSocket ingress URL for streaming audio into a voice channel. The bot must be a member of the space, and the channel must be a voice channel.", Permission = "ConnectVoice")]
 [BotError("/StreamToken", 404, "channel_not_found", "Channel does not exist in this space.")]
 [BotError("/StreamToken", 400, "not_voice_channel", "Channel is not a voice channel.")]

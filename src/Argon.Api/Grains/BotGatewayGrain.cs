@@ -1,56 +1,58 @@
 namespace Argon.Api.Grains;
 
 using Argon.Features.BotApi;
-using System.Threading.Channels;
+using Argon.Features.NatsStreaming;
+using NATS.Client.JetStream;
+using NATS.Client.JetStream.Models;
 
 /// <summary>
-/// Gateway grain for bot SSE event streaming.
+/// Gateway grain for bot SSE event streaming via NATS JetStream.
 /// Each bot (BotAsUserId) gets one grain instance.
-/// Stores a bounded ring buffer for event replay (resume support) and
-/// writes new events to a Channel{T} consumed by the SSE endpoint.
+/// Uses durable NATS consumers that persist across reconnects for automatic resume.
 /// </summary>
-public sealed class BotGatewayGrain(ILogger<BotGatewayGrain> logger) : Grain, IBotGatewayGrain
+public sealed class BotGatewayGrain(
+    INatsJSContext              js,
+    BotSseEventSerializer       serializer,
+    ILogger<BotGatewayGrain>    logger) : Grain, IBotGatewayGrain
 {
-    private BotIntent                _intents;
-    private bool                     _isConnected;
-    private long                     _eventCounter;
-    private Channel<BotSseEvent>?    _channel;
-    private IGrainTimer?             _heartbeatTimer;
+    private BotIntent                                       _intents;
+    private bool                                            _isConnected;
+    private IGrainTimer?                                    _heartbeatTimer;
+    private readonly Dictionary<Guid, INatsJSConsumer>      _consumers = new();
+    private readonly List<Guid>                             _spaceIds  = new();
 
-    // Ring buffer for resume support — last N events
-    private const int EventBufferCapacity = 500;
-    private readonly LinkedList<BotSseEvent> _eventBuffer = new();
+    // Track last consumed NATS sequence per space for cursor/resume
+    private readonly Dictionary<Guid, ulong>                _lastSequences = new();
 
-    public Task<List<Guid>> ConnectAsync(BotIntent intents)
+    private Guid BotUserId => this.GetPrimaryKey();
+
+    public async Task<List<Guid>> ConnectAsync(BotIntent intents)
     {
         _intents     = intents;
         _isConnected = true;
-        _channel     = Channel.CreateBounded<BotSseEvent>(new BoundedChannelOptions(1000)
-        {
-            FullMode    = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false
-        });
 
-        // Heartbeat every 30 seconds
+        // Get bot's spaces
+        var spaceIds = await GrainFactory.GetGrain<IUserGrain>(BotUserId).GetMyServersIds();
+        _spaceIds.Clear();
+        _spaceIds.AddRange(spaceIds);
+
+        // Create/reuse durable NATS consumers for each space
+        // Consumers are durable — they persist across reconnects, NATS tracks position
+        foreach (var spaceId in spaceIds)
+            await CreateConsumerForSpace(spaceId);
+
+        // Set bot Online in all spaces
+        foreach (var spaceId in spaceIds)
+            _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
+
         _heartbeatTimer = this.RegisterGrainTimer(
-            ct =>
-            {
-                _ = WriteEvent(new BotSseEvent
-                {
-                    Id   = NextEventId(),
-                    Type = BotEventType.Heartbeat,
-                    Data = new { timestamp = DateTimeOffset.UtcNow }
-                });
-                return Task.CompletedTask;
-            },
+            _ => Task.CompletedTask,
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
 
-        logger.LogInformation("Bot {BotId} connected with intents {Intents}", this.GetPrimaryKey(), intents);
+        logger.LogInformation("Bot {BotId} connected with intents {Intents}, spaces: {SpaceCount}",
+            BotUserId, intents, spaceIds.Count);
 
-        // Return bot's space IDs — the SSE endpoint will await this then
-        // send a READY event with the space list
-        return GrainFactory.GetGrain<IUserGrain>(this.GetPrimaryKey()).GetMyServersIds();
+        return spaceIds;
     }
 
     public Task DisconnectAsync()
@@ -59,78 +61,173 @@ public sealed class BotGatewayGrain(ILogger<BotGatewayGrain> logger) : Grain, IB
         _heartbeatTimer?.Dispose();
         _heartbeatTimer = null;
 
-        _channel?.Writer.TryComplete();
-        _channel = null;
+        // Set bot Offline in all spaces
+        foreach (var spaceId in _spaceIds)
+            _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Offline);
 
-        logger.LogInformation("Bot {BotId} disconnected", this.GetPrimaryKey());
+        // Don't delete NATS consumers — they're durable.
+        // On reconnect, NATS delivers from where we left off.
+        // InactiveThreshold auto-cleans if bot never reconnects.
+        _consumers.Clear();
+        _spaceIds.Clear();
+
+        logger.LogInformation("Bot {BotId} disconnected", BotUserId);
         return Task.CompletedTask;
-    }
-
-    public Task DispatchEventAsync(BotSseEvent evt, BotIntent requiredIntent)
-    {
-        if (!_isConnected || _channel is null)
-            return Task.CompletedTask;
-
-        // Filter by intents
-        if ((requiredIntent & _intents) == 0)
-            return Task.CompletedTask;
-
-        return WriteEvent(evt);
     }
 
     public Task<bool> IsConnectedAsync() => Task.FromResult(_isConnected);
 
-    public Task<List<BotSseEvent>> GetEventsSinceAsync(string lastEventId)
+    public async Task SubscribeToSpace(Guid spaceId)
+    {
+        if (!_isConnected)
+            return;
+
+        if (_consumers.ContainsKey(spaceId))
+            return;
+
+        _spaceIds.Add(spaceId);
+        await CreateConsumerForSpace(spaceId);
+
+        _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
+    }
+
+    public async Task UnsubscribeFromSpace(Guid spaceId)
+    {
+        if (!_isConnected)
+            return;
+
+        _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Offline);
+
+        _spaceIds.Remove(spaceId);
+        _consumers.Remove(spaceId);
+        _lastSequences.Remove(spaceId);
+
+        // Delete consumer for uninstalled spaces — bot won't rejoin
+        try
+        {
+            var streamName   = NatsStreamExtensions.ToBotEventSubject(spaceId);
+            var consumerName = GetConsumerName(spaceId);
+            await js.DeleteConsumerAsync(streamName, consumerName);
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Failed to delete consumer for space {SpaceId}", spaceId);
+        }
+    }
+
+    public async Task<List<BotSseEvent>> ConsumeEventsAsync(int maxCount)
     {
         var result = new List<BotSseEvent>();
-        var found  = false;
 
-        foreach (var evt in _eventBuffer)
+        if (!_isConnected || _consumers.Count == 0)
+            return result;
+
+        // Round-robin across all space consumers
+        foreach (var (spaceId, consumer) in _consumers)
         {
-            if (found)
-                result.Add(evt);
-            else if (evt.Id == lastEventId)
-                found = true;
+            if (result.Count >= maxCount)
+                break;
+
+            try
+            {
+                var batch = consumer.FetchNoWaitAsync<BotSseEvent>(new NatsJSFetchOpts
+                {
+                    MaxMsgs = maxCount - result.Count
+                }, serializer);
+
+                await foreach (var msg in batch)
+                {
+                    if (msg.Data is null)
+                    {
+                        await msg.AckAsync();
+                        continue;
+                    }
+
+                    // Intent filtering
+                    var intent = BotEventMapping.GetRequiredIntent(msg.Data.Type);
+                    if (intent.HasValue && (_intents & intent.Value) == 0)
+                    {
+                        await msg.AckAsync();
+                        continue;
+                    }
+
+                    // Use NATS sequence as stable event ID, track cursor
+                    var seq = msg.Metadata?.Sequence.Stream ?? 0;
+                    _lastSequences[spaceId] = seq;
+                    var evt = msg.Data with { Id = $"{spaceId:N}_{seq}" };
+                    result.Add(evt);
+                    await msg.AckAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to consume events for space {SpaceId}", spaceId);
+            }
         }
 
-        return Task.FromResult(result);
+        return result;
     }
 
-    /// <summary>
-    /// Returns the ChannelReader for SSE streaming. Called by the SSE endpoint.
-    /// </summary>
-    public ChannelReader<BotSseEvent>? GetEventReader() => _channel?.Reader;
-
-    public Task<List<BotSseEvent>> PollEventsAsync(int maxCount)
+    private async Task CreateConsumerForSpace(Guid spaceId)
     {
-        var result = new List<BotSseEvent>();
-        if (_channel is null || !_isConnected)
-            return Task.FromResult(result);
+        var streamName   = NatsStreamExtensions.ToBotEventSubject(spaceId);
+        var consumerName = GetConsumerName(spaceId);
 
-        while (result.Count < maxCount && _channel.Reader.TryRead(out var evt))
-            result.Add(evt);
+        try
+        {
+            // Ensure stream exists
+            try
+            {
+                await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
+                {
+                    DuplicateWindow = TimeSpan.Zero,
+                    MaxAge          = TimeSpan.FromMinutes(5),
+                    AllowDirect     = true,
+                    MaxBytes        = -1,
+                    MaxMsgs         = 5000,
+                    Retention       = StreamConfigRetention.Limits,
+                    Storage         = StreamConfigStorage.Memory,
+                    Discard         = StreamConfigDiscard.Old
+                });
+            }
+            catch { /* stream may already exist */ }
 
-        return Task.FromResult(result);
+            var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(consumerName)
+            {
+                AckPolicy     = ConsumerConfigAckPolicy.Explicit,
+                DeliverPolicy = ConsumerConfigDeliverPolicy.New,
+                AckWait       = TimeSpan.FromSeconds(30),
+                MaxAckPending = 100,
+                InactiveThreshold = TimeSpan.FromMinutes(10)
+            });
+
+            _consumers[spaceId] = consumer;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create NATS consumer for bot {BotId} space {SpaceId}",
+                BotUserId, spaceId);
+        }
     }
 
-    private Task WriteEvent(BotSseEvent evt)
-    {
-        // Add to ring buffer
-        _eventBuffer.AddLast(evt);
-        while (_eventBuffer.Count > EventBufferCapacity)
-            _eventBuffer.RemoveFirst();
+    private string GetConsumerName(Guid spaceId)
+        => $"bot_{BotUserId:N}_{spaceId:N}";
 
-        // Write to SSE channel
-        _channel?.Writer.TryWrite(evt);
-        return Task.CompletedTask;
+    public Task<string> GetCursor()
+    {
+        if (_lastSequences.Count == 0)
+            return Task.FromResult("0");
+
+        // Encode as "spaceId:seq,spaceId:seq,..." — compact, parseable
+        return Task.FromResult(string.Join(',',
+            _lastSequences.Select(kv => $"{kv.Key:N}:{kv.Value}")));
     }
 
-    private string NextEventId() => Interlocked.Increment(ref _eventCounter).ToString();
-
-    public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
+    public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
-        _heartbeatTimer?.Dispose();
-        _channel?.Writer.TryComplete();
-        return base.OnDeactivateAsync(reason, cancellationToken);
+        if (_isConnected)
+            await DisconnectAsync();
+
+        await base.OnDeactivateAsync(reason, cancellationToken);
     }
 }

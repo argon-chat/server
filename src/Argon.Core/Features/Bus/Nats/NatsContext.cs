@@ -164,6 +164,9 @@ public static class NatsStreamExtensions
 {
     public static string ToNatsStreamName(this StreamId streamId)
         => $"{streamId.GetNamespace()}.{streamId.GetKeyAsString()}".Replace(".", "_").Replace(" ", "").Replace('/', '_');
+
+    public static string ToBotEventSubject(Guid spaceId)
+        => $"bot_events_{spaceId:N}";
 }
 
 public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsSerializer<IArgonEvent>

@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IMessages", 1)]
 [BotDescription("Send messages and retrieve message history from channels.")]
-[StableContract("751133cddf2bab7f600537422d5b24932733d404194dc054fbf6f540e413e4c7")]
+[StableContract("f67be823cf6cb77a6ae683a1cf9a6bf37b8b298c0198316c4de6c9f8e90dd58a")]
 [BotRoute("POST", "/Send",    RequestType = typeof(SendMessageRequest), ResponseType = typeof(SendMessageResponse), Description = "Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo.", Permission = "SendMessages")]
 [BotRoute("GET",  "/History", ResponseType = typeof(MessageHistoryResponse), Description = "Gets message history for a channel. Pass channelId as a query parameter. Supports pagination via from (message ID) and limit (1–100, default 50).", Permission = "ReadMessages")][BotError("/Send", 403, "not_a_member", "Bot is not a member of this space.")]
 [BotError("/History", 403, "not_a_member", "Bot is not a member of this space.")]public sealed class MessagesV1(IGrainFactory grains) : IBotInterface

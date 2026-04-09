@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("ISpaces", 1)]
 [BotDescription("Get space details and member information.")]
-[StableContract("4e98c00f57070e7d70cce6ccbac2c6488f62cc11c1fcf7623bfeb327d9a1adc6")]
+[StableContract("c099d60612ab11b399753dab7e69d5a0b4581e8697890f6bc247d5cea6d1b8f2")]
 [BotRoute("GET", "/Get",         ResponseType = typeof(BotSpaceDetail), Description = "Gets space details — name, description, and community flag. Pass spaceId as a query parameter.")]
 [BotRoute("GET", "/ListMembers", ResponseType = typeof(MemberListResponse), Description = "Lists all members of a space with their username, display name, and roles. Pass spaceId as a query parameter. Requires privileged intent.", Permission = "ViewMembers", IsPrivileged = true)]
 [BotRoute("GET", "/GetMember",   ResponseType = typeof(BotMember), Description = "Gets a single member's details. Pass spaceId and userId as query parameters.", Permission = "ViewMembers")]

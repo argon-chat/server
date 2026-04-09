@@ -855,6 +855,11 @@ public class SpaceGrain(
         // Join the bot-as-user to the space directly, no RequestContext hacks
         await AddMemberAsync(bot.BotAsUserId);
 
+        // Notify bot gateway about new space subscription
+        var gateway = grainFactory.GetGrain<IBotGatewayGrain>(bot.BotAsUserId);
+        if (await gateway.IsConnectedAsync())
+            await gateway.SubscribeToSpace(spaceId);
+
         // Fetch user for response
         var botUser = await ctx.Users
            .AsNoTracking()
@@ -902,6 +907,11 @@ public class SpaceGrain(
 
         if (deleted == 0)
             return new UninstallBotGrainResult(false, UninstallBotError.NOT_INSTALLED);
+
+        // Notify bot gateway about space unsubscription
+        var gateway = grainFactory.GetGrain<IBotGatewayGrain>(bot.BotAsUserId);
+        if (await gateway.IsConnectedAsync())
+            await gateway.UnsubscribeFromSpace(spaceId);
 
         return new UninstallBotGrainResult(true);
     }
