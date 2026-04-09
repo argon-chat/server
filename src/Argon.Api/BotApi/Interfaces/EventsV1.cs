@@ -1,9 +1,7 @@
 namespace Argon.Api.BotApi.Interfaces;
 
-using Argon.Api.Grains;
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
-using System.Threading.Channels;
 
 [BotInterface("IEvents", 1)]
 [BotDescription("Subscribe to real-time events via Server-Sent Events (SSE). Receive messages, member changes, voice activity, and more.")]
@@ -29,9 +27,6 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             var resumeId = lastEventId ?? ctx.Request.Headers["Last-Event-ID"].ToString();
             if (!string.IsNullOrEmpty(resumeId))
                 missedEvents = await gateway.GetEventsSinceAsync(resumeId);
-
-            // Get the channel reader from the grain
-            var grainRef = (BotGatewayGrain)grains.GetGrain<IBotGatewayGrain>(botUserId);
 
             ctx.Response.ContentType = "text/event-stream";
             ctx.Response.Headers["Cache-Control"] = "no-cache";
@@ -62,24 +57,26 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                 }, ct);
             }
 
-            // Stream live events
-            var reader = grainRef.GetEventReader();
-            if (reader is null)
-                return;
-
+            // Stream live events via polling
             try
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    if (!await reader.WaitToReadAsync(ct))
-                        break;
+                    var events = await gateway.PollEventsAsync(50);
 
-                    while (reader.TryRead(out var evt))
-                        await WriteSseEvent(writer, evt, ct);
+                    if (events.Count > 0)
+                    {
+                        foreach (var evt in events)
+                            await WriteSseEvent(writer, evt, ct);
+                    }
+                    else
+                    {
+                        // No events — short delay before next poll
+                        await Task.Delay(100, ct);
+                    }
                 }
             }
             catch (OperationCanceledException) { }
-            catch (ChannelClosedException) { }
             finally
             {
                 await gateway.DisconnectAsync();

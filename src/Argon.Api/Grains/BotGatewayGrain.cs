@@ -101,6 +101,18 @@ public sealed class BotGatewayGrain(ILogger<BotGatewayGrain> logger) : Grain, IB
     /// </summary>
     public ChannelReader<BotSseEvent>? GetEventReader() => _channel?.Reader;
 
+    public Task<List<BotSseEvent>> PollEventsAsync(int maxCount)
+    {
+        var result = new List<BotSseEvent>();
+        if (_channel is null || !_isConnected)
+            return Task.FromResult(result);
+
+        while (result.Count < maxCount && _channel.Reader.TryRead(out var evt))
+            result.Add(evt);
+
+        return Task.FromResult(result);
+    }
+
     private Task WriteEvent(BotSseEvent evt)
     {
         // Add to ring buffer

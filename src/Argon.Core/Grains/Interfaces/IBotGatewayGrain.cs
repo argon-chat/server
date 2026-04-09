@@ -40,4 +40,11 @@ public interface IBotGatewayGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(GetEventsSinceAsync))]
     Task<List<BotSseEvent>> GetEventsSinceAsync(string lastEventId);
+
+    /// <summary>
+    /// Polls for pending events (up to maxCount). Returns empty list if none available.
+    /// Used by SSE endpoint to drain events without direct ChannelReader access.
+    /// </summary>
+    [Alias(nameof(PollEventsAsync))]
+    Task<List<BotSseEvent>> PollEventsAsync(int maxCount);
 }
