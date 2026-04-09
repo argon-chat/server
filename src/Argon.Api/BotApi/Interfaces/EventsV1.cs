@@ -7,7 +7,7 @@ using System.Threading.Channels;
 
 [BotInterface("IEvents", 1)]
 [BotDescription("Subscribe to real-time events via Server-Sent Events (SSE). Receive messages, member changes, voice activity, and more.")]
-[StableContract("35629fed73f8ce99daf60846978838db329a2caf9bb3bfe661449a755941aba4")]
+[StableContract("a2ad75fa17aa104019b95ac85beb1f65ccdf7d704af92b4bb4331866746cc4b4")]
 [BotRoute("GET", "/Stream", ResponseType = typeof(BotSseEvent), Description = "Opens a persistent SSE connection. Pass intents as a bitmask to filter events. Supports reconnection via Last-Event-ID header or lastEventId query parameter.")]
 [BotError("/Stream", 403, "missing_intents", "No valid intents specified.")]
 public sealed class EventsV1(IGrainFactory grains) : IBotInterface
