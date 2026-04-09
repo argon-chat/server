@@ -21,18 +21,25 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
         var webhookEvent = webhookReceiver.Receive(postData, authHeader);
         logger.LogWarning("Received #{WebhookEventId} {WebhookEventEvent} at {WebhookEventCreatedAt}", webhookEvent.Id, webhookEvent.Event,
             webhookEvent.CreatedAt);
-        if (webhookEvent.Event.Equals("participant_left") || webhookEvent.Event.Equals("participant_connection_aborted"))
-        {
-            var userId    = webhookEvent.Participant.Identity;
-            var channelId = string.Join("", webhookEvent.Room.Name.Skip(37).Take(36));
 
-            if (Guid.TryParse(channelId, out var chId) && Guid.TryParse(userId, out var usrId))
+        if (webhookEvent.Event.Equals("participant_joined"))
+        {
+            var (spaceId, channelId, userId) = ParseRoomParticipant(webhookEvent);
+            if (spaceId.HasValue && channelId.HasValue && userId.HasValue)
             {
-                await client.GetGrain<IChannelGrain>(chId).Leave(usrId);
+                await client.GetGrain<IChannelGrain>(channelId.Value)
+                    .OnParticipantJoined(userId.Value);
+            }
+        }
+        else if (webhookEvent.Event.Equals("participant_left") || webhookEvent.Event.Equals("participant_connection_aborted"))
+        {
+            var (_, channelId, userId) = ParseRoomParticipant(webhookEvent);
+            if (channelId.HasValue && userId.HasValue)
+            {
+                await client.GetGrain<IChannelGrain>(channelId.Value).Leave(userId.Value);
             }
             else
-                logger.LogInformation("Received participant_left, but channelId or userId not valid format: {ChannelId}, {UserId}", channelId,
-                    userId);
+                logger.LogInformation("Received {Event}, but channelId or userId not valid format", webhookEvent.Event);
         }
         else if (webhookEvent.Event.Equals("room_finished"))
         {
@@ -44,5 +51,20 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
         }
 
         return Ok();
+    }
+
+    private static (Guid? SpaceId, Guid? ChannelId, Guid? UserId) ParseRoomParticipant(WebhookEvent ev)
+    {
+        var roomName  = ev.Room?.Name ?? "";
+        var identity  = ev.Participant?.Identity ?? "";
+
+        var spaceStr   = roomName.Length >= 36 ? roomName[..36] : "";
+        var channelStr = roomName.Length >= 73 ? roomName.Substring(37, 36) : "";
+
+        Guid? spaceId   = Guid.TryParse(spaceStr, out var s) ? s : null;
+        Guid? channelId = Guid.TryParse(channelStr, out var c) ? c : null;
+        Guid? userId    = Guid.TryParse(identity, out var u) ? u : null;
+
+        return (spaceId, channelId, userId);
     }
 }

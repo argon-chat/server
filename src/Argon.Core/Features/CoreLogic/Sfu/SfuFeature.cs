@@ -103,8 +103,9 @@ public class SfuInstanceCfg
     public required string      ClientId   { get; set; }
     public required string      PublicUrl  { get; set; }
     public required string      CommandUrl { get; set; }
-    public required string      Secret     { get; set; }
-    public required GeoPosition Geo        { get; set; }
+    public required string      Secret          { get; set; }
+    public required GeoPosition Geo             { get; set; }
+    public          string      AudioIngressUrl { get; set; } = "";
 
     public SfuS3Settings? S3 { get; set; }
 }

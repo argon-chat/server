@@ -188,11 +188,13 @@ public class SpaceGrain(
         return results;
     }
 
-    public async Task DoJoinUserAsync()
+    public Task DoJoinUserAsync()
+        => AddMemberAsync(this.GetUserId());
+
+    private async Task AddMemberAsync(Guid userId)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var userId  = this.GetUserId();
         var spaceId = this.GetPrimaryKey();
 
         var exists = await ctx.UsersToServerRelations
@@ -772,5 +774,135 @@ public class SpaceGrain(
         var indices = FractionalIndex.Distribute(items.Count);
         for (var i = 0; i < items.Count; i++)
             items[i].FractionalIndex = indices[i].Value;
+    }
+
+    // ───────────── Bot management ─────────────
+
+    public async Task<List<InstalledBotRecord>> GetInstalledBots()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+        var spaceId = this.GetPrimaryKey();
+
+        return await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(m => m.SpaceId == spaceId)
+           .Join(ctx.BotEntities.AsNoTracking(),
+                m => m.UserId,
+                b => b.BotAsUserId,
+                (m, b) => new { Member = m, Bot = b })
+           .Join(ctx.Users.AsNoTracking(),
+                x => x.Bot.BotAsUserId,
+                u => u.Id,
+                (x, u) => new InstalledBotRecord(
+                    x.Bot.AppId,
+                    x.Bot.Name,
+                    u.Username,
+                    u.AvatarFileId,
+                    x.Bot.IsVerified,
+                    x.Bot.BotAsUserId))
+           .ToListAsync();
+    }
+
+    public async Task<InstallBotGrainResult> InstallBot(Guid botAppId)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Verify caller is the space owner
+        var space = await ctx.Spaces
+           .AsNoTracking()
+           .Where(s => s.Id == spaceId)
+           .Select(s => new { s.CreatorId })
+           .FirstOrDefaultAsync();
+
+        if (space is null)
+            return new InstallBotGrainResult(false, InstallBotError.NOT_FOUND);
+
+        if (space.CreatorId != callerId)
+            return new InstallBotGrainResult(false, InstallBotError.INSUFFICIENT_PERMISSIONS);
+
+        // Look up the bot
+        var bot = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.AppId == botAppId)
+           .Select(b => new { b.BotAsUserId, b.Name, b.IsVerified, b.MaxSpaces, b.IsPublic, b.IsRestricted })
+           .FirstOrDefaultAsync();
+
+        if (bot is null || !bot.IsPublic)
+            return new InstallBotGrainResult(false, InstallBotError.NOT_FOUND);
+
+        if (bot.IsRestricted)
+            return new InstallBotGrainResult(false, InstallBotError.BOT_RESTRICTED);
+
+        // Check already installed
+        var alreadyInstalled = await ctx.UsersToServerRelations
+           .AnyAsync(x => x.SpaceId == spaceId && x.UserId == bot.BotAsUserId);
+
+        if (alreadyInstalled)
+            return new InstallBotGrainResult(false, InstallBotError.ALREADY_INSTALLED);
+
+        // Check bot's max space limit
+        if (bot.MaxSpaces > 0)
+        {
+            var currentCount = await ctx.UsersToServerRelations
+               .CountAsync(x => x.UserId == bot.BotAsUserId);
+            if (currentCount >= bot.MaxSpaces)
+                return new InstallBotGrainResult(false, InstallBotError.BOT_SPACE_LIMIT);
+        }
+
+        // Join the bot-as-user to the space directly, no RequestContext hacks
+        await AddMemberAsync(bot.BotAsUserId);
+
+        // Fetch user for response
+        var botUser = await ctx.Users
+           .AsNoTracking()
+           .Where(u => u.Id == bot.BotAsUserId)
+           .Select(u => new { u.Username, u.AvatarFileId })
+           .FirstAsync();
+
+        return new InstallBotGrainResult(true, Bot: new InstalledBotRecord(
+            botAppId, bot.Name, botUser.Username, botUser.AvatarFileId, bot.IsVerified, bot.BotAsUserId));
+    }
+
+    public async Task<UninstallBotGrainResult> UninstallBot(Guid botAppId)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Verify caller is the space owner
+        var space = await ctx.Spaces
+           .AsNoTracking()
+           .Where(s => s.Id == spaceId)
+           .Select(s => new { s.CreatorId })
+           .FirstOrDefaultAsync();
+
+        if (space is null)
+            return new UninstallBotGrainResult(false, UninstallBotError.NOT_FOUND);
+
+        if (space.CreatorId != callerId)
+            return new UninstallBotGrainResult(false, UninstallBotError.INSUFFICIENT_PERMISSIONS);
+
+        // Find the bot
+        var bot = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.AppId == botAppId)
+           .Select(b => new { b.BotAsUserId })
+           .FirstOrDefaultAsync();
+
+        if (bot is null)
+            return new UninstallBotGrainResult(false, UninstallBotError.NOT_FOUND);
+
+        var deleted = await ctx.UsersToServerRelations
+           .Where(x => x.SpaceId == spaceId && x.UserId == bot.BotAsUserId)
+           .ExecuteDeleteAsync();
+
+        if (deleted == 0)
+            return new UninstallBotGrainResult(false, UninstallBotError.NOT_INSTALLED);
+
+        return new UninstallBotGrainResult(true);
     }
 }

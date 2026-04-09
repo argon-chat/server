@@ -568,6 +568,31 @@ public class ChannelGrain(
         ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
     }
 
+    public async Task OnParticipantJoined(Guid userId)
+    {
+        if (_self.ChannelType != ChannelType.Voice)
+            return;
+
+        if (state.State.Users.ContainsKey(userId))
+            return;
+
+        await SettleXpForAllUsersAsync();
+
+        state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
+        state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
+        await state.WriteStateAsync();
+
+        await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+
+        if (state.State.Users.Count > 0)
+            this.DelayDeactivation(TimeSpan.FromDays(1));
+
+        ChannelGrainInstrument.VoiceJoins.Add(1,
+            new KeyValuePair<string, object?>("source", "webhook"));
+
+        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
+    }
+
     public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
     {
         await using var ctx = await context.CreateDbContextAsync();

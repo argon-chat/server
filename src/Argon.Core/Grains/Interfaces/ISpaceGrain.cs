@@ -77,6 +77,15 @@ public interface ISpaceGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteUploadSpaceFile))]
     ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(GetInstalledBots))]
+    Task<List<InstalledBotRecord>> GetInstalledBots();
+
+    [Alias(nameof(InstallBot))]
+    Task<InstallBotGrainResult> InstallBot(Guid botAppId);
+
+    [Alias(nameof(UninstallBot))]
+    Task<UninstallBotGrainResult> UninstallBot(Guid botAppId);
 }
 
 public enum ServerCreationError
@@ -95,3 +104,23 @@ public enum SpaceFileKind
     Avatar,
     ProfileHeader
 }
+
+[GenerateSerializer, Immutable]
+public sealed record InstalledBotRecord(
+    [property: Id(0)] Guid   AppId,
+    [property: Id(1)] string Name,
+    [property: Id(2)] string Username,
+    [property: Id(3)] string? AvatarFileId,
+    [property: Id(4)] bool   IsVerified,
+    [property: Id(5)] Guid   BotUserId);
+
+[GenerateSerializer, Immutable]
+public sealed record InstallBotGrainResult(
+    [property: Id(0)] bool Success,
+    [property: Id(1)] InstallBotError? Error = null,
+    [property: Id(2)] InstalledBotRecord? Bot = null);
+
+[GenerateSerializer, Immutable]
+public sealed record UninstallBotGrainResult(
+    [property: Id(0)] bool Success,
+    [property: Id(1)] UninstallBotError? Error = null);

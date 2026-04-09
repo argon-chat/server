@@ -5,6 +5,7 @@ using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Api.Features.CoreLogic.Social;
 using Argon.Core.Features.Integrations.Captcha;
 using Argon.Core.Features.Logic;
+using Argon.Features.BotApi;
 using Auth;
 using EF;
 using Env;
@@ -231,9 +232,12 @@ public static class RunHostModeExtensions
             if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
             {
                 app.UseCors();
+                app.UseBotPathTokenAuth();
                 app.UseAuthentication();
                 app.UseAuthorization();
+                app.UseRateLimiter();
                 app.MapRpcEndpoints();
+                app.MapBotApi();
                 app.UseWebSockets();
             }
             if (hasMapRoot)
@@ -256,9 +260,12 @@ public static class RunHostModeExtensions
             if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
             {
                 app.UseCors();
+                app.UseBotPathTokenAuth();
                 app.UseAuthentication();
                 app.UseAuthorization();
+                app.UseRateLimiter();
                 app.MapRpcEndpoints();
+                app.MapBotApi();
                 app.MapControllers();
                 app.UseWebSockets();
                 if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is null)

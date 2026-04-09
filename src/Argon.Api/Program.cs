@@ -1,11 +1,15 @@
 using Argon.Core.Features.EF;
 using Argon.Core.Features.Transport;
+using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
 using Microsoft.AspNetCore.Http.Connections;
 
+
+if (BotApiCli.TryHandleCommand(args))
+    return;
 
 var builder = await RegionalUnitApp.CreateBuilder(args);
 if (builder.Environment.IsSingleInstance())
@@ -31,11 +35,18 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IUserChatInteractions, UserChatInteractionImpl>();
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
     x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
+    x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
 builder.AddSignalRAppHub();
 builder.Services.AddHttpClient();
 builder.Services.AddSentryTunneling("sentry.argon.gl");
+
+builder.Services.AddAuthentication()
+   .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, BotTokenAuthenticationHandler>(
+        BotTokenAuthenticationHandler.SchemeName, _ => { });
+builder.Services.AddBotRateLimiting(builder.Configuration);
+builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 
 var app = builder.Build();
 app.UseSentryTunneling("/k");

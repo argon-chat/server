@@ -11,6 +11,13 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("Leave")]
     Task Leave(Guid userId);
 
+    /// <summary>
+    /// Called by LiveKit webhook when a participant actually connects to the room.
+    /// Registers the user in voice channel state and fires the join event.
+    /// </summary>
+    [Alias("OnParticipantJoined")]
+    Task OnParticipantJoined(Guid userId);
+
     [Alias("UpdateChannel")]
     Task<ChannelEntity> UpdateChannel(ChannelInput input);
 

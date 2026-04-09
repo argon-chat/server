@@ -22,6 +22,13 @@ internal static class IonProjectFormatterStorageModuleInit
         
       IonFormatterStorage<ChannelEntitlementOverwrite>.Value = new Ion_ChannelEntitlementOverwrite_Formatter();
       IonFormatterStorage<Archetype>.Value = new Ion_Archetype_Formatter();
+      IonFormatterStorage<BotSearchResult>.Value = new Ion_BotSearchResult_Formatter();
+      IonFormatterStorage<BotDetails>.Value = new Ion_BotDetails_Formatter();
+      IonFormatterStorage<InstalledBotInfo>.Value = new Ion_InstalledBotInfo_Formatter();
+      IonFormatterStorage<InstallBotError>.Value = new Ion_InstallBotError_Formatter();
+      IonFormatterStorage<UninstallBotError>.Value = new Ion_UninstallBotError_Formatter();
+      IonFormatterStorage<IInstallBotResult>.Value = new Ion_IInstallBotResult_Formatter();
+      IonFormatterStorage<IUninstallBotResult>.Value = new Ion_IUninstallBotResult_Formatter();
       IonFormatterStorage<CreateChannelRequest>.Value = new Ion_CreateChannelRequest_Formatter();
       IonFormatterStorage<RealtimeChannel>.Value = new Ion_RealtimeChannel_Formatter();
       IonFormatterStorage<LinkedMeetingInfo>.Value = new Ion_LinkedMeetingInfo_Formatter();
@@ -133,6 +140,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IBeginCallResult>.Value = new Ion_IBeginCallResult_Formatter();
       IonFormatterStorage<IPickUpCallResult>.Value = new Ion_IPickUpCallResult_Formatter();
       IonFormatterStorage<IDialCheckResult>.Value = new Ion_IDialCheckResult_Formatter();
+      IonFormatterStorage<SuccessInstallBot>.Value = new Ion_SuccessInstallBot_Formatter();
+      IonFormatterStorage<FailedInstallBot>.Value = new Ion_FailedInstallBot_Formatter();
+      IonFormatterStorage<SuccessUninstallBot>.Value = new Ion_SuccessUninstallBot_Formatter();
+      IonFormatterStorage<FailedUninstallBot>.Value = new Ion_FailedUninstallBot_Formatter();
       IonFormatterStorage<MessageEntityBold>.Value = new Ion_MessageEntityBold_Formatter();
       IonFormatterStorage<MessageEntityItalic>.Value = new Ion_MessageEntityItalic_Formatter();
       IonFormatterStorage<MessageEntityStrikethrough>.Value = new Ion_MessageEntityStrikethrough_Formatter();
@@ -261,6 +272,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SuccessDialCheck>.Value = new Ion_SuccessDialCheck_Formatter();
       IonFormatterStorage<FailedDialCheck>.Value = new Ion_FailedDialCheck_Formatter();
       IonExecutorMetadataStorage.AddExecutor<Ion_ArchetypeInteraction_ServiceExecutor>("IArchetypeInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_BotManagementInteraction_ServiceExecutor>("IBotManagementInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ChannelInteraction_ServiceExecutor>("IChannelInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_EventBus_ServiceExecutor>("IEventBus");
       IonExecutorMetadataStorage.AddExecutor<Ion_FeatureFlagInteractions_ServiceExecutor>("IFeatureFlagInteractions");
@@ -275,6 +287,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_VoiceInteraction_ServiceExecutor>("IVoiceInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_CallInteraction_ServiceExecutor>("ICallInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ArchetypeInteraction_ClientImpl>("IArchetypeInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_BotManagementInteraction_ClientImpl>("IBotManagementInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ChannelInteraction_ClientImpl>("IChannelInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_EventBus_ClientImpl>("IEventBus");
       IonExecutorMetadataStorage.AddClient<Ion_FeatureFlagInteractions_ClientImpl>("IFeatureFlagInteractions");

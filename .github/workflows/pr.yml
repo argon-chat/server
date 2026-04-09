@@ -31,5 +31,8 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --verbosity normal
 
+      - name: Verify Bot API Contracts
+        run: dotnet run --project src/Argon.Api -- bot-api verify
+
       - name: Test
         run: dotnet test --no-build --verbosity normal
