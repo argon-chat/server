@@ -8,7 +8,20 @@ public interface IBotDirectoryGrain : IGrainWithGuidKey
 
     [Alias(nameof(GetBotDetails))]
     Task<BotDetailInfo?> GetBotDetails(Guid botAppId);
+
+    [Alias(nameof(ResolveByToken))]
+    Task<BotAuthInfo?> ResolveByToken(string token);
 }
+
+[GenerateSerializer, Immutable]
+public sealed record BotAuthInfo(
+    [property: Id(0)] Guid   AppId,
+    [property: Id(1)] Guid   TeamId,
+    [property: Id(2)] Guid   BotAsUserId,
+    [property: Id(3)] string BotName,
+    [property: Id(4)] bool   IsRestricted,
+    [property: Id(5)] bool   IsVerified,
+    [property: Id(6)] int    MaxSpaces);
 
 [GenerateSerializer, Immutable]
 public sealed record BotSearchInfo(

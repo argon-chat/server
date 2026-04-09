@@ -4,6 +4,7 @@ using Argon.Core.Entities.Data;
 using Argon.Entities;
 using Argon.Grains.Interfaces;
 using Orleans.Concurrency;
+using System.Security.Cryptography;
 
 [StatelessWorker]
 public class BotDirectoryGrain(
@@ -36,6 +37,69 @@ public class BotDirectoryGrain(
                 x.Bot.IsVerified,
                 x.Bot.RequiredScopes))
            .FirstOrDefaultAsync();
+    }
+
+    public async Task<BotAuthInfo?> ResolveByToken(string token)
+    {
+        if (string.IsNullOrEmpty(token))
+            return null;
+
+        // Token format: HEX_REVERSED_GUID:BASE64URL_SECRET
+        var colonIdx = token.IndexOf(':');
+        if (colonIdx < 0)
+            return null;
+
+        var hexPart = token[..colonIdx];
+        if (hexPart.Length != 32)
+            return null;
+
+        // Parse hex → bytes → reverse → Guid (AppId)
+        Span<byte> botBytes = stackalloc byte[16];
+        try
+        {
+            var decoded = Convert.FromHexString(hexPart);
+            if (decoded.Length != 16) return null;
+            decoded.CopyTo(botBytes);
+        }
+        catch { return null; }
+        botBytes.Reverse();
+        var appId = new Guid(botBytes);
+
+        await using var db = await context.CreateDbContextAsync();
+
+        var bot = await db.BotEntities
+           .AsNoTracking()
+           .Where(b => b.AppId == appId)
+           .Select(b => new
+            {
+                b.BotToken,
+                b.AppId,
+                b.TeamId,
+                b.BotAsUserId,
+                b.Name,
+                b.IsRestricted,
+                b.IsVerified,
+                b.MaxSpaces
+            })
+           .FirstOrDefaultAsync();
+
+        if (bot is null)
+            return null;
+
+        // Constant-time comparison of full token
+        if (!CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(token),
+                Encoding.UTF8.GetBytes(bot.BotToken)))
+            return null;
+
+        return new BotAuthInfo(
+            bot.AppId,
+            bot.TeamId,
+            bot.BotAsUserId,
+            bot.Name,
+            bot.IsRestricted,
+            bot.IsVerified,
+            bot.MaxSpaces);
     }
 
     public async Task<BotDetailInfo?> GetBotDetails(Guid botAppId)

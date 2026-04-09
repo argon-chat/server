@@ -1,5 +1,6 @@
 namespace Argon.Features.BotApi;
 
+using Argon.Grains.Interfaces;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.Extensions.Caching.Hybrid;
 
@@ -7,7 +8,8 @@ public sealed class BotTokenAuthenticationHandler(
     IOptionsMonitor<AuthenticationSchemeOptions> options,
     ILoggerFactory                              logger,
     System.Text.Encodings.Web.UrlEncoder        encoder,
-    IServiceProvider                            serviceProvider)
+    IClusterClient                              clusterClient,
+    HybridCache                                 cache)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     public const string SchemeName = "BotToken";
@@ -26,40 +28,23 @@ public sealed class BotTokenAuthenticationHandler(
         if (string.IsNullOrEmpty(token))
             return AuthenticateResult.Fail("Empty bot token");
 
-        var cache = serviceProvider.GetRequiredService<HybridCache>();
-
+        var cacheKey = $"bot:auth:{ComputeTokenHash(token)}";
         var botInfo = await cache.GetOrCreateAsync(
-            $"bot:auth:{ComputeTokenHash(token)}",
+            cacheKey,
             token,
-            static async (token, ct) =>
+            async (t, ct) =>
             {
-                // This is a factory function, we don't have access to 'this' or
-                // serviceProvider here — but HybridCache expects a static lambda.
-                // We'll move the DB lookup outside.
-                return (BotAuthCacheEntry?)null;
+                var grain = clusterClient.GetGrain<IBotDirectoryGrain>(Guid.Empty);
+                return await grain.ResolveByToken(t);
             },
             new HybridCacheEntryOptions
             {
-                Expiration      = TimeSpan.FromMinutes(5),
+                Expiration           = TimeSpan.FromMinutes(5),
                 LocalCacheExpiration = TimeSpan.FromMinutes(1)
             });
 
-        // If cache returned null, do a real lookup and cache it
         if (botInfo is null)
-        {
-            botInfo = await ResolveBotFromToken(token);
-            if (botInfo is null)
-                return AuthenticateResult.Fail("Invalid bot token");
-
-            await cache.SetAsync(
-                $"bot:auth:{ComputeTokenHash(token)}",
-                botInfo,
-                new HybridCacheEntryOptions
-                {
-                    Expiration           = TimeSpan.FromMinutes(5),
-                    LocalCacheExpiration = TimeSpan.FromMinutes(1)
-                });
-        }
+            return AuthenticateResult.Fail("Invalid bot token");
 
         if (botInfo.IsRestricted)
             return AuthenticateResult.Fail("Bot is restricted");
@@ -82,43 +67,9 @@ public sealed class BotTokenAuthenticationHandler(
         return AuthenticateResult.Success(new AuthenticationTicket(principal, SchemeName));
     }
 
-    private async Task<BotAuthCacheEntry?> ResolveBotFromToken(string token)
-    {
-        await using var scope = serviceProvider.CreateAsyncScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var bot = await db.BotEntities
-           .AsNoTracking()
-           .Where(b => b.BotToken == token)
-           .Select(b => new BotAuthCacheEntry
-            {
-                AppId       = b.AppId,
-                TeamId      = b.TeamId,
-                BotAsUserId = b.BotAsUserId,
-                BotName     = b.Name,
-                IsRestricted = b.IsRestricted,
-                IsVerified   = b.IsVerified,
-                MaxSpaces   = b.MaxSpaces,
-            })
-           .FirstOrDefaultAsync();
-
-        return bot;
-    }
-
     private static string ComputeTokenHash(string token)
     {
         var hash = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         return Convert.ToHexStringLower(hash);
     }
-}
-
-public sealed class BotAuthCacheEntry
-{
-    public Guid   AppId        { get; init; }
-    public Guid   TeamId       { get; init; }
-    public Guid   BotAsUserId  { get; init; }
-    public string BotName      { get; init; } = "";
-    public bool   IsRestricted { get; init; }
-    public bool   IsVerified   { get; init; }
-    public int    MaxSpaces    { get; init; }
 }
