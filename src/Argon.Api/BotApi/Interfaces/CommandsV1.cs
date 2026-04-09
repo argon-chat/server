@@ -3,6 +3,7 @@ namespace Argon.Api.BotApi.Interfaces;
 using Argon.Core.Entities.Data;
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
+using Argon.Grains.Interfaces;
 
 [BotInterface("ICommands", 1)]
 [BotDescription("Register, update, list, and delete slash commands for your bot.")]
@@ -17,7 +18,7 @@ using Argon.Features.BotApi.Contracts;
 [BotError("/Register", 400, "command_limit", "Maximum 50 commands per scope.")]
 [BotError("/Update", 404, "not_found", "Command does not exist or is not owned by this bot.")]
 [BotError("/Delete", 404, "not_found", "Command does not exist or is not owned by this bot.")]
-public sealed class CommandsV1(IGrainFactory grains, IServiceProvider serviceProvider) : IBotInterface
+public sealed class CommandsV1(IGrainFactory grains) : IBotInterface
 {
     public sealed record RegisterCommandRequest(
         string                    Name,
@@ -55,78 +56,49 @@ public sealed class CommandsV1(IGrainFactory grains, IServiceProvider servicePro
         group.MapPost("/Register", async (HttpContext ctx, RegisterCommandRequest request) =>
         {
             var appId = ctx.GetBotAppId();
+            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
 
-            if (request.Name.Length > 32 || string.IsNullOrWhiteSpace(request.Name))
-                return Results.BadRequest(new BotApiError("invalid_name", "Name must be 1-32 characters"));
-            if (request.Description.Length > 100)
-                return Results.BadRequest(new BotApiError("invalid_description", "Description must be max 100 characters"));
+            var result = await grain.Register(
+                request.Name, request.Description, request.SpaceId,
+                request.Options, request.DefaultPermission ?? true);
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            if (!result.Success)
+                return result.Error switch
+                {
+                    "command_limit" => Results.BadRequest(new BotApiError("command_limit", "Maximum 50 commands per scope")),
+                    "invalid_description" => Results.BadRequest(new BotApiError("invalid_description", "Description must be max 100 characters")),
+                    _ => Results.BadRequest(new BotApiError("invalid_name", "Name must be 1-32 characters"))
+                };
 
-            var existingCount = await db.BotCommands
-               .Where(c => c.AppId == appId && c.SpaceId == request.SpaceId)
-               .CountAsync();
-
-            if (existingCount >= 50)
-                return Results.BadRequest(new BotApiError("command_limit", "Maximum 50 commands per scope"));
-
-            var entity = new BotCommandEntity
-            {
-                CommandId         = Guid.NewGuid(),
-                AppId             = appId,
-                SpaceId           = request.SpaceId,
-                Name              = request.Name.ToLowerInvariant(),
-                Description       = request.Description,
-                Options           = request.Options ?? [],
-                DefaultPermission = request.DefaultPermission ?? true
-            };
-
-            db.BotCommands.Add(entity);
-            await db.SaveChangesAsync();
-
-            return Results.Ok(new CommandRegisteredResponse(entity.CommandId, entity.Name, entity.SpaceId));
+            return Results.Ok(new CommandRegisteredResponse(result.CommandId!.Value, result.Name!, result.SpaceId));
         });
 
         group.MapPatch("/Update", async (HttpContext ctx, UpdateCommandRequest request) =>
         {
             var appId = ctx.GetBotAppId();
+            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var result = await grain.Update(
+                request.CommandId, request.Description,
+                request.Options, request.DefaultPermission);
 
-            var command = await db.BotCommands
-               .FirstOrDefaultAsync(c => c.CommandId == request.CommandId && c.AppId == appId);
-
-            if (command is null)
+            if (!result.Success)
                 return Results.NotFound(new BotApiError("not_found"));
 
-            if (request.Description is not null)
-                command.Description = request.Description;
-            if (request.Options is not null)
-                command.Options = request.Options;
-            if (request.DefaultPermission.HasValue)
-                command.DefaultPermission = request.DefaultPermission.Value;
-            command.UpdatedAt = DateTime.UtcNow;
-
-            await db.SaveChangesAsync();
+            var c = result.Command!;
             return Results.Ok(new BotCommand(
-                command.CommandId, command.Name, command.Description,
-                command.SpaceId, command.DefaultPermission, command.Options));
+                c.CommandId, c.Name, c.Description,
+                c.SpaceId, c.DefaultPermission, c.Options));
         });
 
         group.MapDelete("/Delete", async (HttpContext ctx, Guid commandId) =>
         {
             var appId = ctx.GetBotAppId();
+            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var deleted = await grain.Delete(commandId);
 
-            var deleted = await db.BotCommands
-               .Where(c => c.CommandId == commandId && c.AppId == appId)
-               .ExecuteDeleteAsync();
-
-            return deleted > 0
+            return deleted
                 ? Results.Ok(new DeletedResponse(true))
                 : Results.NotFound(new BotApiError("not_found"));
         });
@@ -134,15 +106,9 @@ public sealed class CommandsV1(IGrainFactory grains, IServiceProvider servicePro
         group.MapGet("/List", async (HttpContext ctx) =>
         {
             var appId = ctx.GetBotAppId();
+            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var commands = await db.BotCommands
-               .AsNoTracking()
-               .Where(c => c.AppId == appId)
-               .OrderBy(c => c.Name)
-               .ToListAsync();
+            var commands = await grain.List();
 
             return Results.Ok(new CommandListResponse(
                 commands.Select(c => new BotCommand(
@@ -153,15 +119,9 @@ public sealed class CommandsV1(IGrainFactory grains, IServiceProvider servicePro
         group.MapGet("/ListForSpace", async (HttpContext ctx, Guid spaceId) =>
         {
             var appId = ctx.GetBotAppId();
+            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
 
-            await using var scope = serviceProvider.CreateAsyncScope();
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-            var commands = await db.BotCommands
-               .AsNoTracking()
-               .Where(c => c.AppId == appId && (c.SpaceId == null || c.SpaceId == spaceId))
-               .OrderBy(c => c.Name)
-               .ToListAsync();
+            var commands = await grain.ListForSpace(spaceId);
 
             return Results.Ok(new CommandListResponse(
                 commands.Select(c => new BotCommand(
