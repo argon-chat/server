@@ -81,7 +81,9 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
     {
         var data = JsonConvert.SerializeObject(evt, new JsonSerializerSettings
         {
-            ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
+            TypeNameHandling = TypeNameHandling.All,
+            ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+            Converters       = { new MessageEntityConverter() }
         });
 
         var line = $"id: {evt.Id}\nevent: {evt.Type}\ndata: {data}\n\n";

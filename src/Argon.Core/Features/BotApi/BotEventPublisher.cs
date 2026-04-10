@@ -96,7 +96,8 @@ public sealed class BotSseEventSerializer : INatsSerializer<BotSseEvent>
     {
         TypeNameHandling = TypeNameHandling.All,
         Formatting       = Formatting.None,
-        ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
+        ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+        Converters       = { new MessageEntityConverter() }
     };
 
     public void Serialize(IBufferWriter<byte> bufferWriter, BotSseEvent value)
