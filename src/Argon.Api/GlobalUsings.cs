@@ -27,3 +27,4 @@ global using System.Threading.Tasks;
 global using ArgonContracts;
 global using ion.runtime.network;
 global using Newtonsoft.Json;
+global using Argon.Shared;

@@ -9,6 +9,9 @@ public static class ArgonTimeExtensions
     public static uint ToArgonTimeSeconds(this DateTimeOffset dateTime)
         => (uint)(dateTime - ArgonEpoch.Value).TotalSeconds;
 
+    public static long ToArgonTimeMillis(this DateTimeOffset dateTime)
+        => (long)(dateTime - ArgonEpoch.Value).TotalMilliseconds;
+
     public static Guid Pack(
         uint epochTimestamp,
         byte regionId,

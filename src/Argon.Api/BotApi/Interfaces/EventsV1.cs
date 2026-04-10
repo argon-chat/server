@@ -61,7 +61,7 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                         {
                             Id   = cursor,
                             Type = BotEventType.Heartbeat,
-                            Data = new { timestamp = DateTimeOffset.UtcNow }
+                            Data = new { timestamp = DateTimeOffset.UtcNow.ToArgonTimeMillis() }
                         }, ct);
                         nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
                     }
@@ -83,11 +83,17 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
         Formatting       = Formatting.None
     };
 
+    private static string ToCamelCase(BotEventType type)
+    {
+        var s = type.ToString();
+        return char.ToLowerInvariant(s[0]) + s[1..];
+    }
+
     private static async Task WriteSseEvent(System.IO.Pipelines.PipeWriter writer, BotSseEvent evt, CancellationToken ct)
     {
         var data = JsonConvert.SerializeObject(evt.Data, SseSettings);
 
-        var line = $"id: {evt.Id}\nevent: {evt.Type}\ndata: {data}\n\n";
+        var line = $"id: {evt.Id}\nevent: {ToCamelCase(evt.Type)}\ndata: {data}\n\n";
         var bytes = Encoding.UTF8.GetBytes(line);
         await writer.WriteAsync(bytes, ct);
         await writer.FlushAsync(ct);
