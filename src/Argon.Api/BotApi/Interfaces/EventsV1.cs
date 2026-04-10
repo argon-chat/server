@@ -77,14 +77,15 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
         });
     }
 
+    private static readonly JsonSerializerSettings SseSettings = new()
+    {
+        ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
+        Formatting       = Formatting.None
+    };
+
     private static async Task WriteSseEvent(System.IO.Pipelines.PipeWriter writer, BotSseEvent evt, CancellationToken ct)
     {
-        var data = JsonConvert.SerializeObject(evt, new JsonSerializerSettings
-        {
-            TypeNameHandling = TypeNameHandling.All,
-            ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
-            Converters       = { new MessageEntityConverter() }
-        });
+        var data = JsonConvert.SerializeObject(evt.Data, SseSettings);
 
         var line = $"id: {evt.Id}\nevent: {evt.Type}\ndata: {data}\n\n";
         var bytes = Encoding.UTF8.GetBytes(line);
