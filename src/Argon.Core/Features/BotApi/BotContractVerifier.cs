@@ -120,18 +120,66 @@ public static class BotContractVerifier
            .OrderBy(i => i.Bit)
            .ToList();
 
-        // Build events list from canonical EventIntents map
+        // Build events list from canonical EventIntents map + payload type shapes
+        // Reverse map: BotEventType → List<(UnionKey, PayloadType)>
+        // Uses PayloadOverrides when available for clean Bot API surface
+        var eventPayloadTypes = ResolveEventPayloadTypes();
+        var reverseMap = new Dictionary<BotEventType, List<(string UnionKey, Type PayloadType)>>();
+        foreach (var (unionKey, (eventType, _)) in BotEventMapping.Map)
+        {
+            // Prefer dedicated Bot API payload type over raw IArgonEvent type
+            Type? payloadType;
+            if (BotEventMapping.PayloadOverrides.TryGetValue(unionKey, out var overrideType))
+                payloadType = overrideType;
+            else
+                eventPayloadTypes.TryGetValue(unionKey, out payloadType);
+
+            if (payloadType is not null)
+            {
+                if (!reverseMap.TryGetValue(eventType, out var list))
+                    reverseMap[eventType] = list = [];
+                list.Add((unionKey, payloadType));
+            }
+        }
+
         var events = Enum.GetValues<BotEventType>()
            .Select(e =>
             {
                 BotEventMapping.EventIntents.TryGetValue(e, out var intent);
                 var category = intent?.ToString() ?? "Connection";
                 BotEventMapping.Descriptions.TryGetValue(e, out var desc);
+
+                string? payloadTypeName = null;
+                List<TypeProperty>? payloadTypeShape = null;
+                List<EventPayloadVariant>? payloadVariants = null;
+
+                if (reverseMap.TryGetValue(e, out var payloadSources))
+                {
+                    if (payloadSources.Count == 1)
+                    {
+                        var (unionKey, payloadType) = payloadSources[0];
+                        payloadTypeName = payloadType.Name;
+                        payloadTypeShape = BuildEventPayloadShape(payloadType);
+                    }
+                    else
+                    {
+                        // N:1 mapping (e.g. PresenceUpdate ← multiple IArgonEvent types)
+                        payloadVariants = payloadSources
+                           .Select(ps => new EventPayloadVariant(
+                                ps.PayloadType.Name,
+                                BuildEventPayloadShape(ps.PayloadType) ?? []))
+                           .ToList();
+                    }
+                }
+
                 return new EventManifest(
                     e.ToString(),
                     intent?.ToString(),
                     desc,
-                    category);
+                    category,
+                    payloadTypeName,
+                    payloadTypeShape,
+                    payloadVariants);
             })
            .ToList();
 
@@ -260,12 +308,21 @@ public static class BotContractVerifier
             List<TypeProperty>? children = null;
             var isCircular = false;
             string[]? enumValues = null;
+            var isUnion = false;
+            string? discriminatorField = null;
+            string? discriminatorType = null;
+            List<UnionVariant>? variants = null;
 
             if (innerType.IsEnum)
             {
                 enumValues = Enum.GetNames(innerType)
                     .Select(ToCamelCase)
                     .ToArray();
+            }
+            else if (IsIonUnionType(innerType))
+            {
+                isUnion = true;
+                (discriminatorField, discriminatorType, variants) = BuildUnionVariants(innerType, visited);
             }
             else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
             {
@@ -275,11 +332,213 @@ public static class BotContractVerifier
                     children = BuildWebTypeProperties(innerType, visited);
             }
 
-            result.Add(new TypeProperty(camelName, typeName, isArray, isNullable, isCircular, children, enumValues));
+            result.Add(new TypeProperty(camelName, typeName, isArray, isNullable, isCircular, children, enumValues,
+                isUnion, discriminatorField, discriminatorType, variants));
         }
 
         visited.Remove(type);
         return result;
+    }
+
+    private static readonly HashSet<string> UnionInternalProps = ["UnionKey", "UnionIndex"];
+
+    /// <summary>
+    /// Checks if a type is an Ion discriminated union (interface implementing IIonUnion&lt;T&gt;).
+    /// </summary>
+    private static bool IsIonUnionType(Type type)
+        => type.IsInterface && type.GetInterfaces()
+           .Any(i => i.IsGenericType && i.GetGenericTypeDefinition().Name.StartsWith("IIonUnion"));
+
+    /// <summary>
+    /// Builds union variant metadata for a given IIonUnion&lt;T&gt; interface type.
+    /// Scans assemblies for all concrete implementations and extracts their property shapes.
+    /// </summary>
+    private static (string? DiscriminatorField, string? DiscriminatorType, List<UnionVariant> Variants)
+        BuildUnionVariants(Type unionInterfaceType, HashSet<Type> visited)
+    {
+        var concreteTypes = AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true)
+           .SelectMany(a =>
+            {
+                try { return a.GetTypes(); }
+                catch { return []; }
+            })
+           .Where(t => t is { IsClass: true, IsAbstract: false } && unionInterfaceType.IsAssignableFrom(t))
+           .OrderBy(t => t.Name, StringComparer.Ordinal)
+           .ToList();
+
+        // Detect discriminator field: look for an Enum-typed property on the concrete types
+        // that serves as the union discriminator (e.g., "Type" with EntityType enum for IMessageEntity)
+        string? discriminatorField = null;
+        string? discriminatorType = null;
+
+        if (concreteTypes.Count > 0)
+        {
+            var firstType = concreteTypes[0];
+            var enumProp = firstType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+               .Where(p => p.PropertyType.IsEnum && !UnionInternalProps.Contains(p.Name))
+               .FirstOrDefault();
+
+            if (enumProp is not null)
+            {
+                discriminatorField = char.ToLowerInvariant(enumProp.Name[0]) + enumProp.Name[1..];
+                discriminatorType = enumProp.PropertyType.Name;
+            }
+        }
+
+        var variants = new List<UnionVariant>();
+        foreach (var concreteType in concreteTypes)
+        {
+            // Get discriminator value from enum property if available
+            string? discriminatorValue = null;
+            if (discriminatorField is not null)
+            {
+                var enumProp = concreteType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+                   .FirstOrDefault(p => p.PropertyType.IsEnum && !UnionInternalProps.Contains(p.Name));
+
+                if (enumProp is not null)
+                {
+                    // Try to get default value from parameterless instance or static field
+                    try
+                    {
+                        // For records with a default enum value, look for the matching enum name
+                        // Convention: MessageEntityBold → EntityType.Bold, MessageEntityMention → EntityType.Mention
+                        var typeName = concreteType.Name;
+                        var enumType = enumProp.PropertyType;
+                        foreach (var enumName in Enum.GetNames(enumType))
+                        {
+                            if (typeName.EndsWith(enumName, StringComparison.OrdinalIgnoreCase)
+                                || typeName.Contains(enumName, StringComparison.OrdinalIgnoreCase))
+                            {
+                                discriminatorValue = ToCamelCase(enumName);
+                                break;
+                            }
+                        }
+                    }
+                    catch
+                    {
+                        // Best-effort
+                    }
+                }
+            }
+
+            discriminatorValue ??= ToCamelCase(concreteType.Name);
+
+            // Build properties excluding union internals
+            var variantProps = concreteType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+               .Where(p => !UnionInternalProps.Contains(p.Name))
+               .OrderBy(p => p.Name, StringComparer.Ordinal)
+               .Select(p =>
+                {
+                    var camelName = char.ToLowerInvariant(p.Name[0]) + p.Name[1..];
+                    var (innerType, webTypeName, isArray, isNullable) = DecomposeWebType(p.PropertyType);
+
+                    List<TypeProperty>? children = null;
+                    var isCircular = false;
+                    string[]? enumValues = null;
+
+                    if (innerType.IsEnum)
+                    {
+                        enumValues = Enum.GetNames(innerType).Select(ToCamelCase).ToArray();
+                    }
+                    else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
+                    {
+                        if (visited.Contains(innerType))
+                            isCircular = true;
+                        else
+                            children = BuildWebTypeProperties(innerType, visited);
+                    }
+
+                    return new TypeProperty(camelName, webTypeName, isArray, isNullable, isCircular, children, enumValues);
+                })
+               .ToList();
+
+            variants.Add(new UnionVariant(concreteType.Name, discriminatorValue, variantProps));
+        }
+
+        return (discriminatorField, discriminatorType, variants);
+    }
+
+    /// <summary>
+    /// Scans all Argon assemblies for concrete IArgonEvent implementations.
+    /// Returns a map of union key (type name) → Type.
+    /// </summary>
+    private static Dictionary<string, Type> ResolveEventPayloadTypes()
+    {
+        var argonEventType = AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true)
+           .SelectMany(a =>
+            {
+                try { return a.GetTypes(); }
+                catch { return []; }
+            })
+           .FirstOrDefault(t => t is { IsInterface: true, Name: "IArgonEvent" });
+
+        if (argonEventType is null)
+            return new Dictionary<string, Type>();
+
+        return AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true)
+           .SelectMany(a =>
+            {
+                try { return a.GetTypes(); }
+                catch { return []; }
+            })
+           .Where(t => t is { IsClass: true, IsAbstract: false } && argonEventType.IsAssignableFrom(t))
+           .ToDictionary(t => t.Name);
+    }
+
+    /// <summary>
+    /// Builds the payload shape for an IArgonEvent record type,
+    /// excluding union internal properties (UnionKey, UnionIndex).
+    /// </summary>
+    private static List<TypeProperty>? BuildEventPayloadShape(Type eventType)
+    {
+        var visited = new HashSet<Type>();
+        if (!visited.Add(eventType))
+            return null;
+
+        var result = new List<TypeProperty>();
+        var props = eventType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+           .Where(p => !UnionInternalProps.Contains(p.Name))
+           .OrderBy(p => p.Name, StringComparer.Ordinal);
+
+        foreach (var prop in props)
+        {
+            var camelName = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
+            var (innerType, typeName, isArray, isNullable) = DecomposeWebType(prop.PropertyType);
+
+            List<TypeProperty>? children = null;
+            var isCircular = false;
+            string[]? enumValues = null;
+            var isUnion = false;
+            string? discriminatorField = null;
+            string? discriminatorType = null;
+            List<UnionVariant>? variants = null;
+
+            if (innerType.IsEnum)
+            {
+                enumValues = Enum.GetNames(innerType).Select(ToCamelCase).ToArray();
+            }
+            else if (IsIonUnionType(innerType))
+            {
+                isUnion = true;
+                (discriminatorField, discriminatorType, variants) = BuildUnionVariants(innerType, visited);
+            }
+            else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
+            {
+                if (visited.Contains(innerType))
+                    isCircular = true;
+                else
+                    children = BuildWebTypeProperties(innerType, visited);
+            }
+
+            result.Add(new TypeProperty(camelName, typeName, isArray, isNullable, isCircular, children, enumValues,
+                isUnion, discriminatorField, discriminatorType, variants));
+        }
+
+        visited.Remove(eventType);
+        return result.Count > 0 ? result : null;
     }
 
     private static (Type Inner, string TypeName, bool IsArray, bool IsNullable) DecomposeWebType(Type type)
@@ -466,7 +725,16 @@ public sealed record TypeProperty(
     bool                IsNullable,
     bool                IsCircular,
     List<TypeProperty>? Properties,
-    string[]?           EnumValues = null);
+    string[]?           EnumValues = null,
+    bool                IsUnion = false,
+    string?             DiscriminatorField = null,
+    string?             DiscriminatorType = null,
+    List<UnionVariant>? Variants = null);
+
+public sealed record UnionVariant(
+    string             Name,
+    string?            DiscriminatorValue,
+    List<TypeProperty> Properties);
 
 public sealed record DocsManifest(
     List<InterfaceManifest> Interfaces,
@@ -482,10 +750,17 @@ public sealed record IntentManifest(
     string[] Events);
 
 public sealed record EventManifest(
-    string  Name,
-    string? Intent,
-    string? Description,
-    string  Category);
+    string                    Name,
+    string?                   Intent,
+    string?                   Description,
+    string                    Category,
+    string?                   PayloadTypeName = null,
+    List<TypeProperty>?       PayloadTypeShape = null,
+    List<EventPayloadVariant>? PayloadVariants = null);
+
+public sealed record EventPayloadVariant(
+    string             TypeName,
+    List<TypeProperty>  Shape);
 
 public sealed record RateLimitManifest(
     string InterfaceName,

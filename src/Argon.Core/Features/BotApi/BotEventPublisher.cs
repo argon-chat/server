@@ -1,6 +1,7 @@
 namespace Argon.Features.BotApi;
 
 using Argon.Features.NatsStreaming;
+using Argon.Services.Ion;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -97,7 +98,7 @@ public sealed class BotSseEventSerializer : INatsSerializer<BotSseEvent>
         TypeNameHandling = TypeNameHandling.All,
         Formatting       = Formatting.None,
         ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
-        Converters       = { new MessageEntityConverter() }
+        Converters       = { new MessageEntityConverter(), new IonArrayConverter(), new IonMaybeConverter() }
     };
 
     public void Serialize(IBufferWriter<byte> bufferWriter, BotSseEvent value)

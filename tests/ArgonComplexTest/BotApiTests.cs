@@ -12,12 +12,13 @@ using Argon.Grains.Interfaces;
 using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Newtonsoft.Json.Linq;
 
 /// <summary>
 /// Integration tests for all stable Bot API interfaces (v1).
 /// Seeds a real bot + user + space + channel in the DB, then calls HTTP endpoints.
 /// </summary>
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture, Parallelizable(ParallelScope.Self)]
 public class BotApiTests : TestBase
 {
     // Shared state seeded once for all tests in this fixture
@@ -533,10 +534,224 @@ public class BotApiTests : TestBase
         Assert.That(resp.StatusCode, Is.EqualTo(HttpStatusCode.Forbidden));
     }
 
-    // ───────────── IEvents/v1 ─────────────
-    // Note: Events_Stream test is skipped because EventsV1 casts grain proxy
-    // to BotGatewayGrain directly, which is not possible in integration tests.
-    // The SSE stream functionality is covered by manual/e2e tests.
+    // ───────────── IEvents/v1 — SSE Stream ─────────────
+
+    /// <summary>
+    /// Helper: opens SSE stream, collects events until predicate is met or timeout.
+    /// Returns list of parsed SSE frames (event name, data JSON).
+    /// </summary>
+    private async Task<List<(string EventName, JObject Data)>> CollectSseEventsAsync(
+        long? intents = null,
+        Func<string, JObject, bool>? stopWhen = null,
+        TimeSpan? timeout = null,
+        CancellationToken ct = default)
+    {
+        timeout ??= TimeSpan.FromSeconds(10);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+        cts.CancelAfter(timeout.Value);
+
+        var url = "/api/bot/IEvents/v1/Stream";
+        if (intents.HasValue)
+            url += $"?intents={intents.Value}";
+
+        var req = new HttpRequestMessage(HttpMethod.Get, url);
+        req.Headers.Authorization = new AuthenticationHeaderValue("Bot", _botToken);
+        req.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("text/event-stream"));
+
+        var resp = await BotHttp.SendAsync(req, HttpCompletionOption.ResponseHeadersRead, cts.Token);
+        resp.EnsureSuccessStatusCode();
+
+        var result = new List<(string, JObject)>();
+        await using var stream = await resp.Content.ReadAsStreamAsync(cts.Token);
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+
+        string? currentEvent = null;
+        try
+        {
+            while (!cts.Token.IsCancellationRequested)
+            {
+                var line = await reader.ReadLineAsync(cts.Token);
+                if (line == null) break;
+
+                if (line.StartsWith("event: "))
+                    currentEvent = line[7..];
+                else if (line.StartsWith("data: ") && currentEvent != null)
+                {
+                    var jo = JObject.Parse(line[6..]);
+                    result.Add((currentEvent, jo));
+
+                    if (stopWhen?.Invoke(currentEvent, jo) == true)
+                        break;
+
+                    currentEvent = null;
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+
+        return result;
+    }
+
+    [Test, CancelAfter(30_000), Order(70)]
+    public async Task Events_Stream_ReceivesReadyEvent()
+    {
+        var events = await CollectSseEventsAsync(
+            stopWhen: (name, _) => name == "ready",
+            timeout: TimeSpan.FromSeconds(10));
+
+        Assert.That(events, Has.Count.GreaterThanOrEqualTo(1));
+
+        var (readyName, readyData) = events.First(e => e.EventName == "ready");
+        Assert.That(readyName, Is.EqualTo("ready"), "First event should be 'ready' (camelCase)");
+        Assert.That(readyData["intents"], Is.Not.Null, "Ready event should contain intents");
+        Assert.That(readyData["spaceIds"], Is.Not.Null, "Ready event should contain spaceIds");
+
+        var spaceIds = readyData["spaceIds"]!.ToObject<List<string>>()!;
+        Assert.That(spaceIds, Does.Contain(_spaceId.ToString()), "Ready event should include bot's space");
+    }
+
+    [Test, CancelAfter(30_000), Order(71)]
+    public async Task Events_Stream_EventNames_AreCamelCase()
+    {
+        var events = await CollectSseEventsAsync(
+            stopWhen: (name, _) => name == "ready",
+            timeout: TimeSpan.FromSeconds(10));
+
+        foreach (var (name, _) in events)
+        {
+            Assert.That(char.IsLower(name[0]), Is.True,
+                $"Event name '{name}' should start with lowercase (camelCase)");
+        }
+    }
+
+    [Test, CancelAfter(30_000), Order(72)]
+    public async Task Events_Stream_ReadyData_HasNoUnionKey()
+    {
+        var events = await CollectSseEventsAsync(
+            stopWhen: (name, _) => name == "ready",
+            timeout: TimeSpan.FromSeconds(10));
+
+        var (_, readyData) = events.First(e => e.EventName == "ready");
+
+        Assert.That(readyData.ContainsKey("unionKey"), Is.False, "SSE data should not contain unionKey");
+        Assert.That(readyData.ContainsKey("UnionKey"), Is.False, "SSE data should not contain UnionKey");
+        Assert.That(readyData.ContainsKey("$type"), Is.False, "SSE data should not contain $type");
+    }
+
+    [Test, CancelAfter(60_000), Order(73)]
+    public async Task Events_Stream_ReceivesMessageCreate_WithEntities()
+    {
+        // Start collecting events in background
+        var eventTask = CollectSseEventsAsync(
+            stopWhen: (name, _) => name == "messageCreate",
+            timeout: TimeSpan.FromSeconds(15));
+
+        // Wait a moment for the SSE connection to establish
+        await Task.Delay(1000);
+
+        // Send a message with entities via Bot API
+        var sendResp = await BotCallRawAsync(
+            HttpMethod.Post, "/IMessages/v1/Send",
+            new
+            {
+                spaceId   = _spaceId,
+                channelId = _textChannelId,
+                text      = "Hello **bold** and *italic*!",
+                entities  = new object[]
+                {
+                    new { type = 10, offset = 6, length = 4, version = 1 },   // Bold
+                    new { type = 11, offset = 16, length = 6, version = 1 }   // Italic
+                },
+                randomId = Random.Shared.NextInt64()
+            });
+        Assert.That(sendResp.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+
+        var events = await eventTask;
+
+        // Find messageCreate event
+        var msgEvent = events.FirstOrDefault(e => e.EventName == "messageCreate");
+        Assert.That(msgEvent.Data, Is.Not.Null, "Should receive messageCreate event");
+
+        var data = msgEvent.Data;
+        // Check the event payload structure
+        var message = data["message"];
+        Assert.That(message, Is.Not.Null, "messageCreate data should contain 'message'");
+        Assert.That(message!["text"]?.Value<string>(), Is.EqualTo("Hello **bold** and *italic*!"));
+        Assert.That(message["messageId"]?.Value<long>(), Is.GreaterThan(0));
+
+        // Entities should be present and non-empty
+        var entities = message["entities"] as JArray;
+        Assert.That(entities, Is.Not.Null, "Message should have entities array");
+        Assert.That(entities!.Count, Is.EqualTo(2), "Message should have 2 entities");
+
+        // Bold entity preserved
+        Assert.That(entities[0]["type"]?.Value<int>(), Is.EqualTo(10));
+        Assert.That(entities[0]["offset"]?.Value<int>(), Is.EqualTo(6));
+        Assert.That(entities[0]["length"]?.Value<int>(), Is.EqualTo(4));
+
+        // No internal fields leaked
+        Assert.That(data.ContainsKey("unionKey"), Is.False);
+        Assert.That(data.ContainsKey("$type"), Is.False);
+        Assert.That(entities[0].Value<string>("unionKey"), Is.Null);
+    }
+
+    [Test, CancelAfter(60_000), Order(74)]
+    public async Task Events_Stream_MessageCreate_HasNoTypeMetadata()
+    {
+        var eventTask = CollectSseEventsAsync(
+            stopWhen: (name, _) => name == "messageCreate",
+            timeout: TimeSpan.FromSeconds(15));
+
+        await Task.Delay(1000);
+
+        await BotCallAsync(
+            HttpMethod.Post, "/IMessages/v1/Send",
+            new
+            {
+                spaceId   = _spaceId,
+                channelId = _textChannelId,
+                text      = "No metadata leak test",
+                randomId  = Random.Shared.NextInt64()
+            });
+
+        var events = await eventTask;
+        var msgEvent = events.FirstOrDefault(e => e.EventName == "messageCreate");
+        Assert.That(msgEvent.Data, Is.Not.Null);
+
+        // Serialize the whole event data to string and check for leaks
+        var rawJson = msgEvent.Data.ToString(Newtonsoft.Json.Formatting.None);
+        Assert.That(rawJson, Does.Not.Contain("$type"), "SSE event should not contain $type");
+        Assert.That(rawJson, Does.Not.Contain("\"unionKey\""), "SSE event should not contain unionKey");
+        Assert.That(rawJson, Does.Not.Contain("\"unionIndex\""), "SSE event should not contain unionIndex");
+    }
+
+    [Test, CancelAfter(30_000), Order(75)]
+    public async Task Events_Stream_IntentFiltering_NoMessages()
+    {
+        // Connect with only Voice intent (2048) — should NOT receive messageCreate
+        var eventTask = CollectSseEventsAsync(
+            intents: 2048, // Voice only
+            timeout: TimeSpan.FromSeconds(8));
+
+        await Task.Delay(1000);
+
+        await BotCallAsync(
+            HttpMethod.Post, "/IMessages/v1/Send",
+            new
+            {
+                spaceId   = _spaceId,
+                channelId = _textChannelId,
+                text      = "Should not appear",
+                randomId  = Random.Shared.NextInt64()
+            });
+
+        var events = await eventTask;
+
+        // Should have ready but not messageCreate
+        Assert.That(events.Any(e => e.EventName == "ready"), Is.True);
+        Assert.That(events.Any(e => e.EventName == "messageCreate"), Is.False,
+            "messageCreate should be filtered when Messages intent is not set");
+    }
 
     // ───────────── Path-based auth ─────────────
 

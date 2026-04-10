@@ -1,5 +1,7 @@
 namespace Argon.Features.BotApi;
 
+using Newtonsoft.Json.Serialization;
+
 /// <summary>
 /// All bot event types dispatched via SSE.
 /// </summary>
@@ -75,6 +77,35 @@ public sealed record BotSseEvent
 }
 
 /// <summary>
+/// Contract resolver for SSE JSON output:
+/// - camelCase property names
+/// - Excludes Ion union internals (UnionKey, UnionIndex)
+/// - Serializes IMessageEntity as concrete type (all properties visible)
+/// </summary>
+public sealed class BotSseContractResolver : Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver
+{
+    private static readonly HashSet<string> ExcludedProperties = ["UnionKey", "UnionIndex"];
+
+    protected override JsonProperty CreateProperty(System.Reflection.MemberInfo member,
+        Newtonsoft.Json.MemberSerialization memberSerialization)
+    {
+        var prop = base.CreateProperty(member, memberSerialization);
+        if (ExcludedProperties.Contains(member.Name))
+            prop.ShouldSerialize = _ => false;
+        return prop;
+    }
+
+    protected override IList<JsonProperty> CreateProperties(Type type,
+        Newtonsoft.Json.MemberSerialization memberSerialization)
+    {
+        // For interface types like IMessageEntity, resolve properties from the runtime type
+        // This is handled by Newtonsoft when TypeNameHandling is off — the serializer uses
+        // the actual object type. We just need to make sure our excludes work.
+        return base.CreateProperties(type, memberSerialization);
+    }
+}
+
+/// <summary>
 /// Maps IArgonEvent types to BotEventType and their required BotIntent.
 /// </summary>
 public static class BotEventMapping
@@ -116,6 +147,22 @@ public static class BotEventMapping
 
         // DMs
         ["DirectMessageSent"] = (BotEventType.DirectMessageCreate, BotIntent.DirectMessages),
+
+        // Calls
+        ["CallIncoming"] = (BotEventType.CallIncoming, BotIntent.Calls),
+        ["CallFinished"] = (BotEventType.CallEnded, BotIntent.Calls),
+    };
+
+    /// <summary>
+    /// Overrides the IArgonEvent type with a dedicated Bot API payload type for documentation and serialization.
+    /// When present, the clean payload type is used instead of the raw internal type.
+    /// </summary>
+    internal static readonly Dictionary<string, Type> PayloadOverrides = new()
+    {
+        ["UserUpdated"]        = typeof(BotMemberUpdatePayload),
+        ["ArchetypeChanged"]   = typeof(BotArchetypePayload),
+        ["ArchetypeCreated"]   = typeof(BotArchetypePayload),
+        ["SpaceDetailsUpdated"] = typeof(BotSpaceDetailsPayload),
     };
 
     public static (BotEventType EventType, BotIntent RequiredIntent)? TryMap(string unionKey)

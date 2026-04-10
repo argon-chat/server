@@ -1,6 +1,7 @@
 namespace Argon.Features.BotApi;
 
 using Microsoft.AspNetCore.Routing;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// Marks a class as a Bot API interface with Steam-like per-interface versioning.
@@ -39,6 +40,19 @@ public sealed record BotInterfaceInfo(
 
 public static class BotApiRegistration
 {
+    /// <summary>
+    /// Registers the STJ converter for IMessageEntity so Minimal API endpoints
+    /// can deserialize polymorphic entities from request bodies.
+    /// </summary>
+    public static IServiceCollection AddBotApiJson(this IServiceCollection services)
+    {
+        services.ConfigureHttpJsonOptions(opts =>
+        {
+            opts.SerializerOptions.Converters.Add(new MessageEntityStjConverter());
+        });
+        return services;
+    }
+
     public static WebApplication MapBotApi(this WebApplication app)
     {
         var botGroup = app.MapGroup("/api/bot")

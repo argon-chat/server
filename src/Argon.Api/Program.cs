@@ -46,6 +46,7 @@ builder.Services.AddAuthentication()
    .AddScheme<Microsoft.AspNetCore.Authentication.AuthenticationSchemeOptions, BotTokenAuthenticationHandler>(
         BotTokenAuthenticationHandler.SchemeName, _ => { });
 builder.Services.AddBotRateLimiting(builder.Configuration);
+builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 
 var app = builder.Build();

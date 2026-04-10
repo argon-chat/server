@@ -1,7 +1,10 @@
 namespace Argon.Api.BotApi.Interfaces;
 
+using System.Net.ServerSentEvents;
+using System.Runtime.CompilerServices;
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
+using Argon.Services.Ion;
 
 [BotInterface("IEvents", 1)]
 [BotDescription("Subscribe to real-time events via Server-Sent Events (SSE). Receive messages, member changes, voice activity, and more.")]
@@ -22,65 +25,64 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             var gateway  = grains.GetGrain<IBotGatewayGrain>(botUserId);
             var spaceIds = await gateway.ConnectAsync(requestedIntents);
 
-            ctx.Response.ContentType = "text/event-stream";
-            ctx.Response.Headers["Cache-Control"] = "no-cache";
-            ctx.Response.Headers["Connection"]    = "keep-alive";
-
-            var writer = ctx.Response.BodyWriter;
-            var ct     = ctx.RequestAborted;
-
-            // READY event
-            await WriteSseEvent(writer, new BotSseEvent
+            async IAsyncEnumerable<SseItem<string>> Stream(
+                [EnumeratorCancellation] CancellationToken ct = default)
             {
-                Id   = "ready",
-                Type = BotEventType.Ready,
-                Data = new { intents = (long)requestedIntents, spaceIds }
-            }, ct);
-
-            // Stream live events via NATS consumers
-            var heartbeatInterval = TimeSpan.FromSeconds(30);
-            var nextHeartbeat     = DateTime.UtcNow + heartbeatInterval;
-
-            try
-            {
-                while (!ct.IsCancellationRequested)
+                // READY event
+                yield return ToSseItem(new BotSseEvent
                 {
-                    var events = await gateway.ConsumeEventsAsync(50);
+                    Id   = "ready",
+                    Type = BotEventType.Ready,
+                    Data = new { intents = (long)requestedIntents, spaceIds }
+                });
 
-                    if (events.Count > 0)
+                // Stream live events via NATS consumers
+                var heartbeatInterval = TimeSpan.FromSeconds(30);
+                var nextHeartbeat     = DateTime.UtcNow + heartbeatInterval;
+
+                try
+                {
+                    while (!ct.IsCancellationRequested)
                     {
-                        foreach (var evt in events)
-                            await WriteSseEvent(writer, evt, ct);
-                        nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
-                    }
-                    else if (DateTime.UtcNow >= nextHeartbeat)
-                    {
-                        // Heartbeat with cursor — client can resume from this position
-                        var cursor = await gateway.GetCursor();
-                        await WriteSseEvent(writer, new BotSseEvent
+                        var events = await gateway.ConsumeEventsAsync(50);
+
+                        if (events.Count > 0)
                         {
-                            Id   = cursor,
-                            Type = BotEventType.Heartbeat,
-                            Data = new { timestamp = DateTimeOffset.UtcNow.ToArgonTimeMillis() }
-                        }, ct);
-                        nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
-                    }
+                            foreach (var evt in events)
+                                yield return ToSseItem(evt);
+                            nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
+                        }
+                        else if (DateTime.UtcNow >= nextHeartbeat)
+                        {
+                            // Heartbeat with cursor — client can resume from this position
+                            var cursor = await gateway.GetCursor();
+                            yield return ToSseItem(new BotSseEvent
+                            {
+                                Id   = cursor,
+                                Type = BotEventType.Heartbeat,
+                                Data = new { timestamp = DateTimeOffset.UtcNow.ToArgonTimeMillis() }
+                            });
+                            nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
+                        }
 
-                    await Task.Delay(500, ct);
+                        await Task.Delay(500, ct);
+                    }
+                }
+                finally
+                {
+                    await gateway.DisconnectAsync();
                 }
             }
-            catch (OperationCanceledException) { }
-            finally
-            {
-                await gateway.DisconnectAsync();
-            }
+
+            return TypedResults.ServerSentEvents(Stream(ctx.RequestAborted));
         });
     }
 
     private static readonly JsonSerializerSettings SseSettings = new()
     {
-        ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver(),
-        Formatting       = Formatting.None
+        ContractResolver = new BotSseContractResolver(),
+        Formatting       = Formatting.None,
+        Converters       = { new IonArrayConverter(), new IonMaybeConverter() }
     };
 
     private static string ToCamelCase(BotEventType type)
@@ -89,13 +91,12 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
         return char.ToLowerInvariant(s[0]) + s[1..];
     }
 
-    private static async Task WriteSseEvent(System.IO.Pipelines.PipeWriter writer, BotSseEvent evt, CancellationToken ct)
+    private static SseItem<string> ToSseItem(BotSseEvent evt)
     {
         var data = JsonConvert.SerializeObject(evt.Data, SseSettings);
-
-        var line = $"id: {evt.Id}\nevent: {ToCamelCase(evt.Type)}\ndata: {data}\n\n";
-        var bytes = Encoding.UTF8.GetBytes(line);
-        await writer.WriteAsync(bytes, ct);
-        await writer.FlushAsync(ct);
+        return new SseItem<string>(data, ToCamelCase(evt.Type))
+        {
+            EventId = evt.Id
+        };
     }
 }
