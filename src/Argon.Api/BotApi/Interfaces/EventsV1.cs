@@ -38,6 +38,9 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             }, ct);
 
             // Stream live events via NATS consumers
+            var heartbeatInterval = TimeSpan.FromSeconds(30);
+            var nextHeartbeat     = DateTime.UtcNow + heartbeatInterval;
+
             try
             {
                 while (!ct.IsCancellationRequested)
@@ -48,8 +51,9 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                     {
                         foreach (var evt in events)
                             await WriteSseEvent(writer, evt, ct);
+                        nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
                     }
-                    else
+                    else if (DateTime.UtcNow >= nextHeartbeat)
                     {
                         // Heartbeat with cursor — client can resume from this position
                         var cursor = await gateway.GetCursor();
@@ -59,9 +63,10 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                             Type = BotEventType.Heartbeat,
                             Data = new { timestamp = DateTimeOffset.UtcNow }
                         }, ct);
-
-                        await Task.Delay(500, ct);
+                        nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
                     }
+
+                    await Task.Delay(500, ct);
                 }
             }
             catch (OperationCanceledException) { }
