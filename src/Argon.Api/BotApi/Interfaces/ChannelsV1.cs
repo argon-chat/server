@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IChannels", 1)]
 [BotDescription("Create, list, and delete channels within a space.")]
-[StableContract("072a7e2baab2176a9838758f8f0176e124771a334710a4c4668378a7ed24576e")]
+[StableContract("0fe77bb6a54be4f1494413f214690ba904602c7a5b4637bdbc3a4a12237fc1b2")]
 [BotRoute("GET",    "/List",   ResponseType = typeof(ChannelListResponse), Description = "Lists all channels in a space. Pass spaceId as a query parameter.")]
 [BotRoute("POST",   "/Create", RequestType = typeof(CreateChannelRequest), ResponseType = typeof(BotChannel), Description = "Creates a new channel in a space. Specify name, type (text or voice), and optionally a channel group.", Permission = "ManageChannels")]
 [BotRoute("DELETE", "/Delete", ResponseType = typeof(DeletedResponse), Description = "Deletes a channel. Pass spaceId and channelId as query parameters.", Permission = "ManageChannels")]

@@ -178,21 +178,22 @@ public static class BotContractVerifier
 
         // Include interface identity
         var attr = interfaceType.GetCustomAttribute<BotInterfaceAttribute>()!;
-        sb.AppendLine($"INTERFACE:{attr.Name}:v{attr.Version}");
+        // Use explicit '\n' — AppendLine uses Environment.NewLine which differs across OS
+        sb.Append($"INTERFACE:{attr.Name}:v{attr.Version}\n");
 
         foreach (var route in routes)
         {
-            sb.AppendLine($"ROUTE:{route.Method}:{route.Path}");
+            sb.Append($"ROUTE:{route.Method}:{route.Path}\n");
 
             if (route.RequestType is not null)
             {
-                sb.AppendLine($"  REQUEST:{route.RequestType.FullName}");
+                sb.Append($"  REQUEST:{route.RequestType.FullName}\n");
                 AppendTypeShape(sb, route.RequestType, "    ");
             }
 
             if (route.ResponseType is not null)
             {
-                sb.AppendLine($"  RESPONSE:{route.ResponseType.FullName}");
+                sb.Append($"  RESPONSE:{route.ResponseType.FullName}\n");
                 AppendTypeShape(sb, route.ResponseType, "    ");
             }
         }
@@ -206,7 +207,7 @@ public static class BotContractVerifier
         visited ??= [];
         if (!visited.Add(type))
         {
-            sb.AppendLine($"{indent}[circular:{type.Name}]");
+            sb.Append($"{indent}[circular:{type.Name}]\n");
             return;
         }
 
@@ -216,7 +217,7 @@ public static class BotContractVerifier
         foreach (var prop in props)
         {
             var propTypeName = GetCanonicalTypeName(prop.PropertyType);
-            sb.AppendLine($"{indent}{prop.Name}:{propTypeName}");
+            sb.Append($"{indent}{prop.Name}:{propTypeName}\n");
 
             // Recurse into non-primitive, non-collection custom types
             var innerType = GetInnerType(prop.PropertyType);
