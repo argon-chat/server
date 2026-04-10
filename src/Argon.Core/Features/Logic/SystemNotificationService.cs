@@ -10,7 +10,7 @@ public class SystemNotificationService(
     IUserSessionNotifier notifier,
     ILogger<SystemNotificationService> logger) : ISystemNotificationService
 {
-    public async Task<SystemNotificationEntity> CreateAsync(Guid userId, string type, Guid? referenceId, string title, string? body = null, CancellationToken ct = default)
+    public async Task<SystemNotificationEntity> CreateAsync(Guid userId, string type, Guid? referenceId, string title, string? body = null, DateTimeOffset? expiresAt = null, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
@@ -22,7 +22,8 @@ public class SystemNotificationService(
             Title       = title,
             Body        = body,
             IsRead      = false,
-            CreatedAt   = DateTimeOffset.UtcNow
+            CreatedAt   = DateTimeOffset.UtcNow,
+            ExpiresAt   = expiresAt
         };
 
         ctx.SystemNotifications.Add(entity);
@@ -107,16 +108,16 @@ public class SystemNotificationService(
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
 
+        var friendRequests = await ctx.FriendRequest
+            .AsNoTracking()
+            .CountAsync(x => x.TargetId == userId, ct);
+
         var counts = await ctx.SystemNotifications
             .AsNoTracking()
             .Where(x => x.UserId == userId && !x.IsRead)
             .GroupBy(x => x.Type)
             .Select(g => new { Type = g.Key, Count = g.Count() })
             .ToListAsync(ct);
-
-        var friendRequests = counts
-            .Where(c => c.Type == SystemNotificationType.FriendRequestReceived)
-            .Sum(c => c.Count);
 
         var inventory = counts
             .Where(c => c.Type == SystemNotificationType.ItemReceived)

@@ -695,7 +695,7 @@ public class ChannelGrain(
         _ = UpdateLastMessageIdAsync(msgId);
 
         // Process mentions asynchronously (don't block message delivery)
-        _ = ProcessMentionsAsync(entities, msgId, senderId);
+        _ = ProcessMentionsAsync(entities, msgId, senderId, replyTo);
         
         sw.Stop();
         
@@ -788,14 +788,29 @@ public class ChannelGrain(
         }
     }
 
-    private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId)
+    private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId, long? replyTo)
     {
-        if (entities is null or { Count: 0 }) return;
-
         try
         {
             var readStateService = ServiceProvider.GetService<IReadStateService>();
             if (readStateService is null) return;
+
+            if (replyTo.HasValue)
+            {
+                await using var msgCtx = await context.CreateDbContextAsync();
+                var originalAuthor = await msgCtx.Messages
+                    .AsNoTracking()
+                    .Where(m => m.SpaceId == _self.SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == replyTo.Value)
+                    .Select(m => m.CreatorId)
+                    .FirstOrDefaultAsync();
+
+                if (originalAuthor != default && originalAuthor != senderId)
+                {
+                    await readStateService.IncrementMentionsAsync(originalAuthor, this.GetPrimaryKey(), _self.SpaceId, 1);
+                }
+            }
+
+            if (entities is null or { Count: 0 }) return;
 
             var userMentions = entities.OfType<MessageEntityMention>().ToList();
             foreach (var mention in userMentions)

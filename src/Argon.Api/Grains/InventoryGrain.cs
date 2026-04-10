@@ -67,7 +67,7 @@ public class InventoryGrain(
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
-        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct);
+        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct: ct);
 
         if (!item.IsAffectBadge)
             return true;
@@ -158,7 +158,7 @@ public class InventoryGrain(
         await ctx.SaveChangesAsync(ct);
 
         await EnsureUnreadAsync(ctx, userId, coin.Id, coinTemplateId, ct);
-        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, coin.Id, $"New coin: {coinTemplateId}", null, ct);
+        await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, coin.Id, $"New coin: {coinTemplateId}", null, ct: ct);
 
         if (coin.IsAffectBadge)
         {
@@ -302,7 +302,7 @@ public class InventoryGrain(
 
                 foreach (var grantedId in grantedItemIds)
                 {
-                    await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {usableItem.TemplateId}", null, ct);
+                    await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, grantedId, $"New item: {usableItem.TemplateId}", null, ct: ct);
                 }
 
                 return true;
@@ -447,7 +447,7 @@ public class InventoryGrain(
             await ctx.SaveChangesAsync(ct);
 
             await EnsureUnreadAsync(ctx, userId, item.Id, item.TemplateId, ct);
-            await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct);
+            await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, item.Id, $"New item: {item.TemplateId}", null, ct: ct);
 
             if (!item.IsAffectBadge) return null;
             await AddBadgeToProfileAsync(ctx, userId, item.TemplateId, ct);

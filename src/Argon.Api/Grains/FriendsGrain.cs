@@ -175,12 +175,10 @@ public class FriendsGrain(
             RequesterId = me,
             TargetId    = target.Value,
             RequestedAt = DateTimeOffset.UtcNow,
-            ExpiredAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(7))
+            ExpiredAt = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(31 * 6))
         });
 
         await ctx.SaveChangesAsync(ct);
-
-        await systemNotification.CreateAsync(target.Value, SystemNotificationType.FriendRequestReceived, me, "New friend request", null, ct);
 
         await NotifyAsync(target.Value,
             new FriendRequestReceivedEvent(me, DateTimeOffset.UtcNow.UtcDateTime));
@@ -282,7 +280,7 @@ public class FriendsGrain(
             await ctx.SaveChangesAsync(ct);
         }, ct);
 
-        await systemNotification.CreateAsync(fromUserId, SystemNotificationType.FriendRequestAccepted, me, "Friend request accepted", null, ct);
+        await systemNotification.CreateAsync(fromUserId, SystemNotificationType.FriendRequestAccepted, me, "Friend request accepted", null, ct: ct);
 
         var ts = DateTimeOffset.UtcNow.UtcDateTime;
 
