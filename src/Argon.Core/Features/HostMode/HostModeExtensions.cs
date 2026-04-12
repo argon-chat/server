@@ -65,17 +65,18 @@ public static class HostModeExtensions
 
         public WebApplicationBuilder UseKestrelDefaults()
         {
-            var defaultPort = 5002;
-
-            if (Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p)
-                defaultPort = int.Parse(p);
-
-
             builder.WebHost.ConfigureKestrel(options =>
             {
-                options.ListenAnyIP(defaultPort, listenOptions =>
+                options.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
+
+                if (builder.IsUseLocalHostCerts())
                 {
-                    if (builder.IsUseLocalHostCerts())
+                    var defaultPort = 5002;
+
+                    if (Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p)
+                        defaultPort = int.Parse(p);
+
+                    options.ListenAnyIP(defaultPort, listenOptions =>
                     {
                         static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
                         {
@@ -95,23 +96,8 @@ public static class HostModeExtensions
 
                         listenOptions.UseHttps(LoadLocalhostCerts(builder));
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
-                    }
-                    else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key"))
-                    {
-                        listenOptions.UseHttps(x => {
-                            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
-                                "/etc/tls/tls.crt",
-                                "/etc/tls/tls.key"
-                            );
-                        });
-                        listenOptions.DisableAltSvcHeader = false;
-                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
-                    }
-                    else
-                        listenOptions.Protocols = HttpProtocols.Http1AndHttp2;
-
-                    listenOptions.UseConnectionLogging();
-                });
+                    });
+                }
             });
             return builder;
         }
