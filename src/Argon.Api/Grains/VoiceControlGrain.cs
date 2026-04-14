@@ -73,7 +73,7 @@ public class VoiceControlGrain(
                     {
                         S3 = new S3Upload
                         {
-                            Bucket    = cfg.Bucket,
+                            Bucket    = cfg!.Bucket,
                             AccessKey = cfg.AccessKey,
                             Region    = cfg.Region,
                             Endpoint  = cfg.Endpoint,
@@ -190,13 +190,13 @@ public class VoiceControlGrain(
     private static string CreateMeetJwt(ArgonRoomId roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
-        throw null;
+        throw null!;
     }
 
     private static string CreateMeetJwt(Guid roomName, string identity, SfuPermission permissions,
         IOptions<CallKitOptions> settings)
     {
-        throw null;
+        throw null!;
     }
 
 #endregion

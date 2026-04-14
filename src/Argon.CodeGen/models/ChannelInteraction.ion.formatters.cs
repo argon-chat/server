@@ -215,6 +215,151 @@ public sealed class Ion_AttachmentInfo_Formatter : IonFormatter<AttachmentInfo>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SlashCommandOption_Formatter : IonFormatter<SlashCommandOption>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SlashCommandOption Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __value = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__name, __value);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SlashCommandOption value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.value);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ModalSubmitValue_Formatter : IonFormatter<ModalSubmitValue>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ModalSubmitValue Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __customid = IonFormatterStorage<string>.Read(reader);
+        var __value = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__customid, __value);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ModalSubmitValue value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.customId);
+        IonFormatterStorage<string>.Write(writer, value.value);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IonModalSelectOption_Formatter : IonFormatter<IonModalSelectOption>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IonModalSelectOption Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __label = IonFormatterStorage<string>.Read(reader);
+        var __value = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __emoji = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__label, __value, __description, __emoji);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IonModalSelectOption value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.label);
+        IonFormatterStorage<string>.Write(writer, value.value);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.emoji);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IonModalComponent_Formatter : IonFormatter<IonModalComponent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IonModalComponent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<IonModalComponentType>.Read(reader);
+        var __customid = IonFormatterStorage<string>.Read(reader);
+        var __label = IonFormatterStorage<string>.Read(reader);
+        var __style = reader.ReadNullable<IonTextInputStyle>();
+        var __placeholder = reader.ReadNullable<string>();
+        var __minlength = reader.ReadNullable<i4>();
+        var __maxlength = reader.ReadNullable<i4>();
+        var __required = reader.ReadNullable<bool>();
+        var __value = reader.ReadNullable<string>();
+        var __options = reader.ReadNullable<Array>();
+        var __minvalues = reader.ReadNullable<i4>();
+        var __maxvalues = reader.ReadNullable<i4>();
+        var __defaultchecked = reader.ReadNullable<bool>();
+        var __description = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 14);
+        return new(__type, __customid, __label, __style, __placeholder, __minlength, __maxlength, __required, __value, __options, __minvalues, __maxvalues, __defaultchecked, __description);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IonModalComponent value)
+    {
+        writer.WriteStartArray(14);
+        IonFormatterStorage<IonModalComponentType>.Write(writer, value.type);
+        IonFormatterStorage<string>.Write(writer, value.customId);
+        IonFormatterStorage<string>.Write(writer, value.label);
+        IonFormatterStorage<IonTextInputStyle>.WriteNullable(writer, value.style);
+        IonFormatterStorage<string>.WriteNullable(writer, value.placeholder);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.minLength);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.maxLength);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.required);
+        IonFormatterStorage<string>.WriteNullable(writer, value.value);
+        IonFormatterStorage<Array>.WriteNullable(writer, value.options);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.minValues);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.maxValues);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.defaultChecked);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IonModalDefinition_Formatter : IonFormatter<IonModalDefinition>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IonModalDefinition Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __customid = IonFormatterStorage<string>.Read(reader);
+        var __title = IonFormatterStorage<string>.Read(reader);
+        var __components = IonFormatterStorage<IonModalComponent>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__customid, __title, __components);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IonModalDefinition value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<string>.Write(writer, value.customId);
+        IonFormatterStorage<string>.Write(writer, value.title);
+        IonFormatterStorage<IonModalComponent>.WriteArray(writer, value.components);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SendMessageReadback_Formatter : IonFormatter<SendMessageReadback>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -517,6 +662,108 @@ public sealed class Ion_EntityType_Formatter : IonFormatter<EntityType>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InvokeSlashCommandError_Formatter : IonFormatter<InvokeSlashCommandError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InvokeSlashCommandError Read(CborReader reader)
+    {
+         return (InvokeSlashCommandError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InvokeSlashCommandError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InteractWithControlError_Formatter : IonFormatter<InteractWithControlError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InteractWithControlError Read(CborReader reader)
+    {
+         return (InteractWithControlError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InteractWithControlError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InteractWithSelectError_Formatter : IonFormatter<InteractWithSelectError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InteractWithSelectError Read(CborReader reader)
+    {
+         return (InteractWithSelectError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InteractWithSelectError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SubmitModalError_Formatter : IonFormatter<SubmitModalError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SubmitModalError Read(CborReader reader)
+    {
+         return (SubmitModalError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SubmitModalError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IonTextInputStyle_Formatter : IonFormatter<IonTextInputStyle>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IonTextInputStyle Read(CborReader reader)
+    {
+         return (IonTextInputStyle)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IonTextInputStyle value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IonModalComponentType_Formatter : IonFormatter<IonModalComponentType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public IonModalComponentType Read(CborReader reader)
+    {
+         return (IonModalComponentType)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, IonModalComponentType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_StartStreamError_Formatter : IonFormatter<StartStreamError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -530,6 +777,23 @@ public sealed class Ion_StartStreamError_Formatter : IonFormatter<StartStreamErr
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_TypingKind_Formatter : IonFormatter<TypingKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public TypingKind Read(CborReader reader)
+    {
+         return (TypingKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, TypingKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
     }
 }
 

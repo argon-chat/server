@@ -1,5 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
+using Argon.Features.BotApi;
 using Orleans.Concurrency;
 
 [Alias("Argon.Grains.Interfaces.IChannelGrain")]
@@ -22,7 +23,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<ChannelEntity> UpdateChannel(ChannelInput input);
 
     [Alias(nameof(SendMessage))]
-    Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo);
+    Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null);
 
     [Alias(nameof(QueryMessages))]
     Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit);
@@ -44,6 +45,9 @@ public interface IChannelGrain : IGrainWithGuidKey
     ValueTask OnTypingEmit();
     [OneWay, Alias("OnTypingStopEmit")]
     ValueTask OnTypingStopEmit();
+
+    [OneWay, Alias("OnBotTypingEmit")]
+    ValueTask OnBotTypingEmit(TypingKind kind);
 
 
     [Alias("KickMemberFromChannel")]
@@ -96,6 +100,21 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteUploadAttachment))]
     ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default);
+
+    [Alias(nameof(InvokeSlashCommand))]
+    Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options);
+
+    [Alias(nameof(InteractWithControl))]
+    Task<IInteractWithControlResult> InteractWithControl(long messageId, string controlId);
+
+    [Alias(nameof(InteractWithSelect))]
+    Task<IInteractWithSelectResult> InteractWithSelect(long messageId, string customId, List<string> values);
+
+    [Alias(nameof(SubmitModal))]
+    Task<ISubmitModalResult> SubmitModal(Guid interactionId, List<ModalSubmitValue> values);
+
+    [Alias(nameof(EditBotMessage))]
+    Task EditBotMessage(long messageId, Guid botUserId, string? text, List<ControlRowV1>? controls);
 }
 
 /// <summary>

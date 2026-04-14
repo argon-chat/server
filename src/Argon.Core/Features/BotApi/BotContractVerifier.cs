@@ -10,6 +10,7 @@ public static class BotContractVerifier
     /// Scans all <see cref="IBotInterface"/> implementations, computes their
     /// contract hash from <see cref="BotRouteAttribute"/> metadata, and checks
     /// against <see cref="StableContractAttribute"/>.
+    /// Also verifies <see cref="StableEventContractAttribute"/> on event definitions.
     /// Returns a list of mismatches (empty = all good).
     /// </summary>
     public static List<ContractMismatch> Verify()
@@ -20,7 +21,7 @@ public static class BotContractVerifier
         {
             var stable = type.GetCustomAttribute<StableContractAttribute>();
             if (stable is null)
-                continue; // not frozen yet, skip
+                continue;
 
             var computed = ComputeContractHash(type);
 
@@ -29,6 +30,22 @@ public static class BotContractVerifier
                 mismatches.Add(new ContractMismatch(
                     $"{interfaceAttr.Name}/v{interfaceAttr.Version}",
                     stable.ContractHash,
+                    computed));
+            }
+        }
+
+        foreach (var (type, defAttr, _, stableAttr) in DiscoverEventDefinitions())
+        {
+            if (stableAttr is null)
+                continue;
+
+            var computed = ComputeEventContractHash(type);
+
+            if (!string.Equals(stableAttr.ContractHash, computed, StringComparison.OrdinalIgnoreCase))
+            {
+                mismatches.Add(new ContractMismatch(
+                    $"Event:{defAttr.EventType}",
+                    stableAttr.ContractHash,
                     computed));
             }
         }
@@ -86,20 +103,23 @@ public static class BotContractVerifier
 
     /// <summary>
     /// Generates the complete documentation manifest: interfaces, intents, events, and rate limits.
-    /// All data is derived from backend source-of-truth enums and configuration.
+    /// Events are discovered from <see cref="BotEventDefinitionAttribute"/>-decorated types.
     /// </summary>
     public static DocsManifest GenerateDocsManifest()
     {
         var interfaces = GenerateManifest();
 
-        // Build intent → event names from canonical EventIntents map
+        // Build events from discovered [BotEventDefinition]-attributed types
+        var eventDefs = DiscoverEventDefinitions();
+
+        // Build intent → event names from event definitions
         var intentEvents = new Dictionary<BotIntent, List<string>>();
-        foreach (var (eventType, intent) in BotEventMapping.EventIntents)
+        foreach (var (_, defAttr, _, _) in eventDefs)
         {
-            if (intent is null) continue;
-            if (!intentEvents.TryGetValue(intent.Value, out var list))
-                intentEvents[intent.Value] = list = [];
-            list.Add(eventType.ToString());
+            if (defAttr.Intent == BotIntent.None) continue;
+            if (!intentEvents.TryGetValue(defAttr.Intent, out var list))
+                intentEvents[defAttr.Intent] = list = [];
+            list.Add(defAttr.EventType.ToString());
         }
 
         // Build intents list from enum
@@ -120,84 +140,175 @@ public static class BotContractVerifier
            .OrderBy(i => i.Bit)
            .ToList();
 
-        // Build events list from canonical EventIntents map + payload type shapes
-        // Reverse map: BotEventType → List<(UnionKey, PayloadType)>
-        // Uses PayloadOverrides when available for clean Bot API surface
-        var eventPayloadTypes = ResolveEventPayloadTypes();
-        var reverseMap = new Dictionary<BotEventType, List<(string UnionKey, Type PayloadType)>>();
-        foreach (var (unionKey, (eventType, _)) in BotEventMapping.Map)
-        {
-            // Prefer dedicated Bot API payload type over raw IArgonEvent type
-            Type? payloadType;
-            if (BotEventMapping.PayloadOverrides.TryGetValue(unionKey, out var overrideType))
-                payloadType = overrideType;
-            else
-                eventPayloadTypes.TryGetValue(unionKey, out payloadType);
-
-            if (payloadType is not null)
+        // Build events list from discovered definitions
+        var events = eventDefs
+           .Select(ed =>
             {
-                if (!reverseMap.TryGetValue(eventType, out var list))
-                    reverseMap[eventType] = list = [];
-                list.Add((unionKey, payloadType));
-            }
-        }
-
-        var events = Enum.GetValues<BotEventType>()
-           .Select(e =>
-            {
-                BotEventMapping.EventIntents.TryGetValue(e, out var intent);
-                var category = intent?.ToString() ?? "Connection";
-                BotEventMapping.Descriptions.TryGetValue(e, out var desc);
-
-                string? payloadTypeName = null;
-                List<TypeProperty>? payloadTypeShape = null;
-                List<EventPayloadVariant>? payloadVariants = null;
-
-                if (reverseMap.TryGetValue(e, out var payloadSources))
-                {
-                    if (payloadSources.Count == 1)
-                    {
-                        var (unionKey, payloadType) = payloadSources[0];
-                        payloadTypeName = payloadType.Name;
-                        payloadTypeShape = BuildEventPayloadShape(payloadType);
-                    }
-                    else
-                    {
-                        // N:1 mapping (e.g. PresenceUpdate ← multiple IArgonEvent types)
-                        payloadVariants = payloadSources
-                           .Select(ps => new EventPayloadVariant(
-                                ps.PayloadType.Name,
-                                BuildEventPayloadShape(ps.PayloadType) ?? []))
-                           .ToList();
-                    }
-                }
+                var (type, defAttr, descAttr, stableAttr) = ed;
+                var payloadShape = BuildWebTypeShape(type);
+                var hash = ComputeEventContractHash(type);
 
                 return new EventManifest(
-                    e.ToString(),
-                    intent?.ToString(),
-                    desc,
-                    category,
-                    payloadTypeName,
-                    payloadTypeShape,
-                    payloadVariants);
+                    defAttr.EventType.ToString(),
+                    defAttr.Intent != BotIntent.None ? defAttr.Intent.ToString() : null,
+                    descAttr?.Description,
+                    defAttr.Category,
+                    type.Name,
+                    payloadShape,
+                    null,
+                    hash,
+                    stableAttr?.ContractHash,
+                    stableAttr is not null);
             })
+           .OrderBy(e => e.Name)
            .ToList();
 
         // Build rate limits from hardcoded defaults
         var opts = new BotRateLimitOptions();
-        var rateLimits = new List<RateLimitManifest>
-        {
-            new("*", opts.Global.TokenLimit, opts.Global.TokensPerPeriod,
-                FormatPeriod(opts.Global.ReplenishmentPeriod))
-        };
-        foreach (var (name, bucket) in opts.Interfaces.OrderBy(kv => kv.Key))
+        var rateLimits = new List<RateLimitManifest>();
+        foreach (var (name, window) in opts.Interfaces.OrderBy(kv => kv.Key))
         {
             rateLimits.Add(new RateLimitManifest(
-                name, bucket.TokenLimit, bucket.TokensPerPeriod,
-                FormatPeriod(bucket.ReplenishmentPeriod)));
+                name, window.PermitLimit,
+                FormatPeriod(window.Window)));
         }
 
-        return new DocsManifest(interfaces, intents, events, rateLimits);
+        // Build DTOs from [BotDtoVersion]-attributed types
+        var dtos = DiscoverDtoTypes()
+           .Select(d =>
+            {
+                var (type, version, prevType) = d;
+                List<DtoFieldChange>? changes = null;
+                if (prevType is not null)
+                    changes = DiffDtoVersions(prevType, type);
+
+                return new DtoManifest(
+                    type.Name,
+                    version,
+                    BuildWebTypeShape(type),
+                    prevType?.Name,
+                    changes);
+            })
+           .OrderBy(d => d.Name)
+           .ToList();
+
+        return new DocsManifest(interfaces, intents, events, rateLimits, dtos);
+    }
+
+    /// <summary>
+    /// Discovers all types decorated with <see cref="BotDtoVersionAttribute"/>.
+    /// </summary>
+    public static List<(Type Type, int Version, Type? PreviousVersion)> DiscoverDtoTypes()
+    {
+        var result = new List<(Type, int, Type?)>();
+
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true);
+
+        foreach (var assembly in assemblies)
+        {
+            Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch { continue; }
+
+            foreach (var type in types)
+            {
+                var versionAttr = type.GetCustomAttribute<BotDtoVersionAttribute>();
+                if (versionAttr is null) continue;
+
+                var prevAttr = type.GetCustomAttribute<BotDtoPreviousVersionAttribute>();
+                result.Add((type, versionAttr.Version, prevAttr?.PreviousVersionType));
+            }
+        }
+
+        return result.OrderBy(x => x.Item1.Name).ToList();
+    }
+
+    /// <summary>
+    /// Computes a diff between two DTO versions (previous → current).
+    /// Returns added, removed, and type-changed fields.
+    /// </summary>
+    public static List<DtoFieldChange> DiffDtoVersions(Type previousType, Type currentType)
+    {
+        var changes = new List<DtoFieldChange>();
+
+        var prevProps = previousType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+           .ToDictionary(p => p.Name);
+        var currProps = currentType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
+           .ToDictionary(p => p.Name);
+
+        foreach (var (name, prop) in currProps)
+        {
+            if (!prevProps.ContainsKey(name))
+                changes.Add(new DtoFieldChange("added", name, GetWebBaseTypeName(prop.PropertyType), null));
+        }
+
+        foreach (var (name, prop) in prevProps)
+        {
+            if (!currProps.ContainsKey(name))
+                changes.Add(new DtoFieldChange("removed", name, GetWebBaseTypeName(prop.PropertyType), null));
+        }
+
+        foreach (var (name, currProp) in currProps)
+        {
+            if (prevProps.TryGetValue(name, out var prevProp))
+            {
+                var prevTypeName = GetCanonicalTypeName(prevProp.PropertyType);
+                var currTypeName = GetCanonicalTypeName(currProp.PropertyType);
+                if (prevTypeName != currTypeName)
+                    changes.Add(new DtoFieldChange("changed", name,
+                        GetWebBaseTypeName(currProp.PropertyType),
+                        GetWebBaseTypeName(prevProp.PropertyType)));
+            }
+        }
+
+        return changes.OrderBy(c => c.FieldName).ToList();
+    }
+
+    /// <summary>
+    /// Discovers all types decorated with <see cref="BotEventDefinitionAttribute"/>.
+    /// </summary>
+    public static List<(Type Type, BotEventDefinitionAttribute Def, BotEventDescriptionAttribute? Desc, StableEventContractAttribute? Stable)>
+        DiscoverEventDefinitions()
+    {
+        var result = new List<(Type, BotEventDefinitionAttribute, BotEventDescriptionAttribute?, StableEventContractAttribute?)>();
+
+        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true);
+
+        foreach (var assembly in assemblies)
+        {
+            Type[] types;
+            try { types = assembly.GetTypes(); }
+            catch { continue; }
+
+            foreach (var type in types)
+            {
+                var defAttr = type.GetCustomAttribute<BotEventDefinitionAttribute>();
+                if (defAttr is null) continue;
+
+                var descAttr   = type.GetCustomAttribute<BotEventDescriptionAttribute>();
+                var stableAttr = type.GetCustomAttribute<StableEventContractAttribute>();
+                result.Add((type, defAttr, descAttr, stableAttr));
+            }
+        }
+
+        return result.OrderBy(x => x.Item2.EventType.ToString()).ToList();
+    }
+
+    /// <summary>
+    /// Computes SHA-256 hash of an event payload type's property surface.
+    /// Deterministic: same event type name + properties = same hash.
+    /// </summary>
+    public static string ComputeEventContractHash(Type eventPayloadType)
+    {
+        var sb = new StringBuilder();
+        var defAttr = eventPayloadType.GetCustomAttribute<BotEventDefinitionAttribute>()!;
+        sb.Append($"EVENT:{defAttr.EventType}\n");
+        AppendTypeShape(sb, eventPayloadType, "  ");
+
+        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
+        return Convert.ToHexStringLower(bytes);
     }
 
     private static string FormatPeriod(TimeSpan ts)
@@ -459,88 +570,6 @@ public static class BotContractVerifier
         return (discriminatorField, discriminatorType, variants);
     }
 
-    /// <summary>
-    /// Scans all Argon assemblies for concrete IArgonEvent implementations.
-    /// Returns a map of union key (type name) → Type.
-    /// </summary>
-    private static Dictionary<string, Type> ResolveEventPayloadTypes()
-    {
-        var argonEventType = AppDomain.CurrentDomain.GetAssemblies()
-           .Where(a => a.FullName?.StartsWith("Argon") == true)
-           .SelectMany(a =>
-            {
-                try { return a.GetTypes(); }
-                catch { return []; }
-            })
-           .FirstOrDefault(t => t is { IsInterface: true, Name: "IArgonEvent" });
-
-        if (argonEventType is null)
-            return new Dictionary<string, Type>();
-
-        return AppDomain.CurrentDomain.GetAssemblies()
-           .Where(a => a.FullName?.StartsWith("Argon") == true)
-           .SelectMany(a =>
-            {
-                try { return a.GetTypes(); }
-                catch { return []; }
-            })
-           .Where(t => t is { IsClass: true, IsAbstract: false } && argonEventType.IsAssignableFrom(t))
-           .ToDictionary(t => t.Name);
-    }
-
-    /// <summary>
-    /// Builds the payload shape for an IArgonEvent record type,
-    /// excluding union internal properties (UnionKey, UnionIndex).
-    /// </summary>
-    private static List<TypeProperty>? BuildEventPayloadShape(Type eventType)
-    {
-        var visited = new HashSet<Type>();
-        if (!visited.Add(eventType))
-            return null;
-
-        var result = new List<TypeProperty>();
-        var props = eventType.GetProperties(BindingFlags.Public | BindingFlags.Instance)
-           .Where(p => !UnionInternalProps.Contains(p.Name))
-           .OrderBy(p => p.Name, StringComparer.Ordinal);
-
-        foreach (var prop in props)
-        {
-            var camelName = char.ToLowerInvariant(prop.Name[0]) + prop.Name[1..];
-            var (innerType, typeName, isArray, isNullable) = DecomposeWebType(prop.PropertyType);
-
-            List<TypeProperty>? children = null;
-            var isCircular = false;
-            string[]? enumValues = null;
-            var isUnion = false;
-            string? discriminatorField = null;
-            string? discriminatorType = null;
-            List<UnionVariant>? variants = null;
-
-            if (innerType.IsEnum)
-            {
-                enumValues = Enum.GetNames(innerType).Select(ToCamelCase).ToArray();
-            }
-            else if (IsIonUnionType(innerType))
-            {
-                isUnion = true;
-                (discriminatorField, discriminatorType, variants) = BuildUnionVariants(innerType, visited);
-            }
-            else if (!IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
-            {
-                if (visited.Contains(innerType))
-                    isCircular = true;
-                else
-                    children = BuildWebTypeProperties(innerType, visited);
-            }
-
-            result.Add(new TypeProperty(camelName, typeName, isArray, isNullable, isCircular, children, enumValues,
-                isUnion, discriminatorField, discriminatorType, variants));
-        }
-
-        visited.Remove(eventType);
-        return result.Count > 0 ? result : null;
-    }
-
     private static (Type Inner, string TypeName, bool IsArray, bool IsNullable) DecomposeWebType(Type type)
     {
         var isNullable = false;
@@ -740,7 +769,8 @@ public sealed record DocsManifest(
     List<InterfaceManifest> Interfaces,
     List<IntentManifest>    Intents,
     List<EventManifest>     Events,
-    List<RateLimitManifest> RateLimits);
+    List<RateLimitManifest> RateLimits,
+    List<DtoManifest>       Dtos);
 
 public sealed record IntentManifest(
     string   Name,
@@ -756,7 +786,10 @@ public sealed record EventManifest(
     string                    Category,
     string?                   PayloadTypeName = null,
     List<TypeProperty>?       PayloadTypeShape = null,
-    List<EventPayloadVariant>? PayloadVariants = null);
+    List<EventPayloadVariant>? PayloadVariants = null,
+    string?                   ComputedHash = null,
+    string?                   DeclaredHash = null,
+    bool                      IsStable = false);
 
 public sealed record EventPayloadVariant(
     string             TypeName,
@@ -764,11 +797,23 @@ public sealed record EventPayloadVariant(
 
 public sealed record RateLimitManifest(
     string InterfaceName,
-    int    TokenLimit,
-    int    TokensPerPeriod,
-    string ReplenishmentPeriod);
+    int    PermitLimit,
+    string Window);
 
 public sealed record ErrorManifest(
     int    Status,
     string Code,
     string Description);
+
+public sealed record DtoManifest(
+    string                Name,
+    int                   Version,
+    List<TypeProperty>?   Shape,
+    string?               PreviousVersionName,
+    List<DtoFieldChange>? Changes);
+
+public sealed record DtoFieldChange(
+    string  ChangeType,
+    string  FieldName,
+    string? FieldType,
+    string? OldFieldType);

@@ -60,6 +60,14 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(BeginUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadAttachment_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(CompleteUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> InvokeSlashCommand_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(InvokeSlashCommand), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> InteractWithControl_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(InteractWithControl), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> InteractWithSelect_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(InteractWithSelect), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SubmitModal_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(SubmitModal), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -466,6 +474,87 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<AttachmentInfo>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(guid __spaceid, guid __channelid, guid __commandid, IonArray<SlashCommandOption> __options, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), InvokeSlashCommand_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __commandid);
+        IonFormatterStorage<SlashCommandOption>.WriteArray(writer, __options);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IInvokeSlashCommandResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IInteractWithControlResult> InteractWithControl(guid __spaceid, guid __channelid, i8 __messageid, string __controlid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), InteractWithControl_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __messageid);
+        IonFormatterStorage<string>.Write(writer, __controlid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IInteractWithControlResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IInteractWithSelectResult> InteractWithSelect(guid __spaceid, guid __channelid, i8 __messageid, string __customid, IonArray<string> __values, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), InteractWithSelect_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __messageid);
+        IonFormatterStorage<string>.Write(writer, __customid);
+        IonFormatterStorage<string>.WriteArray(writer, __values);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IInteractWithSelectResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ISubmitModalResult> SubmitModal(guid __spaceid, guid __channelid, guid __interactionid, IonArray<ModalSubmitValue> __values, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), SubmitModal_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __interactionid);
+        IonFormatterStorage<ModalSubmitValue>.WriteArray(writer, __values);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ISubmitModalResult>(writer.Encode(), ct: ct);
     }
 
 }

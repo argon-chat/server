@@ -43,6 +43,26 @@ public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, s
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SlashCommandOption(string name, string value);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ModalSubmitValue(string customId, string value);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record IonModalSelectOption(string label, string value, string? description, string? emoji);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record IonModalComponent(IonModalComponentType type, string customId, string label, IonTextInputStyle? style, string? placeholder, i4? minLength, i4? maxLength, bool? required, string? value, Array? options, i4? minValues, i4? maxValues, bool? defaultChecked, string? description);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record IonModalDefinition(string customId, string title, IonArray<IonModalComponent> components);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SendMessageReadback(i8 messageId, guid channelId, guid spaceId, i8 randomId);
 
 
@@ -123,11 +143,86 @@ public enum EntityType
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum InvokeSlashCommandError
+{
+    NONE = 0,
+    COMMAND_NOT_FOUND = 1,
+    INSUFFICIENT_PERMISSIONS = 2,
+    BOT_NOT_CONNECTED = 3,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum InteractWithControlError
+{
+    NONE = 0,
+    MESSAGE_NOT_FOUND = 1,
+    CONTROL_NOT_FOUND = 2,
+    CONTROL_DISABLED = 3,
+    BOT_NOT_CONNECTED = 4,
+    ARCHETYPE_REQUIRED = 5,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum InteractWithSelectError
+{
+    NONE = 0,
+    MESSAGE_NOT_FOUND = 1,
+    CONTROL_NOT_FOUND = 2,
+    CONTROL_DISABLED = 3,
+    NOT_A_SELECT = 4,
+    INVALID_VALUES = 5,
+    BOT_NOT_CONNECTED = 6,
+    ARCHETYPE_REQUIRED = 7,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SubmitModalError
+{
+    NONE = 0,
+    INTERACTION_NOT_FOUND = 1,
+    INTERACTION_EXPIRED = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum IonTextInputStyle
+{
+    Short = 0,
+    Paragraph = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum IonModalComponentType
+{
+    TextInput = 0,
+    StringSelect = 1,
+    UserSelect = 2,
+    ArchetypeSelect = 3,
+    ChannelSelect = 4,
+    Checkbox = 5,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum StartStreamError
 {
     NONE = 0,
     BAD_PARAMS = 1,
     INTERNAL_ERROR = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum TypingKind
+{
+    TYPING = 0,
+    THINKING = 1,
+    UPLOADING = 2,
+    SEARCHING = 3,
 }
 
 
@@ -203,6 +298,10 @@ public interface IChannelInteraction : IIonService
     Task EndLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadAttachment(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<AttachmentInfo> CompleteUploadAttachment(guid spaceId, guid channelId, guid blobId, CancellationToken ct = default);
+    Task<IInvokeSlashCommandResult> InvokeSlashCommand(guid spaceId, guid channelId, guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default);
+    Task<IInteractWithControlResult> InteractWithControl(guid spaceId, guid channelId, i8 messageId, string controlId, CancellationToken ct = default);
+    Task<IInteractWithSelectResult> InteractWithSelect(guid spaceId, guid channelId, i8 messageId, string customId, IonArray<string> values, CancellationToken ct = default);
+    Task<ISubmitModalResult> SubmitModal(guid spaceId, guid channelId, guid interactionId, IonArray<ModalSubmitValue> values, CancellationToken ct = default);
 }
 
 
@@ -1280,6 +1379,502 @@ public sealed class Ion_MessageEntityAttachment_Formatter : IonFormatter<Message
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IInvokeSlashCommandResult : IIonUnion<IInvokeSlashCommandResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessInvokeSlashCommand => this is SuccessInvokeSlashCommand;
+
+    internal bool IsFailedInvokeSlashCommand => this is FailedInvokeSlashCommand;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessInvokeSlashCommand() : IInvokeSlashCommandResult
+{
+    public string UnionKey => nameof(SuccessInvokeSlashCommand);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedInvokeSlashCommand(InvokeSlashCommandError error) : IInvokeSlashCommandResult
+{
+    public string UnionKey => nameof(FailedInvokeSlashCommand);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IInvokeSlashCommandResult_Formatter : IonFormatter<IInvokeSlashCommandResult>
+{
+    public IInvokeSlashCommandResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IInvokeSlashCommandResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessInvokeSlashCommand>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedInvokeSlashCommand>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IInvokeSlashCommandResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessInvokeSlashCommand n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessInvokeSlashCommand>.Write(writer, n_0);
+        }
+
+        else if (value is FailedInvokeSlashCommand n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedInvokeSlashCommand>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessInvokeSlashCommand_Formatter : IonFormatter<SuccessInvokeSlashCommand>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessInvokeSlashCommand Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessInvokeSlashCommand value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedInvokeSlashCommand_Formatter : IonFormatter<FailedInvokeSlashCommand>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedInvokeSlashCommand Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<InvokeSlashCommandError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedInvokeSlashCommand value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<InvokeSlashCommandError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IInteractWithControlResult : IIonUnion<IInteractWithControlResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessInteractWithControl => this is SuccessInteractWithControl;
+
+    internal bool IsFailedInteractWithControl => this is FailedInteractWithControl;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessInteractWithControl(guid interactionId) : IInteractWithControlResult
+{
+    public string UnionKey => nameof(SuccessInteractWithControl);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedInteractWithControl(InteractWithControlError error) : IInteractWithControlResult
+{
+    public string UnionKey => nameof(FailedInteractWithControl);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IInteractWithControlResult_Formatter : IonFormatter<IInteractWithControlResult>
+{
+    public IInteractWithControlResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IInteractWithControlResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessInteractWithControl>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedInteractWithControl>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IInteractWithControlResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessInteractWithControl n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessInteractWithControl>.Write(writer, n_0);
+        }
+
+        else if (value is FailedInteractWithControl n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedInteractWithControl>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessInteractWithControl_Formatter : IonFormatter<SuccessInteractWithControl>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessInteractWithControl Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__interactionid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessInteractWithControl value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.interactionId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedInteractWithControl_Formatter : IonFormatter<FailedInteractWithControl>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedInteractWithControl Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<InteractWithControlError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedInteractWithControl value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<InteractWithControlError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IInteractWithSelectResult : IIonUnion<IInteractWithSelectResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessInteractWithSelect => this is SuccessInteractWithSelect;
+
+    internal bool IsFailedInteractWithSelect => this is FailedInteractWithSelect;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessInteractWithSelect(guid interactionId) : IInteractWithSelectResult
+{
+    public string UnionKey => nameof(SuccessInteractWithSelect);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedInteractWithSelect(InteractWithSelectError error) : IInteractWithSelectResult
+{
+    public string UnionKey => nameof(FailedInteractWithSelect);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IInteractWithSelectResult_Formatter : IonFormatter<IInteractWithSelectResult>
+{
+    public IInteractWithSelectResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IInteractWithSelectResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessInteractWithSelect>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedInteractWithSelect>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IInteractWithSelectResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessInteractWithSelect n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessInteractWithSelect>.Write(writer, n_0);
+        }
+
+        else if (value is FailedInteractWithSelect n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedInteractWithSelect>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessInteractWithSelect_Formatter : IonFormatter<SuccessInteractWithSelect>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessInteractWithSelect Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__interactionid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessInteractWithSelect value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.interactionId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedInteractWithSelect_Formatter : IonFormatter<FailedInteractWithSelect>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedInteractWithSelect Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<InteractWithSelectError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedInteractWithSelect value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<InteractWithSelectError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ISubmitModalResult : IIonUnion<ISubmitModalResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessSubmitModal => this is SuccessSubmitModal;
+
+    internal bool IsFailedSubmitModal => this is FailedSubmitModal;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessSubmitModal() : ISubmitModalResult
+{
+    public string UnionKey => nameof(SuccessSubmitModal);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedSubmitModal(SubmitModalError error) : ISubmitModalResult
+{
+    public string UnionKey => nameof(FailedSubmitModal);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ISubmitModalResult_Formatter : IonFormatter<ISubmitModalResult>
+{
+    public ISubmitModalResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ISubmitModalResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessSubmitModal>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedSubmitModal>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ISubmitModalResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessSubmitModal n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessSubmitModal>.Write(writer, n_0);
+        }
+
+        else if (value is FailedSubmitModal n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedSubmitModal>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessSubmitModal_Formatter : IonFormatter<SuccessSubmitModal>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessSubmitModal Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessSubmitModal value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedSubmitModal_Formatter : IonFormatter<FailedSubmitModal>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedSubmitModal Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<SubmitModalError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedSubmitModal value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<SubmitModalError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IInterlinkResult : IIonUnion<IInterlinkResult>
 {
     string UnionKey { get; }
@@ -1570,6 +2165,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsMessageSent => this is MessageSent;
 
+    internal bool IsMessageEdited => this is MessageEdited;
+
     internal bool IsServerModified => this is ServerModified;
 
     internal bool IsRecordStarted => this is RecordStarted;
@@ -1636,6 +2233,14 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsMeetingDeletedFor => this is MeetingDeletedFor;
 
+    internal bool IsLeavedFromServerUser => this is LeavedFromServerUser;
+
+    internal bool IsInteractionAcked => this is InteractionAcked;
+
+    internal bool IsInteractionDeferred => this is InteractionDeferred;
+
+    internal bool IsShowModal => this is ShowModal;
+
 }
 
 
@@ -1675,7 +2280,7 @@ public sealed record ChannelRemoved(guid spaceId, guid channelId) : IArgonEvent
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserTypingEvent(guid spaceId, guid channelId, guid userId) : IArgonEvent
+public sealed record UserTypingEvent(guid spaceId, guid channelId, guid userId, TypingKind? kind) : IArgonEvent
 {
     public string UnionKey => nameof(UserTypingEvent);
     public uint UnionIndex => 5;
@@ -1745,234 +2350,269 @@ public sealed record MessageSent(guid spaceId, ArgonMessage message) : IArgonEve
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEdited(guid spaceId, guid channelId, i8 messageId, string? text, datetime updatedAt) : IArgonEvent
+{
+    public string UnionKey => nameof(MessageEdited);
+    public uint UnionIndex => 15;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ServerModified(guid spaceId, IonArray<string> bag) : IArgonEvent
 {
     public string UnionKey => nameof(ServerModified);
-    public uint UnionIndex => 15;
+    public uint UnionIndex => 16;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record RecordStarted(guid spaceId, guid channelId, guid byUserId) : IArgonEvent
 {
     public string UnionKey => nameof(RecordStarted);
-    public uint UnionIndex => 16;
+    public uint UnionIndex => 17;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record RecordEnded(guid spaceId, guid channelId) : IArgonEvent
 {
     public string UnionKey => nameof(RecordEnded);
-    public uint UnionIndex => 17;
+    public uint UnionIndex => 18;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record CallIncoming(guid userId, guid callId, guid fromId) : IArgonEvent
 {
     public string UnionKey => nameof(CallIncoming);
-    public uint UnionIndex => 18;
+    public uint UnionIndex => 19;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record CallFinished(guid userId, guid callId) : IArgonEvent
 {
     public string UnionKey => nameof(CallFinished);
-    public uint UnionIndex => 19;
+    public uint UnionIndex => 20;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record CallAccepted(guid userId, guid callId, guid fromId) : IArgonEvent
 {
     public string UnionKey => nameof(CallAccepted);
-    public uint UnionIndex => 20;
+    public uint UnionIndex => 21;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record CallRejected(guid userId, guid callId, guid fromId) : IArgonEvent
 {
     public string UnionKey => nameof(CallRejected);
-    public uint UnionIndex => 21;
+    public uint UnionIndex => 22;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendRequestReceivedEvent(guid requesterId, datetime requestDate) : IArgonEvent
 {
     public string UnionKey => nameof(FriendRequestReceivedEvent);
-    public uint UnionIndex => 22;
+    public uint UnionIndex => 23;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendRequestSentEvent(guid targetId, datetime requestDate) : IArgonEvent
 {
     public string UnionKey => nameof(FriendRequestSentEvent);
-    public uint UnionIndex => 23;
+    public uint UnionIndex => 24;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendRequestAcceptedEvent(guid userId, datetime friendAt) : IArgonEvent
 {
     public string UnionKey => nameof(FriendRequestAcceptedEvent);
-    public uint UnionIndex => 24;
+    public uint UnionIndex => 25;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendRequestDeclinedEvent(guid targetId) : IArgonEvent
 {
     public string UnionKey => nameof(FriendRequestDeclinedEvent);
-    public uint UnionIndex => 25;
+    public uint UnionIndex => 26;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendRequestCanceledEvent(guid requesterId) : IArgonEvent
 {
     public string UnionKey => nameof(FriendRequestCanceledEvent);
-    public uint UnionIndex => 26;
+    public uint UnionIndex => 27;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FriendshipRemovedEvent(guid userId) : IArgonEvent
 {
     public string UnionKey => nameof(FriendshipRemovedEvent);
-    public uint UnionIndex => 27;
+    public uint UnionIndex => 28;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserBlockedEvent(guid blockId) : IArgonEvent
 {
     public string UnionKey => nameof(UserBlockedEvent);
-    public uint UnionIndex => 28;
+    public uint UnionIndex => 29;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserUnblockedEvent(guid blockId) : IArgonEvent
 {
     public string UnionKey => nameof(UserUnblockedEvent);
-    public uint UnionIndex => 29;
+    public uint UnionIndex => 30;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record RecentChatUpdatedEvent(guid peerId, guid userId, string? lastMessage, datetime lastMessageAt) : IArgonEvent
 {
     public string UnionKey => nameof(RecentChatUpdatedEvent);
-    public uint UnionIndex => 30;
+    public uint UnionIndex => 31;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChatPinnedEvent(guid peerId, datetime pinnedAt) : IArgonEvent
 {
     public string UnionKey => nameof(ChatPinnedEvent);
-    public uint UnionIndex => 31;
+    public uint UnionIndex => 32;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChatUnpinnedEvent(guid peerId) : IArgonEvent
 {
     public string UnionKey => nameof(ChatUnpinnedEvent);
-    public uint UnionIndex => 32;
+    public uint UnionIndex => 33;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChatReadEvent(guid peerId) : IArgonEvent
 {
     public string UnionKey => nameof(ChatReadEvent);
-    public uint UnionIndex => 33;
+    public uint UnionIndex => 34;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelGroupCreated(guid spaceId, ChannelGroup data) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelGroupCreated);
-    public uint UnionIndex => 34;
+    public uint UnionIndex => 35;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelGroupModified(guid spaceId, guid groupId, ChannelGroup data) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelGroupModified);
-    public uint UnionIndex => 35;
+    public uint UnionIndex => 36;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelGroupRemoved(guid spaceId, guid groupId) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelGroupRemoved);
-    public uint UnionIndex => 36;
+    public uint UnionIndex => 37;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelGroupReordered(guid spaceId, guid groupId, string fractionalIndex) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelGroupReordered);
-    public uint UnionIndex => 37;
+    public uint UnionIndex => 38;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelReordered(guid spaceId, guid channelId, guid? targetGroupId, string fractionalIndex) : IArgonEvent
 {
     public string UnionKey => nameof(ChannelReordered);
-    public uint UnionIndex => 38;
+    public uint UnionIndex => 39;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record DirectMessageSent(guid senderId, guid receiverId, DirectMessage message) : IArgonEvent
 {
     public string UnionKey => nameof(DirectMessageSent);
-    public uint UnionIndex => 39;
+    public uint UnionIndex => 40;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ReadStateUpdated(guid userId, guid channelId, guid? spaceId, i8 lastReadMessageId, i4 mentionCount) : IArgonEvent
 {
     public string UnionKey => nameof(ReadStateUpdated);
-    public uint UnionIndex => 40;
+    public uint UnionIndex => 41;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SystemNotificationReceived(guid userId, SystemNotificationDto notification) : IArgonEvent
 {
     public string UnionKey => nameof(SystemNotificationReceived);
-    public uint UnionIndex => 41;
+    public uint UnionIndex => 42;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MuteSettingsChanged(guid userId, guid targetId, MuteLevelType muteLevel) : IArgonEvent
 {
     public string UnionKey => nameof(MuteSettingsChanged);
-    public uint UnionIndex => 42;
+    public uint UnionIndex => 43;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record BatchMentionOccurred(guid spaceId, guid channelId, MentionTargetType mentionType) : IArgonEvent
 {
     public string UnionKey => nameof(BatchMentionOccurred);
-    public uint UnionIndex => 43;
+    public uint UnionIndex => 44;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserSecurityDetailsUpdated(guid userId, SecurityDetails details) : IArgonEvent
 {
     public string UnionKey => nameof(UserSecurityDetailsUpdated);
-    public uint UnionIndex => 44;
+    public uint UnionIndex => 45;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SpaceDetailsUpdated(guid spaceId, ArgonSpaceBase details) : IArgonEvent
 {
     public string UnionKey => nameof(SpaceDetailsUpdated);
-    public uint UnionIndex => 45;
+    public uint UnionIndex => 46;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MeetingCreatedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
 {
     public string UnionKey => nameof(MeetingCreatedFor);
-    public uint UnionIndex => 46;
+    public uint UnionIndex => 47;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MeetingDeletedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
 {
     public string UnionKey => nameof(MeetingDeletedFor);
-    public uint UnionIndex => 47;
+    public uint UnionIndex => 48;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LeavedFromServerUser(guid spaceId, guid userId) : IArgonEvent
+{
+    public string UnionKey => nameof(LeavedFromServerUser);
+    public uint UnionIndex => 49;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InteractionAcked(guid interactionId) : IArgonEvent
+{
+    public string UnionKey => nameof(InteractionAcked);
+    public uint UnionIndex => 50;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InteractionDeferred(guid interactionId) : IArgonEvent
+{
+    public string UnionKey => nameof(InteractionDeferred);
+    public uint UnionIndex => 51;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ShowModal(guid interactionId, IonModalDefinition modal) : IArgonEvent
+{
+    public string UnionKey => nameof(ShowModal);
+    public uint UnionIndex => 52;
 }
 
 
@@ -2033,103 +2673,118 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             result = IonFormatterStorage<MessageSent>.Read(reader);
 
         else if (unionIndex == 15)
-            result = IonFormatterStorage<ServerModified>.Read(reader);
+            result = IonFormatterStorage<MessageEdited>.Read(reader);
 
         else if (unionIndex == 16)
-            result = IonFormatterStorage<RecordStarted>.Read(reader);
+            result = IonFormatterStorage<ServerModified>.Read(reader);
 
         else if (unionIndex == 17)
-            result = IonFormatterStorage<RecordEnded>.Read(reader);
+            result = IonFormatterStorage<RecordStarted>.Read(reader);
 
         else if (unionIndex == 18)
-            result = IonFormatterStorage<CallIncoming>.Read(reader);
+            result = IonFormatterStorage<RecordEnded>.Read(reader);
 
         else if (unionIndex == 19)
-            result = IonFormatterStorage<CallFinished>.Read(reader);
+            result = IonFormatterStorage<CallIncoming>.Read(reader);
 
         else if (unionIndex == 20)
-            result = IonFormatterStorage<CallAccepted>.Read(reader);
+            result = IonFormatterStorage<CallFinished>.Read(reader);
 
         else if (unionIndex == 21)
-            result = IonFormatterStorage<CallRejected>.Read(reader);
+            result = IonFormatterStorage<CallAccepted>.Read(reader);
 
         else if (unionIndex == 22)
-            result = IonFormatterStorage<FriendRequestReceivedEvent>.Read(reader);
+            result = IonFormatterStorage<CallRejected>.Read(reader);
 
         else if (unionIndex == 23)
-            result = IonFormatterStorage<FriendRequestSentEvent>.Read(reader);
+            result = IonFormatterStorage<FriendRequestReceivedEvent>.Read(reader);
 
         else if (unionIndex == 24)
-            result = IonFormatterStorage<FriendRequestAcceptedEvent>.Read(reader);
+            result = IonFormatterStorage<FriendRequestSentEvent>.Read(reader);
 
         else if (unionIndex == 25)
-            result = IonFormatterStorage<FriendRequestDeclinedEvent>.Read(reader);
+            result = IonFormatterStorage<FriendRequestAcceptedEvent>.Read(reader);
 
         else if (unionIndex == 26)
-            result = IonFormatterStorage<FriendRequestCanceledEvent>.Read(reader);
+            result = IonFormatterStorage<FriendRequestDeclinedEvent>.Read(reader);
 
         else if (unionIndex == 27)
-            result = IonFormatterStorage<FriendshipRemovedEvent>.Read(reader);
+            result = IonFormatterStorage<FriendRequestCanceledEvent>.Read(reader);
 
         else if (unionIndex == 28)
-            result = IonFormatterStorage<UserBlockedEvent>.Read(reader);
+            result = IonFormatterStorage<FriendshipRemovedEvent>.Read(reader);
 
         else if (unionIndex == 29)
-            result = IonFormatterStorage<UserUnblockedEvent>.Read(reader);
+            result = IonFormatterStorage<UserBlockedEvent>.Read(reader);
 
         else if (unionIndex == 30)
-            result = IonFormatterStorage<RecentChatUpdatedEvent>.Read(reader);
+            result = IonFormatterStorage<UserUnblockedEvent>.Read(reader);
 
         else if (unionIndex == 31)
-            result = IonFormatterStorage<ChatPinnedEvent>.Read(reader);
+            result = IonFormatterStorage<RecentChatUpdatedEvent>.Read(reader);
 
         else if (unionIndex == 32)
-            result = IonFormatterStorage<ChatUnpinnedEvent>.Read(reader);
+            result = IonFormatterStorage<ChatPinnedEvent>.Read(reader);
 
         else if (unionIndex == 33)
-            result = IonFormatterStorage<ChatReadEvent>.Read(reader);
+            result = IonFormatterStorage<ChatUnpinnedEvent>.Read(reader);
 
         else if (unionIndex == 34)
-            result = IonFormatterStorage<ChannelGroupCreated>.Read(reader);
+            result = IonFormatterStorage<ChatReadEvent>.Read(reader);
 
         else if (unionIndex == 35)
-            result = IonFormatterStorage<ChannelGroupModified>.Read(reader);
+            result = IonFormatterStorage<ChannelGroupCreated>.Read(reader);
 
         else if (unionIndex == 36)
-            result = IonFormatterStorage<ChannelGroupRemoved>.Read(reader);
+            result = IonFormatterStorage<ChannelGroupModified>.Read(reader);
 
         else if (unionIndex == 37)
-            result = IonFormatterStorage<ChannelGroupReordered>.Read(reader);
+            result = IonFormatterStorage<ChannelGroupRemoved>.Read(reader);
 
         else if (unionIndex == 38)
-            result = IonFormatterStorage<ChannelReordered>.Read(reader);
+            result = IonFormatterStorage<ChannelGroupReordered>.Read(reader);
 
         else if (unionIndex == 39)
-            result = IonFormatterStorage<DirectMessageSent>.Read(reader);
+            result = IonFormatterStorage<ChannelReordered>.Read(reader);
 
         else if (unionIndex == 40)
-            result = IonFormatterStorage<ReadStateUpdated>.Read(reader);
+            result = IonFormatterStorage<DirectMessageSent>.Read(reader);
 
         else if (unionIndex == 41)
-            result = IonFormatterStorage<SystemNotificationReceived>.Read(reader);
+            result = IonFormatterStorage<ReadStateUpdated>.Read(reader);
 
         else if (unionIndex == 42)
-            result = IonFormatterStorage<MuteSettingsChanged>.Read(reader);
+            result = IonFormatterStorage<SystemNotificationReceived>.Read(reader);
 
         else if (unionIndex == 43)
-            result = IonFormatterStorage<BatchMentionOccurred>.Read(reader);
+            result = IonFormatterStorage<MuteSettingsChanged>.Read(reader);
 
         else if (unionIndex == 44)
-            result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
+            result = IonFormatterStorage<BatchMentionOccurred>.Read(reader);
 
         else if (unionIndex == 45)
-            result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
+            result = IonFormatterStorage<UserSecurityDetailsUpdated>.Read(reader);
 
         else if (unionIndex == 46)
-            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
+            result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
 
         else if (unionIndex == 47)
+            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
+
+        else if (unionIndex == 48)
             result = IonFormatterStorage<MeetingDeletedFor>.Read(reader);
+
+        else if (unionIndex == 49)
+            result = IonFormatterStorage<LeavedFromServerUser>.Read(reader);
+
+        else if (unionIndex == 50)
+            result = IonFormatterStorage<InteractionAcked>.Read(reader);
+
+        else if (unionIndex == 51)
+            result = IonFormatterStorage<InteractionDeferred>.Read(reader);
+
+        else if (unionIndex == 52)
+            result = IonFormatterStorage<ShowModal>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -2249,235 +2904,270 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             IonFormatterStorage<MessageSent>.Write(writer, n_14);
         }
 
-        else if (value is ServerModified n_15)
+        else if (value is MessageEdited n_15)
         {
             if (n_15.UnionIndex != 15)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ServerModified>.Write(writer, n_15);
+            IonFormatterStorage<MessageEdited>.Write(writer, n_15);
         }
 
-        else if (value is RecordStarted n_16)
+        else if (value is ServerModified n_16)
         {
             if (n_16.UnionIndex != 16)
                 throw new InvalidOperationException();
-            IonFormatterStorage<RecordStarted>.Write(writer, n_16);
+            IonFormatterStorage<ServerModified>.Write(writer, n_16);
         }
 
-        else if (value is RecordEnded n_17)
+        else if (value is RecordStarted n_17)
         {
             if (n_17.UnionIndex != 17)
                 throw new InvalidOperationException();
-            IonFormatterStorage<RecordEnded>.Write(writer, n_17);
+            IonFormatterStorage<RecordStarted>.Write(writer, n_17);
         }
 
-        else if (value is CallIncoming n_18)
+        else if (value is RecordEnded n_18)
         {
             if (n_18.UnionIndex != 18)
                 throw new InvalidOperationException();
-            IonFormatterStorage<CallIncoming>.Write(writer, n_18);
+            IonFormatterStorage<RecordEnded>.Write(writer, n_18);
         }
 
-        else if (value is CallFinished n_19)
+        else if (value is CallIncoming n_19)
         {
             if (n_19.UnionIndex != 19)
                 throw new InvalidOperationException();
-            IonFormatterStorage<CallFinished>.Write(writer, n_19);
+            IonFormatterStorage<CallIncoming>.Write(writer, n_19);
         }
 
-        else if (value is CallAccepted n_20)
+        else if (value is CallFinished n_20)
         {
             if (n_20.UnionIndex != 20)
                 throw new InvalidOperationException();
-            IonFormatterStorage<CallAccepted>.Write(writer, n_20);
+            IonFormatterStorage<CallFinished>.Write(writer, n_20);
         }
 
-        else if (value is CallRejected n_21)
+        else if (value is CallAccepted n_21)
         {
             if (n_21.UnionIndex != 21)
                 throw new InvalidOperationException();
-            IonFormatterStorage<CallRejected>.Write(writer, n_21);
+            IonFormatterStorage<CallAccepted>.Write(writer, n_21);
         }
 
-        else if (value is FriendRequestReceivedEvent n_22)
+        else if (value is CallRejected n_22)
         {
             if (n_22.UnionIndex != 22)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendRequestReceivedEvent>.Write(writer, n_22);
+            IonFormatterStorage<CallRejected>.Write(writer, n_22);
         }
 
-        else if (value is FriendRequestSentEvent n_23)
+        else if (value is FriendRequestReceivedEvent n_23)
         {
             if (n_23.UnionIndex != 23)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendRequestSentEvent>.Write(writer, n_23);
+            IonFormatterStorage<FriendRequestReceivedEvent>.Write(writer, n_23);
         }
 
-        else if (value is FriendRequestAcceptedEvent n_24)
+        else if (value is FriendRequestSentEvent n_24)
         {
             if (n_24.UnionIndex != 24)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendRequestAcceptedEvent>.Write(writer, n_24);
+            IonFormatterStorage<FriendRequestSentEvent>.Write(writer, n_24);
         }
 
-        else if (value is FriendRequestDeclinedEvent n_25)
+        else if (value is FriendRequestAcceptedEvent n_25)
         {
             if (n_25.UnionIndex != 25)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendRequestDeclinedEvent>.Write(writer, n_25);
+            IonFormatterStorage<FriendRequestAcceptedEvent>.Write(writer, n_25);
         }
 
-        else if (value is FriendRequestCanceledEvent n_26)
+        else if (value is FriendRequestDeclinedEvent n_26)
         {
             if (n_26.UnionIndex != 26)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendRequestCanceledEvent>.Write(writer, n_26);
+            IonFormatterStorage<FriendRequestDeclinedEvent>.Write(writer, n_26);
         }
 
-        else if (value is FriendshipRemovedEvent n_27)
+        else if (value is FriendRequestCanceledEvent n_27)
         {
             if (n_27.UnionIndex != 27)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FriendshipRemovedEvent>.Write(writer, n_27);
+            IonFormatterStorage<FriendRequestCanceledEvent>.Write(writer, n_27);
         }
 
-        else if (value is UserBlockedEvent n_28)
+        else if (value is FriendshipRemovedEvent n_28)
         {
             if (n_28.UnionIndex != 28)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UserBlockedEvent>.Write(writer, n_28);
+            IonFormatterStorage<FriendshipRemovedEvent>.Write(writer, n_28);
         }
 
-        else if (value is UserUnblockedEvent n_29)
+        else if (value is UserBlockedEvent n_29)
         {
             if (n_29.UnionIndex != 29)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UserUnblockedEvent>.Write(writer, n_29);
+            IonFormatterStorage<UserBlockedEvent>.Write(writer, n_29);
         }
 
-        else if (value is RecentChatUpdatedEvent n_30)
+        else if (value is UserUnblockedEvent n_30)
         {
             if (n_30.UnionIndex != 30)
                 throw new InvalidOperationException();
-            IonFormatterStorage<RecentChatUpdatedEvent>.Write(writer, n_30);
+            IonFormatterStorage<UserUnblockedEvent>.Write(writer, n_30);
         }
 
-        else if (value is ChatPinnedEvent n_31)
+        else if (value is RecentChatUpdatedEvent n_31)
         {
             if (n_31.UnionIndex != 31)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChatPinnedEvent>.Write(writer, n_31);
+            IonFormatterStorage<RecentChatUpdatedEvent>.Write(writer, n_31);
         }
 
-        else if (value is ChatUnpinnedEvent n_32)
+        else if (value is ChatPinnedEvent n_32)
         {
             if (n_32.UnionIndex != 32)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChatUnpinnedEvent>.Write(writer, n_32);
+            IonFormatterStorage<ChatPinnedEvent>.Write(writer, n_32);
         }
 
-        else if (value is ChatReadEvent n_33)
+        else if (value is ChatUnpinnedEvent n_33)
         {
             if (n_33.UnionIndex != 33)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChatReadEvent>.Write(writer, n_33);
+            IonFormatterStorage<ChatUnpinnedEvent>.Write(writer, n_33);
         }
 
-        else if (value is ChannelGroupCreated n_34)
+        else if (value is ChatReadEvent n_34)
         {
             if (n_34.UnionIndex != 34)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChannelGroupCreated>.Write(writer, n_34);
+            IonFormatterStorage<ChatReadEvent>.Write(writer, n_34);
         }
 
-        else if (value is ChannelGroupModified n_35)
+        else if (value is ChannelGroupCreated n_35)
         {
             if (n_35.UnionIndex != 35)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChannelGroupModified>.Write(writer, n_35);
+            IonFormatterStorage<ChannelGroupCreated>.Write(writer, n_35);
         }
 
-        else if (value is ChannelGroupRemoved n_36)
+        else if (value is ChannelGroupModified n_36)
         {
             if (n_36.UnionIndex != 36)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChannelGroupRemoved>.Write(writer, n_36);
+            IonFormatterStorage<ChannelGroupModified>.Write(writer, n_36);
         }
 
-        else if (value is ChannelGroupReordered n_37)
+        else if (value is ChannelGroupRemoved n_37)
         {
             if (n_37.UnionIndex != 37)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChannelGroupReordered>.Write(writer, n_37);
+            IonFormatterStorage<ChannelGroupRemoved>.Write(writer, n_37);
         }
 
-        else if (value is ChannelReordered n_38)
+        else if (value is ChannelGroupReordered n_38)
         {
             if (n_38.UnionIndex != 38)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ChannelReordered>.Write(writer, n_38);
+            IonFormatterStorage<ChannelGroupReordered>.Write(writer, n_38);
         }
 
-        else if (value is DirectMessageSent n_39)
+        else if (value is ChannelReordered n_39)
         {
             if (n_39.UnionIndex != 39)
                 throw new InvalidOperationException();
-            IonFormatterStorage<DirectMessageSent>.Write(writer, n_39);
+            IonFormatterStorage<ChannelReordered>.Write(writer, n_39);
         }
 
-        else if (value is ReadStateUpdated n_40)
+        else if (value is DirectMessageSent n_40)
         {
             if (n_40.UnionIndex != 40)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ReadStateUpdated>.Write(writer, n_40);
+            IonFormatterStorage<DirectMessageSent>.Write(writer, n_40);
         }
 
-        else if (value is SystemNotificationReceived n_41)
+        else if (value is ReadStateUpdated n_41)
         {
             if (n_41.UnionIndex != 41)
                 throw new InvalidOperationException();
-            IonFormatterStorage<SystemNotificationReceived>.Write(writer, n_41);
+            IonFormatterStorage<ReadStateUpdated>.Write(writer, n_41);
         }
 
-        else if (value is MuteSettingsChanged n_42)
+        else if (value is SystemNotificationReceived n_42)
         {
             if (n_42.UnionIndex != 42)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MuteSettingsChanged>.Write(writer, n_42);
+            IonFormatterStorage<SystemNotificationReceived>.Write(writer, n_42);
         }
 
-        else if (value is BatchMentionOccurred n_43)
+        else if (value is MuteSettingsChanged n_43)
         {
             if (n_43.UnionIndex != 43)
                 throw new InvalidOperationException();
-            IonFormatterStorage<BatchMentionOccurred>.Write(writer, n_43);
+            IonFormatterStorage<MuteSettingsChanged>.Write(writer, n_43);
         }
 
-        else if (value is UserSecurityDetailsUpdated n_44)
+        else if (value is BatchMentionOccurred n_44)
         {
             if (n_44.UnionIndex != 44)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_44);
+            IonFormatterStorage<BatchMentionOccurred>.Write(writer, n_44);
         }
 
-        else if (value is SpaceDetailsUpdated n_45)
+        else if (value is UserSecurityDetailsUpdated n_45)
         {
             if (n_45.UnionIndex != 45)
                 throw new InvalidOperationException();
-            IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_45);
+            IonFormatterStorage<UserSecurityDetailsUpdated>.Write(writer, n_45);
         }
 
-        else if (value is MeetingCreatedFor n_46)
+        else if (value is SpaceDetailsUpdated n_46)
         {
             if (n_46.UnionIndex != 46)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_46);
+            IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_46);
         }
 
-        else if (value is MeetingDeletedFor n_47)
+        else if (value is MeetingCreatedFor n_47)
         {
             if (n_47.UnionIndex != 47)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_47);
+            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_47);
+        }
+
+        else if (value is MeetingDeletedFor n_48)
+        {
+            if (n_48.UnionIndex != 48)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_48);
+        }
+
+        else if (value is LeavedFromServerUser n_49)
+        {
+            if (n_49.UnionIndex != 49)
+                throw new InvalidOperationException();
+            IonFormatterStorage<LeavedFromServerUser>.Write(writer, n_49);
+        }
+
+        else if (value is InteractionAcked n_50)
+        {
+            if (n_50.UnionIndex != 50)
+                throw new InvalidOperationException();
+            IonFormatterStorage<InteractionAcked>.Write(writer, n_50);
+        }
+
+        else if (value is InteractionDeferred n_51)
+        {
+            if (n_51.UnionIndex != 51)
+                throw new InvalidOperationException();
+            IonFormatterStorage<InteractionDeferred>.Write(writer, n_51);
+        }
+
+        else if (value is ShowModal n_52)
+        {
+            if (n_52.UnionIndex != 52)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ShowModal>.Write(writer, n_52);
         }
     
         else
@@ -2614,17 +3304,19 @@ public sealed class Ion_UserTypingEvent_Formatter : IonFormatter<UserTypingEvent
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __userid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 3);
-        return new(__spaceid, __channelid, __userid);
+        var __kind = reader.ReadNullable<TypingKind>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__spaceid, __channelid, __userid, __kind);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UserTypingEvent value)
     {
-        writer.WriteStartArray(3);
+        writer.WriteStartArray(4);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<TypingKind>.WriteNullable(writer, value.kind);
         writer.WriteEndArray();
     }
 }
@@ -2844,6 +3536,35 @@ public sealed class Ion_MessageSent_Formatter : IonFormatter<MessageSent>
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<ArgonMessage>.Write(writer, value.message);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEdited_Formatter : IonFormatter<MessageEdited>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEdited Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __text = reader.ReadNullable<string>();
+        var __updatedat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__spaceid, __channelid, __messageid, __text, __updatedat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEdited value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.text);
+        IonFormatterStorage<datetime>.Write(writer, value.updatedAt);
         writer.WriteEndArray();
     }
 }
@@ -3625,6 +4346,94 @@ public sealed class Ion_MeetingDeletedFor_Formatter : IonFormatter<MeetingDelete
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<LinkedMeetingInfo>.Write(writer, value.meetInfo);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_LeavedFromServerUser_Formatter : IonFormatter<LeavedFromServerUser>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public LeavedFromServerUser Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __userid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, LeavedFromServerUser value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InteractionAcked_Formatter : IonFormatter<InteractionAcked>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InteractionAcked Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__interactionid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InteractionAcked value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.interactionId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InteractionDeferred_Formatter : IonFormatter<InteractionDeferred>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InteractionDeferred Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__interactionid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InteractionDeferred value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.interactionId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ShowModal_Formatter : IonFormatter<ShowModal>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ShowModal Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        var __modal = IonFormatterStorage<IonModalDefinition>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__interactionid, __modal);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ShowModal value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.interactionId);
+        IonFormatterStorage<IonModalDefinition>.Write(writer, value.modal);
         writer.WriteEndArray();
     }
 }

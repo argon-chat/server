@@ -42,7 +42,7 @@ public sealed class CallsDraft(IGrainFactory grains) : IBotInterface
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
-        group.RequireRateLimiting("Bot_IVoice");
+        group.RequireRateLimiting("Bot_ICalls");
 
         group.MapPost("/Accept", async (AcceptCallRequest request, HttpContext ctx) =>
         {

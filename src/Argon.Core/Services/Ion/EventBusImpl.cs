@@ -8,7 +8,7 @@ using System.Security.Claims;
 
 public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuration) : IEventBus
 {
-    public IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, [EnumeratorCancellation] CancellationToken ct = default)
+    public IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, CancellationToken ct = default)
     {
         throw new NotImplementedException();
         //var client = this.GetClusterClient();

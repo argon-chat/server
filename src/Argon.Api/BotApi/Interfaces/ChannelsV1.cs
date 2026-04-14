@@ -36,6 +36,7 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.AddEndpointFilter<BotSpaceMembershipFilter>();
+        group.RequireRateLimiting("Bot_IChannels");
 
         group.MapGet("/List", async (Guid spaceId) =>
         {

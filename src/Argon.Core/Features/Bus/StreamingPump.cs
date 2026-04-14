@@ -53,18 +53,16 @@ public class PumpStreamStorage(ILogger<IStreamingPump<IArgonEvent>> logger, ISer
     private readonly ConcurrentDictionary<StreamId, IStreamingPump<IArgonEvent>> pumps = new();
 
     public IStreamingPump<IArgonEvent> GetStreamFor(StreamId streamId)
-    {
-        return pumps.GetOrAdd(streamId, static (id, state) => 
+        => pumps.GetOrAdd(streamId, static (id, state) => 
         {
             var adapterLogger = state.provider.GetRequiredService<ILogger<StreamAdapter>>();
             return new StreamingPump<IArgonEvent>(state.logger, new StreamAdapter(state.provider, id, adapterLogger), id);
         }, (logger, provider));
-    }
 }
 
 public interface IStreamAdapter<out T>
 {
-    IAsyncEnumerable<T> BeginStream([EnumeratorCancellation] CancellationToken ct = default);
+    IAsyncEnumerable<T> BeginStream(CancellationToken ct = default);
 }
 
 public interface IStreamingPump<out T>
@@ -77,7 +75,7 @@ public interface IStreamingPump<out T>
 public sealed class StreamingPump<T>(ILogger<IStreamingPump<T>> logger, IStreamAdapter<T> sourceFactory, StreamId streamId) : IStreamingPump<T>
 {
     private readonly ConcurrentDictionary<int, Channel<T>> subscribers = new();
-    private readonly object _lock = new();
+    private readonly Lock _lock = new();
 
     private int subscriberCount;
     private int nextId;

@@ -75,6 +75,22 @@ public static class BotApiCli
             Console.Error.WriteLine(
                 $"  {iface.Name}/v{iface.Version} [{status}] hash={iface.ComputedHash[..16]}... routes={iface.Routes.Count} {match}");
         }
+
+        // Event definitions
+        var eventDefs = BotContractVerifier.DiscoverEventDefinitions();
+        if (eventDefs.Count > 0)
+        {
+            Console.Error.WriteLine($"\n--- Event Definitions ---");
+            foreach (var (type, defAttr, _, stableAttr) in eventDefs)
+            {
+                var hash   = BotContractVerifier.ComputeEventContractHash(type);
+                var status2 = stableAttr is not null ? "STABLE" : "DRAFT";
+                var match2  = stableAttr is not null && stableAttr.ContractHash == hash ? "OK" :
+                             stableAttr is not null ? "MISMATCH!" : "";
+                Console.Error.WriteLine(
+                    $"  {defAttr.EventType} [{status2}] hash={hash[..16]}... payload={type.Name} {match2}");
+            }
+        }
     }
 
     private static void RunVerify()
@@ -105,19 +121,16 @@ public static class BotApiCli
         var manifest = BotContractVerifier.GenerateManifest();
         var stableInterfaces = manifest.Where(m => m.IsStable).ToList();
 
-        if (stableInterfaces.Count == 0)
+        if (stableInterfaces.Count > 0)
         {
-            Console.WriteLine("No interfaces marked with [StableContract]. Nothing to rehash.");
-            return;
-        }
+            Console.WriteLine("Computed hashes for stable interfaces:");
+            Console.WriteLine("Copy these into your [StableContract(\"...\")] attributes:\n");
 
-        Console.WriteLine("Computed hashes for stable interfaces:");
-        Console.WriteLine("Copy these into your [StableContract(\"...\")] attributes:\n");
-
-        foreach (var iface in stableInterfaces)
-        {
-            var status = iface.DeclaredHash == iface.ComputedHash ? "unchanged" : "CHANGED";
-            Console.WriteLine($"  {iface.Name}/v{iface.Version}: [StableContract(\"{iface.ComputedHash}\")] ({status})");
+            foreach (var iface in stableInterfaces)
+            {
+                var status = iface.DeclaredHash == iface.ComputedHash ? "unchanged" : "CHANGED";
+                Console.WriteLine($"  {iface.Name}/v{iface.Version}: [StableContract(\"{iface.ComputedHash}\")] ({status})");
+            }
         }
 
         Console.WriteLine("\nAll draft interfaces (no [StableContract]):");
@@ -125,6 +138,27 @@ public static class BotApiCli
         {
             Console.WriteLine($"  {iface.Name}/v{iface.Version}: hash={iface.ComputedHash}");
             Console.WriteLine($"    → Add [StableContract(\"{iface.ComputedHash}\")] to freeze this version");
+        }
+
+        // Event definitions
+        var eventDefs = BotContractVerifier.DiscoverEventDefinitions();
+        if (eventDefs.Count > 0)
+        {
+            Console.WriteLine("\n--- Event Definitions ---");
+            foreach (var (type, defAttr, _, stableAttr) in eventDefs)
+            {
+                var hash = BotContractVerifier.ComputeEventContractHash(type);
+                if (stableAttr is not null)
+                {
+                    var status = stableAttr.ContractHash == hash ? "unchanged" : "CHANGED";
+                    Console.WriteLine($"  {defAttr.EventType}: [StableEventContract(\"{hash}\")] ({status})");
+                }
+                else
+                {
+                    Console.WriteLine($"  {defAttr.EventType}: hash={hash}");
+                    Console.WriteLine($"    → Add [StableEventContract(\"{hash}\")] to freeze this event");
+                }
+            }
         }
     }
 
@@ -136,19 +170,20 @@ public static class BotApiCli
             Usage: dotnet run -- bot-api <command>
 
             Commands:
-              manifest   Generate full API manifest (JSON) with types, routes, and hashes
-              verify     Check all [StableContract] hashes match (CI-friendly, exit code 1 on fail)
-              rehash     Compute and print new hashes for all stable interfaces
+              manifest   Generate full API manifest (JSON) with types, routes, events, and hashes
+              verify     Check all [StableContract] and [StableEventContract] hashes (CI-friendly, exit code 1 on fail)
+              rehash     Compute and print new hashes for all stable interfaces and events
               docs       Generate docs manifest JSON for the documentation site
               help       Show this help
 
             Workflow:
               1. Develop your interface (IBotInterface + [BotRoute] attributes)
-              2. Run 'bot-api manifest' to inspect the API surface
-              3. When ready to freeze: add [StableContract("<hash>")] from manifest output
-              4. CI runs 'bot-api verify' to catch accidental breaking changes
-              5. If intentional change: run 'bot-api rehash' to get new hashes
-              6. Run 'bot-api docs' to regenerate documentation site data
+              2. Define events with [BotEventDefinition] on payload records
+              3. Run 'bot-api manifest' to inspect the API surface
+              4. When ready to freeze: add [StableContract("<hash>")] / [StableEventContract("<hash>")]
+              5. CI runs 'bot-api verify' to catch accidental breaking changes
+              6. If intentional change: run 'bot-api rehash' to get new hashes
+              7. Run 'bot-api docs' to regenerate documentation site data
             """);
     }
 

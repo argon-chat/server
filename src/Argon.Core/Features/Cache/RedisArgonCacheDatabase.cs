@@ -113,13 +113,13 @@ public class RedisArgonCacheDatabase(IRedisPoolConnections pool, ILogger<IArgonC
         => ExecWithRetry(db => db.StringIncrementAsync(key));
 
     public async Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
-        => await ExecWithRetry(db => db.StringGetSetExpiryAsync(key, window));
+        => (await ExecWithRetry(db => db.StringGetSetExpiryAsync(key, window)))!;
 
     public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var scope  = pool.Rent();
         var             server = scope.GetServer();
         foreach (var key in server.Keys(pattern: pattern, pageSize: 1))
-            yield return key;
+            yield return key!;
     }
 }

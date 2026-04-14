@@ -1,5 +1,6 @@
 namespace Argon.Services;
 
+using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Caching.Distributed;
 
@@ -50,7 +51,7 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
     public Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
         => throw new NotImplementedException();
 
-    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default)
+    public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, [EnumeratorCancellation] CancellationToken ct = default)
     {
         var regex = PatternToRegex(pattern);
 

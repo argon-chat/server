@@ -55,7 +55,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         {
             _ = this.GetMachineId();
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return "Invalid machine ID";
         }
@@ -64,7 +64,7 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         {
             _ = this.GetSessionId();
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return "Invalid session ID";
         }

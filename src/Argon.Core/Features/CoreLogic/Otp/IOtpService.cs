@@ -91,8 +91,13 @@ public sealed class PhoneOtpStrategy(IPhoneProvider phoneProvider, ILogger<Phone
 
     public async Task SendAsync(SendOtpRequest req, string ip, CancellationToken ct)
     {
-        await phoneProvider.SendCode(req.Target, ip, req.DeviceId, req.Purpose.ToString());
-        logger.LogInformation("Sent OTP via SMS to {phone}", req.Target);
+        if (req.DeviceId != null)
+        {
+            await phoneProvider.SendCode(req.Target, ip, req.DeviceId, req.Purpose.ToString());
+            logger.LogInformation("Sent OTP via SMS to {phone}", req.Target);
+        }
+        else
+            logger.LogWarning("Cant sent OTP via SMS to {phone}, DeviceId is null", req.Target);
     }
 
     public async Task<bool> VerifyAsync(VerifyOtpRequest req, CancellationToken ct)

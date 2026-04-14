@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IMessages", 1)]
 [BotDescription("Send messages and retrieve message history from channels.")]
-[StableContract("751133cddf2bab7f600537422d5b24932733d404194dc054fbf6f540e413e4c7")]
+[StableContract("2885642024b3ef35e571ce02cf7c9dc58861071df3ac2954931065c49ca356d5")]
 [BotRoute("POST", "/Send",    RequestType = typeof(SendMessageRequest), ResponseType = typeof(SendMessageResponse), Description = "Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo.", Permission = "SendMessages")]
 [BotRoute("GET",  "/History", ResponseType = typeof(MessageHistoryResponse), Description = "Gets message history for a channel. Pass channelId as a query parameter. Supports pagination via from (message ID) and limit (1–100, default 50).", Permission = "ReadMessages")][BotError("/Send", 403, "not_a_member", "Bot is not a member of this space.")]
 [BotError("/History", 403, "not_a_member", "Bot is not a member of this space.")]public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
@@ -15,7 +15,8 @@ using Argon.Features.BotApi.Contracts;
         string                Text,
         long                  RandomId,
         long?                 ReplyTo  = null,
-        List<IMessageEntity>? Entities = null);
+        List<IMessageEntity>? Entities = null,
+        List<ControlRowV1>?   Controls = null);
 
     public sealed record SendMessageResponse(
         long MessageId);
@@ -28,7 +29,8 @@ using Argon.Features.BotApi.Contracts;
         Guid             CreatorId,
         DateTimeOffset   CreatedAt,
         long?            ReplyTo,
-        List<IMessageEntity> Entities);
+        List<IMessageEntity> Entities,
+        List<ControlRowV1>?  Controls = null);
 
     public sealed record MessageHistoryResponse(
         List<MessageDto> Messages);
@@ -45,7 +47,8 @@ using Argon.Features.BotApi.Contracts;
                 request.Text,
                 request.Entities ?? [],
                 request.RandomId,
-                request.ReplyTo);
+                request.ReplyTo,
+                request.Controls);
 
             return Results.Ok(new SendMessageResponse(msgId));
         });
@@ -59,7 +62,7 @@ using Argon.Features.BotApi.Contracts;
                 messages.Select(m => new MessageDto(
                     m.MessageId, m.ChannelId, m.SpaceId,
                     m.Text, m.CreatorId, m.CreatedAt,
-                    m.Reply, m.Entities)).ToList()));
+                    m.Reply, m.Entities, m.Controls)).ToList()));
         });
     }
 }

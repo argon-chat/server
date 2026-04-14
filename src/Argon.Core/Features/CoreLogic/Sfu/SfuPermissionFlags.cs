@@ -16,7 +16,8 @@ public record SfuPermission
         {
             SfuPermissionKind.DefaultUser  => DefaultUser(roomId),
             SfuPermissionKind.DefaultAdmin => DefaultAdmin(roomId),
-            SfuPermissionKind.DefaultBot   => DefaultUser(roomId)
+            SfuPermissionKind.DefaultBot   => DefaultUser(roomId),
+            _                              => throw new ArgumentOutOfRangeException(nameof(flag), flag, null)
         };
 
     public static VideoGrants DefaultUser(string roomId) =>

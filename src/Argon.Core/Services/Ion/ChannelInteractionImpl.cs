@@ -156,4 +156,16 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public async Task<AttachmentInfo> CompleteUploadAttachment(Guid spaceId, Guid channelId, Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).CompleteUploadAttachment(blobId, ct);
+
+    public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid spaceId, Guid channelId, Guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InvokeSlashCommand(commandId, options.Values.ToList());
+
+    public async Task<IInteractWithControlResult> InteractWithControl(Guid spaceId, Guid channelId, long messageId, string controlId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InteractWithControl(messageId, controlId);
+
+    public async Task<IInteractWithSelectResult> InteractWithSelect(Guid spaceId, Guid channelId, long messageId, string customId, IonArray<string> values, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InteractWithSelect(messageId, customId, values.Values.ToList());
+
+    public async Task<ISubmitModalResult> SubmitModal(Guid spaceId, Guid channelId, Guid interactionId, IonArray<ModalSubmitValue> values, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).SubmitModal(interactionId, values.Values.ToList());
 }

@@ -67,7 +67,7 @@ public sealed class WrapperForEncryptionKey
         var       rsa = (RsaSecurityKey)key;
         var       p   = rsa.Rsa.ExportParameters(false);
 
-        var data = new byte[p.Modulus.Length + p.Exponent.Length];
+        var data = new byte[p.Modulus!.Length + p.Exponent!.Length];
         Buffer.BlockCopy(p.Modulus, 0, data, 0, p.Modulus.Length);
         Buffer.BlockCopy(p.Exponent, 0, data, p.Modulus.Length, p.Exponent.Length);
 
@@ -110,7 +110,7 @@ public sealed class WrapperForSignKey
             var p = ec.ECDsa.ExportParameters(false);
 
             // concat X || Y
-            var data = new byte[p.Q.X.Length + p.Q.Y.Length];
+            var data = new byte[p.Q.X!.Length + p.Q.Y!.Length];
             Buffer.BlockCopy(p.Q.X, 0, data, 0, p.Q.X.Length);
             Buffer.BlockCopy(p.Q.Y, 0, data, p.Q.X.Length, p.Q.Y.Length);
 
@@ -123,7 +123,7 @@ public sealed class WrapperForSignKey
             var p = rsa.Rsa.ExportParameters(false);
 
             // concat N || E
-            var data = new byte[p.Modulus.Length + p.Exponent.Length];
+            var data = new byte[p.Modulus!.Length + p.Exponent!.Length];
             Buffer.BlockCopy(p.Modulus, 0, data, 0, p.Modulus.Length);
             Buffer.BlockCopy(p.Exponent, 0, data, p.Modulus.Length, p.Exponent.Length);
 
@@ -162,10 +162,12 @@ public sealed class WrapperForSignKey
         }
         try
         {
+        #pragma warning disable SYSLIB0057
             var cert = new X509Certificate2(
                 raw,
                 password,
                 X509KeyStorageFlags.Exportable | X509KeyStorageFlags.MachineKeySet);
+        #pragma warning restore SYSLIB0057
 
             if (isPrivate && !cert.HasPrivateKey)
                 throw new InvalidOperationException("PFX certificate does not contain a private key.");

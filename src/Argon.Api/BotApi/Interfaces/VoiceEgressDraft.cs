@@ -35,7 +35,7 @@ public sealed class VoiceEgressDraft(IGrainFactory grains, IOptions<CallKitOptio
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.AddEndpointFilter<BotSpaceMembershipFilter>();
-        group.RequireRateLimiting("Bot_IVoice");
+        group.RequireRateLimiting("Bot_IVoiceEgress");
 
         group.MapPost("/SubscribeTrack", async (SubscribeTrackRequest request, HttpContext ctx) =>
         {

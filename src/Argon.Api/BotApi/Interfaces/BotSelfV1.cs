@@ -1,7 +1,6 @@
 namespace Argon.Api.BotApi.Interfaces;
 
 using Argon.Features.BotApi;
-using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IBotSelf", 1)]
 [BotDescription("Get information about the authenticated bot and its spaces.")]
@@ -27,6 +26,7 @@ public sealed class BotSelfV1(IGrainFactory grains) : IBotInterface
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
+        group.RequireRateLimiting("Bot_IBotSelf");
 
         group.MapGet("/GetMe", async (HttpContext ctx) =>
         {

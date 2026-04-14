@@ -51,7 +51,7 @@ public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId
             inviteId = EncodeToUlong(inviteCode);
             return true;
         }
-        catch (Exception e)
+        catch (Exception)
         {
             return false;
         }

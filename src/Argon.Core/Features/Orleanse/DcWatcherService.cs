@@ -11,7 +11,8 @@ public sealed class DcWatcherService(
     IArgonClusterRouter router,
     IClusterClientFactory clusterClientFactory) : RecurringWorkerService<DcWatcherService>(logger)
 {
-    private readonly TimeSpan _gcTimeout = TimeSpan.FromMinutes(3);
+    private readonly TimeSpan                  _gcTimeout = TimeSpan.FromMinutes(3);
+    private readonly ILogger<DcWatcherService> _logger    = logger;
 
     protected override Task OnCreateAsync(CancellationToken ct = default)
         => registry.SubscribeToNewClient(OnClusterRegistered);
@@ -32,7 +33,7 @@ public sealed class DcWatcherService(
                 var eff = await router.ComputeEffectivity(dc);
                 var sp  = await clusterClientFactory.CreateClusterClient(dc, ct);
                 registry.Upsert(new(dc, eff, sp, DateTime.Now, CREATED, new()));
-                logger.LogInformation("DC [{dc}] added with effectivity {effectivity}", dc, eff);
+                _logger.LogInformation("DC [{dc}] added with effectivity {effectivity}", dc, eff);
             }
             else if (existing.status is ONLINE)
                 registry.Upsert(existing with
@@ -45,7 +46,7 @@ public sealed class DcWatcherService(
                     .Where(x => x.Value.status is OFFLINE)
                     .Where(x => DateTime.UtcNow - x.Value.lastSeen > _gcTimeout))
         {
-            logger.LogWarning("DC [{dc}] removed after stale timeout", kv.Key);
+            _logger.LogWarning("DC [{dc}] removed after stale timeout", kv.Key);
             await kv.Value.ctSource.CancelAsync();
             (kv.Value.serviceProvider as IDisposable)?.Dispose();
             registry.Remove(kv.Key);

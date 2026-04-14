@@ -64,7 +64,7 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
         var t = ticketObject as ArgonIonTicket;
         ArgonRequestContext.Set(new ArgonRequestContextData()
         {
-            UserId     = t.userId,
+            UserId     = t!.userId,
             Scope      = provider,
             AppId      = t.appId,
             ClientName = t.clientName,

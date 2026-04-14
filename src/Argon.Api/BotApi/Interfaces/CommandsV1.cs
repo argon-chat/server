@@ -52,6 +52,7 @@ public sealed class CommandsV1(IGrainFactory grains) : IBotInterface
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
+        group.RequireRateLimiting("Bot_ICommands");
 
         group.MapPost("/Register", async (HttpContext ctx, RegisterCommandRequest request) =>
         {

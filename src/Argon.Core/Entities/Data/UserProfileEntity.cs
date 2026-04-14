@@ -47,7 +47,6 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             self.BannerFileId,
             self.DateOfBirth,
             self.Bio,
-            false,
             new IonArray<string>(self.Badges),
             IonArray<SpaceMemberArchetype>.Empty);
 }

@@ -2,7 +2,7 @@ namespace Argon.Grains.Interfaces;
 
 using Orleans.Concurrency;
 
-[Alias("Argon.Grains.Interfaces.IAuthorizationGrain"), Unordered]
+[Alias("Argon.Grains.Interfaces.IAuthorizationGrain")]
 public interface IAuthorizationGrain : IGrainWithGuidKey
 {
     [Alias("Authorize"), AlwaysInterleave]

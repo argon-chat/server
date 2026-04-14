@@ -15,14 +15,26 @@ public sealed class BotGatewayGrain(
     BotSseEventSerializer       serializer,
     ILogger<BotGatewayGrain>    logger) : Grain, IBotGatewayGrain
 {
+    private static readonly Dictionary<BotEventType, BotIntent> EventIntents = BuildEventIntentMap();
+
+    private static Dictionary<BotEventType, BotIntent> BuildEventIntentMap()
+    {
+        var map = new Dictionary<BotEventType, BotIntent>();
+        foreach (var (_, defAttr, _, _) in BotContractVerifier.DiscoverEventDefinitions())
+            map[defAttr.EventType] = defAttr.Intent;
+        return map;
+    }
+
     private BotIntent                                       _intents;
     private bool                                            _isConnected;
     private IGrainTimer?                                    _heartbeatTimer;
     private readonly Dictionary<Guid, INatsJSConsumer>      _consumers = new();
     private readonly List<Guid>                             _spaceIds  = new();
+    private INatsJSConsumer?                                _directConsumer;
 
     // Track last consumed NATS sequence per space for cursor/resume
     private readonly Dictionary<Guid, ulong>                _lastSequences = new();
+    private ulong                                           _lastDirectSeq;
 
     private Guid BotUserId => this.GetPrimaryKey();
 
@@ -40,6 +52,9 @@ public sealed class BotGatewayGrain(
         // Consumers are durable — they persist across reconnects, NATS tracks position
         foreach (var spaceId in spaceIds)
             await CreateConsumerForSpace(spaceId);
+
+        // Direct consumer for per-user events (calls, DMs)
+        await CreateDirectConsumer();
 
         // Set bot Online in all spaces
         foreach (var spaceId in spaceIds)
@@ -70,6 +85,7 @@ public sealed class BotGatewayGrain(
         // InactiveThreshold auto-cleans if bot never reconnects.
         _consumers.Clear();
         _spaceIds.Clear();
+        _directConsumer = null;
 
         logger.LogInformation("Bot {BotId} disconnected", BotUserId);
         return Task.CompletedTask;
@@ -119,7 +135,7 @@ public sealed class BotGatewayGrain(
     {
         var result = new List<BotSseEvent>();
 
-        if (!_isConnected || _consumers.Count == 0)
+        if (!_isConnected || (_consumers.Count == 0 && _directConsumer is null))
             return result;
 
         // Round-robin across all space consumers
@@ -143,9 +159,10 @@ public sealed class BotGatewayGrain(
                         continue;
                     }
 
-                    // Intent filtering
-                    var intent = BotEventMapping.GetRequiredIntent(msg.Data.Type);
-                    if (intent.HasValue && (_intents & intent.Value) == 0)
+                    // Intent filtering — drop events the bot didn't subscribe to
+                    if (EventIntents.TryGetValue(msg.Data.Type, out var requiredIntent)
+                        && requiredIntent != BotIntent.None
+                        && !_intents.HasFlag(requiredIntent))
                     {
                         await msg.AckAsync();
                         continue;
@@ -162,6 +179,45 @@ public sealed class BotGatewayGrain(
             catch (Exception ex)
             {
                 logger.LogDebug(ex, "Failed to consume events for space {SpaceId}", spaceId);
+            }
+        }
+
+        // Consume from direct subject (calls, DMs)
+        if (_directConsumer is not null && result.Count < maxCount)
+        {
+            try
+            {
+                var batch = _directConsumer.FetchNoWaitAsync<BotSseEvent>(new NatsJSFetchOpts
+                {
+                    MaxMsgs = maxCount - result.Count
+                }, serializer);
+
+                await foreach (var msg in batch)
+                {
+                    if (msg.Data is null)
+                    {
+                        await msg.AckAsync();
+                        continue;
+                    }
+
+                    if (EventIntents.TryGetValue(msg.Data.Type, out var requiredIntent)
+                        && requiredIntent != BotIntent.None
+                        && !_intents.HasFlag(requiredIntent))
+                    {
+                        await msg.AckAsync();
+                        continue;
+                    }
+
+                    var seq = msg.Metadata?.Sequence.Stream ?? 0;
+                    _lastDirectSeq = seq;
+                    var evt = msg.Data with { Id = $"direct_{seq}" };
+                    result.Add(evt);
+                    await msg.AckAsync();
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.LogDebug(ex, "Failed to consume direct events for bot {BotId}", BotUserId);
             }
         }
 
@@ -212,6 +268,44 @@ public sealed class BotGatewayGrain(
 
     private string GetConsumerName(Guid spaceId)
         => $"bot_{BotUserId:N}_{spaceId:N}";
+
+    private async Task CreateDirectConsumer()
+    {
+        var streamName   = NatsStreamExtensions.ToBotDirectSubject(BotUserId);
+        var consumerName = $"bot_{BotUserId:N}_direct";
+
+        try
+        {
+            try
+            {
+                await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
+                {
+                    DuplicateWindow = TimeSpan.Zero,
+                    MaxAge          = TimeSpan.FromMinutes(5),
+                    AllowDirect     = true,
+                    MaxBytes        = -1,
+                    MaxMsgs         = 1000,
+                    Retention       = StreamConfigRetention.Limits,
+                    Storage         = StreamConfigStorage.Memory,
+                    Discard         = StreamConfigDiscard.Old
+                });
+            }
+            catch { /* stream may already exist */ }
+
+            _directConsumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(consumerName)
+            {
+                AckPolicy         = ConsumerConfigAckPolicy.Explicit,
+                DeliverPolicy     = ConsumerConfigDeliverPolicy.New,
+                AckWait           = TimeSpan.FromSeconds(30),
+                MaxAckPending     = 100,
+                InactiveThreshold = TimeSpan.FromMinutes(10)
+            });
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create direct NATS consumer for bot {BotId}", BotUserId);
+        }
+    }
 
     public Task<string> GetCursor()
     {

@@ -47,11 +47,11 @@ public sealed record InviteCode(string inviteCode);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonUser(guid userId, string username, string displayName, string? avatarFileId);
+public sealed record ArgonUser(guid userId, string username, string displayName, string? avatarFileId, UserFlag flags);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, bool isPremium, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes);
+public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -102,6 +102,20 @@ public enum ArgonEntitlement : u8
     ManageEvents = 9007199254740992,
     ManageBehaviour = 18014398509481984,
     ManageServer = 36028797018963968,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+[Flags]
+public enum UserFlag : i4
+{
+    NONE = 0,
+    BOT = 1,
+    SYSTEM = 2,
+    VERIFIED = 4,
+    PREMIUM = 8,
+    BANNED = 16,
+    DELETED = 32,
 }
 
 

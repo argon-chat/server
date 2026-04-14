@@ -167,6 +167,9 @@ public static class NatsStreamExtensions
 
     public static string ToBotEventSubject(Guid spaceId)
         => $"bot_events_{spaceId:N}";
+
+    public static string ToBotDirectSubject(Guid botUserId)
+        => $"bot_direct_{botUserId:N}";
 }
 
 public class ArgonEventSerializer(ILogger<ArgonEventSerializer> logger) : INatsSerializer<IArgonEvent>

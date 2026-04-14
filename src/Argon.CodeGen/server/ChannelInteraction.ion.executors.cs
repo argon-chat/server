@@ -403,6 +403,87 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         
         IonFormatterStorage<AttachmentInfo>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task InvokeSlashCommand_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __commandid = IonFormatterStorage<guid>.Read(reader);
+        var __options = IonFormatterStorage<SlashCommandOption>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.InvokeSlashCommand(__spaceid, __channelid, __commandid, __options);
+        
+        IonFormatterStorage<IInvokeSlashCommandResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task InteractWithControl_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __controlid = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.InteractWithControl(__spaceid, __channelid, __messageid, __controlid);
+        
+        IonFormatterStorage<IInteractWithControlResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task InteractWithSelect_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __customid = IonFormatterStorage<string>.Read(reader);
+        var __values = IonFormatterStorage<string>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.InteractWithSelect(__spaceid, __channelid, __messageid, __customid, __values);
+        
+        IonFormatterStorage<IInteractWithSelectResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SubmitModal_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __interactionid = IonFormatterStorage<guid>.Read(reader);
+        var __values = IonFormatterStorage<ModalSubmitValue>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SubmitModal(__spaceid, __channelid, __interactionid, __values);
+        
+        IonFormatterStorage<ISubmitModalResult>.Write(writer, result);
+    }
 
     
     
@@ -452,6 +533,14 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return BeginUploadAttachment_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadAttachment_Execute(reader, writer, ct);
+        if (methodName.Equals("InvokeSlashCommand", StringComparison.InvariantCultureIgnoreCase))
+            return InvokeSlashCommand_Execute(reader, writer, ct);
+        if (methodName.Equals("InteractWithControl", StringComparison.InvariantCultureIgnoreCase))
+            return InteractWithControl_Execute(reader, writer, ct);
+        if (methodName.Equals("InteractWithSelect", StringComparison.InvariantCultureIgnoreCase))
+            return InteractWithSelect_Execute(reader, writer, ct);
+        if (methodName.Equals("SubmitModal", StringComparison.InvariantCultureIgnoreCase))
+            return SubmitModal_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

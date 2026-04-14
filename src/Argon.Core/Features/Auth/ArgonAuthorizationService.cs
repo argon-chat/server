@@ -1,4 +1,4 @@
-﻿namespace Argon.Features.Auth;
+namespace Argon.Features.Auth;
 
 using Argon.Api.Features.CoreLogic.Otp;
 using Services;
@@ -145,7 +145,7 @@ public class ArgonAuthorizationService(
         {
             await otpService.SendAsync(
                 new SendOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, machineId, method),
-                userIp
+                userIp!
             );
 
             AuthorizationGrainInstrument.AuthorizationOtpSent.Add(1,

@@ -15,6 +15,7 @@ using System.Diagnostics;
 using Core.Features.Transport;
 using Features.MediaStorage;
 using Argon.Core.Features.Logic;
+using Argon.Features.BotApi;
 using Core.Entities.Data;
 
 public class ChannelGrain(
@@ -25,11 +26,15 @@ public class ChannelGrain(
     IEntitlementChecker entitlementChecker,
     AppHubServer appHubServer,
     IKineticaFSApi kineticaFs,
+    BotEventPublisher botEventPublisher,
+    BotUserCache botUserCache,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
     private Guid          SpaceId   => _self.SpaceId;
     private ArgonRoomId   ChannelId => new(SpaceId, this.GetPrimaryKey());
+
+    private readonly Dictionary<Guid, IGrainTimer> _botTypingTimers = new();
 
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
@@ -105,7 +110,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "typing"));
         
-        await Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+        await Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId(), null));
     }
 
     [OneWay]
@@ -115,6 +120,31 @@ public class ChannelGrain(
             new KeyValuePair<string, object?>("event_type", "stop_typing"));
         
         await Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+    }
+
+    private static readonly TimeSpan BotTypingTimeout = TimeSpan.FromSeconds(8);
+
+    [OneWay]
+    public async ValueTask OnBotTypingEmit(TypingKind kind)
+    {
+        var userId    = this.GetUserId();
+        var channelId = ChannelId.ShardId;
+
+        ChannelGrainInstrument.TypingEvents.Add(1,
+            new KeyValuePair<string, object?>("event_type", "bot_typing"));
+
+        // Cancel existing auto-stop timer for this user if any
+        if (_botTypingTimers.Remove(userId, out var existing))
+            existing.Dispose();
+
+        await Fire(new UserTypingEvent(SpaceId, channelId, userId, kind));
+
+        // Register auto-stop timer — fires UserStopTypingEvent after timeout
+        _botTypingTimers[userId] = this.RegisterGrainTimer(async _ =>
+        {
+            _botTypingTimers.Remove(userId);
+            await Fire(new UserStopTypingEvent(SpaceId, channelId, userId));
+        }, new GrainTimerCreationOptions(BotTypingTimeout, Timeout.InfiniteTimeSpan));
     }
 
     public async Task<bool> KickMemberFromChannel(Guid memberId)
@@ -609,9 +639,12 @@ public class ChannelGrain(
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
         => await messagesLayout.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
 
-    public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo)
+    public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null)
     {
         if (_self.ChannelType != ChannelType.Text) throw new InvalidOperationException("Channel is not text");
+
+        if (controls is { Count: > 0 })
+            ControlRowV1.ValidateRows(controls);
         
         var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
@@ -644,7 +677,8 @@ public class ChannelGrain(
             ChannelId = channelId,
             CreatorId = senderId,
             Entities  = entities ?? [],
-            Text      = text,
+            Controls  = controls,
+            Text      = text ?? "",
             CreatedAt = DateTimeOffset.UtcNow,
             Reply     = replyTo,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -909,5 +943,283 @@ public class ChannelGrain(
         var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
 
         return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName, fileInfo.FileSize, fileInfo.ContentType);
+    }
+
+    public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)
+    {
+        var sw = Stopwatch.StartNew();
+        BotApiInstrument.CommandInvocations.Add(1);
+
+        var senderId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Check UseCommands permission
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.UseCommands))
+        {
+            BotApiInstrument.CommandErrors.Add(1,
+                new KeyValuePair<string, object?>("error", "insufficient_permissions"));
+            return new FailedInvokeSlashCommand(InvokeSlashCommandError.INSUFFICIENT_PERMISSIONS);
+        }
+
+        // Single query: command + bot + installation check via JOIN
+        var commandInfo = await ctx.BotCommands
+           .AsNoTracking()
+           .Where(c => c.CommandId == commandId
+                       && (c.SpaceId == SpaceId || c.SpaceId == null))
+           .Join(ctx.BotEntities.AsNoTracking(),
+                c => c.AppId,
+                b => b.AppId,
+                (c, b) => new { c.CommandId, c.Name, c.Options, c.AppId, b.BotAsUserId })
+           .Join(ctx.UsersToServerRelations.AsNoTracking().Where(r => r.SpaceId == SpaceId),
+                cb => cb.BotAsUserId,
+                r => r.UserId,
+                (cb, _) => new { cb.CommandId, cb.Name, cb.Options, cb.AppId, cb.BotAsUserId })
+           .FirstOrDefaultAsync();
+
+        if (commandInfo is null)
+        {
+            BotApiInstrument.CommandErrors.Add(1,
+                new KeyValuePair<string, object?>("error", "command_not_found"));
+            return new FailedInvokeSlashCommand(InvokeSlashCommandError.COMMAND_NOT_FOUND);
+        }
+
+        // Resolve invoking user
+        var user = await botUserCache.GetOrResolveAsync(senderId);
+
+        // Map options: build lookup for O(1) access
+        var schemaLookup = commandInfo.Options.ToDictionary(o => o.Name);
+        var mappedOptions = new List<BotCommandOptionValueV1>(options.Count);
+        foreach (var opt in options)
+        {
+            if (!schemaLookup.TryGetValue(opt.name, out var schema)) continue;
+
+            object typedValue = schema.Type switch
+            {
+                Core.Entities.Data.BotCommandOptionType.Integer => long.TryParse(opt.value, out var l) ? l : opt.value,
+                Core.Entities.Data.BotCommandOptionType.Number  => double.TryParse(opt.value, System.Globalization.CultureInfo.InvariantCulture, out var d) ? d : opt.value,
+                Core.Entities.Data.BotCommandOptionType.Boolean => bool.TryParse(opt.value, out var b) ? b : opt.value,
+                _                            => opt.value
+            };
+
+            mappedOptions.Add(new BotCommandOptionValueV1(opt.name, (Features.BotApi.BotCommandOptionType)(int)schema.Type, typedValue));
+        }
+
+        // Generate correlation ID and publish CommandInteractionEvent to the bot
+        var interactionId = Guid.NewGuid();
+
+        await botEventPublisher.PublishCommandInteractionAsync(
+            interactionId, SpaceId, channelId, commandInfo.CommandId, commandInfo.Name, user, mappedOptions,
+            senderId, commandInfo.AppId);
+
+        sw.Stop();
+        BotApiInstrument.CommandDispatchDuration.Record(sw.Elapsed.TotalMilliseconds);
+
+        return new SuccessInvokeSlashCommand();
+    }
+
+    public async Task<IInteractWithControlResult> InteractWithControl(long messageId, string controlId)
+    {
+        var senderId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Load the message
+        var message = await ctx.Messages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+           .Select(m => new { m.MessageId, m.CreatorId, m.Controls })
+           .FirstOrDefaultAsync();
+
+        if (message is null)
+            return new FailedInteractWithControl(InteractWithControlError.MESSAGE_NOT_FOUND);
+
+        // Find the control by Id
+        if (message.Controls is null or { Count: 0 })
+            return new FailedInteractWithControl(InteractWithControlError.CONTROL_NOT_FOUND);
+
+        BotControlV1? control = null;
+        foreach (var row in message.Controls)
+        {
+            control = row.Controls.FirstOrDefault(c => c.Id == controlId);
+            if (control is not null) break;
+        }
+
+        if (control is null)
+            return new FailedInteractWithControl(InteractWithControlError.CONTROL_NOT_FOUND);
+
+        if (control.Disabled == true)
+            return new FailedInteractWithControl(InteractWithControlError.CONTROL_DISABLED);
+
+        // Check archetype constraint (exact match + admin bypass)
+        if (control.RequiredArchetypeId is { } requiredId)
+        {
+            var hasArchetype = await ctx.MemberArchetypes
+               .AsNoTracking()
+               .AnyAsync(ma => ma.Archetype.SpaceId == SpaceId
+                            && ma.ServerMember.UserId == senderId
+                            && ma.ArchetypeId == requiredId);
+            if (!hasArchetype
+                && !await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.ManageServer))
+                return new FailedInteractWithControl(InteractWithControlError.ARCHETYPE_REQUIRED);
+        }
+
+        // Verify the message author is a bot installed in this space
+        var botInfo = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.BotAsUserId == message.CreatorId)
+           .Join(ctx.UsersToServerRelations.AsNoTracking().Where(r => r.SpaceId == SpaceId),
+                b => b.BotAsUserId, r => r.UserId,
+                (b, _) => new { b.BotAsUserId, b.AppId })
+           .FirstOrDefaultAsync();
+
+        if (botInfo is null)
+            return new FailedInteractWithControl(InteractWithControlError.BOT_NOT_CONNECTED);
+
+        // Generate correlation ID and publish
+        var interactionId = Guid.NewGuid();
+        var user = await botUserCache.GetOrResolveAsync(senderId);
+
+        await botEventPublisher.PublishControlInteractionAsync(
+            interactionId, control.Type, messageId, channelId, SpaceId, user, controlId,
+            senderId, botInfo.AppId);
+
+        return new SuccessInteractWithControl(interactionId);
+    }
+
+    public async Task<IInteractWithSelectResult> InteractWithSelect(long messageId, string customId, List<string> values)
+    {
+        var senderId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var message = await ctx.Messages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+           .Select(m => new { m.MessageId, m.CreatorId, m.Controls })
+           .FirstOrDefaultAsync();
+
+        if (message is null)
+            return new FailedInteractWithSelect(InteractWithSelectError.MESSAGE_NOT_FOUND);
+
+        if (message.Controls is null or { Count: 0 })
+            return new FailedInteractWithSelect(InteractWithSelectError.CONTROL_NOT_FOUND);
+
+        BotControlV1? control = null;
+        foreach (var row in message.Controls)
+        {
+            control = row.Controls.FirstOrDefault(c => c.CustomId == customId);
+            if (control is not null) break;
+        }
+
+        if (control is null)
+            return new FailedInteractWithSelect(InteractWithSelectError.CONTROL_NOT_FOUND);
+
+        if (control.Type == ControlType.Button)
+            return new FailedInteractWithSelect(InteractWithSelectError.NOT_A_SELECT);
+
+        if (control.Disabled == true)
+            return new FailedInteractWithSelect(InteractWithSelectError.CONTROL_DISABLED);
+
+        // Check archetype constraint (exact match + admin bypass)
+        if (control.RequiredArchetypeId is { } requiredId)
+        {
+            var hasArchetype = await ctx.MemberArchetypes
+               .AsNoTracking()
+               .AnyAsync(ma => ma.Archetype.SpaceId == SpaceId
+                            && ma.ServerMember.UserId == senderId
+                            && ma.ArchetypeId == requiredId);
+            if (!hasArchetype
+                && !await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.ManageServer))
+                return new FailedInteractWithSelect(InteractWithSelectError.ARCHETYPE_REQUIRED);
+        }
+
+        var minValues = control.MinValues ?? 1;
+        var maxValues = control.MaxValues ?? 1;
+        if (values.Count < minValues || values.Count > maxValues)
+            return new FailedInteractWithSelect(InteractWithSelectError.INVALID_VALUES);
+
+        // For StringSelect, validate values are in the allowed options
+        if (control.Type == ControlType.StringSelect && control.Options is { Count: > 0 })
+        {
+            var allowed = control.Options.Select(o => o.Value).ToHashSet();
+            if (values.Any(v => !allowed.Contains(v)))
+                return new FailedInteractWithSelect(InteractWithSelectError.INVALID_VALUES);
+        }
+
+        var botInfo = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.BotAsUserId == message.CreatorId)
+           .Join(ctx.UsersToServerRelations.AsNoTracking().Where(r => r.SpaceId == SpaceId),
+                b => b.BotAsUserId, r => r.UserId,
+                (b, _) => new { b.BotAsUserId, b.AppId })
+           .FirstOrDefaultAsync();
+
+        if (botInfo is null)
+            return new FailedInteractWithSelect(InteractWithSelectError.BOT_NOT_CONNECTED);
+
+        var interactionId = Guid.NewGuid();
+        var user = await botUserCache.GetOrResolveAsync(senderId);
+
+        await botEventPublisher.PublishSelectInteractionAsync(
+            interactionId, control.Type, customId, messageId, channelId, SpaceId, user, values,
+            senderId, botInfo.AppId);
+
+        return new SuccessInteractWithSelect(interactionId);
+    }
+
+    public async Task<ISubmitModalResult> SubmitModal(Guid interactionId, List<ModalSubmitValue> values)
+    {
+        var senderId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        var ctx = botEventPublisher.InteractionStore.TryConsume(interactionId);
+        if (ctx is null)
+            return new FailedSubmitModal(SubmitModalError.INTERACTION_EXPIRED);
+
+        if (ctx.UserId != senderId)
+            return new FailedSubmitModal(SubmitModalError.INTERACTION_NOT_FOUND);
+
+        var user = await botUserCache.GetOrResolveAsync(senderId);
+
+        var customId = interactionId.ToString();
+        var mappedValues = values
+           .Select(v => new ModalSubmitValueV1(v.customId, [v.value]))
+           .ToList();
+
+        await botEventPublisher.PublishModalSubmitAsync(
+            Guid.NewGuid(), customId, channelId, SpaceId, user, mappedValues);
+
+        return new SuccessSubmitModal();
+    }
+
+    public async Task EditBotMessage(long messageId, Guid botUserId, string? text, List<ControlRowV1>? controls)
+    {
+        if (controls is { Count: > 0 })
+            ControlRowV1.ValidateRows(controls);
+
+        var channelId = this.GetPrimaryKey();
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var message = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && m.CreatorId == botUserId)
+           .FirstOrDefaultAsync();
+
+        if (message is null)
+            throw new InvalidOperationException("Message not found or not owned by this bot.");
+
+        if (text is not null)
+            message.Text = text;
+
+        if (controls is not null)
+            message.Controls = controls.Count == 0 ? null : controls;
+
+        message.UpdatedAt = DateTimeOffset.UtcNow;
+        await ctx.SaveChangesAsync();
+
+        await Fire(new MessageEdited(SpaceId, channelId, messageId, message.Text, message.UpdatedAt.UtcDateTime));
     }
 }

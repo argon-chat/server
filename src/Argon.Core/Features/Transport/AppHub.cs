@@ -105,6 +105,9 @@ public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEvent
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
         await appHub.Clients.User(userId.ToString())
            .SendAsync("forSelf", writer.Encode(), cancellationToken: ct);
+
+        // Publish to NATS for bots (calls, DMs)
+        _ = botEventPublisher.PublishForUserAsync(@event, userId);
     }
 }
 
@@ -140,7 +143,10 @@ public static class SignalRHubExtensions
         builder.Services
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
            .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
+           .AddSingleton<Argon.Features.BotApi.BotUserCache>()
+           .AddSingleton<Argon.Features.BotApi.InteractionContextStore>()
            .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
+           .AddScoped<Argon.Features.BotApi.InteractionResponsePusher>()
            .AddScoped<AppHubServer>()
            .AddSignalR()
            //.AddMessagePackProtocol()

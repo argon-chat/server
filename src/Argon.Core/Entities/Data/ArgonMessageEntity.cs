@@ -1,5 +1,6 @@
 namespace Argon.Entities;
 
+using Argon.Features.BotApi;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using System.ComponentModel.DataAnnotations.Schema;
 
@@ -15,6 +16,9 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
 
     [Column(TypeName = "jsonb")]
     public List<IMessageEntity> Entities { get; set; } = new();
+
+    [Column(TypeName = "jsonb")]
+    public List<ControlRowV1>? Controls { get; set; }
 
 
     public void Configure(EntityTypeBuilder<ArgonMessageEntity> builder)
@@ -48,6 +52,12 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
         builder.Property(m => m.Entities)
            .HasConversion<PolyListNewtonsoftJsonValueConverter<List<IMessageEntity>, IMessageEntity>>()
            .HasColumnType("jsonb");
+
+        builder.Property(m => m.Controls)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<ControlRowV1>>(v));
     }
 
     public static ArgonMessage Map(scoped in ArgonMessageEntity self)

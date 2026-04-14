@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
 using Argon.Core.Features.Transport;
+using Argon.Features.BotApi;
 using Core.Services;
 using Features.Logic;
 using Features.MediaStorage;
@@ -25,6 +26,7 @@ public class SpaceGrain(
     ISystemMessageService systemMessageService,
     IKineticaFSApi kineticaFs,
     AppHubServer appHubServer,
+    BotEventPublisher botEventPublisher,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
 
@@ -245,7 +247,7 @@ public class SpaceGrain(
         var caller = this.GetUserId();
 
         if (IsGuestUserId(userId))
-            return new ArgonUserProfile(userId, null, null, null, null, "Guest User", false, IonArray<string>.Empty,
+            return new ArgonUserProfile(userId, null, null, null, null, "Guest User", IonArray<string>.Empty,
                 IonArray<SpaceMemberArchetype>.Empty);
 
         await using var ctx     = await context.CreateDbContextAsync();
@@ -268,18 +270,19 @@ public class SpaceGrain(
     public async Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default)
     {
         if (IsGuestUserId(userId))
-            return new ArgonUser(userId, "guest", "Guest User", null);
+            return new ArgonUser(userId, "guest", "Guest User", null, UserFlag.NONE);
 
         await using var ctx = await context.CreateDbContextAsync(ct);
         
         var user = await ctx.Users
+           .Include(x => x.BotEntity)
            .AsNoTracking()
            .Where(u => u.Id == userId)
-           .Select(u => new ArgonUser(u.Id, u.Username, u.DisplayName ?? u.Username, u.AvatarFileId))
+           .Select(u => new ArgonUser(u.Id, u.Username, u.DisplayName, u.AvatarFileId, UserEntity.GetFlags(u)))
            .FirstOrDefaultAsync(ct);
 
         if (user is null)
-            return new ArgonUser(userId, "unknown", "Unknown User", null);
+            return new ArgonUser(userId, "unknown", "Unknown User", null, UserFlag.NONE);
 
         return user;
     }
@@ -860,6 +863,10 @@ public class SpaceGrain(
         if (await gateway.IsConnectedAsync())
             await gateway.SubscribeToSpace(spaceId);
 
+        // Publish lifecycle event to the bot
+        await botEventPublisher.PublishBotLifecycleAsync(bot.BotAsUserId,
+            BotEventType.BotInstallingToSpace, new BotInstallingToSpaceEvent(spaceId));
+
         // Fetch user for response
         var botUser = await ctx.Users
            .AsNoTracking()
@@ -907,6 +914,10 @@ public class SpaceGrain(
 
         if (deleted == 0)
             return new UninstallBotGrainResult(false, UninstallBotError.NOT_INSTALLED);
+
+        // Publish lifecycle event to the bot
+        await botEventPublisher.PublishBotLifecycleAsync(bot.BotAsUserId,
+            BotEventType.BotUninstallingFromSpace, new BotUninstallingFromSpaceEvent(spaceId));
 
         // Notify bot gateway about space unsubscription
         var gateway = grainFactory.GetGrain<IBotGatewayGrain>(bot.BotAsUserId);

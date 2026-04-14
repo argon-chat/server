@@ -124,7 +124,7 @@ public static class HostModeExtensions
 
         public WebApplicationBuilder AddMultiRegionWorkloads()
         {
-            throw null;
+            throw null!;
             builder.AddSingleRegionWorkloads();
             // TODO
             return builder;

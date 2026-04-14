@@ -240,18 +240,20 @@ public sealed class Ion_ArgonUser_Formatter : IonFormatter<ArgonUser>
         var __username = IonFormatterStorage<string>.Read(reader);
         var __displayname = IonFormatterStorage<string>.Read(reader);
         var __avatarfileid = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 4);
-        return new(__userid, __username, __displayname, __avatarfileid);
+        var __flags = IonFormatterStorage<UserFlag>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__userid, __username, __displayname, __avatarfileid, __flags);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonUser value)
     {
-        writer.WriteStartArray(4);
+        writer.WriteStartArray(5);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.Write(writer, value.username);
         IonFormatterStorage<string>.Write(writer, value.displayName);
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<UserFlag>.Write(writer, value.flags);
         writer.WriteEndArray();
     }
 }
@@ -269,24 +271,22 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         var __bannerfileid = reader.ReadNullable<string>();
         var __dateofbirth = reader.ReadNullable<dateonly>();
         var __bio = reader.ReadNullable<string>();
-        var __ispremium = IonFormatterStorage<bool>.Read(reader);
         var __badges = IonFormatterStorage<string>.ReadArray(reader);
         var __archetypes = IonFormatterStorage<SpaceMemberArchetype>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 9);
-        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __ispremium, __badges, __archetypes);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __badges, __archetypes);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonUserProfile value)
     {
-        writer.WriteStartArray(9);
+        writer.WriteStartArray(8);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatus);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatusIconId);
         IonFormatterStorage<string>.WriteNullable(writer, value.bannerFileID);
         IonFormatterStorage<dateonly>.WriteNullable(writer, value.dateOfBirth);
         IonFormatterStorage<string>.WriteNullable(writer, value.bio);
-        IonFormatterStorage<bool>.Write(writer, value.isPremium);
         IonFormatterStorage<string>.WriteArray(writer, value.badges);
         IonFormatterStorage<SpaceMemberArchetype>.WriteArray(writer, value.archetypes);
         writer.WriteEndArray();
@@ -322,6 +322,21 @@ public sealed class Ion_ArgonEntitlement_Formatter : IonFormatter<ArgonEntitleme
     {
         var casted = (u8)value;
         IonFormatterStorage<u8>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserFlag_Formatter : IonFormatter<UserFlag>
+{
+    public UserFlag Read(CborReader reader)
+    {
+         return (UserFlag)(IonFormatterStorage<i4>.Read(reader));
+    }
+
+    public void Write(CborWriter writer, UserFlag value)
+    {
+        var casted = (i4)value;
+        IonFormatterStorage<i4>.Write(writer, casted);
     }
 }
 

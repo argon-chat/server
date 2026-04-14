@@ -39,7 +39,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public bool AllowedSendOptionalEmails { get; set; }
     public bool AgreeTOS                  { get; set; }
 
-    public virtual BotEntity BotEntity { get; set; }
+    public         Guid?     BotEntityId { get; set; }
+    public virtual BotEntity BotEntity   { get; set; }
 
 
     public LockdownReason  LockdownReason       { get; set; }
@@ -47,7 +48,41 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public bool            LockDownIsAppealable { get; set; }
 
     public static ArgonUser Map(scoped in UserEntity self)
-        => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId);
+        => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self));
+
+    public static UserFlag GetFlags(scoped in UserEntity self)
+    {
+        var flags = UserFlag.NONE;
+
+        if (self.BotEntityId is not null)
+            flags |= UserFlag.BOT;
+        if (self.LockdownReason != LockdownReason.NONE)
+            flags |= UserFlag.BANNED;
+        if (self.IsDeleted)
+            flags |= UserFlag.DELETED;
+        if (self.Id == SystemUser)
+            flags |= UserFlag.SYSTEM;
+        if (self.BotEntityId is not null && self.BotEntity is { IsVerified: true })
+            flags |= UserFlag.VERIFIED;
+        return flags;
+    }
+
+    public static UserFlag GetFlags(scoped in UserEntity self, bool isVerified)
+    {
+        var flags = UserFlag.NONE;
+
+        if (self.BotEntityId is not null)
+            flags |= UserFlag.BOT;
+        if (self.LockdownReason != LockdownReason.NONE)
+            flags |= UserFlag.BANNED;
+        if (self.IsDeleted)
+            flags |= UserFlag.DELETED;
+        if (self.Id == SystemUser)
+            flags |= UserFlag.SYSTEM;
+        if (self.BotEntityId is not null && isVerified)
+            flags |= UserFlag.VERIFIED;
+        return flags;
+    }
 
     public void Configure(EntityTypeBuilder<UserEntity> builder)
     {

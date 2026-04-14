@@ -47,8 +47,11 @@ public enum BotIntent : long
     /// <summary>CALL_INCOMING, CALL_ENDED — incoming call events (privileged)</summary>
     Calls          = 1 << 12,
 
+    /// <summary>CONTROL_INTERACTION — button/select interactions on messages</summary>
+    ControlInteractions = 1 << 13,
+
     /// <summary>All non-privileged intents.</summary>
-    AllNonPrivileged = Messages | Channels | Reactions | Typing | Commands | DirectMessages | Moderation | Archetypes | SpaceUpdates | Voice,
+    AllNonPrivileged = Messages | Channels | Reactions | Typing | Commands | DirectMessages | Moderation | Archetypes | SpaceUpdates | Voice | ControlInteractions,
 
     /// <summary>Privileged intents that require bot verification.</summary>
     AllPrivileged = Presence | Members | Calls,

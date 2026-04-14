@@ -15,6 +15,8 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
 {
     public void MapRoutes(RouteGroupBuilder group)
     {
+        group.RequireRateLimiting("Bot_IEvents");
+
         group.MapGet("/Stream", async (HttpContext ctx, long? intents, string? lastEventId) =>
         {
             var botUserId        = ctx.GetBotAsUserId();
@@ -28,13 +30,18 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
             async IAsyncEnumerable<SseItem<string>> Stream(
                 [EnumeratorCancellation] CancellationToken ct = default)
             {
+                BotApiInstrument.SseConnectionsOpened.Add(1);
+                BotApiInstrument.IncrementSseConnection();
+
                 // READY event
                 yield return ToSseItem(new BotSseEvent
                 {
                     Id   = "ready",
                     Type = BotEventType.Ready,
-                    Data = new { intents = (long)requestedIntents, spaceIds }
+                    Data = new ReadyEventPayload((long)requestedIntents, spaceIds.ToArray())
                 });
+                BotApiInstrument.SseEventsDelivered.Add(1,
+                    new KeyValuePair<string, object?>("event_type", nameof(BotEventType.Ready)));
 
                 // Stream live events via NATS consumers
                 var heartbeatInterval = TimeSpan.FromSeconds(30);
@@ -49,7 +56,11 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                         if (events.Count > 0)
                         {
                             foreach (var evt in events)
+                            {
                                 yield return ToSseItem(evt);
+                                BotApiInstrument.SseEventsDelivered.Add(1,
+                                    new KeyValuePair<string, object?>("event_type", evt.Type.ToString()));
+                            }
                             nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
                         }
                         else if (DateTime.UtcNow >= nextHeartbeat)
@@ -60,7 +71,7 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                             {
                                 Id   = cursor,
                                 Type = BotEventType.Heartbeat,
-                                Data = new { timestamp = DateTimeOffset.UtcNow.ToArgonTimeMillis() }
+                                Data = new HeartbeatEventPayload(DateTimeOffset.UtcNow.ToArgonTimeMillis())
                             });
                             nextHeartbeat = DateTime.UtcNow + heartbeatInterval;
                         }
@@ -70,6 +81,8 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                 }
                 finally
                 {
+                    BotApiInstrument.SseConnectionsClosed.Add(1);
+                    BotApiInstrument.DecrementSseConnection();
                     await gateway.DisconnectAsync();
                 }
             }

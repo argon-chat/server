@@ -261,7 +261,7 @@ public class BotSseSerializationTests
         var original = new BotSseEvent
         {
             Id = "test_42",
-            Type = BotEventType.MessageCreate,
+            Type = BotEventType.Ready,
             SpaceId = spaceId,
             Data = new MessageSent(spaceId, new ArgonMessage(
                 42L, null, Guid.NewGuid(), spaceId, "test", entities, DateTime.UtcNow, senderId))
@@ -303,12 +303,21 @@ public class BotSseSerializationTests
     [Test]
     [TestCase(BotEventType.Ready, "ready")]
     [TestCase(BotEventType.Heartbeat, "heartbeat")]
+    [TestCase(BotEventType.Resumed, "resumed")]
     [TestCase(BotEventType.MessageCreate, "messageCreate")]
     [TestCase(BotEventType.MemberJoin, "memberJoin")]
-    [TestCase(BotEventType.VoiceStreamStart, "voiceStreamStart")]
+    [TestCase(BotEventType.MemberLeave, "memberLeave")]
+    [TestCase(BotEventType.MemberUpdate, "memberUpdate")]
+    [TestCase(BotEventType.ChannelCreate, "channelCreate")]
+    [TestCase(BotEventType.ChannelDelete, "channelDelete")]
     [TestCase(BotEventType.PresenceUpdate, "presenceUpdate")]
-    [TestCase(BotEventType.DirectMessageCreate, "directMessageCreate")]
-    [TestCase(BotEventType.ArchetypeChanged, "archetypeChanged")]
+    [TestCase(BotEventType.VoiceJoin, "voiceJoin")]
+    [TestCase(BotEventType.VoiceLeave, "voiceLeave")]
+    [TestCase(BotEventType.CallIncoming, "callIncoming")]
+    [TestCase(BotEventType.CallEnded, "callEnded")]
+    [TestCase(BotEventType.CommandInteraction, "commandInteraction")]
+    [TestCase(BotEventType.BotInstallingToSpace, "botInstallingToSpace")]
+    [TestCase(BotEventType.BotUninstallingFromSpace, "botUninstallingFromSpace")]
     public void EventType_ToCamelCase_IsCorrect(BotEventType type, string expected)
     {
         var s = type.ToString();

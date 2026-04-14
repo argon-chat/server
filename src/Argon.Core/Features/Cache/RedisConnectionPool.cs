@@ -144,7 +144,9 @@ public sealed class RedisConnectionPool(
             if (endpoints.Length == 0)
                 return false;
 
+            #pragma warning disable CS0618 // Type or member is obsolete
             return endpoints.Select(endpoint => mux.GetServer(endpoint)).Select(server => server.IsReplica || server.IsSlave)
+            #pragma warning restore CS0618 // Type or member is obsolete
                .Any(isReplica => !isReplica);
         }
         catch (Exception ex)

@@ -12,7 +12,7 @@ public class ArchetypeInteraction : IArchetypeInteraction
         => await this.GetGrain<IEntitlementGrain>(spaceId).CreateArchetypeAsync(name);
 
     public async Task<Archetype> UpdateArchetype(Guid spaceId, Archetype data, CancellationToken ct = default)
-        => await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data);
+        => (await this.GetGrain<IEntitlementGrain>(spaceId).UpdateArchetypeAsync(data))!;
 
     public async Task<bool> SetArchetypeToMember(Guid spaceId, Guid memberId, Guid archetypeId, bool isGrant, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).SetArchetypeToMember(memberId, archetypeId, isGrant);

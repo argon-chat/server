@@ -48,7 +48,7 @@ public class EmailManager(
 
 
         using var client = new SmtpClient();
-        message.MessageId = $"{message.MessageId.Split('@').First()}@argon.gl";
+        message.MessageId = $"{message.MessageId?.Split('@').First()}@argon.gl";
         try
         {
             var options = smtpOptions.Value;

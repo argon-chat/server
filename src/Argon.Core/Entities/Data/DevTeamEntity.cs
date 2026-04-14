@@ -116,7 +116,7 @@ public class DevTeamMemberEntity : IEntityTypeConfiguration<DevTeamMemberEntity>
                 v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>())
            .Metadata.SetValueComparer(
                 new ValueComparer<List<string>>(
-                    (left, right) => left.SequenceEqual(right),
+                    (left, right) => left!.SequenceEqual(right!),
                     value => value.Aggregate(0, (hash, element) => HashCode.Combine(hash, element.GetHashCode())),
                     value => value.ToList()));
         builder.Property(x => x.Claims)
@@ -224,7 +224,8 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
         builder.Property(x => x.BotToken)
            .IsRequired();
 
-        builder.HasOne(x => x.BotAsUser)
+        builder
+           .HasOne(x => x.BotAsUser)
            .WithOne(x => x.BotEntity)
            .HasForeignKey<BotEntity>(x => x.BotAsUserId)
            .OnDelete(DeleteBehavior.Cascade);

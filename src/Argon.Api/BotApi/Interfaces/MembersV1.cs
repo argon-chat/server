@@ -17,6 +17,7 @@ public sealed class MembersV1(IGrainFactory grains) : IBotInterface
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
+        group.RequireRateLimiting("Bot_IMembers");
 
         group.MapPost("/Kick", async (Guid spaceId, Guid channelId, Guid userId) =>
         {

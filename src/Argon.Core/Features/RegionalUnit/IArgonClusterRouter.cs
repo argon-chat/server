@@ -30,7 +30,7 @@ public class ClusterRouter( IGeoIp geoIp) : IArgonClusterRouter
     {
         //if (argonUnitOptions.Value.datacenter.Equals(dc, StringComparison.InvariantCultureIgnoreCase))
         //    throw new InvalidOperationException($"Cannot compute route to self node");
-        return null;
+        return null!;
     }
 
     public async Task<NodeRoute> ComputeRouteAsync(IPAddress targetAddress)

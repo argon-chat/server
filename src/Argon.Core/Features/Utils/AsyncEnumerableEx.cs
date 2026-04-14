@@ -5,7 +5,7 @@ using System.Threading;
 
 public static class AsyncEnumerableEx
 {
-    public async static IAsyncEnumerable<TSource> MergeAsync<TSource>(this IAsyncEnumerable<TSource>[] sources, CancellationToken ct = default)
+    public async static IAsyncEnumerable<TSource> MergeAsync<TSource>(this IAsyncEnumerable<TSource>[] sources, [EnumeratorCancellation] CancellationToken ct = default)
     {
         if (sources == null)
             throw new ArgumentNullException(nameof(sources));
@@ -88,7 +88,7 @@ public static class AsyncEnumerableEx
     }
 
 
-    internal static WhenAnyValueTask<T> WhenAny<T>(ValueTask<T>[] tasks)
+    private static WhenAnyValueTask<T> WhenAny<T>(ValueTask<T>[] tasks)
     {
         var whenAny = new WhenAnyValueTask<T>(tasks);
 

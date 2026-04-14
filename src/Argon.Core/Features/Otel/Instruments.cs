@@ -936,4 +936,61 @@ public static class InstrumentNames
     /// </list>
     /// </remarks>
     public const string UserStatusChanges = "argon-user-status-changes";
+
+    // ── Bot API ──────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Total number of bot events published to NATS (Counter).
+    /// Tags: event_type (messageCreate, memberJoin, voiceJoin, etc.)
+    /// </summary>
+    public const string BotEventsPublished = "argon-bot-events-published";
+
+    /// <summary>
+    /// Duration of bot event publish operations in milliseconds (Histogram).
+    /// Tags: event_type
+    /// </summary>
+    public const string BotEventPublishDuration = "argon-bot-event-publish-duration";
+
+    /// <summary>
+    /// Total number of bot event publish failures (Counter).
+    /// Tags: event_type
+    /// </summary>
+    public const string BotEventPublishErrors = "argon-bot-event-publish-errors";
+
+    /// <summary>
+    /// Total number of bot SSE connections opened (Counter).
+    /// </summary>
+    public const string BotSseConnectionsOpened = "argon-bot-sse-connections-opened";
+
+    /// <summary>
+    /// Total number of bot SSE connections closed (Counter).
+    /// </summary>
+    public const string BotSseConnectionsClosed = "argon-bot-sse-connections-closed";
+
+    /// <summary>
+    /// Current number of active bot SSE connections (Gauge).
+    /// </summary>
+    public const string BotSseConnectionsActive = "argon-bot-sse-connections-active";
+
+    /// <summary>
+    /// Total number of bot SSE events delivered to clients (Counter).
+    /// Tags: event_type
+    /// </summary>
+    public const string BotSseEventsDelivered = "argon-bot-sse-events-delivered";
+
+    /// <summary>
+    /// Total number of bot slash command invocations (Counter).
+    /// </summary>
+    public const string BotCommandInvocations = "argon-bot-command-invocations";
+
+    /// <summary>
+    /// Duration of slash command dispatch in milliseconds (Histogram).
+    /// </summary>
+    public const string BotCommandDispatchDuration = "argon-bot-command-dispatch-duration";
+
+    /// <summary>
+    /// Total number of slash command invocation errors (Counter).
+    /// Tags: error (command_not_found, insufficient_permissions, bot_not_connected)
+    /// </summary>
+    public const string BotCommandErrors = "argon-bot-command-errors";
 }

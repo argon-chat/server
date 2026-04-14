@@ -108,7 +108,14 @@ public static class OrleansExtension
                         options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
                         options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
                     })
-                   .Configure<ExceptionSerializationOptions>(x => { x.SupportedNamespacePrefixes.Add("Argon"); })
+                   .Configure<ExceptionSerializationOptions>(x =>
+                    {
+                        x.SupportedNamespacePrefixes.Add("Argon");
+                        x.SupportedExceptionTypeFilter = type =>
+                            type == typeof(UnauthorizedAccessException)
+                            
+                            ;
+                    })
                    .Configure<GrainCollectionOptions>(options =>
                     {
                         options.CollectionAge     = TimeSpan.FromMinutes(4);
