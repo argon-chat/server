@@ -44,6 +44,18 @@ public class UserGrain(
            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 
+    public async Task<ArgonUser> GetAsArgonUser()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users
+           .AsNoTracking()
+           .Include(u => u.BotEntity)
+           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+
+        return UserEntity.Map(user);
+    }
+
     public async Task<ArgonUserProfile> GetMyProfile()
     {
         await using var ctx = await context.CreateDbContextAsync();

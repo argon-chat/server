@@ -1,14 +1,15 @@
 namespace Argon.Features.BotApi;
 
 using Argon.Entities;
+using Argon.Grains.Interfaces;
 using Microsoft.Extensions.Caching.Hybrid;
 
 /// <summary>
 /// Resolves userId → <see cref="BotUserV1"/> with L1 (in-process) + L2 (Redis) caching
-/// via <see cref="HybridCache"/>. Avoids per-event DB queries for user data needed by bot event payloads.
+/// via <see cref="HybridCache"/>. Avoids per-event grain calls for user data needed by bot event payloads.
 /// </summary>
 public sealed class BotUserCache(
-    IDbContextFactory<ApplicationDbContext> dbFactory,
+    IGrainFactory                          grainFactory,
     HybridCache                            cache,
     ILogger<BotUserCache>                  logger)
 {
@@ -24,38 +25,18 @@ public sealed class BotUserCache(
     {
         return await cache.GetOrCreateAsync(
             Key(userId),
-            (dbFactory, userId),
+            (grainFactory, userId),
             static async (state, ct) =>
             {
                 var (factory, uid) = state;
-                await using var ctx = await factory.CreateDbContextAsync(ct);
-                var dbUser = await ctx.Users
-                   .AsNoTracking()
-                   .Where(u => u.Id == uid)
-                   .Select(u => new
-                   {
-                       u.Id,
-                       u.Username,
-                       DisplayName = u.DisplayName ?? u.Username,
-                       u.AvatarFileId,
-                       u.BotEntityId,
-                       u.LockdownReason,
-                       u.IsDeleted,
-                       IsVerifiedBot = u.BotEntity != null && u.BotEntity.IsVerified
-                   })
-                   .FirstOrDefaultAsync(ct);
+                var user = await factory.GetGrain<IUserGrain>(uid).GetAsArgonUser();
 
-                if (dbUser is null)
-                    return new BotUserV1(uid, "unknown", "Unknown User", null, UserFlag.NONE);
-
-                var flags = UserFlag.NONE;
-                if (dbUser.BotEntityId is not null) flags |= UserFlag.BOT;
-                if (dbUser.LockdownReason != LockdownReason.NONE) flags |= UserFlag.BANNED;
-                if (dbUser.IsDeleted) flags |= UserFlag.DELETED;
-                if (dbUser.Id == UserEntity.SystemUser) flags |= UserFlag.SYSTEM;
-                if (dbUser.IsVerifiedBot) flags |= UserFlag.VERIFIED;
-
-                return new BotUserV1(dbUser.Id, dbUser.Username, dbUser.DisplayName, dbUser.AvatarFileId, flags);
+                return new BotUserV1(
+                    user.userId,
+                    user.username,
+                    user.displayName,
+                    user.avatarFileId,
+                    user.flags);
             },
             Options);
     }
