@@ -55,7 +55,11 @@ public sealed record IonModalSelectOption(string label, string value, string? de
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record IonModalComponent(IonModalComponentType type, string customId, string label, IonTextInputStyle? style, string? placeholder, i4? minLength, i4? maxLength, bool? required, string? value, Array? options, i4? minValues, i4? maxValues, bool? defaultChecked, string? description);
+public sealed record IonModalComponent(IonModalComponentType type, string customId, string label, IonTextInputStyle? style, string? placeholder, i4? minLength, i4? maxLength, bool? required, string? value, MultipleModalSelectOption? options, i4? minValues, i4? maxValues, bool? defaultChecked, string? description);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MultipleModalSelectOption(IonArray<IonModalSelectOption> options);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

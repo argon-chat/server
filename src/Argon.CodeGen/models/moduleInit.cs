@@ -40,6 +40,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ModalSubmitValue>.Value = new Ion_ModalSubmitValue_Formatter();
       IonFormatterStorage<IonModalSelectOption>.Value = new Ion_IonModalSelectOption_Formatter();
       IonFormatterStorage<IonModalComponent>.Value = new Ion_IonModalComponent_Formatter();
+      IonFormatterStorage<MultipleModalSelectOption>.Value = new Ion_MultipleModalSelectOption_Formatter();
       IonFormatterStorage<IonModalDefinition>.Value = new Ion_IonModalDefinition_Formatter();
       IonFormatterStorage<SendMessageReadback>.Value = new Ion_SendMessageReadback_Formatter();
       IonFormatterStorage<ChannelReadState>.Value = new Ion_ChannelReadState_Formatter();

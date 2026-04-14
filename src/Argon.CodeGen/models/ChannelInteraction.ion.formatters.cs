@@ -303,7 +303,7 @@ public sealed class Ion_IonModalComponent_Formatter : IonFormatter<IonModalCompo
         var __maxlength = reader.ReadNullable<i4>();
         var __required = reader.ReadNullable<bool>();
         var __value = reader.ReadNullable<string>();
-        var __options = reader.ReadNullable<Array>();
+        var __options = reader.ReadNullable<MultipleModalSelectOption>();
         var __minvalues = reader.ReadNullable<i4>();
         var __maxvalues = reader.ReadNullable<i4>();
         var __defaultchecked = reader.ReadNullable<bool>();
@@ -325,11 +325,32 @@ public sealed class Ion_IonModalComponent_Formatter : IonFormatter<IonModalCompo
         IonFormatterStorage<i4>.WriteNullable(writer, value.maxLength);
         IonFormatterStorage<bool>.WriteNullable(writer, value.required);
         IonFormatterStorage<string>.WriteNullable(writer, value.value);
-        IonFormatterStorage<Array>.WriteNullable(writer, value.options);
+        IonFormatterStorage<MultipleModalSelectOption>.WriteNullable(writer, value.options);
         IonFormatterStorage<i4>.WriteNullable(writer, value.minValues);
         IonFormatterStorage<i4>.WriteNullable(writer, value.maxValues);
         IonFormatterStorage<bool>.WriteNullable(writer, value.defaultChecked);
         IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MultipleModalSelectOption_Formatter : IonFormatter<MultipleModalSelectOption>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MultipleModalSelectOption Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __options = IonFormatterStorage<IonModalSelectOption>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__options);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MultipleModalSelectOption value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<IonModalSelectOption>.WriteArray(writer, value.options);
         writer.WriteEndArray();
     }
 }
