@@ -32,7 +32,7 @@ public sealed class InteractionResponsePusher(AppHubServer appHubServer)
         c.MaxLength,
         c.Required,
         c.Value,
-        c.Options?.Select(o => new IonModalSelectOption(o.Label, o.Value, o.Description, null)).ToArray(),
+        c.Options is null ? null : new MultipleModalSelectOption(c.Options.Select(o => new IonModalSelectOption(o.Label, o.Value, o.Description, null)).ToArray()),
         c.MinValues,
         c.MaxValues,
         c.Default,
