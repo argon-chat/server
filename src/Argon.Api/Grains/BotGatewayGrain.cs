@@ -1,6 +1,7 @@
 namespace Argon.Api.Grains;
 
 using Argon.Features.BotApi;
+using Argon.Features.Logic;
 using Argon.Features.NatsStreaming;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -13,6 +14,7 @@ using NATS.Client.JetStream.Models;
 public sealed class BotGatewayGrain(
     INatsJSContext              js,
     BotSseEventSerializer       serializer,
+    IUserPresenceService        presenceService,
     ILogger<BotGatewayGrain>    logger) : Grain, IBotGatewayGrain
 {
     private static readonly Dictionary<BotEventType, BotIntent> EventIntents = BuildEventIntentMap();
@@ -38,6 +40,8 @@ public sealed class BotGatewayGrain(
 
     private Guid BotUserId => this.GetPrimaryKey();
 
+    private string BotSessionId => $"bot_{BotUserId:N}";
+
     public async Task<List<Guid>> ConnectAsync(BotIntent intents)
     {
         _intents     = intents;
@@ -56,12 +60,17 @@ public sealed class BotGatewayGrain(
         // Direct consumer for per-user events (calls, DMs)
         await CreateDirectConsumer();
 
+        // Register a presence session so CallGrain (and other services)
+        // can discover this bot via IUserSessionDiscoveryService
+        await presenceService.SetSessionOnlineAsync(BotUserId, BotSessionId);
+        await presenceService.SetSessionStatusAsync(BotUserId, BotSessionId, UserStatus.Online);
+
         // Set bot Online in all spaces
         foreach (var spaceId in spaceIds)
             _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
 
         _heartbeatTimer = this.RegisterGrainTimer(
-            _ => Task.CompletedTask,
+            BotPresenceTickAsync,
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
 
         logger.LogInformation("Bot {BotId} connected with intents {Intents}, spaces: {SpaceCount}",
@@ -70,11 +79,14 @@ public sealed class BotGatewayGrain(
         return spaceIds;
     }
 
-    public Task DisconnectAsync()
+    public async Task DisconnectAsync()
     {
         _isConnected = false;
         _heartbeatTimer?.Dispose();
         _heartbeatTimer = null;
+
+        // Remove presence session so session discovery no longer finds the bot
+        await presenceService.RemoveSessionStatusAsync(BotUserId, BotSessionId);
 
         // Set bot Offline in all spaces
         foreach (var spaceId in _spaceIds)
@@ -88,7 +100,6 @@ public sealed class BotGatewayGrain(
         _directConsumer = null;
 
         logger.LogInformation("Bot {BotId} disconnected", BotUserId);
-        return Task.CompletedTask;
     }
 
     public Task<bool> IsConnectedAsync() => Task.FromResult(_isConnected);
@@ -222,6 +233,14 @@ public sealed class BotGatewayGrain(
         }
 
         return result;
+    }
+
+    private async Task BotPresenceTickAsync(CancellationToken ct)
+    {
+        if (!_isConnected)
+            return;
+
+        await presenceService.RefreshSessionStatusTtlAsync(BotUserId, BotSessionId, ct);
     }
 
     private async Task CreateConsumerForSpace(Guid spaceId)
