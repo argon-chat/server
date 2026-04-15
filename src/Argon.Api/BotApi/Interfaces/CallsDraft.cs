@@ -3,6 +3,7 @@ namespace Argon.Api.BotApi.Interfaces;
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
 using Argon.Core.Grains.Interfaces;
+using Argon.Sfu;
 
 [BotInterface("ICalls", 20260401)]
 [BotDescription("Receive and manage incoming calls. Verified bots only.")]
