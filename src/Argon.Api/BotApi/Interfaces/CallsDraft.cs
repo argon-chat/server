@@ -10,7 +10,7 @@ using Argon.Sfu;
 [BotRoute("POST", "/Accept", RequestType = typeof(AcceptCallRequest), ResponseType = typeof(AcceptCallResponse), Description = "Accepts an incoming call. Returns a LiveKit room token for joining the call audio. The bot must be the callee.", Permission = "ConnectVoice", IsPrivileged = true)]
 [BotRoute("POST", "/Reject", RequestType = typeof(RejectCallRequest), ResponseType = typeof(RejectCallResponse), Description = "Rejects an incoming call with an optional reason.", Permission = "ConnectVoice", IsPrivileged = true)]
 [BotRoute("GET", "/Ringing", ResponseType = typeof(RingingCallsResponse), Description = "Lists all currently ringing calls for the bot.", Permission = "ConnectVoice", IsPrivileged = true)]
-[BotRoute("POST", "/SubscribeCallTrack", RequestType = typeof(SubscribeCallTrackRequest), ResponseType = typeof(SubscribeCallTrackResponse), Description = "Subscribes to the caller's audio track in an active call. Returns a token and WebSocket URL for receiving Opus audio frames. The caller may take a few seconds to connect after the call is accepted — retry or delay the subscription.", Permission = "ConnectVoice", IsPrivileged = true)]
+[BotRoute("POST", "/SubscribeCallTrack", RequestType = typeof(SubscribeCallTrackRequest), ResponseType = typeof(SubscribeCallTrackResponse), Description = "Subscribes to the caller's audio track in an active call. Returns a ready-to-use WebSocket URL for receiving raw Opus frames. Connect directly — binary messages are Opus frames, text messages are JSON statuses (waiting, subscribed, target_left).", Permission = "ConnectVoice", IsPrivileged = true)]
 [BotError("/Accept", 403, "not_verified", "This endpoint requires a verified bot.")]
 [BotError("/Accept", 403, "not_callee", "This call is not directed at this bot.")]
 [BotError("/Accept", 400, "not_ringing", "Call is not in ringing state.")]
@@ -48,8 +48,7 @@ public sealed class CallsDraft(IGrainFactory grains, IOptions<CallKitOptions> ca
         Guid CallId);
 
     public sealed record SubscribeCallTrackResponse(
-        string Token,
-        string WsUrl,
+        string SubscribeUrl,
         string RoomName,
         Guid   CallerId);
 
@@ -126,11 +125,13 @@ public sealed class CallsDraft(IGrainFactory grains, IOptions<CallKitOptions> ca
             if (state.Status != CallStatus.Accepted)
                 return Results.BadRequest(new BotApiError("not_accepted", "Call is not in accepted state."));
 
-            // The callee token already has CanSubscribe — reuse it for the egress connection.
-            // Return the audio ingress URL (same service handles both publish and subscribe).
+            // Build the full subscribe WebSocket URL so the bot can connect directly.
+            var baseUrl = callKit.Value.Sfu.AudioIngressUrl.TrimEnd('/');
+            var callerIdentity = ((ArgonUserId)state.CallerId).ToRawIdentity();
+            var subscribeUrl = $"{baseUrl}/audio/subscribe?token={Uri.EscapeDataString(state.CalleeToken!)}&target_identity={Uri.EscapeDataString(callerIdentity)}&target_track_source=microphone";
+
             return Results.Ok(new SubscribeCallTrackResponse(
-                state.CalleeToken!,
-                callKit.Value.Sfu.AudioIngressUrl,
+                subscribeUrl,
                 state.RoomName,
                 state.CallerId));
         });
