@@ -2,6 +2,7 @@ namespace Argon.Api.BotApi.Interfaces;
 
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
+using Microsoft.AspNetCore.Mvc;
 
 [BotInterface("IReactions", 1)]
 [BotDescription("Add and remove emoji reactions on messages.")]
@@ -54,7 +55,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.RequireRateLimiting("Bot_IReactions");
 
-        group.MapPost("/Add", async (HttpContext ctx, AddReactionRequest request) =>
+        group.MapPost("/Add", async (HttpContext ctx, [FromBody] AddReactionRequest request) =>
         {
             var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
             var result  = await channel.AddReaction(request.MessageId, request.Emoji);
@@ -70,7 +71,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
             };
         });
 
-        group.MapDelete("/Remove", async (HttpContext ctx, RemoveReactionRequest request) =>
+        group.MapDelete("/Remove", async (HttpContext ctx, [FromBody] RemoveReactionRequest request) =>
         {
             var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
             var result  = await channel.RemoveReaction(request.MessageId, request.Emoji);
@@ -84,7 +85,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
             };
         });
 
-        group.MapGet("/List", async (HttpContext ctx, Guid channelId, long messageId) =>
+        group.MapGet("/List", async (HttpContext ctx, [FromQuery] Guid channelId, [FromQuery] long messageId) =>
         {
             var channel  = grains.GetGrain<IChannelGrain>(channelId);
             var messages = await channel.QueryMessages(messageId, 1);
@@ -100,7 +101,7 @@ public sealed class ReactionsV1(IGrainFactory grains) : IBotInterface
             return Results.Ok(new ListReactionsResponse(reactions));
         });
 
-        group.MapPost("/BatchGet", async (HttpContext ctx, BatchGetReactionsRequest request) =>
+        group.MapPost("/BatchGet", async (HttpContext ctx, [FromBody] BatchGetReactionsRequest request) =>
         {
             var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
             var dict    = await channel.BatchGetReactions(request.MessageIds);
