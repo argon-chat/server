@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArgonChat - Sign In Link</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border-left: 6px solid #7e57c2;
+        }
+
+        .inner {
+            padding: 40px 32px;
+        }
+
+        .header {
+            font-size: 28px;
+            font-weight: 600;
+            color: #7e57c2;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .intro {
+            font-size: 17px;
+            line-height: 1.7;
+            color: #444444;
+            margin-bottom: 24px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 32px 0;
+        }
+
+        .sign-in-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #7e57c2, #b388ff);
+            color: #ffffff;
+            padding: 16px 48px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .explanation {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555555;
+            margin-bottom: 24px;
+        }
+
+        .link-fallback {
+            font-size: 13px;
+            color: #888888;
+            word-break: break-all;
+            margin-bottom: 24px;
+        }
+
+        .security-note {
+            background-color: #f9f9f9;
+            border-left: 4px solid #ffa726;
+            padding: 16px 20px;
+            font-size: 15px;
+            color: #666666;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+
+        .footer {
+            font-size: 15px;
+            color: #777777;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .legal {
+            font-size: 12px;
+            color: #bbbbbb;
+            text-align: center;
+            line-height: 1.5;
+            margin-top: 30px;
+        }
+
+            .legal a {
+                color: #bbbbbb;
+                text-decoration: none;
+                margin: 0 6px;
+            }
+
+                .legal a:hover {
+                    text-decoration: underline;
+                }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="inner">
+            <div class="header">Sign In to {{ app_name }}</div>
+
+            <div class="intro">
+                Hello,<br><br>
+                Someone (hopefully you) requested a sign-in link for <strong>{{ app_name }}</strong> via Argon.
+                Click the button below to complete your sign-in.
+            </div>
+
+            <div class="button-container">
+                <a href="{{ link }}" class="sign-in-button">Sign In</a>
+            </div>
+
+            <div class="explanation">
+                This link is valid for <strong>{{ validity }} minutes</strong> and can only be used once.
+                If it doesn't work, you can request a new one from the application.
+            </div>
+
+            <div class="link-fallback">
+                If the button above doesn't work, copy and paste this URL into your browser:<br>
+                {{ link }}
+            </div>
+
+            <div class="security-note">
+                ⚠️ <strong>Security Tip:</strong> If you did not request this link, you can safely ignore this email. Never forward this email to anyone.
+            </div>
+
+            <div class="footer">
+                Stay safe,<br>
+                — The Argon Team
+            </div>
+
+            <div class="legal">
+                © 2025 Argon Inc. LLC<br>
+                2 Sasna Tsrer str., Yerevan, 0054<br>
+                <a href="https://argon.gl">argon.gl</a><br /><br />
+                You are receiving this service email with important information regarding your account.
+            </div>
+        </div>
+    </div>
+</body>
+</html>

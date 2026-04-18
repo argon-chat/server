@@ -27,6 +27,12 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendDeleteNoticeAsync)), OneWay]
     Task SendDeleteNoticeAsync(string email, string displayName, DateTimeOffset deletionTime);
 
+    [Alias(nameof(SendMagicLinkAsync)), OneWay]
+    Task SendMagicLinkAsync(string email, string link, string appName, TimeSpan validity);
+
+    [Alias(nameof(SendRegistrationInviteAsync)), OneWay]
+    Task SendRegistrationInviteAsync(string email, string link, string appName, TimeSpan validity);
+
     [Alias(nameof(ValidateEMailDestination))]
     Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default);
 }

@@ -20,7 +20,8 @@ public sealed class AppsManagementGrain(IServiceProvider serviceProvider, ILogge
                 a.ClientSecret,
                 a.AllowedRedirects,
                 a.RequiredScopes,
-                true))
+                true,
+                a.AllowMagicLink))
            .FirstOrDefaultAsync(ct);
 
         return app;

@@ -155,6 +155,62 @@ public class EmailManager(
         }
     }
 
+    [OneWay]
+    public async Task SendMagicLinkAsync(string email, string link, string appName, TimeSpan validity)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[MAGIC LINK]: {Email}, link: {Link}", email, link);
+            return;
+        }
+
+        var form = formStorage.Render("magic_link", new Dictionary<string, string>
+        {
+            { "link", link },
+            { "app_name", appName },
+            { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+        });
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var msg = CreateMessage(email, $"Sign in to {appName}", form);
+            await SendAsync(email, msg, cts.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send magic link to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendRegistrationInviteAsync(string email, string link, string appName, TimeSpan validity)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[INVITE REGISTER]: {Email}, link: {Link}", email, link);
+            return;
+        }
+
+        var form = formStorage.Render("invite_register", new Dictionary<string, string>
+        {
+            { "link", link },
+            { "app_name", appName },
+            { "validity", $"{(int)Math.Floor(validity.TotalHours):D}" }
+        });
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var msg = CreateMessage(email, $"You've been invited to {appName}", form);
+            await SendAsync(email, msg, cts.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send registration invite to '{email}'", email);
+        }
+    }
+
     public async Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default)
     {
         string addressLocalPart;

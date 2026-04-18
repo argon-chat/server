@@ -152,6 +152,12 @@ public record DevAppEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevAppEn
 
     public DevAppType AppType { get; set; } = DevAppType.Application;
 
+    /// <summary>
+    /// When true, the app is allowed to use magic-link (passwordless) login
+    /// and invite-based registration flows via Aegis.
+    /// </summary>
+    public bool AllowMagicLink { get; set; }
+
     public void Configure(EntityTypeBuilder<DevAppEntity> builder)
     {
         builder.ToTable("DevApps");

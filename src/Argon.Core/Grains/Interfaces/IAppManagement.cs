@@ -21,7 +21,8 @@ public record BotCredentialsInfo(
     string ClientSecret,
     List<string> allowedRedirects,
     List<string> scopes,
-    bool IsAllowedRefreshToken);
+    bool IsAllowedRefreshToken,
+    bool AllowMagicLink);
 
 public record LoginAllowedResult(bool IsAllowed, string? Reason);
 

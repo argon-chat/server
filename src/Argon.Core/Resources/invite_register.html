@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ArgonChat - Registration Invitation</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+            background-color: #f0f2f5;
+            margin: 0;
+            padding: 0;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 620px;
+            margin: 40px auto;
+            background-color: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.08);
+            overflow: hidden;
+            border-left: 6px solid #7e57c2;
+        }
+
+        .inner {
+            padding: 40px 32px;
+        }
+
+        .header {
+            font-size: 28px;
+            font-weight: 600;
+            color: #7e57c2;
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .intro {
+            font-size: 17px;
+            line-height: 1.7;
+            color: #444444;
+            margin-bottom: 24px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 32px 0;
+        }
+
+        .register-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #7e57c2, #b388ff);
+            color: #ffffff;
+            padding: 16px 48px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .explanation {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #555555;
+            margin-bottom: 24px;
+        }
+
+        .link-fallback {
+            font-size: 13px;
+            color: #888888;
+            word-break: break-all;
+            margin-bottom: 24px;
+        }
+
+        .security-note {
+            background-color: #f9f9f9;
+            border-left: 4px solid #ffa726;
+            padding: 16px 20px;
+            font-size: 15px;
+            color: #666666;
+            border-radius: 6px;
+            margin-bottom: 30px;
+        }
+
+        .footer {
+            font-size: 15px;
+            color: #777777;
+            text-align: center;
+            margin-top: 40px;
+        }
+
+        .legal {
+            font-size: 12px;
+            color: #bbbbbb;
+            text-align: center;
+            line-height: 1.5;
+            margin-top: 30px;
+        }
+
+            .legal a {
+                color: #bbbbbb;
+                text-decoration: none;
+                margin: 0 6px;
+            }
+
+                .legal a:hover {
+                    text-decoration: underline;
+                }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="inner">
+            <div class="header">You've Been Invited!</div>
+
+            <div class="intro">
+                Hello,<br><br>
+                You've been invited to create an Argon account to use <strong>{{ app_name }}</strong>.
+                Click the button below to complete your registration.
+            </div>
+
+            <div class="button-container">
+                <a href="{{ link }}" class="register-button">Create Account</a>
+            </div>
+
+            <div class="explanation">
+                This invitation link is valid for <strong>{{ validity }} hours</strong> and can only be used once.
+                After registration, you'll be signed in automatically.
+            </div>
+
+            <div class="link-fallback">
+                If the button above doesn't work, copy and paste this URL into your browser:<br>
+                {{ link }}
+            </div>
+
+            <div class="security-note">
+                ⚠️ <strong>Security Tip:</strong> If you did not expect this invitation, you can safely ignore this email.
+            </div>
+
+            <div class="footer">
+                Welcome aboard,<br>
+                — The Argon Team
+            </div>
+
+            <div class="legal">
+                © 2025 Argon Inc. LLC<br>
+                2 Sasna Tsrer str., Yerevan, 0054<br>
+                <a href="https://argon.gl">argon.gl</a><br /><br />
+                You are receiving this service email because someone invited you to create an account.
+            </div>
+        </div>
+    </div>
+</body>
+</html>
