@@ -56,4 +56,12 @@ public static class ChannelGrainInstrument
     public static readonly Counter<long> MemberKicks = Meter.CreateCounter<long>(
         InstrumentNames.ChannelMemberKicks,
         description: "Total number of channel member kicks");
+
+    public static readonly Counter<long> ReactionsAdded = Meter.CreateCounter<long>(
+        InstrumentNames.ChannelReactionsAdded,
+        description: "Total number of reactions added");
+
+    public static readonly Counter<long> ReactionsRemoved = Meter.CreateCounter<long>(
+        InstrumentNames.ChannelReactionsRemoved,
+        description: "Total number of reactions removed");
 }

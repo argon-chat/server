@@ -130,6 +130,33 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ReactionInfo_Formatter : IonFormatter<ReactionInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ReactionInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __emoji = IonFormatterStorage<string>.Read(reader);
+        var __customemojiid = reader.ReadNullable<guid>();
+        var __count = IonFormatterStorage<i4>.Read(reader);
+        var __userids = IonFormatterStorage<guid>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__emoji, __customemojiid, __count, __userids);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ReactionInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.emoji);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.customEmojiId);
+        IonFormatterStorage<i4>.Write(writer, value.count);
+        IonFormatterStorage<guid>.WriteArray(writer, value.userIds);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -144,14 +171,15 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
         var __entities = IonFormatterStorage<IMessageEntity>.ReadArray(reader);
         var __timesent = IonFormatterStorage<datetime>.Read(reader);
         var __sender = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__messageid, __replyid, __channelid, __spaceid, __text, __entities, __timesent, __sender);
+        var __reactions = IonFormatterStorage<ReactionInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__messageid, __replyid, __channelid, __spaceid, __text, __entities, __timesent, __sender, __reactions);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonMessage value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(9);
         IonFormatterStorage<i8>.Write(writer, value.messageId);
         IonFormatterStorage<i8>.WriteNullable(writer, value.replyId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
@@ -160,6 +188,7 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
         IonFormatterStorage<IMessageEntity>.WriteArray(writer, value.entities);
         IonFormatterStorage<datetime>.Write(writer, value.timeSent);
         IonFormatterStorage<guid>.Write(writer, value.sender);
+        IonFormatterStorage<ReactionInfo>.WriteArray(writer, value.reactions);
         writer.WriteEndArray();
     }
 }
@@ -210,6 +239,29 @@ public sealed class Ion_AttachmentInfo_Formatter : IonFormatter<AttachmentInfo>
         IonFormatterStorage<string>.Write(writer, value.fileName);
         IonFormatterStorage<i8>.Write(writer, value.fileSize);
         IonFormatterStorage<string>.Write(writer, value.contentType);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageReactionsEntry_Formatter : IonFormatter<MessageReactionsEntry>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageReactionsEntry Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __reactions = IonFormatterStorage<ReactionInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__messageid, __reactions);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageReactionsEntry value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<ReactionInfo>.WriteArray(writer, value.reactions);
         writer.WriteEndArray();
     }
 }
@@ -727,6 +779,40 @@ public sealed class Ion_InteractWithSelectError_Formatter : IonFormatter<Interac
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InteractWithSelectError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AddReactionError_Formatter : IonFormatter<AddReactionError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AddReactionError Read(CborReader reader)
+    {
+         return (AddReactionError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AddReactionError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_RemoveReactionError_Formatter : IonFormatter<RemoveReactionError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public RemoveReactionError Read(CborReader reader)
+    {
+         return (RemoveReactionError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, RemoveReactionError value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);

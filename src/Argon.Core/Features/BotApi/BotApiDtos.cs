@@ -140,6 +140,12 @@ public sealed record BotMessageEntityV1
 // ─── Message ─────────────────────────────────────────────
 
 [BotDtoVersion(1)]
+public sealed record BotReactionV1(
+    string     Emoji,
+    int        Count,
+    List<Guid> UserIds);
+
+[BotDtoVersion(1)]
 public sealed record BotMessageV1(
     long                      MessageId,
     long?                     ReplyId,
@@ -149,7 +155,8 @@ public sealed record BotMessageV1(
     List<BotMessageEntityV1>  Entities,
     DateTime                  TimeSent,
     BotUserV1?                Sender,
-    List<ControlRowV1>?       Controls = null);
+    List<ControlRowV1>?       Controls  = null,
+    List<BotReactionV1>?      Reactions = null);
 
 // ─── Presence ────────────────────────────────────────────
 

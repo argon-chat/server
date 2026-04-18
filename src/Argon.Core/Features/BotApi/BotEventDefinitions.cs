@@ -169,6 +169,26 @@ public sealed record ArchetypeUpdateEvent(
     Guid            SpaceId,
     BotArchetypeV1  Archetype);
 
+// ─── Reactions ───────────────────────────────────────────
+
+[BotEventDefinition(BotEventType.ReactionAdd, "Reactions", Intent = BotIntent.Reactions)]
+[BotEventDescription("A user added a reaction to a message.")]
+public sealed record ReactionAddEvent(
+    Guid   SpaceId,
+    Guid   ChannelId,
+    long   MessageId,
+    Guid   UserId,
+    string Emoji);
+
+[BotEventDefinition(BotEventType.ReactionRemove, "Reactions", Intent = BotIntent.Reactions)]
+[BotEventDescription("A user removed a reaction from a message.")]
+public sealed record ReactionRemoveEvent(
+    Guid   SpaceId,
+    Guid   ChannelId,
+    long   MessageId,
+    Guid   UserId,
+    string Emoji);
+
 // ─── Control Interactions ────────────────────────────────
 
 [BotEventDefinition(BotEventType.ControlInteraction, "ControlInteractions", Intent = BotIntent.ControlInteractions)]

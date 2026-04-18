@@ -36,6 +36,8 @@ public enum BotEventType
     TypingStop,
     ArchetypeCreate,
     ArchetypeUpdate,
+    ReactionAdd,
+    ReactionRemove,
 }
 
 /// <summary>

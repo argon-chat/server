@@ -241,6 +241,7 @@ public sealed class BotGatewayGrain(
             return;
 
         await presenceService.RefreshSessionStatusTtlAsync(BotUserId, BotSessionId, ct);
+        await presenceService.HeartbeatAsync(BotUserId, BotSessionId, ct);
     }
 
     private async Task CreateConsumerForSpace(Guid spaceId)

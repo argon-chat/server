@@ -36,6 +36,13 @@ public class ChannelGrain(
 
     private readonly Dictionary<Guid, IGrainTimer> _botTypingTimers = new();
 
+    // ── Reaction buffer ──────────────────────────────────────
+    private readonly Dictionary<long, List<MessageReactionData>> _reactionCache = new();
+    private readonly HashSet<long> _dirtyReactions = new();
+    private readonly LinkedList<long> _reactionLru = new();
+    private const int MaxCachedReactionMessages = 100;
+    private IGrainTimer? _reactionFlushTimer;
+
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
 
@@ -51,10 +58,17 @@ public class ChannelGrain(
         state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
+
+        _reactionFlushTimer = this.RegisterGrainTimer(
+            async _ => await FlushReactionsAsync(),
+            new GrainTimerCreationOptions(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)));
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        // Flush pending reactions before shutdown
+        await FlushReactionsAsync();
+
         // Settle XP for all users still in channel
         await SettleXpForAllUsersAsync();
 
@@ -1221,5 +1235,225 @@ public class ChannelGrain(
         await ctx.SaveChangesAsync();
 
         await Fire(new MessageEdited(SpaceId, channelId, messageId, message.Text, message.UpdatedAt.UtcDateTime));
+    }
+
+    // ── Reactions (buffered writes) ──────────────────────────
+
+    public async Task<IAddReactionResult> AddReaction(long messageId, string emoji)
+    {
+        if (_self.ChannelType != ChannelType.Text)
+        {
+            ChannelGrainInstrument.ReactionsAdded.Add(1,
+                new KeyValuePair<string, object?>("result", "invalid_channel"));
+            return new FailedAddReaction(AddReactionError.NONE);
+        }
+
+        var userId = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.AddReactions))
+        {
+            ChannelGrainInstrument.ReactionsAdded.Add(1,
+                new KeyValuePair<string, object?>("result", "no_permission"));
+            return new FailedAddReaction(AddReactionError.INSUFFICIENT_PERMISSIONS);
+        }
+
+        var reactions = await LoadReactionsAsync(messageId);
+        if (reactions is null)
+        {
+            ChannelGrainInstrument.ReactionsAdded.Add(1,
+                new KeyValuePair<string, object?>("result", "message_not_found"));
+            return new FailedAddReaction(AddReactionError.MESSAGE_NOT_FOUND);
+        }
+
+        var existing = reactions.FirstOrDefault(r => r.Emoji == emoji);
+        if (existing is not null)
+        {
+            if (existing.UserIds.Contains(userId))
+            {
+                ChannelGrainInstrument.ReactionsAdded.Add(1,
+                    new KeyValuePair<string, object?>("result", "already_reacted"));
+                return new FailedAddReaction(AddReactionError.ALREADY_REACTED);
+            }
+
+            existing.UserIds.Add(userId);
+        }
+        else
+        {
+            if (reactions.Count >= 20)
+            {
+                ChannelGrainInstrument.ReactionsAdded.Add(1,
+                    new KeyValuePair<string, object?>("result", "limit_reached"));
+                return new FailedAddReaction(AddReactionError.REACTION_LIMIT_REACHED);
+            }
+
+            reactions.Add(new MessageReactionData { Emoji = emoji, UserIds = [userId] });
+        }
+
+        _dirtyReactions.Add(messageId);
+
+        ChannelGrainInstrument.ReactionsAdded.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+
+        await Fire(new ReactionAdded(SpaceId, channelId, messageId, userId, emoji, null));
+
+        return new SuccessAddReaction();
+    }
+
+    public async Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji)
+    {
+        var userId = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        var reactions = await LoadReactionsAsync(messageId);
+        if (reactions is null)
+        {
+            ChannelGrainInstrument.ReactionsRemoved.Add(1,
+                new KeyValuePair<string, object?>("result", "message_not_found"));
+            return new FailedRemoveReaction(RemoveReactionError.MESSAGE_NOT_FOUND);
+        }
+
+        var existing = reactions.FirstOrDefault(r => r.Emoji == emoji);
+        if (existing is null || !existing.UserIds.Remove(userId))
+        {
+            ChannelGrainInstrument.ReactionsRemoved.Add(1,
+                new KeyValuePair<string, object?>("result", "not_found"));
+            return new FailedRemoveReaction(RemoveReactionError.REACTION_NOT_FOUND);
+        }
+
+        if (existing.UserIds.Count == 0)
+            reactions.Remove(existing);
+
+        _dirtyReactions.Add(messageId);
+
+        ChannelGrainInstrument.ReactionsRemoved.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+
+        await Fire(new ReactionRemoved(SpaceId, channelId, messageId, userId, emoji));
+
+        return new SuccessRemoveReaction();
+    }
+
+    public async Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds)
+    {
+        const int maxBatch = 50;
+        var ids = messageIds.Count > maxBatch ? messageIds.Take(maxBatch).ToList() : messageIds;
+
+        var result = new Dictionary<long, List<ReactionInfo>>(ids.Count);
+
+        // Partition into cached and uncached
+        var uncachedIds = new List<long>();
+        foreach (var id in ids)
+        {
+            if (_reactionCache.TryGetValue(id, out var cached))
+            {
+                _reactionLru.Remove(id);
+                _reactionLru.AddFirst(id);
+                result[id] = ToReactionInfoList(cached);
+            }
+            else
+            {
+                uncachedIds.Add(id);
+            }
+        }
+
+        // Batch-load uncached from DB in one query
+        if (uncachedIds.Count > 0)
+        {
+            await using var ctx = await context.CreateDbContextAsync();
+            var channelId = this.GetPrimaryKey();
+
+            var rows = await ctx.Messages
+               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && uncachedIds.Contains(m.MessageId))
+               .Select(m => new { m.MessageId, m.Reactions })
+               .ToListAsync();
+
+            foreach (var row in rows)
+            {
+                var reactions = row.Reactions ?? [];
+                _reactionCache[row.MessageId] = reactions;
+                _reactionLru.AddFirst(row.MessageId);
+                result[row.MessageId] = ToReactionInfoList(reactions);
+            }
+
+            // Evict non-dirty entries if cache grew too large
+            while (_reactionLru.Count > MaxCachedReactionMessages)
+            {
+                var oldest = _reactionLru.Last!.Value;
+                if (_dirtyReactions.Contains(oldest))
+                    break;
+                _reactionLru.RemoveLast();
+                _reactionCache.Remove(oldest);
+            }
+        }
+
+        return result;
+
+        static List<ReactionInfo> ToReactionInfoList(List<MessageReactionData> data)
+            => data.Select(r => new ReactionInfo(
+                r.Emoji, r.CustomEmojiId, r.UserIds.Count,
+                r.UserIds.Take(ArgonMessageEntity.ReactionUserPreviewLimit).ToList())).ToList();
+    }
+
+    private async Task<List<MessageReactionData>?> LoadReactionsAsync(long messageId)
+    {
+        if (_reactionCache.TryGetValue(messageId, out var cached))
+        {
+            // Move to front of LRU
+            _reactionLru.Remove(messageId);
+            _reactionLru.AddFirst(messageId);
+            return cached;
+        }
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var message = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == this.GetPrimaryKey() && m.MessageId == messageId)
+           .Select(m => new { m.Reactions })
+           .FirstOrDefaultAsync();
+
+        if (message is null)
+            return null;
+
+        var reactions = message.Reactions ?? [];
+        _reactionCache[messageId] = reactions;
+        _reactionLru.AddFirst(messageId);
+
+        // Evict non-dirty entries if cache is too large
+        while (_reactionLru.Count > MaxCachedReactionMessages)
+        {
+            var oldest = _reactionLru.Last!.Value;
+            if (_dirtyReactions.Contains(oldest))
+                break; // Don't evict dirty entries
+            _reactionLru.RemoveLast();
+            _reactionCache.Remove(oldest);
+        }
+
+        return reactions;
+    }
+
+    private async Task FlushReactionsAsync()
+    {
+        if (_dirtyReactions.Count == 0)
+            return;
+
+        var toFlush = _dirtyReactions.ToList();
+        _dirtyReactions.Clear();
+
+        await using var ctx = await context.CreateDbContextAsync();
+        var channelId = this.GetPrimaryKey();
+
+        foreach (var messageId in toFlush)
+        {
+            if (!_reactionCache.TryGetValue(messageId, out var reactions))
+                continue;
+
+            var json = reactions.Count == 0
+                ? null
+                : Newtonsoft.Json.JsonConvert.SerializeObject(reactions);
+
+            await ctx.Database.ExecuteSqlInterpolatedAsync(
+                $"UPDATE \"Messages\" SET \"Reactions\" = {json}::jsonb WHERE \"SpaceId\" = {SpaceId} AND \"ChannelId\" = {channelId} AND \"MessageId\" = {messageId}");
+        }
     }
 }

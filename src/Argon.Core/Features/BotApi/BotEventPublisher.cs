@@ -165,6 +165,22 @@ public sealed class BotEventPublisher(
                     break;
                 }
 
+                case ReactionAdded e:
+                {
+                    await PublishAsync(spaceId, BotEventType.ReactionAdd,
+                        new ReactionAddEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji),
+                        e.channelId);
+                    break;
+                }
+
+                case ReactionRemoved e:
+                {
+                    await PublishAsync(spaceId, BotEventType.ReactionRemove,
+                        new ReactionRemoveEvent(e.spaceId, e.channelId, e.messageId, e.userId, e.emoji),
+                        e.channelId);
+                    break;
+                }
+
                 // CommandInteraction — dispatched via InvokeSlashCommand, see PublishCommandInteractionAsync
             }
         }

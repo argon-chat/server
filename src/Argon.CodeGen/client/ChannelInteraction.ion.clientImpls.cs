@@ -68,6 +68,12 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(InteractWithSelect), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SubmitModal_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(SubmitModal), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AddReaction_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(AddReaction), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RemoveReaction_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(RemoveReaction), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BatchGetReactions_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(BatchGetReactions), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -555,6 +561,65 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<ISubmitModalResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IAddReactionResult> AddReaction(guid __spaceid, guid __channelid, i8 __messageid, string __emoji, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), AddReaction_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __messageid);
+        IonFormatterStorage<string>.Write(writer, __emoji);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IAddReactionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IRemoveReactionResult> RemoveReaction(guid __spaceid, guid __channelid, i8 __messageid, string __emoji, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), RemoveReaction_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __messageid);
+        IonFormatterStorage<string>.Write(writer, __emoji);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IRemoveReactionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<MessageReactionsEntry>> BatchGetReactions(guid __spaceid, guid __channelid, IonArray<i8> __messageids, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), BatchGetReactions_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.WriteArray(writer, __messageids);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<MessageReactionsEntry>(writer.Encode(), ct: ct);
     }
 
 }

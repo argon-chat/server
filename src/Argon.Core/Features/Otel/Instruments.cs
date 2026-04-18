@@ -806,6 +806,10 @@ public static class InstrumentNames
     /// </remarks>
     public const string ChannelMemberKicks = "argon-channel-member-kicks";
 
+    public const string ChannelReactionsAdded = "argon-channel-reactions-added";
+
+    public const string ChannelReactionsRemoved = "argon-channel-reactions-removed";
+
     /// <summary>
     /// Total number of user sessions started (Counter).
     /// Increments when BeginRealtimeSession is called.

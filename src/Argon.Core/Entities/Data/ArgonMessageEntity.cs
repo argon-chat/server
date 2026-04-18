@@ -20,6 +20,9 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
     [Column(TypeName = "jsonb")]
     public List<ControlRowV1>? Controls { get; set; }
 
+    [Column(TypeName = "jsonb")]
+    public List<MessageReactionData>? Reactions { get; set; }
+
 
     public void Configure(EntityTypeBuilder<ArgonMessageEntity> builder)
     {
@@ -58,9 +61,21 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
            .HasConversion(
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<ControlRowV1>>(v));
+
+        builder.Property(m => m.Reactions)
+           .HasColumnType("jsonb")
+           .HasConversion(
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<MessageReactionData>>(v));
     }
+
+    public const int ReactionUserPreviewLimit = 3;
 
     public static ArgonMessage Map(scoped in ArgonMessageEntity self)
         => new(self.MessageId, self.Reply, self.ChannelId, self.SpaceId,
-            self.Text, self.Entities, self.CreatedAt.UtcDateTime, self.CreatorId);
+            self.Text, self.Entities, self.CreatedAt.UtcDateTime, self.CreatorId,
+            self.Reactions?.Select(r => new ReactionInfo(
+                r.Emoji, r.CustomEmojiId, r.UserIds.Count,
+                r.UserIds.Take(ReactionUserPreviewLimit).ToList())).ToList()
+            ?? []);
 }

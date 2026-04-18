@@ -31,7 +31,11 @@ public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonMessage(i8 messageId, i8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender);
+public sealed record ReactionInfo(string emoji, guid? customEmojiId, i4 count, IonArray<guid> userIds);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ArgonMessage(i8 messageId, i8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender, IonArray<ReactionInfo> reactions);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -40,6 +44,10 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, string contentType);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageReactionsEntry(i8 messageId, IonArray<ReactionInfo> reactions);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -183,6 +191,26 @@ public enum InteractWithSelectError
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum AddReactionError
+{
+    NONE = 0,
+    MESSAGE_NOT_FOUND = 1,
+    REACTION_LIMIT_REACHED = 2,
+    ALREADY_REACTED = 3,
+    INSUFFICIENT_PERMISSIONS = 4,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum RemoveReactionError
+{
+    NONE = 0,
+    MESSAGE_NOT_FOUND = 1,
+    REACTION_NOT_FOUND = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SubmitModalError
 {
     NONE = 0,
@@ -306,6 +334,9 @@ public interface IChannelInteraction : IIonService
     Task<IInteractWithControlResult> InteractWithControl(guid spaceId, guid channelId, i8 messageId, string controlId, CancellationToken ct = default);
     Task<IInteractWithSelectResult> InteractWithSelect(guid spaceId, guid channelId, i8 messageId, string customId, IonArray<string> values, CancellationToken ct = default);
     Task<ISubmitModalResult> SubmitModal(guid spaceId, guid channelId, guid interactionId, IonArray<ModalSubmitValue> values, CancellationToken ct = default);
+    Task<IAddReactionResult> AddReaction(guid spaceId, guid channelId, i8 messageId, string emoji, CancellationToken ct = default);
+    Task<IRemoveReactionResult> RemoveReaction(guid spaceId, guid channelId, i8 messageId, string emoji, CancellationToken ct = default);
+    Task<IonArray<MessageReactionsEntry>> BatchGetReactions(guid spaceId, guid channelId, IonArray<i8> messageIds, CancellationToken ct = default);
 }
 
 
@@ -1879,6 +1910,254 @@ public sealed class Ion_FailedSubmitModal_Formatter : IonFormatter<FailedSubmitM
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IAddReactionResult : IIonUnion<IAddReactionResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessAddReaction => this is SuccessAddReaction;
+
+    internal bool IsFailedAddReaction => this is FailedAddReaction;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessAddReaction() : IAddReactionResult
+{
+    public string UnionKey => nameof(SuccessAddReaction);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedAddReaction(AddReactionError error) : IAddReactionResult
+{
+    public string UnionKey => nameof(FailedAddReaction);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IAddReactionResult_Formatter : IonFormatter<IAddReactionResult>
+{
+    public IAddReactionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IAddReactionResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessAddReaction>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedAddReaction>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IAddReactionResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessAddReaction n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessAddReaction>.Write(writer, n_0);
+        }
+
+        else if (value is FailedAddReaction n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedAddReaction>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessAddReaction_Formatter : IonFormatter<SuccessAddReaction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessAddReaction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessAddReaction value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedAddReaction_Formatter : IonFormatter<FailedAddReaction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedAddReaction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<AddReactionError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedAddReaction value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<AddReactionError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IRemoveReactionResult : IIonUnion<IRemoveReactionResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessRemoveReaction => this is SuccessRemoveReaction;
+
+    internal bool IsFailedRemoveReaction => this is FailedRemoveReaction;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessRemoveReaction() : IRemoveReactionResult
+{
+    public string UnionKey => nameof(SuccessRemoveReaction);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedRemoveReaction(RemoveReactionError error) : IRemoveReactionResult
+{
+    public string UnionKey => nameof(FailedRemoveReaction);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IRemoveReactionResult_Formatter : IonFormatter<IRemoveReactionResult>
+{
+    public IRemoveReactionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IRemoveReactionResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessRemoveReaction>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedRemoveReaction>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IRemoveReactionResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessRemoveReaction n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessRemoveReaction>.Write(writer, n_0);
+        }
+
+        else if (value is FailedRemoveReaction n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedRemoveReaction>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessRemoveReaction_Formatter : IonFormatter<SuccessRemoveReaction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessRemoveReaction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessRemoveReaction value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedRemoveReaction_Formatter : IonFormatter<FailedRemoveReaction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedRemoveReaction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<RemoveReactionError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedRemoveReaction value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<RemoveReactionError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IInterlinkResult : IIonUnion<IInterlinkResult>
 {
     string UnionKey { get; }
@@ -2244,6 +2523,10 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
     internal bool IsInteractionDeferred => this is InteractionDeferred;
 
     internal bool IsShowModal => this is ShowModal;
+
+    internal bool IsReactionAdded => this is ReactionAdded;
+
+    internal bool IsReactionRemoved => this is ReactionRemoved;
 
 }
 
@@ -2619,6 +2902,20 @@ public sealed record ShowModal(guid interactionId, IonModalDefinition modal) : I
     public uint UnionIndex => 52;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ReactionAdded(guid spaceId, guid channelId, i8 messageId, guid userId, string emoji, guid? customEmojiId) : IArgonEvent
+{
+    public string UnionKey => nameof(ReactionAdded);
+    public uint UnionIndex => 53;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ReactionRemoved(guid spaceId, guid channelId, i8 messageId, guid userId, string emoji) : IArgonEvent
+{
+    public string UnionKey => nameof(ReactionRemoved);
+    public uint UnionIndex => 54;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -2789,6 +3086,12 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 52)
             result = IonFormatterStorage<ShowModal>.Read(reader);
+
+        else if (unionIndex == 53)
+            result = IonFormatterStorage<ReactionAdded>.Read(reader);
+
+        else if (unionIndex == 54)
+            result = IonFormatterStorage<ReactionRemoved>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -3172,6 +3475,20 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_52.UnionIndex != 52)
                 throw new InvalidOperationException();
             IonFormatterStorage<ShowModal>.Write(writer, n_52);
+        }
+
+        else if (value is ReactionAdded n_53)
+        {
+            if (n_53.UnionIndex != 53)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ReactionAdded>.Write(writer, n_53);
+        }
+
+        else if (value is ReactionRemoved n_54)
+        {
+            if (n_54.UnionIndex != 54)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ReactionRemoved>.Write(writer, n_54);
         }
     
         else
@@ -4438,6 +4755,66 @@ public sealed class Ion_ShowModal_Formatter : IonFormatter<ShowModal>
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.interactionId);
         IonFormatterStorage<IonModalDefinition>.Write(writer, value.modal);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ReactionAdded_Formatter : IonFormatter<ReactionAdded>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ReactionAdded Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __emoji = IonFormatterStorage<string>.Read(reader);
+        var __customemojiid = reader.ReadNullable<guid>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__spaceid, __channelid, __messageid, __userid, __emoji, __customemojiid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ReactionAdded value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.emoji);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.customEmojiId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ReactionRemoved_Formatter : IonFormatter<ReactionRemoved>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ReactionRemoved Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __emoji = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__spaceid, __channelid, __messageid, __userid, __emoji);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ReactionRemoved value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<i8>.Write(writer, value.messageId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.emoji);
         writer.WriteEndArray();
     }
 }

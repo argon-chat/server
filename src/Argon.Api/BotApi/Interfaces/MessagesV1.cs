@@ -5,7 +5,7 @@ using Argon.Features.BotApi.Contracts;
 
 [BotInterface("IMessages", 1)]
 [BotDescription("Send messages and retrieve message history from channels.")]
-[StableContract("2885642024b3ef35e571ce02cf7c9dc58861071df3ac2954931065c49ca356d5")]
+[StableContract("bd1b0ab376c3db85c5c8932b02b13938e0e6de5e69662afc928869bf3b54eba6")]
 [BotRoute("POST", "/Send",    RequestType = typeof(SendMessageRequest), ResponseType = typeof(SendMessageResponse), Description = "Sends a text message to a channel. Include a unique randomId for deduplication. Optionally reply to another message via replyTo.", Permission = "SendMessages")]
 [BotRoute("GET",  "/History", ResponseType = typeof(MessageHistoryResponse), Description = "Gets message history for a channel. Pass channelId as a query parameter. Supports pagination via from (message ID) and limit (1–100, default 50).", Permission = "ReadMessages")][BotError("/Send", 403, "not_a_member", "Bot is not a member of this space.")]
 [BotError("/History", 403, "not_a_member", "Bot is not a member of this space.")]public sealed class MessagesV1(IGrainFactory grains) : IBotInterface
@@ -30,7 +30,13 @@ using Argon.Features.BotApi.Contracts;
         DateTimeOffset   CreatedAt,
         long?            ReplyTo,
         List<IMessageEntity> Entities,
-        List<ControlRowV1>?  Controls = null);
+        List<ControlRowV1>?  Controls = null,
+        List<ReactionDto>?   Reactions = null);
+
+    public sealed record ReactionDto(
+        string     Emoji,
+        int        Count,
+        List<Guid> UserIds);
 
     public sealed record MessageHistoryResponse(
         List<MessageDto> Messages);
@@ -62,7 +68,8 @@ using Argon.Features.BotApi.Contracts;
                 messages.Select(m => new MessageDto(
                     m.MessageId, m.ChannelId, m.SpaceId,
                     m.Text, m.CreatorId, m.CreatedAt,
-                    m.Reply, m.Entities, m.Controls)).ToList()));
+                    m.Reply, m.Entities, m.Controls,
+                    m.Reactions?.Select(r => new ReactionDto(r.Emoji, r.UserIds.Count, r.UserIds.Take(3).ToList())).ToList())).ToList()));
         });
     }
 }

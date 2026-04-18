@@ -115,6 +115,15 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     [Alias(nameof(EditBotMessage))]
     Task EditBotMessage(long messageId, Guid botUserId, string? text, List<ControlRowV1>? controls);
+
+    [Alias(nameof(AddReaction))]
+    Task<IAddReactionResult> AddReaction(long messageId, string emoji);
+
+    [Alias(nameof(RemoveReaction))]
+    Task<IRemoveReactionResult> RemoveReaction(long messageId, string emoji);
+
+    [Alias(nameof(BatchGetReactions))]
+    Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds);
 }
 
 /// <summary>

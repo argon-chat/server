@@ -484,6 +484,65 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         
         IonFormatterStorage<ISubmitModalResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AddReaction_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __emoji = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.AddReaction(__spaceid, __channelid, __messageid, __emoji);
+        
+        IonFormatterStorage<IAddReactionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RemoveReaction_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+        var __emoji = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RemoveReaction(__spaceid, __channelid, __messageid, __emoji);
+        
+        IonFormatterStorage<IRemoveReactionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BatchGetReactions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageids = IonFormatterStorage<i8>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BatchGetReactions(__spaceid, __channelid, __messageids);
+        
+        IonFormatterStorage<MessageReactionsEntry>.WriteArray(writer, result);
+    }
 
     
     
@@ -541,6 +600,12 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return InteractWithSelect_Execute(reader, writer, ct);
         if (methodName.Equals("SubmitModal", StringComparison.InvariantCultureIgnoreCase))
             return SubmitModal_Execute(reader, writer, ct);
+        if (methodName.Equals("AddReaction", StringComparison.InvariantCultureIgnoreCase))
+            return AddReaction_Execute(reader, writer, ct);
+        if (methodName.Equals("RemoveReaction", StringComparison.InvariantCultureIgnoreCase))
+            return RemoveReaction_Execute(reader, writer, ct);
+        if (methodName.Equals("BatchGetReactions", StringComparison.InvariantCultureIgnoreCase))
+            return BatchGetReactions_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

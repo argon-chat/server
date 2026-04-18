@@ -33,9 +33,11 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<RealtimeChannel>.Value = new Ion_RealtimeChannel_Formatter();
       IonFormatterStorage<LinkedMeetingInfo>.Value = new Ion_LinkedMeetingInfo_Formatter();
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
+      IonFormatterStorage<ReactionInfo>.Value = new Ion_ReactionInfo_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
       IonFormatterStorage<RealtimeChannelUser>.Value = new Ion_RealtimeChannelUser_Formatter();
       IonFormatterStorage<AttachmentInfo>.Value = new Ion_AttachmentInfo_Formatter();
+      IonFormatterStorage<MessageReactionsEntry>.Value = new Ion_MessageReactionsEntry_Formatter();
       IonFormatterStorage<SlashCommandOption>.Value = new Ion_SlashCommandOption_Formatter();
       IonFormatterStorage<ModalSubmitValue>.Value = new Ion_ModalSubmitValue_Formatter();
       IonFormatterStorage<IonModalSelectOption>.Value = new Ion_IonModalSelectOption_Formatter();
@@ -57,6 +59,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<InvokeSlashCommandError>.Value = new Ion_InvokeSlashCommandError_Formatter();
       IonFormatterStorage<InteractWithControlError>.Value = new Ion_InteractWithControlError_Formatter();
       IonFormatterStorage<InteractWithSelectError>.Value = new Ion_InteractWithSelectError_Formatter();
+      IonFormatterStorage<AddReactionError>.Value = new Ion_AddReactionError_Formatter();
+      IonFormatterStorage<RemoveReactionError>.Value = new Ion_RemoveReactionError_Formatter();
       IonFormatterStorage<SubmitModalError>.Value = new Ion_SubmitModalError_Formatter();
       IonFormatterStorage<IonTextInputStyle>.Value = new Ion_IonTextInputStyle_Formatter();
       IonFormatterStorage<IonModalComponentType>.Value = new Ion_IonModalComponentType_Formatter();
@@ -72,6 +76,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IInteractWithControlResult>.Value = new Ion_IInteractWithControlResult_Formatter();
       IonFormatterStorage<IInteractWithSelectResult>.Value = new Ion_IInteractWithSelectResult_Formatter();
       IonFormatterStorage<ISubmitModalResult>.Value = new Ion_ISubmitModalResult_Formatter();
+      IonFormatterStorage<IAddReactionResult>.Value = new Ion_IAddReactionResult_Formatter();
+      IonFormatterStorage<IRemoveReactionResult>.Value = new Ion_IRemoveReactionResult_Formatter();
       IonFormatterStorage<IInterlinkResult>.Value = new Ion_IInterlinkResult_Formatter();
       IonFormatterStorage<IInterlinkStreamResult>.Value = new Ion_IInterlinkStreamResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
@@ -191,6 +197,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedInteractWithSelect>.Value = new Ion_FailedInteractWithSelect_Formatter();
       IonFormatterStorage<SuccessSubmitModal>.Value = new Ion_SuccessSubmitModal_Formatter();
       IonFormatterStorage<FailedSubmitModal>.Value = new Ion_FailedSubmitModal_Formatter();
+      IonFormatterStorage<SuccessAddReaction>.Value = new Ion_SuccessAddReaction_Formatter();
+      IonFormatterStorage<FailedAddReaction>.Value = new Ion_FailedAddReaction_Formatter();
+      IonFormatterStorage<SuccessRemoveReaction>.Value = new Ion_SuccessRemoveReaction_Formatter();
+      IonFormatterStorage<FailedRemoveReaction>.Value = new Ion_FailedRemoveReaction_Formatter();
       IonFormatterStorage<SuccessJoinVoice>.Value = new Ion_SuccessJoinVoice_Formatter();
       IonFormatterStorage<FailedJoinVoice>.Value = new Ion_FailedJoinVoice_Formatter();
       IonFormatterStorage<SuccessStartStream>.Value = new Ion_SuccessStartStream_Formatter();
@@ -248,6 +258,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<InteractionAcked>.Value = new Ion_InteractionAcked_Formatter();
       IonFormatterStorage<InteractionDeferred>.Value = new Ion_InteractionDeferred_Formatter();
       IonFormatterStorage<ShowModal>.Value = new Ion_ShowModal_Formatter();
+      IonFormatterStorage<ReactionAdded>.Value = new Ion_ReactionAdded_Formatter();
+      IonFormatterStorage<ReactionRemoved>.Value = new Ion_ReactionRemoved_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

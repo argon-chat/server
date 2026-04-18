@@ -16,7 +16,7 @@
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
         <PackageReference Include="Hussien.SnowflakeId" Version="3.3.0" />
         <PackageReference Include="JetBrains.Annotations" Version="2025.2.4" />
-        <PackageReference Include="MailKit" Version="4.15.1" />
+        <PackageReference Include="MailKit" Version="4.16.0" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.5" />
         <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.5" />
         <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.4.0" />
@@ -96,7 +96,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.201" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.202" />
     </ItemGroup>
 
 </Project>

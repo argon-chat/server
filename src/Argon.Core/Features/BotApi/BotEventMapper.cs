@@ -53,9 +53,15 @@ public static class BotEventMapper
 
         var sender = await userCache.GetOrResolveAsync(msg.sender);
 
+        var reactions = msg.reactions.Size > 0
+            ? msg.reactions.Values
+               .Select(r => new BotReactionV1(r.emoji, r.count, r.userIds.Values.ToList()))
+               .ToList()
+            : null;
+
         return new BotMessageV1(
             msg.messageId, msg.replyId, msg.channelId, msg.spaceId,
-            msg.text, entities, msg.timeSent, sender, controls);
+            msg.text, entities, msg.timeSent, sender, controls, reactions);
     }
 
     private static BotMessageEntityV1 Base(EntityType type, int offset, int length) => new()

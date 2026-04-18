@@ -168,4 +168,17 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public async Task<ISubmitModalResult> SubmitModal(Guid spaceId, Guid channelId, Guid interactionId, IonArray<ModalSubmitValue> values, CancellationToken ct = default)
         => await this.GetGrain<IChannelGrain>(channelId).SubmitModal(interactionId, values.Values.ToList());
+
+    public async Task<IAddReactionResult> AddReaction(Guid spaceId, Guid channelId, long messageId, string emoji, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).AddReaction(messageId, emoji);
+
+    public async Task<IRemoveReactionResult> RemoveReaction(Guid spaceId, Guid channelId, long messageId, string emoji, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).RemoveReaction(messageId, emoji);
+
+    public async Task<IonArray<MessageReactionsEntry>> BatchGetReactions(Guid spaceId, Guid channelId, IonArray<long> messageIds, CancellationToken ct = default)
+    {
+        var dict = await this.GetGrain<IChannelGrain>(channelId).BatchGetReactions(messageIds.Values.ToList());
+        return new IonArray<MessageReactionsEntry>(
+            dict.Select(kv => new MessageReactionsEntry(kv.Key, kv.Value)).ToList());
+    }
 }
