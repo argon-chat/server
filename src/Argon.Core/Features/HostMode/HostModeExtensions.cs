@@ -134,6 +134,7 @@ public static class HostModeExtensions
         {
             builder.AddOtel();
             builder.MapBetaOptions();
+            builder.AddVaultConfiguration();
             builder.AddVaultClient();
             builder.Services.AddServerTiming();
             builder.Services.AddTestCodeStore();
