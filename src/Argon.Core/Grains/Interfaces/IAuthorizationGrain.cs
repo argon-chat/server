@@ -14,6 +14,9 @@ public interface IAuthorizationGrain : IGrainWithGuidKey
     [Alias("Register"), AlwaysInterleave]
     Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input);
 
+    [Alias(nameof(ExternalRegister)), AlwaysInterleave]
+    Task<Either<SuccessAuthorize, FailedRegistration>> ExternalRegister(NewUserCredentialsInput input);
+
     [Alias("BeginResetPass"), AlwaysInterleave]
     Task<bool> BeginResetPass(string email);
 

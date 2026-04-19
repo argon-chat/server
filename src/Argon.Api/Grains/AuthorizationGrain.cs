@@ -17,6 +17,9 @@ public class AuthorizationGrain(
     public async Task<Either<SuccessAuthorize, FailedRegistration>> Register(NewUserCredentialsInput input)
         => await authorizationService.Register(input, this.GetUserMachineId());
 
+    public async Task<Either<SuccessAuthorize, FailedRegistration>> ExternalRegister(NewUserCredentialsInput input)
+        => await authorizationService.ExternalRegister(input);
+
     public async Task<bool> BeginResetPass(string email)
         => await authorizationService.BeginResetPass(email, this.GetUserIp() ?? "unknown", this.GetUserMachineId());
 

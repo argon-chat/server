@@ -283,6 +283,100 @@ public class ArgonAuthorizationService(
         return await GenerateJwt(user, machineId);
     }
 
+    public async Task<Either<SuccessAuthorize, FailedRegistration>> ExternalRegister(NewUserCredentialsInput input)
+    {
+        var             sw  = Stopwatch.StartNew();
+        await using var ctx = await dbFactory.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+        if (user is not null)
+        {
+            sw.Stop();
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "email_taken"));
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+            logger.LogWarning("Email already registered '{email}'", input.email);
+            return RegistrationErrorConstants.EmailAlreadyRegistered();
+        }
+
+        var normalizedUserName = input.username.ToLowerInvariant();
+
+        user = await ctx.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == normalizedUserName);
+        if (user is not null)
+        {
+            sw.Stop();
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "username_taken"));
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+            logger.LogWarning("Username already registered '{username}'", input.username);
+            return RegistrationErrorConstants.UsernameAlreadyTaken();
+        }
+
+        var reserved = await ctx.Reservation.FirstOrDefaultAsync(x => x.NormalizedUserName == normalizedUserName);
+        if (reserved is not null)
+        {
+            sw.Stop();
+            var resultTag = reserved.IsBanned ? "username_taken" : "username_reserved";
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", resultTag));
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+            logger.LogWarning("Username reserved '{username}'", input.username);
+            if (reserved.IsBanned)
+                return RegistrationErrorConstants.UsernameAlreadyTaken();
+            return RegistrationErrorConstants.UsernameReserved();
+        }
+
+        var strategy = ctx.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            var userId = Guid.NewGuid();
+            user = new UserEntity()
+            {
+                AvatarFileId              = null,
+                CreatedAt                 = DateTime.UtcNow,
+                Email                     = input.email,
+                Id                        = userId,
+                Username                  = input.username,
+                PasswordDigest            = passwordHashingService.HashPassword(input.password),
+                DisplayName               = input.displayName,
+                DateOfBirth               = input.birthDate,
+                AgreeTOS                  = input.argreeTos,
+                AllowedSendOptionalEmails = input.argreeOptionalEmails
+            };
+            await ctx.Users.AddAsync(user);
+
+            await ctx.UserProfiles.AddAsync(new UserProfileEntity
+            {
+                UserId = userId,
+                Id     = Guid.NewGuid(),
+                Badges = [],
+            });
+
+            await ctx.SaveChangesAsync();
+        });
+
+        sw.Stop();
+
+        if (user is null)
+        {
+            AuthorizationGrainInstrument.UserRegistrations.Add(1,
+                new KeyValuePair<string, object?>("result", "error"));
+            AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("result", "failed"));
+            return RegistrationErrorConstants.InternalError();
+        }
+
+        AuthorizationGrainInstrument.UserRegistrations.Add(1,
+            new KeyValuePair<string, object?>("result", "success"));
+        AuthorizationGrainInstrument.UserRegistrationDuration.Record(sw.Elapsed.TotalMilliseconds,
+            new KeyValuePair<string, object?>("result", "success"));
+
+        return await GenerateJwt(user);
+    }
+
     public async Task<bool> BeginResetPass(string email, string userIp, string machineId)
     {
         var             sw = Stopwatch.StartNew();
