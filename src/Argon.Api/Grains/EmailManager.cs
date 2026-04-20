@@ -211,6 +211,30 @@ public class EmailManager(
         }
     }
 
+    public async Task<string> SendRawAsync(string to, string subject, string html, string? from, string? replyTo)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[RAW EMAIL]: to={To}, subject={Subject}", to, subject);
+            return $"{Guid.NewGuid()}@argon.gl";
+        }
+
+        var message = new MimeMessage();
+        message.From.Add(MailboxAddress.Parse(from ?? smtpOptions.Value.User));
+        message.To.Add(MailboxAddress.Parse(to));
+        message.Subject = subject;
+        if (!string.IsNullOrEmpty(replyTo))
+            message.ReplyTo.Add(MailboxAddress.Parse(replyTo));
+        message.Body = new TextPart("html") { Text = html };
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        await SendAsync(to, message, cts.Token);
+
+        var messageId = message.MessageId ?? $"{Guid.NewGuid()}@argon.gl";
+        logger.LogInformation("[RAW EMAIL] Sent to={To}, subject={Subject}, messageId={MessageId}", to, subject, messageId);
+        return messageId;
+    }
+
     public async Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default)
     {
         string addressLocalPart;

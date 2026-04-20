@@ -33,6 +33,9 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendRegistrationInviteAsync)), OneWay]
     Task SendRegistrationInviteAsync(string email, string link, string appName, TimeSpan validity);
 
+    [Alias(nameof(SendRawAsync))]
+    Task<string> SendRawAsync(string to, string subject, string html, string? from, string? replyTo);
+
     [Alias(nameof(ValidateEMailDestination))]
     Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default);
 }
