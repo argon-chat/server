@@ -174,7 +174,7 @@ public class ChannelGrain(
 
         var userId = this.GetUserId();
 
-        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.KickMember))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.KickMember))
         {
             ChannelGrainInstrument.MemberKicks.Add(1,
                 new KeyValuePair<string, object?>("result", "no_permission"));
@@ -255,7 +255,7 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         // Check if user has permission to create meetings
-        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.ManageChannels, ct))
         {
             ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
                 new KeyValuePair<string, object?>("result", "no_permission"));
@@ -400,7 +400,7 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         // Check if user has permission
-        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.ManageChannels, ct))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.ManageChannels, ct))
         {
             ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
                 new KeyValuePair<string, object?>("result", "no_permission"));
@@ -639,6 +639,11 @@ public class ChannelGrain(
 
     public async Task<ChannelEntity> UpdateChannel(ChannelInput input)
     {
+        var callerId = this.GetUserId();
+
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels))
+            throw new UnauthorizedAccessException("No permission to manage channels");
+
         await using var ctx = await context.CreateDbContextAsync();
 
         var channel = await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
@@ -666,8 +671,7 @@ public class ChannelGrain(
 
         if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment))
         {
-            await using var ectx = await context.CreateDbContextAsync();
-            if (!await entitlementChecker.HasAccessAsync(ectx, SpaceId, senderId, ArgonEntitlement.AttachFiles))
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.AttachFiles))
                 throw new InvalidOperationException("User does not have AttachFiles permission");
 
             var attachmentCount = entities.Count(e => e is MessageEntityAttachment);
@@ -939,7 +943,7 @@ public class ChannelGrain(
             var userId = this.GetUserId();
             await using var ctx = await context.CreateDbContextAsync(ct);
 
-            if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.AttachFiles, ct))
+            if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.AttachFiles, ct))
                 return UploadFileError.NOT_AUTHORIZED;
 
             var result = await kineticaFs.CreateUploadUrlAsync(AttachmentFileLimitMb, null, ct);
@@ -970,7 +974,7 @@ public class ChannelGrain(
         await using var ctx = await context.CreateDbContextAsync();
 
         // Check UseCommands permission
-        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.UseCommands))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.UseCommands))
         {
             BotApiInstrument.CommandErrors.Add(1,
                 new KeyValuePair<string, object?>("error", "insufficient_permissions"));
@@ -1076,7 +1080,7 @@ public class ChannelGrain(
                             && ma.ServerMember.UserId == senderId
                             && ma.ArchetypeId == requiredId);
             if (!hasArchetype
-                && !await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.ManageServer))
+                && !await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.ManageServer))
                 return new FailedInteractWithControl(InteractWithControlError.ARCHETYPE_REQUIRED);
         }
 
@@ -1147,7 +1151,7 @@ public class ChannelGrain(
                             && ma.ServerMember.UserId == senderId
                             && ma.ArchetypeId == requiredId);
             if (!hasArchetype
-                && !await entitlementChecker.HasAccessAsync(ctx, SpaceId, senderId, ArgonEntitlement.ManageServer))
+                && !await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), senderId, ArgonEntitlement.ManageServer))
                 return new FailedInteractWithSelect(InteractWithSelectError.ARCHETYPE_REQUIRED);
         }
 
@@ -1252,7 +1256,7 @@ public class ChannelGrain(
         var channelId = this.GetPrimaryKey();
 
         await using var ctx = await context.CreateDbContextAsync();
-        if (!await entitlementChecker.HasAccessAsync(ctx, SpaceId, userId, ArgonEntitlement.AddReactions))
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.AddReactions))
         {
             ChannelGrainInstrument.ReactionsAdded.Add(1,
                 new KeyValuePair<string, object?>("result", "no_permission"));

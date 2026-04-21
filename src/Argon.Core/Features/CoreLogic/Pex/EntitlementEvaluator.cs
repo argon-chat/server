@@ -67,9 +67,14 @@ public static class EntitlementEvaluator
         ArchetypeEntity targetToEdit,
         List<ArchetypeEntity> userArchetypes)
     {
-        var maxEntitlement = userArchetypes.Max(x => (ulong)x.Entitlement);
+        var userPermissions = userArchetypes
+           .Aggregate(ArgonEntitlement.None, (current, archetype) => current | archetype.Entitlement);
 
-        return maxEntitlement > (ulong)targetToEdit.Entitlement;
+        if (userPermissions.HasFlag(ArgonEntitlementKit.Administrator))
+            return true;
+
+        var targetEntitlement = targetToEdit.Entitlement;
+        return (userPermissions & targetEntitlement) == targetEntitlement;
     }
 
     public static bool IsAllowedToEdit(

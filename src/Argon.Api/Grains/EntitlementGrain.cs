@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Argon.Core.Features.Transport;
+using Argon.Core.Services;
 using Features.Repositories;
 using ion.runtime;
 using Services.L1L2;
@@ -12,6 +13,8 @@ public class EntitlementGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IServerRepository serverRepository,
     IArchetypeAgent archetypeAgent,
+    IEntitlementChecker entitlementChecker,
+    IPermissionCache permissionCache,
     AppHubServer appHubServer,
     ILogger<IEntitlementGrain> logger) : Grain, IEntitlementGrain
 {
@@ -27,7 +30,7 @@ public class EntitlementGrain(
         await using var ctx        = await context.CreateDbContextAsync();
         var             archetypes = await archetypeAgent.GetAllAsync(this.GetPrimaryKey());
 
-        if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageArchetype))
+        if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageArchetype))
             return archetypes
                .Select(x => new ArchetypeGroup(x, IonArray<Guid>.Empty))
                .ToList();
@@ -71,6 +74,9 @@ public class EntitlementGrain(
         var creatorId = this.GetUserId();
 
         await using var ctx = await context.CreateDbContextAsync();
+
+        if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), creatorId, ArgonEntitlement.ManageArchetype))
+            throw new UnauthorizedAccessException("No permission to manage archetypes");
 
         var arch = new ArchetypeEntity()
         {
@@ -159,7 +165,7 @@ public class EntitlementGrain(
 
             if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
             {
-                Ensure.That(await ctx.SaveChangesAsync() == 1);
+                await ctx.SaveChangesAsync();
                 return await Changed(archetypeEntity.Entity);
             }
         }
@@ -167,8 +173,8 @@ public class EntitlementGrain(
         if (!EntitlementEvaluator.IsAllowedToEdit(archetype, invokerArchetypes))
             return null;
 
-        //if (!archetype.Name.Equals(dto.name))
-        //    archetype.Name = dto.Name;
+        if (!archetype.Name.Equals(dto.name, StringComparison.Ordinal))
+            archetype.Name = dto.name;
         if (archetype.Colour.ToArgb() != dto.colour)
             archetype.Colour = Color.FromArgb(dto.colour);
 
@@ -176,7 +182,7 @@ public class EntitlementGrain(
         archetype.IsMentionable = dto.isMentionable;
         archetype.UpdatedAt     = DateTimeOffset.UtcNow;
 
-        Ensure.That(await ctx.SaveChangesAsync() == 1);
+        await ctx.SaveChangesAsync();
         return await Changed(archetypeEntity.Entity);
 
 
@@ -184,6 +190,7 @@ public class EntitlementGrain(
         {
             var result = value.ToDto();
             await archetypeAgent.DoUpdatedAsync(value);
+            await permissionCache.SignalSpaceInvalidationAsync(this.GetPrimaryKey());
             await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             return result;
         }
@@ -196,7 +203,7 @@ public class EntitlementGrain(
 
         var callerId = this.GetUserId();
 
-        if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
+        if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
             return null;
 
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
@@ -210,6 +217,7 @@ public class EntitlementGrain(
             {
                 ChannelId      = channelId,
                 SpaceMemberId  = memberId,
+                Scope          = IArchetypeScope.Member,
                 Allow          = allow,
                 Deny           = deny
             };
@@ -234,7 +242,7 @@ public class EntitlementGrain(
 
         var callerId = this.GetUserId();
 
-        if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
+        if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
             return false;
 
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
@@ -256,7 +264,7 @@ public class EntitlementGrain(
 
         var callerId = this.GetUserId();
 
-        if (!await HasAccessAsync(ctx, callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
+        if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), callerId, ArgonEntitlement.ManageChannels | ArgonEntitlement.ManageArchetype))
             return null;
 
         var overwrite = await ctx.ChannelEntitlementOverwrites.FirstOrDefaultAsync(x =>
@@ -270,6 +278,7 @@ public class EntitlementGrain(
             {
                 ChannelId   = channelId,
                 ArchetypeId = archetypeId,
+                Scope       = IArchetypeScope.Archetype,
                 Allow       = allow,
                 Deny        = deny
             };
@@ -337,6 +346,7 @@ public class EntitlementGrain(
                 SpaceMemberId = memberId
             });
             Ensure.That(await ctx.SaveChangesAsync() == 1);
+            await InvalidateMemberPermissions(ctx, memberId);
             return true;
         }
 
@@ -348,28 +358,19 @@ public class EntitlementGrain(
 
         ctx.MemberArchetypes.Remove(e);
         Ensure.That(await ctx.SaveChangesAsync() == 1);
+        await InvalidateMemberPermissions(ctx, memberId);
         return true;
     }
 
-    private async Task<bool> HasAccessAsync(ApplicationDbContext ctx, Guid callerId, ArgonEntitlement requiredEntitlement)
+    private async Task InvalidateMemberPermissions(ApplicationDbContext ctx, Guid memberId)
     {
-        var invoker = await ctx.UsersToServerRelations
-           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.UserId == callerId)
-           .Include(x => x.SpaceMemberArchetypes)
-           .ThenInclude(x => x.Archetype)
+        var member = await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(x => x.Id == memberId)
+           .Select(x => x.UserId)
            .FirstOrDefaultAsync();
-
-        if (invoker is null)
-            return false;
-
-        var invokerArchetypes = invoker
-           .SpaceMemberArchetypes
-           .Select(x => x.Archetype)
-           .ToList();
-
-        return invokerArchetypes.Any(x
-            => x.Entitlement.HasFlag(requiredEntitlement));
+        if (member != default)
+            await permissionCache.SignalMemberInvalidationAsync(this.GetPrimaryKey(), member);
     }
-
 
 }

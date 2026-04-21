@@ -17,8 +17,8 @@ public record ArchetypeEntity : ArgonEntityWithOwnership, IArchetype, IEntityTyp
     public virtual SpaceEntity Space   { get; set; }
 
 
-    public string Name        { get; init; } = string.Empty;
-    public string Description { get; init; } = string.Empty;
+    public string Name        { get; set; } = string.Empty;
+    public string Description { get; set; } = string.Empty;
 
     public ArgonEntitlement Entitlement { get; set; }
 
