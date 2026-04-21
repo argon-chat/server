@@ -31,6 +31,8 @@ public interface IArchetypeInteraction : IIonService
     Task<bool> SetArchetypeToMember(guid spaceId, guid memberId, guid archetypeId, bool isGrant, CancellationToken ct = default);
     Task<IonArray<ArchetypeGroup>> GetDetailedServerArchetypes(guid spaceId, CancellationToken ct = default);
     Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(guid spaceId, guid channelId, guid archetypeId, ArgonEntitlement deny, ArgonEntitlement allow, CancellationToken ct = default);
+    Task<IonArray<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<bool> DeleteEntitlementForChannel(guid spaceId, guid channelId, guid entitlementOverwriteId, CancellationToken ct = default);
 }
 
 

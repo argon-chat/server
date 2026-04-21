@@ -22,4 +22,10 @@ public class ArchetypeInteraction : IArchetypeInteraction
 
     public async Task<ChannelEntitlementOverwrite?> UpsertArchetypeEntitlementForChannel(Guid spaceId, Guid channelId, Guid archetypeId, ArgonEntitlement deny, ArgonEntitlement allow, CancellationToken ct = default)
         => await this.GetGrain<IEntitlementGrain>(spaceId).UpsertArchetypeEntitlementForChannel(channelId, archetypeId, deny, allow);
+
+    public async Task<IonArray<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this.GetGrain<IEntitlementGrain>(spaceId).GetChannelEntitlementOverwrites(channelId);
+
+    public async Task<bool> DeleteEntitlementForChannel(Guid spaceId, Guid channelId, Guid entitlementOverwriteId, CancellationToken ct = default)
+        => await this.GetGrain<IEntitlementGrain>(spaceId).DeleteEntitlementForChannel(channelId, entitlementOverwriteId);
 }

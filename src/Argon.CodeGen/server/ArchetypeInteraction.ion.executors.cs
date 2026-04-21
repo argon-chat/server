@@ -128,6 +128,43 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         
         IonFormatterStorage<ChannelEntitlementOverwrite>.WriteNullable(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetChannelEntitlementOverwrites_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetChannelEntitlementOverwrites(__spaceid, __channelid);
+        
+        IonFormatterStorage<ChannelEntitlementOverwrite>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteEntitlementForChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __entitlementoverwriteid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteEntitlementForChannel(__spaceid, __channelid, __entitlementoverwriteid);
+        
+        IonFormatterStorage<bool>.Write(writer, result);
+    }
 
     
     
@@ -147,6 +184,10 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
             return GetDetailedServerArchetypes_Execute(reader, writer, ct);
         if (methodName.Equals("UpsertArchetypeEntitlementForChannel", StringComparison.InvariantCultureIgnoreCase))
             return UpsertArchetypeEntitlementForChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("GetChannelEntitlementOverwrites", StringComparison.InvariantCultureIgnoreCase))
+            return GetChannelEntitlementOverwrites_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteEntitlementForChannel", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteEntitlementForChannel_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

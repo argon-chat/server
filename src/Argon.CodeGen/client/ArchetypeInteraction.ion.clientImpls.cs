@@ -30,6 +30,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         typeof(IArchetypeInteraction).GetMethod(nameof(GetDetailedServerArchetypes), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UpsertArchetypeEntitlementForChannel_Ref = new(() =>
         typeof(IArchetypeInteraction).GetMethod(nameof(UpsertArchetypeEntitlementForChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetChannelEntitlementOverwrites_Ref = new(() =>
+        typeof(IArchetypeInteraction).GetMethod(nameof(GetChannelEntitlementOverwrites), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteEntitlementForChannel_Ref = new(() =>
+        typeof(IArchetypeInteraction).GetMethod(nameof(DeleteEntitlementForChannel), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -143,6 +147,43 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         writer.WriteEndArray();
     
         return await req.CallAsyncNullable<ChannelEntitlementOverwrite>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IArchetypeInteraction), GetChannelEntitlementOverwrites_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<ChannelEntitlementOverwrite>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<bool> DeleteEntitlementForChannel(guid __spaceid, guid __channelid, guid __entitlementoverwriteid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IArchetypeInteraction), DeleteEntitlementForChannel_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<guid>.Write(writer, __entitlementoverwriteid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
 
 }
