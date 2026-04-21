@@ -36,8 +36,6 @@ public class SpaceGrain(
     public async override Task OnActivateAsync(CancellationToken ct)
     {
         await state.ReadStateAsync(ct);
-        state.State.UserStatuses.Clear();
-        await state.WriteStateAsync(ct);
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken ct)
@@ -108,9 +106,7 @@ public class SpaceGrain(
            .Include(x => x.SpaceMemberArchetypes)
            .FirstAsync();
 
-        var status = state.State.UserStatuses.TryGetValue(x.UserId, out var item)
-            ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 2 ? item.Status : UserStatus.Offline
-            : UserStatus.Offline;
+        var status   = await userPresence.GetAggregatedStatusAsync(x.UserId);
         var presence = await userPresence.GetUsersActivityPresence(x.UserId);
 
         return new RealtimeServerMember(x.ToDto(), status, presence);
@@ -137,11 +133,13 @@ public class SpaceGrain(
            .ToListAsync();
 
         var ids        = members.Select(x => x.UserId).Distinct().ToList();
+        var statuses   = await userPresence.BatchGetAggregatedStatusAsync(ids);
         var activities = await userPresence.BatchGetUsersActivityPresence(ids);
 
-        return members.Select(x => new RealtimeServerMember(x.ToDto(), state.State.UserStatuses.TryGetValue(x.UserId, out var item)
-            ? (item.lastSetStatus - DateTime.UtcNow).TotalMinutes < 15 ? item.Status : UserStatus.Offline
-            : UserStatus.Offline, (activities.TryGetValue(x.UserId, out var presence) ? presence : null))).ToList();
+        return members.Select(x => new RealtimeServerMember(
+            x.ToDto(),
+            statuses.TryGetValue(x.UserId, out var s) ? s : UserStatus.Offline,
+            activities.TryGetValue(x.UserId, out var presence) ? presence : null)).ToList();
     }
 
     public async Task<List<RealtimeChannel>> GetChannels()
@@ -296,7 +294,6 @@ public class SpaceGrain(
 
     public async Task SetUserStatus(Guid userId, UserStatus status)
     {
-        state.State.UserStatuses[userId] = (DateTime.UtcNow, status);
         await Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));
     }
 

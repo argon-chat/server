@@ -21,6 +21,7 @@ public interface IUserPresenceService
     Task<bool>                   IsUserOnlineAsync(Guid userId, CancellationToken ct = default);
     Task<Dictionary<Guid, bool>> AreUsersOnlineAsync(IEnumerable<Guid> userIds, CancellationToken ct = default);
     Task                         SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default);
+    Task                         RemoveSessionAsync(Guid userId, string sessionId, CancellationToken ct = default);
     Task<List<string>>           GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
 
     Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId);
@@ -49,6 +50,16 @@ public interface IUserPresenceService
     /// Gets the cached aggregated status for a user. O(1) operation.
     /// </summary>
     Task<UserStatus> GetAggregatedStatusAsync(Guid userId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Batch-gets the cached aggregated status for multiple users. O(N) parallel reads.
+    /// </summary>
+    Task<Dictionary<Guid, UserStatus>> BatchGetAggregatedStatusAsync(List<Guid> userIds, CancellationToken ct = default);
+
+    /// <summary>
+    /// Checks whether a specific session's presence key still exists in Redis.
+    /// </summary>
+    Task<bool> IsSessionAliveAsync(Guid userId, string sessionId, CancellationToken ct = default);
 }
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
@@ -160,10 +171,11 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         await RecalculateAggregatedStatusAsync(userId, ct);
     }
 
-    public Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    public async Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var key = SessionStatusKey(userId, sessionId);
-        return cache.UpdateStringExpirationAsync(key, DefaultTTL, ct);
+        await cache.UpdateStringExpirationAsync(key, DefaultTTL, ct);
+        await cache.UpdateStringExpirationAsync(AggregatedStatusKey(userId), DefaultTTL, ct);
     }
 
     public async Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
@@ -224,4 +236,22 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 
     private static string AggregatedStatusKey(Guid userId)
         => $"status:user:{userId}:aggregated";
+
+    public async Task<Dictionary<Guid, UserStatus>> BatchGetAggregatedStatusAsync(List<Guid> userIds, CancellationToken ct = default)
+    {
+        var distinctIds = userIds.Distinct().ToList();
+        var results = await Task.WhenAll(distinctIds.Select(async id =>
+        {
+            var statusStr = await cache.StringGetAsync(AggregatedStatusKey(id), ct);
+            var status = !string.IsNullOrEmpty(statusStr) && Enum.TryParse<UserStatus>(statusStr, out var s)
+                ? s
+                : UserStatus.Offline;
+            return (id, status);
+        }));
+
+        return results.ToDictionary(x => x.id, x => x.status);
+    }
+
+    public Task<bool> IsSessionAliveAsync(Guid userId, string sessionId, CancellationToken ct = default)
+        => cache.KeyExistsAsync(SessionKey(userId, sessionId), ct);
 }

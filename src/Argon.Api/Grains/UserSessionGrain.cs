@@ -3,10 +3,8 @@ namespace Argon.Grains;
 using Argon.Api.Features.Bus;
 using Features.Logic;
 using Instruments;
-using MessagePipe;
 using Orleans;
 using Orleans.Concurrency;
-using Orleans.Streams;
 using Services;
 using static DeactivationReasonCode;
 
@@ -14,9 +12,7 @@ public class UserSessionGrain(
     IGrainFactory grainFactory,
     IClusterClient clusterClient,
     ILogger<IUserSessionGrain> logger,
-    IUserPresenceService presenceService,
-    IArgonCacheDatabase cache,
-    IRedisEventStorage eventStorage)
+    IUserPresenceService presenceService)
     : Grain, IUserSessionGrain
 {
     private Guid   _userId;
@@ -26,7 +22,6 @@ public class UserSessionGrain(
     private IGrainTimer? refreshTimer;
 
     private UserStatus?  _preferredStatus;
-    private IDisposable? _cacheSubscriber;
 
     private DateTime? _lastHeartbeatTime;
     private DateTime? _lastDebouncedHeartbeatTime;
@@ -46,7 +41,6 @@ public class UserSessionGrain(
         
         logger.LogInformation("Grain for session {sessionId} has been shutdown, linkedUserId: {userId}", SessionId, _shadowUserId);
         
-        _cacheSubscriber?.Dispose();
         refreshTimer?.Dispose();
         refreshTimer = null;
 
@@ -87,17 +81,12 @@ public class UserSessionGrain(
         logger.LogInformation("Grain for session {sessionId} has been activated, linkedUserId: {userId}", SessionId, _shadowUserId);
 
         _lastHeartbeatTime = DateTime.UtcNow;
-        var bag = DisposableBag.CreateBuilder();
 
         refreshTimer = this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
-
-        eventStorage.OnKeyExpiredSubscribeAsync(OnKeyExpired).AddTo(bag);
         
         await presenceService.SetSessionOnlineAsync(_userId, SessionId);
         await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus.Value);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
-        
-        _cacheSubscriber = bag.Build();
 
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
 
@@ -105,81 +94,49 @@ public class UserSessionGrain(
         UserSessionGrainInstrument.IncrementActiveSession();
     }
 
-    private static readonly TimeSpan ExpireGrace = TimeSpan.FromSeconds(10);
-
-    private async ValueTask OnKeyExpired(OnRedisKeyExpired ev, CancellationToken ct = default)
-    {
-        var key = ev.key;
-        if (!key.StartsWith($"presence:user:{_userId}:session:"))
-            return;
-
-        using var _ = logger.BeginScope("scope for {scopeType}, key: {key}, userId: {userId},  {sessionId}",
-            "OnKeyExpired", key, _userId, SessionId);
-
-        var now = DateTime.UtcNow;
-        if (_lastHeartbeatTime is not null
-            && now - _lastHeartbeatTime.Value <= (UserPresenceService.DefaultTTL - ExpireGrace))
-        {
-            logger.LogWarning("Ignore EXPIRE for session {sessionId}: last heartbeat {age} ago (< TTL {ttl} - grace {grace})",
-                SessionId, now - _lastHeartbeatTime.Value, UserPresenceService.DefaultTTL, ExpireGrace);
-
-            refreshTimer ??= this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
-            return;
-        }
-
-        refreshTimer?.Dispose();
-        refreshTimer = null;
-
-        logger.LogInformation("Destroyed timer for session: {sessionId}, userId: {userId}", SessionId, _userId);
-
-        // Remove this session's status from Redis
-        await presenceService.RemoveSessionStatusAsync(_userId, SessionId, ct);
-
-        if (!await presenceService.IsUserOnlineAsync(_userId, ct))
-        {
-            logger.LogInformation("This is last user session, become totally offline");
-            var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds(ct);
-            await Task.WhenAll(servers.Select(server =>
-                grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline)));
-            await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
-            
-            UserSessionGrainInstrument.Expirations.Add(1,
-                new KeyValuePair<string, object?>("result", "offline"));
-            
-            logger.LogInformation("All necessary steps completed, self destroy called soon");
-            await SelfDestroy();
-            return;
-        }
-
-        // Re-aggregate status from remaining sessions
-        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(ct);
-
-        UserSessionGrainInstrument.Expirations.Add(1,
-            new KeyValuePair<string, object?>("result", "switch_session"));
-
-        logger.LogInformation("This is not last user session, destroy only this session grain");
-        await SelfDestroy();
-    }
-
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
-        
-        // Only refresh TTL, don't broadcast - status hasn't changed
-        await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
 
-        if (!await presenceService.IsUserOnlineAsync(_userId, arg))
+        // Check if our own presence key is still alive — if not, session is dead
+        if (!await presenceService.IsSessionAliveAsync(_userId, SessionId, arg))
         {
-            var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds(arg);
-            await Task.WhenAll(servers.Select(server =>
-                grainFactory
-                   .GetGrain<ISpaceGrain>(server)
-                   .SetUserStatus(_userId, UserStatus.Offline)));
+            logger.LogInformation("Presence key expired for session {sessionId}, userId {userId} — cleaning up",
+                SessionId, _userId);
+
             refreshTimer?.Dispose();
             refreshTimer = null;
+
+            // Remove this session's status from Redis
+            await presenceService.RemoveSessionStatusAsync(_userId, SessionId, arg);
+
+            if (!await presenceService.IsUserOnlineAsync(_userId, arg))
+            {
+                logger.LogInformation("Last session for user {userId}, going totally offline", _userId);
+                var servers = await grainFactory.GetGrain<IUserGrain>(_userId).GetMyServersIds(arg);
+                await Task.WhenAll(servers.Select(server =>
+                    grainFactory.GetGrain<ISpaceGrain>(server).SetUserStatus(_userId, UserStatus.Offline)));
+                await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync();
+
+                UserSessionGrainInstrument.Expirations.Add(1,
+                    new KeyValuePair<string, object?>("result", "offline"));
+            }
+            else
+            {
+                // Re-aggregate status from remaining sessions
+                await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(arg);
+
+                UserSessionGrainInstrument.Expirations.Add(1,
+                    new KeyValuePair<string, object?>("result", "switch_session"));
+            }
+
             await SelfDestroy();
             return;
         }
+
+        // Session is alive — refresh TTLs for both status and presence keys
+        await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
+        await presenceService.HeartbeatAsync(_userId, SessionId, arg);
     }
 
     public async ValueTask<bool> HeartBeatAsync(UserStatus status)
@@ -270,8 +227,8 @@ public class UserSessionGrain(
             await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
         }
 
-        // Expire presence key soon
-        await cache.UpdateStringExpirationAsync($"presence:user:{_userId}:session:{SessionId}", TimeSpan.FromSeconds(1));
+        // Remove presence key
+        await presenceService.RemoveSessionAsync(_userId, SessionId);
         
         await SelfDestroy();
     }

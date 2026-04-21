@@ -37,6 +37,7 @@ public sealed class BotGatewayGrain(
     // Track last consumed NATS sequence per space for cursor/resume
     private readonly Dictionary<Guid, ulong>                _lastSequences = new();
     private ulong                                           _lastDirectSeq;
+    private int                                             _presenceTickCount;
 
     private Guid BotUserId => this.GetPrimaryKey();
 
@@ -242,6 +243,15 @@ public sealed class BotGatewayGrain(
 
         await presenceService.RefreshSessionStatusTtlAsync(BotUserId, BotSessionId, ct);
         await presenceService.HeartbeatAsync(BotUserId, BotSessionId, ct);
+
+        // Every 5th tick (~2.5 min), re-broadcast Online to all spaces
+        // This recovers from SpaceGrain reactivations that lose real-time push state
+        _presenceTickCount++;
+        if (_presenceTickCount % 5 == 0)
+        {
+            foreach (var spaceId in _spaceIds)
+                _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
+        }
     }
 
     private async Task CreateConsumerForSpace(Guid spaceId)
