@@ -1,5 +1,6 @@
 namespace Argon.Services.Ion;
 
+using Argon.Core.Entities.Data;
 using ArgonContracts;
 using ion.runtime;
 
@@ -49,5 +50,33 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         if (!result.Success)
             return new FailedUninstallBot(result.Error!.Value);
         return new SuccessUninstallBot();
+    }
+
+    public async Task<IonArray<SpaceCommand>> GetSpaceCommands(Guid spaceId, CancellationToken ct = default)
+    {
+        var installedBots = await this.GetGrain<ISpaceGrain>(spaceId).GetInstalledBots();
+        var allCommands = new List<SpaceCommand>();
+
+        foreach (var bot in installedBots)
+        {
+            var commands = await this.GetGrain<IBotCommandsGrain>(bot.AppId).ListForSpace(spaceId);
+            foreach (var cmd in commands)
+            {
+                allCommands.Add(new SpaceCommand(
+                    cmd.CommandId,
+                    bot.AppId,
+                    cmd.Name,
+                    cmd.Description,
+                    cmd.Options.Select(o => new SpaceCommandOption(
+                        o.Name,
+                        o.Description,
+                        (CommandOptionType)(int)o.Type,
+                        o.Required
+                    )).ToList()
+                ));
+            }
+        }
+
+        return new(allCommands);
     }
 }
