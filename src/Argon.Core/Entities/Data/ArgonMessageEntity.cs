@@ -78,7 +78,7 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 r.Emoji, r.CustomEmojiId, r.UserIds.Count,
                 r.UserIds.Take(ReactionUserPreviewLimit).ToList())).ToList()
             ?? [],
-            MapControls(self.Controls));
+            MapControls(self.Controls) ?? []);
 
     private static List<ControlRow>? MapControls(List<ControlRowV1>? rows)
     {
@@ -91,7 +91,7 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 c.Colour is { } col ? new ArgonContracts.OklchColor(col.L, col.C, col.H) : null,
                 c.Disabled, c.CustomId, c.Placeholder,
                 c.MinValues, c.MaxValues,
-                c.Options?.Select(o => new SelectOption(o.Label, o.Value, o.Description, o.Default)).ToList(),
+                c.Options?.Select(o => new SelectOption(o.Label, o.Value, o.Description, o.Default)).ToList() ?? [],
                 c.RequiredArchetypeId
             )).ToList()
         )).ToList();
