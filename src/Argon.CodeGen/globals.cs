@@ -21,6 +21,7 @@ global using u2 = System.UInt16;
 global using u4 = System.UInt32;
 global using u8 = System.UInt64;
 global using u16 = System.UInt128;
+global using bytes = ion.runtime.IonBytes;
 
 global using f2 = System.Half;
 global using f4 = System.Single;

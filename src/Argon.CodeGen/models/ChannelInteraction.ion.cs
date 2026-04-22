@@ -35,7 +35,7 @@ public sealed record ReactionInfo(string emoji, guid? customEmojiId, i4 count, I
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonMessage(i8 messageId, i8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender, IonArray<ReactionInfo> reactions);
+public sealed record ArgonMessage(i8 messageId, i8? replyId, guid channelId, guid spaceId, string text, IonArray<IMessageEntity> entities, datetime timeSent, guid sender, IonArray<ReactionInfo> reactions, IonArray<ControlRow>? controls);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -52,6 +52,22 @@ public sealed record MessageReactionsEntry(i8 messageId, IonArray<ReactionInfo> 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SlashCommandOption(string name, string value);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OklchColor(f4 l, f4 c, f4 h);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SelectOption(string label, string value, string? description, bool? isDefault);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record BotControl(ControlType type, ButtonVariant? variant, string? label, string? id, string? url, OklchColor? colour, bool? disabled, string? customId, string? placeholder, i4? minValues, i4? maxValues, IonArray<SelectOption>? options, guid? requiredArchetypeId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ControlRow(IonArray<BotControl> controls);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -151,6 +167,25 @@ public enum EntityType
     SystemCallTimeout = 18,
     SystemUserJoined = 19,
     Attachment = 20,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ControlType
+{
+    Button = 0,
+    StringSelect = 1,
+    UserSelect = 2,
+    ArchetypeSelect = 3,
+    ChannelSelect = 4,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ButtonVariant
+{
+    Callback = 0,
+    Link = 1,
 }
 
 

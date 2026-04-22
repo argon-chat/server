@@ -172,14 +172,15 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
         var __timesent = IonFormatterStorage<datetime>.Read(reader);
         var __sender = IonFormatterStorage<guid>.Read(reader);
         var __reactions = IonFormatterStorage<ReactionInfo>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 9);
-        return new(__messageid, __replyid, __channelid, __spaceid, __text, __entities, __timesent, __sender, __reactions);
+        var __controls = IonFormatterStorage<ControlRow>.ReadNullableArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__messageid, __replyid, __channelid, __spaceid, __text, __entities, __timesent, __sender, __reactions, __controls);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonMessage value)
     {
-        writer.WriteStartArray(9);
+        writer.WriteStartArray(10);
         IonFormatterStorage<i8>.Write(writer, value.messageId);
         IonFormatterStorage<i8>.WriteNullable(writer, value.replyId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
@@ -189,6 +190,7 @@ public sealed class Ion_ArgonMessage_Formatter : IonFormatter<ArgonMessage>
         IonFormatterStorage<datetime>.Write(writer, value.timeSent);
         IonFormatterStorage<guid>.Write(writer, value.sender);
         IonFormatterStorage<ReactionInfo>.WriteArray(writer, value.reactions);
+        IonFormatterStorage<ControlRow>.WriteNullableArray(writer, value.controls);
         writer.WriteEndArray();
     }
 }
@@ -285,6 +287,124 @@ public sealed class Ion_SlashCommandOption_Formatter : IonFormatter<SlashCommand
         writer.WriteStartArray(2);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.value);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OklchColor_Formatter : IonFormatter<OklchColor>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OklchColor Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __l = IonFormatterStorage<f4>.Read(reader);
+        var __c = IonFormatterStorage<f4>.Read(reader);
+        var __h = IonFormatterStorage<f4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__l, __c, __h);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OklchColor value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<f4>.Write(writer, value.l);
+        IonFormatterStorage<f4>.Write(writer, value.c);
+        IonFormatterStorage<f4>.Write(writer, value.h);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SelectOption_Formatter : IonFormatter<SelectOption>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SelectOption Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __label = IonFormatterStorage<string>.Read(reader);
+        var __value = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __isdefault = reader.ReadNullable<bool>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__label, __value, __description, __isdefault);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SelectOption value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.label);
+        IonFormatterStorage<string>.Write(writer, value.value);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isDefault);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_BotControl_Formatter : IonFormatter<BotControl>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public BotControl Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<ControlType>.Read(reader);
+        var __variant = reader.ReadNullable<ButtonVariant>();
+        var __label = reader.ReadNullable<string>();
+        var __id = reader.ReadNullable<string>();
+        var __url = reader.ReadNullable<string>();
+        var __colour = reader.ReadNullable<OklchColor>();
+        var __disabled = reader.ReadNullable<bool>();
+        var __customid = reader.ReadNullable<string>();
+        var __placeholder = reader.ReadNullable<string>();
+        var __minvalues = reader.ReadNullable<i4>();
+        var __maxvalues = reader.ReadNullable<i4>();
+        var __options = IonFormatterStorage<SelectOption>.ReadNullableArray(reader);
+        var __requiredarchetypeid = reader.ReadNullable<guid>();
+        reader.ReadEndArrayAndSkip(arraySize - 13);
+        return new(__type, __variant, __label, __id, __url, __colour, __disabled, __customid, __placeholder, __minvalues, __maxvalues, __options, __requiredarchetypeid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, BotControl value)
+    {
+        writer.WriteStartArray(13);
+        IonFormatterStorage<ControlType>.Write(writer, value.type);
+        IonFormatterStorage<ButtonVariant>.WriteNullable(writer, value.variant);
+        IonFormatterStorage<string>.WriteNullable(writer, value.label);
+        IonFormatterStorage<string>.WriteNullable(writer, value.id);
+        IonFormatterStorage<string>.WriteNullable(writer, value.url);
+        IonFormatterStorage<OklchColor>.WriteNullable(writer, value.colour);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.disabled);
+        IonFormatterStorage<string>.WriteNullable(writer, value.customId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.placeholder);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.minValues);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.maxValues);
+        IonFormatterStorage<SelectOption>.WriteNullableArray(writer, value.options);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.requiredArchetypeId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ControlRow_Formatter : IonFormatter<ControlRow>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ControlRow Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __controls = IonFormatterStorage<BotControl>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__controls);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ControlRow value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<BotControl>.WriteArray(writer, value.controls);
         writer.WriteEndArray();
     }
 }
@@ -728,6 +848,40 @@ public sealed class Ion_EntityType_Formatter : IonFormatter<EntityType>
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, EntityType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ControlType_Formatter : IonFormatter<ControlType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ControlType Read(CborReader reader)
+    {
+         return (ControlType)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ControlType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ButtonVariant_Formatter : IonFormatter<ButtonVariant>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ButtonVariant Read(CborReader reader)
+    {
+         return (ButtonVariant)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ButtonVariant value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);

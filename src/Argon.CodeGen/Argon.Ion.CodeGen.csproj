@@ -6,11 +6,11 @@
     <RootNamespace>Argon</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ionpath.runtime" Version="1.2.9" />
-    <PackageReference Include="ionpath.runtime.client" Version="1.2.9" />
-    <PackageReference Include="ionpath.runtime.network" Version="1.2.9" />
+    <PackageReference Include="ionpath.runtime" Version="1.3.0" />
+    <PackageReference Include="ionpath.runtime.client" Version="1.3.0" />
+    <PackageReference Include="ionpath.runtime.network" Version="1.3.0" />
   </ItemGroup>
   <ItemGroup>
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.202" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.203" />
   </ItemGroup>
 </Project>

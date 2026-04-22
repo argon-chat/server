@@ -25,8 +25,11 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<BotSearchResult>.Value = new Ion_BotSearchResult_Formatter();
       IonFormatterStorage<BotDetails>.Value = new Ion_BotDetails_Formatter();
       IonFormatterStorage<InstalledBotInfo>.Value = new Ion_InstalledBotInfo_Formatter();
+      IonFormatterStorage<SpaceCommandOption>.Value = new Ion_SpaceCommandOption_Formatter();
+      IonFormatterStorage<SpaceCommand>.Value = new Ion_SpaceCommand_Formatter();
       IonFormatterStorage<InstallBotError>.Value = new Ion_InstallBotError_Formatter();
       IonFormatterStorage<UninstallBotError>.Value = new Ion_UninstallBotError_Formatter();
+      IonFormatterStorage<CommandOptionType>.Value = new Ion_CommandOptionType_Formatter();
       IonFormatterStorage<IInstallBotResult>.Value = new Ion_IInstallBotResult_Formatter();
       IonFormatterStorage<IUninstallBotResult>.Value = new Ion_IUninstallBotResult_Formatter();
       IonFormatterStorage<CreateChannelRequest>.Value = new Ion_CreateChannelRequest_Formatter();
@@ -39,6 +42,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AttachmentInfo>.Value = new Ion_AttachmentInfo_Formatter();
       IonFormatterStorage<MessageReactionsEntry>.Value = new Ion_MessageReactionsEntry_Formatter();
       IonFormatterStorage<SlashCommandOption>.Value = new Ion_SlashCommandOption_Formatter();
+      IonFormatterStorage<OklchColor>.Value = new Ion_OklchColor_Formatter();
+      IonFormatterStorage<SelectOption>.Value = new Ion_SelectOption_Formatter();
+      IonFormatterStorage<BotControl>.Value = new Ion_BotControl_Formatter();
+      IonFormatterStorage<ControlRow>.Value = new Ion_ControlRow_Formatter();
       IonFormatterStorage<ModalSubmitValue>.Value = new Ion_ModalSubmitValue_Formatter();
       IonFormatterStorage<IonModalSelectOption>.Value = new Ion_IonModalSelectOption_Formatter();
       IonFormatterStorage<IonModalComponent>.Value = new Ion_IonModalComponent_Formatter();
@@ -56,6 +63,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelType>.Value = new Ion_ChannelType_Formatter();
       IonFormatterStorage<JoinToChannelError>.Value = new Ion_JoinToChannelError_Formatter();
       IonFormatterStorage<EntityType>.Value = new Ion_EntityType_Formatter();
+      IonFormatterStorage<ControlType>.Value = new Ion_ControlType_Formatter();
+      IonFormatterStorage<ButtonVariant>.Value = new Ion_ButtonVariant_Formatter();
       IonFormatterStorage<InvokeSlashCommandError>.Value = new Ion_InvokeSlashCommandError_Formatter();
       IonFormatterStorage<InteractWithControlError>.Value = new Ion_InteractWithControlError_Formatter();
       IonFormatterStorage<InteractWithSelectError>.Value = new Ion_InteractWithSelectError_Formatter();

@@ -117,6 +117,62 @@ public sealed class Ion_InstalledBotInfo_Formatter : IonFormatter<InstalledBotIn
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceCommandOption_Formatter : IonFormatter<SpaceCommandOption>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceCommandOption Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = IonFormatterStorage<string>.Read(reader);
+        var __type = IonFormatterStorage<CommandOptionType>.Read(reader);
+        var __required = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__name, __description, __type, __required);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceCommandOption value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.description);
+        IonFormatterStorage<CommandOptionType>.Write(writer, value.type);
+        IonFormatterStorage<bool>.Write(writer, value.required);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceCommand_Formatter : IonFormatter<SpaceCommand>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceCommand Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __commandid = IonFormatterStorage<guid>.Read(reader);
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = IonFormatterStorage<string>.Read(reader);
+        var __options = IonFormatterStorage<SpaceCommandOption>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__commandid, __appid, __name, __description, __options);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceCommand value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.commandId);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.description);
+        IonFormatterStorage<SpaceCommandOption>.WriteArray(writer, value.options);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_InstallBotError_Formatter : IonFormatter<InstallBotError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -147,6 +203,23 @@ public sealed class Ion_UninstallBotError_Formatter : IonFormatter<UninstallBotE
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CommandOptionType_Formatter : IonFormatter<CommandOptionType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CommandOptionType Read(CborReader reader)
+    {
+         return (CommandOptionType)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CommandOptionType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
     }
 }
 

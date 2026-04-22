@@ -11,9 +11,11 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         var result = await this.GetGrain<IBotDirectoryGrain>(Guid.Empty).FindByUsername(query);
         if (result is null)
             return new([]);
-        return new([new BotSearchResult(
-            result.AppId, result.Name, result.Username, result.Description, result.AvatarFileId,
-            result.IsVerified, new IonArray<string>(result.RequiredScopes))]);
+        return new([
+            new BotSearchResult(
+                result.AppId, result.Name, result.Username, result.Description, result.AvatarFileId,
+                result.IsVerified, new IonArray<string>(result.RequiredScopes))
+        ]);
     }
 
     public async Task<BotDetails> GetBotDetails(Guid spaceId, Guid botAppId, CancellationToken ct = default)
@@ -55,26 +57,14 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
     public async Task<IonArray<SpaceCommand>> GetSpaceCommands(Guid spaceId, CancellationToken ct = default)
     {
         var installedBots = await this.GetGrain<ISpaceGrain>(spaceId).GetInstalledBots();
-        var allCommands = new List<SpaceCommand>();
+        var allCommands   = new List<SpaceCommand>();
 
+        // TODO limit or cache
         foreach (var bot in installedBots)
         {
             var commands = await this.GetGrain<IBotCommandsGrain>(bot.AppId).ListForSpace(spaceId);
-            foreach (var cmd in commands)
-            {
-                allCommands.Add(new SpaceCommand(
-                    cmd.CommandId,
-                    bot.AppId,
-                    cmd.Name,
-                    cmd.Description,
-                    cmd.Options.Select(o => new SpaceCommandOption(
-                        o.Name,
-                        o.Description,
-                        (CommandOptionType)(int)o.Type,
-                        o.Required
-                    )).ToList()
-                ));
-            }
+            allCommands.AddRange(commands.Select(cmd => new SpaceCommand(cmd.CommandId, bot.AppId, cmd.Name, cmd.Description,
+                cmd.Options.Select(o => new SpaceCommandOption(o.Name, o.Description, (CommandOptionType)(int)o.Type, o.Required)).ToList())));
         }
 
         return new(allCommands);

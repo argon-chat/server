@@ -28,6 +28,8 @@ public sealed class Ion_BotManagementInteraction_ClientImpl(IonClientContext con
         typeof(IBotManagementInteraction).GetMethod(nameof(InstallBot), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UninstallBot_Ref = new(() =>
         typeof(IBotManagementInteraction).GetMethod(nameof(UninstallBot), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSpaceCommands_Ref = new(() =>
+        typeof(IBotManagementInteraction).GetMethod(nameof(GetSpaceCommands), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -119,6 +121,23 @@ public sealed class Ion_BotManagementInteraction_ClientImpl(IonClientContext con
         writer.WriteEndArray();
     
         return await req.CallAsync<IUninstallBotResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<SpaceCommand>> GetSpaceCommands(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IBotManagementInteraction), GetSpaceCommands_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<SpaceCommand>(writer.Encode(), ct: ct);
     }
 
 }

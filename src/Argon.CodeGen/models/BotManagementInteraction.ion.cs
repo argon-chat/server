@@ -27,6 +27,14 @@ public sealed record InstalledBotInfo(guid appId, string name, string username, 
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceCommandOption(string name, string description, CommandOptionType type, bool required);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceCommand(guid commandId, guid appId, string name, string description, IonArray<SpaceCommandOption> options);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum InstallBotError
 {
     NONE = 0,
@@ -49,6 +57,19 @@ public enum UninstallBotError
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum CommandOptionType
+{
+    String = 0,
+    Integer = 1,
+    Boolean = 2,
+    User = 3,
+    Channel = 4,
+    Role = 5,
+    Number = 6,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IBotManagementInteraction : IIonService
 {
     Task<IonArray<BotSearchResult>> SearchBots(guid spaceId, string query, CancellationToken ct = default);
@@ -56,6 +77,7 @@ public interface IBotManagementInteraction : IIonService
     Task<IonArray<InstalledBotInfo>> GetInstalledBots(guid spaceId, CancellationToken ct = default);
     Task<IInstallBotResult> InstallBot(guid spaceId, guid botAppId, CancellationToken ct = default);
     Task<IUninstallBotResult> UninstallBot(guid spaceId, guid botAppId, CancellationToken ct = default);
+    Task<IonArray<SpaceCommand>> GetSpaceCommands(guid spaceId, CancellationToken ct = default);
 }
 
 
