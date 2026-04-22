@@ -73,7 +73,7 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
 
     public static ArgonMessage Map(scoped in ArgonMessageEntity self)
         => new(self.MessageId, self.Reply, self.ChannelId, self.SpaceId,
-            self.Text, self.Entities, self.CreatedAt.UtcDateTime, self.CreatorId,
+            self.Text, self.Entities ?? [], self.CreatedAt.UtcDateTime, self.CreatorId,
             self.Reactions?.Select(r => new ReactionInfo(
                 r.Emoji, r.CustomEmojiId, r.UserIds.Count,
                 r.UserIds.Take(ReactionUserPreviewLimit).ToList())).ToList()
