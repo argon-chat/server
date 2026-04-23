@@ -113,7 +113,7 @@ public class BotApiTests : TestBase
             AppType        = DevAppType.Bot,
             BotToken       = _botToken,
             BotAsUserId    = _botUserId,
-            IsPublic       = true,
+            LifecycleState = BotLifecycleState.Published,
             MaxSpaces      = 100,
             RequiredScopes  = [],
             AllowedRedirects = []

@@ -784,7 +784,8 @@ public class SpaceGrain(
         await using var ctx = await context.CreateDbContextAsync();
         var spaceId = this.GetPrimaryKey();
 
-        return await ctx.UsersToServerRelations
+        // Join: members → bots → users → locked archetypes (for entitlements)
+        var botsRaw = await ctx.UsersToServerRelations
            .AsNoTracking()
            .Where(m => m.SpaceId == spaceId)
            .Join(ctx.BotEntities.AsNoTracking(),
@@ -794,14 +795,33 @@ public class SpaceGrain(
            .Join(ctx.Users.AsNoTracking(),
                 x => x.Bot.BotAsUserId,
                 u => u.Id,
-                (x, u) => new InstalledBotRecord(
-                    x.Bot.AppId,
-                    x.Bot.Name,
-                    u.Username,
-                    u.AvatarFileId,
-                    x.Bot.IsVerified,
-                    x.Bot.BotAsUserId))
+                (x, u) => new { x.Member, x.Bot, User = u })
            .ToListAsync();
+
+        if (botsRaw.Count == 0)
+            return [];
+
+        // Bulk-query locked archetypes assigned to bot members in this space
+        var memberIds = botsRaw.Select(x => x.Member.Id).ToList();
+        var grantedMap = await ctx.Set<ArchetypeEntity>()
+           .AsNoTracking()
+           .Where(a => a.IsLocked && a.SpaceId == spaceId)
+           .Join(ctx.Set<SpaceMemberArchetypeEntity>().AsNoTracking()
+                    .Where(sma => memberIds.Contains(sma.SpaceMemberId)),
+                a => a.Id,
+                sma => sma.ArchetypeId,
+                (a, sma) => new { sma.SpaceMemberId, a.Entitlement })
+           .ToDictionaryAsync(x => x.SpaceMemberId, x => x.Entitlement);
+
+        return botsRaw.Select(x =>
+        {
+            var granted = grantedMap.GetValueOrDefault(x.Member.Id);
+            var pending = (x.Bot.RequiredEntitlements & ~granted) != 0;
+            return new InstalledBotRecord(
+                x.Bot.AppId, x.Bot.Name, x.User.Username, x.User.AvatarFileId,
+                x.Bot.IsVerified, x.Bot.BotAsUserId,
+                x.Bot.RequiredEntitlements, granted, pending);
+        }).ToList();
     }
 
     public async Task<InstallBotGrainResult> InstallBot(Guid botAppId)
@@ -899,7 +919,8 @@ public class SpaceGrain(
            .FirstAsync();
 
         return new InstallBotGrainResult(true, Bot: new InstalledBotRecord(
-            botAppId, bot.Name, botUser.Username, botUser.AvatarFileId, bot.IsVerified, bot.BotAsUserId));
+            botAppId, bot.Name, botUser.Username, botUser.AvatarFileId, bot.IsVerified, bot.BotAsUserId,
+            bot.RequiredEntitlements, bot.RequiredEntitlements, PendingApproval: false));
     }
 
     public async Task<UninstallBotGrainResult> UninstallBot(Guid botAppId)
@@ -973,5 +994,77 @@ public class SpaceGrain(
             await gateway.UnsubscribeFromSpace(spaceId);
 
         return new UninstallBotGrainResult(true);
+    }
+
+    public async Task<ApproveBotEntitlementsGrainResult> ApproveBotEntitlements(Guid botAppId)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        // Verify caller is the space owner
+        var space = await ctx.Spaces
+           .AsNoTracking()
+           .Where(s => s.Id == spaceId)
+           .Select(s => new { s.CreatorId })
+           .FirstOrDefaultAsync();
+
+        if (space is null)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.NOT_FOUND);
+
+        if (space.CreatorId != callerId)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.INSUFFICIENT_PERMISSIONS);
+
+        // Find the bot
+        var bot = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.AppId == botAppId)
+           .Select(b => new { b.BotAsUserId, b.RequiredEntitlements })
+           .FirstOrDefaultAsync();
+
+        if (bot is null)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.NOT_FOUND);
+
+        // Find the bot's space member
+        var botMember = await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(x => x.SpaceId == spaceId && x.UserId == bot.BotAsUserId)
+           .Select(x => new { x.Id })
+           .FirstOrDefaultAsync();
+
+        if (botMember is null)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.NOT_INSTALLED);
+
+        // Find the bot's locked archetype in this space
+        var archetype = await ctx.Set<ArchetypeEntity>()
+           .Where(a => a.IsLocked && a.SpaceId == spaceId)
+           .Join(ctx.Set<SpaceMemberArchetypeEntity>().Where(sma => sma.SpaceMemberId == botMember.Id),
+                a => a.Id,
+                sma => sma.ArchetypeId,
+                (a, _) => a)
+           .FirstOrDefaultAsync();
+
+        if (archetype is null)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.NOT_FOUND);
+
+        if (archetype.Entitlement == bot.RequiredEntitlements)
+            return new ApproveBotEntitlementsGrainResult(false, ApproveBotEntitlementsError.ALREADY_UP_TO_DATE);
+
+        // Update the locked archetype to match bot's current required entitlements
+        archetype.Entitlement = bot.RequiredEntitlements;
+        await ctx.SaveChangesAsync();
+
+        // Refetch full entity for DTO mapping
+        var fullArchetype = await ctx.Set<ArchetypeEntity>()
+           .AsNoTracking()
+           .FirstAsync(a => a.Id == archetype.Id);
+
+        // Broadcast archetype update to space clients
+        await appHubServer.BroadcastSpace(
+            new ArchetypeChanged(spaceId, fullArchetype.ToDto()),
+            spaceId);
+
+        return new ApproveBotEntitlementsGrainResult(true);
     }
 }

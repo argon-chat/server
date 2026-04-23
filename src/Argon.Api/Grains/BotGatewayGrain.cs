@@ -3,6 +3,7 @@ namespace Argon.Api.Grains;
 using Argon.Features.BotApi;
 using Argon.Features.Logic;
 using Argon.Features.NatsStreaming;
+using Argon.Core.Entities.Data;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 
@@ -12,10 +13,12 @@ using NATS.Client.JetStream.Models;
 /// Uses durable NATS consumers that persist across reconnects for automatic resume.
 /// </summary>
 public sealed class BotGatewayGrain(
-    INatsJSContext              js,
-    BotSseEventSerializer       serializer,
-    IUserPresenceService        presenceService,
-    ILogger<BotGatewayGrain>    logger) : Grain, IBotGatewayGrain
+    INatsJSContext                            js,
+    BotSseEventSerializer                     serializer,
+    IUserPresenceService                      presenceService,
+    IDbContextFactory<ApplicationDbContext>    dbContextFactory,
+    BotEventPublisher                         botEventPublisher,
+    ILogger<BotGatewayGrain>                  logger) : Grain, IBotGatewayGrain
 {
     private static readonly Dictionary<BotEventType, BotIntent> EventIntents = BuildEventIntentMap();
 
@@ -43,7 +46,7 @@ public sealed class BotGatewayGrain(
 
     private string BotSessionId => $"bot_{BotUserId:N}";
 
-    public async Task<List<Guid>> ConnectAsync(BotIntent intents)
+    public async Task<List<BotSpaceInfo>> ConnectAsync(BotIntent intents)
     {
         _intents     = intents;
         _isConnected = true;
@@ -74,10 +77,67 @@ public sealed class BotGatewayGrain(
             BotPresenceTickAsync,
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
 
+        // Bulk-query locked bot archetypes to build per-space entitlement info
+        var spaceInfos = await BuildSpaceInfosAsync(spaceIds);
+
         logger.LogInformation("Bot {BotId} connected with intents {Intents}, spaces: {SpaceCount}",
             BotUserId, intents, spaceIds.Count);
 
-        return spaceIds;
+        return spaceInfos;
+    }
+
+    /// <summary>
+    /// Bulk-query locked bot archetypes for all spaces and detect entitlement mismatches.
+    /// Publishes BotEntitlementsUpdated direct event for each space with pending approval.
+    /// </summary>
+    private async Task<List<BotSpaceInfo>> BuildSpaceInfosAsync(List<Guid> spaceIds)
+    {
+        if (spaceIds.Count == 0)
+            return [];
+
+        await using var ctx = await dbContextFactory.CreateDbContextAsync();
+
+        // Get the bot's current required entitlements
+        var bot = await ctx.BotEntities
+           .AsNoTracking()
+           .Where(b => b.BotAsUserId == BotUserId)
+           .Select(b => new { b.RequiredEntitlements })
+           .FirstOrDefaultAsync();
+
+        if (bot is null)
+            return spaceIds.Select(id => new BotSpaceInfo(id, default, false)).ToList();
+
+        // Single bulk query: locked archetypes for this bot across all spaces
+        var grantedMap = await ctx.Set<ArchetypeEntity>()
+           .AsNoTracking()
+           .Where(a => a.IsLocked && spaceIds.Contains(a.SpaceId))
+           .Join(ctx.Set<SpaceMemberArchetypeEntity>().AsNoTracking(),
+                a => a.Id,
+                sma => sma.ArchetypeId,
+                (a, sma) => new { a.SpaceId, a.Entitlement, sma.SpaceMemberId })
+           .Join(ctx.UsersToServerRelations.AsNoTracking().Where(m => m.UserId == BotUserId),
+                x => x.SpaceMemberId,
+                m => m.Id,
+                (x, _) => new { x.SpaceId, x.Entitlement })
+           .ToDictionaryAsync(x => x.SpaceId, x => x.Entitlement);
+
+        var result = new List<BotSpaceInfo>(spaceIds.Count);
+        foreach (var spaceId in spaceIds)
+        {
+            var granted = grantedMap.GetValueOrDefault(spaceId);
+            var pending = (bot.RequiredEntitlements & ~granted) != 0;
+            result.Add(new BotSpaceInfo(spaceId, granted, pending));
+
+            // Publish direct event to bot for each space with pending entitlements
+            if (pending)
+            {
+                await botEventPublisher.PublishBotLifecycleAsync(BotUserId,
+                    BotEventType.BotEntitlementsUpdated,
+                    new BotEntitlementsUpdatedEvent(spaceId, bot.RequiredEntitlements, granted));
+            }
+        }
+
+        return result;
     }
 
     public async Task DisconnectAsync()

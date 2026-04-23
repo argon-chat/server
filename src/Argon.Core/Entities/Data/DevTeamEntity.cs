@@ -221,6 +221,7 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
 
     public BotLifecycleState LifecycleState       { get; set; } = BotLifecycleState.Development;
     public ArgonEntitlement  RequiredEntitlements  { get; set; } = ArgonEntitlementKit.Base;
+    public int               EntitlementsVersion   { get; set; }
 
     public int MaxSpaces { get; set; }
 

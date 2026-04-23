@@ -86,6 +86,9 @@ public interface ISpaceGrain : IGrainWithGuidKey
 
     [Alias(nameof(UninstallBot))]
     Task<UninstallBotGrainResult> UninstallBot(Guid botAppId);
+
+    [Alias(nameof(ApproveBotEntitlements))]
+    Task<ApproveBotEntitlementsGrainResult> ApproveBotEntitlements(Guid botAppId);
 }
 
 public enum ServerCreationError
@@ -107,12 +110,15 @@ public enum SpaceFileKind
 
 [GenerateSerializer, Immutable]
 public sealed record InstalledBotRecord(
-    [property: Id(0)] Guid   AppId,
-    [property: Id(1)] string Name,
-    [property: Id(2)] string Username,
-    [property: Id(3)] string? AvatarFileId,
-    [property: Id(4)] bool   IsVerified,
-    [property: Id(5)] Guid   BotUserId);
+    [property: Id(0)] Guid              AppId,
+    [property: Id(1)] string            Name,
+    [property: Id(2)] string            Username,
+    [property: Id(3)] string?           AvatarFileId,
+    [property: Id(4)] bool              IsVerified,
+    [property: Id(5)] Guid              BotUserId,
+    [property: Id(6)] ArgonEntitlement  RequiredEntitlements,
+    [property: Id(7)] ArgonEntitlement  GrantedEntitlements,
+    [property: Id(8)] bool              PendingApproval);
 
 [GenerateSerializer, Immutable]
 public sealed record InstallBotGrainResult(
@@ -124,3 +130,8 @@ public sealed record InstallBotGrainResult(
 public sealed record UninstallBotGrainResult(
     [property: Id(0)] bool Success,
     [property: Id(1)] UninstallBotError? Error = null);
+
+[GenerateSerializer, Immutable]
+public sealed record ApproveBotEntitlementsGrainResult(
+    [property: Id(0)] bool Success,
+    [property: Id(1)] ApproveBotEntitlementsError? Error = null);

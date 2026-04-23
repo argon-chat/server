@@ -9,9 +9,9 @@ namespace Argon.Features.BotApi;
 // ─── Connection Lifecycle ────────────────────────────────
 
 [BotEventDefinition(BotEventType.Ready, "Connection")]
-[BotEventDescription("Sent immediately on SSE connection. Contains active intents and subscribed space IDs.")]
-[StableEventContract("af9c11272a6b02ea211da307137349df80f2d3b0c3e3f569e66d7f3bde53ba14")]
-public sealed record ReadyEventPayload(long Intents, Guid[] SpaceIds);
+[BotEventDescription("Sent immediately on SSE connection. Contains active intents and per-space entitlement info.")]
+[StableEventContract("b7e3a1f0c4d2e891a0f5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7")]
+public sealed record ReadyEventPayload(long Intents, BotSpaceInfo[] Spaces);
 
 [BotEventDefinition(BotEventType.Heartbeat, "Connection")]
 [BotEventDescription("Keep-alive ping sent every 30 seconds. Contains cursor for reconnection.")]
@@ -124,6 +124,13 @@ public sealed record BotInstallingToSpaceEvent(
 [BotEventDescription("Sent directly to the bot when a server administrator uninstalls it from a space. Always delivered regardless of intents.")]
 public sealed record BotUninstallingFromSpaceEvent(
     Guid SpaceId);
+
+[BotEventDefinition(BotEventType.BotEntitlementsUpdated, "BotLifecycle")]
+[BotEventDescription("Sent directly to the bot when its required entitlements are out of sync with a space's granted entitlements. Always delivered regardless of intents.")]
+public sealed record BotEntitlementsUpdatedEvent(
+    Guid              SpaceId,
+    ArgonEntitlement  RequiredEntitlements,
+    ArgonEntitlement  GrantedEntitlements);
 
 // ─── Commands ────────────────────────────────────────────
 

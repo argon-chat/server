@@ -13,10 +13,10 @@ public interface IBotGatewayGrain : IGrainWithGuidKey
     /// Begins a bot session with the specified intents.
     /// Creates NATS consumers for all bot spaces.
     /// Sets bot status to Online.
-    /// Returns the list of space IDs the bot is a member of.
+    /// Returns per-space info including effective entitlements.
     /// </summary>
     [Alias(nameof(ConnectAsync))]
-    Task<List<Guid>> ConnectAsync(BotIntent intents);
+    Task<List<BotSpaceInfo>> ConnectAsync(BotIntent intents);
 
     /// <summary>
     /// Ends the bot session. Deletes NATS consumers.
@@ -59,3 +59,13 @@ public interface IBotGatewayGrain : IGrainWithGuidKey
     [Alias(nameof(GetCursor))]
     Task<string> GetCursor();
 }
+
+/// <summary>
+/// Per-space info returned on bot connect.
+/// Includes effective (granted) entitlements and whether the bot has pending approval for expanded permissions.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record BotSpaceInfo(
+    [property: Id(0)] Guid             SpaceId,
+    [property: Id(1)] ArgonEntitlement GrantedEntitlements,
+    [property: Id(2)] bool             PendingApproval);
