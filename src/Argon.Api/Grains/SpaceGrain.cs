@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
+using Argon.Core.Entities.Data;
 using Argon.Core.Features.Transport;
 using Argon.Features.BotApi;
 using Core.Services;
@@ -827,14 +828,11 @@ public class SpaceGrain(
         var bot = await ctx.BotEntities
            .AsNoTracking()
            .Where(b => b.AppId == botAppId)
-           .Select(b => new { b.BotAsUserId, b.Name, b.IsVerified, b.MaxSpaces, b.IsPublic, b.IsRestricted })
+           .Select(b => new { b.BotAsUserId, b.Name, b.IsVerified, b.MaxSpaces, b.LifecycleState, b.RequiredEntitlements })
            .FirstOrDefaultAsync();
 
-        if (bot is null || !bot.IsPublic)
+        if (bot is null || bot.LifecycleState != BotLifecycleState.Published)
             return new InstallBotGrainResult(false, InstallBotError.NOT_FOUND);
-
-        if (bot.IsRestricted)
-            return new InstallBotGrainResult(false, InstallBotError.BOT_RESTRICTED);
 
         // Check already installed
         var alreadyInstalled = await ctx.UsersToServerRelations
@@ -854,6 +852,35 @@ public class SpaceGrain(
 
         // Join the bot-as-user to the space directly, no RequestContext hacks
         await AddMemberAsync(bot.BotAsUserId);
+
+        // Create a locked archetype with the bot's required entitlements
+        var botArchetype = new ArchetypeEntity
+        {
+            Id          = Guid.NewGuid(),
+            SpaceId     = spaceId,
+            CreatorId   = callerId,
+            Name        = $"Bot: {bot.Name}",
+            Description = $"Auto-created archetype for bot {bot.Name}",
+            Entitlement = bot.RequiredEntitlements,
+            IsLocked    = true,
+            IsHidden    = true,
+            IsGroup     = false,
+            IsDefault   = false,
+        };
+        ctx.Set<ArchetypeEntity>().Add(botArchetype);
+
+        // Assign archetype to the bot member
+        var botMember = await ctx.UsersToServerRelations
+           .Where(m => m.SpaceId == spaceId && m.UserId == bot.BotAsUserId)
+           .Select(m => new { m.Id })
+           .FirstAsync();
+
+        ctx.Set<SpaceMemberArchetypeEntity>().Add(new SpaceMemberArchetypeEntity
+        {
+            SpaceMemberId = botMember.Id,
+            ArchetypeId   = botArchetype.Id,
+        });
+        await ctx.SaveChangesAsync();
 
         // Notify bot gateway about new space subscription
         var gateway = grainFactory.GetGrain<IBotGatewayGrain>(bot.BotAsUserId);
@@ -905,12 +932,36 @@ public class SpaceGrain(
         if (bot is null)
             return new UninstallBotGrainResult(false, UninstallBotError.NOT_FOUND);
 
-        var deleted = await ctx.UsersToServerRelations
+        // Find the bot's space member
+        var botMember = await ctx.UsersToServerRelations
            .Where(x => x.SpaceId == spaceId && x.UserId == bot.BotAsUserId)
+           .Select(x => new { x.Id })
+           .FirstOrDefaultAsync();
+
+        if (botMember is null)
+            return new UninstallBotGrainResult(false, UninstallBotError.NOT_INSTALLED);
+
+        // Collect archetype IDs assigned to the bot member
+        var archetypeIds = await ctx.Set<SpaceMemberArchetypeEntity>()
+           .Where(x => x.SpaceMemberId == botMember.Id)
+           .Select(x => x.ArchetypeId)
+           .Distinct()
+           .ToListAsync();
+
+        // Delete archetype assignments
+        await ctx.Set<SpaceMemberArchetypeEntity>()
+           .Where(x => x.SpaceMemberId == botMember.Id)
            .ExecuteDeleteAsync();
 
-        if (deleted == 0)
-            return new UninstallBotGrainResult(false, UninstallBotError.NOT_INSTALLED);
+        // Delete the bot's locked archetypes
+        if (archetypeIds.Count > 0)
+            await ctx.Set<ArchetypeEntity>()
+               .Where(a => archetypeIds.Contains(a.Id) && a.IsLocked && a.Name.StartsWith("Bot: "))
+               .ExecuteDeleteAsync();
+
+        await ctx.UsersToServerRelations
+           .Where(x => x.Id == botMember.Id)
+           .ExecuteDeleteAsync();
 
         // Publish lifecycle event to the bot
         await botEventPublisher.PublishBotLifecycleAsync(bot.BotAsUserId,

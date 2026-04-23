@@ -1,8 +1,10 @@
 namespace Argon.Core.Entities.Data;
 
+using System.ComponentModel.DataAnnotations.Schema;
 using Argon.Features.EF;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using static ArgonContracts.ArgonEntitlement;
 
 public record DevTeamEntity : ArgonEntityNoKey, IEntityTypeConfiguration<DevTeamEntity>
 {
@@ -214,15 +216,24 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
     public required string BotToken { get; set; }
 
     public bool RequiresOAuth2 { get; set; } = true;
-    public bool IsPublic       { get; set; }
     public bool AllowDMs       { get; set; }
     public bool IsVerified     { get; set; }
-    public bool IsRestricted   { get; set; }
+
+    public BotLifecycleState LifecycleState       { get; set; } = BotLifecycleState.Development;
+    public ArgonEntitlement  RequiredEntitlements  { get; set; } = ArgonEntitlementKit.Base;
 
     public int MaxSpaces { get; set; }
 
     public         Guid       BotAsUserId { get; set; }
     public virtual UserEntity BotAsUser   { get; set; } = null!;
+
+    /// <summary>Derived: bot is publicly installable when Published.</summary>
+    [NotMapped]
+    public bool IsPublic => LifecycleState == BotLifecycleState.Published;
+
+    /// <summary>Derived: bot is restricted when Suspended.</summary>
+    [NotMapped]
+    public bool IsRestricted => LifecycleState == BotLifecycleState.Suspended;
 
     public void Configure(EntityTypeBuilder<BotEntity> builder)
     {
@@ -230,10 +241,26 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
         builder.Property(x => x.BotToken)
            .IsRequired();
 
+        builder.Property(x => x.LifecycleState)
+           .HasDefaultValue(BotLifecycleState.Development);
+
+        builder.Property(x => x.RequiredEntitlements)
+           .HasDefaultValue(ArgonEntitlementKit.Base);
+
+        builder.Ignore(x => x.IsPublic);
+        builder.Ignore(x => x.IsRestricted);
+
         builder
            .HasOne(x => x.BotAsUser)
            .WithOne(x => x.BotEntity)
            .HasForeignKey<BotEntity>(x => x.BotAsUserId)
            .OnDelete(DeleteBehavior.Cascade);
     }
+}
+
+public enum BotLifecycleState
+{
+    Development = 0,
+    Published   = 1,
+    Suspended   = 2,
 }

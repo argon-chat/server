@@ -15,11 +15,11 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record BotSearchResult(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, IonArray<string> requiredScopes);
+public sealed record BotSearchResult(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, IonArray<string> requiredScopes, ArgonEntitlement requiredEntitlements);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record BotDetails(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, IonArray<string> requiredScopes, i4 maxSpaces, string teamName);
+public sealed record BotDetails(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, IonArray<string> requiredScopes, i4 maxSpaces, string teamName, ArgonEntitlement requiredEntitlements);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

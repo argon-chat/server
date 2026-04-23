@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using ArgonContracts;
+
 [Alias($"Argon.Grains.Interfaces.{nameof(IBotDirectoryGrain)}")]
 public interface IBotDirectoryGrain : IGrainWithGuidKey
 {
@@ -31,7 +33,8 @@ public sealed record BotSearchInfo(
     [property: Id(3)] string? Description,
     [property: Id(4)] string? AvatarFileId,
     [property: Id(5)] bool   IsVerified,
-    [property: Id(6)] List<string> RequiredScopes);
+    [property: Id(6)] List<string> RequiredScopes,
+    [property: Id(7)] ArgonEntitlement RequiredEntitlements);
 
 [GenerateSerializer, Immutable]
 public sealed record BotDetailInfo(
@@ -44,4 +47,5 @@ public sealed record BotDetailInfo(
     [property: Id(6)] bool   IsPublic,
     [property: Id(7)] List<string> RequiredScopes,
     [property: Id(8)] int    MaxSpaces,
-    [property: Id(9)] string TeamName);
+    [property: Id(9)] string TeamName,
+    [property: Id(10)] ArgonEntitlement RequiredEntitlements);

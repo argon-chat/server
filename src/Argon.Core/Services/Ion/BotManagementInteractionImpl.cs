@@ -14,7 +14,7 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         return new([
             new BotSearchResult(
                 result.AppId, result.Name, result.Username, result.Description, result.AvatarFileId,
-                result.IsVerified, new IonArray<string>(result.RequiredScopes))
+                result.IsVerified, new IonArray<string>(result.RequiredScopes), result.RequiredEntitlements)
         ]);
     }
 
@@ -26,7 +26,7 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         return new BotDetails(
             d.AppId, d.Name, d.Username, d.Description, d.AvatarFileId,
             d.IsVerified, d.IsPublic, new IonArray<string>(d.RequiredScopes),
-            d.MaxSpaces, d.TeamName);
+            d.MaxSpaces, d.TeamName, d.RequiredEntitlements);
     }
 
     public async Task<IonArray<InstalledBotInfo>> GetInstalledBots(Guid spaceId, CancellationToken ct = default)
