@@ -10,7 +10,7 @@ namespace Argon.Features.BotApi;
 
 [BotEventDefinition(BotEventType.Ready, "Connection")]
 [BotEventDescription("Sent immediately on SSE connection. Contains active intents and per-space entitlement info.")]
-[StableEventContract("b7e3a1f0c4d2e891a0f5b6c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7")]
+[StableEventContract("ed6777c0df6afe84a18e0909683a943f781c56658becd371c697e87241616fb0")]
 public sealed record ReadyEventPayload(long Intents, BotSpaceInfo[] Spaces);
 
 [BotEventDefinition(BotEventType.Heartbeat, "Connection")]
