@@ -69,13 +69,13 @@ public static class HostModeExtensions
             {
                 options.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
 
+                var defaultPort = 5002;
+
+                if (Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p)
+                    defaultPort = int.Parse(p);
+
                 if (builder.IsUseLocalHostCerts())
                 {
-                    var defaultPort = 5002;
-
-                    if (Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p)
-                        defaultPort = int.Parse(p);
-
                     options.ListenAnyIP(defaultPort, listenOptions =>
                     {
                         static X509Certificate2 LoadLocalhostCerts(WebApplicationBuilder builder)
@@ -96,6 +96,20 @@ public static class HostModeExtensions
 
                         listenOptions.UseHttps(LoadLocalhostCerts(builder));
                         listenOptions.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
+                    });
+                }
+                else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key") &&
+                         Environment.GetEnvironmentVariable("LEGACY_CERT_LOADING") is not null)
+                {
+                    options.ListenAnyIP(defaultPort, listenOptions => {
+                        listenOptions.UseHttps(x => {
+                            x.ServerCertificate = X509Certificate2.CreateFromPemFile(
+                                "/etc/tls/tls.crt",
+                                "/etc/tls/tls.key"
+                            );
+                        });
+                        listenOptions.DisableAltSvcHeader = false;
+                        listenOptions.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
                     });
                 }
             });
