@@ -50,6 +50,21 @@ builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 
 var app = builder.Build();
+
+app.Use(async (context, next) =>
+{
+    var ingressHeaders = context.Request.Headers
+        .Where(h => h.Key.StartsWith("X-", StringComparison.OrdinalIgnoreCase)
+                  || h.Key.StartsWith("Cf-", StringComparison.OrdinalIgnoreCase)
+                  || h.Key.Equals("Host", StringComparison.OrdinalIgnoreCase)
+                  || h.Key.Equals("Forwarded", StringComparison.OrdinalIgnoreCase));
+
+    foreach (var (key, value) in ingressHeaders)
+        app.Logger.LogInformation("[Ingress] {Header}: {Value}", key, value);
+
+    await next();
+});
+
 app.UseSentryTunneling("/k");
 if (builder.Environment.IsSingleInstance())
     app.UseSingleInstanceWorkloads();
