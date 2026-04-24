@@ -30,6 +30,8 @@ public sealed class Ion_BotManagementInteraction_ClientImpl(IonClientContext con
         typeof(IBotManagementInteraction).GetMethod(nameof(UninstallBot), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetSpaceCommands_Ref = new(() =>
         typeof(IBotManagementInteraction).GetMethod(nameof(GetSpaceCommands), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ApproveBotEntitlements_Ref = new(() =>
+        typeof(IBotManagementInteraction).GetMethod(nameof(ApproveBotEntitlements), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -138,6 +140,24 @@ public sealed class Ion_BotManagementInteraction_ClientImpl(IonClientContext con
         writer.WriteEndArray();
     
         return await req.CallAsyncWithArray<SpaceCommand>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IApproveBotEntitlementsResult> ApproveBotEntitlements(guid __spaceid, guid __botappid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IBotManagementInteraction), ApproveBotEntitlements_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __botappid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IApproveBotEntitlementsResult>(writer.Encode(), ct: ct);
     }
 
 }

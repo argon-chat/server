@@ -22,7 +22,7 @@ public class BotDirectoryGrain(
 
         return await db.BotEntities
            .AsNoTracking()
-           .Where(b => b.IsPublic && !b.IsRestricted)
+           .Where(b => b.LifecycleState == BotLifecycleState.Published)
            .Join(db.Users.AsNoTracking(),
                 b => b.BotAsUserId,
                 u => u.Id,
@@ -35,7 +35,8 @@ public class BotDirectoryGrain(
                 x.Bot.Description,
                 x.User.AvatarFileId,
                 x.Bot.IsVerified,
-                x.Bot.RequiredScopes))
+                x.Bot.RequiredScopes,
+                x.Bot.RequiredEntitlements))
            .FirstOrDefaultAsync();
     }
 
@@ -108,7 +109,7 @@ public class BotDirectoryGrain(
 
         return await db.BotEntities
            .AsNoTracking()
-           .Where(b => b.AppId == botAppId && b.IsPublic && !b.IsRestricted)
+           .Where(b => b.AppId == botAppId && b.LifecycleState == BotLifecycleState.Published)
            .Join(db.Users.AsNoTracking(),
                 b => b.BotAsUserId,
                 u => u.Id,
@@ -127,7 +128,8 @@ public class BotDirectoryGrain(
                 x.Bot.IsPublic,
                 x.Bot.RequiredScopes,
                 x.Bot.MaxSpaces,
-                x.Team.Name))
+                x.Team.Name,
+                x.Bot.RequiredEntitlements))
            .FirstOrDefaultAsync();
     }
 }

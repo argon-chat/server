@@ -29,9 +29,11 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceCommand>.Value = new Ion_SpaceCommand_Formatter();
       IonFormatterStorage<InstallBotError>.Value = new Ion_InstallBotError_Formatter();
       IonFormatterStorage<UninstallBotError>.Value = new Ion_UninstallBotError_Formatter();
+      IonFormatterStorage<ApproveBotEntitlementsError>.Value = new Ion_ApproveBotEntitlementsError_Formatter();
       IonFormatterStorage<CommandOptionType>.Value = new Ion_CommandOptionType_Formatter();
       IonFormatterStorage<IInstallBotResult>.Value = new Ion_IInstallBotResult_Formatter();
       IonFormatterStorage<IUninstallBotResult>.Value = new Ion_IUninstallBotResult_Formatter();
+      IonFormatterStorage<IApproveBotEntitlementsResult>.Value = new Ion_IApproveBotEntitlementsResult_Formatter();
       IonFormatterStorage<CreateChannelRequest>.Value = new Ion_CreateChannelRequest_Formatter();
       IonFormatterStorage<RealtimeChannel>.Value = new Ion_RealtimeChannel_Formatter();
       IonFormatterStorage<LinkedMeetingInfo>.Value = new Ion_LinkedMeetingInfo_Formatter();
@@ -177,6 +179,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedInstallBot>.Value = new Ion_FailedInstallBot_Formatter();
       IonFormatterStorage<SuccessUninstallBot>.Value = new Ion_SuccessUninstallBot_Formatter();
       IonFormatterStorage<FailedUninstallBot>.Value = new Ion_FailedUninstallBot_Formatter();
+      IonFormatterStorage<SuccessApproval>.Value = new Ion_SuccessApproval_Formatter();
+      IonFormatterStorage<FailedApproval>.Value = new Ion_FailedApproval_Formatter();
       IonFormatterStorage<MessageEntityBold>.Value = new Ion_MessageEntityBold_Formatter();
       IonFormatterStorage<MessageEntityItalic>.Value = new Ion_MessageEntityItalic_Formatter();
       IonFormatterStorage<MessageEntityStrikethrough>.Value = new Ion_MessageEntityStrikethrough_Formatter();

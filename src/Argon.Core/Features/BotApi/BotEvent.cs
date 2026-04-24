@@ -29,6 +29,7 @@ public enum BotEventType
     CommandInteraction,
     BotInstallingToSpace,
     BotUninstallingFromSpace,
+    BotEntitlementsUpdated,
     ControlInteraction,
     SelectInteraction,
     ModalSubmit,

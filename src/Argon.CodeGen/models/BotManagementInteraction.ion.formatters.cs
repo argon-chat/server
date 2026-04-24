@@ -27,14 +27,15 @@ public sealed class Ion_BotSearchResult_Formatter : IonFormatter<BotSearchResult
         var __avatarfileid = reader.ReadNullable<string>();
         var __isverified = IonFormatterStorage<bool>.Read(reader);
         var __requiredscopes = IonFormatterStorage<string>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __requiredscopes);
+        var __requiredentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __requiredscopes, __requiredentitlements);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, BotSearchResult value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(8);
         IonFormatterStorage<guid>.Write(writer, value.appId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.username);
@@ -42,6 +43,7 @@ public sealed class Ion_BotSearchResult_Formatter : IonFormatter<BotSearchResult
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
         IonFormatterStorage<bool>.Write(writer, value.isVerified);
         IonFormatterStorage<string>.WriteArray(writer, value.requiredScopes);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.requiredEntitlements);
         writer.WriteEndArray();
     }
 }
@@ -63,14 +65,15 @@ public sealed class Ion_BotDetails_Formatter : IonFormatter<BotDetails>
         var __requiredscopes = IonFormatterStorage<string>.ReadArray(reader);
         var __maxspaces = IonFormatterStorage<i4>.Read(reader);
         var __teamname = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 10);
-        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __ispublic, __requiredscopes, __maxspaces, __teamname);
+        var __requiredentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __ispublic, __requiredscopes, __maxspaces, __teamname, __requiredentitlements);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, BotDetails value)
     {
-        writer.WriteStartArray(10);
+        writer.WriteStartArray(11);
         IonFormatterStorage<guid>.Write(writer, value.appId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.username);
@@ -81,6 +84,7 @@ public sealed class Ion_BotDetails_Formatter : IonFormatter<BotDetails>
         IonFormatterStorage<string>.WriteArray(writer, value.requiredScopes);
         IonFormatterStorage<i4>.Write(writer, value.maxSpaces);
         IonFormatterStorage<string>.Write(writer, value.teamName);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.requiredEntitlements);
         writer.WriteEndArray();
     }
 }
@@ -98,20 +102,26 @@ public sealed class Ion_InstalledBotInfo_Formatter : IonFormatter<InstalledBotIn
         var __avatarfileid = reader.ReadNullable<string>();
         var __isverified = IonFormatterStorage<bool>.Read(reader);
         var __botuserid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 6);
-        return new(__appid, __name, __username, __avatarfileid, __isverified, __botuserid);
+        var __requiredentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __grantedentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __pendingapproval = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__appid, __name, __username, __avatarfileid, __isverified, __botuserid, __requiredentitlements, __grantedentitlements, __pendingapproval);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InstalledBotInfo value)
     {
-        writer.WriteStartArray(6);
+        writer.WriteStartArray(9);
         IonFormatterStorage<guid>.Write(writer, value.appId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.username);
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
         IonFormatterStorage<bool>.Write(writer, value.isVerified);
         IonFormatterStorage<guid>.Write(writer, value.botUserId);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.requiredEntitlements);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.grantedEntitlements);
+        IonFormatterStorage<bool>.Write(writer, value.pendingApproval);
         writer.WriteEndArray();
     }
 }
@@ -200,6 +210,23 @@ public sealed class Ion_UninstallBotError_Formatter : IonFormatter<UninstallBotE
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UninstallBotError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ApproveBotEntitlementsError_Formatter : IonFormatter<ApproveBotEntitlementsError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ApproveBotEntitlementsError Read(CborReader reader)
+    {
+         return (ApproveBotEntitlementsError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ApproveBotEntitlementsError value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

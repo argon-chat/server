@@ -24,8 +24,8 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
 
             ctx.PropagateToOrleans();
 
-            var gateway  = grains.GetGrain<IBotGatewayGrain>(botUserId);
-            var spaceIds = await gateway.ConnectAsync(requestedIntents);
+            var gateway    = grains.GetGrain<IBotGatewayGrain>(botUserId);
+            var spaceInfos = await gateway.ConnectAsync(requestedIntents);
 
             async IAsyncEnumerable<SseItem<string>> Stream(
                 [EnumeratorCancellation] CancellationToken ct = default)
@@ -38,7 +38,7 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                 {
                     Id   = "ready",
                     Type = BotEventType.Ready,
-                    Data = new ReadyEventPayload((long)requestedIntents, spaceIds.ToArray())
+                    Data = new ReadyEventPayload((long)requestedIntents, spaceInfos.ToArray())
                 });
                 BotApiInstrument.SseEventsDelivered.Add(1,
                     new KeyValuePair<string, object?>("event_type", nameof(BotEventType.Ready)));

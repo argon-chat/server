@@ -123,6 +123,24 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
         
         IonFormatterStorage<SpaceCommand>.WriteArray(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ApproveBotEntitlements_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IBotManagementInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __botappid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ApproveBotEntitlements(__spaceid, __botappid);
+        
+        IonFormatterStorage<IApproveBotEntitlementsResult>.Write(writer, result);
+    }
 
     
     
@@ -142,6 +160,8 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
             return UninstallBot_Execute(reader, writer, ct);
         if (methodName.Equals("GetSpaceCommands", StringComparison.InvariantCultureIgnoreCase))
             return GetSpaceCommands_Execute(reader, writer, ct);
+        if (methodName.Equals("ApproveBotEntitlements", StringComparison.InvariantCultureIgnoreCase))
+            return ApproveBotEntitlements_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

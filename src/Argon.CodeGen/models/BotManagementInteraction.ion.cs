@@ -15,15 +15,15 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record BotSearchResult(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, IonArray<string> requiredScopes);
+public sealed record BotSearchResult(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, IonArray<string> requiredScopes, ArgonEntitlement requiredEntitlements);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record BotDetails(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, IonArray<string> requiredScopes, i4 maxSpaces, string teamName);
+public sealed record BotDetails(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, IonArray<string> requiredScopes, i4 maxSpaces, string teamName, ArgonEntitlement requiredEntitlements);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InstalledBotInfo(guid appId, string name, string username, string? avatarFileId, bool isVerified, guid botUserId);
+public sealed record InstalledBotInfo(guid appId, string name, string username, string? avatarFileId, bool isVerified, guid botUserId, ArgonEntitlement requiredEntitlements, ArgonEntitlement grantedEntitlements, bool pendingApproval);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -57,6 +57,17 @@ public enum UninstallBotError
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ApproveBotEntitlementsError
+{
+    NONE = 0,
+    NOT_FOUND = 1,
+    NOT_INSTALLED = 2,
+    INSUFFICIENT_PERMISSIONS = 3,
+    ALREADY_UP_TO_DATE = 4,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum CommandOptionType
 {
     String = 0,
@@ -78,6 +89,7 @@ public interface IBotManagementInteraction : IIonService
     Task<IInstallBotResult> InstallBot(guid spaceId, guid botAppId, CancellationToken ct = default);
     Task<IUninstallBotResult> UninstallBot(guid spaceId, guid botAppId, CancellationToken ct = default);
     Task<IonArray<SpaceCommand>> GetSpaceCommands(guid spaceId, CancellationToken ct = default);
+    Task<IApproveBotEntitlementsResult> ApproveBotEntitlements(guid spaceId, guid botAppId, CancellationToken ct = default);
 }
 
 
@@ -324,6 +336,130 @@ public sealed class Ion_FailedUninstallBot_Formatter : IonFormatter<FailedUninst
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<UninstallBotError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IApproveBotEntitlementsResult : IIonUnion<IApproveBotEntitlementsResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessApproval => this is SuccessApproval;
+
+    internal bool IsFailedApproval => this is FailedApproval;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessApproval() : IApproveBotEntitlementsResult
+{
+    public string UnionKey => nameof(SuccessApproval);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedApproval(ApproveBotEntitlementsError error) : IApproveBotEntitlementsResult
+{
+    public string UnionKey => nameof(FailedApproval);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IApproveBotEntitlementsResult_Formatter : IonFormatter<IApproveBotEntitlementsResult>
+{
+    public IApproveBotEntitlementsResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IApproveBotEntitlementsResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessApproval>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedApproval>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IApproveBotEntitlementsResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessApproval n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessApproval>.Write(writer, n_0);
+        }
+
+        else if (value is FailedApproval n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedApproval>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessApproval_Formatter : IonFormatter<SuccessApproval>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessApproval Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessApproval value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedApproval_Formatter : IonFormatter<FailedApproval>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedApproval Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<ApproveBotEntitlementsError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedApproval value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<ApproveBotEntitlementsError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }

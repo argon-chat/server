@@ -14,7 +14,7 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         return new([
             new BotSearchResult(
                 result.AppId, result.Name, result.Username, result.Description, result.AvatarFileId,
-                result.IsVerified, new IonArray<string>(result.RequiredScopes))
+                result.IsVerified, new IonArray<string>(result.RequiredScopes), result.RequiredEntitlements)
         ]);
     }
 
@@ -26,14 +26,15 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         return new BotDetails(
             d.AppId, d.Name, d.Username, d.Description, d.AvatarFileId,
             d.IsVerified, d.IsPublic, new IonArray<string>(d.RequiredScopes),
-            d.MaxSpaces, d.TeamName);
+            d.MaxSpaces, d.TeamName, d.RequiredEntitlements);
     }
 
     public async Task<IonArray<InstalledBotInfo>> GetInstalledBots(Guid spaceId, CancellationToken ct = default)
     {
         var bots = await this.GetGrain<ISpaceGrain>(spaceId).GetInstalledBots();
         return new(bots.Select(b => new InstalledBotInfo(
-            b.AppId, b.Name, b.Username, b.AvatarFileId, b.IsVerified, b.BotUserId)).ToList());
+            b.AppId, b.Name, b.Username, b.AvatarFileId, b.IsVerified, b.BotUserId,
+            b.RequiredEntitlements, b.GrantedEntitlements, b.PendingApproval)).ToList());
     }
 
     public async Task<IInstallBotResult> InstallBot(Guid spaceId, Guid botAppId, CancellationToken ct = default)
@@ -43,7 +44,8 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
             return new FailedInstallBot(result.Error!.Value);
         var b = result.Bot!;
         return new SuccessInstallBot(new InstalledBotInfo(
-            b.AppId, b.Name, b.Username, b.AvatarFileId, b.IsVerified, b.BotUserId));
+            b.AppId, b.Name, b.Username, b.AvatarFileId, b.IsVerified, b.BotUserId,
+            b.RequiredEntitlements, b.GrantedEntitlements, b.PendingApproval));
     }
 
     public async Task<IUninstallBotResult> UninstallBot(Guid spaceId, Guid botAppId, CancellationToken ct = default)
@@ -68,5 +70,13 @@ public class BotManagementInteractionImpl : IBotManagementInteraction
         }
 
         return new(allCommands);
+    }
+
+    public async Task<IApproveBotEntitlementsResult> ApproveBotEntitlements(Guid spaceId, Guid botAppId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<ISpaceGrain>(spaceId).ApproveBotEntitlements(botAppId);
+        if (!result.Success)
+            return new FailedApproval(result.Error!.Value);
+        return new SuccessApproval();
     }
 }
