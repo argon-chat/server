@@ -12,7 +12,11 @@ public static class HttpContextExtensions
             if (ctx.Request.Headers.TryGetValue("CF-Connecting-IP", out var cfIp) && !string.IsNullOrWhiteSpace(cfIp))
                 return cfIp.ToString();
 
-            // Priority 2: Standard proxy headers (X-Forwarded-For, X-Real-IP)
+            // Priority 2: MaxMind GeoIP2 (nginx/ingress module)
+            if (ctx.Request.Headers.TryGetValue("x-geoip2-ipaddress", out var geoIp) && !string.IsNullOrWhiteSpace(geoIp))
+                return geoIp.ToString();
+
+            // Priority 3: Standard proxy headers (X-Forwarded-For, X-Real-IP)
             if (ctx.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor) && !string.IsNullOrWhiteSpace(forwardedFor))
             {
                 // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
@@ -24,7 +28,7 @@ public static class HttpContextExtensions
             if (ctx.Request.Headers.TryGetValue("X-Real-IP", out var realIp) && !string.IsNullOrWhiteSpace(realIp))
                 return realIp.ToString();
 
-            // Priority 3: Direct connection IP
+            // Priority 4: Direct connection IP
             var remoteIp = ctx.Connection.RemoteIpAddress?.ToString();
             if (!string.IsNullOrWhiteSpace(remoteIp))
                 return remoteIp;
@@ -35,9 +39,11 @@ public static class HttpContextExtensions
 
         public string GetRegion()
         {
-            if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso))
+            if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso) && !string.IsNullOrWhiteSpace(cfIso))
                 return cfIso.ToString();
-            if (ctx.Request.Headers.TryGetValue("X-Country", out var dIso))
+            if (ctx.Request.Headers.TryGetValue("x-geoip2-country", out var geoCountry) && !string.IsNullOrWhiteSpace(geoCountry))
+                return geoCountry.ToString();
+            if (ctx.Request.Headers.TryGetValue("X-Country", out var dIso) && !string.IsNullOrWhiteSpace(dIso))
                 return dIso.ToString();
 
             return "00";
