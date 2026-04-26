@@ -18,6 +18,7 @@ public sealed class BotEventPublisher(
     BotSseEventSerializer      serializer,
     BotUserCache                userCache,
     InteractionContextStore     interactionStore,
+    IGrainFactory               grainFactory,
     ILogger<BotEventPublisher>  logger)
 {
     public InteractionContextStore InteractionStore => interactionStore;
@@ -204,7 +205,8 @@ public sealed class BotEventPublisher(
     {
         try
         {
-            var payload = new CommandInteractionEvent(interactionId, spaceId, channelId, commandId, commandName, user, options);
+            var voiceState = await ResolveVoiceStateAsync(spaceId, user.UserId);
+            var payload = new CommandInteractionEvent(interactionId, spaceId, channelId, commandId, commandName, user, options, voiceState);
             await PublishAsync(spaceId, BotEventType.CommandInteraction, payload, channelId);
             interactionStore.Register(interactionId, invokingUserId, channelId, spaceId, botAppId);
         }
@@ -227,7 +229,8 @@ public sealed class BotEventPublisher(
     {
         try
         {
-            var payload = new ControlInteractionEvent(interactionId, controlType, messageId, channelId, spaceId, user, controlId);
+            var voiceState = await ResolveVoiceStateAsync(spaceId, user.UserId);
+            var payload = new ControlInteractionEvent(interactionId, controlType, messageId, channelId, spaceId, user, controlId, voiceState);
             await PublishAsync(spaceId, BotEventType.ControlInteraction, payload, channelId);
             interactionStore.Register(interactionId, invokingUserId, channelId, spaceId, botAppId);
         }
@@ -249,7 +252,8 @@ public sealed class BotEventPublisher(
     {
         try
         {
-            var payload = new SelectInteractionEvent(interactionId, controlType, customId, messageId, channelId, spaceId, user, values);
+            var voiceState = await ResolveVoiceStateAsync(spaceId, user.UserId);
+            var payload = new SelectInteractionEvent(interactionId, controlType, customId, messageId, channelId, spaceId, user, values, voiceState);
             await PublishAsync(spaceId, BotEventType.SelectInteraction, payload, channelId);
             interactionStore.Register(interactionId, invokingUserId, channelId, spaceId, botAppId);
         }
@@ -270,7 +274,8 @@ public sealed class BotEventPublisher(
     {
         try
         {
-            var payload = new ModalSubmitEvent(interactionId, customId, channelId, spaceId, user, values);
+            var voiceState = await ResolveVoiceStateAsync(spaceId, user.UserId);
+            var payload = new ModalSubmitEvent(interactionId, customId, channelId, spaceId, user, values, voiceState);
             await PublishAsync(spaceId, BotEventType.ModalSubmit, payload, channelId);
         }
         catch (Exception ex)
@@ -278,6 +283,20 @@ public sealed class BotEventPublisher(
             BotApiInstrument.EventPublishErrors.Add(1,
                 new KeyValuePair<string, object?>("event_type", nameof(BotEventType.ModalSubmit)));
             logger.LogWarning(ex, "Failed to publish ModalSubmit in space {SpaceId}", spaceId);
+        }
+    }
+
+    private async ValueTask<BotVoiceStateV1?> ResolveVoiceStateAsync(Guid spaceId, Guid userId)
+    {
+        try
+        {
+            var slot = await grainFactory.GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(userId);
+            return slot is null ? null : new BotVoiceStateV1(slot.ChannelId, slot.JoinedAt, ChannelMemberState.NONE);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to resolve voice state for user {UserId} in space {SpaceId}", userId, spaceId);
+            return null;
         }
     }
 

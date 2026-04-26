@@ -476,6 +476,7 @@ public class ChannelGrain(
             state.State.UserJoinTimes.Remove(oderId);
             state.State.Users.Remove(oderId);
             await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
         }
 
         // Settle XP for existing users before adding new one
@@ -493,6 +494,7 @@ public class ChannelGrain(
 
         await state.WriteStateAsync(ct);
         await Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(oderId, channelId, DateTimeOffset.UtcNow);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -530,6 +532,7 @@ public class ChannelGrain(
 
         state.State.Users.Remove(oderId);
         await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
         await state.WriteStateAsync(ct);
 
         if (state.State.Users.Count == 0)
@@ -557,6 +560,7 @@ public class ChannelGrain(
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
             await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
         }
 
         // Settle XP for existing users before adding new one
@@ -570,6 +574,7 @@ public class ChannelGrain(
         _ = TrackCallJoinedAsync(userId);
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));
@@ -601,6 +606,7 @@ public class ChannelGrain(
 
         state.State.Users.Remove(userId);
         await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
         await state.WriteStateAsync();
 
         if (state.State.Users.Count == 0)
@@ -627,6 +633,7 @@ public class ChannelGrain(
         await state.WriteStateAsync();
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
+        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);
 
         if (state.State.Users.Count > 0)
             this.DelayDeactivation(TimeSpan.FromDays(1));

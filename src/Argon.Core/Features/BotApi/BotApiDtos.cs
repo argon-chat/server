@@ -15,6 +15,14 @@ public sealed record BotUserV1(
     string?  AvatarUrl,
     UserFlag Flags);
 
+// ─── Voice State ─────────────────────────────────────────
+
+[BotDtoVersion(1)]
+public sealed record BotVoiceStateV1(
+    Guid               ChannelId,
+    DateTimeOffset     JoinedAt,
+    ChannelMemberState State);
+
 // ─── Archetype ───────────────────────────────────────────
 
 /// <summary>

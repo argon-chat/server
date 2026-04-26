@@ -143,7 +143,8 @@ public sealed record CommandInteractionEvent(
     Guid                          CommandId,
     string                        CommandName,
     BotUserV1                     User,
-    List<BotCommandOptionValueV1> Options);
+    List<BotCommandOptionValueV1> Options,
+    BotVoiceStateV1?              VoiceState);
 
 // ─── Typing ──────────────────────────────────────────────
 
@@ -201,34 +202,37 @@ public sealed record ReactionRemoveEvent(
 [BotEventDefinition(BotEventType.ControlInteraction, "ControlInteractions", Intent = BotIntent.ControlInteractions)]
 [BotEventDescription("A user clicked an interactive button on a message.")]
 public sealed record ControlInteractionEvent(
-    Guid        InteractionId,
-    ControlType ControlType,
-    long        MessageId,
-    Guid        ChannelId,
-    Guid        SpaceId,
-    BotUserV1   User,
-    string      ControlId);
+    Guid              InteractionId,
+    ControlType       ControlType,
+    long              MessageId,
+    Guid              ChannelId,
+    Guid              SpaceId,
+    BotUserV1         User,
+    string            ControlId,
+    BotVoiceStateV1?  VoiceState);
 
 [BotEventDefinition(BotEventType.SelectInteraction, "ControlInteractions", Intent = BotIntent.ControlInteractions)]
 [BotEventDescription("A user submitted a selection from a select menu on a message.")]
 public sealed record SelectInteractionEvent(
-    Guid          InteractionId,
-    ControlType   ControlType,
-    string        CustomId,
-    long          MessageId,
-    Guid          ChannelId,
-    Guid          SpaceId,
-    BotUserV1     User,
-    List<string>  Values);
+    Guid              InteractionId,
+    ControlType       ControlType,
+    string            CustomId,
+    long              MessageId,
+    Guid              ChannelId,
+    Guid              SpaceId,
+    BotUserV1         User,
+    List<string>      Values,
+    BotVoiceStateV1?  VoiceState);
 
 // ─── Modal Submit ────────────────────────────────────────
 
 [BotEventDefinition(BotEventType.ModalSubmit, "ControlInteractions", Intent = BotIntent.ControlInteractions)]
 [BotEventDescription("A user submitted a modal popup form.")]
 public sealed record ModalSubmitEvent(
-    Guid                    InteractionId,
-    string                  CustomId,
-    Guid                    ChannelId,
-    Guid                    SpaceId,
-    BotUserV1               User,
-    List<ModalSubmitValueV1> Values);
+    Guid                     InteractionId,
+    string                   CustomId,
+    Guid                     ChannelId,
+    Guid                     SpaceId,
+    BotUserV1                User,
+    List<ModalSubmitValueV1> Values,
+    BotVoiceStateV1?         VoiceState);

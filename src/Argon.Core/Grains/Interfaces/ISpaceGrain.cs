@@ -89,7 +89,21 @@ public interface ISpaceGrain : IGrainWithGuidKey
 
     [Alias(nameof(ApproveBotEntitlements))]
     Task<ApproveBotEntitlementsGrainResult> ApproveBotEntitlements(Guid botAppId);
+
+    [Alias(nameof(OnUserJoinedVoiceAsync))]
+    Task OnUserJoinedVoiceAsync(Guid userId, Guid channelId, DateTimeOffset joinedAt);
+
+    [Alias(nameof(OnUserLeftVoiceAsync))]
+    Task OnUserLeftVoiceAsync(Guid userId);
+
+    [Alias(nameof(GetUserVoiceSlotAsync))]
+    Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId);
 }
+
+[DataContract, Serializable, GenerateSerializer]
+public sealed partial record VoiceSlot(
+    [property: DataMember(Order = 0), Id(0)] Guid ChannelId,
+    [property: DataMember(Order = 1), Id(1)] DateTimeOffset JoinedAt);
 
 public enum ServerCreationError
 {

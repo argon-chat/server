@@ -1067,4 +1067,22 @@ public class SpaceGrain(
 
         return new ApproveBotEntitlementsGrainResult(true);
     }
+
+    // ─── Voice Reverse Index ─────────────────────────────────
+
+    public Task OnUserJoinedVoiceAsync(Guid userId, Guid channelId, DateTimeOffset joinedAt)
+    {
+        state.State.VoiceMembers[userId] = new VoiceSlot(channelId, joinedAt);
+        return state.WriteStateAsync();
+    }
+
+    public Task OnUserLeftVoiceAsync(Guid userId)
+    {
+        if (!state.State.VoiceMembers.Remove(userId))
+            return Task.CompletedTask;
+        return state.WriteStateAsync();
+    }
+
+    public Task<VoiceSlot?> GetUserVoiceSlotAsync(Guid userId)
+        => Task.FromResult(state.State.VoiceMembers.GetValueOrDefault(userId));
 }

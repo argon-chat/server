@@ -44,4 +44,11 @@ public sealed partial record RealtimeServerGrainState
 {
     [DataMember(Order = 1), Id(1)]
     public long Revision { get; set; } = 0;
+
+    /// <summary>
+    /// Reverse index: userId → voice channel slot.
+    /// Maintained by ChannelGrain on voice join/leave.
+    /// </summary>
+    [DataMember(Order = 2), Id(2)]
+    public Dictionary<Guid, VoiceSlot> VoiceMembers { get; set; } = new();
 }
