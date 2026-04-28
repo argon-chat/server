@@ -6,7 +6,7 @@ using Argon.Entities;
 using Argon.Grains.Interfaces;
 using ion.runtime;
 
-public class UltimaInteractionImpl(IXsollaService xsolla) : IUltimaInteraction
+public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteractionImpl> logger) : IUltimaInteraction
 {
     // Pricing
 
@@ -39,8 +39,9 @@ public class UltimaInteractionImpl(IXsollaService xsolla) : IUltimaInteraction
 
             return new SuccessCheckout(checkoutUrl, sessionId);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "CreateCheckoutSession failed for plan {Plan}", plan);
             return new FailedCheckout(CheckoutError.PAYMENT_ERROR);
         }
     }
@@ -82,8 +83,9 @@ public class UltimaInteractionImpl(IXsollaService xsolla) : IUltimaInteraction
 
             return new SuccessPurchaseBoost(checkoutUrl);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "PurchaseBoostPack failed for {Pack}", pack);
             return new FailedPurchaseBoost(PurchaseBoostError.PAYMENT_ERROR);
         }
     }
@@ -114,8 +116,9 @@ public class UltimaInteractionImpl(IXsollaService xsolla) : IUltimaInteraction
 
             return new SuccessSendGift(checkoutUrl);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            logger.LogError(ex, "SendUltimaGift failed for recipient {RecipientId}, plan {Plan}", recipientId, plan);
             return new FailedSendGift(SendGiftError.PAYMENT_ERROR);
         }
     }

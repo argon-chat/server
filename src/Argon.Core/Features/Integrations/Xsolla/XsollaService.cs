@@ -266,13 +266,26 @@ public class XsollaService(
             var items = await FetchItemPricesAsync(country, userJwt, cancel);
             var plans = await FetchPlanPricesAsync(country, cancel);
 
-            return new UltimaPricing(
+            logger.LogInformation(
+                "Xsolla pricing fetched for {UserId}/{Country}: items={ItemCount} ({ItemSkus}), plans={PlanCount} ({PlanSkus})",
+                userId, country,
+                items.Count, string.Join(",", items.Keys),
+                plans.Count, string.Join(",", plans.Keys));
+
+            var pricing = new UltimaPricing(
                 ExtractPrice(plans, "ultima_monthly"),
                 ExtractPrice(plans, "ultima_annual"),
                 ExtractPrice(items, "boost_pack_1"),
                 ExtractPrice(items, "boost_pack_3"),
                 ExtractPrice(items, "boost_pack_5")
             );
+
+            logger.LogInformation(
+                "Xsolla pricing result: monthly={Monthly}, annual={Annual}, boost1={Boost1}, boost3={Boost3}, boost5={Boost5}",
+                pricing.subscriptionMonthly.amount, pricing.subscriptionAnnual.amount,
+                pricing.boostPack1.amount, pricing.boostPack3.amount, pricing.boostPack5.amount);
+
+            return pricing;
         }, PriceCacheOptions, cancellationToken: ct);
     }
 
@@ -376,24 +389,28 @@ public class XsollaService(
     private async Task<JsonElement?> PostMerchantAsync(string path, object payload, CancellationToken ct)
     {
         var url = $"{MerchantApiBase}{path}";
+        var payloadJson = JsonSerializer.Serialize(payload);
+
+        logger.LogInformation("Xsolla Merchant API POST {Url}, payload: {Payload}", url, payloadJson);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
-            Content = JsonContent.Create(payload)
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
         };
         request.Headers.Authorization = MerchantAuth();
 
         var response = await httpClient.SendAsync(request, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
 
         if (!response.IsSuccessStatusCode)
         {
-            var errorBody = await response.Content.ReadAsStringAsync(ct);
-            logger.LogError("Xsolla Merchant API error {StatusCode}: {Body}", response.StatusCode, errorBody);
-            return null;
+            logger.LogError("Xsolla Merchant API error {StatusCode} for {Url}: {Body}. Request payload: {Payload}",
+                response.StatusCode, url, responseBody, payloadJson);
+            throw new InvalidOperationException($"Xsolla Merchant API error {response.StatusCode}: {responseBody}");
         }
 
-        var json = await response.Content.ReadAsStringAsync(ct);
-        return JsonSerializer.Deserialize<JsonElement>(json);
+        logger.LogInformation("Xsolla Merchant API success for {Url}", url);
+        return JsonSerializer.Deserialize<JsonElement>(responseBody);
     }
 
     /// <summary>Catalog API — uses user JWT if available, otherwise project basic auth.</summary>
