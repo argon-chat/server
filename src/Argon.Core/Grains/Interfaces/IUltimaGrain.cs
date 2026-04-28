@@ -6,6 +6,12 @@ public interface IUltimaGrain : IGrainWithGuidKey
     [Alias(nameof(GetSubscriptionAsync))]
     Task<UltimaSubscriptionInfo?> GetSubscriptionAsync(CancellationToken ct = default);
 
+    [Alias(nameof(GetXsollaSubscriptionIdAsync))]
+    Task<string?> GetXsollaSubscriptionIdAsync(CancellationToken ct = default);
+
+    [Alias(nameof(GetTransactionHistoryAsync))]
+    Task<List<UltimaTransaction>> GetTransactionHistoryAsync(CancellationToken ct = default);
+
     [Alias(nameof(GetBoostsAsync))]
     Task<List<UltimaBoost>> GetBoostsAsync(CancellationToken ct = default);
 

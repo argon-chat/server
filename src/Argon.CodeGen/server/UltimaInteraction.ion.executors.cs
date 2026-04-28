@@ -86,6 +86,23 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetTransactionHistory_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUltimaInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetTransactionHistory();
+        
+        IonFormatterStorage<UltimaTransaction>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetMyBoosts_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUltimaInteraction>();
@@ -223,6 +240,8 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
             return CreateCheckoutSession_Execute(reader, writer, ct);
         if (methodName.Equals("CancelSubscription", StringComparison.InvariantCultureIgnoreCase))
             return CancelSubscription_Execute(reader, writer, ct);
+        if (methodName.Equals("GetTransactionHistory", StringComparison.InvariantCultureIgnoreCase))
+            return GetTransactionHistory_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyBoosts", StringComparison.InvariantCultureIgnoreCase))
             return GetMyBoosts_Execute(reader, writer, ct);
         if (methodName.Equals("ApplyBoost", StringComparison.InvariantCultureIgnoreCase))

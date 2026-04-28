@@ -82,14 +82,15 @@ public sealed class Ion_UltimaSubscriptionInfo_Formatter : IonFormatter<UltimaSu
         var __autorenew = IonFormatterStorage<bool>.Read(reader);
         var __totalboostslots = IonFormatterStorage<i4>.Read(reader);
         var __usedboostslots = IonFormatterStorage<i4>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__subscriptionid, __tier, __status, __startsat, __expiresat, __autorenew, __totalboostslots, __usedboostslots);
+        var __paymentaccount = reader.ReadNullable<PaymentAccountInfo>();
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__subscriptionid, __tier, __status, __startsat, __expiresat, __autorenew, __totalboostslots, __usedboostslots, __paymentaccount);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UltimaSubscriptionInfo value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(9);
         IonFormatterStorage<guid>.Write(writer, value.subscriptionId);
         IonFormatterStorage<UltimaPlan>.Write(writer, value.tier);
         IonFormatterStorage<UltimaSubscriptionStatus>.Write(writer, value.status);
@@ -98,6 +99,71 @@ public sealed class Ion_UltimaSubscriptionInfo_Formatter : IonFormatter<UltimaSu
         IonFormatterStorage<bool>.Write(writer, value.autoRenew);
         IonFormatterStorage<i4>.Write(writer, value.totalBoostSlots);
         IonFormatterStorage<i4>.Write(writer, value.usedBoostSlots);
+        IonFormatterStorage<PaymentAccountInfo>.WriteNullable(writer, value.paymentAccount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_PaymentAccountInfo_Formatter : IonFormatter<PaymentAccountInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public PaymentAccountInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __cardlastfour = reader.ReadNullable<string>();
+        var __cardtype = reader.ReadNullable<string>();
+        var __expirymonth = reader.ReadNullable<string>();
+        var __expiryyear = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__cardlastfour, __cardtype, __expirymonth, __expiryyear);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, PaymentAccountInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.WriteNullable(writer, value.cardLastFour);
+        IonFormatterStorage<string>.WriteNullable(writer, value.cardType);
+        IonFormatterStorage<string>.WriteNullable(writer, value.expiryMonth);
+        IonFormatterStorage<string>.WriteNullable(writer, value.expiryYear);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UltimaTransaction_Formatter : IonFormatter<UltimaTransaction>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UltimaTransaction Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __paymentid = IonFormatterStorage<string>.Read(reader);
+        var __date = IonFormatterStorage<datetime>.Read(reader);
+        var __amount = reader.ReadNullable<string>();
+        var __currency = reader.ReadNullable<string>();
+        var __planexternalid = reader.ReadNullable<string>();
+        var __boostpacktype = reader.ReadNullable<string>();
+        var __boostcount = reader.ReadNullable<i4>();
+        var __recipientid = reader.ReadNullable<guid>();
+        var __transactiontype = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__paymentid, __date, __amount, __currency, __planexternalid, __boostpacktype, __boostcount, __recipientid, __transactiontype);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UltimaTransaction value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<string>.Write(writer, value.paymentId);
+        IonFormatterStorage<datetime>.Write(writer, value.date);
+        IonFormatterStorage<string>.WriteNullable(writer, value.amount);
+        IonFormatterStorage<string>.WriteNullable(writer, value.currency);
+        IonFormatterStorage<string>.WriteNullable(writer, value.planExternalId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.boostPackType);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.boostCount);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.recipientId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.transactionType);
         writer.WriteEndArray();
     }
 }

@@ -26,6 +26,8 @@ public sealed class Ion_UltimaInteraction_ClientImpl(IonClientContext context) :
         typeof(IUltimaInteraction).GetMethod(nameof(CreateCheckoutSession), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CancelSubscription_Ref = new(() =>
         typeof(IUltimaInteraction).GetMethod(nameof(CancelSubscription), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetTransactionHistory_Ref = new(() =>
+        typeof(IUltimaInteraction).GetMethod(nameof(GetTransactionHistory), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMyBoosts_Ref = new(() =>
         typeof(IUltimaInteraction).GetMethod(nameof(GetMyBoosts), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ApplyBoost_Ref = new(() =>
@@ -110,6 +112,23 @@ public sealed class Ion_UltimaInteraction_ClientImpl(IonClientContext context) :
         writer.WriteEndArray();
     
         return await req.CallAsync<bool>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<UltimaTransaction>> GetTransactionHistory(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUltimaInteraction), GetTransactionHistory_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<UltimaTransaction>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<UltimaBoost>> GetMyBoosts(CancellationToken ct = default)

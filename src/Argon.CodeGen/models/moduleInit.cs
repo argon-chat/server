@@ -149,6 +149,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UltimaPricing>.Value = new Ion_UltimaPricing_Formatter();
       IonFormatterStorage<ProductPrice>.Value = new Ion_ProductPrice_Formatter();
       IonFormatterStorage<UltimaSubscriptionInfo>.Value = new Ion_UltimaSubscriptionInfo_Formatter();
+      IonFormatterStorage<PaymentAccountInfo>.Value = new Ion_PaymentAccountInfo_Formatter();
+      IonFormatterStorage<UltimaTransaction>.Value = new Ion_UltimaTransaction_Formatter();
       IonFormatterStorage<UltimaBoost>.Value = new Ion_UltimaBoost_Formatter();
       IonFormatterStorage<SpaceBoostStatus>.Value = new Ion_SpaceBoostStatus_Formatter();
       IonFormatterStorage<SpaceBooster>.Value = new Ion_SpaceBooster_Formatter();

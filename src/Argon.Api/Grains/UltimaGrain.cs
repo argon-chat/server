@@ -45,7 +45,46 @@ public class UltimaGrain(
             sub.ExpiresAt.UtcDateTime,
             sub.AutoRenew,
             sub.BoostSlots,
-            usedSlots);
+            usedSlots,
+            null);
+    }
+
+    public async Task<string?> GetXsollaSubscriptionIdAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var sub = await ctx.UltimaSubscriptions
+           .AsNoTracking()
+           .Where(x => x.UserId == UserId && x.Status != UltimaStatus.Expired)
+           .OrderByDescending(x => x.CreatedAt)
+           .Select(x => x.XsollaSubscriptionId)
+           .FirstOrDefaultAsync(ct);
+
+        return sub;
+    }
+
+    public async Task<List<UltimaTransaction>> GetTransactionHistoryAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var txns = await ctx.PaymentTransactions
+           .AsNoTracking()
+           .Where(x => x.UserId == UserId)
+           .OrderByDescending(x => x.CreatedAt)
+           .Take(50)
+           .ToListAsync(ct);
+
+        return txns.Select(t => new UltimaTransaction(
+            t.XsollaTxId,
+            t.CreatedAt.UtcDateTime,
+            t.Amount,
+            t.Currency,
+            t.PlanExternalId,
+            t.BoostPackType,
+            t.BoostCount,
+            t.RecipientId,
+            t.TransactionType
+        )).ToList();
     }
 
     public async Task<List<UltimaBoost>> GetBoostsAsync(CancellationToken ct = default)

@@ -11,7 +11,8 @@ using Microsoft.AspNetCore.Mvc;
 public class XsollaWebHookController(
     ILogger<XsollaWebHookController> logger,
     IClusterClient client,
-    IXsollaService xsolla) : ControllerBase
+    IXsollaService xsolla,
+    IDbContextFactory<ApplicationDbContext> contextFactory) : ControllerBase
 {
     [HttpPost("/api/xsolla/webhook")]
     public async Task<IActionResult> Webhook()
@@ -123,6 +124,24 @@ public class XsollaWebHookController(
             return;
         }
 
+        // Extract amount from transaction if available
+        string? amount = null;
+        string? currency = null;
+        if (json.TryGetProperty("purchase", out var purchase))
+        {
+            if (purchase.TryGetProperty("total", out var total) && total.ValueKind == JsonValueKind.Object)
+            {
+                amount   = total.TryGetProperty("amount", out var a) ? a.GetRawText().Trim('"') : null;
+                currency = total.TryGetProperty("currency", out var c) ? c.GetString() : null;
+            }
+
+            if (amount is null && purchase.TryGetProperty("checkout", out var checkout) && checkout.ValueKind == JsonValueKind.Object)
+            {
+                amount   = checkout.TryGetProperty("amount", out var a2) ? a2.GetRawText().Trim('"') : null;
+                currency = checkout.TryGetProperty("currency", out var c2) ? c2.GetString() : null;
+            }
+        }
+
         switch (type)
         {
             case "subscription":
@@ -133,6 +152,8 @@ public class XsollaWebHookController(
 
                 await client.GetGrain<IUltimaGrain>(userId)
                    .ActivateSubscriptionAsync(tier, days, xsollaSubId, null);
+
+                await SaveTransactionAsync(userId, txId, "subscription", planExternalId: planId, amount: amount, currency: currency);
 
                 logger.LogInformation("Xsolla: activated subscription for {UserId}, plan {Plan}, txId {TxId}", userId, planId, txId);
                 break;
@@ -150,6 +171,8 @@ public class XsollaWebHookController(
 
                 await client.GetGrain<IUltimaGrain>(userId)
                    .GrantPurchasedBoostsAsync(boostCount, source, txId);
+
+                await SaveTransactionAsync(userId, txId, "boost_pack", boostPackType: packTypeStr, boostCount: boostCount, amount: amount, currency: currency);
 
                 logger.LogInformation("Xsolla: granted {Count} boosts to {UserId}, txId {TxId}", boostCount, userId, txId);
                 break;
@@ -186,12 +209,52 @@ public class XsollaWebHookController(
                 await client.GetGrain<IUltimaGrain>(userId)
                    .GrantPurchasedBoostsAsync(3, BoostSource.GiftReward, txId);
 
+                await SaveTransactionAsync(userId, txId, "gift", planExternalId: planId, recipientId: recipientId, amount: amount, currency: currency);
+
                 logger.LogInformation("Xsolla: gift from {SenderId} to {RecipientId}, txId {TxId}", userId, recipientId, txId);
                 break;
             }
             default:
                 logger.LogInformation("Xsolla payment: unhandled purchase type {Type}", type);
                 break;
+        }
+    }
+
+    private async Task SaveTransactionAsync(
+        Guid userId, string txId, string transactionType,
+        string? planExternalId = null, string? boostPackType = null,
+        int? boostCount = null, Guid? recipientId = null,
+        string? amount = null, string? currency = null)
+    {
+        try
+        {
+            await using var ctx = await contextFactory.CreateDbContextAsync();
+
+            // Idempotent — skip if txId already recorded
+            var exists = await ctx.PaymentTransactions.AnyAsync(x => x.XsollaTxId == txId);
+            if (exists) return;
+
+            ctx.PaymentTransactions.Add(new PaymentTransactionEntity
+            {
+                Id              = Guid.NewGuid(),
+                UserId          = userId,
+                XsollaTxId      = txId,
+                TransactionType = transactionType,
+                PlanExternalId  = planExternalId,
+                BoostPackType   = boostPackType,
+                BoostCount      = boostCount,
+                Amount          = amount,
+                Currency        = currency,
+                RecipientId     = recipientId,
+                CreatedAt       = DateTimeOffset.UtcNow,
+            });
+
+            await ctx.SaveChangesAsync();
+        }
+        catch (Exception ex)
+        {
+            // Best-effort — don't fail the webhook if transaction logging fails
+            logger.LogWarning(ex, "Failed to save payment transaction {TxId} for {UserId}", txId, userId);
         }
     }
 

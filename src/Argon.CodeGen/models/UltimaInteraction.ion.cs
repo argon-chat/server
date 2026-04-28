@@ -23,7 +23,15 @@ public sealed record ProductPrice(string amount, string? amountWithoutDiscount, 
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UltimaSubscriptionInfo(guid subscriptionId, UltimaPlan tier, UltimaSubscriptionStatus status, datetime startsAt, datetime expiresAt, bool autoRenew, i4 totalBoostSlots, i4 usedBoostSlots);
+public sealed record UltimaSubscriptionInfo(guid subscriptionId, UltimaPlan tier, UltimaSubscriptionStatus status, datetime startsAt, datetime expiresAt, bool autoRenew, i4 totalBoostSlots, i4 usedBoostSlots, PaymentAccountInfo? paymentAccount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record PaymentAccountInfo(string? cardLastFour, string? cardType, string? expiryMonth, string? expiryYear);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UltimaTransaction(string paymentId, datetime date, string? amount, string? currency, string? planExternalId, string? boostPackType, i4? boostCount, guid? recipientId, string? transactionType);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -129,6 +137,7 @@ public interface IUltimaInteraction : IIonService
     Task<UltimaSubscriptionInfo?> GetMySubscription(CancellationToken ct = default);
     Task<ICheckoutResult> CreateCheckoutSession(UltimaPlan plan, CancellationToken ct = default);
     Task<bool> CancelSubscription(CancellationToken ct = default);
+    Task<IonArray<UltimaTransaction>> GetTransactionHistory(CancellationToken ct = default);
     Task<IonArray<UltimaBoost>> GetMyBoosts(CancellationToken ct = default);
     Task<IApplyBoostResult> ApplyBoost(guid boostId, guid spaceId, CancellationToken ct = default);
     Task<ITransferBoostResult> TransferBoost(guid boostId, guid newSpaceId, CancellationToken ct = default);

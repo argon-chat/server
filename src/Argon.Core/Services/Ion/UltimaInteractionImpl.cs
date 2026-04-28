@@ -21,7 +21,29 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
     // Subscription
 
     public async Task<UltimaSubscriptionInfo?> GetMySubscription(CancellationToken ct = default)
-        => await this.GetGrain<IUltimaGrain>(this.GetUserId()).GetSubscriptionAsync(ct);
+    {
+        var userId = this.GetUserId();
+        var grain = this.GetGrain<IUltimaGrain>(userId);
+        var sub = await grain.GetSubscriptionAsync(ct);
+
+        if (sub is null)
+            return null;
+
+        // Enrich with payment account (card info) from Xsolla
+        PaymentAccountInfo? paymentAccount = null;
+        try
+        {
+            var xsollaSubId = await grain.GetXsollaSubscriptionIdAsync(ct);
+            if (xsollaSubId is not null)
+                paymentAccount = await xsolla.GetPaymentAccountAsync(userId, xsollaSubId, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to fetch payment account for user {UserId}", userId);
+        }
+
+        return sub with { paymentAccount = paymentAccount };
+    }
 
     public async Task<ICheckoutResult> CreateCheckoutSession(UltimaPlan plan, CancellationToken ct = default)
     {
@@ -48,6 +70,14 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
 
     public async Task<bool> CancelSubscription(CancellationToken ct = default)
         => await this.GetGrain<IUltimaGrain>(this.GetUserId()).CancelSubscriptionAsync(ct);
+
+    // Transaction history
+
+    public async Task<IonArray<UltimaTransaction>> GetTransactionHistory(CancellationToken ct = default)
+    {
+        var userId = this.GetUserId();
+        return await this.GetGrain<IUltimaGrain>(userId).GetTransactionHistoryAsync(ct);
+    }
 
     // Boosts
 

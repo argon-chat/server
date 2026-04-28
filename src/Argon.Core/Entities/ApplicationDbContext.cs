@@ -79,8 +79,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #region Ultima & Boosts
 
-    public DbSet<UltimaSubscriptionEntity> UltimaSubscriptions => Set<UltimaSubscriptionEntity>();
-    public DbSet<SpaceBoostEntity>         SpaceBoosts         => Set<SpaceBoostEntity>();
+    public DbSet<UltimaSubscriptionEntity>  UltimaSubscriptions   => Set<UltimaSubscriptionEntity>();
+    public DbSet<SpaceBoostEntity>          SpaceBoosts           => Set<SpaceBoostEntity>();
+    public DbSet<PaymentTransactionEntity>  PaymentTransactions   => Set<PaymentTransactionEntity>();
 
 #endregion
 

@@ -383,6 +383,60 @@ public class XsollaService(
         return prices;
     }
 
+    // ── Subscription Management (user-facing) API base ────────────────
+    // https://developers.xsolla.com/api/subscriptions/subscription-management
+    private const string SubscriptionManagementBase = "https://api.xsolla.com/merchant/v2";
+
+    public async Task<PaymentAccountInfo?> GetPaymentAccountAsync(
+        Guid userId, string xsollaSubscriptionId, CancellationToken ct = default)
+    {
+        try
+        {
+            var userJwt = await GetOrCreateXsollaUserJwtAsync(userId, ct);
+            var url = $"{SubscriptionManagementBase}/api/user/v1/management/projects/{Opts.ProjectId}/subscriptions/{xsollaSubscriptionId}/payment_account";
+
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = new("Bearer", userJwt);
+
+            var response = await httpClient.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                logger.LogWarning("Xsolla payment_account GET returned {StatusCode}: {Body}", response.StatusCode, errorBody);
+                return null;
+            }
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+
+            // Parse name field: "** 7398" → "7398"
+            string? cardLastFour = null;
+            if (json.TryGetProperty("name", out var nameProp) && nameProp.GetString() is { } name)
+            {
+                var digits = name.Replace("*", "").Replace(" ", "").Trim();
+                cardLastFour = digits.Length > 0 ? digits : null;
+            }
+
+            string? cardType = json.TryGetProperty("ps_name", out var ps) ? ps.GetString() : null;
+            string? expiryMonth = null;
+            string? expiryYear = null;
+
+            if (json.TryGetProperty("card_expiry_date", out var expiry) && expiry.ValueKind == JsonValueKind.Object)
+            {
+                expiryMonth = expiry.TryGetProperty("month", out var m) ? m.GetString() : null;
+                expiryYear  = expiry.TryGetProperty("year", out var y) ? y.GetString() : null;
+            }
+
+            return new PaymentAccountInfo(cardLastFour, cardType, expiryMonth, expiryYear);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to get payment account for user {UserId}, subscription {SubId}", userId, xsollaSubscriptionId);
+            return null;
+        }
+    }
+
     // ── HTTP helpers ────────────────────────────────────────────────────
 
     /// <summary>Pay Station Merchant API — basic auth with merchant_id:api_key</summary>
@@ -520,6 +574,22 @@ public class XsollaService(
 
         var response = await httpClient.SendAsync(request, ct);
         var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        // If 401 — cached server JWT is likely stale; invalidate and retry once
+        if (response.StatusCode == System.Net.HttpStatusCode.Unauthorized)
+        {
+            logger.LogWarning("Xsolla auth_by_custom_id returned 401 — invalidating cached server JWT and retrying");
+            await cache.RemoveAsync("xsolla:server_jwt", ct);
+
+            serverJwt = await GetServerJwtAsync(ct);
+
+            body = new Dictionary<string, object> { ["server_custom_id"] = userId.ToString() };
+            request = new HttpRequestMessage(HttpMethod.Post, url) { Content = JsonContent.Create(body) };
+            request.Headers.Add("X-SERVER-AUTHORIZATION", serverJwt);
+
+            response = await httpClient.SendAsync(request, ct);
+            responseBody = await response.Content.ReadAsStringAsync(ct);
+        }
 
         if (!response.IsSuccessStatusCode)
         {
