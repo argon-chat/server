@@ -212,7 +212,15 @@ public class XsollaService(
     {
         var expected = Convert.ToHexStringLower(
             SHA1.HashData(Encoding.UTF8.GetBytes(body + Opts.WebhookSecret)));
-        return string.Equals(expected, signature, StringComparison.OrdinalIgnoreCase);
+
+        var isValid = string.Equals(expected, signature, StringComparison.OrdinalIgnoreCase);
+        if (!isValid)
+        {
+            logger.LogWarning(
+                "Webhook signature mismatch. Expected={Expected}, Got={Got}, SecretLength={SecretLen}, BodyLength={BodyLen}",
+                expected, signature, Opts.WebhookSecret.Length, body.Length);
+        }
+        return isValid;
     }
 
     public async Task UpdateUserAttributeAsync(Guid userId, string key, string value, CancellationToken ct = default)

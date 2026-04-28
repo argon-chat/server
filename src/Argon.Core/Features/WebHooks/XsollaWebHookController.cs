@@ -16,7 +16,8 @@ public class XsollaWebHookController(
     [HttpPost("/api/xsolla/webhook")]
     public async Task<IActionResult> Webhook()
     {
-        using var reader = new StreamReader(Request.Body, Encoding.UTF8);
+        Request.EnableBuffering();
+        using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
         var body = await reader.ReadToEndAsync();
 
         if (!Request.Headers.TryGetValue("Authorization", out var authHeader))
@@ -25,11 +26,13 @@ public class XsollaWebHookController(
             return Unauthorized();
         }
 
-        var signature = authHeader.ToString().Replace("Signature ", "");
+        var rawAuth = authHeader.ToString();
+        var signature = rawAuth.Replace("Signature ", "");
 
         if (!xsolla.ValidateWebhookSignature(body, signature))
         {
-            logger.LogWarning("Xsolla webhook: invalid signature");
+            logger.LogWarning("Xsolla webhook: invalid signature. AuthHeader={AuthHeader}, BodyLength={BodyLength}, BodyPreview={BodyPreview}",
+                rawAuth, body.Length, body.Length > 0 ? body[..Math.Min(100, body.Length)] : "<empty>");
             return Unauthorized();
         }
 
