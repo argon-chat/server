@@ -374,7 +374,7 @@ public class XsollaService(
         if (userJwt is not null)
             request.Headers.Authorization = new("Bearer", userJwt);
         else
-            request.Headers.Authorization = ProjectAuth();
+            request.Headers.Authorization = MerchantAuth();
 
         var response = await httpClient.SendAsync(request, ct);
 
