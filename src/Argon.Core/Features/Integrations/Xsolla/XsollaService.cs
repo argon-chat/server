@@ -18,8 +18,8 @@ public class XsollaService(
     // https://developers.xsolla.com/api/pay-station/token/create-token
     private const string MerchantApiBase = "https://api.xsolla.com/merchant/v2";
 
-    // Catalog API — item prices, subscription plans
-    // https://developers.xsolla.com/api/igs-bb/
+    // Catalog API — item prices
+    // https://developers.xsolla.com/api/catalog/
     private const string StoreApiBase = "https://store.xsolla.com/api";
 
     // Login API — user attributes, auth by custom ID
@@ -113,9 +113,12 @@ public class XsollaService(
             },
             purchase = new
             {
-                items = new[]
+                virtual_items = new
                 {
-                    new { sku, quantity }
+                    items = new[]
+                    {
+                        new { sku, amount = quantity }
+                    }
                 }
             },
             custom_parameters = new
@@ -160,9 +163,12 @@ public class XsollaService(
             },
             purchase = new
             {
-                items = new[]
+                virtual_items = new
                 {
-                    new { sku, quantity = 1 }
+                    items = new[]
+                    {
+                        new { sku, amount = 1 }
+                    }
                 }
             },
             custom_parameters = new
@@ -311,24 +317,41 @@ public class XsollaService(
         var prices = new Dictionary<string, ProductPrice>();
         try
         {
-            var json = await GetStoreAsync(
-                $"/v2/project/{Opts.ProjectId}/subscriptions/plans?country={country}", null, ct);
+            // Subscriptions API lives on MerchantApiBase, NOT StoreApiBase
+            // https://developers.xsolla.com/api/subscriptions/plans
+            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/plans";
+            var request = new HttpRequestMessage(HttpMethod.Get, url);
+            request.Headers.Authorization = MerchantAuth();
 
-            if (json?.TryGetProperty("items", out var plans) == true)
+            var response = await httpClient.SendAsync(request, ct);
+
+            if (!response.IsSuccessStatusCode)
             {
-                foreach (var plan in plans.EnumerateArray())
-                {
-                    var planId = plan.TryGetProperty("external_id", out var eid)
-                        ? eid.GetString()
-                        : plan.GetProperty("plan_id").ToString();
-                    if (planId is null) continue;
+                var errorBody = await response.Content.ReadAsStringAsync(ct);
+                logger.LogWarning("Xsolla Subscriptions API GET plans returned {StatusCode}: {Body}", response.StatusCode, errorBody);
+                return prices;
+            }
 
-                    if (plan.TryGetProperty("charge", out var charge))
-                    {
-                        var amount   = charge.GetProperty("amount").GetRawText().Trim('"');
-                        var currency = charge.GetProperty("currency").GetString() ?? "USD";
-                        prices[planId] = new ProductPrice(amount, null, currency);
-                    }
+            var body = await response.Content.ReadAsStringAsync(ct);
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+
+            // Subscriptions API may return array directly or { items: [...] }
+            var plans = json.ValueKind == JsonValueKind.Array
+                ? json
+                : json.TryGetProperty("items", out var itemsProp) ? itemsProp : json;
+
+            foreach (var plan in plans.EnumerateArray())
+            {
+                var planId = plan.TryGetProperty("external_id", out var eid)
+                    ? eid.GetString()
+                    : plan.GetProperty("plan_id").ToString();
+                if (planId is null) continue;
+
+                if (plan.TryGetProperty("charge", out var charge))
+                {
+                    var amount   = charge.GetProperty("amount").GetRawText().Trim('"');
+                    var currency = charge.GetProperty("currency").GetString() ?? "USD";
+                    prices[planId] = new ProductPrice(amount, null, currency);
                 }
             }
         }
@@ -374,7 +397,7 @@ public class XsollaService(
         if (userJwt is not null)
             request.Headers.Authorization = new("Bearer", userJwt);
         else
-            request.Headers.Authorization = MerchantAuth();
+            request.Headers.Authorization = ProjectAuth();
 
         var response = await httpClient.SendAsync(request, ct);
 
@@ -455,21 +478,12 @@ public class XsollaService(
     {
         var serverJwt = await GetServerJwtAsync(ct);
 
+        // Step 1: Create/auth user via server_custom_id (without attributes — auth_by_custom_id
+        // stores them in the custom bucket, not the read-only bucket that promotions use)
         var body = new Dictionary<string, object>
         {
             ["server_custom_id"] = userId.ToString()
         };
-
-        if (attributes is { Length: > 0 })
-        {
-            body["attributes"] = attributes.Select(a => new
-            {
-                attr_type  = "server",
-                key        = a.key,
-                permission = "private",
-                value      = a.value
-            }).ToArray();
-        }
 
         var url = $"{LoginApiBase}/users/login/server_custom_id?projectId={Opts.LoginProjectId}";
 
@@ -489,8 +503,53 @@ public class XsollaService(
         }
 
         var json = JsonSerializer.Deserialize<JsonElement>(responseBody);
-        return json.GetProperty("token").GetString()
+        var token = json.GetProperty("token").GetString()
                ?? throw new InvalidOperationException("No token in Xsolla auth_by_custom_id response");
+
+        // Step 2: If attributes need updating, set them via update_read_only endpoint
+        if (attributes is { Length: > 0 })
+        {
+            var xsollaSub = ExtractSubFromJwt(token);
+
+            var attrBody = new
+            {
+                attributes = attributes.Select(a => new
+                {
+                    key        = a.key,
+                    permission = "private",
+                    value      = a.value
+                }).ToArray(),
+                publisher_id = Opts.MerchantId
+            };
+
+            var attrRequest = new HttpRequestMessage(HttpMethod.Post,
+                $"{LoginApiBase}/attributes/users/{xsollaSub}/update_read_only")
+            {
+                Content = JsonContent.Create(attrBody)
+            };
+            attrRequest.Headers.Add("X-SERVER-AUTHORIZATION", serverJwt);
+
+            var attrResponse = await httpClient.SendAsync(attrRequest, ct);
+            if (!attrResponse.IsSuccessStatusCode)
+            {
+                var attrErr = await attrResponse.Content.ReadAsStringAsync(ct);
+                logger.LogWarning("Failed to update read-only attributes for {UserId}: {StatusCode} {Body}",
+                    userId, attrResponse.StatusCode, attrErr);
+            }
+        }
+
+        return token;
+    }
+
+    private static string ExtractSubFromJwt(string jwt)
+    {
+        var parts = jwt.Split('.');
+        var payload = parts[1].Replace('-', '+').Replace('_', '/');
+        switch (payload.Length % 4) { case 2: payload += "=="; break; case 3: payload += "="; break; }
+        var claims = JsonSerializer.Deserialize<JsonElement>(
+            Encoding.UTF8.GetString(Convert.FromBase64String(payload)));
+        return claims.GetProperty("sub").GetString()
+               ?? throw new InvalidOperationException("No sub claim in Xsolla JWT");
     }
 
     /// <summary>merchant_id:api_key — for Pay Station &amp; merchant endpoints</summary>
