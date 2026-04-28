@@ -28,7 +28,10 @@ public record RedeemScenario : ItemUseScenario
 
 public record PremiumScenario : ItemUseScenario
 {
-    public required string PlanId { get; set; }
+    public required string PlanId       { get; set; }
+    public          int    DurationDays { get; set; }
+    [MaxLength(256)]
+    public          string? GiftMessage  { get; set; }
 }
 
 public record QualifierBox : ItemUseScenario

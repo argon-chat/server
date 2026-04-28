@@ -37,4 +37,7 @@ public interface IInventoryGrain : IGrainWithGuidKey
 
     [Alias(nameof(GiveCoinFor))]
     Task<bool> GiveCoinFor(Guid userId, string coinTemplateId, CancellationToken ct = default);
+
+    [Alias(nameof(GiveUltimaGiftAsync))]
+    Task<bool> GiveUltimaGiftAsync(Guid recipientId, string planId, int durationDays, Guid senderId, string? giftMessage, CancellationToken ct = default);
 }

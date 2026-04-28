@@ -77,6 +77,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Ultima & Boosts
+
+    public DbSet<UltimaSubscriptionEntity> UltimaSubscriptions => Set<UltimaSubscriptionEntity>();
+    public DbSet<SpaceBoostEntity>         SpaceBoosts         => Set<SpaceBoostEntity>();
+
+#endregion
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
 

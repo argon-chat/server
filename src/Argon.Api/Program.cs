@@ -36,6 +36,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
     x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
+    x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 });
 builder.AddSignalRAppHub();

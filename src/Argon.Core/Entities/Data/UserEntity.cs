@@ -47,6 +47,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public DateTimeOffset? LockDownExpiration   { get; set; }
     public bool            LockDownIsAppealable { get; set; }
 
+    public bool HasActiveUltima { get; set; }
+
     public static ArgonUser Map(scoped in UserEntity self)
         => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self));
 
@@ -64,6 +66,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
             flags |= UserFlag.SYSTEM;
         if (self.BotEntityId is not null && self.BotEntity is { IsVerified: true })
             flags |= UserFlag.VERIFIED;
+        if (self.HasActiveUltima)
+            flags |= UserFlag.PREMIUM;
         return flags;
     }
 
@@ -81,6 +85,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
             flags |= UserFlag.SYSTEM;
         if (self.BotEntityId is not null && isVerified)
             flags |= UserFlag.VERIFIED;
+        if (self.HasActiveUltima)
+            flags |= UserFlag.PREMIUM;
         return flags;
     }
 

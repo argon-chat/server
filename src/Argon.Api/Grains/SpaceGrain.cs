@@ -64,10 +64,12 @@ public class SpaceGrain(
                 x.Name,
                 x.Description,
                 x.AvatarFileId,
-                x.TopBannedFileId
+                x.TopBannedFileId,
+                x.BoostCount,
+                x.BoostLevel
             })
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
-        return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId);
+        return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId, result.BoostCount, result.BoostLevel);
     }
 
     public async Task<SpaceEntity> GetSpace()
@@ -751,7 +753,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync(ct);
 
-        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId);
+        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId, space.BoostCount, space.BoostLevel);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 

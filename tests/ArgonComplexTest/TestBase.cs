@@ -188,6 +188,18 @@ public abstract class TestBase
         return IonClient.ForService<ISecurityInteraction>(provider);
     }
 
+    protected IUltimaInteraction GetUltimaService(IServiceProvider? serviceProvider = null)
+    {
+        var provider = serviceProvider ?? FactoryAsp.Services;
+        return IonClient.ForService<IUltimaInteraction>(provider);
+    }
+
+    protected FakeXsollaService GetFakeXsolla()
+        => FactoryAsp.Services.GetRequiredService<FakeXsollaService>();
+
+    protected IGrainFactory GetGrainFactory()
+        => FactoryAsp.Services.GetRequiredService<IGrainFactory>();
+
     protected ITestCodeStore GetTestCodeStore()
         => FactoryAsp.Services.GetRequiredService<ITestCodeStore>();
 

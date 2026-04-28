@@ -28,7 +28,7 @@ public class UserInteractionImpl(
 
         try
         {
-            var result = await this.GetGrain<ISpaceGrain>(this.GetUserId())
+            var result = await this.GetGrain<ISpaceGrain>(Guid.CreateVersion7())
                .CreateSpace(new ServerInput(request.name, request.description, request.avatarFieldId));
             return new SuccessCreateSpace(result.Value);
         }

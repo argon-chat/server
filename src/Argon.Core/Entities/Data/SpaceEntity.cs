@@ -19,6 +19,9 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public bool IsCommunity { get; set; }
     public Guid? DefaultChannelId { get; set; }
 
+    public int BoostCount { get; set; }
+    public int BoostLevel { get; set; }
+
     public virtual ICollection<ChannelEntity>      Channels       { get; set; } = new List<ChannelEntity>();
     public virtual ICollection<ChannelGroupEntity> ChannelGroups  { get; set; } = new List<ChannelGroupEntity>();
     public virtual ICollection<SpaceMemberEntity>  Users          { get; set; } = new List<SpaceMemberEntity>();

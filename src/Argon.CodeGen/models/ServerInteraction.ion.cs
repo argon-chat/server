@@ -15,7 +15,7 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId);
+public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

@@ -25,19 +25,23 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         var __description = IonFormatterStorage<string>.Read(reader);
         var __avatarfieldid = reader.ReadNullable<string>();
         var __topbannerfileid = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 5);
-        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid);
+        var __boostcount = IonFormatterStorage<i4>.Read(reader);
+        var __boostlevel = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __boostcount, __boostlevel);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonSpaceBase value)
     {
-        writer.WriteStartArray(5);
+        writer.WriteStartArray(7);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarFieldId);
         IonFormatterStorage<string>.WriteNullable(writer, value.topBannerFileId);
+        IonFormatterStorage<i4>.Write(writer, value.boostCount);
+        IonFormatterStorage<i4>.Write(writer, value.boostLevel);
         writer.WriteEndArray();
     }
 }

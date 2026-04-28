@@ -4,6 +4,7 @@ using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Api.Features.CoreLogic.Social;
 using Argon.Core.Features.Integrations.Captcha;
+using Argon.Core.Features.Integrations.Xsolla;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
 using Auth;
@@ -172,6 +173,7 @@ public static class HostModeExtensions
             builder.AddKineticaFSApi();
             builder.AddSelectiveForwardingUnit();
             builder.AddCaptchaFeature();
+            builder.AddXsollaFeature();
             builder.AddSocialIntegrations();
             builder.Services.AddWebSockets(x =>
             {

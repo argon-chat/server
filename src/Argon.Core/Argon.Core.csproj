@@ -37,6 +37,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.5" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.5.0" />
         <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.0.1" />
         <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.0.1" />
         <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.0.1" />

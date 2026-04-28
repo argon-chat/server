@@ -2563,6 +2563,10 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsReactionRemoved => this is ReactionRemoved;
 
+    internal bool IsSpaceBoostUpdated => this is SpaceBoostUpdated;
+
+    internal bool IsUltimaGiftReceived => this is UltimaGiftReceived;
+
 }
 
 
@@ -2951,6 +2955,20 @@ public sealed record ReactionRemoved(guid spaceId, guid channelId, i8 messageId,
     public uint UnionIndex => 54;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceBoostUpdated(guid spaceId, i4 boostCount, i4 boostLevel) : IArgonEvent
+{
+    public string UnionKey => nameof(SpaceBoostUpdated);
+    public uint UnionIndex => 55;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UltimaGiftReceived(guid userId, guid itemId, string senderName, string? message) : IArgonEvent
+{
+    public string UnionKey => nameof(UltimaGiftReceived);
+    public uint UnionIndex => 56;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3127,6 +3145,12 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 54)
             result = IonFormatterStorage<ReactionRemoved>.Read(reader);
+
+        else if (unionIndex == 55)
+            result = IonFormatterStorage<SpaceBoostUpdated>.Read(reader);
+
+        else if (unionIndex == 56)
+            result = IonFormatterStorage<UltimaGiftReceived>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -3524,6 +3548,20 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_54.UnionIndex != 54)
                 throw new InvalidOperationException();
             IonFormatterStorage<ReactionRemoved>.Write(writer, n_54);
+        }
+
+        else if (value is SpaceBoostUpdated n_55)
+        {
+            if (n_55.UnionIndex != 55)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SpaceBoostUpdated>.Write(writer, n_55);
+        }
+
+        else if (value is UltimaGiftReceived n_56)
+        {
+            if (n_56.UnionIndex != 56)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UltimaGiftReceived>.Write(writer, n_56);
         }
     
         else
@@ -4850,6 +4888,58 @@ public sealed class Ion_ReactionRemoved_Formatter : IonFormatter<ReactionRemoved
         IonFormatterStorage<i8>.Write(writer, value.messageId);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.Write(writer, value.emoji);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceBoostUpdated_Formatter : IonFormatter<SpaceBoostUpdated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceBoostUpdated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __boostcount = IonFormatterStorage<i4>.Read(reader);
+        var __boostlevel = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __boostcount, __boostlevel);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceBoostUpdated value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<i4>.Write(writer, value.boostCount);
+        IonFormatterStorage<i4>.Write(writer, value.boostLevel);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UltimaGiftReceived_Formatter : IonFormatter<UltimaGiftReceived>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UltimaGiftReceived Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __itemid = IonFormatterStorage<guid>.Read(reader);
+        var __sendername = IonFormatterStorage<string>.Read(reader);
+        var __message = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__userid, __itemid, __sendername, __message);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UltimaGiftReceived value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.itemId);
+        IonFormatterStorage<string>.Write(writer, value.senderName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.message);
         writer.WriteEndArray();
     }
 }

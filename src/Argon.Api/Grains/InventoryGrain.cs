@@ -264,6 +264,23 @@ public class InventoryGrain(
 
                 switch (usableItem.Scenario)
                 {
+                    case PremiumScenario premium:
+                    {
+                        ctx.Remove(usableItem);
+                        await ctx.SaveChangesAsync(ct);
+                        await trx.CommitAsync(ct);
+
+                        var tier = premium.PlanId switch
+                        {
+                            "ultima_annual" => Argon.Entities.UltimaTier.Annual,
+                            _               => Argon.Entities.UltimaTier.Monthly
+                        };
+
+                        await GrainFactory.GetGrain<IUltimaGrain>(userId)
+                           .ActivateSubscriptionAsync(tier, premium.DurationDays, null, usableItem.Id, ct);
+
+                        return true;
+                    }
                     case QualifierBox qualifierBox:
                     {
                         var itemId = await UseQualifierBox(ctx, qualifierBox, userId, usableItem, ct);
@@ -483,5 +500,52 @@ public class InventoryGrain(
             ctx.UserProfiles.Update(profile);
             logger.LogInformation("Added badge {TemplateId} to user {UserId} profile", templateId, userId);
         }
+    }
+
+    public async Task<bool> GiveUltimaGiftAsync(Guid recipientId, string planId, int durationDays, Guid senderId, string? giftMessage, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var scenario = new PremiumScenario
+        {
+            Key          = Guid.NewGuid(),
+            PlanId       = planId,
+            DurationDays = durationDays,
+            GiftMessage  = giftMessage
+        };
+
+        var item = new ArgonItemEntity
+        {
+            Id            = Guid.NewGuid(),
+            OwnerId       = recipientId,
+            TemplateId    = "ultima_gift",
+            IsReference   = false,
+            IsUsable      = true,
+            IsGiftable    = false,
+            IsAffectBadge = false,
+            UseVector     = ItemUseVector.Premium,
+            ReceivedFrom  = senderId,
+            Scenario      = scenario,
+            ScenarioKey   = scenario.Key,
+            CreatedAt     = DateTimeOffset.UtcNow
+        };
+
+        ctx.Set<ArgonItemEntity>().Add(item);
+        await ctx.SaveChangesAsync(ct);
+
+        await EnsureUnreadAsync(ctx, recipientId, item.Id, item.TemplateId, ct);
+
+        var sender = await ctx.Users.AsNoTracking()
+           .Where(x => x.Id == senderId)
+           .Select(x => new { x.DisplayName })
+           .FirstOrDefaultAsync(ct);
+
+        var senderName = sender?.DisplayName ?? "Someone";
+
+        await systemNotification.CreateAsync(recipientId, SystemNotificationType.ItemReceived, item.Id,
+            $"🎁 {senderName} sent you Argon Ultima!", giftMessage, ct: ct);
+
+        logger.LogInformation("Gave Ultima gift from {SenderId} to {RecipientId}, plan {PlanId}", senderId, recipientId, planId);
+        return true;
     }
 }
