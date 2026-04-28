@@ -14,15 +14,35 @@ public class XsollaService(
 {
     private XsollaOptions Opts => options.Value;
 
-    private string BaseUrl => Opts.IsSandbox
-        ? "https://sandbox-store.xsolla.com/api"
-        : "https://store.xsolla.com/api";
+    // Pay Station API — token creation
+    // https://developers.xsolla.com/api/pay-station/token/create-token
+    private const string MerchantApiBase = "https://api.xsolla.com/merchant/v2";
+
+    // Catalog API — item prices, subscription plans
+    // https://developers.xsolla.com/api/igs-bb/
+    private const string StoreApiBase = "https://store.xsolla.com/api";
+
+    // Login API — user attributes, auth by custom ID
+    // https://developers.xsolla.com/api/login/
+    private const string LoginApiBase = "https://login.xsolla.com/api";
 
     private static readonly HybridCacheEntryOptions PriceCacheOptions = new()
     {
         Expiration           = TimeSpan.FromHours(1),
         LocalCacheExpiration = TimeSpan.FromMinutes(15),
         Flags                = HybridCacheEntryFlags.DisableCompression
+    };
+
+    private static readonly HybridCacheEntryOptions ServerJwtCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromHours(6),
+        LocalCacheExpiration = TimeSpan.FromHours(1),
+    };
+
+    private static readonly HybridCacheEntryOptions UserJwtCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromHours(12),
+        LocalCacheExpiration = TimeSpan.FromHours(2),
     };
 
     public async Task<(string checkoutUrl, string sessionId)> CreateSubscriptionCheckoutAsync(
@@ -45,8 +65,7 @@ public class XsollaService(
             settings = new
             {
                 project_id = Opts.ProjectId,
-                currency   = "USD",
-                sandbox    = Opts.IsSandbox
+                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
             },
             purchase = new
             {
@@ -59,7 +78,7 @@ public class XsollaService(
             }
         };
 
-        var response = await PostXsollaAsync("/v2/merchant/merchants/{merchant_id}/token", payload, ct);
+        var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var sessionId = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
         var checkoutUrl = Opts.IsSandbox
@@ -90,8 +109,7 @@ public class XsollaService(
             settings = new
             {
                 project_id = Opts.ProjectId,
-                currency   = "USD",
-                sandbox    = Opts.IsSandbox
+                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
             },
             purchase = new
             {
@@ -109,7 +127,7 @@ public class XsollaService(
             }
         };
 
-        var response = await PostXsollaAsync("/v2/merchant/merchants/{merchant_id}/token", payload, ct);
+        var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
 
@@ -138,8 +156,7 @@ public class XsollaService(
             settings = new
             {
                 project_id = Opts.ProjectId,
-                currency   = "USD",
-                sandbox    = Opts.IsSandbox
+                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
             },
             purchase = new
             {
@@ -158,7 +175,7 @@ public class XsollaService(
             }
         };
 
-        var response = await PostXsollaAsync("/v2/merchant/merchants/{merchant_id}/token", payload, ct);
+        var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
 
@@ -171,10 +188,9 @@ public class XsollaService(
     {
         try
         {
-            var url = $"{BaseUrl}/v2/merchant/merchants/{Opts.MerchantId}/subscriptions/{xsollaSubscriptionId}/cancel";
+            var url = $"{MerchantApiBase}/merchants/{Opts.MerchantId}/subscriptions/{xsollaSubscriptionId}/cancel";
             var request = new HttpRequestMessage(HttpMethod.Put, url);
-            request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
-                Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Opts.MerchantId}:{Opts.ApiKey}")));
+            request.Headers.Authorization = MerchantAuth();
 
             var response = await httpClient.SendAsync(request, ct);
             return response.IsSuccessStatusCode;
@@ -195,40 +211,16 @@ public class XsollaService(
 
     public async Task UpdateUserAttributeAsync(Guid userId, string key, string value, CancellationToken ct = default)
     {
-        // Xsolla Login API — update read-only user attribute
-        // https://developers.xsolla.com/login-api/attributes/update-users-read-only-attr
-        var url = Opts.IsSandbox
-            ? $"https://sandbox-login.xsolla.com/api/attributes/users/{userId}/read_only"
-            : $"https://login.xsolla.com/api/attributes/users/{userId}/read_only";
-
-        var payload = new[]
-        {
-            new
-            {
-                key,
-                permission = "public",
-                value
-            }
-        };
-
-        var request = new HttpRequestMessage(HttpMethod.Post, url)
-        {
-            Content = JsonContent.Create(payload)
-        };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
-            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Opts.MerchantId}:{Opts.ApiKey}")));
-        request.Headers.Add("X-PROJECT-ID", Opts.LoginProjectId.ToString());
-
-        // Let Polly resilience handler retry on transient HTTP errors (5xx, timeouts)
-        var response = await httpClient.SendAsync(request, ct);
-        response.EnsureSuccessStatusCode();
+        // Use auth_by_custom_id to update attribute and refresh the user JWT cache in one call
+        await GetOrCreateXsollaUserJwtAsync(userId, ct, new[] { (key, value) });
     }
 
     public async Task EnsureSubscriberAttributeAsync(Guid userId, bool isSubscriber, CancellationToken ct = default)
     {
         try
         {
-            await UpdateUserAttributeAsync(userId, "ultima_subscriber", isSubscriber ? "1" : "0", ct);
+            await GetOrCreateXsollaUserJwtAsync(userId, ct,
+                new[] { ("ultima_subscriber", isSubscriber ? "1" : "0") });
         }
         catch (Exception ex)
         {
@@ -240,11 +232,24 @@ public class XsollaService(
     public async Task<UltimaPricing> GetPricingAsync(Guid userId, string countryCode, CancellationToken ct = default)
     {
         var country = countryCode.ToUpperInvariant();
+
+        // User JWT carries ultima_subscriber attribute — Xsolla returns personalized prices
+        // based on user segment configured in the dashboard
         var cacheKey = $"xsolla:pricing:{country}:{userId}";
 
         return await cache.GetOrCreateAsync(cacheKey, async cancel =>
         {
-            var items = await FetchItemPricesAsync(userId, country, cancel);
+            string? userJwt = null;
+            try
+            {
+                userJwt = await GetOrCreateXsollaUserJwtAsync(userId, cancel);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to get Xsolla user JWT for personalized pricing, falling back to base prices");
+            }
+
+            var items = await FetchItemPricesAsync(country, userJwt, cancel);
             var plans = await FetchPlanPricesAsync(country, cancel);
 
             return new UltimaPricing(
@@ -261,14 +266,14 @@ public class XsollaService(
         => prices.TryGetValue(sku, out var p) ? p : new ProductPrice("0", null, "USD");
 
     private async Task<Dictionary<string, ProductPrice>> FetchItemPricesAsync(
-        Guid userId, string country, CancellationToken ct)
+        string country, string? userJwt, CancellationToken ct)
     {
         var prices = new Dictionary<string, ProductPrice>();
         try
         {
-            // Pass user_id so Xsolla applies user-specific promotions (e.g. ultima_subscriber discount)
-            var json = await GetXsollaAsync(
-                $"/v2/project/{Opts.ProjectId}/items/virtual_items?country={country}&user_id={userId}", ct);
+            var url = $"/v2/project/{Opts.ProjectId}/items/virtual_items?country={country}";
+
+            var json = await GetStoreAsync(url, userJwt, ct);
 
             if (json?.TryGetProperty("items", out var items) == true)
             {
@@ -306,8 +311,8 @@ public class XsollaService(
         var prices = new Dictionary<string, ProductPrice>();
         try
         {
-            var json = await GetXsollaAsync(
-                $"/v2/project/{Opts.ProjectId}/subscriptions/plans?country={country}", ct);
+            var json = await GetStoreAsync(
+                $"/v2/project/{Opts.ProjectId}/subscriptions/plans?country={country}", null, ct);
 
             if (json?.TryGetProperty("items", out var plans) == true)
             {
@@ -334,47 +339,167 @@ public class XsollaService(
         return prices;
     }
 
-    private async Task<JsonElement?> GetXsollaAsync(string path, CancellationToken ct)
+    // ── HTTP helpers ────────────────────────────────────────────────────
+
+    /// <summary>Pay Station Merchant API — basic auth with merchant_id:api_key</summary>
+    private async Task<JsonElement?> PostMerchantAsync(string path, object payload, CancellationToken ct)
     {
-        var url = $"{BaseUrl}{path}";
-        var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
-            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Opts.MerchantId}:{Opts.ApiKey}")));
-
-        var response = await httpClient.SendAsync(request, ct);
-
-        if (!response.IsSuccessStatusCode)
-        {
-            var errorBody = await response.Content.ReadAsStringAsync(ct);
-            logger.LogWarning("Xsolla GET {Path} returned {StatusCode}: {Body}", path, response.StatusCode, errorBody);
-            return null;
-        }
-
-        var json = await response.Content.ReadAsStringAsync(ct);
-        return JsonSerializer.Deserialize<JsonElement>(json);
-    }
-
-    private async Task<JsonElement?> PostXsollaAsync(string path, object payload, CancellationToken ct)
-    {
-        var url = $"{BaseUrl}{path}".Replace("{merchant_id}", Opts.MerchantId.ToString());
+        var url = $"{MerchantApiBase}{path}";
 
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
             Content = JsonContent.Create(payload)
         };
-        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Basic",
-            Convert.ToBase64String(Encoding.UTF8.GetBytes($"{Opts.MerchantId}:{Opts.ApiKey}")));
+        request.Headers.Authorization = MerchantAuth();
 
         var response = await httpClient.SendAsync(request, ct);
 
         if (!response.IsSuccessStatusCode)
         {
             var errorBody = await response.Content.ReadAsStringAsync(ct);
-            logger.LogError("Xsolla API error {StatusCode}: {Body}", response.StatusCode, errorBody);
+            logger.LogError("Xsolla Merchant API error {StatusCode}: {Body}", response.StatusCode, errorBody);
             return null;
         }
 
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<JsonElement>(json);
     }
+
+    /// <summary>Catalog API — uses user JWT if available, otherwise project basic auth.</summary>
+    private async Task<JsonElement?> GetStoreAsync(string path, string? userJwt, CancellationToken ct)
+    {
+        var url = $"{StoreApiBase}{path}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+
+        if (userJwt is not null)
+            request.Headers.Authorization = new("Bearer", userJwt);
+        else
+            request.Headers.Authorization = ProjectAuth();
+
+        var response = await httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            logger.LogWarning("Xsolla Store API GET {Path} returned {StatusCode}: {Body}", path, response.StatusCode, errorBody);
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<JsonElement>(json);
+    }
+
+    // ── Xsolla Login: Server JWT & User JWT ─────────────────────────────
+
+    /// <summary>
+    /// Gets a cached server JWT via OAuth 2.0 client_credentials grant.
+    /// https://developers.xsolla.com/api/login/operation/generate-jwt/
+    /// </summary>
+    private async Task<string> GetServerJwtAsync(CancellationToken ct)
+    {
+        return await cache.GetOrCreateAsync("xsolla:server_jwt", async cancel =>
+        {
+            var payload = new Dictionary<string, string>
+            {
+                ["grant_type"]    = "client_credentials",
+                ["client_id"]     = Opts.ServerOAuthClientId.ToString(),
+                ["client_secret"] = Opts.ServerOAuthClientSecret,
+            };
+
+            var request = new HttpRequestMessage(HttpMethod.Post, $"{LoginApiBase}/oauth2/token")
+            {
+                Content = new FormUrlEncodedContent(payload)
+            };
+
+            var response = await httpClient.SendAsync(request, cancel);
+            var body = await response.Content.ReadAsStringAsync(cancel);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                logger.LogError("Xsolla server JWT request failed {StatusCode}: {Body}", response.StatusCode, body);
+                throw new InvalidOperationException($"Failed to obtain Xsolla server JWT: {response.StatusCode}");
+            }
+
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            return json.GetProperty("access_token").GetString()
+                   ?? throw new InvalidOperationException("No access_token in Xsolla OAuth response");
+        }, ServerJwtCacheOptions, cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// Gets a cached Xsolla Login user JWT by authenticating via server custom ID.
+    /// Creates the Xsolla user if it doesn't exist.
+    /// Optionally updates user attributes in the same call.
+    /// https://developers.xsolla.com/api/login/operation/auth-by-custom-id/
+    /// </summary>
+    private async Task<string> GetOrCreateXsollaUserJwtAsync(
+        Guid userId, CancellationToken ct, (string key, string value)[]? attributes = null)
+    {
+        // If attributes are being updated, bypass cache to get fresh token with updated attrs
+        if (attributes is { Length: > 0 })
+        {
+            var jwt = await FetchXsollaUserJwtAsync(userId, attributes, ct);
+            // Update cache with fresh token
+            await cache.SetAsync($"xsolla:user_jwt:{userId}", jwt, UserJwtCacheOptions, cancellationToken: ct);
+            return jwt;
+        }
+
+        return await cache.GetOrCreateAsync($"xsolla:user_jwt:{userId}", async cancel =>
+        {
+            return await FetchXsollaUserJwtAsync(userId, null, cancel);
+        }, UserJwtCacheOptions, cancellationToken: ct);
+    }
+
+    private async Task<string> FetchXsollaUserJwtAsync(
+        Guid userId, (string key, string value)[]? attributes, CancellationToken ct)
+    {
+        var serverJwt = await GetServerJwtAsync(ct);
+
+        var body = new Dictionary<string, object>
+        {
+            ["server_custom_id"] = userId.ToString()
+        };
+
+        if (attributes is { Length: > 0 })
+        {
+            body["attributes"] = attributes.Select(a => new
+            {
+                attr_type  = "server",
+                key        = a.key,
+                permission = "private",
+                value      = a.value
+            }).ToArray();
+        }
+
+        var url = $"{LoginApiBase}/users/login/server_custom_id?projectId={Opts.LoginProjectId}";
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = JsonContent.Create(body)
+        };
+        request.Headers.Add("X-SERVER-AUTHORIZATION", serverJwt);
+
+        var response = await httpClient.SendAsync(request, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Xsolla auth_by_custom_id failed {StatusCode}: {Body}", response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Failed to get Xsolla user JWT: {response.StatusCode}");
+        }
+
+        var json = JsonSerializer.Deserialize<JsonElement>(responseBody);
+        return json.GetProperty("token").GetString()
+               ?? throw new InvalidOperationException("No token in Xsolla auth_by_custom_id response");
+    }
+
+    /// <summary>merchant_id:api_key — for Pay Station &amp; merchant endpoints</summary>
+    private System.Net.Http.Headers.AuthenticationHeaderValue MerchantAuth()
+        => new("Basic", Convert.ToBase64String(
+            Encoding.UTF8.GetBytes($"{Opts.MerchantId}:{Opts.ApiKey}")));
+
+    /// <summary>project_id:api_key — for Catalog/Store endpoints</summary>
+    private System.Net.Http.Headers.AuthenticationHeaderValue ProjectAuth()
+        => new("Basic", Convert.ToBase64String(
+            Encoding.UTF8.GetBytes($"{Opts.ProjectId}:{Opts.ApiKey}")));
 }

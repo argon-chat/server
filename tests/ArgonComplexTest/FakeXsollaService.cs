@@ -45,6 +45,20 @@ public class FakeXsollaService : IXsollaService
 
     public Task<UltimaPricing> GetPricingAsync(Guid userId, string countryCode, CancellationToken ct = default)
     {
+        // Simulate subscriber discount: if user has ultima_subscriber=1, return discounted prices for boosts
+        var isSubscriber = AttributeUpdates.Any(a => a.UserId == userId && a.Key == "ultima_subscriber" && a.Value == "1");
+
+        if (isSubscriber)
+        {
+            return Task.FromResult(new UltimaPricing(
+                new ProductPrice("9.99", null, "USD"),
+                new ProductPrice("99.99", null, "USD"),
+                new ProductPrice("2.99", "4.99", "USD"),
+                new ProductPrice("7.79", "12.99", "USD"),
+                new ProductPrice("11.99", "19.99", "USD")
+            ));
+        }
+
         return Task.FromResult(new UltimaPricing(
             new ProductPrice("9.99", null, "USD"),
             new ProductPrice("99.99", null, "USD"),

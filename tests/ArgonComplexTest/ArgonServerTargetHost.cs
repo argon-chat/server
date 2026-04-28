@@ -36,6 +36,8 @@ public class ArgonServerTargetHost(string redisConnectionString, string natsConn
         builder.UseSetting("Xsolla:ApiKey", "test-key");
         builder.UseSetting("Xsolla:WebhookSecret", "test-secret");
         builder.UseSetting("Xsolla:IsSandbox", "true");
-        builder.UseSetting("Xsolla:LoginProjectId", "1");
+        builder.UseSetting("Xsolla:LoginProjectId", "00000000-0000-0000-0000-000000000001");
+        builder.UseSetting("Xsolla:ServerOAuthClientId", "1");
+        builder.UseSetting("Xsolla:ServerOAuthClientSecret", "test-oauth-secret");
     }
 }
