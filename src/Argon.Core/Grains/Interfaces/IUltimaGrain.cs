@@ -35,4 +35,8 @@ public interface IUltimaGrain : IGrainWithGuidKey
 
     [Alias(nameof(GrantPurchasedBoostsAsync))]
     Task GrantPurchasedBoostsAsync(int count, BoostSource source, string? xsollaTxId, CancellationToken ct = default);
+
+    [Alias(nameof(SaveTransactionAsync))]
+    Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,
+        int? boostCount, Guid? recipientId, string? amount, string? currency, CancellationToken ct = default);
 }

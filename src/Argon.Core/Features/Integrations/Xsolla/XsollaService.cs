@@ -385,7 +385,7 @@ public class XsollaService(
 
     // ── Subscription Management (user-facing) API base ────────────────
     // https://developers.xsolla.com/api/subscriptions/subscription-management
-    private const string SubscriptionManagementBase = "https://api.xsolla.com/merchant/v2";
+    private const string SubscriptionManagementBase = "https://api.xsolla.com";
 
     public async Task<PaymentAccountInfo?> GetPaymentAccountAsync(
         Guid userId, string xsollaSubscriptionId, CancellationToken ct = default)

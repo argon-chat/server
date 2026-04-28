@@ -11,8 +11,7 @@ using Microsoft.AspNetCore.Mvc;
 public class XsollaWebHookController(
     ILogger<XsollaWebHookController> logger,
     IClusterClient client,
-    IXsollaService xsolla,
-    IDbContextFactory<ApplicationDbContext> contextFactory) : ControllerBase
+    IXsollaService xsolla) : ControllerBase
 {
     [HttpPost("/api/xsolla/webhook")]
     public async Task<IActionResult> Webhook()
@@ -228,32 +227,11 @@ public class XsollaWebHookController(
     {
         try
         {
-            await using var ctx = await contextFactory.CreateDbContextAsync();
-
-            // Idempotent — skip if txId already recorded
-            var exists = await ctx.PaymentTransactions.AnyAsync(x => x.XsollaTxId == txId);
-            if (exists) return;
-
-            ctx.PaymentTransactions.Add(new PaymentTransactionEntity
-            {
-                Id              = Guid.NewGuid(),
-                UserId          = userId,
-                XsollaTxId      = txId,
-                TransactionType = transactionType,
-                PlanExternalId  = planExternalId,
-                BoostPackType   = boostPackType,
-                BoostCount      = boostCount,
-                Amount          = amount,
-                Currency        = currency,
-                RecipientId     = recipientId,
-                CreatedAt       = DateTimeOffset.UtcNow,
-            });
-
-            await ctx.SaveChangesAsync();
+            await client.GetGrain<IUltimaGrain>(userId)
+               .SaveTransactionAsync(txId, transactionType, planExternalId, boostPackType, boostCount, recipientId, amount, currency);
         }
         catch (Exception ex)
         {
-            // Best-effort — don't fail the webhook if transaction logging fails
             logger.LogWarning(ex, "Failed to save payment transaction {TxId} for {UserId}", txId, userId);
         }
     }

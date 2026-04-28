@@ -371,6 +371,32 @@ public class UltimaGrain(
         logger.LogInformation("Granted {Count} purchased boosts to user {UserId}", count, UserId);
     }
 
+    public async Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,
+        int? boostCount, Guid? recipientId, string? amount, string? currency, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var exists = await ctx.PaymentTransactions.AnyAsync(x => x.XsollaTxId == txId, ct);
+        if (exists) return;
+
+        ctx.PaymentTransactions.Add(new PaymentTransactionEntity
+        {
+            Id              = Guid.NewGuid(),
+            UserId          = UserId,
+            XsollaTxId      = txId,
+            TransactionType = transactionType,
+            PlanExternalId  = planExternalId,
+            BoostPackType   = boostPackType,
+            BoostCount      = boostCount,
+            Amount          = amount,
+            Currency        = currency,
+            RecipientId     = recipientId,
+            CreatedAt       = DateTimeOffset.UtcNow,
+        });
+
+        await ctx.SaveChangesAsync(ct);
+    }
+
     private static UltimaPlan MapTier(UltimaTier tier) => tier switch
     {
         UltimaTier.Monthly => UltimaPlan.Monthly,
