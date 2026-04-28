@@ -88,17 +88,24 @@ public class XsollaWebHookController(
     {
         var userIdStr = json.GetProperty("user").GetProperty("id").GetString();
 
+        logger.LogInformation("Xsolla user_validation: userId={UserId}", userIdStr);
+
         if (!Guid.TryParse(userIdStr, out var userId))
+        {
+            logger.LogWarning("Xsolla user_validation: failed to parse userId '{UserId}' as Guid", userIdStr);
             return NotFound();
+        }
 
         // Verify user exists by attempting to get the grain — no DB access outside grains
         try
         {
             var user = await client.GetGrain<IUserGrain>(userId).GetAsArgonUser();
+            logger.LogInformation("Xsolla user_validation: user {UserId} found, returning 204", userId);
             return NoContent();
         }
-        catch
+        catch (Exception ex)
         {
+            logger.LogWarning(ex, "Xsolla user_validation: user {UserId} NOT found, returning 404", userId);
             return NotFound();
         }
     }
