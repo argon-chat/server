@@ -69,10 +69,7 @@ public class XsollaService(
             },
             purchase = new
             {
-                virtual_items = new
-                {
-                    items = new[] { new { sku, amount = 1 } }
-                }
+                subscription = new { plan_id = sku }
             },
             custom_parameters = new
             {
@@ -275,12 +272,9 @@ public class XsollaService(
                 items.Count, string.Join(",", items.Keys),
                 plans.Count, string.Join(",", plans.Keys));
 
-            // Subscription items are virtual items in Xsolla catalog, not subscription plans.
-            // Subscription plans API returns [] — subscriptions are configured as virtual items.
-            // Fall back to items dict for subscription prices, prefer plans if they exist.
             var pricing = new UltimaPricing(
-                ExtractPrice(plans.Count > 0 ? plans : items, "ultima_monthly"),
-                ExtractPrice(plans.Count > 0 ? plans : items, "ultima_annual"),
+                ExtractPrice(plans, "ultima_monthly"),
+                ExtractPrice(plans, "ultima_annual"),
                 ExtractPrice(items, "boost_pack_1"),
                 ExtractPrice(items, "boost_pack_3"),
                 ExtractPrice(items, "boost_pack_5")
