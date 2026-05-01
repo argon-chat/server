@@ -155,8 +155,11 @@ public class XsollaService(
     {
         try
         {
-            var url = $"{MerchantApiBase}/merchants/{Opts.MerchantId}/subscriptions/{xsollaSubscriptionId}/cancel";
-            var request = new HttpRequestMessage(HttpMethod.Put, url);
+            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/{xsollaSubscriptionId}";
+            var request = new HttpRequestMessage(HttpMethod.Put, url)
+            {
+                Content = JsonContent.Create(new { status = "non_renewing", cancel_subscription_payment = true })
+            };
             request.Headers.Authorization = MerchantAuth();
 
             var response = await httpClient.SendAsync(request, ct);
@@ -304,7 +307,7 @@ public class XsollaService(
         {
             // Subscriptions API lives on MerchantApiBase, NOT StoreApiBase
             // https://developers.xsolla.com/api/subscriptions/plans
-            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/plans";
+            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/plans?country={country}";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = MerchantAuth();
 
@@ -327,9 +330,9 @@ public class XsollaService(
 
             foreach (var plan in plans.EnumerateArray())
             {
-                var planId = plan.TryGetProperty("external_id", out var eid)
+                var planId = plan.TryGetProperty("external_id", out var eid) && eid.GetString() is { Length: > 0 }
                     ? eid.GetString()
-                    : plan.GetProperty("plan_id").ToString();
+                    : plan.GetProperty("id").ToString();
                 if (planId is null) continue;
 
                 if (plan.TryGetProperty("charge", out var charge))
@@ -353,8 +356,6 @@ public class XsollaService(
         try
         {
             var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/users/{userId}/payment_accounts";
-            if (Opts.IsSandbox)
-                url += "?mode=sandbox";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = MerchantAuth();
@@ -410,7 +411,7 @@ public class XsollaService(
         var url = $"{MerchantApiBase}{path}";
         var payloadJson = JsonSerializer.Serialize(payload);
 
-        logger.LogInformation("Xsolla Merchant API POST {Url}, payload: {Payload}", url, payloadJson);
+        logger.LogDebug("Xsolla Merchant API POST {Url}, payload: {Payload}", url, payloadJson);
 
         var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
@@ -633,8 +634,9 @@ public class XsollaService(
 
     private XsollaTokenSettings CreateSettings() => new()
     {
-        ProjectId = Opts.ProjectId,
-        Mode      = Opts.IsSandbox ? "sandbox" : null,
+        ProjectId     = Opts.ProjectId,
+        Mode          = Opts.IsSandbox ? "sandbox" : null,
+        PaymentMethod = Opts.PaymentMethodId,
         RedirectPolicy = new XsollaRedirectPolicy
         {
             ManualRedirectionAction = "postmessage",
@@ -643,6 +645,8 @@ public class XsollaService(
         Ui = new XsollaUiSettings
         {
             IsThreeDsIndependentWindows = true,
+            IsPaymentMethodsListMode    = false,
+            IsSearchFieldHidden         = false,
             Theme                       = "63295aab2e47fab76f7708e3"
         }
     };
