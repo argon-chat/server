@@ -55,36 +55,25 @@ public class XsollaService(
             _                  => "ultima_monthly"
         };
 
-        var payload = new
+        var payload = new XsollaTokenRequest
         {
-            user = new
+            User = CreateUser(userId, email, countryCode),
+            Settings = CreateSettings(),
+            Purchase = new XsollaTokenPurchase
             {
-                id      = new { value = userId.ToString() },
-                email   = new { value = email },
-                country = new { value = countryCode, allow_modify = false }
+                Subscription = new XsollaSubscriptionPurchase { PlanId = sku }
             },
-            settings = new
+            CustomParameters = new Dictionary<string, object>
             {
-                project_id = Opts.ProjectId,
-                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
-            },
-            purchase = new
-            {
-                subscription = new { plan_id = sku }
-            },
-            custom_parameters = new
-            {
-                type    = "subscription",
-                user_id = userId.ToString()
+                ["type"]    = "subscription",
+                ["user_id"] = userId.ToString()
             }
         };
 
         var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var sessionId = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
-        var checkoutUrl = Opts.IsSandbox
-            ? $"https://sandbox-secure.xsolla.com/paystation4/?token={sessionId}"
-            : $"https://secure.xsolla.com/paystation4/?token={sessionId}";
+        var checkoutUrl = BuildCheckoutUrl(sessionId);
 
         return (checkoutUrl, sessionId);
     }
@@ -103,39 +92,27 @@ public class XsollaService(
             _                        => ("boost_pack_1", 1)
         };
 
-        var payload = new
+        var payload = new XsollaTokenRequest
         {
-            user = new
+            User = CreateUser(userId, email, countryCode),
+            Settings = CreateSettings(),
+            Purchase = new XsollaTokenPurchase
             {
-                id      = new { value = userId.ToString() },
-                email   = new { value = email },
-                country = new { value = countryCode, allow_modify = false }
+                Subscription = new XsollaSubscriptionPurchase { PlanId = sku, Force = true }
             },
-            settings = new
+            CustomParameters = new Dictionary<string, object>
             {
-                project_id = Opts.ProjectId,
-                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
-            },
-            purchase = new
-            {
-                subscription = new { plan_id = sku }
-            },
-            custom_parameters = new
-            {
-                type       = "boost_pack",
-                user_id    = userId.ToString(),
-                pack_type  = pack.ToString(),
-                boost_count = quantity
+                ["type"]        = "boost_pack",
+                ["user_id"]     = userId.ToString(),
+                ["pack_type"]   = pack.ToString(),
+                ["boost_count"] = quantity
             }
         };
 
         var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
-
-        return Opts.IsSandbox
-            ? $"https://sandbox-secure.xsolla.com/paystation4/?token={token}"
-            : $"https://secure.xsolla.com/paystation4/?token={token}";
+        return BuildCheckoutUrl(token);
     }
 
     public async Task<string> CreateGiftCheckoutAsync(
@@ -147,43 +124,31 @@ public class XsollaService(
             _                => "ultima_gift_monthly"
         };
 
-        var payload = new
+        var payload = new XsollaTokenRequest
         {
-            user = new
+            User = CreateUser(senderId, email, countryCode),
+            Settings = CreateSettings(),
+            Purchase = new XsollaTokenPurchase
             {
-                id      = new { value = senderId.ToString() },
-                email   = new { value = email },
-                country = new { value = countryCode, allow_modify = false }
-            },
-            settings = new
-            {
-                project_id = Opts.ProjectId,
-                mode       = Opts.IsSandbox ? "sandbox" : (string?)null
-            },
-            purchase = new
-            {
-                virtual_items = new
+                VirtualItems = new XsollaVirtualItemsPurchase
                 {
-                    items = new[] { new { sku, amount = 1 } }
+                    Items = [new XsollaVirtualItem { Sku = sku, Amount = 1 }]
                 }
             },
-            custom_parameters = new
+            CustomParameters = new Dictionary<string, object>
             {
-                type         = "gift",
-                user_id      = senderId.ToString(),
-                recipient_id = recipientId.ToString(),
-                plan         = plan == UltimaPlan.Annual ? "Annual" : "Monthly",
-                gift_message = giftMessage ?? ""
+                ["type"]         = "gift",
+                ["user_id"]      = senderId.ToString(),
+                ["recipient_id"] = recipientId.ToString(),
+                ["plan"]         = plan == UltimaPlan.Annual ? "Annual" : "Monthly",
+                ["gift_message"] = giftMessage ?? ""
             }
         };
 
         var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
-
-        return Opts.IsSandbox
-            ? $"https://sandbox-secure.xsolla.com/paystation4/?token={token}"
-            : $"https://secure.xsolla.com/paystation4/?token={token}";
+        return BuildCheckoutUrl(token);
     }
 
     public async Task<bool> CancelSubscriptionAsync(string xsollaSubscriptionId, CancellationToken ct = default)
@@ -382,56 +347,57 @@ public class XsollaService(
         return prices;
     }
 
-    // ── Subscription Management (user-facing) API base ────────────────
-    // https://developers.xsolla.com/api/subscriptions/subscription-management
-    private const string SubscriptionManagementBase = "https://api.xsolla.com";
-
     public async Task<PaymentAccountInfo?> GetPaymentAccountAsync(
-        Guid userId, string xsollaSubscriptionId, CancellationToken ct = default)
+        Guid userId, CancellationToken ct = default)
     {
         try
         {
-            var userJwt = await GetOrCreateXsollaUserJwtAsync(userId, ct);
-            var url = $"{SubscriptionManagementBase}/api/user/v1/management/projects/{Opts.ProjectId}/subscriptions/{xsollaSubscriptionId}/payment_account";
+            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/users/{userId}/payment_accounts";
+            if (Opts.IsSandbox)
+                url += "?mode=sandbox";
 
             var request = new HttpRequestMessage(HttpMethod.Get, url);
-            request.Headers.Authorization = new("Bearer", userJwt);
+            request.Headers.Authorization = MerchantAuth();
 
             var response = await httpClient.SendAsync(request, ct);
 
             if (!response.IsSuccessStatusCode)
             {
                 var errorBody = await response.Content.ReadAsStringAsync(ct);
-                logger.LogWarning("Xsolla payment_account GET returned {StatusCode}: {Body}", response.StatusCode, errorBody);
+                logger.LogWarning("Xsolla payment_accounts GET returned {StatusCode}: {Body}", response.StatusCode, errorBody);
                 return null;
             }
 
             var body = await response.Content.ReadAsStringAsync(ct);
             var json = JsonSerializer.Deserialize<JsonElement>(body);
 
-            // Parse name field: "** 7398" → "7398"
+            if (json.ValueKind != JsonValueKind.Array || json.GetArrayLength() == 0)
+                return null;
+
+            // Take the most recently created account (last in array)
+            var account = json[json.GetArrayLength() - 1];
+
+            long? paymentAccountId = null;
+            if (account.TryGetProperty("id", out var idProp) && idProp.TryGetInt64(out var accId))
+                paymentAccountId = accId;
+
+            // Parse name field: "411111******1111" → last 4 digits
             string? cardLastFour = null;
-            if (json.TryGetProperty("name", out var nameProp) && nameProp.GetString() is { } name)
+            if (account.TryGetProperty("name", out var nameProp) && nameProp.GetString() is { } name)
             {
                 var digits = name.Replace("*", "").Replace(" ", "").Trim();
-                cardLastFour = digits.Length > 0 ? digits : null;
+                cardLastFour = digits.Length >= 4 ? digits[^4..] : digits.Length > 0 ? digits : null;
             }
 
-            string? cardType = json.TryGetProperty("ps_name", out var ps) ? ps.GetString() : null;
-            string? expiryMonth = null;
-            string? expiryYear = null;
+            string? cardType = null;
+            if (account.TryGetProperty("payment_system", out var ps) && ps.ValueKind == JsonValueKind.Object)
+                cardType = ps.TryGetProperty("name", out var psName) ? psName.GetString() : null;
 
-            if (json.TryGetProperty("card_expiry_date", out var expiry) && expiry.ValueKind == JsonValueKind.Object)
-            {
-                expiryMonth = expiry.TryGetProperty("month", out var m) ? m.GetString() : null;
-                expiryYear  = expiry.TryGetProperty("year", out var y) ? y.GetString() : null;
-            }
-
-            return new PaymentAccountInfo(cardLastFour, cardType, expiryMonth, expiryYear);
+            return new PaymentAccountInfo(cardLastFour, cardType, null, null, paymentAccountId);
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to get payment account for user {UserId}, subscription {SubId}", userId, xsollaSubscriptionId);
+            logger.LogWarning(ex, "Failed to get payment accounts for user {UserId}", userId);
             return null;
         }
     }
@@ -655,4 +621,33 @@ public class XsollaService(
     private System.Net.Http.Headers.AuthenticationHeaderValue ProjectAuth()
         => new("Basic", Convert.ToBase64String(
             Encoding.UTF8.GetBytes($"{Opts.ProjectId}:{Opts.ApiKey}")));
+
+    // ── Token request helpers ───────────────────────────────────────────
+
+    private XsollaTokenUser CreateUser(Guid userId, string email, string countryCode) => new()
+    {
+        Id      = new XsollaStringValue { Value = userId.ToString() },
+        Email   = new XsollaStringValue { Value = email },
+        Country = new XsollaCountryValue { Value = countryCode, AllowModify = false }
+    };
+
+    private XsollaTokenSettings CreateSettings() => new()
+    {
+        ProjectId = Opts.ProjectId,
+        Mode      = Opts.IsSandbox ? "sandbox" : null,
+        RedirectPolicy = new XsollaRedirectPolicy
+        {
+            ManualRedirectionAction = "postmessage",
+            RedirectConditions      = "none"
+        },
+        Ui = new XsollaUiSettings
+        {
+            IsThreeDsIndependentWindows = true,
+            Theme                       = "63295aab2e47fab76f7708e3"
+        }
+    };
+
+    private string BuildCheckoutUrl(string token) => Opts.IsSandbox
+        ? $"https://sandbox-secure.xsolla.com/paystation4/?token={token}"
+        : $"https://secure.xsolla.com/paystation4/?token={token}";
 }

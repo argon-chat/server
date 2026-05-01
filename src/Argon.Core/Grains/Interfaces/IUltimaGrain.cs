@@ -38,5 +38,9 @@ public interface IUltimaGrain : IGrainWithGuidKey
 
     [Alias(nameof(SaveTransactionAsync))]
     Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,
-        int? boostCount, Guid? recipientId, string? amount, string? currency, CancellationToken ct = default);
+        int? boostCount, Guid? recipientId, string? amount, string? currency,
+        string? cardSuffix = null, string? cardBrand = null, long? paymentAccountId = null, CancellationToken ct = default);
+
+    [Alias(nameof(MarkTransactionRefundedAsync))]
+    Task MarkTransactionRefundedAsync(string txId, CancellationToken ct = default);
 }

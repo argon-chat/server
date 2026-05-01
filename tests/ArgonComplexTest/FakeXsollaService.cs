@@ -43,8 +43,8 @@ public class FakeXsollaService : IXsollaService
     public bool ValidateWebhookSignature(string body, string signature)
         => ShouldValidateSignature;
 
-    public Task<PaymentAccountInfo?> GetPaymentAccountAsync(Guid userId, string xsollaSubscriptionId, CancellationToken ct = default)
-        => Task.FromResult<PaymentAccountInfo?>(new PaymentAccountInfo("4242", "Visa", "12", "2030"));
+    public Task<PaymentAccountInfo?> GetPaymentAccountAsync(Guid userId, CancellationToken ct = default)
+        => Task.FromResult<PaymentAccountInfo?>(new PaymentAccountInfo("4242", "Visa", "12", "2030", 123456));
 
     public Task<UltimaPricing> GetPricingAsync(Guid userId, string countryCode, CancellationToken ct = default)
     {

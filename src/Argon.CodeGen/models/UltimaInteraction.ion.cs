@@ -27,11 +27,11 @@ public sealed record UltimaSubscriptionInfo(guid subscriptionId, UltimaPlan tier
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record PaymentAccountInfo(string? cardLastFour, string? cardType, string? expiryMonth, string? expiryYear);
+public sealed record PaymentAccountInfo(string? cardLastFour, string? cardType, string? expiryMonth, string? expiryYear, i8? paymentAccountId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UltimaTransaction(string paymentId, datetime date, string? amount, string? currency, string? planExternalId, string? boostPackType, i4? boostCount, guid? recipientId, string? transactionType);
+public sealed record UltimaTransaction(string paymentId, datetime date, string? amount, string? currency, string? planExternalId, string? boostPackType, i4? boostCount, guid? recipientId, string? transactionType, string? cardSuffix, string? cardBrand, string? status);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

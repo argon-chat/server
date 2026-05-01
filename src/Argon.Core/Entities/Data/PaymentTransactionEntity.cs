@@ -29,6 +29,17 @@ public record PaymentTransactionEntity : ArgonEntity, IEntityTypeConfiguration<P
 
     public Guid? RecipientId    { get; set; }               // for gifts
 
+    [MaxLength(4)]
+    public string? CardSuffix   { get; set; }               // last 4 digits
+
+    [MaxLength(32)]
+    public string? CardBrand    { get; set; }               // Visa, Mastercard
+
+    public long?  PaymentAccountId { get; set; }            // Xsolla saved payment account ID
+
+    [MaxLength(16)]
+    public string? Status        { get; set; }              // done, canceled, refunded
+
     public virtual UserEntity User { get; set; } = null!;
 
     public void Configure(EntityTypeBuilder<PaymentTransactionEntity> builder)

@@ -35,7 +35,7 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
         {
             var xsollaSubId = await grain.GetXsollaSubscriptionIdAsync(ct);
             if (xsollaSubId is not null)
-                paymentAccount = await xsolla.GetPaymentAccountAsync(userId, xsollaSubId, ct);
+                paymentAccount = await xsolla.GetPaymentAccountAsync(userId, ct);
         }
         catch (Exception ex)
         {

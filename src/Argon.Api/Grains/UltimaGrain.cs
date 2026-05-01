@@ -83,7 +83,10 @@ public class UltimaGrain(
             t.BoostPackType,
             t.BoostCount,
             t.RecipientId,
-            t.TransactionType
+            t.TransactionType,
+            t.CardSuffix,
+            t.CardBrand,
+            t.Status
         )).ToList();
     }
 
@@ -388,7 +391,8 @@ public class UltimaGrain(
     }
 
     public async Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,
-        int? boostCount, Guid? recipientId, string? amount, string? currency, CancellationToken ct = default)
+        int? boostCount, Guid? recipientId, string? amount, string? currency,
+        string? cardSuffix = null, string? cardBrand = null, long? paymentAccountId = null, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
@@ -397,20 +401,32 @@ public class UltimaGrain(
 
         ctx.PaymentTransactions.Add(new PaymentTransactionEntity
         {
-            Id              = Guid.NewGuid(),
-            UserId          = UserId,
-            XsollaTxId      = txId,
-            TransactionType = transactionType,
-            PlanExternalId  = planExternalId,
-            BoostPackType   = boostPackType,
-            BoostCount      = boostCount,
-            Amount          = amount,
-            Currency        = currency,
-            RecipientId     = recipientId,
-            CreatedAt       = DateTimeOffset.UtcNow,
+            Id               = Guid.NewGuid(),
+            UserId           = UserId,
+            XsollaTxId       = txId,
+            TransactionType  = transactionType,
+            PlanExternalId   = planExternalId,
+            BoostPackType    = boostPackType,
+            BoostCount       = boostCount,
+            Amount           = amount,
+            Currency         = currency,
+            RecipientId      = recipientId,
+            CardSuffix       = cardSuffix,
+            CardBrand        = cardBrand,
+            PaymentAccountId = paymentAccountId,
+            Status           = "done",
+            CreatedAt        = DateTimeOffset.UtcNow,
         });
 
         await ctx.SaveChangesAsync(ct);
+    }
+
+    public async Task MarkTransactionRefundedAsync(string txId, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        await ctx.PaymentTransactions
+           .Where(x => x.XsollaTxId == txId)
+           .ExecuteUpdateAsync(s => s.SetProperty(x => x.Status, "refunded"), ct);
     }
 
     private static UltimaPlan MapTier(UltimaTier tier) => tier switch
