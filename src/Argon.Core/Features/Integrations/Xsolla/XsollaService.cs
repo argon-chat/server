@@ -98,7 +98,15 @@ public class XsollaService(
             Settings = CreateSettings(),
             Purchase = new XsollaTokenPurchase
             {
-                Subscription = new XsollaSubscriptionPurchase { PlanId = sku }
+                VirtualItems = new XsollaVirtualItemsPurchase
+                {
+                    Items = [new XsollaVirtualItem { Sku = sku, Amount = quantity }]
+                },
+                Checkout = new XsollaCheckout()
+                {
+                    Amount = 1,
+                    Currency = "USD"
+                }
             },
             CustomParameters = new Dictionary<string, object>
             {
@@ -640,7 +648,7 @@ public class XsollaService(
         RedirectPolicy = new XsollaRedirectPolicy
         {
             ManualRedirectionAction = "postmessage",
-            RedirectConditions      = "none"
+            RedirectConditions      = "none",
         },
         Ui = new XsollaUiSettings
         {
