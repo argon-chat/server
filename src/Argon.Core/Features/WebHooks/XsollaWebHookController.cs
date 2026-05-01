@@ -133,7 +133,15 @@ public class XsollaWebHookController(
 
     private async Task HandlePayment(XsollaWebhookPayload payload)
     {
-        var txId = payload.Transaction!.Id.ToString();
+        var txId = payload.Transaction?.Id.ToString()
+                ?? payload.Billing?.Transaction?.Id.ToString()
+                ?? payload.Order?.Id.ToString();
+        if (txId is null)
+        {
+            logger.LogWarning("Xsolla payment: no transaction or order ID found");
+            return;
+        }
+
         var userId = ResolveUserId(payload);
         if (userId == Guid.Empty) return;
 
@@ -189,6 +197,9 @@ public class XsollaWebHookController(
 
         switch (type)
         {
+            case "boost_pack":
+                await HandleBoostPackPayment(payload, userId, txId, amount, currency, cardSuffix, cardBrand, paymentAccountId);
+                break;
             case "gift":
                 await HandleGiftPayment(payload, userId, txId, amount, currency, cardSuffix, cardBrand, paymentAccountId);
                 break;
@@ -196,6 +207,34 @@ public class XsollaWebHookController(
                 logger.LogInformation("Xsolla payment: unhandled type {Type}", type);
                 break;
         }
+    }
+
+    private async Task HandleBoostPackPayment(XsollaWebhookPayload payload, Guid userId, string txId,
+        string? amount, string? currency, string? cardSuffix, string? cardBrand, long? paymentAccountId)
+    {
+        var cp = payload.CustomParameters!;
+        var packType = cp.PackType ?? "Pack1";
+        var boostCount = cp.BoostCount ?? 1;
+
+        // Determine duration from pack type name
+        var isAnnual = packType.Contains("Annual", StringComparison.OrdinalIgnoreCase);
+        var durationDays = isAnnual ? 365 : 30;
+
+        var planId = $"boost_pack_{boostCount}" + (isAnnual ? "_annual" : "");
+        var (_, source, _) = ParseBoostPlan(planId);
+
+        await client.GetGrain<IUltimaGrain>(userId)
+           .GrantPurchasedBoostsAsync(boostCount, source, txId, durationDays);
+
+        await client.GetGrain<IInventoryGrain>(Guid.NewGuid())
+           .GiveBoostItemsAsync(userId, boostCount, durationDays);
+
+        await SaveTransaction(userId, txId, "boost_pack",
+            boostPackType: planId, boostCount: boostCount,
+            amount: amount, currency: currency,
+            cardSuffix: cardSuffix, cardBrand: cardBrand, paymentAccountId: paymentAccountId);
+
+        logger.LogInformation("Xsolla: granted {Count} boosts to {UserId} (catalog purchase, pack {Pack})", boostCount, userId, packType);
     }
 
     private async Task HandleGiftPayment(XsollaWebhookPayload payload, Guid userId, string txId,
@@ -341,7 +380,7 @@ public class XsollaWebHookController(
 
     private Guid ResolveUserId(XsollaWebhookPayload payload)
     {
-        var str = payload.CustomParameters?.UserId ?? payload.User?.Id;
+        var str = payload.CustomParameters?.UserId ?? payload.User?.Id ?? payload.User?.ExternalId;
         if (Guid.TryParse(str, out var id)) return id;
         logger.LogWarning("Xsolla webhook: cannot resolve user_id from payload");
         return Guid.Empty;
@@ -355,23 +394,26 @@ public class XsollaWebHookController(
             return (checkout.Amount.ToString("G"), checkout.Currency);
         if (payload.PaymentDetails?.Payment is { } payment)
             return (payment.AmountFromPs?.ToString("G"), payment.Currency);
+        if (payload.Order is { } order && order.Amount is not null)
+            return (order.Amount, order.Currency);
         return (null, null);
     }
 
     private static (string? cardSuffix, string? cardBrand, long? paymentAccountId) ExtractCardInfo(XsollaWebhookPayload payload)
     {
-        var suffix = payload.CardSuffix;
-        var brand = payload.CardBrand;
-        long? accountId = payload.PaymentAccount?.Id;
+        var suffix = payload.CardSuffix ?? payload.Billing?.Transaction?.CardSuffix;
+        var brand = payload.CardBrand ?? payload.Billing?.Transaction?.CardBrand;
+        long? accountId = payload.PaymentAccount?.Id ?? payload.Billing?.PaymentAccount?.Id;
 
         // Fallback: parse from payment_account.name (e.g. "411111******1111")
-        if (suffix is null && payload.PaymentAccount?.Name is { } name)
+        var paymentAccount = payload.PaymentAccount ?? payload.Billing?.PaymentAccount;
+        if (suffix is null && paymentAccount?.Name is { } name)
         {
             var digits = name.Replace("*", "").Replace(" ", "").Trim();
             suffix = digits.Length >= 4 ? digits[^4..] : digits.Length > 0 ? digits : null;
         }
 
-        if (brand is null && payload.PaymentAccount?.PaymentSystem?.Name is { } psName)
+        if (brand is null && paymentAccount?.PaymentSystem?.Name is { } psName)
             brand = psName;
 
         return (suffix, brand, accountId);

@@ -53,6 +53,10 @@ public sealed class XsollaWebhookPayload
     // Refund
     [JsonPropertyName("refund_details")]
     public XsollaRefundDetails? RefundDetails { get; set; }
+
+    // Billing (nested in order_paid)
+    [JsonPropertyName("billing")]
+    public XsollaWebhookBilling? Billing { get; set; }
 }
 
 // ─── User ────────────────────────────────────────────────────────────────────
@@ -61,6 +65,9 @@ public sealed class XsollaWebhookUser
 {
     [JsonPropertyName("id")]
     public string? Id { get; set; }
+
+    [JsonPropertyName("external_id")]
+    public string? ExternalId { get; set; }
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
@@ -96,6 +103,12 @@ public sealed class XsollaWebhookTransaction
 
     [JsonPropertyName("payment_method")]
     public XsollaPaymentMethod? PaymentMethod { get; set; }
+
+    [JsonPropertyName("card_suffix")]
+    public string? CardSuffix { get; set; }
+
+    [JsonPropertyName("card_brand")]
+    public string? CardBrand { get; set; }
 }
 
 [JsonConverter(typeof(XsollaPaymentMethodConverter))]
@@ -341,6 +354,12 @@ public sealed class XsollaWebhookOrder
 
     [JsonPropertyName("status")]
     public string? Status { get; set; }
+
+    [JsonPropertyName("amount")]
+    public string? Amount { get; set; }
+
+    [JsonPropertyName("currency")]
+    public string? Currency { get; set; }
 }
 
 public sealed class XsollaOrderItem
@@ -359,6 +378,20 @@ public sealed class XsollaOrderItem
 
     [JsonPropertyName("currency")]
     public string? Currency { get; set; }
+}
+
+// ─── Billing (nested in order_paid) ─────────────────────────────────────────
+
+public sealed class XsollaWebhookBilling
+{
+    [JsonPropertyName("transaction")]
+    public XsollaWebhookTransaction? Transaction { get; set; }
+
+    [JsonPropertyName("payment_details")]
+    public XsollaPaymentDetails? PaymentDetails { get; set; }
+
+    [JsonPropertyName("payment_account")]
+    public XsollaPaymentAccount? PaymentAccount { get; set; }
 }
 
 // ─── Refund Details ──────────────────────────────────────────────────────────
