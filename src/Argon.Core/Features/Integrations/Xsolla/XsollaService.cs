@@ -102,7 +102,7 @@ public class XsollaService(
 
         var response = await CreateCatalogPaymentTokenAsync(
             userId, email, countryCode,
-            [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = quantity }],
+            [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = 1 }],
             customParameters, ct);
 
         return BuildCheckoutUrl(response.Token);
