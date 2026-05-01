@@ -98,7 +98,7 @@ public class XsollaService(
             Settings = CreateSettings(),
             Purchase = new XsollaTokenPurchase
             {
-                Subscription = new XsollaSubscriptionPurchase { PlanId = sku, Force = true }
+                Subscription = new XsollaSubscriptionPurchase { PlanId = sku }
             },
             CustomParameters = new Dictionary<string, object>
             {

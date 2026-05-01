@@ -48,8 +48,8 @@ public class XsollaWebHookController(
         }
         catch (JsonException ex)
         {
-            logger.LogWarning(ex, "Xsolla webhook: failed to parse JSON body");
-            return BadRequest();
+            logger.LogError(ex, "Xsolla webhook: failed to parse JSON body: {Body}", body.Length > 2000 ? body[..2000] : body);
+            return BadRequest(new { error = new { code = "INVALID_JSON", message = ex.Message } });
         }
 
         logger.LogInformation("Xsolla webhook received: {Type}, body: {Body}",

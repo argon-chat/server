@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.WebHooks;
 
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 // ─── Root webhook payload ────────────────────────────────────────────────────
@@ -97,6 +98,7 @@ public sealed class XsollaWebhookTransaction
     public XsollaPaymentMethod? PaymentMethod { get; set; }
 }
 
+[JsonConverter(typeof(XsollaPaymentMethodConverter))]
 public sealed class XsollaPaymentMethod
 {
     [JsonPropertyName("id")]
@@ -104,6 +106,58 @@ public sealed class XsollaPaymentMethod
 
     [JsonPropertyName("name")]
     public string? Name { get; set; }
+}
+
+public sealed class XsollaPaymentMethodConverter : JsonConverter<XsollaPaymentMethod>
+{
+    public override XsollaPaymentMethod? Read(ref Utf8JsonReader reader, Type typeToConvert, JsonSerializerOptions options)
+    {
+        if (reader.TokenType == JsonTokenType.Number)
+            return new XsollaPaymentMethod { Id = reader.GetInt32() };
+
+        if (reader.TokenType == JsonTokenType.String && int.TryParse(reader.GetString(), out var id))
+            return new XsollaPaymentMethod { Id = id };
+
+        if (reader.TokenType == JsonTokenType.StartObject)
+        {
+            var method = new XsollaPaymentMethod();
+            while (reader.Read())
+            {
+                if (reader.TokenType == JsonTokenType.EndObject)
+                    return method;
+                if (reader.TokenType != JsonTokenType.PropertyName) continue;
+                var prop = reader.GetString();
+                reader.Read();
+                switch (prop)
+                {
+                    case "id":
+                        method.Id = reader.TokenType == JsonTokenType.Number
+                            ? reader.GetInt32()
+                            : int.TryParse(reader.GetString(), out var mid) ? mid : 0;
+                        break;
+                    case "name":
+                        method.Name = reader.GetString();
+                        break;
+                    default:
+                        reader.Skip();
+                        break;
+                }
+            }
+            return method;
+        }
+
+        reader.Skip();
+        return null;
+    }
+
+    public override void Write(Utf8JsonWriter writer, XsollaPaymentMethod value, JsonSerializerOptions options)
+    {
+        writer.WriteStartObject();
+        writer.WriteNumber("id", value.Id);
+        if (value.Name is not null)
+            writer.WriteString("name", value.Name);
+        writer.WriteEndObject();
+    }
 }
 
 // ─── Purchase ────────────────────────────────────────────────────────────────

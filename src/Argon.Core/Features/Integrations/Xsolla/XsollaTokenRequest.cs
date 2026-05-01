@@ -166,10 +166,6 @@ public sealed class XsollaSubscriptionPurchase
 {
     [JsonPropertyName("plan_id")]
     public required string PlanId { get; init; }
-
-    [JsonPropertyName("force")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public bool Force { get; init; }
 }
 
 public sealed class XsollaVirtualItemsPurchase
