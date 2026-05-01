@@ -288,7 +288,7 @@ public class XsollaService(
         {
             // Subscriptions API lives on MerchantApiBase, NOT StoreApiBase
             // https://developers.xsolla.com/api/subscriptions/plans
-            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/plans?country={country}";
+            var url = $"{MerchantApiBase}/projects/{Opts.ProjectId}/subscriptions/plans?limit=100";
             var request = new HttpRequestMessage(HttpMethod.Get, url);
             request.Headers.Authorization = MerchantAuth();
 
@@ -301,27 +301,18 @@ public class XsollaService(
                 return prices;
             }
 
-            var body = await response.Content.ReadAsStringAsync(ct);
-            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            var plans = await response.Content.ReadFromJsonAsync<XsollaSubscriptionPlanResponse[]>(ct)
+                     ?? [];
 
-            // Subscriptions API may return array directly or { items: [...] }
-            var plans = json.ValueKind == JsonValueKind.Array
-                ? json
-                : json.TryGetProperty("items", out var itemsProp) ? itemsProp : json;
-
-            foreach (var plan in plans.EnumerateArray())
+            foreach (var plan in plans)
             {
-                var planId = plan.TryGetProperty("external_id", out var eid) && eid.GetString() is { Length: > 0 }
-                    ? eid.GetString()
-                    : plan.GetProperty("id").ToString();
-                if (planId is null) continue;
+                var planId = plan.ExternalId is { Length: > 0 } ? plan.ExternalId : plan.Id.ToString();
+                if (plan.Charge is not { Amount: not null } charge) continue;
 
-                if (plan.TryGetProperty("charge", out var charge))
-                {
-                    var amount   = charge.GetProperty("amount").GetRawText().Trim('"');
-                    var currency = charge.GetProperty("currency").GetString() ?? "USD";
-                    prices[planId] = new ProductPrice(amount, null, currency);
-                }
+                prices[planId] = new ProductPrice(
+                    charge.Amount.Value.ToString("G"),
+                    null,
+                    charge.Currency ?? "USD");
             }
         }
         catch (Exception ex)
