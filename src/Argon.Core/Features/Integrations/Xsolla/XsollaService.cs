@@ -92,35 +92,20 @@ public class XsollaService(
             _                        => ("boost_pack_1", 1)
         };
 
-        var payload = new XsollaTokenRequest
+        var customParameters = new Dictionary<string, object>
         {
-            User = CreateUser(userId, email, countryCode),
-            Settings = CreateSettings(),
-            Purchase = new XsollaTokenPurchase
-            {
-                VirtualItems = new XsollaVirtualItemsPurchase
-                {
-                    Items = [new XsollaVirtualItem { Sku = sku, Amount = quantity }]
-                },
-                Checkout = new XsollaCheckout()
-                {
-                    Amount = 1,
-                    Currency = "USD"
-                }
-            },
-            CustomParameters = new Dictionary<string, object>
-            {
-                ["type"]        = "boost_pack",
-                ["user_id"]     = userId.ToString(),
-                ["pack_type"]   = pack.ToString(),
-                ["boost_count"] = quantity
-            }
+            ["type"]        = "boost_pack",
+            ["user_id"]     = userId.ToString(),
+            ["pack_type"]   = pack.ToString(),
+            ["boost_count"] = quantity
         };
 
-        var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
+        var response = await CreateCatalogPaymentTokenAsync(
+            userId, email, countryCode,
+            [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = quantity }],
+            customParameters, ct);
 
-        var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
-        return BuildCheckoutUrl(token);
+        return BuildCheckoutUrl(response.Token);
     }
 
     public async Task<string> CreateGiftCheckoutAsync(
@@ -201,19 +186,7 @@ public class XsollaService(
         await GetOrCreateXsollaUserJwtAsync(userId, ct, new[] { (key, value) });
     }
 
-    public async Task EnsureSubscriberAttributeAsync(Guid userId, bool isSubscriber, CancellationToken ct = default)
-    {
-        try
-        {
-            await GetOrCreateXsollaUserJwtAsync(userId, ct,
-                new[] { ("ultima_subscriber", isSubscriber ? "1" : "0") });
-        }
-        catch (Exception ex)
-        {
-            // Best-effort — don't block checkout if attribute sync fails
-            logger.LogWarning(ex, "Failed to ensure Xsolla subscriber attribute for {UserId}, promotion may not apply", userId);
-        }
-    }
+
 
     public async Task<UltimaPricing> GetPricingAsync(Guid userId, string countryCode, CancellationToken ct = default)
     {
@@ -247,12 +220,12 @@ public class XsollaService(
             var pricing = new UltimaPricing(
                 ExtractPrice(plans, "ultima_monthly"),
                 ExtractPrice(plans, "ultima_annual"),
-                ExtractPrice(plans, "boost_pack_1"),
-                ExtractPrice(plans, "boost_pack_3"),
-                ExtractPrice(plans, "boost_pack_5"),
-                ExtractPrice(plans, "boost_pack_1_annual"),
-                ExtractPrice(plans, "boost_pack_3_annual"),
-                ExtractPrice(plans, "boost_pack_5_annual")
+                ExtractPrice(items, "boost_pack_1"),
+                ExtractPrice(items, "boost_pack_3"),
+                ExtractPrice(items, "boost_pack_5"),
+                ExtractPrice(items, "boost_pack_1_annual"),
+                ExtractPrice(items, "boost_pack_3_annual"),
+                ExtractPrice(items, "boost_pack_5_annual")
             );
 
             logger.LogInformation(
@@ -411,6 +384,236 @@ public class XsollaService(
         }
     }
 
+    // ── Catalog API: Server-side payment ────────────────────────────────
+
+    /// <summary>
+    /// Creates a payment token for virtual item purchase (server-side).
+    /// POST /api/v3/project/{project_id}/admin/payment/token
+    /// </summary>
+    public async Task<XsollaCatalogPaymentTokenResponse> CreateCatalogPaymentTokenAsync(
+        Guid userId, string email, string countryCode, List<XsollaCatalogPurchaseItem> items,
+        Dictionary<string, object>? customParameters = null, CancellationToken ct = default)
+    {
+        var payload = new XsollaCatalogPaymentTokenRequest
+        {
+            User = new XsollaCatalogUser
+            {
+                Id      = new XsollaStringValue { Value = userId.ToString() },
+                Email   = new XsollaStringValue { Value = email },
+                Country = new XsollaCatalogCountry { Value = countryCode, AllowModify = false }
+            },
+            Purchase = new XsollaCatalogPurchase { Items = items },
+            Sandbox  = Opts.IsSandbox ? true : null,
+            Settings = new XsollaCatalogPaymentSettings
+            {
+                Ui = new XsollaCatalogUiSettings { Theme = "63295aab2e47fab76f7708e3" },
+                RedirectPolicy = new XsollaCatalogRedirectPolicy
+                {
+                    RedirectConditions        = "none",
+                    StatusForManualRedirection = "postmessage"
+                }
+            },
+            CustomParameters = customParameters
+        };
+
+        var json = await PostStoreAdminAsync($"/v3/project/{Opts.ProjectId}/admin/payment/token", payload, ct);
+        return JsonSerializer.Deserialize<XsollaCatalogPaymentTokenResponse>(json.GetRawText())
+               ?? throw new InvalidOperationException("Failed to deserialize payment token response");
+    }
+
+    /// <summary>
+    /// Gets order status.
+    /// GET /api/v2/project/{project_id}/order/{order_id}
+    /// </summary>
+    public async Task<XsollaOrderStatusResponse?> GetOrderAsync(long orderId, string? userJwt = null, CancellationToken ct = default)
+    {
+        var json = await GetStoreAsync($"/v2/project/{Opts.ProjectId}/order/{orderId}", userJwt, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaOrderStatusResponse>(json.Value.GetRawText());
+    }
+
+    // ── Catalog API: Virtual Items (client-side read) ───────────────────
+
+    /// <summary>
+    /// Gets virtual items list for catalog.
+    /// GET /api/v2/project/{project_id}/items/virtual_items
+    /// </summary>
+    public async Task<XsollaVirtualItemsListResponse?> GetVirtualItemsAsync(
+        string? locale = null, string? country = null, int limit = 50, int offset = 0,
+        string? userJwt = null, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/items/virtual_items?limit={limit}&offset={offset}";
+        if (locale is not null) url += $"&locale={locale}";
+        if (country is not null) url += $"&country={country}";
+
+        var json = await GetStoreAsync(url, userJwt, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaVirtualItemsListResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Gets virtual items by group.
+    /// GET /api/v2/project/{project_id}/items/virtual_items/group/{external_id}
+    /// </summary>
+    public async Task<XsollaVirtualItemsListResponse?> GetVirtualItemsByGroupAsync(
+        string groupExternalId, string? locale = null, string? country = null,
+        int limit = 50, int offset = 0, string? userJwt = null, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/items/virtual_items/group/{groupExternalId}?limit={limit}&offset={offset}";
+        if (locale is not null) url += $"&locale={locale}";
+        if (country is not null) url += $"&country={country}";
+
+        var json = await GetStoreAsync(url, userJwt, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaVirtualItemsListResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Gets a virtual item by SKU.
+    /// GET /api/v2/project/{project_id}/items/virtual_items/sku/{item_sku}
+    /// </summary>
+    public async Task<XsollaCatalogVirtualItem?> GetVirtualItemBySkuAsync(
+        string sku, string? locale = null, string? country = null,
+        string? userJwt = null, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/items/virtual_items/sku/{sku}";
+        var separator = '?';
+        if (locale is not null) { url += $"{separator}locale={locale}"; separator = '&'; }
+        if (country is not null) { url += $"{separator}country={country}"; }
+
+        var json = await GetStoreAsync(url, userJwt, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaCatalogVirtualItem>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Gets item groups for catalog.
+    /// GET /api/v2/project/{project_id}/items/groups
+    /// </summary>
+    public async Task<XsollaCatalogItemGroupsResponse?> GetItemGroupsAsync(
+        string? locale = null, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/items/groups";
+        if (locale is not null) url += $"?locale={locale}";
+
+        var json = await GetStoreAsync(url, null, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaCatalogItemGroupsResponse>(json.Value.GetRawText());
+    }
+
+    // ── Admin API: Virtual Items CRUD ───────────────────────────────────
+
+    /// <summary>
+    /// Gets admin virtual items list.
+    /// GET /api/v2/project/{project_id}/admin/items/virtual_items
+    /// </summary>
+    public async Task<XsollaAdminVirtualItemsListResponse?> AdminGetVirtualItemsAsync(
+        int limit = 50, int offset = 0, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/admin/items/virtual_items?limit={limit}&offset={offset}";
+        var json = await GetStoreAdminAsync(url, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaAdminVirtualItemsListResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Gets a single admin virtual item by SKU.
+    /// GET /api/v2/project/{project_id}/admin/items/virtual_items/sku/{item_sku}
+    /// </summary>
+    public async Task<XsollaAdminVirtualItemResponse?> AdminGetVirtualItemAsync(
+        string sku, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/admin/items/virtual_items/sku/{sku}";
+        var json = await GetStoreAdminAsync(url, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaAdminVirtualItemResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Creates a virtual item.
+    /// POST /api/v2/project/{project_id}/admin/items/virtual_items
+    /// </summary>
+    public async Task AdminCreateVirtualItemAsync(
+        XsollaAdminVirtualItemRequest item, CancellationToken ct = default)
+    {
+        await PostStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/virtual_items", item, ct);
+    }
+
+    /// <summary>
+    /// Updates a virtual item by SKU.
+    /// PUT /api/v2/project/{project_id}/admin/items/virtual_items/sku/{item_sku}
+    /// </summary>
+    public async Task AdminUpdateVirtualItemAsync(
+        string sku, XsollaAdminVirtualItemRequest item, CancellationToken ct = default)
+    {
+        await PutStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/virtual_items/sku/{sku}", item, ct);
+    }
+
+    /// <summary>
+    /// Deletes a virtual item by SKU.
+    /// DELETE /api/v2/project/{project_id}/admin/items/virtual_items/sku/{item_sku}
+    /// </summary>
+    public async Task AdminDeleteVirtualItemAsync(string sku, CancellationToken ct = default)
+    {
+        await DeleteStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/virtual_items/sku/{sku}", ct);
+    }
+
+    // ── Admin API: Item Groups CRUD ─────────────────────────────────────
+
+    /// <summary>
+    /// Gets admin item groups list.
+    /// GET /api/v2/project/{project_id}/admin/items/groups
+    /// </summary>
+    public async Task<XsollaAdminItemGroupsListResponse?> AdminGetItemGroupsAsync(CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/admin/items/groups";
+        var json = await GetStoreAdminAsync(url, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaAdminItemGroupsListResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Gets an admin item group by external ID.
+    /// GET /api/v2/project/{project_id}/admin/items/groups/{external_id}
+    /// </summary>
+    public async Task<XsollaAdminItemGroupDetailResponse?> AdminGetItemGroupAsync(
+        string externalId, CancellationToken ct = default)
+    {
+        var url = $"/v2/project/{Opts.ProjectId}/admin/items/groups/{externalId}";
+        var json = await GetStoreAdminAsync(url, ct);
+        if (json is null) return null;
+        return JsonSerializer.Deserialize<XsollaAdminItemGroupDetailResponse>(json.Value.GetRawText());
+    }
+
+    /// <summary>
+    /// Creates an item group.
+    /// POST /api/v2/project/{project_id}/admin/items/groups
+    /// </summary>
+    public async Task AdminCreateItemGroupAsync(
+        XsollaAdminItemGroupRequest group, CancellationToken ct = default)
+    {
+        await PostStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/groups", group, ct);
+    }
+
+    /// <summary>
+    /// Updates an item group by external ID.
+    /// PUT /api/v2/project/{project_id}/admin/items/groups/{external_id}
+    /// </summary>
+    public async Task AdminUpdateItemGroupAsync(
+        string externalId, XsollaAdminItemGroupRequest group, CancellationToken ct = default)
+    {
+        await PutStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/groups/{externalId}", group, ct);
+    }
+
+    /// <summary>
+    /// Deletes an item group by external ID.
+    /// DELETE /api/v2/project/{project_id}/admin/items/groups/{external_id}
+    /// </summary>
+    public async Task AdminDeleteItemGroupAsync(string externalId, CancellationToken ct = default)
+    {
+        await DeleteStoreAdminAsync($"/v2/project/{Opts.ProjectId}/admin/items/groups/{externalId}", ct);
+    }
+
     // ── HTTP helpers ────────────────────────────────────────────────────
 
     /// <summary>Pay Station Merchant API — basic auth with merchant_id:api_key</summary>
@@ -463,6 +666,92 @@ public class XsollaService(
 
         var json = await response.Content.ReadAsStringAsync(ct);
         return JsonSerializer.Deserialize<JsonElement>(json);
+    }
+
+    /// <summary>Store Admin API GET — basic auth with project_id:api_key</summary>
+    private async Task<JsonElement?> GetStoreAdminAsync(string path, CancellationToken ct)
+    {
+        var url = $"{StoreApiBase}{path}";
+        var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.Authorization = ProjectAuth();
+
+        var response = await httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            logger.LogWarning("Xsolla Store Admin GET {Path} returned {StatusCode}: {Body}", path, response.StatusCode, errorBody);
+            return null;
+        }
+
+        var json = await response.Content.ReadAsStringAsync(ct);
+        return JsonSerializer.Deserialize<JsonElement>(json);
+    }
+
+    /// <summary>Store Admin API POST — basic auth with project_id:api_key</summary>
+    private async Task<JsonElement> PostStoreAdminAsync(string path, object payload, CancellationToken ct)
+    {
+        var url = $"{StoreApiBase}{path}";
+        var payloadJson = JsonSerializer.Serialize(payload);
+
+        var request = new HttpRequestMessage(HttpMethod.Post, url)
+        {
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = ProjectAuth();
+
+        var response = await httpClient.SendAsync(request, ct);
+        var responseBody = await response.Content.ReadAsStringAsync(ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            logger.LogError("Xsolla Store Admin POST {Path} error {StatusCode}: {Body}",
+                path, response.StatusCode, responseBody);
+            throw new InvalidOperationException($"Xsolla Store Admin API error {response.StatusCode}: {responseBody}");
+        }
+
+        return JsonSerializer.Deserialize<JsonElement>(responseBody);
+    }
+
+    /// <summary>Store Admin API PUT — basic auth with project_id:api_key</summary>
+    private async Task PutStoreAdminAsync(string path, object payload, CancellationToken ct)
+    {
+        var url = $"{StoreApiBase}{path}";
+        var payloadJson = JsonSerializer.Serialize(payload);
+
+        var request = new HttpRequestMessage(HttpMethod.Put, url)
+        {
+            Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+        };
+        request.Headers.Authorization = ProjectAuth();
+
+        var response = await httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            logger.LogError("Xsolla Store Admin PUT {Path} error {StatusCode}: {Body}",
+                path, response.StatusCode, errorBody);
+            throw new InvalidOperationException($"Xsolla Store Admin API error {response.StatusCode}: {errorBody}");
+        }
+    }
+
+    /// <summary>Store Admin API DELETE — basic auth with project_id:api_key</summary>
+    private async Task DeleteStoreAdminAsync(string path, CancellationToken ct)
+    {
+        var url = $"{StoreApiBase}{path}";
+        var request = new HttpRequestMessage(HttpMethod.Delete, url);
+        request.Headers.Authorization = ProjectAuth();
+
+        var response = await httpClient.SendAsync(request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            logger.LogError("Xsolla Store Admin DELETE {Path} error {StatusCode}: {Body}",
+                path, response.StatusCode, errorBody);
+            throw new InvalidOperationException($"Xsolla Store Admin API error {response.StatusCode}: {errorBody}");
+        }
     }
 
     // ── Xsolla Login: Server JWT & User JWT ─────────────────────────────

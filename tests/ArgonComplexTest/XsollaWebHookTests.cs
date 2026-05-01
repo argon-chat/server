@@ -167,10 +167,10 @@ public class XsollaWebHookTests : TestBase
         var items = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
         Assert.That(items.Values.Any(i => i.id == "ultima_gift"), Is.True);
 
-        // Verify sender got 3 GiftReward boosts
+        // Verify sender got 2 GiftReward boosts
         var senderGrain = GetGrainFactory().GetGrain<IUltimaGrain>(sender.userId);
         var senderBoosts = await senderGrain.GetBoostsAsync(ct);
-        Assert.That(senderBoosts.Count(b => b.source == BoostSource.GiftReward), Is.EqualTo(3));
+        Assert.That(senderBoosts.Count(b => b.source == BoostSource.GiftReward), Is.EqualTo(2));
     }
 
     #endregion
@@ -219,7 +219,7 @@ public class XsollaWebHookTests : TestBase
 
         // Verify boosts exist
         var boostsBefore = await grain.GetBoostsAsync(ct);
-        Assert.That(boostsBefore, Has.Count.EqualTo(3));
+        Assert.That(boostsBefore, Has.Count.EqualTo(2));
 
         // Send refund webhook
         var response = await PostWebhook(new

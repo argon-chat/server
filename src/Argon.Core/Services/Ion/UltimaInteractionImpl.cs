@@ -104,12 +104,6 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
             var userId = this.GetUserId();
             var user = await this.GetGrain<IUserGrain>(userId).GetMe();
 
-            // Ensure Xsolla subscriber attribute is in sync before checkout —
-            // if previous sync failed, the promotion won't apply without this
-            var sub = await this.GetGrain<IUltimaGrain>(userId).GetSubscriptionAsync(ct);
-            var isSubscriber = sub is { status: UltimaSubscriptionStatus.Active };
-            await xsolla.EnsureSubscriberAttributeAsync(userId, isSubscriber, ct);
-
             var country = this.GetUserCountry();
             var checkoutUrl = await xsolla.CreateBoostPackCheckoutAsync(userId, user.Email, pack, country, ct);
 

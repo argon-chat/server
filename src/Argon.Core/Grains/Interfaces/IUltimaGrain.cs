@@ -34,7 +34,7 @@ public interface IUltimaGrain : IGrainWithGuidKey
     Task<bool> CancelSubscriptionAsync(CancellationToken ct = default);
 
     [Alias(nameof(GrantPurchasedBoostsAsync))]
-    Task GrantPurchasedBoostsAsync(int count, BoostSource source, string? xsollaTxId, CancellationToken ct = default);
+    Task GrantPurchasedBoostsAsync(int count, BoostSource source, string? xsollaTxId, int? durationDays = null, CancellationToken ct = default);
 
     [Alias(nameof(SaveTransactionAsync))]
     Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,

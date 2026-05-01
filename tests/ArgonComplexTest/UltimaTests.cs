@@ -146,14 +146,14 @@ public class UltimaTests : TestBase
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(userId);
 
-        // Activate subscription → 3 sub boosts
+        // Activate subscription → 2 sub boosts
         await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 30, "sub_expire_test", null, ct);
 
         // Grant 2 purchased boosts
-        await grain.GrantPurchasedBoostsAsync(2, BoostSource.PurchasedPack3, "tx_test", ct);
+        await grain.GrantPurchasedBoostsAsync(2, BoostSource.PurchasedPack3, "tx_test", ct: ct);
 
         var boostsBefore = await grain.GetBoostsAsync(ct);
-        Assert.That(boostsBefore, Has.Count.EqualTo(5)); // 3 sub + 2 purchased
+        Assert.That(boostsBefore, Has.Count.EqualTo(4)); // 2 sub + 2 purchased
 
         // Expire
         await grain.ExpireSubscriptionAsync(ct);
@@ -382,7 +382,7 @@ public class UltimaTests : TestBase
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.GrantPurchasedBoostsAsync(5, BoostSource.PurchasedPack5, "tx_pack5", ct);
+        await grain.GrantPurchasedBoostsAsync(5, BoostSource.PurchasedPack5, "tx_pack5", ct: ct);
 
         var boosts = await grain.GetBoostsAsync(ct);
         Assert.That(boosts, Has.Count.EqualTo(5));
@@ -405,7 +405,7 @@ public class UltimaTests : TestBase
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.GrantPurchasedBoostsAsync(2, BoostSource.PurchasedPack3, "tx_lvl0", ct);
+        await grain.GrantPurchasedBoostsAsync(2, BoostSource.PurchasedPack3, "tx_lvl0", ct: ct);
 
         var boosts = await grain.GetBoostsAsync(ct);
         foreach (var b in boosts)
@@ -428,7 +428,7 @@ public class UltimaTests : TestBase
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.GrantPurchasedBoostsAsync(3, BoostSource.PurchasedPack3, "tx_lvl1", ct);
+        await grain.GrantPurchasedBoostsAsync(3, BoostSource.PurchasedPack3, "tx_lvl1", ct: ct);
 
         var boosts = await grain.GetBoostsAsync(ct);
         foreach (var b in boosts)
@@ -451,7 +451,7 @@ public class UltimaTests : TestBase
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.GrantPurchasedBoostsAsync(7, BoostSource.PurchasedPack5, "tx_lvl2", ct);
+        await grain.GrantPurchasedBoostsAsync(7, BoostSource.PurchasedPack5, "tx_lvl2", ct: ct);
 
         var boosts = await grain.GetBoostsAsync(ct);
         foreach (var b in boosts)
@@ -474,7 +474,7 @@ public class UltimaTests : TestBase
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
         var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.GrantPurchasedBoostsAsync(14, BoostSource.PurchasedPack5, "tx_lvl3", ct);
+        await grain.GrantPurchasedBoostsAsync(14, BoostSource.PurchasedPack5, "tx_lvl3", ct: ct);
 
         var boosts = await grain.GetBoostsAsync(ct);
         foreach (var b in boosts)
@@ -518,7 +518,7 @@ public class UltimaTests : TestBase
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(32)]
-    public async Task Ion_PurchaseBoostPack_EnsuresSubscriberAttribute(CancellationToken ct = default)
+    public async Task Ion_PurchaseBoostPack_ReturnsCheckoutUrl(CancellationToken ct = default)
     {
         var token = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token);
@@ -526,19 +526,9 @@ public class UltimaTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
-        // Activate subscription
-        var grain = GetGrainFactory().GetGrain<IUltimaGrain>(user.userId);
-        await grain.ActivateSubscriptionAsync(UltimaTier.Monthly, 30, null, null, ct);
-
-        GetFakeXsolla().Reset(); // Clear activation sync calls
-
         // Purchase boost pack via Ion
         var result = await GetUltimaService(scope.ServiceProvider).PurchaseBoostPack(BoostPackType.Pack3, ct);
         Assert.That(result, Is.InstanceOf<SuccessPurchaseBoost>());
-
-        // Verify EnsureSubscriberAttribute was called with "1" (subscriber)
-        var fakeXsolla = GetFakeXsolla();
-        Assert.That(fakeXsolla.AttributeUpdates.Any(a => a.UserId == user.userId && a.Key == "ultima_subscriber" && a.Value == "1"), Is.True);
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(33)]

@@ -34,11 +34,7 @@ public class FakeXsollaService : IXsollaService
         return Task.CompletedTask;
     }
 
-    public Task EnsureSubscriberAttributeAsync(Guid userId, bool isSubscriber, CancellationToken ct = default)
-    {
-        AttributeUpdates.Add((userId, "ultima_subscriber", isSubscriber ? "1" : "0"));
-        return Task.CompletedTask;
-    }
+
 
     public bool ValidateWebhookSignature(string body, string signature)
         => ShouldValidateSignature;
@@ -83,4 +79,65 @@ public class FakeXsollaService : IXsollaService
         CancelledSubscriptions.Clear();
         ShouldValidateSignature = true;
     }
+
+    // ── Catalog API stubs ───────────────────────────────────────────────
+
+    public Task<XsollaCatalogPaymentTokenResponse> CreateCatalogPaymentTokenAsync(
+        Guid userId, string email, string countryCode, List<XsollaCatalogPurchaseItem> items,
+        Dictionary<string, object>? customParameters = null, CancellationToken ct = default)
+        => Task.FromResult(new XsollaCatalogPaymentTokenResponse { Token = "fake_token", OrderId = 12345 });
+
+    public Task<XsollaOrderStatusResponse?> GetOrderAsync(long orderId, string? userJwt = null, CancellationToken ct = default)
+        => Task.FromResult<XsollaOrderStatusResponse?>(new XsollaOrderStatusResponse { OrderId = orderId, Status = "paid" });
+
+    public Task<XsollaVirtualItemsListResponse?> GetVirtualItemsAsync(
+        string? locale = null, string? country = null, int limit = 50, int offset = 0,
+        string? userJwt = null, CancellationToken ct = default)
+        => Task.FromResult<XsollaVirtualItemsListResponse?>(new XsollaVirtualItemsListResponse());
+
+    public Task<XsollaVirtualItemsListResponse?> GetVirtualItemsByGroupAsync(
+        string groupExternalId, string? locale = null, string? country = null,
+        int limit = 50, int offset = 0, string? userJwt = null, CancellationToken ct = default)
+        => Task.FromResult<XsollaVirtualItemsListResponse?>(new XsollaVirtualItemsListResponse());
+
+    public Task<XsollaCatalogVirtualItem?> GetVirtualItemBySkuAsync(
+        string sku, string? locale = null, string? country = null,
+        string? userJwt = null, CancellationToken ct = default)
+        => Task.FromResult<XsollaCatalogVirtualItem?>(null);
+
+    public Task<XsollaCatalogItemGroupsResponse?> GetItemGroupsAsync(
+        string? locale = null, CancellationToken ct = default)
+        => Task.FromResult<XsollaCatalogItemGroupsResponse?>(new XsollaCatalogItemGroupsResponse());
+
+    public Task<XsollaAdminVirtualItemsListResponse?> AdminGetVirtualItemsAsync(
+        int limit = 50, int offset = 0, CancellationToken ct = default)
+        => Task.FromResult<XsollaAdminVirtualItemsListResponse?>(new XsollaAdminVirtualItemsListResponse());
+
+    public Task<XsollaAdminVirtualItemResponse?> AdminGetVirtualItemAsync(
+        string sku, CancellationToken ct = default)
+        => Task.FromResult<XsollaAdminVirtualItemResponse?>(null);
+
+    public Task AdminCreateVirtualItemAsync(XsollaAdminVirtualItemRequest item, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task AdminUpdateVirtualItemAsync(string sku, XsollaAdminVirtualItemRequest item, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task AdminDeleteVirtualItemAsync(string sku, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task<XsollaAdminItemGroupsListResponse?> AdminGetItemGroupsAsync(CancellationToken ct = default)
+        => Task.FromResult<XsollaAdminItemGroupsListResponse?>(new XsollaAdminItemGroupsListResponse());
+
+    public Task<XsollaAdminItemGroupDetailResponse?> AdminGetItemGroupAsync(string externalId, CancellationToken ct = default)
+        => Task.FromResult<XsollaAdminItemGroupDetailResponse?>(null);
+
+    public Task AdminCreateItemGroupAsync(XsollaAdminItemGroupRequest group, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task AdminUpdateItemGroupAsync(string externalId, XsollaAdminItemGroupRequest group, CancellationToken ct = default)
+        => Task.CompletedTask;
+
+    public Task AdminDeleteItemGroupAsync(string externalId, CancellationToken ct = default)
+        => Task.CompletedTask;
 }

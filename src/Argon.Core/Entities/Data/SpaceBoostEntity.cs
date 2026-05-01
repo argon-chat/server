@@ -11,6 +11,7 @@ public record SpaceBoostEntity : ArgonEntity, IEntityTypeConfiguration<SpaceBoos
     public Guid?           SubscriptionId         { get; set; }
     public DateTimeOffset? AppliedAt              { get; set; }
     public DateTimeOffset? TransferCooldownUntil  { get; set; }
+    public DateTimeOffset? ExpiresAt              { get; set; }
     public BoostSource     Source                 { get; set; }
 
     [MaxLength(256)]

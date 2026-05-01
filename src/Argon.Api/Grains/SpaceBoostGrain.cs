@@ -11,17 +11,25 @@ public class SpaceBoostGrain(
     ILogger<ISpaceBoostGrain> logger) : Grain, ISpaceBoostGrain
 {
     private static readonly int[] BoostLevelThresholds = [0, 3, 7, 14];
+    private static readonly TimeSpan RecalculationInterval = TimeSpan.FromDays(3);
+
+    private DateTimeOffset? _lastRecalculation;
 
     private Guid SpaceId => this.GetPrimaryKey();
 
     public async Task<SpaceBoostStatus> GetBoostStatusAsync(CancellationToken ct = default)
     {
+        if (_lastRecalculation is null || DateTimeOffset.UtcNow - _lastRecalculation.Value > RecalculationInterval)
+            await RecalculateAsync(ct);
+
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        var now = DateTimeOffset.UtcNow;
         var boosters = await ctx.SpaceBoosts
            .AsNoTracking()
            .Include(x => x.User)
            .Where(x => x.SpaceId == SpaceId)
+           .Where(x => x.ExpiresAt == null || x.ExpiresAt > now)
            .GroupBy(x => new { x.UserId, x.User.Username })
            .Select(g => new SpaceBooster(g.Key.UserId, g.Key.Username, g.Count()))
            .ToListAsync(ct);
@@ -36,9 +44,10 @@ public class SpaceBoostGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        var now = DateTimeOffset.UtcNow;
         var boostCount = await ctx.SpaceBoosts
            .AsNoTracking()
-           .CountAsync(x => x.SpaceId == SpaceId, ct);
+           .CountAsync(x => x.SpaceId == SpaceId && (x.ExpiresAt == null || x.ExpiresAt > now), ct);
 
         var boostLevel = CalculateLevel(boostCount);
 
@@ -50,6 +59,8 @@ public class SpaceBoostGrain(
 
         await appHubServer.BroadcastSpace(
             new SpaceBoostUpdated(SpaceId, boostCount, boostLevel), SpaceId, ct);
+
+        _lastRecalculation = now;
 
         logger.LogInformation("Space {SpaceId} boost recalculated: count={Count}, level={Level}", SpaceId, boostCount, boostLevel);
     }

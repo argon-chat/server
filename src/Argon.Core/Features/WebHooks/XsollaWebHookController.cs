@@ -148,10 +148,13 @@ public class XsollaWebHookController(
 
             if (IsBoostPlan(planId))
             {
-                var (boostCount, source) = ParseBoostPlan(planId);
+                var (boostCount, source, durationDays) = ParseBoostPlan(planId);
 
                 await client.GetGrain<IUltimaGrain>(userId)
-                   .GrantPurchasedBoostsAsync(boostCount, source, txId);
+                   .GrantPurchasedBoostsAsync(boostCount, source, txId, durationDays);
+
+                await client.GetGrain<IInventoryGrain>(Guid.NewGuid())
+                   .GiveBoostItemsAsync(userId, boostCount, durationDays);
 
                 await SaveTransaction(userId, txId, "boost_pack",
                     boostPackType: planId, boostCount: boostCount,
@@ -217,7 +220,10 @@ public class XsollaWebHookController(
            .GiveUltimaGiftAsync(recipientId, planId, days, userId, cp.GiftMessage);
 
         await client.GetGrain<IUltimaGrain>(userId)
-           .GrantPurchasedBoostsAsync(3, BoostSource.GiftReward, txId);
+           .GrantPurchasedBoostsAsync(2, BoostSource.GiftReward, txId, 30);
+
+        await client.GetGrain<IInventoryGrain>(Guid.NewGuid())
+           .GiveBoostItemsAsync(userId, 2, 30);
 
         await SaveTransaction(userId, txId, "gift",
             planExternalId: planId, recipientId: recipientId,
@@ -392,11 +398,14 @@ public class XsollaWebHookController(
     private static bool IsBoostPlan(string planId) =>
         planId.StartsWith("boost_pack_", StringComparison.Ordinal);
 
-    private static (int count, BoostSource source) ParseBoostPlan(string planId) => planId switch
+    private static (int count, BoostSource source, int durationDays) ParseBoostPlan(string planId) => planId switch
     {
-        "boost_pack_3" or "boost_pack_3_annual" => (3, BoostSource.PurchasedPack3),
-        "boost_pack_5" or "boost_pack_5_annual" => (5, BoostSource.PurchasedPack5),
-        _                                       => (1, BoostSource.PurchasedPack1)
+        "boost_pack_3"        => (3, BoostSource.PurchasedPack3, 30),
+        "boost_pack_3_annual" => (3, BoostSource.PurchasedPack3, 365),
+        "boost_pack_5"        => (5, BoostSource.PurchasedPack5, 30),
+        "boost_pack_5_annual" => (5, BoostSource.PurchasedPack5, 365),
+        var p when p.Contains("annual") => (1, BoostSource.PurchasedPack1, 365),
+        _                     => (1, BoostSource.PurchasedPack1, 30)
     };
 
     private static (UltimaTier tier, int days) ParsePlan(string? planId) => planId switch

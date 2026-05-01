@@ -94,10 +94,12 @@ public class UltimaGrain(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        var now = DateTimeOffset.UtcNow;
         var boosts = await ctx.SpaceBoosts
            .AsNoTracking()
            .Include(x => x.Space)
            .Where(x => x.UserId == UserId)
+           .Where(x => x.ExpiresAt == null || x.ExpiresAt > now)
            .ToListAsync(ct);
 
         return boosts.Select(b => new UltimaBoost(
@@ -233,7 +235,7 @@ public class UltimaGrain(
                 StartsAt             = now,
                 ExpiresAt            = now.AddDays(durationDays),
                 AutoRenew            = xsollaSubId is not null,
-                BoostSlots           = 3,
+                BoostSlots           = 2,
                 XsollaSubscriptionId = xsollaSubId,
                 ActivatedFromItemId  = fromItemId,
                 CreatedAt            = now
@@ -365,11 +367,12 @@ public class UltimaGrain(
         return true;
     }
 
-    public async Task GrantPurchasedBoostsAsync(int count, BoostSource source, string? xsollaTxId, CancellationToken ct = default)
+    public async Task GrantPurchasedBoostsAsync(int count, BoostSource source, string? xsollaTxId, int? durationDays = null, CancellationToken ct = default)
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         var now = DateTimeOffset.UtcNow;
+        var expiresAt = durationDays.HasValue ? now.AddDays(durationDays.Value) : (DateTimeOffset?)null;
 
         for (var i = 0; i < count; i++)
         {
@@ -381,13 +384,14 @@ public class UltimaGrain(
                 SubscriptionId      = null,
                 Source              = source,
                 XsollaTransactionId = xsollaTxId,
+                ExpiresAt           = expiresAt,
                 CreatedAt           = now
             });
         }
 
         await ctx.SaveChangesAsync(ct);
 
-        logger.LogInformation("Granted {Count} purchased boosts to user {UserId}", count, UserId);
+        logger.LogInformation("Granted {Count} purchased boosts to user {UserId} (expires: {ExpiresAt})", count, UserId, expiresAt);
     }
 
     public async Task SaveTransactionAsync(string txId, string transactionType, string? planExternalId, string? boostPackType,

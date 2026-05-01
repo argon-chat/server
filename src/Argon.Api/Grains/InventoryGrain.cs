@@ -174,6 +174,7 @@ public class InventoryGrain(
         => await context.Select(ctx => ctx.Items
            .AsNoTracking()
            .Where(x => x.OwnerId == userId)
+           .Where(x => x.TTL == null || x.CreatedAt + x.TTL > DateTimeOffset.UtcNow)
            .ToListAsync(ct)
            .Then(x => x.Select(q => q.ToDto()).ToList()), ct);
 
@@ -518,7 +519,7 @@ public class InventoryGrain(
         {
             Id            = Guid.NewGuid(),
             OwnerId       = recipientId,
-            TemplateId    = "ultima_gift",
+            TemplateId    = planId == "ultima_annual" ? "gift_ultima_annual" : "gift_ultima_monthly",
             IsReference   = false,
             IsUsable      = true,
             IsGiftable    = false,
@@ -547,5 +548,48 @@ public class InventoryGrain(
 
         logger.LogInformation("Gave Ultima gift from {SenderId} to {RecipientId}, plan {PlanId}", senderId, recipientId, planId);
         return true;
+    }
+
+    public async Task GiveBoostItemsAsync(Guid userId, int count, int durationDays, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var now = DateTimeOffset.UtcNow;
+        var ttl = TimeSpan.FromDays(durationDays);
+
+        for (var i = 0; i < count; i++)
+        {
+            var item = new ArgonItemEntity
+            {
+                Id            = Guid.NewGuid(),
+                OwnerId       = userId,
+                TemplateId    = "item_boost",
+                IsReference   = false,
+                IsUsable      = false,
+                IsGiftable    = false,
+                IsAffectBadge = false,
+                TTL           = ttl,
+                ReceivedFrom  = null,
+                CreatedAt     = now
+            };
+
+            ctx.Set<ArgonItemEntity>().Add(item);
+        }
+
+        await ctx.SaveChangesAsync(ct);
+
+        // Mark as unread + notify (batch after save)
+        var items = await ctx.Items
+           .Where(x => x.OwnerId == userId && x.TemplateId == "item_boost" && x.CreatedAt == now)
+           .Select(x => x.Id)
+           .ToListAsync(ct);
+
+        foreach (var itemId in items)
+        {
+            await EnsureUnreadAsync(ctx, userId, itemId, "item_boost", ct);
+            await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, itemId, "New boost item", null, ct: ct);
+        }
+
+        logger.LogInformation("Gave {Count} boost items to user {UserId} (TTL: {Days}d)", count, userId, durationDays);
     }
 }
