@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.Integrations.Xsolla;
 
+using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
@@ -70,10 +71,17 @@ public class XsollaService(
             }
         };
 
+        var sw = Stopwatch.StartNew();
         var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
 
         var sessionId = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
         var checkoutUrl = BuildCheckoutUrl(sessionId);
+
+        sw.Stop();
+        XsollaInstruments.CheckoutsCreated.Add(1, new KeyValuePair<string, object?>("type", "subscription"));
+        XsollaInstruments.ApiCallDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("endpoint", "create_subscription_token"), new KeyValuePair<string, object?>("status", "ok"));
+        logger.LogInformation("Xsolla subscription checkout created: userId={UserId}, plan={Plan}, country={Country}, elapsed={ElapsedMs}ms",
+            userId, sku, countryCode, sw.Elapsed.TotalMilliseconds);
 
         return (checkoutUrl, sessionId);
     }
@@ -100,10 +108,17 @@ public class XsollaService(
             ["boost_count"] = quantity
         };
 
+        var sw = Stopwatch.StartNew();
         var response = await CreateCatalogPaymentTokenAsync(
             userId, email, countryCode,
             [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = 1 }],
             customParameters, ct);
+
+        sw.Stop();
+        XsollaInstruments.CheckoutsCreated.Add(1, new KeyValuePair<string, object?>("type", "boost_pack"));
+        XsollaInstruments.ApiCallDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("endpoint", "create_boost_token"), new KeyValuePair<string, object?>("status", "ok"));
+        logger.LogInformation("Xsolla boost checkout created: userId={UserId}, pack={Pack}, sku={Sku}, country={Country}, elapsed={ElapsedMs}ms",
+            userId, pack, sku, countryCode, sw.Elapsed.TotalMilliseconds);
 
         return BuildCheckoutUrl(response.Token);
     }
@@ -126,10 +141,17 @@ public class XsollaService(
             ["gift_message"] = giftMessage ?? ""
         };
 
+        var sw = Stopwatch.StartNew();
         var response = await CreateCatalogPaymentTokenAsync(
             senderId, email, countryCode,
             [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = 1 }],
             customParameters, ct);
+
+        sw.Stop();
+        XsollaInstruments.CheckoutsCreated.Add(1, new KeyValuePair<string, object?>("type", "gift"));
+        XsollaInstruments.ApiCallDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("endpoint", "create_gift_token"), new KeyValuePair<string, object?>("status", "ok"));
+        logger.LogInformation("Xsolla gift checkout created: senderId={SenderId}, recipientId={RecipientId}, plan={Plan}, country={Country}, elapsed={ElapsedMs}ms",
+            senderId, recipientId, plan, countryCode, sw.Elapsed.TotalMilliseconds);
 
         return BuildCheckoutUrl(response.Token);
     }

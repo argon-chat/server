@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.WebHooks;
 
+using System.Diagnostics;
 using System.Text.Json;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Integrations.Xsolla;
@@ -22,13 +23,16 @@ public class XsollaWebHookController(
     [HttpPost("/api/xsolla/webhook")]
     public async Task<IActionResult> Webhook()
     {
+        var sw = Stopwatch.StartNew();
         Request.EnableBuffering();
         using var reader = new StreamReader(Request.Body, Encoding.UTF8, leaveOpen: true);
         var body = await reader.ReadToEndAsync();
 
         if (!Request.Headers.TryGetValue("Authorization", out var authHeader))
         {
-            logger.LogWarning("Xsolla webhook: no Authorization header");
+            logger.LogWarning("Xsolla webhook: no Authorization header, IP={RemoteIp}", HttpContext.Connection.RemoteIpAddress);
+            XsollaInstruments.WebhookSignatureFailures.Add(1);
+            XsollaInstruments.WebhooksReceived.Add(1, new KeyValuePair<string, object?>("type", "unknown"), new KeyValuePair<string, object?>("status", "unauthorized"));
             return Unauthorized();
         }
 
@@ -37,7 +41,10 @@ public class XsollaWebHookController(
 
         if (!xsolla.ValidateWebhookSignature(body, signature))
         {
-            logger.LogWarning("Xsolla webhook: invalid signature");
+            logger.LogWarning("Xsolla webhook: invalid signature, bodyLength={BodyLength}, IP={RemoteIp}",
+                body.Length, HttpContext.Connection.RemoteIpAddress);
+            XsollaInstruments.WebhookSignatureFailures.Add(1);
+            XsollaInstruments.WebhooksReceived.Add(1, new KeyValuePair<string, object?>("type", "unknown"), new KeyValuePair<string, object?>("status", "invalid_signature"));
             return BadRequest(new { error = new { code = "INVALID_SIGNATURE", message = "Invalid signature" } });
         }
 
@@ -48,15 +55,21 @@ public class XsollaWebHookController(
         }
         catch (JsonException ex)
         {
-            logger.LogError(ex, "Xsolla webhook: failed to parse JSON body");
+            logger.LogError(ex, "Xsolla webhook: failed to parse JSON body, bodyLength={BodyLength}", body.Length);
+            XsollaInstruments.WebhookErrors.Add(1, new KeyValuePair<string, object?>("type", "unknown"), new KeyValuePair<string, object?>("error", "malformed_json"));
             return BadRequest(new { error = new { code = "INVALID_PARAMETER", message = "Malformed JSON" } });
         }
 
-        logger.LogInformation("Xsolla webhook received: {Type}", payload.NotificationType);
+        var notificationType = payload.NotificationType ?? "unknown";
+        logger.LogInformation("Xsolla webhook received: type={Type}, txId={TxId}, userId={UserId}, dryRun={DryRun}",
+            notificationType,
+            payload.Transaction?.Id,
+            payload.User?.Id ?? payload.User?.ExternalId,
+            payload.Transaction?.DryRun);
 
         try
         {
-            return payload.NotificationType switch
+            var result = payload.NotificationType switch
             {
                 "user_validation"          => await HandleUserValidation(payload),
                 "user_search"              => await HandleUserSearch(payload),
@@ -78,10 +91,31 @@ public class XsollaWebHookController(
                 "dispute"                  => HandleDispute(payload),
                 _ => LogAndAcceptUnknown(payload.NotificationType)
             };
+
+            sw.Stop();
+            XsollaInstruments.WebhooksReceived.Add(1,
+                new KeyValuePair<string, object?>("type", notificationType),
+                new KeyValuePair<string, object?>("status", "ok"));
+            XsollaInstruments.WebhookDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("type", notificationType));
+            logger.LogInformation("Xsolla webhook processed: type={Type}, elapsed={ElapsedMs}ms",
+                notificationType, sw.Elapsed.TotalMilliseconds);
+
+            return result;
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Xsolla webhook processing failed for {Type}", payload.NotificationType);
+            sw.Stop();
+            XsollaInstruments.WebhookErrors.Add(1,
+                new KeyValuePair<string, object?>("type", notificationType),
+                new KeyValuePair<string, object?>("error", ex.GetType().Name));
+            XsollaInstruments.WebhooksReceived.Add(1,
+                new KeyValuePair<string, object?>("type", notificationType),
+                new KeyValuePair<string, object?>("status", "error"));
+            XsollaInstruments.WebhookDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("type", notificationType));
+            logger.LogError(ex, "Xsolla webhook processing failed: type={Type}, elapsed={ElapsedMs}ms",
+                notificationType, sw.Elapsed.TotalMilliseconds);
             return StatusCode(500);
         }
     }
@@ -162,10 +196,14 @@ public class XsollaWebHookController(
         var amount = payload.PaymentDetails?.Payment?.Amount?.ToString("G");
         var currency = payload.PaymentDetails?.Payment?.Currency;
 
+        logger.LogInformation("Xsolla payment: processing txId={TxId}, userId={UserId}, amount={Amount} {Currency}",
+            txId, userId, amount, currency);
+
         // Route by subscription plan
         if (payload.Purchase?.Subscription is { PlanId: not null } sub)
         {
             await HandleSubscriptionPayment(userId, txId, sub, amount, currency);
+            RecordPaymentMetrics("subscription", amount, currency);
             return NoContent();
         }
 
@@ -175,12 +213,15 @@ public class XsollaWebHookController(
         {
             case "boost_pack":
                 await HandleBoostPackPayment(payload, userId, txId, amount, currency);
+                RecordPaymentMetrics("boost_pack", amount, currency);
                 break;
             case "gift":
                 await HandleGiftPayment(payload, userId, txId, amount, currency);
+                RecordPaymentMetrics("gift", amount, currency);
                 break;
             default:
-                logger.LogInformation("Xsolla payment: no routing match for txId={TxId}, type={Type}", txId, customType);
+                logger.LogWarning("Xsolla payment: no routing match for txId={TxId}, userId={UserId}, type={Type}, amount={Amount} {Currency}",
+                    txId, userId, customType, amount, currency);
                 break;
         }
 
@@ -203,12 +244,13 @@ public class XsollaWebHookController(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to mark transaction {TxId} as refunded", txId);
+                logger.LogWarning(ex, "Failed to mark transaction {TxId} as refunded for userId={UserId}", txId, userId);
             }
         }
 
         await client.GetGrain<IUltimaGrain>(userId).ExpireSubscriptionAsync();
-        logger.LogInformation("Xsolla refund: userId={UserId}, txId={TxId}, code={Code}, reason={Reason}",
+        XsollaInstruments.RefundsProcessed.Add(1, new KeyValuePair<string, object?>("type", "refund"));
+        logger.LogWarning("Xsolla refund processed: userId={UserId}, txId={TxId}, code={Code}, reason={Reason}",
             userId, txId, refundCode, payload.RefundDetails?.Reason);
 
         return NoContent();
@@ -222,8 +264,8 @@ public class XsollaWebHookController(
         var txId = payload.Transaction?.Id.ToString();
         var refundAmount = payload.Purchase?.Total?.Amount;
 
-        logger.LogInformation("Xsolla partial_refund: userId={UserId}, txId={TxId}, amount={Amount}, reason={Reason}",
-            userId, txId, refundAmount, payload.RefundDetails?.Reason);
+        logger.LogWarning("Xsolla partial_refund: userId={UserId}, txId={TxId}, amount={Amount}, reason={Reason}, code={Code}",
+            userId, txId, refundAmount, payload.RefundDetails?.Reason, payload.RefundDetails?.Code);
 
         if (txId is not null)
         {
@@ -233,10 +275,11 @@ public class XsollaWebHookController(
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to mark partial refund transaction {TxId}", txId);
+                logger.LogWarning(ex, "Failed to mark partial refund transaction {TxId} for userId={UserId}", txId, userId);
             }
         }
 
+        XsollaInstruments.RefundsProcessed.Add(1, new KeyValuePair<string, object?>("type", "partial_refund"));
         return NoContent();
     }
 
@@ -296,6 +339,7 @@ public class XsollaWebHookController(
         if (payload.Billing?.Purchase?.Subscription is { PlanId: not null } sub)
         {
             await HandleSubscriptionPayment(userId, txId ?? "0", sub, amount, currency);
+            RecordPaymentMetrics("subscription", amount, currency);
             return NoContent();
         }
 
@@ -305,9 +349,11 @@ public class XsollaWebHookController(
         {
             case "boost_pack":
                 await HandleBoostPackPayment(payload, userId, txId ?? "0", amount, currency);
+                RecordPaymentMetrics("boost_pack", amount, currency);
                 return NoContent();
             case "gift":
                 await HandleGiftPayment(payload, userId, txId ?? "0", amount, currency);
+                RecordPaymentMetrics("gift", amount, currency);
                 return NoContent();
         }
 
@@ -319,13 +365,19 @@ public class XsollaWebHookController(
                 if (item.Sku is not null && item.Sku.StartsWith("boost_pack_", StringComparison.Ordinal))
                 {
                     var (count, source, durationDays) = ParseBoostPlan(item.Sku);
+                    var totalBoosts = count * item.Quantity;
                     await client.GetGrain<IUltimaGrain>(userId)
-                       .GrantPurchasedBoostsAsync(count * item.Quantity, source, txId, durationDays);
+                       .GrantPurchasedBoostsAsync(totalBoosts, source, txId, durationDays);
                     await client.GetGrain<IInventoryGrain>(Guid.NewGuid())
-                       .GiveBoostItemsAsync(userId, count * item.Quantity, durationDays);
+                       .GiveBoostItemsAsync(userId, totalBoosts, durationDays);
                     await SaveTransaction(userId, txId ?? "0", "boost_pack",
-                        boostPackType: item.Sku, boostCount: count * item.Quantity,
+                        boostPackType: item.Sku, boostCount: totalBoosts,
                         amount: amount, currency: currency);
+                    XsollaInstruments.BoostsGranted.Add(totalBoosts,
+                        new KeyValuePair<string, object?>("plan", item.Sku),
+                        new KeyValuePair<string, object?>("count", totalBoosts));
+                    logger.LogInformation("Xsolla order_paid boost: userId={UserId}, sku={Sku}, count={Count}, duration={Days}d",
+                        userId, item.Sku, totalBoosts, durationDays);
                 }
                 else if (item.Sku is "ultima_monthly" or "ultima_annual")
                 {
@@ -334,12 +386,16 @@ public class XsollaWebHookController(
                        .ActivateSubscriptionAsync(tier, days, null, null);
                     await SaveTransaction(userId, txId ?? "0", "subscription",
                         planExternalId: item.Sku, amount: amount, currency: currency);
+                    XsollaInstruments.SubscriptionsCreated.Add(1, new KeyValuePair<string, object?>("plan", item.Sku));
+                    logger.LogInformation("Xsolla order_paid subscription: userId={UserId}, sku={Sku}, tier={Tier}, days={Days}",
+                        userId, item.Sku, tier, days);
                 }
             }
+            RecordPaymentMetrics("order_items", amount, currency);
         }
 
-        logger.LogInformation("Xsolla order_paid: userId={UserId}, orderId={OrderId}, items={ItemCount}",
-            userId, payload.Order?.Id, payload.Items?.Length ?? 0);
+        logger.LogInformation("Xsolla order_paid: userId={UserId}, orderId={OrderId}, txId={TxId}, items={ItemCount}, amount={Amount} {Currency}",
+            userId, payload.Order?.Id, txId, payload.Items?.Length ?? 0, amount, currency);
 
         return NoContent();
     }
@@ -365,9 +421,10 @@ public class XsollaWebHookController(
         }
 
         await client.GetGrain<IUltimaGrain>(userId).ExpireSubscriptionAsync();
+        XsollaInstruments.RefundsProcessed.Add(1, new KeyValuePair<string, object?>("type", "order_canceled"));
 
-        logger.LogInformation("Xsolla order_canceled: userId={UserId}, orderId={OrderId}, refundCode={Code}",
-            userId, payload.Order?.Id, refundCode);
+        logger.LogWarning("Xsolla order_canceled: userId={UserId}, orderId={OrderId}, txId={TxId}, refundCode={Code}",
+            userId, payload.Order?.Id, txId, refundCode);
 
         return NoContent();
     }
@@ -385,8 +442,9 @@ public class XsollaWebHookController(
         await client.GetGrain<IUltimaGrain>(userId)
            .ActivateSubscriptionAsync(tier, days, sub.SubscriptionId, null);
 
-        logger.LogInformation("Xsolla create_subscription: userId={UserId}, plan={Plan}, subId={SubId}",
-            userId, sub.PlanId, sub.SubscriptionId);
+        XsollaInstruments.SubscriptionsCreated.Add(1, new KeyValuePair<string, object?>("plan", sub.PlanId));
+        logger.LogInformation("Xsolla create_subscription: userId={UserId}, plan={Plan}, tier={Tier}, days={Days}, subId={SubId}",
+            userId, sub.PlanId, tier, days, sub.SubscriptionId);
 
         return NoContent();
     }
@@ -415,8 +473,9 @@ public class XsollaWebHookController(
         if (userId == Guid.Empty) return NoContent();
 
         await client.GetGrain<IUltimaGrain>(userId).CancelSubscriptionAsync();
-        logger.LogInformation("Xsolla cancel_subscription: userId={UserId}, plan={Plan}",
-            userId, payload.Subscription?.PlanId);
+        XsollaInstruments.SubscriptionsCanceled.Add(1, new KeyValuePair<string, object?>("plan", payload.Subscription?.PlanId ?? "unknown"));
+        logger.LogWarning("Xsolla cancel_subscription: userId={UserId}, plan={Plan}, subId={SubId}",
+            userId, payload.Subscription?.PlanId, payload.Subscription?.SubscriptionId);
 
         return NoContent();
     }
@@ -427,8 +486,9 @@ public class XsollaWebHookController(
         if (userId == Guid.Empty) return NoContent();
 
         await client.GetGrain<IUltimaGrain>(userId).CancelSubscriptionAsync();
-        logger.LogInformation("Xsolla non_renewal_subscription: userId={UserId}, plan={Plan}",
-            userId, payload.Subscription?.PlanId);
+        XsollaInstruments.SubscriptionsCanceled.Add(1, new KeyValuePair<string, object?>("plan", payload.Subscription?.PlanId ?? "unknown"));
+        logger.LogWarning("Xsolla non_renewal_subscription: userId={UserId}, plan={Plan}, subId={SubId}",
+            userId, payload.Subscription?.PlanId, payload.Subscription?.SubscriptionId);
 
         return NoContent();
     }
@@ -499,7 +559,11 @@ public class XsollaWebHookController(
             await SaveTransaction(userId, txId, "boost_pack",
                 boostPackType: planId, boostCount: boostCount,
                 amount: amount, currency: currency);
-            logger.LogInformation("Xsolla: granted {Count} boosts to {UserId} (plan {Plan})", boostCount, userId, planId);
+            XsollaInstruments.BoostsGranted.Add(boostCount,
+                new KeyValuePair<string, object?>("plan", planId),
+                new KeyValuePair<string, object?>("count", boostCount));
+            logger.LogInformation("Xsolla: granted {Count} boosts to userId={UserId}, plan={Plan}, txId={TxId}, duration={Days}d, amount={Amount} {Currency}",
+                boostCount, userId, planId, txId, durationDays, amount, currency);
         }
         else
         {
@@ -508,7 +572,9 @@ public class XsollaWebHookController(
                .ActivateSubscriptionAsync(tier, days, xsollaSubId, null);
             await SaveTransaction(userId, txId, "subscription",
                 planExternalId: planId, amount: amount, currency: currency);
-            logger.LogInformation("Xsolla: activated subscription for {UserId}, plan {Plan}", userId, planId);
+            XsollaInstruments.SubscriptionsCreated.Add(1, new KeyValuePair<string, object?>("plan", planId));
+            logger.LogInformation("Xsolla: activated subscription for userId={UserId}, plan={Plan}, txId={TxId}, subId={SubId}, days={Days}, amount={Amount} {Currency}",
+                userId, planId, txId, xsollaSubId, days, amount, currency);
         }
     }
 
@@ -621,4 +687,15 @@ public class XsollaWebHookController(
         "ultima_monthly" => (UltimaTier.Monthly, 30),
         _                => (UltimaTier.Monthly, 30)
     };
+
+    private static void RecordPaymentMetrics(string type, string? amount, string? currency)
+    {
+        XsollaInstruments.PaymentsProcessed.Add(1, new KeyValuePair<string, object?>("type", type));
+        if (decimal.TryParse(amount, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var decimalAmount) && decimalAmount > 0)
+        {
+            XsollaInstruments.PaymentRevenue.Add(decimalAmount,
+                new KeyValuePair<string, object?>("currency", currency ?? "USD"),
+                new KeyValuePair<string, object?>("type", type));
+        }
+    }
 }

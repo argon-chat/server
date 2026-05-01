@@ -997,4 +997,45 @@ public static class InstrumentNames
     /// Tags: error (command_not_found, insufficient_permissions, bot_not_connected)
     /// </summary>
     public const string BotCommandErrors = "argon-bot-command-errors";
+
+    // ── Xsolla Payment & Webhook Metrics ────────────────────────────────
+
+    /// <summary>Total Xsolla webhooks received. Tags: type, status</summary>
+    public const string XsollaWebhooksReceived = "argon-xsolla-webhooks-received";
+
+    /// <summary>Xsolla webhook processing errors. Tags: type, error</summary>
+    public const string XsollaWebhookErrors = "argon-xsolla-webhook-errors";
+
+    /// <summary>Duration of webhook processing (ms). Tags: type</summary>
+    public const string XsollaWebhookDuration = "argon-xsolla-webhook-duration";
+
+    /// <summary>Webhook signature validation failures.</summary>
+    public const string XsollaWebhookSignatureFailures = "argon-xsolla-webhook-signature-failures";
+
+    /// <summary>Payments successfully processed. Tags: type</summary>
+    public const string XsollaPaymentsProcessed = "argon-xsolla-payments-processed";
+
+    /// <summary>Refunds processed. Tags: type</summary>
+    public const string XsollaRefundsProcessed = "argon-xsolla-refunds-processed";
+
+    /// <summary>Payment revenue amount. Tags: currency, type</summary>
+    public const string XsollaPaymentRevenue = "argon-xsolla-payment-revenue";
+
+    /// <summary>Subscriptions created. Tags: plan</summary>
+    public const string XsollaSubscriptionsCreated = "argon-xsolla-subscriptions-created";
+
+    /// <summary>Subscriptions canceled. Tags: plan</summary>
+    public const string XsollaSubscriptionsCanceled = "argon-xsolla-subscriptions-canceled";
+
+    /// <summary>Boosts granted via payment. Tags: plan, count</summary>
+    public const string XsollaBoostsGranted = "argon-xsolla-boosts-granted";
+
+    /// <summary>Checkout sessions created. Tags: type</summary>
+    public const string XsollaCheckoutsCreated = "argon-xsolla-checkouts-created";
+
+    /// <summary>Duration of Xsolla API calls (ms). Tags: endpoint, status</summary>
+    public const string XsollaApiCallDuration = "argon-xsolla-api-call-duration";
+
+    /// <summary>Xsolla API call errors. Tags: endpoint, status_code</summary>
+    public const string XsollaApiCallErrors = "argon-xsolla-api-call-errors";
 }
