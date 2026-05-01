@@ -323,14 +323,13 @@ public class XsollaWebHookController(
         if (userId == Guid.Empty) return NoContent();
 
         var txId = payload.Billing?.Transaction?.Id.ToString()
-                ?? payload.Order?.InvoiceId;
+                ?? payload.Order?.InvoiceId
+                ?? payload.Order?.Id.ToString();
         var isDryRun = payload.Billing?.Transaction?.DryRun == 1;
 
         if (isDryRun)
-        {
-            logger.LogInformation("Xsolla order_paid: dry_run, skipping. orderId={OrderId}", payload.Order?.Id);
-            return NoContent();
-        }
+            logger.LogInformation("Xsolla order_paid: sandbox/dry_run transaction, orderId={OrderId}, txId={TxId}",
+                payload.Order?.Id, txId);
 
         var amount = payload.Billing?.PaymentDetails?.Payment?.Amount?.ToString("G");
         var currency = payload.Billing?.PaymentDetails?.Payment?.Currency;
