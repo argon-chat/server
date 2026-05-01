@@ -28,12 +28,15 @@ public sealed class XsollaTokenUser
     public required XsollaStringValue Id { get; init; }
 
     [JsonPropertyName("email")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public XsollaStringValue? Email { get; init; }
 
     [JsonPropertyName("country")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public XsollaCountryValue? Country { get; init; }
 
     [JsonPropertyName("name")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public XsollaModifiableValue? Name { get; init; }
 }
 
