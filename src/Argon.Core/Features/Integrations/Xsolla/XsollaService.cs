@@ -117,31 +117,21 @@ public class XsollaService(
             _                => "ultima_gift_monthly"
         };
 
-        var payload = new XsollaTokenRequest
+        var customParameters = new Dictionary<string, object>
         {
-            User = CreateUser(senderId, email, countryCode),
-            Settings = CreateSettings(),
-            Purchase = new XsollaTokenPurchase
-            {
-                VirtualItems = new XsollaVirtualItemsPurchase
-                {
-                    Items = [new XsollaVirtualItem { Sku = sku, Amount = 1 }]
-                }
-            },
-            CustomParameters = new Dictionary<string, object>
-            {
-                ["type"]         = "gift",
-                ["user_id"]      = senderId.ToString(),
-                ["recipient_id"] = recipientId.ToString(),
-                ["plan"]         = plan == UltimaPlan.Annual ? "Annual" : "Monthly",
-                ["gift_message"] = giftMessage ?? ""
-            }
+            ["type"]         = "gift",
+            ["user_id"]      = senderId.ToString(),
+            ["recipient_id"] = recipientId.ToString(),
+            ["plan"]         = plan == UltimaPlan.Annual ? "Annual" : "Monthly",
+            ["gift_message"] = giftMessage ?? ""
         };
 
-        var response = await PostMerchantAsync($"/merchants/{Opts.MerchantId}/token", payload, ct);
+        var response = await CreateCatalogPaymentTokenAsync(
+            senderId, email, countryCode,
+            [new XsollaCatalogPurchaseItem { Sku = sku, Quantity = 1 }],
+            customParameters, ct);
 
-        var token = response?.GetProperty("token").GetString() ?? throw new InvalidOperationException("No token in Xsolla response");
-        return BuildCheckoutUrl(token);
+        return BuildCheckoutUrl(response.Token);
     }
 
     public async Task<bool> CancelSubscriptionAsync(string xsollaSubscriptionId, CancellationToken ct = default)

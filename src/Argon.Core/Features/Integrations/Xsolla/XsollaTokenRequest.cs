@@ -469,10 +469,6 @@ public sealed class XsollaTokenPurchase
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public XsollaSubscriptionPurchase? Subscription { get; init; }
 
-    [JsonPropertyName("virtual_items")]
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public XsollaVirtualItemsPurchase? VirtualItems { get; init; }
-
     [JsonPropertyName("is_lootbox")]
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public bool? IsLootbox { get; init; }
