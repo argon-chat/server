@@ -46,7 +46,7 @@ public class XsollaService(
     };
 
     public async Task<(string checkoutUrl, string sessionId)> CreateSubscriptionCheckoutAsync(
-        Guid userId, string email, UltimaPlan plan, CancellationToken ct = default)
+        Guid userId, string email, UltimaPlan plan, string countryCode, CancellationToken ct = default)
     {
         var sku = plan switch
         {
@@ -59,8 +59,9 @@ public class XsollaService(
         {
             user = new
             {
-                id    = new { value = userId.ToString() },
-                email = new { value = email }
+                id      = new { value = userId.ToString() },
+                email   = new { value = email },
+                country = new { value = countryCode, allow_modify = false }
             },
             settings = new
             {
@@ -89,7 +90,7 @@ public class XsollaService(
     }
 
     public async Task<string> CreateBoostPackCheckoutAsync(
-        Guid userId, string email, BoostPackType pack, CancellationToken ct = default)
+        Guid userId, string email, BoostPackType pack, string countryCode, CancellationToken ct = default)
     {
         var (sku, quantity) = pack switch
         {
@@ -106,8 +107,9 @@ public class XsollaService(
         {
             user = new
             {
-                id    = new { value = userId.ToString() },
-                email = new { value = email }
+                id      = new { value = userId.ToString() },
+                email   = new { value = email },
+                country = new { value = countryCode, allow_modify = false }
             },
             settings = new
             {
@@ -137,7 +139,7 @@ public class XsollaService(
     }
 
     public async Task<string> CreateGiftCheckoutAsync(
-        Guid senderId, string email, Guid recipientId, UltimaPlan plan, string? giftMessage, CancellationToken ct = default)
+        Guid senderId, string email, Guid recipientId, UltimaPlan plan, string? giftMessage, string countryCode, CancellationToken ct = default)
     {
         var sku = plan switch
         {
@@ -149,8 +151,9 @@ public class XsollaService(
         {
             user = new
             {
-                id    = new { value = senderId.ToString() },
-                email = new { value = email }
+                id      = new { value = senderId.ToString() },
+                email   = new { value = email },
+                country = new { value = countryCode, allow_modify = false }
             },
             settings = new
             {

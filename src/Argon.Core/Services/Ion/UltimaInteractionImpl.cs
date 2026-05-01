@@ -57,9 +57,10 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
                 return new FailedCheckout(CheckoutError.ALREADY_SUBSCRIBED);
 
             var user = await this.GetGrain<IUserGrain>(userId).GetMe();
-            var (checkoutUrl, sessionId) = await xsolla.CreateSubscriptionCheckoutAsync(userId, user.Email, plan, ct);
+            var country = this.GetUserCountry();
+            var (checkoutUrl, sessionId) = await xsolla.CreateSubscriptionCheckoutAsync(userId, user.Email, plan, country, ct);
 
-            return new SuccessCheckout(checkoutUrl, sessionId);
+            return new SuccessCheckout(checkoutUrl, sessionId, country);
         }
         catch (Exception ex)
         {
@@ -109,9 +110,10 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
             var isSubscriber = sub is { status: UltimaSubscriptionStatus.Active };
             await xsolla.EnsureSubscriberAttributeAsync(userId, isSubscriber, ct);
 
-            var checkoutUrl = await xsolla.CreateBoostPackCheckoutAsync(userId, user.Email, pack, ct);
+            var country = this.GetUserCountry();
+            var checkoutUrl = await xsolla.CreateBoostPackCheckoutAsync(userId, user.Email, pack, country, ct);
 
-            return new SuccessPurchaseBoost(checkoutUrl);
+            return new SuccessPurchaseBoost(checkoutUrl, country);
         }
         catch (Exception ex)
         {
@@ -142,9 +144,10 @@ public class UltimaInteractionImpl(IXsollaService xsolla, ILogger<UltimaInteract
             }
 
             var sender = await this.GetGrain<IUserGrain>(senderId).GetMe();
-            var checkoutUrl = await xsolla.CreateGiftCheckoutAsync(senderId, sender.Email, recipientId, plan, message, ct);
+            var country = this.GetUserCountry();
+            var checkoutUrl = await xsolla.CreateGiftCheckoutAsync(senderId, sender.Email, recipientId, plan, message, country, ct);
 
-            return new SuccessSendGift(checkoutUrl);
+            return new SuccessSendGift(checkoutUrl, country);
         }
         catch (Exception ex)
         {

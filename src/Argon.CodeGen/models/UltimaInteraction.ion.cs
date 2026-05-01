@@ -170,7 +170,7 @@ public interface ICheckoutResult : IIonUnion<ICheckoutResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessCheckout(string checkoutUrl, string sessionId) : ICheckoutResult
+public sealed record SuccessCheckout(string checkoutUrl, string sessionId, string countryCode) : ICheckoutResult
 {
     public string UnionKey => nameof(SuccessCheckout);
     public uint UnionIndex => 0;
@@ -244,16 +244,18 @@ public sealed class Ion_SuccessCheckout_Formatter : IonFormatter<SuccessCheckout
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
         var __sessionid = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__checkouturl, __sessionid);
+        var __countrycode = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__checkouturl, __sessionid, __countrycode);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessCheckout value)
     {
-        writer.WriteStartArray(2);
+        writer.WriteStartArray(3);
         IonFormatterStorage<string>.Write(writer, value.checkoutUrl);
         IonFormatterStorage<string>.Write(writer, value.sessionId);
+        IonFormatterStorage<string>.Write(writer, value.countryCode);
         writer.WriteEndArray();
     }
 }
@@ -544,7 +546,7 @@ public interface IPurchaseBoostResult : IIonUnion<IPurchaseBoostResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessPurchaseBoost(string checkoutUrl) : IPurchaseBoostResult
+public sealed record SuccessPurchaseBoost(string checkoutUrl, string countryCode) : IPurchaseBoostResult
 {
     public string UnionKey => nameof(SuccessPurchaseBoost);
     public uint UnionIndex => 0;
@@ -617,15 +619,17 @@ public sealed class Ion_SuccessPurchaseBoost_Formatter : IonFormatter<SuccessPur
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 1);
-        return new(__checkouturl);
+        var __countrycode = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__checkouturl, __countrycode);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessPurchaseBoost value)
     {
-        writer.WriteStartArray(1);
+        writer.WriteStartArray(2);
         IonFormatterStorage<string>.Write(writer, value.checkoutUrl);
+        IonFormatterStorage<string>.Write(writer, value.countryCode);
         writer.WriteEndArray();
     }
 }
@@ -668,7 +672,7 @@ public interface ISendGiftResult : IIonUnion<ISendGiftResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessSendGift(string checkoutUrl) : ISendGiftResult
+public sealed record SuccessSendGift(string checkoutUrl, string countryCode) : ISendGiftResult
 {
     public string UnionKey => nameof(SuccessSendGift);
     public uint UnionIndex => 0;
@@ -741,15 +745,17 @@ public sealed class Ion_SuccessSendGift_Formatter : IonFormatter<SuccessSendGift
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 1);
-        return new(__checkouturl);
+        var __countrycode = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__checkouturl, __countrycode);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessSendGift value)
     {
-        writer.WriteStartArray(1);
+        writer.WriteStartArray(2);
         IonFormatterStorage<string>.Write(writer, value.checkoutUrl);
+        IonFormatterStorage<string>.Write(writer, value.countryCode);
         writer.WriteEndArray();
     }
 }

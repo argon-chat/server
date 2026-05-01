@@ -11,15 +11,15 @@ public class FakeXsollaService : IXsollaService
     public bool ShouldValidateSignature { get; set; } = true;
 
     public Task<(string checkoutUrl, string sessionId)> CreateSubscriptionCheckoutAsync(
-        Guid userId, string email, UltimaPlan plan, CancellationToken ct = default)
+        Guid userId, string email, UltimaPlan plan, string countryCode, CancellationToken ct = default)
         => Task.FromResult(($"https://fake-checkout.test/sub?user={userId}&plan={plan}", Guid.NewGuid().ToString()));
 
     public Task<string> CreateBoostPackCheckoutAsync(
-        Guid userId, string email, BoostPackType pack, CancellationToken ct = default)
+        Guid userId, string email, BoostPackType pack, string countryCode, CancellationToken ct = default)
         => Task.FromResult($"https://fake-checkout.test/boost?user={userId}&pack={pack}");
 
     public Task<string> CreateGiftCheckoutAsync(
-        Guid senderId, string email, Guid recipientId, UltimaPlan plan, string? giftMessage, CancellationToken ct = default)
+        Guid senderId, string email, Guid recipientId, UltimaPlan plan, string? giftMessage, string countryCode, CancellationToken ct = default)
         => Task.FromResult($"https://fake-checkout.test/gift?sender={senderId}&recipient={recipientId}&plan={plan}");
 
     public Task<bool> CancelSubscriptionAsync(string xsollaSubscriptionId, CancellationToken ct = default)
