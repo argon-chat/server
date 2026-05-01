@@ -410,7 +410,7 @@ public class XsollaService(
                 RedirectPolicy = new XsollaCatalogRedirectPolicy
                 {
                     RedirectConditions        = "none",
-                    StatusForManualRedirection = "postmessage"
+                    StatusForManualRedirection = "none"
                 }
             },
             CustomParameters = customParameters
