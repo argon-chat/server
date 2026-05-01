@@ -305,11 +305,27 @@ public class UltimaGrain(
            .Where(x => x.Id == UserId)
            .ExecuteUpdateAsync(s => s.SetProperty(x => x.HasActiveUltima, false), ct);
 
+        // Reset premium profile customizations
+        await ctx.UserProfiles
+           .Where(x => x.UserId == UserId)
+           .ExecuteUpdateAsync(s => s
+               .SetProperty(x => x.BackgroundId, (int?)null)
+               .SetProperty(x => x.VoiceCardEffectId, (int?)null)
+               .SetProperty(x => x.AvatarFrameId, (int?)null)
+               .SetProperty(x => x.NickEffectId, (int?)null)
+               .SetProperty(x => x.PrimaryColor, (int?)null)
+               .SetProperty(x => x.AccentColor, (int?)null)
+               .SetProperty(x => x.CustomStatus, (string?)null)
+               .SetProperty(x => x.CustomStatusIconId, (string?)null), ct);
+
         await ctx.SaveChangesAsync(ct);
 
         // Recalculate affected spaces
         foreach (var spaceId in affectedSpaceIds)
             await GrainFactory.GetGrain<ISpaceBoostGrain>(spaceId).RecalculateAsync(ct);
+
+        // Broadcast profile reset to all user's spaces
+        await GrainFactory.GetGrain<IUserGrain>(UserId).ResetPremiumProfileAsync(ct);
 
         logger.LogInformation("Expired Ultima subscription for user {UserId}, removed {Count} boosts from {Spaces} spaces",
             UserId, subscriptionBoosts.Count, affectedSpaceIds.Count);

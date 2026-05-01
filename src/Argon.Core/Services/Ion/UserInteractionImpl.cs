@@ -42,8 +42,14 @@ public class UserInteractionImpl(
     public async Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default)
         => new(await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyServers());
 
-    public Task<ArgonUser> UpdateMe(UserEditInput request, CancellationToken ct = default)
-        => throw new NotImplementedException();
+    public async Task<IUpdateMeResult> UpdateMe(UserEditInput request, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserGrain>(this.GetUserId()).UpdateProfileAsync(request, ct);
+
+        if (result.IsSuccess)
+            return new SuccessUpdateMe(result.Value.User, result.Value.Profile);
+        return new FailedUpdateMe(result.Error);
+    }
 
     public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default)
     {
@@ -79,18 +85,6 @@ public class UserInteractionImpl(
 
     public async Task CompleteUploadAvatar(Guid blobId, CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.Avatar, ct);
-
-    public async Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default)
-    {
-        var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.ProfileHeader, ct);
-
-        if (result.IsSuccess)
-            return new SuccessUploadFile(result.Value.Id);
-        return new FailedUploadFile(result.Error);
-    }
-
-    public async Task CompleteUploadProfileHeader(Guid blobId, CancellationToken ct = default)
-        => await this.GetGrain<IUserGrain>(this.GetUserId()).CompleteUploadUserFile(blobId, UserFileKind.ProfileHeader, ct);
 
     public async Task<TodayStats> GetTodayStats(CancellationToken ct = default)
     {

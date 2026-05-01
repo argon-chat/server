@@ -64,7 +64,10 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task DoJoinUserAsync();
 
     [Alias(nameof(DoUserUpdatedAsync))]
-    Task DoUserUpdatedAsync();
+    Task DoUserUpdatedAsync(ArgonUser user);
+
+    [Alias(nameof(DoUserProfileUpdatedAsync))]
+    Task DoUserProfileUpdatedAsync(Guid userId, ArgonUserProfile profile);
 
     [Alias(nameof(PrefetchProfile))]
     Task<ArgonUserProfile> PrefetchProfile(Guid userId);

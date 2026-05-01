@@ -15,7 +15,7 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UltimaPricing(ProductPrice subscriptionMonthly, ProductPrice subscriptionAnnual, ProductPrice boostPack1, ProductPrice boostPack3, ProductPrice boostPack5);
+public sealed record UltimaPricing(ProductPrice subscriptionMonthly, ProductPrice subscriptionAnnual, ProductPrice boostPack1, ProductPrice boostPack3, ProductPrice boostPack5, ProductPrice boostPack1Annual, ProductPrice boostPack3Annual, ProductPrice boostPack5Annual);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -70,6 +70,9 @@ public enum BoostPackType
     Pack1 = 0,
     Pack3 = 1,
     Pack5 = 2,
+    Pack1Annual = 3,
+    Pack3Annual = 4,
+    Pack5Annual = 5,
 }
 
 
@@ -81,6 +84,9 @@ public enum BoostSource
     PurchasedPack3 = 2,
     PurchasedPack5 = 3,
     GiftReward = 4,
+    PurchasedPack1Annual = 5,
+    PurchasedPack3Annual = 6,
+    PurchasedPack5Annual = 7,
 }
 
 

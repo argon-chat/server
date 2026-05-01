@@ -25,19 +25,25 @@ public sealed class Ion_UltimaPricing_Formatter : IonFormatter<UltimaPricing>
         var __boostpack1 = IonFormatterStorage<ProductPrice>.Read(reader);
         var __boostpack3 = IonFormatterStorage<ProductPrice>.Read(reader);
         var __boostpack5 = IonFormatterStorage<ProductPrice>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 5);
-        return new(__subscriptionmonthly, __subscriptionannual, __boostpack1, __boostpack3, __boostpack5);
+        var __boostpack1annual = IonFormatterStorage<ProductPrice>.Read(reader);
+        var __boostpack3annual = IonFormatterStorage<ProductPrice>.Read(reader);
+        var __boostpack5annual = IonFormatterStorage<ProductPrice>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__subscriptionmonthly, __subscriptionannual, __boostpack1, __boostpack3, __boostpack5, __boostpack1annual, __boostpack3annual, __boostpack5annual);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UltimaPricing value)
     {
-        writer.WriteStartArray(5);
+        writer.WriteStartArray(8);
         IonFormatterStorage<ProductPrice>.Write(writer, value.subscriptionMonthly);
         IonFormatterStorage<ProductPrice>.Write(writer, value.subscriptionAnnual);
         IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack1);
         IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack3);
         IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack5);
+        IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack1Annual);
+        IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack3Annual);
+        IonFormatterStorage<ProductPrice>.Write(writer, value.boostPack5Annual);
         writer.WriteEndArray();
     }
 }

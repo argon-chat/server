@@ -2567,6 +2567,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsUltimaGiftReceived => this is UltimaGiftReceived;
 
+    internal bool IsUserProfileUpdated => this is UserProfileUpdated;
+
 }
 
 
@@ -2969,6 +2971,13 @@ public sealed record UltimaGiftReceived(guid userId, guid itemId, string senderN
     public uint UnionIndex => 56;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserProfileUpdated(guid spaceId, guid userId, ArgonUserProfile profile) : IArgonEvent
+{
+    public string UnionKey => nameof(UserProfileUpdated);
+    public uint UnionIndex => 57;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3151,6 +3160,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 56)
             result = IonFormatterStorage<UltimaGiftReceived>.Read(reader);
+
+        else if (unionIndex == 57)
+            result = IonFormatterStorage<UserProfileUpdated>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -3562,6 +3574,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_56.UnionIndex != 56)
                 throw new InvalidOperationException();
             IonFormatterStorage<UltimaGiftReceived>.Write(writer, n_56);
+        }
+
+        else if (value is UserProfileUpdated n_57)
+        {
+            if (n_57.UnionIndex != 57)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserProfileUpdated>.Write(writer, n_57);
         }
     
         else
@@ -4940,6 +4959,31 @@ public sealed class Ion_UltimaGiftReceived_Formatter : IonFormatter<UltimaGiftRe
         IonFormatterStorage<guid>.Write(writer, value.itemId);
         IonFormatterStorage<string>.Write(writer, value.senderName);
         IonFormatterStorage<string>.WriteNullable(writer, value.message);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserProfileUpdated_Formatter : IonFormatter<UserProfileUpdated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserProfileUpdated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __profile = IonFormatterStorage<ArgonUserProfile>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __userid, __profile);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserProfileUpdated value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<ArgonUserProfile>.Write(writer, value.profile);
         writer.WriteEndArray();
     }
 }

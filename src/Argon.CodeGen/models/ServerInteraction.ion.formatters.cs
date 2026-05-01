@@ -277,14 +277,20 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         var __bio = reader.ReadNullable<string>();
         var __badges = IonFormatterStorage<string>.ReadArray(reader);
         var __archetypes = IonFormatterStorage<SpaceMemberArchetype>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __badges, __archetypes);
+        var __backgroundid = reader.ReadNullable<i4>();
+        var __voicecardeffectid = reader.ReadNullable<i4>();
+        var __avatarframeid = reader.ReadNullable<i4>();
+        var __nickeffectid = reader.ReadNullable<i4>();
+        var __primarycolor = reader.ReadNullable<i4>();
+        var __accentcolor = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 14);
+        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __badges, __archetypes, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __primarycolor, __accentcolor);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonUserProfile value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(14);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatus);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatusIconId);
@@ -293,6 +299,12 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         IonFormatterStorage<string>.WriteNullable(writer, value.bio);
         IonFormatterStorage<string>.WriteArray(writer, value.badges);
         IonFormatterStorage<SpaceMemberArchetype>.WriteArray(writer, value.archetypes);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.backgroundId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.voiceCardEffectId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.avatarFrameId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.nickEffectId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.primaryColor);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.accentColor);
         writer.WriteEndArray();
     }
 }

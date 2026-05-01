@@ -1,5 +1,7 @@
 namespace Argon.Grains;
 
+using Argon.Core.Features.Logic;
+using Argon.Core.Features.Transport;
 using Features.Logic;
 using Features.MediaStorage;
 using ion.runtime;
@@ -12,27 +14,110 @@ public class UserGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IUserPresenceService presenceService,
     ILogger<IUserGrain> logger,
-    IKineticaFSApi kineticaFs) : Grain, IUserGrain
+    IKineticaFSApi kineticaFs,
+    AppHubServer appHubServer) : Grain, IUserGrain
 {
-    public async Task<UserEntity> UpdateUser(UserEditInput input)
+    private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
+
+    public async Task<Either<UpdateProfileResult, UpdateMeError>> UpdateProfileAsync(UserEditInput input, CancellationToken ct = default)
     {
-        await using var ctx = await context.CreateDbContextAsync();
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        var userId = this.GetUserId();
 
-        var user = await ctx.Users.FirstAsync(x => x.Id == this.GetPrimaryKey());
-        user.DisplayName  = !string.IsNullOrEmpty(input.displayName) ? input.displayName : user.DisplayName;
-        user.AvatarFileId = !string.IsNullOrEmpty(input.avatarId) ? input.avatarId : user.AvatarFileId;
+        var user = await ctx.Users.FirstAsync(x => x.Id == userId, ct);
+        var profile = await ctx.UserProfiles.FirstAsync(x => x.UserId == userId, ct);
+
+        // Check if any premium-only field is being set
+        var hasPremiumField = input.backgroundId.HasValue
+                           || input.voiceCardEffectId.HasValue
+                           || input.avatarFrameId.HasValue
+                           || input.nickEffectId.HasValue
+                           || input.primaryColor.HasValue
+                           || input.accentColor.HasValue
+                           || input.customStatus is not null;
+
+        if (hasPremiumField && !user.HasActiveUltima)
+            return UpdateMeError.PREMIUM_REQUIRED;
+
+        // Validate preset IDs
+        if (!ProfilePresetValidator.IsValidPresetId(input.backgroundId, input.voiceCardEffectId, input.avatarFrameId, input.nickEffectId))
+            return UpdateMeError.INVALID_PRESET_ID;
+
+        // DisplayName update with cooldown
+        if (!string.IsNullOrEmpty(input.displayName))
+        {
+            var trimmed = input.displayName.Trim();
+            if (string.IsNullOrEmpty(trimmed))
+                return UpdateMeError.DISPLAY_NAME_EMPTY;
+            if (trimmed.Length > 32)
+                return UpdateMeError.DISPLAY_NAME_TOO_LONG;
+
+            if (user.DisplayNameChangedAt.HasValue &&
+                DateTimeOffset.UtcNow - user.DisplayNameChangedAt.Value < DisplayNameCooldown)
+                return UpdateMeError.COOLDOWN_ACTIVE;
+
+            user.DisplayName = trimmed;
+            user.DisplayNameChangedAt = DateTimeOffset.UtcNow;
+        }
+
+        // Avatar update
+        if (!string.IsNullOrEmpty(input.avatarId))
+            user.AvatarFileId = input.avatarId;
+
+        // Premium profile fields
+        if (input.backgroundId.HasValue)
+            profile.BackgroundId = input.backgroundId.Value;
+        if (input.voiceCardEffectId.HasValue)
+            profile.VoiceCardEffectId = input.voiceCardEffectId.Value;
+        if (input.avatarFrameId.HasValue)
+            profile.AvatarFrameId = input.avatarFrameId.Value;
+        if (input.nickEffectId.HasValue)
+            profile.NickEffectId = input.nickEffectId.Value;
+        if (input.primaryColor.HasValue)
+            profile.PrimaryColor = input.primaryColor.Value;
+        if (input.accentColor.HasValue)
+            profile.AccentColor = input.accentColor.Value;
+        if (input.customStatus is not null)
+            profile.CustomStatus = input.customStatus.Length > 128 ? input.customStatus[..128] : input.customStatus;
+        if (input.customStatusIconId is not null)
+            profile.CustomStatusIconId = input.customStatusIconId;
+
         ctx.Users.Update(user);
-        await ctx.SaveChangesAsync();
+        ctx.UserProfiles.Update(profile);
+        await ctx.SaveChangesAsync(ct);
 
-        var userServers = await GetMyServersIds();
+        var userDto = UserEntity.Map(user);
+        var profileDto = UserProfileEntity.Map(profile);
 
-        await Task.WhenAll(userServers
-           .Select(id => GrainFactory
-               .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync())
-           .ToArray());
+        // Broadcast to all spaces
+        var userServers = await GetMyServersIds(ct);
+        await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
 
-        return user;
+        return new UpdateProfileResult(userDto, profileDto);
+    }
+
+    public async ValueTask ResetPremiumProfileAsync(CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+        var userId = this.GetPrimaryKey();
+
+        var user = await ctx.Users.AsNoTracking().FirstAsync(x => x.Id == userId, ct);
+        var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId, ct);
+
+        var userDto = UserEntity.Map(user);
+        var profileDto = UserProfileEntity.Map(profile);
+
+        var userServers = await GetMyServersIds(ct);
+        await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
+    }
+
+    private async Task BroadcastToSpacesAsync(List<Guid> spaceIds, ArgonUser userDto, Guid userId, ArgonUserProfile profileDto, CancellationToken ct = default)
+    {
+        foreach (var spaceId in spaceIds)
+        {
+            await appHubServer.BroadcastSpace(new UserUpdated(spaceId, userDto), spaceId, ct);
+            await appHubServer.BroadcastSpace(new UserProfileUpdated(spaceId, userId, profileDto), spaceId, ct);
+        }
     }
 
     public async Task<UserEntity> GetMe()
@@ -200,9 +285,8 @@ public class UserGrain(
     private uint GetLimitFor(UserFileKind kind)
         => kind switch
         {
-            UserFileKind.Avatar        => 2,
-            UserFileKind.ProfileHeader => 4,
-            _                          => 1
+            UserFileKind.Avatar => 2,
+            _                   => 1
         };
 
     public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default)
@@ -249,9 +333,8 @@ public class UserGrain(
     private ValueTask UpdateFileIdFor(UserFileKind kind, Guid fileId, CancellationToken ct = default)
         => kind switch
         {
-            UserFileKind.Avatar        => UpdateAvatarFileId(fileId, ct),
-            UserFileKind.ProfileHeader => UpdateProfileHeaderFileId(fileId, ct),
-            _                          => throw new NotImplementedException()
+            UserFileKind.Avatar => UpdateAvatarFileId(fileId, ct),
+            _                   => throw new NotImplementedException()
         };
 
     private async ValueTask UpdateAvatarFileId(Guid fileId, CancellationToken ct = default)
@@ -280,46 +363,10 @@ public class UserGrain(
         }
 
         var userServers = await GetMyServersIds(ct);
+        var userDto = UserEntity.Map(user);
 
-        await Task.WhenAll(userServers
-           .Select(id => GrainFactory
-               .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync())
-           .ToArray());
-    }
-
-    private async ValueTask UpdateProfileHeaderFileId(Guid fileId, CancellationToken ct = default)
-    {
-        await using var ctx    = await context.CreateDbContextAsync(ct);
-        var             userId = this.GetUserId();
-
-        var user = await ctx.UserProfiles.FirstAsync(x => x.UserId == userId, cancellationToken: ct);
-
-        var currentFileId = user.BannerFileId;
-
-        user.BannerFileId = fileId.ToString();
-
-        await ctx.SaveChangesAsync(ct);
-
-        if (!string.IsNullOrEmpty(currentFileId))
-        {
-            try
-            {
-                await kineticaFs.DecrementByFileIdAsync(currentFileId, ct);
-            }
-            catch (Exception e)
-            {
-                logger.LogCritical(e, "failed decrement fileId");
-            }
-        }
-
-        var userServers = await GetMyServersIds(ct);
-
-        await Task.WhenAll(userServers
-           .Select(id => GrainFactory
-               .GetGrain<ISpaceGrain>(id)
-               .DoUserUpdatedAsync())
-           .ToArray());
+        foreach (var spaceId in userServers)
+            await appHubServer.BroadcastSpace(new UserUpdated(spaceId, userDto), spaceId, ct);
     }
 
     public async ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default)

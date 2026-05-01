@@ -58,7 +58,10 @@ public class FakeXsollaService : IXsollaService
                 new ProductPrice("99.99", null, "USD"),
                 new ProductPrice("2.99", "4.99", "USD"),
                 new ProductPrice("7.79", "12.99", "USD"),
-                new ProductPrice("11.99", "19.99", "USD")
+                new ProductPrice("11.99", "19.99", "USD"),
+                new ProductPrice("29.99", "49.99", "USD"),
+                new ProductPrice("77.99", "129.99", "USD"),
+                new ProductPrice("119.99", "199.99", "USD")
             ));
         }
 
@@ -67,7 +70,10 @@ public class FakeXsollaService : IXsollaService
             new ProductPrice("99.99", null, "USD"),
             new ProductPrice("4.99", null, "USD"),
             new ProductPrice("12.99", null, "USD"),
-            new ProductPrice("19.99", null, "USD")
+            new ProductPrice("19.99", null, "USD"),
+            new ProductPrice("49.99", null, "USD"),
+            new ProductPrice("129.99", null, "USD"),
+            new ProductPrice("199.99", null, "USD")
         ));
     }
 

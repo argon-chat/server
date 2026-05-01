@@ -179,6 +179,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
       IonFormatterStorage<UploadFileError>.Value = new Ion_UploadFileError_Formatter();
       IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
+      IonFormatterStorage<UpdateMeError>.Value = new Ion_UpdateMeError_Formatter();
       IonFormatterStorage<AcceptInviteError>.Value = new Ion_AcceptInviteError_Formatter();
       IonFormatterStorage<AuthorizationError>.Value = new Ion_AuthorizationError_Formatter();
       IonFormatterStorage<RegistrationError>.Value = new Ion_RegistrationError_Formatter();
@@ -186,6 +187,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<LockdownSeverity>.Value = new Ion_LockdownSeverity_Formatter();
       IonFormatterStorage<IUploadFileResult>.Value = new Ion_IUploadFileResult_Formatter();
       IonFormatterStorage<ICreateSpaceResult>.Value = new Ion_ICreateSpaceResult_Formatter();
+      IonFormatterStorage<IUpdateMeResult>.Value = new Ion_IUpdateMeResult_Formatter();
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
@@ -297,6 +299,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ReactionRemoved>.Value = new Ion_ReactionRemoved_Formatter();
       IonFormatterStorage<SpaceBoostUpdated>.Value = new Ion_SpaceBoostUpdated_Formatter();
       IonFormatterStorage<UltimaGiftReceived>.Value = new Ion_UltimaGiftReceived_Formatter();
+      IonFormatterStorage<UserProfileUpdated>.Value = new Ion_UserProfileUpdated_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
@@ -349,6 +352,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedUploadFile>.Value = new Ion_FailedUploadFile_Formatter();
       IonFormatterStorage<SuccessCreateSpace>.Value = new Ion_SuccessCreateSpace_Formatter();
       IonFormatterStorage<FailedCreateSpace>.Value = new Ion_FailedCreateSpace_Formatter();
+      IonFormatterStorage<SuccessUpdateMe>.Value = new Ion_SuccessUpdateMe_Formatter();
+      IonFormatterStorage<FailedUpdateMe>.Value = new Ion_FailedUpdateMe_Formatter();
       IonFormatterStorage<SuccessAuthorize>.Value = new Ion_SuccessAuthorize_Formatter();
       IonFormatterStorage<FailedAuthorize>.Value = new Ion_FailedAuthorize_Formatter();
       IonFormatterStorage<SuccessRegistration>.Value = new Ion_SuccessRegistration_Formatter();

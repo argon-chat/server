@@ -76,16 +76,32 @@ public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __displayname = reader.ReadNullable<string>();
         var __avatarid = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__displayname, __avatarid);
+        var __backgroundid = reader.ReadNullable<i4>();
+        var __voicecardeffectid = reader.ReadNullable<i4>();
+        var __avatarframeid = reader.ReadNullable<i4>();
+        var __nickeffectid = reader.ReadNullable<i4>();
+        var __customstatus = reader.ReadNullable<string>();
+        var __customstatusiconid = reader.ReadNullable<string>();
+        var __primarycolor = reader.ReadNullable<i4>();
+        var __accentcolor = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__displayname, __avatarid, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __customstatus, __customstatusiconid, __primarycolor, __accentcolor);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UserEditInput value)
     {
-        writer.WriteStartArray(2);
+        writer.WriteStartArray(10);
         IonFormatterStorage<string>.WriteNullable(writer, value.displayName);
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.backgroundId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.voiceCardEffectId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.avatarFrameId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.nickEffectId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.customStatus);
+        IonFormatterStorage<string>.WriteNullable(writer, value.customStatusIconId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.primaryColor);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.accentColor);
         writer.WriteEndArray();
     }
 }
@@ -284,6 +300,23 @@ public sealed class Ion_CreateSpaceError_Formatter : IonFormatter<CreateSpaceErr
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, CreateSpaceError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateMeError_Formatter : IonFormatter<UpdateMeError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateMeError Read(CborReader reader)
+    {
+         return (UpdateMeError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateMeError value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

@@ -23,7 +23,7 @@ public sealed record MyLevelDetails(i4 totalXp, i4 currentLevel, i4 xpForNextLev
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserEditInput(string? displayName, string? avatarId);
+public sealed record UserEditInput(string? displayName, string? avatarId, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, string? customStatus, string? customStatusIconId, i4? primaryColor, i4? accentColor);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -64,6 +64,18 @@ public enum CreateSpaceError
 {
     UNKNOWN = 0,
     LIMIT_REACHED = 1,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum UpdateMeError
+{
+    NONE = 0,
+    COOLDOWN_ACTIVE = 1,
+    PREMIUM_REQUIRED = 2,
+    INVALID_PRESET_ID = 3,
+    DISPLAY_NAME_TOO_LONG = 4,
+    DISPLAY_NAME_EMPTY = 5,
 }
 
 
@@ -140,7 +152,7 @@ public interface IUserInteraction : IIonService
     Task<ArgonUser> GetMe(CancellationToken ct = default);
     Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default);
     Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default);
-    Task<ArgonUser> UpdateMe(UserEditInput request, CancellationToken ct = default);
+    Task<IUpdateMeResult> UpdateMe(UserEditInput request, CancellationToken ct = default);
     Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default);
     Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default);
     Task RemoveBroadcastPresence(CancellationToken ct = default);
@@ -148,8 +160,6 @@ public interface IUserInteraction : IIonService
     Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default);
     Task CompleteUploadAvatar(guid blobId, CancellationToken ct = default);
-    Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default);
-    Task CompleteUploadProfileHeader(guid blobId, CancellationToken ct = default);
     Task<TodayStats> GetTodayStats(CancellationToken ct = default);
     Task<MyLevelDetails> GetMyLevel(CancellationToken ct = default);
     Task<bool> ClaimLevelCoin(CancellationToken ct = default);
@@ -406,6 +416,132 @@ public sealed class Ion_FailedCreateSpace_Formatter : IonFormatter<FailedCreateS
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<CreateSpaceError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IUpdateMeResult : IIonUnion<IUpdateMeResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessUpdateMe => this is SuccessUpdateMe;
+
+    internal bool IsFailedUpdateMe => this is FailedUpdateMe;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessUpdateMe(ArgonUser user, ArgonUserProfile profile) : IUpdateMeResult
+{
+    public string UnionKey => nameof(SuccessUpdateMe);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedUpdateMe(UpdateMeError error) : IUpdateMeResult
+{
+    public string UnionKey => nameof(FailedUpdateMe);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IUpdateMeResult_Formatter : IonFormatter<IUpdateMeResult>
+{
+    public IUpdateMeResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IUpdateMeResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessUpdateMe>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedUpdateMe>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IUpdateMeResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessUpdateMe n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessUpdateMe>.Write(writer, n_0);
+        }
+
+        else if (value is FailedUpdateMe n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedUpdateMe>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessUpdateMe_Formatter : IonFormatter<SuccessUpdateMe>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessUpdateMe Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __user = IonFormatterStorage<ArgonUser>.Read(reader);
+        var __profile = IonFormatterStorage<ArgonUserProfile>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__user, __profile);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessUpdateMe value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<ArgonUser>.Write(writer, value.user);
+        IonFormatterStorage<ArgonUserProfile>.Write(writer, value.profile);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedUpdateMe_Formatter : IonFormatter<FailedUpdateMe>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedUpdateMe Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<UpdateMeError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedUpdateMe value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<UpdateMeError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }

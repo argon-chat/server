@@ -40,10 +40,6 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(BeginUploadAvatar), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadAvatar_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(CompleteUploadAvatar), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> BeginUploadProfileHeader_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(BeginUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
-    private static readonly Lazy<MethodInfo> CompleteUploadProfileHeader_Ref = new(() =>
-        typeof(IUserInteraction).GetMethod(nameof(CompleteUploadProfileHeader), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetTodayStats_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(GetTodayStats), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMyLevel_Ref = new(() =>
@@ -119,7 +115,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         return await req.CallAsyncWithArray<ArgonSpaceBase>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ArgonUser> UpdateMe(UserEditInput __request, CancellationToken ct = default)
+    public async Task<IUpdateMeResult> UpdateMe(UserEditInput __request, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), UpdateMe_Ref.Value);
     
@@ -133,7 +129,7 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<ArgonUser>(writer.Encode(), ct: ct);
+        return await req.CallAsync<IUpdateMeResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode __invitecode, CancellationToken ct = default)
@@ -241,40 +237,6 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
     public async Task CompleteUploadAvatar(guid __blobid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserInteraction), CompleteUploadAvatar_Ref.Value);
-
-        var writer = new CborWriter();
-        
-        const int argsSize = 1;
-
-        writer.WriteStartArray(argsSize);
-        
-        IonFormatterStorage<guid>.Write(writer, __blobid);
-        
-        writer.WriteEndArray();
-
-        await req.CallAsync(writer.Encode(), ct: ct);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IUploadFileResult> BeginUploadProfileHeader(CancellationToken ct = default)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), BeginUploadProfileHeader_Ref.Value);
-    
-        var writer = new CborWriter();
-        
-        const int argsSize = 0;
-    
-        writer.WriteStartArray(argsSize);
-        
-        
-        
-        writer.WriteEndArray();
-    
-        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CompleteUploadProfileHeader(guid __blobid, CancellationToken ct = default)
-    {
-        var req = new IonRequest(context, typeof(IUserInteraction), CompleteUploadProfileHeader_Ref.Value);
 
         var writer = new CborWriter();
         

@@ -4,8 +4,8 @@ namespace Argon.Grains.Interfaces;
 [Alias("Argon.Grains.Interfaces.IUserGrain")]
 public interface IUserGrain : IGrainWithGuidKey
 {
-    //[Alias(nameof(UpdateUser))]
-    //Task<UserEntity> UpdateUser(UserEditInput input);
+    [Alias(nameof(UpdateProfileAsync))]
+    Task<Either<UpdateProfileResult, UpdateMeError>> UpdateProfileAsync(UserEditInput input, CancellationToken ct = default);
 
     [Alias(nameof(GetMe))]
     Task<UserEntity> GetMe();
@@ -28,17 +28,7 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
     ValueTask RemoveBroadcastPresenceAsync();
 
-    //[Alias(nameof(CreateSocialBound))]
-    //ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId);
-
-    //[Alias(nameof(GetMeSocials))]
-    //ValueTask<List<UserSocialIntegrationDto>> GetMeSocials();
-
-    //[Alias(nameof(DeleteSocialBoundAsync))]
-    //ValueTask<bool> DeleteSocialBoundAsync(string kind, Guid socialId);
-
     [Alias(nameof(UpdateUserDeviceHistory))]
-    //[OneWay]
     ValueTask UpdateUserDeviceHistory();
 
     [Alias(nameof(BeginUploadUserFile))]
@@ -56,14 +46,17 @@ public interface IUserGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(AggregateAndBroadcastStatusAsync))]
     ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
+
+    [Alias(nameof(ResetPremiumProfileAsync))]
+    ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
 }
 
 
 public record BlobId(Guid Id);
 
+public record UpdateProfileResult(ArgonUser User, ArgonUserProfile Profile);
 
 public enum UserFileKind
 {
-    Avatar,
-    ProfileHeader
+    Avatar
 }

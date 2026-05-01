@@ -112,10 +112,14 @@ public class XsollaWebHookController(
 
     private async Task HandlePayment(JsonElement json)
     {
-        var customParams = json.GetProperty("custom_parameters");
-        var type         = customParams.GetProperty("type").GetString();
-        var userIdStr    = customParams.GetProperty("user_id").GetString();
-        var txId         = json.GetProperty("transaction").GetProperty("id").GetInt64().ToString();
+        var txId = json.GetProperty("transaction").GetProperty("id").GetInt64().ToString();
+
+        // Extract user_id — try custom_parameters first, then user.id
+        string? userIdStr = null;
+        if (json.TryGetProperty("custom_parameters", out var customParams) &&
+            customParams.TryGetProperty("user_id", out var uid))
+            userIdStr = uid.GetString();
+        userIdStr ??= json.GetProperty("user").GetProperty("id").GetString();
 
         if (!Guid.TryParse(userIdStr, out var userId))
         {
@@ -141,13 +145,33 @@ public class XsollaWebHookController(
             }
         }
 
-        switch (type)
+        // Route by plan_id if subscription is present — this covers both initial and recurring payments
+        if (json.TryGetProperty("purchase", out var purchaseEl) &&
+            purchaseEl.TryGetProperty("subscription", out var subscription))
         {
-            case "subscription":
+            var planId = subscription.GetProperty("plan_id").GetString();
+            var xsollaSubId = subscription.GetProperty("subscription_id").GetInt64().ToString();
+
+            if (planId is "boost_pack_1" or "boost_pack_3" or "boost_pack_5"
+                      or "boost_pack_1_annual" or "boost_pack_3_annual" or "boost_pack_5_annual")
             {
-                var planId = json.GetProperty("purchase").GetProperty("subscription").GetProperty("plan_id").GetString();
+                var (boostCount, source) = planId switch
+                {
+                    "boost_pack_3" or "boost_pack_3_annual" => (3, BoostSource.PurchasedPack3),
+                    "boost_pack_5" or "boost_pack_5_annual" => (5, BoostSource.PurchasedPack5),
+                    _                                       => (1, BoostSource.PurchasedPack1)
+                };
+
+                await client.GetGrain<IUltimaGrain>(userId)
+                   .GrantPurchasedBoostsAsync(boostCount, source, txId);
+
+                await SaveTransactionAsync(userId, txId, "boost_pack", boostPackType: planId, boostCount: boostCount, amount: amount, currency: currency);
+
+                logger.LogInformation("Xsolla: granted {Count} boosts to {UserId} (plan {Plan}), txId {TxId}", boostCount, userId, planId, txId);
+            }
+            else if (planId is "ultima_monthly" or "ultima_annual")
+            {
                 var (tier, days) = ParsePlan(planId);
-                var xsollaSubId = json.GetProperty("purchase").GetProperty("subscription").GetProperty("subscription_id").GetInt64().ToString();
 
                 await client.GetGrain<IUltimaGrain>(userId)
                    .ActivateSubscriptionAsync(tier, days, xsollaSubId, null);
@@ -155,27 +179,19 @@ public class XsollaWebHookController(
                 await SaveTransactionAsync(userId, txId, "subscription", planExternalId: planId, amount: amount, currency: currency);
 
                 logger.LogInformation("Xsolla: activated subscription for {UserId}, plan {Plan}, txId {TxId}", userId, planId, txId);
-                break;
             }
-            case "boost_pack":
+            else
             {
-                var packTypeStr = customParams.GetProperty("pack_type").GetString();
-                var boostCount  = customParams.GetProperty("boost_count").GetInt32();
-                var source = packTypeStr switch
-                {
-                    "Pack3" => BoostSource.PurchasedPack3,
-                    "Pack5" => BoostSource.PurchasedPack5,
-                    _       => BoostSource.PurchasedPack1
-                };
-
-                await client.GetGrain<IUltimaGrain>(userId)
-                   .GrantPurchasedBoostsAsync(boostCount, source, txId);
-
-                await SaveTransactionAsync(userId, txId, "boost_pack", boostPackType: packTypeStr, boostCount: boostCount, amount: amount, currency: currency);
-
-                logger.LogInformation("Xsolla: granted {Count} boosts to {UserId}, txId {TxId}", boostCount, userId, txId);
-                break;
+                logger.LogWarning("Xsolla payment: unknown subscription plan_id {PlanId}", planId);
             }
+            return;
+        }
+
+        // Fallback: route by custom_parameters.type (for virtual_item purchases like gifts)
+        var type = customParams.TryGetProperty("type", out var t) ? t.GetString() : null;
+
+        switch (type)
+        {
             case "gift":
             {
                 var recipientIdStr = customParams.GetProperty("recipient_id").GetString();

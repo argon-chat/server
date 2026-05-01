@@ -83,7 +83,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         var result = await service.UpdateMe(__request);
         
-        IonFormatterStorage<ArgonUser>.Write(writer, result);
+        IonFormatterStorage<IUpdateMeResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task JoinToSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -197,38 +197,6 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
         await service.CompleteUploadAvatar(__blobid);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task BeginUploadProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 0;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.BeginUploadProfileHeader();
-        
-        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CompleteUploadProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
-    
-        const int argumentSize = 1;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __blobid = IonFormatterStorage<guid>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        await service.CompleteUploadProfileHeader(__blobid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetTodayStats_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -425,10 +393,6 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return BeginUploadAvatar_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadAvatar", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadAvatar_Execute(reader, writer, ct);
-        if (methodName.Equals("BeginUploadProfileHeader", StringComparison.InvariantCultureIgnoreCase))
-            return BeginUploadProfileHeader_Execute(reader, writer, ct);
-        if (methodName.Equals("CompleteUploadProfileHeader", StringComparison.InvariantCultureIgnoreCase))
-            return CompleteUploadProfileHeader_Execute(reader, writer, ct);
         if (methodName.Equals("GetTodayStats", StringComparison.InvariantCultureIgnoreCase))
             return GetTodayStats_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyLevel", StringComparison.InvariantCultureIgnoreCase))

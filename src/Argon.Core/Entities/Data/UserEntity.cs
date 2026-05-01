@@ -49,6 +49,8 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
 
     public bool HasActiveUltima { get; set; }
 
+    public DateTimeOffset? DisplayNameChangedAt { get; set; }
+
     public static ArgonUser Map(scoped in UserEntity self)
         => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self));
 

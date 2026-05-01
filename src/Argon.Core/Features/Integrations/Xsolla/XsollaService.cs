@@ -93,10 +93,13 @@ public class XsollaService(
     {
         var (sku, quantity) = pack switch
         {
-            BoostPackType.Pack1 => ("boost_pack_1", 1),
-            BoostPackType.Pack3 => ("boost_pack_3", 3),
-            BoostPackType.Pack5 => ("boost_pack_5", 5),
-            _                   => ("boost_pack_1", 1)
+            BoostPackType.Pack1       => ("boost_pack_1", 1),
+            BoostPackType.Pack3       => ("boost_pack_3", 3),
+            BoostPackType.Pack5       => ("boost_pack_5", 5),
+            BoostPackType.Pack1Annual => ("boost_pack_1_annual", 1),
+            BoostPackType.Pack3Annual => ("boost_pack_3_annual", 3),
+            BoostPackType.Pack5Annual => ("boost_pack_5_annual", 5),
+            _                        => ("boost_pack_1", 1)
         };
 
         var payload = new
@@ -113,13 +116,7 @@ public class XsollaService(
             },
             purchase = new
             {
-                virtual_items = new
-                {
-                    items = new[]
-                    {
-                        new { sku, amount = quantity }
-                    }
-                }
+                subscription = new { plan_id = sku }
             },
             custom_parameters = new
             {
@@ -144,9 +141,8 @@ public class XsollaService(
     {
         var sku = plan switch
         {
-            UltimaPlan.Monthly => "ultima_gift_monthly",
-            UltimaPlan.Annual  => "ultima_gift_annual",
-            _                  => "ultima_gift_monthly"
+            UltimaPlan.Annual => "ultima_gift_annual",
+            _                => "ultima_gift_monthly"
         };
 
         var payload = new
@@ -165,18 +161,15 @@ public class XsollaService(
             {
                 virtual_items = new
                 {
-                    items = new[]
-                    {
-                        new { sku, amount = 1 }
-                    }
+                    items = new[] { new { sku, amount = 1 } }
                 }
             },
             custom_parameters = new
             {
                 type         = "gift",
-                sender_id    = senderId.ToString(),
+                user_id      = senderId.ToString(),
                 recipient_id = recipientId.ToString(),
-                plan         = plan.ToString(),
+                plan         = plan == UltimaPlan.Annual ? "Annual" : "Monthly",
                 gift_message = giftMessage ?? ""
             }
         };
@@ -275,9 +268,12 @@ public class XsollaService(
             var pricing = new UltimaPricing(
                 ExtractPrice(plans, "ultima_monthly"),
                 ExtractPrice(plans, "ultima_annual"),
-                ExtractPrice(items, "boost_pack_1"),
-                ExtractPrice(items, "boost_pack_3"),
-                ExtractPrice(items, "boost_pack_5")
+                ExtractPrice(plans, "boost_pack_1"),
+                ExtractPrice(plans, "boost_pack_3"),
+                ExtractPrice(plans, "boost_pack_5"),
+                ExtractPrice(plans, "boost_pack_1_annual"),
+                ExtractPrice(plans, "boost_pack_3_annual"),
+                ExtractPrice(plans, "boost_pack_5_annual")
             );
 
             logger.LogInformation(

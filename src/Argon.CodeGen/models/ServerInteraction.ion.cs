@@ -51,7 +51,7 @@ public sealed record ArgonUser(guid userId, string username, string displayName,
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes);
+public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, i4? primaryColor, i4? accentColor);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

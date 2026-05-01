@@ -221,14 +221,11 @@ public class SpaceGrain(
         _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
     }
 
-    public async Task DoUserUpdatedAsync()
-    {
-        var userId = this.GetUserId();
+    public Task DoUserUpdatedAsync(ArgonUser user)
+        => Fire(new UserUpdated(this.GetPrimaryKey(), user));
 
-        await using var ctx  = await context.CreateDbContextAsync();
-        var             user = await ctx.Users.FirstAsync(x => x.Id == userId);
-        await Fire(new UserUpdated(this.GetPrimaryKey(), user.ToDto()));
-    }
+    public Task DoUserProfileUpdatedAsync(Guid userId, ArgonUserProfile profile)
+        => Fire(new UserProfileUpdated(this.GetPrimaryKey(), userId, profile));
 
     /// <summary>
     /// Prefix for ephemeral guest user IDs from meetings.
@@ -249,7 +246,7 @@ public class SpaceGrain(
 
         if (IsGuestUserId(userId))
             return new ArgonUserProfile(userId, null, null, null, null, "Guest User", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty);
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null);
 
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
