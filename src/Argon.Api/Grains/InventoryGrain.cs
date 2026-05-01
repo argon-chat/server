@@ -556,12 +556,16 @@ public class InventoryGrain(
 
         var now = DateTimeOffset.UtcNow;
         var ttl = TimeSpan.FromDays(durationDays);
+        var itemIds = new List<Guid>(count);
 
         for (var i = 0; i < count; i++)
         {
+            var id = Guid.NewGuid();
+            itemIds.Add(id);
+
             var item = new ArgonItemEntity
             {
-                Id            = Guid.NewGuid(),
+                Id            = id,
                 OwnerId       = userId,
                 TemplateId    = "item_boost",
                 IsReference   = false,
@@ -579,12 +583,7 @@ public class InventoryGrain(
         await ctx.SaveChangesAsync(ct);
 
         // Mark as unread + notify (batch after save)
-        var items = await ctx.Items
-           .Where(x => x.OwnerId == userId && x.TemplateId == "item_boost" && x.CreatedAt == now)
-           .Select(x => x.Id)
-           .ToListAsync(ct);
-
-        foreach (var itemId in items)
+        foreach (var itemId in itemIds)
         {
             await EnsureUnreadAsync(ctx, userId, itemId, "item_boost", ct);
             await systemNotification.CreateAsync(userId, SystemNotificationType.ItemReceived, itemId, "New boost item", null, ct: ct);
