@@ -6,9 +6,9 @@ using Genbox.SimpleS3.Core.Abstracts.Clients;
 
 public interface IS3StorageService
 {
-    Task<bool> FileExistsAsync(string objectKey, CancellationToken ct = default);
-    Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default);
-    Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default);
+    Task<bool> FileExistsAsync(string objectKey, bool isPublic, CancellationToken ct = default);
+    Task<S3FileMetadata?> HeadFileAsync(string objectKey, bool isPublic, CancellationToken ct = default);
+    Task<bool> DeleteFileAsync(string objectKey, bool isPublic, CancellationToken ct = default);
     string GetPublicUrl(string objectKey);
     string GeneratePresignedGetUrl(string objectKey, int expirationSeconds = 3600);
 }
@@ -24,14 +24,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
 {
     private readonly StorageOptions _opts = options.Value;
 
-    public async Task<bool> FileExistsAsync(string objectKey, CancellationToken ct = default)
+    public async Task<bool> FileExistsAsync(string objectKey, bool isPublic, CancellationToken ct = default)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("S3.HeadObject");
         activity?.SetTag("s3.key", objectKey);
         var sw = Stopwatch.StartNew();
 
-        var client = clientPool.GetClient();
-        var response = await client.HeadObjectAsync(_opts.BucketName, objectKey, null, ct);
+        var bucketOpts = _opts.GetBucketOptions(isPublic);
+        var client = clientPool.GetClient(isPublic);
+        var response = await client.HeadObjectAsync(bucketOpts.BucketName, objectKey, null, ct);
 
         sw.Stop();
         StorageInstruments.S3Operations.Add(1,
@@ -42,14 +43,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         return response.IsSuccess;
     }
 
-    public async Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default)
+    public async Task<S3FileMetadata?> HeadFileAsync(string objectKey, bool isPublic, CancellationToken ct = default)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("S3.HeadFile");
         activity?.SetTag("s3.key", objectKey);
         var sw = Stopwatch.StartNew();
 
-        var client = clientPool.GetClient();
-        var response = await client.HeadObjectAsync(_opts.BucketName, objectKey, null, ct);
+        var bucketOpts = _opts.GetBucketOptions(isPublic);
+        var client = clientPool.GetClient(isPublic);
+        var response = await client.HeadObjectAsync(bucketOpts.BucketName, objectKey, null, ct);
 
         sw.Stop();
         StorageInstruments.S3Operations.Add(1,
@@ -66,14 +68,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         };
     }
 
-    public async Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default)
+    public async Task<bool> DeleteFileAsync(string objectKey, bool isPublic, CancellationToken ct = default)
     {
         using var activity = StorageInstruments.ActivitySource.StartActivity("S3.DeleteObject");
         activity?.SetTag("s3.key", objectKey);
         var sw = Stopwatch.StartNew();
 
-        var client = clientPool.GetClient();
-        var response = await client.DeleteObjectAsync(_opts.BucketName, objectKey, null, ct);
+        var bucketOpts = _opts.GetBucketOptions(isPublic);
+        var client = clientPool.GetClient(isPublic);
+        var response = await client.DeleteObjectAsync(bucketOpts.BucketName, objectKey, null, ct);
 
         sw.Stop();
         StorageInstruments.S3Operations.Add(1,
@@ -90,13 +93,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
     public string GeneratePresignedGetUrl(string objectKey, int expirationSeconds = 3600)
     {
         // Generate presigned GET URL using AWS Signature V4 query string auth
+        // Private bucket only — public files use CDN URL directly
+        var prv       = _opts.Private;
         var now       = DateTime.UtcNow;
         var dateStamp = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var amzDate   = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
-        var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
+        var credential = $"{prv.AccessKey}/{dateStamp}/{prv.Region}/s3/aws4_request";
 
-        var host = _opts.Endpoint;
-        var canonicalUri = $"/{_opts.BucketName}/{objectKey}";
+        var host = prv.Endpoint;
+        var canonicalUri = $"/{prv.BucketName}/{objectKey}";
 
         var queryParams = new SortedDictionary<string, string>
         {
@@ -116,15 +121,15 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         var canonicalRequest = $"GET\n{canonicalUri}\n{canonicalQueryString}\n{canonicalHeaders}\n{signedHeaders}\nUNSIGNED-PAYLOAD";
 
         var canonicalRequestHash = HashSha256(canonicalRequest);
-        var stringToSign = $"AWS4-HMAC-SHA256\n{amzDate}\n{dateStamp}/{_opts.Region}/s3/aws4_request\n{canonicalRequestHash}";
+        var stringToSign = $"AWS4-HMAC-SHA256\n{amzDate}\n{dateStamp}/{prv.Region}/s3/aws4_request\n{canonicalRequestHash}";
 
-        var kDate    = HmacSha256(Encoding.UTF8.GetBytes($"AWS4{_opts.SecretKey}"), dateStamp);
-        var kRegion  = HmacSha256(kDate, _opts.Region);
+        var kDate    = HmacSha256(Encoding.UTF8.GetBytes($"AWS4{prv.SecretKey}"), dateStamp);
+        var kRegion  = HmacSha256(kDate, prv.Region);
         var kService = HmacSha256(kRegion, "s3");
         var kSigning = HmacSha256(kService, "aws4_request");
         var signature = Convert.ToHexString(HmacSha256(kSigning, stringToSign)).ToLowerInvariant();
 
-        var scheme = _opts.UseSsl ? "https" : "http";
+        var scheme = prv.UseSsl ? "https" : "http";
         return $"{scheme}://{host}{canonicalUri}?{canonicalQueryString}&X-Amz-Signature={signature}";
     }
 

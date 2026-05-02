@@ -1,20 +1,30 @@
 namespace Argon.Features.Storage;
 
+public class S3BucketOptions
+{
+    public string Endpoint   { get; set; } = "";
+    public string AccessKey  { get; set; } = "";
+    public string SecretKey  { get; set; } = "";
+    public string BucketName { get; set; } = "";
+    public string Region     { get; set; } = "auto";
+    public bool   UseSsl     { get; set; } = true;
+
+    public bool IsConfigured => !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
+}
+
 public class StorageOptions
 {
     public const string SectionName = "Storage";
 
-    public string Endpoint    { get; set; } = "";
-    public string AccessKey   { get; set; } = "";
-    public string SecretKey   { get; set; } = "";
-    public string BucketName  { get; set; } = "";
-    public string Region      { get; set; } = "auto";
-    public bool   UseSsl      { get; set; } = true;
+    public S3BucketOptions Public  { get; set; } = new();
+    public S3BucketOptions Private { get; set; } = new();
 
     /// <summary>
     ///     Base URL for public-read files (e.g. https://cdn.argon.gl)
     /// </summary>
     public string PublicBaseUrl { get; set; } = "";
+
+    public S3BucketOptions GetBucketOptions(bool isPublic) => isPublic ? Public : Private;
 }
 
 public class FileLimitsOptions

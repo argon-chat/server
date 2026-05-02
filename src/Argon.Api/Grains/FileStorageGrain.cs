@@ -44,13 +44,14 @@ public class FileStorageGrain(
 
         var fileId = Guid.NewGuid();
         var s3Key  = BuildS3Key(request.Purpose, fileId, userId, request.SpaceId, request.ChannelId);
-        var opts   = policyGenerator;
+        var isPublic = request.Purpose.IsPublic();
 
         var contentTypePrefix = GetContentTypePrefix(request.Purpose);
 
         var postData = policyGenerator.GeneratePresignedPost(
             s3Key,
             effectiveLimit,
+            isPublic,
             contentTypePrefix,
             _limits.BlobTtlSeconds);
 
@@ -121,7 +122,7 @@ public class FileStorageGrain(
             var expiredFile = await db.Files.FindAsync([blob.FileId], ct);
             if (expiredFile is not null)
             {
-                await s3.DeleteFileAsync(expiredFile.S3Key, ct);
+                await s3.DeleteFileAsync(expiredFile.S3Key, expiredFile.Purpose.IsPublic(), ct);
                 db.Files.Remove(expiredFile);
             }
             db.FileBlobs.Remove(blob);
@@ -134,14 +135,15 @@ public class FileStorageGrain(
             throw new KeyNotFoundException("File record not found");
 
         // Validate file exists in S3 via HEAD
-        var metadata = await s3.HeadFileAsync(file.S3Key, ct);
+        var isPublic = file.Purpose.IsPublic();
+        var metadata = await s3.HeadFileAsync(file.S3Key, isPublic, ct);
         if (metadata is null)
             throw new InvalidOperationException("File not found in storage — upload may have failed");
 
         // Validate size
         if (metadata.ContentLength > blob.SizeLimit)
         {
-            await s3.DeleteFileAsync(file.S3Key, ct);
+            await s3.DeleteFileAsync(file.S3Key, isPublic, ct);
             db.Files.Remove(file);
             db.FileBlobs.Remove(blob);
             await db.SaveChangesAsync(ct);
@@ -283,27 +285,26 @@ public class FileStorageGrain(
 
     private static string BuildS3Key(FilePurpose purpose, Guid fileId, Guid userId, Guid? spaceId, Guid? channelId)
     {
-        // Layout: {visibility}/{scope_prefix}/{ownerId}/{category}/[channelId/]{fileId}
-        // User content:  public/u/{userId}/avatars/{fileId}
-        // Space content:  public/s/{spaceId}/avatar/{fileId}
-        // Private space:  private/s/{spaceId}/channels/{channelId}/{fileId}
-        // Bulk delete:    prefix "u/{userId}/" or "s/{spaceId}/"
+        // Layout: {scope_prefix}/{ownerId}/{category}/[channelId/]{fileId}
+        // Bucket itself determines visibility (public vs private bucket).
+        // User content:  u/{userId}/avatars/{fileId}
+        // Space content: s/{spaceId}/avatar/{fileId}
+        // Private space: s/{spaceId}/channels/{channelId}/{fileId}
 
-        var visibility = purpose.IsPublic() ? "public" : "private";
-        var category   = purpose.S3Prefix();
+        var category = purpose.S3Prefix();
 
         if (purpose.IsSpaceScoped())
         {
             var ownerId = spaceId ?? userId;
             return purpose switch
             {
-                FilePurpose.ChannelAttachment => $"{visibility}/s/{ownerId}/{category}/{channelId}/{fileId}",
-                FilePurpose.Video             => $"{visibility}/s/{ownerId}/{category}/{channelId}/{fileId}",
-                _                             => $"{visibility}/s/{ownerId}/{category}/{fileId}"
+                FilePurpose.ChannelAttachment => $"s/{ownerId}/{category}/{channelId}/{fileId}",
+                FilePurpose.Video             => $"s/{ownerId}/{category}/{channelId}/{fileId}",
+                _                             => $"s/{ownerId}/{category}/{fileId}"
             };
         }
 
-        return $"{visibility}/u/{userId}/{category}/{fileId}";
+        return $"u/{userId}/{category}/{fileId}";
     }
 
     private static string? GetContentTypePrefix(FilePurpose purpose) => purpose switch
