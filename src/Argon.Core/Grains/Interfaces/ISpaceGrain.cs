@@ -76,7 +76,7 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task<ArgonUser> PrefetchUser(Guid userId, CancellationToken ct = default);
 
     [Alias(nameof(BeginUploadSpaceFile))]
-    ValueTask<Either<BlobId, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
+    ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(CompleteUploadSpaceFile))]
     ValueTask CompleteUploadSpaceFile(Guid blobId, SpaceFileKind kind, CancellationToken ct = default);

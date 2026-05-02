@@ -68,6 +68,29 @@ public sealed class Ion_MyLevelDetails_Formatter : IonFormatter<MyLevelDetails>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FormField_Formatter : IonFormatter<FormField>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FormField Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __key = IonFormatterStorage<string>.Read(reader);
+        var __value = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__key, __value);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FormField value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.key);
+        IonFormatterStorage<string>.Write(writer, value.value);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

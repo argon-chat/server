@@ -188,7 +188,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         var result = await service.BeginUploadSpaceProfileHeader(__spaceid);
         
-        IonFormatterStorage<guid>.Write(writer, result);
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CompleteUploadSpaceProfileHeader_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -221,7 +221,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         var result = await service.BeginUploadSpaceAvatar(__spaceid);
         
-        IonFormatterStorage<guid>.Write(writer, result);
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CompleteUploadSpaceAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)

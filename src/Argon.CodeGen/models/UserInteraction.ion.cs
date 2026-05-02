@@ -23,6 +23,10 @@ public sealed record MyLevelDetails(i4 totalXp, i4 currentLevel, i4 xpForNextLev
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FormField(string key, string value);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserEditInput(string? displayName, string? avatarId, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, string? customStatus, string? customStatusIconId, i4? primaryColor, i4? accentColor);
 
 
@@ -189,7 +193,7 @@ public interface IUploadFileResult : IIonUnion<IUploadFileResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessUploadFile(guid blobId) : IUploadFileResult
+public sealed record SuccessUploadFile(guid blobId, string uploadUrl, IonArray<FormField> formFields, i4 ttlSeconds) : IUploadFileResult
 {
     public string UnionKey => nameof(SuccessUploadFile);
     public uint UnionIndex => 0;
@@ -262,15 +266,21 @@ public sealed class Ion_SuccessUploadFile_Formatter : IonFormatter<SuccessUpload
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __blobid = IonFormatterStorage<guid>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 1);
-        return new(__blobid);
+        var __uploadurl = IonFormatterStorage<string>.Read(reader);
+        var __formfields = IonFormatterStorage<FormField>.ReadArray(reader);
+        var __ttlseconds = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__blobid, __uploadurl, __formfields, __ttlseconds);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessUploadFile value)
     {
-        writer.WriteStartArray(1);
+        writer.WriteStartArray(4);
         IonFormatterStorage<guid>.Write(writer, value.blobId);
+        IonFormatterStorage<string>.Write(writer, value.uploadUrl);
+        IonFormatterStorage<FormField>.WriteArray(writer, value.formFields);
+        IonFormatterStorage<i4>.Write(writer, value.ttlSeconds);
         writer.WriteEndArray();
     }
 }

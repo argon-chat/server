@@ -1038,4 +1038,57 @@ public static class InstrumentNames
 
     /// <summary>Xsolla API call errors. Tags: endpoint, status_code</summary>
     public const string XsollaApiCallErrors = "argon-xsolla-api-call-errors";
+
+    // ── File Storage Metrics ────────────────────────────────────────────
+
+    /// <summary>Upload requests initiated. Tags: purpose</summary>
+    public const string StorageUploadsRequested = "argon-storage-uploads-requested";
+
+    /// <summary>Uploads successfully finalized. Tags: purpose</summary>
+    public const string StorageUploadsFinalized = "argon-storage-uploads-finalized";
+
+    /// <summary>Upload failures. Tags: purpose, reason</summary>
+    public const string StorageUploadsFailed = "argon-storage-uploads-failed";
+
+    /// <summary>Uploaded file sizes (bytes histogram). Tags: purpose</summary>
+    public const string StorageUploadSizeBytes = "argon-storage-upload-size-bytes";
+
+    /// <summary>Upload finalization duration (ms). Tags: purpose</summary>
+    public const string StorageUploadFinalizeDuration = "argon-storage-upload-finalize-duration";
+
+    /// <summary>Presigned GET URLs generated. Tags: purpose</summary>
+    public const string StoragePresignedGetGenerated = "argon-storage-presigned-get-generated";
+
+    /// <summary>Public URL lookups. Tags: purpose</summary>
+    public const string StoragePublicUrlsServed = "argon-storage-public-urls-served";
+
+    /// <summary>Reference count increments.</summary>
+    public const string StorageRefIncrements = "argon-storage-ref-increments";
+
+    /// <summary>Reference count decrements.</summary>
+    public const string StorageRefDecrements = "argon-storage-ref-decrements";
+
+    /// <summary>Expired blobs cleaned by GC.</summary>
+    public const string StorageGcBlobsSwept = "argon-storage-gc-blobs-swept";
+
+    /// <summary>Orphan files (ref≤0) cleaned by GC.</summary>
+    public const string StorageGcOrphansSwept = "argon-storage-gc-orphans-swept";
+
+    /// <summary>GC sweep errors. Tags: sweep_type</summary>
+    public const string StorageGcErrors = "argon-storage-gc-errors";
+
+    /// <summary>GC sweep duration (ms). Tags: sweep_type</summary>
+    public const string StorageGcSweepDuration = "argon-storage-gc-sweep-duration";
+
+    /// <summary>S3 operations count. Tags: operation, status</summary>
+    public const string StorageS3Operations = "argon-storage-s3-operations";
+
+    /// <summary>S3 operation duration (ms). Tags: operation</summary>
+    public const string StorageS3OperationDuration = "argon-storage-s3-operation-duration";
+
+    /// <summary>Current active upload blobs (gauge).</summary>
+    public const string StorageActiveBlobs = "argon-storage-active-blobs";
+
+    /// <summary>Cumulative bytes stored. Tags: purpose</summary>
+    public const string StorageTotalStoredBytes = "argon-storage-total-stored-bytes";
 }

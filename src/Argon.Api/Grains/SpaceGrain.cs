@@ -2,12 +2,13 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
+using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
 using Argon.Core.Features.Transport;
 using Argon.Features.BotApi;
+using Argon.Features.Storage;
 using Core.Services;
 using Features.Logic;
-using Features.MediaStorage;
 using Features.Repositories;
 using ion.runtime;
 using Orleans.GrainDirectory;
@@ -25,7 +26,6 @@ public class SpaceGrain(
     IArchetypeAgent archetypeAgent,
     IEntitlementChecker entitlementChecker,
     ISystemMessageService systemMessageService,
-    IKineticaFSApi kineticaFs,
     AppHubServer appHubServer,
     BotEventPublisher botEventPublisher,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
@@ -673,15 +673,15 @@ public class SpaceGrain(
            .ToListAsync();
     }
 
-    private static uint GetLimitFor(SpaceFileKind kind)
+    private static FilePurpose MapPurpose(SpaceFileKind kind)
         => kind switch
         {
-            SpaceFileKind.Avatar        => 4,
-            SpaceFileKind.ProfileHeader => 8,
-            _                           => 2
+            SpaceFileKind.Avatar        => FilePurpose.SpaceAvatar,
+            SpaceFileKind.ProfileHeader => FilePurpose.Banner,
+            _                           => FilePurpose.SpaceAvatar
         };
 
-    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default)
+    public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadSpaceFile(SpaceFileKind kind, CancellationToken ct = default)
     {
         var callerId = this.GetUserId();
         var spaceId  = this.GetPrimaryKey();
@@ -700,8 +700,10 @@ public class SpaceGrain(
 
         try
         {
-            var result = await kineticaFs.CreateUploadUrlAsync(GetLimitFor(kind), null, ct);
-            return new BlobId(result);
+            var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(callerId);
+            var response = await fileGrain.RequestUploadAsync(
+                new FileUploadRequest(MapPurpose(kind), "image/", 0, spaceId, null), ct);
+            return new UploadTicket(response.BlobId, response.Url, response.Fields, response.TtlSeconds);
         }
         catch (Exception e)
         {
@@ -727,7 +729,8 @@ public class SpaceGrain(
         if (!hasPermission)
             throw new UnauthorizedAccessException("No permission to manage server");
 
-        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(callerId);
+        var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
         await UpdateFileIdFor(kind, fileInfo.FileId, ct);
     }
 

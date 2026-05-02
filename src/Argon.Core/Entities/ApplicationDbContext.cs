@@ -85,6 +85,14 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region File Storage
+
+    public DbSet<FileEntity>        Files        => Set<FileEntity>();
+    public DbSet<FileBlobEntity>    FileBlobs    => Set<FileBlobEntity>();
+    public DbSet<FileCounterEntity> FileCounters => Set<FileCounterEntity>();
+
+#endregion
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
 

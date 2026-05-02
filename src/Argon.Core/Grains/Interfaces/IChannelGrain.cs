@@ -96,7 +96,7 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default);
 
     [Alias(nameof(BeginUploadAttachment))]
-    ValueTask<Either<BlobId, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default);
+    ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default);
 
     [Alias(nameof(CompleteUploadAttachment))]
     ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default);

@@ -55,6 +55,8 @@ public static class OtelFeature
                 .AddHttpClientInstrumentation()
                 .AddRedisInstrumentation()
                 .AddEntityFrameworkCoreInstrumentation()
+                .AddSource("Argon.Storage")
+                .AddSource("Argon.Xsolla")
                 .AddOtlpExporter(options => {
                     options.Endpoint = tracesEndpoint;
                     options.Protocol = OtlpExportProtocol.HttpProtobuf;

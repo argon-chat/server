@@ -2,6 +2,8 @@ namespace Argon.Grains;
 
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
+using Argon.Api.Grains.Interfaces;
+using Argon.Features.Storage;
 using Core.Grains.Interfaces;
 using Core.Services;
 using Instruments;
@@ -13,7 +15,6 @@ using Persistence.States;
 using Sfu;
 using System.Diagnostics;
 using Core.Features.Transport;
-using Features.MediaStorage;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
 using Core.Entities.Data;
@@ -25,7 +26,6 @@ public class ChannelGrain(
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
     AppHubServer appHubServer,
-    IKineticaFSApi kineticaFs,
     BotEventPublisher botEventPublisher,
     BotUserCache botUserCache,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
@@ -941,9 +941,7 @@ public class ChannelGrain(
         return await ctx.Channels.FirstAsync(c => c.Id == this.GetPrimaryKey());
     }
 
-    private const uint AttachmentFileLimitMb = 8;
-
-    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default)
+    public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default)
     {
         try
         {
@@ -953,8 +951,10 @@ public class ChannelGrain(
             if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.AttachFiles, ct))
                 return UploadFileError.NOT_AUTHORIZED;
 
-            var result = await kineticaFs.CreateUploadUrlAsync(AttachmentFileLimitMb, null, ct);
-            return new BlobId(result);
+            var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
+            var response = await fileGrain.RequestUploadAsync(
+                new FileUploadRequest(FilePurpose.ChannelAttachment, "", 0, SpaceId, this.GetPrimaryKey()), ct);
+            return new UploadTicket(response.BlobId, response.Url, response.Fields, response.TtlSeconds);
         }
         catch (Exception e)
         {
@@ -965,9 +965,11 @@ public class ChannelGrain(
 
     public async ValueTask<AttachmentInfo> CompleteUploadAttachment(Guid blobId, CancellationToken ct = default)
     {
-        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        var userId = this.GetUserId();
+        var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
+        var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
 
-        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName, fileInfo.FileSize, fileInfo.ContentType);
+        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "");
     }
 
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)

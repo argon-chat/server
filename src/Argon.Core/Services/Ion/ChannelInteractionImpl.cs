@@ -150,7 +150,10 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
         var result = await this.GetGrain<IChannelGrain>(channelId).BeginUploadAttachment(ct);
 
         if (result.IsSuccess)
-            return new SuccessUploadFile(result.Value.Id);
+        {
+            var t = result.Value;
+            return new SuccessUploadFile(t.BlobId, t.Url, UploadHelpers.ToFormFields(t.Fields), t.TtlSeconds);
+        }
         return new FailedUploadFile(result.Error);
     }
 

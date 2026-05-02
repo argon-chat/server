@@ -32,7 +32,7 @@ public interface IUserGrain : IGrainWithGuidKey
     ValueTask UpdateUserDeviceHistory();
 
     [Alias(nameof(BeginUploadUserFile))]
-    ValueTask<Either<BlobId, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
+    ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
 
     [Alias(nameof(CompleteUploadUserFile))]
     ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default);
@@ -52,7 +52,7 @@ public interface IUserGrain : IGrainWithGuidKey
 }
 
 
-public record BlobId(Guid Id);
+public record UploadTicket(Guid BlobId, string Url, Dictionary<string, string> Fields, int TtlSeconds);
 
 public record UpdateProfileResult(ArgonUser User, ArgonUserProfile Profile);
 

@@ -206,7 +206,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         return await req.CallAsyncWithArray<ArchetypeGroup>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<guid> BeginUploadSpaceProfileHeader(guid __spaceid, CancellationToken ct = default)
+    public async Task<IUploadFileResult> BeginUploadSpaceProfileHeader(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), BeginUploadSpaceProfileHeader_Ref.Value);
     
@@ -220,7 +220,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<guid>(writer.Encode(), ct: ct);
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CompleteUploadSpaceProfileHeader(guid __spaceid, guid __blobid, CancellationToken ct = default)
@@ -241,7 +241,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<guid> BeginUploadSpaceAvatar(guid __spaceid, CancellationToken ct = default)
+    public async Task<IUploadFileResult> BeginUploadSpaceAvatar(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), BeginUploadSpaceAvatar_Ref.Value);
     
@@ -255,7 +255,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<guid>(writer.Encode(), ct: ct);
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CompleteUploadSpaceAvatar(guid __spaceid, guid __blobid, CancellationToken ct = default)

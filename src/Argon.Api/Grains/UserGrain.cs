@@ -1,9 +1,10 @@
 namespace Argon.Grains;
 
+using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Logic;
 using Argon.Core.Features.Transport;
+using Argon.Features.Storage;
 using Features.Logic;
-using Features.MediaStorage;
 using ion.runtime;
 using Orleans;
 using Orleans.Concurrency;
@@ -14,7 +15,6 @@ public class UserGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IUserPresenceService presenceService,
     ILogger<IUserGrain> logger,
-    IKineticaFSApi kineticaFs,
     AppHubServer appHubServer) : Grain, IUserGrain
 {
     private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
@@ -282,20 +282,21 @@ public class UserGrain(
         }
     }
 
-    private uint GetLimitFor(UserFileKind kind)
-        => kind switch
-        {
-            UserFileKind.Avatar => 2,
-            _                   => 1
-        };
-
-    public async ValueTask<Either<BlobId, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default)
+    public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default)
     {
         try
         {
-            var result = await kineticaFs.CreateUploadUrlAsync(GetLimitFor(kind), null, ct);
+            var userId = this.GetUserId();
+            var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
+            var purpose = kind switch
+            {
+                UserFileKind.Avatar => FilePurpose.Avatar,
+                _                   => FilePurpose.Avatar
+            };
+            var response = await fileGrain.RequestUploadAsync(
+                new FileUploadRequest(purpose, "image/", 0, null, null), ct);
 
-            return new BlobId(result);
+            return new UploadTicket(response.BlobId, response.Url, response.Fields, response.TtlSeconds);
         }
         catch (Exception e)
         {
@@ -306,7 +307,9 @@ public class UserGrain(
 
     public async ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default)
     {
-        var fileInfo = await kineticaFs.FinalizeUploadUrlAsync(blobId, ct);
+        var userId = this.GetUserId();
+        var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
+        var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
         await UpdateFileIdFor(kind, fileInfo.FileId, ct);
     }
 
@@ -354,7 +357,8 @@ public class UserGrain(
         {
             try
             {
-                await kineticaFs.DecrementByFileIdAsync(currentFileId, ct);
+                if (Guid.TryParse(currentFileId, out var oldFileId))
+                    await GrainFactory.GetGrain<IFileStorageGrain>(userId).DecrementRefAsync(oldFileId, ct);
             }
             catch (Exception e)
             {

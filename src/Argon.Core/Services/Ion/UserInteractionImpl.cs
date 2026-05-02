@@ -79,7 +79,10 @@ public class UserInteractionImpl(
         var result = await this.GetGrain<IUserGrain>(this.GetUserId()).BeginUploadUserFile(UserFileKind.Avatar, ct);
 
         if (result.IsSuccess)
-            return new SuccessUploadFile(result.Value.Id);
+        {
+            var t = result.Value;
+            return new SuccessUploadFile(t.BlobId, t.Url, UploadHelpers.ToFormFields(t.Fields), t.TtlSeconds);
+        }
         return new FailedUploadFile(result.Error);
     }
 

@@ -170,6 +170,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ISendGiftResult>.Value = new Ion_ISendGiftResult_Formatter();
       IonFormatterStorage<TodayStats>.Value = new Ion_TodayStats_Formatter();
       IonFormatterStorage<MyLevelDetails>.Value = new Ion_MyLevelDetails_Formatter();
+      IonFormatterStorage<FormField>.Value = new Ion_FormField_Formatter();
       IonFormatterStorage<UserEditInput>.Value = new Ion_UserEditInput_Formatter();
       IonFormatterStorage<FeatureFlag>.Value = new Ion_FeatureFlag_Formatter();
       IonFormatterStorage<FeatureFlagParameter>.Value = new Ion_FeatureFlagParameter_Formatter();
