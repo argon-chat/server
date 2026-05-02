@@ -28,6 +28,7 @@ public class ChannelGrain(
     AppHubServer appHubServer,
     BotEventPublisher botEventPublisher,
     BotUserCache botUserCache,
+    IS3StorageService s3,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -663,7 +664,11 @@ public class ChannelGrain(
     }
 
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
-        => await messagesLayout.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
+    {
+        var messages = await messagesLayout.QueryMessages(_self.SpaceId, this.GetPrimaryKey(), @from, limit);
+        await ResolveAttachmentUrls(messages);
+        return messages;
+    }
 
     public async Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null)
     {
@@ -731,7 +736,7 @@ public class ChannelGrain(
             msgId, message.Entities?.Count ?? 0);
 
         var dto = message.ToDto();
-        
+
         logger.LogInformation(
             "Message DTO created: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
             dto.messageId, dto.entities.Size);
@@ -747,6 +752,9 @@ public class ChannelGrain(
                 "DTO entities are empty after ToDto() conversion! Original EntitiesCount was {OriginalCount}",
                 message.Entities?.Count ?? 0);
         }
+
+        await ResolveAttachmentUrls(message);
+        dto = message.ToDto();
 
         await Fire(new MessageSent(_self.SpaceId, dto));
 
@@ -844,6 +852,81 @@ public class ChannelGrain(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", this.GetPrimaryKey());
+        }
+    }
+
+    private async Task ResolveAttachmentUrls(List<ArgonMessageEntity> messages)
+    {
+        var fileIds = messages
+           .SelectMany(m => m.Entities ?? [])
+           .OfType<MessageEntityAttachment>()
+           .Where(a => a.downloadUrl is null)
+           .Select(a => a.fileId)
+           .Distinct()
+           .ToList();
+
+        if (fileIds.Count == 0) return;
+
+        await using var db = await context.CreateDbContextAsync();
+        var files = await db.Files
+           .Where(f => fileIds.Contains(f.Id) && f.Finalized)
+           .Select(f => new { f.Id, f.S3Key, f.Purpose })
+           .ToListAsync();
+
+        var urlMap = files
+           .Where(f => !f.Purpose.IsPublic())
+           .ToDictionary(f => f.Id, f => s3.GeneratePresignedGetUrl(f.S3Key));
+
+        var publicMap = files
+           .Where(f => f.Purpose.IsPublic())
+           .ToDictionary(f => f.Id, f => s3.GetPublicUrl(f.S3Key));
+
+        foreach (var kvp in publicMap)
+            urlMap[kvp.Key] = kvp.Value;
+
+        foreach (var message in messages)
+        {
+            if (message.Entities is not { Count: > 0 }) continue;
+            for (var i = 0; i < message.Entities.Count; i++)
+            {
+                if (message.Entities[i] is MessageEntityAttachment { downloadUrl: null } att &&
+                    urlMap.TryGetValue(att.fileId, out var url))
+                {
+                    message.Entities[i] = att with { downloadUrl = url };
+                }
+            }
+        }
+    }
+
+    private async Task ResolveAttachmentUrls(ArgonMessageEntity message)
+    {
+        if (message.Entities is not { Count: > 0 }) return;
+
+        var attachments = message.Entities.OfType<MessageEntityAttachment>()
+           .Where(a => a.downloadUrl is null)
+           .ToList();
+
+        if (attachments.Count == 0) return;
+
+        var fileIds = attachments.Select(a => a.fileId).Distinct().ToList();
+
+        await using var db = await context.CreateDbContextAsync();
+        var files = await db.Files
+           .Where(f => fileIds.Contains(f.Id) && f.Finalized)
+           .Select(f => new { f.Id, f.S3Key, f.Purpose })
+           .ToListAsync();
+
+        var urlMap = files.ToDictionary(f => f.Id, f => f.Purpose.IsPublic()
+            ? s3.GetPublicUrl(f.S3Key)
+            : s3.GeneratePresignedGetUrl(f.S3Key));
+
+        for (var i = 0; i < message.Entities.Count; i++)
+        {
+            if (message.Entities[i] is MessageEntityAttachment { downloadUrl: null } att &&
+                urlMap.TryGetValue(att.fileId, out var url))
+            {
+                message.Entities[i] = att with { downloadUrl = url };
+            }
         }
     }
 
@@ -969,7 +1052,8 @@ public class ChannelGrain(
         var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
 
-        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "");
+        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "",
+            fileInfo.IsPublic ? null : fileInfo.DownloadUrl);
     }
 
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)

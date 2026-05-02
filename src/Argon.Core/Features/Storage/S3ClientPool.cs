@@ -16,36 +16,44 @@ public interface IS3ClientPool : IDisposable
 
 public sealed class S3ClientPool : IS3ClientPool
 {
-    private readonly IObjectClient _client;
-    private readonly ServiceProvider _provider;
+    private readonly Lazy<(ServiceProvider provider, IObjectClient client)> _lazy;
     private bool _disposed;
 
     public S3ClientPool(IOptions<StorageOptions> options)
     {
         var opts = options.Value;
-        var services = new ServiceCollection();
-
-        var coreBuilder = SimpleS3CoreServices.AddSimpleS3Core(services);
-        coreBuilder.UseHttpClient();
-        coreBuilder.UseGenericS3(config =>
+        _lazy = new Lazy<(ServiceProvider, IObjectClient)>(() =>
         {
-            config.Endpoint        = opts.UseSsl ? $"https://{opts.Endpoint}" : $"http://{opts.Endpoint}";
-            config.RegionCode      = opts.Region;
-            config.Credentials     = new StringAccessKey(opts.AccessKey, opts.SecretKey);
-            config.NamingMode      = NamingMode.PathStyle;
-            config.PayloadSignatureMode = SignatureMode.FullSignature;
-        });
+            if (string.IsNullOrWhiteSpace(opts.AccessKey) || string.IsNullOrWhiteSpace(opts.SecretKey))
+                throw new InvalidOperationException(
+                    "S3 storage is not configured. Set Storage:AccessKey and Storage:SecretKey in configuration.");
 
-        _provider = services.BuildServiceProvider();
-        _client   = _provider.GetRequiredService<IObjectClient>();
+            var services = new ServiceCollection();
+
+            var coreBuilder = SimpleS3CoreServices.AddSimpleS3Core(services);
+            coreBuilder.UseHttpClient();
+            coreBuilder.UseGenericS3(config =>
+            {
+                config.Endpoint             = opts.UseSsl ? $"https://{opts.Endpoint}" : $"http://{opts.Endpoint}";
+                config.RegionCode           = opts.Region;
+                config.Credentials          = new StringAccessKey(opts.AccessKey, opts.SecretKey);
+                config.NamingMode           = NamingMode.PathStyle;
+                config.PayloadSignatureMode = SignatureMode.FullSignature;
+            });
+
+            var provider = services.BuildServiceProvider();
+            var client   = provider.GetRequiredService<IObjectClient>();
+            return (provider, client);
+        });
     }
 
-    public IObjectClient GetClient() => _client;
+    public IObjectClient GetClient() => _lazy.Value.client;
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        _provider.Dispose();
+        if (_lazy.IsValueCreated)
+            _lazy.Value.provider.Dispose();
     }
 }

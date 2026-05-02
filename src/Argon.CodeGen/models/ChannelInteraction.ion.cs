@@ -43,7 +43,7 @@ public sealed record RealtimeChannelUser(guid userId, ChannelMemberState state);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, string contentType);
+public sealed record AttachmentInfo(guid fileId, string fileName, i8 fileSize, string contentType, string? downloadUrl);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -579,7 +579,7 @@ public sealed record MessageEntitySystemUserJoined(EntityType type, i4 offset, i
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record MessageEntityAttachment(EntityType type, i4 offset, i4 length, i4 version, guid fileId, string fileName, i8 fileSize, string contentType, i4? width, i4? height, string? thumbHash) : IMessageEntity
+public sealed record MessageEntityAttachment(EntityType type, i4 offset, i4 length, i4 version, guid fileId, string fileName, i8 fileSize, string contentType, i4? width, i4? height, string? thumbHash, string? downloadUrl) : IMessageEntity
 {
     public string UnionKey => nameof(MessageEntityAttachment);
     public uint UnionIndex => 20;
@@ -1423,14 +1423,15 @@ public sealed class Ion_MessageEntityAttachment_Formatter : IonFormatter<Message
         var __width = reader.ReadNullable<i4>();
         var __height = reader.ReadNullable<i4>();
         var __thumbhash = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 11);
-        return new(__type, __offset, __length, __version, __fileid, __filename, __filesize, __contenttype, __width, __height, __thumbhash);
+        var __downloadurl = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 12);
+        return new(__type, __offset, __length, __version, __fileid, __filename, __filesize, __contenttype, __width, __height, __thumbhash, __downloadurl);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, MessageEntityAttachment value)
     {
-        writer.WriteStartArray(11);
+        writer.WriteStartArray(12);
         IonFormatterStorage<EntityType>.Write(writer, value.type);
         IonFormatterStorage<i4>.Write(writer, value.offset);
         IonFormatterStorage<i4>.Write(writer, value.length);
@@ -1442,6 +1443,7 @@ public sealed class Ion_MessageEntityAttachment_Formatter : IonFormatter<Message
         IonFormatterStorage<i4>.WriteNullable(writer, value.width);
         IonFormatterStorage<i4>.WriteNullable(writer, value.height);
         IonFormatterStorage<string>.WriteNullable(writer, value.thumbHash);
+        IonFormatterStorage<string>.WriteNullable(writer, value.downloadUrl);
         writer.WriteEndArray();
     }
 }

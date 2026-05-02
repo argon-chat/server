@@ -229,18 +229,20 @@ public sealed class Ion_AttachmentInfo_Formatter : IonFormatter<AttachmentInfo>
         var __filename = IonFormatterStorage<string>.Read(reader);
         var __filesize = IonFormatterStorage<i8>.Read(reader);
         var __contenttype = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 4);
-        return new(__fileid, __filename, __filesize, __contenttype);
+        var __downloadurl = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__fileid, __filename, __filesize, __contenttype, __downloadurl);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, AttachmentInfo value)
     {
-        writer.WriteStartArray(4);
+        writer.WriteStartArray(5);
         IonFormatterStorage<guid>.Write(writer, value.fileId);
         IonFormatterStorage<string>.Write(writer, value.fileName);
         IonFormatterStorage<i8>.Write(writer, value.fileSize);
         IonFormatterStorage<string>.Write(writer, value.contentType);
+        IonFormatterStorage<string>.WriteNullable(writer, value.downloadUrl);
         writer.WriteEndArray();
     }
 }
