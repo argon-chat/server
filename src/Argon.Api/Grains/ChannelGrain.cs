@@ -706,7 +706,7 @@ public class ChannelGrain(
             SpaceId   = _self.SpaceId,
             ChannelId = channelId,
             CreatorId = senderId,
-            Entities  = entities ?? [],
+            Entities  = SanitizeEntities(entities ?? []),
             Controls  = controls,
             Text      = text ?? "",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -917,6 +917,20 @@ public class ChannelGrain(
                 message.Entities[i] = att with { downloadUrl = url };
             }
         }
+    }
+
+    /// <summary>
+    ///     Strip client-provided downloadUrl from attachments to prevent URL injection.
+    ///     URLs are resolved server-side at read time based on user geo.
+    /// </summary>
+    private static List<IMessageEntity> SanitizeEntities(List<IMessageEntity> entities)
+    {
+        for (var i = 0; i < entities.Count; i++)
+        {
+            if (entities[i] is MessageEntityAttachment att && att.downloadUrl is not null)
+                entities[i] = att with { downloadUrl = null };
+        }
+        return entities;
     }
 
     private async Task ProcessMentionsAsync(List<IMessageEntity>? entities, long messageId, Guid senderId, long? replyTo)
