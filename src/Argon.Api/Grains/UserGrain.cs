@@ -310,7 +310,7 @@ public class UserGrain(
         var userId = this.GetUserId();
         var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
-        await UpdateFileIdFor(kind, fileInfo.FileId, ct);
+        await UpdateFileIdFor(kind, fileInfo.FileId, fileInfo.S3Key, ct);
     }
 
     public async ValueTask<LockedAuthStatus> GetLimitationForUser()
@@ -333,31 +333,34 @@ public class UserGrain(
             };
     }
 
-    private ValueTask UpdateFileIdFor(UserFileKind kind, Guid fileId, CancellationToken ct = default)
+    private ValueTask UpdateFileIdFor(UserFileKind kind, Guid fileId, string s3Key, CancellationToken ct = default)
         => kind switch
         {
-            UserFileKind.Avatar => UpdateAvatarFileId(fileId, ct),
+            UserFileKind.Avatar => UpdateAvatarFileId(fileId, s3Key, ct),
             _                   => throw new NotImplementedException()
         };
 
-    private async ValueTask UpdateAvatarFileId(Guid fileId, CancellationToken ct = default)
+    private async ValueTask UpdateAvatarFileId(Guid fileId, string s3Key, CancellationToken ct = default)
     {
         await using var ctx    = await context.CreateDbContextAsync(ct);
         var             userId = this.GetUserId();
 
         var user = await ctx.Users.FirstAsync(x => x.Id == userId, cancellationToken: ct);
 
-        var currentFileId = user.AvatarFileId;
+        var currentAvatarId = user.AvatarFileId;
 
-        user.AvatarFileId = fileId.ToString();
+        // Store S3 key as avatar ID (with FlatAvatarKeys this is just the fileId GUID string)
+        user.AvatarFileId = s3Key;
 
         await ctx.SaveChangesAsync(ct);
 
-        if (!string.IsNullOrEmpty(currentFileId))
+        if (!string.IsNullOrEmpty(currentAvatarId))
         {
             try
             {
-                if (Guid.TryParse(currentFileId, out var oldFileId))
+                // For flat keys the stored value IS the fileId; for nested keys extract last segment
+                var oldFileIdStr = currentAvatarId.Contains('/') ? currentAvatarId.Split('/')[^1] : currentAvatarId;
+                if (Guid.TryParse(oldFileIdStr, out var oldFileId))
                     await GrainFactory.GetGrain<IFileStorageGrain>(userId).DecrementRefAsync(oldFileId, ct);
             }
             catch (Exception e)

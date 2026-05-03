@@ -25,7 +25,8 @@ public record FileInfoResponse(
     [property: Id(2)] long FileSize,
     [property: Id(3)] string? ContentType,
     [property: Id(4)] FilePurpose Purpose,
-    [property: Id(5)] string DownloadUrl);
+    [property: Id(5)] string DownloadUrl,
+    [property: Id(6)] string S3Key);
 
 [Alias(nameof(IFileStorageGrain))]
 public interface IFileStorageGrain : IGrainWithGuidKey

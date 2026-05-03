@@ -11,6 +11,12 @@ public class StorageOptions
     public string Region     { get; set; } = "auto";
     public bool   UseSsl     { get; set; } = true;
 
+    /// <summary>
+    ///     When true, avatars are stored at the bucket root as just {fileId} (no path prefix).
+    ///     This keeps AvatarFileId == S3 key == fileId GUID string.
+    /// </summary>
+    public bool FlatAvatarKeys { get; set; } = true;
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
 
     public CdnOptions Cdn { get; set; } = new();

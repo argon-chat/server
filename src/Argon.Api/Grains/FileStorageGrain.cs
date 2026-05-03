@@ -17,10 +17,12 @@ public class FileStorageGrain(
     S3PresignedUrlGenerator presignedUrlGenerator,
     IS3StorageService s3,
     IReferenceCountService refCount,
+    IOptions<StorageOptions> storageOptions,
     IOptions<FileLimitsOptions> limitsOptions,
     ILogger<FileStorageGrain> logger) : Grain, IFileStorageGrain
 {
-    private readonly FileLimitsOptions _limits = limitsOptions.Value;
+    private readonly StorageOptions    _storage = storageOptions.Value;
+    private readonly FileLimitsOptions _limits  = limitsOptions.Value;
 
     public async Task<FileUploadResponse> RequestUploadAsync(FileUploadRequest request, CancellationToken ct = default)
     {
@@ -183,7 +185,7 @@ public class FileStorageGrain(
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl);
+            file.Purpose, downloadUrl, file.S3Key);
     }
 
     public async Task IncrementRefAsync(Guid fileId, CancellationToken ct = default)
@@ -208,7 +210,7 @@ public class FileStorageGrain(
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl);
+            file.Purpose, downloadUrl, file.S3Key);
     }
 
     public async Task<string?> GetDownloadUrlAsync(Guid fileId, CancellationToken ct = default)
@@ -273,13 +275,11 @@ public class FileStorageGrain(
         }
     }
 
-    private static string BuildS3Key(FilePurpose purpose, Guid fileId, Guid userId, Guid? spaceId, Guid? channelId)
+    private string BuildS3Key(FilePurpose purpose, Guid fileId, Guid userId, Guid? spaceId, Guid? channelId)
     {
-        // Layout: {scope_prefix}/{ownerId}/{category}/[channelId/]{fileId}
-        // Bucket itself determines visibility (public vs private bucket).
-        // User content:  u/{userId}/avatars/{fileId}
-        // Space content: s/{spaceId}/avatar/{fileId}
-        // Private space: s/{spaceId}/channels/{channelId}/{fileId}
+        // Flat mode: avatars stored at root as just {fileId}
+        if (_storage.FlatAvatarKeys && purpose is FilePurpose.Avatar or FilePurpose.SpaceAvatar)
+            return fileId.ToString();
 
         var category = purpose.S3Prefix();
 
