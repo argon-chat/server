@@ -870,19 +870,10 @@ public class ChannelGrain(
         await using var db = await context.CreateDbContextAsync();
         var files = await db.Files
            .Where(f => fileIds.Contains(f.Id) && f.Finalized)
-           .Select(f => new { f.Id, f.S3Key, f.Purpose })
+           .Select(f => new { f.Id, f.S3Key })
            .ToListAsync();
 
-        var urlMap = files
-           .Where(f => !f.Purpose.IsPublic())
-           .ToDictionary(f => f.Id, f => s3.GeneratePresignedGetUrl(f.S3Key));
-
-        var publicMap = files
-           .Where(f => f.Purpose.IsPublic())
-           .ToDictionary(f => f.Id, f => s3.GetPublicUrl(f.S3Key));
-
-        foreach (var kvp in publicMap)
-            urlMap[kvp.Key] = kvp.Value;
+        var urlMap = files.ToDictionary(f => f.Id, f => s3.GetDownloadUrl(f.S3Key));
 
         foreach (var message in messages)
         {
@@ -913,12 +904,10 @@ public class ChannelGrain(
         await using var db = await context.CreateDbContextAsync();
         var files = await db.Files
            .Where(f => fileIds.Contains(f.Id) && f.Finalized)
-           .Select(f => new { f.Id, f.S3Key, f.Purpose })
+           .Select(f => new { f.Id, f.S3Key })
            .ToListAsync();
 
-        var urlMap = files.ToDictionary(f => f.Id, f => f.Purpose.IsPublic()
-            ? s3.GetPublicUrl(f.S3Key)
-            : s3.GeneratePresignedGetUrl(f.S3Key));
+        var urlMap = files.ToDictionary(f => f.Id, f => s3.GetDownloadUrl(f.S3Key));
 
         for (var i = 0; i < message.Entities.Count; i++)
         {

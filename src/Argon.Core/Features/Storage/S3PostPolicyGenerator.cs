@@ -16,20 +16,18 @@ public class S3PostPolicyGenerator(IOptions<StorageOptions> options)
     public PresignedPostData GeneratePresignedPost(
         string objectKey,
         long   maxSizeBytes,
-        bool   isPublic,
         string? contentTypePrefix = null,
         int    expirationSeconds  = 600)
     {
-        var bucketOpts = _opts.GetBucketOptions(isPublic);
         var now        = DateTime.UtcNow;
         var expiration = now.AddSeconds(expirationSeconds);
         var dateStamp  = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var amzDate    = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
-        var credential = $"{bucketOpts.AccessKey}/{dateStamp}/{bucketOpts.Region}/s3/aws4_request";
+        var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
 
         var conditions = new List<object>
         {
-            new Dictionary<string, string> { ["bucket"] = bucketOpts.BucketName },
+            new Dictionary<string, string> { ["bucket"] = _opts.BucketName },
             new[] { "eq", "$key", objectKey },
             new[] { "content-length-range", "1", maxSizeBytes.ToString(CultureInfo.InvariantCulture) },
             new Dictionary<string, string> { ["x-amz-credential"] = credential },
@@ -48,10 +46,10 @@ public class S3PostPolicyGenerator(IOptions<StorageOptions> options)
 
         var policyJson   = JsonSerializer.Serialize(policy);
         var policyBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(policyJson));
-        var signature    = CalculateSignature(bucketOpts, dateStamp, policyBase64);
+        var signature    = CalculateSignature(dateStamp, policyBase64);
 
-        var endpoint = bucketOpts.UseSsl ? $"https://{bucketOpts.Endpoint}" : $"http://{bucketOpts.Endpoint}";
-        var url      = $"{endpoint}/{bucketOpts.BucketName}";
+        var endpoint = _opts.UseSsl ? $"https://{_opts.Endpoint}" : $"http://{_opts.Endpoint}";
+        var url      = $"{endpoint}/{_opts.BucketName}";
 
         var fields = new Dictionary<string, string>
         {
@@ -73,10 +71,10 @@ public class S3PostPolicyGenerator(IOptions<StorageOptions> options)
         };
     }
 
-    private static string CalculateSignature(S3BucketOptions bucketOpts, string dateStamp, string policyBase64)
+    private string CalculateSignature(string dateStamp, string policyBase64)
     {
-        var kDate    = HmacSha256(Encoding.UTF8.GetBytes($"AWS4{bucketOpts.SecretKey}"), dateStamp);
-        var kRegion  = HmacSha256(kDate, bucketOpts.Region);
+        var kDate    = HmacSha256(Encoding.UTF8.GetBytes($"AWS4{_opts.SecretKey}"), dateStamp);
+        var kRegion  = HmacSha256(kDate, _opts.Region);
         var kService = HmacSha256(kRegion, "s3");
         var kSigning = HmacSha256(kService, "aws4_request");
 

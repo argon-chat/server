@@ -1,7 +1,9 @@
 namespace Argon.Features.Storage;
 
-public class S3BucketOptions
+public class StorageOptions
 {
+    public const string SectionName = "Storage";
+
     public string Endpoint   { get; set; } = "";
     public string AccessKey  { get; set; } = "";
     public string SecretKey  { get; set; } = "";
@@ -10,21 +12,29 @@ public class S3BucketOptions
     public bool   UseSsl     { get; set; } = true;
 
     public bool IsConfigured => !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
+
+    public CdnOptions Cdn { get; set; } = new();
 }
 
-public class StorageOptions
+public class CdnOptions
 {
-    public const string SectionName = "Storage";
+    public CdnEndpoint Default   { get; set; } = new();
+    public Dictionary<string, CdnEndpoint> Overrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
-    public S3BucketOptions Public  { get; set; } = new();
-    public S3BucketOptions Private { get; set; } = new();
+    public string GetDownloadUrl(string objectKey, string? countryCode = null)
+    {
+        var endpoint = Default;
+        if (!string.IsNullOrEmpty(countryCode) && Overrides.TryGetValue(countryCode, out var over))
+            endpoint = over;
 
-    /// <summary>
-    ///     Base URL for public-read files (e.g. https://cdn.argon.gl)
-    /// </summary>
-    public string PublicBaseUrl { get; set; } = "";
+        return $"{endpoint.BaseUrl.TrimEnd('/')}{endpoint.PathPrefix}/{objectKey}";
+    }
+}
 
-    public S3BucketOptions GetBucketOptions(bool isPublic) => isPublic ? Public : Private;
+public class CdnEndpoint
+{
+    public string BaseUrl    { get; set; } = "";
+    public string PathPrefix { get; set; } = "";
 }
 
 public class FileLimitsOptions

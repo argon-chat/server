@@ -44,14 +44,12 @@ public class FileStorageGrain(
 
         var fileId = Guid.NewGuid();
         var s3Key  = BuildS3Key(request.Purpose, fileId, userId, request.SpaceId, request.ChannelId);
-        var isPublic = request.Purpose.IsPublic();
 
         var contentTypePrefix = GetContentTypePrefix(request.Purpose);
 
         var postData = policyGenerator.GeneratePresignedPost(
             s3Key,
             effectiveLimit,
-            isPublic,
             contentTypePrefix,
             _limits.BlobTtlSeconds);
 
@@ -122,7 +120,7 @@ public class FileStorageGrain(
             var expiredFile = await db.Files.FindAsync([blob.FileId], ct);
             if (expiredFile is not null)
             {
-                await s3.DeleteFileAsync(expiredFile.S3Key, expiredFile.Purpose.IsPublic(), ct);
+                await s3.DeleteFileAsync(expiredFile.S3Key, ct);
                 db.Files.Remove(expiredFile);
             }
             db.FileBlobs.Remove(blob);
@@ -135,15 +133,14 @@ public class FileStorageGrain(
             throw new KeyNotFoundException("File record not found");
 
         // Validate file exists in S3 via HEAD
-        var isPublic = file.Purpose.IsPublic();
-        var metadata = await s3.HeadFileAsync(file.S3Key, isPublic, ct);
+        var metadata = await s3.HeadFileAsync(file.S3Key, ct);
         if (metadata is null)
             throw new InvalidOperationException("File not found in storage — upload may have failed");
 
         // Validate size
         if (metadata.ContentLength > blob.SizeLimit)
         {
-            await s3.DeleteFileAsync(file.S3Key, isPublic, ct);
+            await s3.DeleteFileAsync(file.S3Key, ct);
             db.Files.Remove(file);
             db.FileBlobs.Remove(blob);
             await db.SaveChangesAsync(ct);
@@ -183,9 +180,7 @@ public class FileStorageGrain(
         logger.LogInformation("Upload finalized: fileId={FileId}, purpose={Purpose}, size={Size}, userId={UserId}, elapsed={ElapsedMs}ms",
             file.Id, file.Purpose, file.FileSize, userId, sw.Elapsed.TotalMilliseconds);
 
-        var downloadUrl = file.Purpose.IsPublic()
-            ? s3.GetPublicUrl(file.S3Key)
-            : s3.GeneratePresignedGetUrl(file.S3Key);
+        var downloadUrl = s3.GetDownloadUrl(file.S3Key);
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
@@ -210,9 +205,7 @@ public class FileStorageGrain(
         var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
-        var downloadUrl = file.Purpose.IsPublic()
-            ? s3.GetPublicUrl(file.S3Key)
-            : s3.GeneratePresignedGetUrl(file.S3Key);
+        var downloadUrl = s3.GetDownloadUrl(file.S3Key);
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
@@ -225,9 +218,7 @@ public class FileStorageGrain(
         var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
-        return file.Purpose.IsPublic()
-            ? s3.GetPublicUrl(file.S3Key)
-            : s3.GeneratePresignedGetUrl(file.S3Key);
+        return s3.GetDownloadUrl(file.S3Key);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

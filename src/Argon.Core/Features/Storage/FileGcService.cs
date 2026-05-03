@@ -76,7 +76,7 @@ public class FileGcService(
             {
                 try
                 {
-                    await s3.DeleteFileAsync(file.S3Key, file.Purpose.IsPublic(), ct);
+                    await s3.DeleteFileAsync(file.S3Key, ct);
                 }
                 catch (Exception ex)
                 {
@@ -121,7 +121,7 @@ public class FileGcService(
         {
             try
             {
-                await s3.DeleteFileAsync(orphan.File.S3Key, orphan.File.Purpose.IsPublic(), ct);
+                await s3.DeleteFileAsync(orphan.File.S3Key, ct);
             }
             catch (Exception ex)
             {

@@ -10,31 +10,22 @@ using Microsoft.Extensions.DependencyInjection;
 
 public interface IS3ClientPool : IDisposable
 {
-    IObjectClient GetPublicClient();
-    IObjectClient GetPrivateClient();
-    IObjectClient GetClient(bool isPublic);
+    IObjectClient GetClient();
 }
 
 public sealed class S3ClientPool : IS3ClientPool
 {
-    private readonly Lazy<(ServiceProvider provider, IObjectClient client)> _publicLazy;
-    private readonly Lazy<(ServiceProvider provider, IObjectClient client)> _privateLazy;
+    private readonly Lazy<(ServiceProvider provider, IObjectClient client)> _lazy;
     private bool _disposed;
 
     public S3ClientPool(IOptions<StorageOptions> options)
     {
         var opts = options.Value;
-        _publicLazy  = CreateLazy(opts.Public, "Public");
-        _privateLazy = CreateLazy(opts.Private, "Private");
-    }
-
-    private static Lazy<(ServiceProvider, IObjectClient)> CreateLazy(S3BucketOptions bucketOpts, string name)
-    {
-        return new Lazy<(ServiceProvider, IObjectClient)>(() =>
+        _lazy = new Lazy<(ServiceProvider, IObjectClient)>(() =>
         {
-            if (!bucketOpts.IsConfigured)
+            if (!opts.IsConfigured)
                 throw new InvalidOperationException(
-                    $"S3 {name} bucket is not configured. Set Storage:{name}:AccessKey and Storage:{name}:SecretKey.");
+                    "S3 storage is not configured. Set Storage:AccessKey and Storage:SecretKey in configuration.");
 
             var services = new ServiceCollection();
 
@@ -42,9 +33,9 @@ public sealed class S3ClientPool : IS3ClientPool
             coreBuilder.UseHttpClient();
             coreBuilder.UseGenericS3(config =>
             {
-                config.Endpoint             = bucketOpts.UseSsl ? $"https://{bucketOpts.Endpoint}" : $"http://{bucketOpts.Endpoint}";
-                config.RegionCode           = bucketOpts.Region;
-                config.Credentials          = new StringAccessKey(bucketOpts.AccessKey, bucketOpts.SecretKey);
+                config.Endpoint             = opts.UseSsl ? $"https://{opts.Endpoint}" : $"http://{opts.Endpoint}";
+                config.RegionCode           = opts.Region;
+                config.Credentials          = new StringAccessKey(opts.AccessKey, opts.SecretKey);
                 config.NamingMode           = NamingMode.PathStyle;
                 config.PayloadSignatureMode = SignatureMode.FullSignature;
             });
@@ -55,15 +46,13 @@ public sealed class S3ClientPool : IS3ClientPool
         });
     }
 
-    public IObjectClient GetPublicClient()  => _publicLazy.Value.client;
-    public IObjectClient GetPrivateClient() => _privateLazy.Value.client;
-    public IObjectClient GetClient(bool isPublic) => isPublic ? GetPublicClient() : GetPrivateClient();
+    public IObjectClient GetClient() => _lazy.Value.client;
 
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
-        if (_publicLazy.IsValueCreated)  _publicLazy.Value.provider.Dispose();
-        if (_privateLazy.IsValueCreated) _privateLazy.Value.provider.Dispose();
+        if (_lazy.IsValueCreated)
+            _lazy.Value.provider.Dispose();
     }
 }
