@@ -12,39 +12,49 @@ public class ReferenceCountService(IDbContextFactory<ApplicationDbContext> dbFac
     public async Task<long> IncrementAsync(Guid fileId, long increment = 1, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        var counter = await db.FileCounters
-            .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
-            .FirstOrDefaultAsync(ct);
+        return await strategy.ExecuteAsync(async (cancellation) =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(cancellation);
 
-        if (counter is null)
-            throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
+            var counter = await db.FileCounters
+                .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
+                .FirstOrDefaultAsync(cancellation);
 
-        counter.RefCount += increment;
-        counter.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return counter.RefCount;
+            if (counter is null)
+                throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
+
+            counter.RefCount += increment;
+            counter.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellation);
+            await tx.CommitAsync(cancellation);
+            return counter.RefCount;
+        }, ct);
     }
 
     public async Task<long> DecrementAsync(Guid fileId, long decrement = 1, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var strategy = db.Database.CreateExecutionStrategy();
 
-        var counter = await db.FileCounters
-            .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
-            .FirstOrDefaultAsync(ct);
+        return await strategy.ExecuteAsync(async (cancellation) =>
+        {
+            await using var tx = await db.Database.BeginTransactionAsync(cancellation);
 
-        if (counter is null)
-            throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
+            var counter = await db.FileCounters
+                .FromSqlRaw("SELECT * FROM \"FileCounters\" WHERE \"Id\" = {0} FOR UPDATE", fileId)
+                .FirstOrDefaultAsync(cancellation);
 
-        counter.RefCount -= decrement;
-        counter.UpdatedAt = DateTimeOffset.UtcNow;
-        await db.SaveChangesAsync(ct);
-        await tx.CommitAsync(ct);
-        return counter.RefCount;
+            if (counter is null)
+                throw new KeyNotFoundException($"FileCounter not found for file {fileId}");
+
+            counter.RefCount -= decrement;
+            counter.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(cancellation);
+            await tx.CommitAsync(cancellation);
+            return counter.RefCount;
+        }, ct);
     }
 
     public async Task<long?> GetRefCountAsync(Guid fileId, CancellationToken ct = default)

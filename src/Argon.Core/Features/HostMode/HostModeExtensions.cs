@@ -195,6 +195,7 @@ public static class HostModeExtensions
                 });
                 builder.AddOtpCodes();
                 builder.AddArchetypesCache();
+                builder.Services.AddHostedService<FileGcService>();
             }
 
             if (builder.IsHybridRole())
