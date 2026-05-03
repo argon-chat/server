@@ -324,8 +324,9 @@ public class UserGrain(
                 await RecordViolationAsync(userId, fileInfo.FileId, FilePurpose.Avatar, modResult, ct);
 
                 logger.LogWarning(
-                    "Avatar upload rejected for user {UserId}, file {FileId}, stages={Stages}",
-                    userId, fileInfo.FileId, modResult.StagesUsed);
+                    "Avatar upload rejected for user {UserId}, file {FileId}, stages={Stages}, scores={Scores}, refined={RefinedScores}",
+                    userId, fileInfo.FileId, modResult.StagesUsed,
+                    FormatScores(modResult.Scores), FormatScores(modResult.RefinedScores));
 
                 throw new ContentViolationException("Avatar rejected by content moderation");
             }
@@ -440,4 +441,9 @@ public class UserGrain(
             logger.LogError(e, "Failed to record content violation for user {UserId}", userId);
         }
     }
+
+    private static string FormatScores(Dictionary<string, float>? scores)
+        => scores is null or { Count: 0 }
+            ? "-"
+            : string.Join(", ", scores.Select(kv => $"{kv.Key}={kv.Value:P1}"));
 }

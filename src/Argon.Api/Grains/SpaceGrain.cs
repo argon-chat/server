@@ -745,8 +745,9 @@ public class SpaceGrain(
                 await RecordViolationAsync(callerId, fileInfo.FileId, FilePurpose.SpaceAvatar, modResult, ct);
 
                 logger.LogWarning(
-                    "Space avatar rejected for space {SpaceId} by user {UserId}, file {FileId}, stages={Stages}",
-                    spaceId, callerId, fileInfo.FileId, modResult.StagesUsed);
+                    "Space avatar rejected for space {SpaceId} by user {UserId}, file {FileId}, stages={Stages}, scores={Scores}, refined={RefinedScores}",
+                    spaceId, callerId, fileInfo.FileId, modResult.StagesUsed,
+                    FormatScores(modResult.Scores), FormatScores(modResult.RefinedScores));
 
                 throw new ContentViolationException("Space avatar rejected by content moderation");
             }
@@ -1140,4 +1141,9 @@ public class SpaceGrain(
             logger.LogError(e, "Failed to record content violation for user {UserId}", userId);
         }
     }
+
+    private static string FormatScores(Dictionary<string, float>? scores)
+        => scores is null or { Count: 0 }
+            ? "-"
+            : string.Join(", ", scores.Select(kv => $"{kv.Key}={kv.Value:P1}"));
 }
