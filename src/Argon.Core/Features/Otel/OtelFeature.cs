@@ -56,6 +56,7 @@ public static class OtelFeature
                 .AddRedisInstrumentation()
                 .AddEntityFrameworkCoreInstrumentation()
                 .AddSource("Argon.Storage")
+                .AddSource("Argon.Moderation")
                 .AddSource("Argon.Xsolla")
                 .AddOtlpExporter(options => {
                     options.Endpoint = tracesEndpoint;

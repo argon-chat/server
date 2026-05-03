@@ -93,6 +93,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Content Moderation
+
+    public DbSet<ContentViolationEntity> ContentViolations => Set<ContentViolationEntity>();
+
+#endregion
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
 

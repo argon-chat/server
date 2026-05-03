@@ -3,6 +3,7 @@ using Argon.Core.Features.Transport;
 using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
+using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
 using Microsoft.AspNetCore.Http.Connections;
@@ -49,6 +50,8 @@ builder.Services.AddAuthentication()
 builder.Services.AddBotRateLimiting(builder.Configuration);
 builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
+
+builder.AddContentModeration();
 
 var app = builder.Build();
 

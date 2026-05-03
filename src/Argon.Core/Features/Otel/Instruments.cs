@@ -1091,4 +1091,30 @@ public static class InstrumentNames
 
     /// <summary>Cumulative bytes stored. Tags: purpose</summary>
     public const string StorageTotalStoredBytes = "argon-storage-total-stored-bytes";
+
+    // ── Content Moderation Metrics ──────────────────────────────────────
+
+    /// <summary>Total moderation evaluations. Tags: purpose, action</summary>
+    public const string ModerationEvaluationsTotal = "argon-moderation-evaluations-total";
+
+    /// <summary>Total moderation rejections. Tags: purpose</summary>
+    public const string ModerationRejectionsTotal = "argon-moderation-rejections-total";
+
+    /// <summary>Evaluations skipped (model unavailable). Tags: purpose</summary>
+    public const string ModerationEvaluationsSkipped = "argon-moderation-evaluations-skipped";
+
+    /// <summary>Violation records persisted. Tags: purpose</summary>
+    public const string ModerationViolationsRecorded = "argon-moderation-violations-recorded";
+
+    /// <summary>Total evaluation duration incl. download + inference (ms). Tags: purpose, stages_used</summary>
+    public const string ModerationEvaluationDuration = "argon-moderation-evaluation-duration";
+
+    /// <summary>S3 image download duration (ms). Tags: purpose</summary>
+    public const string ModerationS3DownloadDuration = "argon-moderation-s3-download-duration";
+
+    /// <summary>ONNX inference duration (ms). Tags: purpose, stage</summary>
+    public const string ModerationInferenceDuration = "argon-moderation-inference-duration";
+
+    /// <summary>Current concurrent moderation inferences (gauge).</summary>
+    public const string ModerationActiveInferences = "argon-moderation-active-inferences";
 }

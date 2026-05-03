@@ -4,6 +4,7 @@ using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Logic;
 using Argon.Core.Features.Transport;
 using Argon.Features.Storage;
+using Argon.Features.Moderation;
 using Features.Logic;
 using ion.runtime;
 using Orleans;
@@ -310,6 +311,26 @@ public class UserGrain(
         var userId = this.GetUserId();
         var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
+
+        if (kind == UserFileKind.Avatar)
+        {
+            var modGrain = GrainFactory.GetGrain<IContentModerationGrain>(Guid.Empty);
+            var modResult = await modGrain.EvaluateAsync(fileInfo.S3Key, FilePurpose.Avatar, ct);
+
+            if (modResult.Action == ContentAction.Deny)
+            {
+                await fileGrain.DecrementRefAsync(fileInfo.FileId, ct);
+
+                await RecordViolationAsync(userId, fileInfo.FileId, FilePurpose.Avatar, modResult, ct);
+
+                logger.LogWarning(
+                    "Avatar upload rejected for user {UserId}, file {FileId}, stages={Stages}",
+                    userId, fileInfo.FileId, modResult.StagesUsed);
+
+                throw new ContentViolationException("Avatar rejected by content moderation");
+            }
+        }
+
         await UpdateFileIdFor(kind, fileInfo.FileId, fileInfo.S3Key, ct);
     }
 
@@ -388,5 +409,35 @@ public class UserGrain(
             GrainFactory
                .GetGrain<ISpaceGrain>(server)
                .SetUserStatus(userId, aggregatedStatus)));
+    }
+
+    private async ValueTask RecordViolationAsync(
+        Guid userId, Guid fileId, FilePurpose purpose,
+        ContentModerationResult result, CancellationToken ct)
+    {
+        try
+        {
+            await using var ctx = await context.CreateDbContextAsync(ct);
+            ctx.ContentViolations.Add(new ContentViolationEntity
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FileId = fileId,
+                FilePurpose = purpose,
+                StagesUsed = result.StagesUsed,
+                PrimaryScores = result.Scores,
+                RefinedScores = result.RefinedScores,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await ctx.SaveChangesAsync(ct);
+
+            ModerationInstruments.ViolationsRecorded.Add(1,
+                new KeyValuePair<string, object?>("purpose", purpose.ToString()));
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to record content violation for user {UserId}", userId);
+        }
     }
 }

@@ -25,6 +25,8 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.22.0" />
+        <PackageReference Include="SixLabors.ImageSharp" Version="3.1.7" />
     </ItemGroup>
 
     <ItemGroup>
