@@ -14,7 +14,7 @@ using Orleans.Concurrency;
 [StatelessWorker]
 public class FileStorageGrain(
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    S3PostPolicyGenerator policyGenerator,
+    S3PresignedUrlGenerator presignedUrlGenerator,
     IS3StorageService s3,
     IReferenceCountService refCount,
     IOptions<FileLimitsOptions> limitsOptions,
@@ -47,9 +47,8 @@ public class FileStorageGrain(
 
         var contentTypePrefix = GetContentTypePrefix(request.Purpose);
 
-        var postData = policyGenerator.GeneratePresignedPost(
+        var putData = presignedUrlGenerator.GeneratePresignedPut(
             s3Key,
-            effectiveLimit,
             contentTypePrefix,
             _limits.BlobTtlSeconds);
 
@@ -61,7 +60,7 @@ public class FileStorageGrain(
             OwnerId     = userId,
             Purpose     = request.Purpose,
             S3Key       = s3Key,
-            BucketName  = postData.Url, // store full bucket URL for reference
+            BucketName  = putData.Url, // store full presigned URL for reference
             FileSize    = 0,
             ContentType = request.ContentType,
             FileName    = null,
@@ -96,7 +95,7 @@ public class FileStorageGrain(
         logger.LogInformation("Upload requested: fileId={FileId}, purpose={Purpose}, sizeLimit={Limit}, userId={UserId}",
             fileId, request.Purpose, effectiveLimit, userId);
 
-        return new FileUploadResponse(blob.Id, fileId, postData.Url, postData.Fields, _limits.BlobTtlSeconds);
+        return new FileUploadResponse(blob.Id, fileId, putData.Url, putData.Headers, _limits.BlobTtlSeconds);
     }
 
     public async Task<FileInfoResponse> FinalizeUploadAsync(Guid blobId, CancellationToken ct = default)
@@ -184,7 +183,7 @@ public class FileStorageGrain(
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl, file.Purpose.IsPublic());
+            file.Purpose, downloadUrl);
     }
 
     public async Task IncrementRefAsync(Guid fileId, CancellationToken ct = default)
@@ -209,7 +208,7 @@ public class FileStorageGrain(
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
-            file.Purpose, downloadUrl, file.Purpose.IsPublic());
+            file.Purpose, downloadUrl);
     }
 
     public async Task<string?> GetDownloadUrlAsync(Guid fileId, CancellationToken ct = default)

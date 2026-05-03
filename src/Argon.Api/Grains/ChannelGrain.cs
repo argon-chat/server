@@ -1042,7 +1042,7 @@ public class ChannelGrain(
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
 
         return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "",
-            fileInfo.IsPublic ? null : fileInfo.DownloadUrl);
+            fileInfo.DownloadUrl);
     }
 
     public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid commandId, List<SlashCommandOption> options)

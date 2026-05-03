@@ -25,14 +25,13 @@ public record FileInfoResponse(
     [property: Id(2)] long FileSize,
     [property: Id(3)] string? ContentType,
     [property: Id(4)] FilePurpose Purpose,
-    [property: Id(5)] string DownloadUrl,
-    [property: Id(6)] bool IsPublic);
+    [property: Id(5)] string DownloadUrl);
 
 [Alias(nameof(IFileStorageGrain))]
 public interface IFileStorageGrain : IGrainWithGuidKey
 {
     /// <summary>
-    ///     Request a presigned POST URL for uploading a file.
+    ///     Request a presigned PUT URL for uploading a file.
     ///     Grain key = userId.
     /// </summary>
     [Alias(nameof(RequestUploadAsync))]

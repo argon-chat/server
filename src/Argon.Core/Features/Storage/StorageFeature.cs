@@ -11,7 +11,7 @@ public static class StorageFeature
 
         builder.Services.AddSingleton<IS3ClientPool, S3ClientPool>();
         builder.Services.AddSingleton<IS3StorageService, S3StorageService>();
-        builder.Services.AddSingleton<S3PostPolicyGenerator>();
+        builder.Services.AddSingleton<S3PresignedUrlGenerator>();
         builder.Services.AddScoped<IReferenceCountService, ReferenceCountService>();
         builder.Services.AddHostedService<FileGcService>();
     }
