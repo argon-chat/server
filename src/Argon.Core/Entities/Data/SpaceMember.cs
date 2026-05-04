@@ -11,6 +11,7 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
     public virtual UserEntity  User  { get; set; }
     public virtual SpaceEntity Space { get; set; }
 
+    [Obsolete("Use CreatedAt", true)]
     public DateTimeOffset JoinedAt { get; set; }
 
     public ICollection<SpaceMemberArchetypeEntity> SpaceMemberArchetypes { get; set; }
@@ -20,7 +21,7 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
         => new(
             self.UserId,
             self.SpaceId,
-            self.JoinedAt.UtcDateTime,
+            self.CreatedAt.UtcDateTime,
             self.Id,
             UserEntity.Map(self.User),
             new IonArray<SpaceMemberArchetype>(IMapper<SpaceMemberArchetypeEntity, SpaceMemberArchetype>.MapCollection(self.SpaceMemberArchetypes)));
