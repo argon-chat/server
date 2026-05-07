@@ -11,6 +11,7 @@ using Orleans.Dashboard;
 using Orleans.Hosting;
 using Orleans.Serialization;
 using Services.Ion;
+using Argon.Grains.Interfaces;
 using StackExchange.Redis;
 
 #pragma warning disable ORLEANSEXP002
@@ -187,7 +188,11 @@ public static class OrleansExtension
                         "Default",
                         "meets"
                     ], "Npgsql", "DefaultConnection")
-                   .UseInMemoryReminderService()
+                   .UseRedisReminderService(x
+                        => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!))
+                   .AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
+                       .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
+                       .EnsureSchedulerActiveAsync())
                    .Configure<ClusterMembershipOptions>(options =>
                     {
                         options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);

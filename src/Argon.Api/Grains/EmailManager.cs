@@ -409,4 +409,106 @@ public class EmailManager(
             logger.LogCritical(e, "Failed to send export ready email to '{email}'", email);
         }
     }
+
+    [OneWay]
+    public async Task SendDeletionScheduledAsync(string email, string displayName, DateTimeOffset deletionDate)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[DELETION SCHEDULED]: {Email}, date: {Date}", email, deletionDate);
+            return;
+        }
+
+        var form = formStorage.Render("deletion_scheduled", new Dictionary<string, string>
+        {
+            { "displayName", displayName },
+            { "deletion_date", deletionDate.ToString("D") }
+        });
+
+        try
+        {
+            var msg = CreateMessage(email, "Account Deletion Scheduled", form);
+            await SendAsync(email, msg, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send deletion scheduled email to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendDeletionReminderAsync(string email, string displayName, int daysRemaining)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[DELETION REMINDER]: {Email}, days: {Days}", email, daysRemaining);
+            return;
+        }
+
+        var form = formStorage.Render("deletion_reminder", new Dictionary<string, string>
+        {
+            { "displayName", displayName },
+            { "days_remaining", daysRemaining.ToString() }
+        });
+
+        try
+        {
+            var msg = CreateMessage(email, $"Account Deletion in {daysRemaining} Day(s)", form);
+            await SendAsync(email, msg, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send deletion reminder email to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendDeletionCompletedAsync(string email, string displayName)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[DELETION COMPLETED]: {Email}", email);
+            return;
+        }
+
+        var form = formStorage.Render("deletion_completed", new Dictionary<string, string>
+        {
+            { "displayName", displayName }
+        });
+
+        try
+        {
+            var msg = CreateMessage(email, "Your Account Has Been Deleted", form);
+            await SendAsync(email, msg, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send deletion completed email to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendDeletionCancelledAsync(string email, string displayName)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[DELETION CANCELLED]: {Email}", email);
+            return;
+        }
+
+        var form = formStorage.Render("deletion_cancelled", new Dictionary<string, string>
+        {
+            { "displayName", displayName }
+        });
+
+        try
+        {
+            var msg = CreateMessage(email, "Account Deletion Cancelled", form);
+            await SendAsync(email, msg, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send deletion cancelled email to '{email}'", email);
+        }
+    }
 }

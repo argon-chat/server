@@ -42,6 +42,18 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendExportReadyAsync)), OneWay]
     Task SendExportReadyAsync(string email, string displayName, string downloadUrl);
 
+    [Alias(nameof(SendDeletionScheduledAsync)), OneWay]
+    Task SendDeletionScheduledAsync(string email, string displayName, DateTimeOffset deletionDate);
+
+    [Alias(nameof(SendDeletionReminderAsync)), OneWay]
+    Task SendDeletionReminderAsync(string email, string displayName, int daysRemaining);
+
+    [Alias(nameof(SendDeletionCompletedAsync)), OneWay]
+    Task SendDeletionCompletedAsync(string email, string displayName);
+
+    [Alias(nameof(SendDeletionCancelledAsync)), OneWay]
+    Task SendDeletionCancelledAsync(string email, string displayName);
+
     [Alias(nameof(ValidateEMailDestination))]
     Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default);
 }

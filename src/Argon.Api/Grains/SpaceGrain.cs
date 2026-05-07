@@ -252,14 +252,18 @@ public class SpaceGrain(
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
         var targetMember = await ctx.Spaces
+           .IgnoreQueryFilters()
            .AsNoTracking()
            .SelectMany(server => server.Users)
            .Where(member => userIds.Contains(member.UserId))
            .Include(serverMember => serverMember.User)
            .ThenInclude(user => user.Profile)
            .Include(serverMember => serverMember.SpaceMemberArchetypes)
-           .FirstAsync(x => x.UserId == userId);
+           .FirstOrDefaultAsync(x => x.UserId == userId);
 
+        if (targetMember is null)
+            return new ArgonUserProfile(userId, null, null, null, null, "Deleted Account", IonArray<string>.Empty,
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null);
 
         return targetMember.User.Profile.ToDto() with
         {
@@ -275,6 +279,7 @@ public class SpaceGrain(
         await using var ctx = await context.CreateDbContextAsync(ct);
         
         var user = await ctx.Users
+           .IgnoreQueryFilters()
            .Include(x => x.BotEntity)
            .AsNoTracking()
            .Where(u => u.Id == userId)

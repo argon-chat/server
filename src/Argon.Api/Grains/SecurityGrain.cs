@@ -535,10 +535,14 @@ public class SecurityGrain(
             if (!months.HasValue)
                 return new FailedSetAutoDelete(AutoDeleteError.INVALID_PERIOD);
 
-            if (months.Value < 1 || months.Value > 36)
-                return new FailedSetAutoDelete(AutoDeleteError.INVALID_PERIOD);
-
             await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId, ct);
+
+            // Premium users can set up to 72 months, regular users up to 36
+            var maxMonths = user?.HasActiveUltima == true ? 72 : 36;
+
+            if (months.Value < 1 || months.Value > maxMonths)
+                return new FailedSetAutoDelete(AutoDeleteError.INVALID_PERIOD);
 
             var setting = await db.AutoDeleteSettings.FirstOrDefaultAsync(s => s.UserId == UserId, ct);
 

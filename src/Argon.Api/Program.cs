@@ -3,6 +3,7 @@ using Argon.Core.Features.Transport;
 using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
+using Argon.Features.Logic;
 using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
@@ -50,6 +51,8 @@ builder.Services.AddAuthentication()
 builder.Services.AddBotRateLimiting(builder.Configuration);
 builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
+builder.Services.Configure<AccountDeletionOptions>(
+    builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
 
 builder.AddContentModeration();
 
@@ -109,4 +112,5 @@ if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())
 
 await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>();
+
 await app.RunAsync();

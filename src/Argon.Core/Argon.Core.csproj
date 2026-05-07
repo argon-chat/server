@@ -43,6 +43,7 @@
         <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.1.0" />
         <PackageReference Include="Microsoft.Orleans.GrainDirectory.Redis" Version="10.1.0" />
         <PackageReference Include="Microsoft.Orleans.Reminders.AdoNet" Version="10.1.0" />
+        <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.1.0" />
         <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.1.0" />
         <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.1.0" />
         <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="10.1.0" />

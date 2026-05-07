@@ -1117,4 +1117,62 @@ public static class InstrumentNames
 
     /// <summary>Current concurrent moderation inferences (gauge).</summary>
     public const string ModerationActiveInferences = "argon-moderation-active-inferences";
+
+    // ── Data Export Metrics ─────────────────────────────────────────────
+
+    /// <summary>Total data export requests</summary>
+    public const string ExportRequested = "argon-export-requested";
+
+    /// <summary>Total data exports that started processing</summary>
+    public const string ExportStarted = "argon-export-started";
+
+    /// <summary>Total data exports completed successfully</summary>
+    public const string ExportCompleted = "argon-export-completed";
+
+    /// <summary>Total data exports that failed. Tags: reason</summary>
+    public const string ExportFailed = "argon-export-failed";
+
+    /// <summary>Total data exports cancelled by user</summary>
+    public const string ExportCancelled = "argon-export-cancelled";
+
+    /// <summary>Total export requests rejected due to rate limiting</summary>
+    public const string ExportRateLimited = "argon-export-rate-limited";
+
+    /// <summary>Total processing ticks executed. Tags: phase</summary>
+    public const string ExportTicksProcessed = "argon-export-ticks-processed";
+
+    /// <summary>Total duration of export from start to completion (s)</summary>
+    public const string ExportDuration = "argon-export-duration";
+
+    /// <summary>Size of final export archive (bytes)</summary>
+    public const string ExportArchiveSizeBytes = "argon-export-archive-size-bytes";
+
+    /// <summary>Duration of individual processing ticks (ms). Tags: phase</summary>
+    public const string ExportTickDuration = "argon-export-tick-duration";
+
+    // ── Account Deletion Metrics ────────────────────────────────────────
+
+    /// <summary>Total account deletion requests</summary>
+    public const string DeletionRequested = "argon-deletion-requested";
+
+    /// <summary>Total account deletions successfully scheduled</summary>
+    public const string DeletionScheduled = "argon-deletion-scheduled";
+
+    /// <summary>Total account deletions executed successfully</summary>
+    public const string DeletionCompleted = "argon-deletion-completed";
+
+    /// <summary>Total account deletions that failed during execution</summary>
+    public const string DeletionFailed = "argon-deletion-failed";
+
+    /// <summary>Total account deletions cancelled by user</summary>
+    public const string DeletionCancelled = "argon-deletion-cancelled";
+
+    /// <summary>Total deletion requests rejected due to preconditions. Tags: reason</summary>
+    public const string DeletionRejected = "argon-deletion-rejected";
+
+    /// <summary>Total deletion reminder emails sent. Tags: days_before</summary>
+    public const string DeletionRemindersSent = "argon-deletion-reminders-sent";
+
+    /// <summary>Duration of account deletion execution phase (s)</summary>
+    public const string DeletionExecutionDuration = "argon-deletion-execution-duration";
 }

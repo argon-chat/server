@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using System.IO.Compression;
 using Argon.Core.Entities.Data;
 using Argon.Features.Storage;
+using Instruments;
 using Microsoft.EntityFrameworkCore;
 using Orleans.Providers;
 using Persistence.States;
@@ -30,7 +31,10 @@ public class UserDataExportGrain(
         CheckExpiration();
 
         if (state.State.Status is ExportStatus.Queued or ExportStatus.CollectingData or ExportStatus.Assembling)
+        {
             StartProcessingTimer();
+            await NotifyPumpRegisteredAsync();
+        }
     }
 
     public override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -42,21 +46,29 @@ public class UserDataExportGrain(
     public ValueTask<ExportRequestResult> RequestExportAsync()
     {
         CheckExpiration();
+        UserDataExportInstrument.ExportsRequested.Add(1);
 
         if (state.State.Status is ExportStatus.Queued or ExportStatus.CollectingData or ExportStatus.Assembling)
+        {
+            logger.LogWarning("Export request rejected for user {UserId}: already in progress", UserId);
             return ValueTask.FromResult(new ExportRequestResult
             {
                 Success = false,
                 Error   = ExportRequestError.AlreadyInProgress
             });
+        }
 
         if (state.State.LastExportCompletedAt is { } lastCompleted
             && DateTimeOffset.UtcNow - lastCompleted < RateLimitPeriod)
+        {
+            logger.LogWarning("Export request rate-limited for user {UserId}, last export: {LastExport}", UserId, lastCompleted);
+            UserDataExportInstrument.ExportsRateLimited.Add(1);
             return ValueTask.FromResult(new ExportRequestResult
             {
                 Success = false,
                 Error   = ExportRequestError.RateLimited
             });
+        }
 
         var exportId = Guid.NewGuid();
         state.State.Status          = ExportStatus.Queued;
@@ -78,6 +90,10 @@ public class UserDataExportGrain(
     private async ValueTask<ExportRequestResult> CompleteRequest(Guid exportId)
     {
         await state.WriteStateAsync();
+        await NotifyPumpRegisteredAsync();
+
+        logger.LogInformation("Data export started for user {UserId}, exportId={ExportId}", UserId, exportId);
+        UserDataExportInstrument.ExportsStarted.Add(1);
 
         // Send "export started" email
         await SendExportStartedEmailAsync();
@@ -134,6 +150,10 @@ public class UserDataExportGrain(
         state.State.Cursor         = new ExportCursor();
         state.State.ItemsProcessed = 0;
         await state.WriteStateAsync();
+        await NotifyPumpUnregisteredAsync();
+
+        logger.LogInformation("Data export cancelled for user {UserId}", UserId);
+        UserDataExportInstrument.ExportsCancelled.Add(1);
     }
 
     private void StartProcessingTimer()
@@ -148,6 +168,12 @@ public class UserDataExportGrain(
 
     private async Task ProcessTickAsync()
     {
+        var phase = state.State.Status.ToString();
+        using var activity = UserDataExportInstrument.ActivitySource.StartActivity("Export.Tick");
+        activity?.SetTag("export.user_id", UserId.ToString());
+        activity?.SetTag("export.phase", phase);
+
+        var sw = Stopwatch.StartNew();
         try
         {
             switch (state.State.Status)
@@ -170,17 +196,29 @@ public class UserDataExportGrain(
                     _processTimer = null;
                     break;
             }
+
+            sw.Stop();
+            UserDataExportInstrument.ExportTicksProcessed.Add(1,
+                new KeyValuePair<string, object?>("phase", phase));
+            UserDataExportInstrument.ExportTickDuration.Record(sw.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("phase", phase));
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Export tick failed for user {UserId}, export {ExportId}",
-                UserId, state.State.CurrentExportId);
+            sw.Stop();
+            logger.LogError(ex, "Export tick failed for user {UserId}, export {ExportId}, phase {Phase}",
+                UserId, state.State.CurrentExportId, phase);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
 
             state.State.Status        = ExportStatus.Failed;
             state.State.FailureReason = ex.Message;
             _processTimer?.Dispose();
             _processTimer = null;
             await state.WriteStateAsync();
+            await NotifyPumpUnregisteredAsync();
+
+            UserDataExportInstrument.ExportsFailed.Add(1,
+                new KeyValuePair<string, object?>("reason", ex.GetType().Name));
         }
     }
 
@@ -238,6 +276,8 @@ public class UserDataExportGrain(
         {
             cursor.DataPhaseComplete = true;
             state.State.Status = ExportStatus.Assembling;
+            logger.LogInformation("Data collection complete for user {UserId}, export {ExportId}. Moving to assembly",
+                UserId, exportId);
         }
 
         state.State.ItemsProcessed++;
@@ -507,17 +547,28 @@ public class UserDataExportGrain(
         var exportId = state.State.CurrentExportId!.Value;
         var prefix   = GetIntermediatePrefix(exportId);
 
+        using var activity = UserDataExportInstrument.ActivitySource.StartActivity("Export.Assembly");
+        activity?.SetTag("export.user_id", UserId.ToString());
+        activity?.SetTag("export.export_id", exportId.ToString());
+
         // List all intermediate files
         var keys = await exportS3.ListObjectsAsync(prefix);
         if (keys.Count == 0)
         {
+            logger.LogError("No intermediate data found for user {UserId}, export {ExportId}", UserId, exportId);
             state.State.Status        = ExportStatus.Failed;
             state.State.FailureReason = "No data collected";
             _processTimer?.Dispose();
             _processTimer = null;
             await state.WriteStateAsync();
+            await NotifyPumpUnregisteredAsync();
+            UserDataExportInstrument.ExportsFailed.Add(1,
+                new KeyValuePair<string, object?>("reason", "no_data"));
             return;
         }
+
+        logger.LogInformation("Assembling archive for user {UserId}, export {ExportId}: {FileCount} intermediate files",
+            UserId, exportId, keys.Count);
 
         // Create zip archive in memory
         using var zipStream = new MemoryStream();
@@ -537,6 +588,7 @@ public class UserDataExportGrain(
         }
 
         zipStream.Position = 0;
+        var archiveSize = zipStream.Length;
 
         // Upload final archive
         var archiveKey = $"exports/{UserId}/{exportId}/export-{DateTime.UtcNow:yyyy-MM-dd}.zip";
@@ -544,11 +596,15 @@ public class UserDataExportGrain(
 
         if (!uploaded)
         {
+            logger.LogError("Failed to upload archive for user {UserId}, export {ExportId}", UserId, exportId);
             state.State.Status        = ExportStatus.Failed;
             state.State.FailureReason = "Failed to upload archive";
             _processTimer?.Dispose();
             _processTimer = null;
             await state.WriteStateAsync();
+            await NotifyPumpUnregisteredAsync();
+            UserDataExportInstrument.ExportsFailed.Add(1,
+                new KeyValuePair<string, object?>("reason", "upload_failed"));
             return;
         }
 
@@ -568,6 +624,17 @@ public class UserDataExportGrain(
         _processTimer?.Dispose();
         _processTimer = null;
         await state.WriteStateAsync();
+        await NotifyPumpUnregisteredAsync();
+
+        // Record metrics
+        var totalDuration = (DateTimeOffset.UtcNow - state.State.StartedAt!.Value).TotalSeconds;
+        UserDataExportInstrument.ExportsCompleted.Add(1);
+        UserDataExportInstrument.ExportDuration.Record(totalDuration);
+        UserDataExportInstrument.ExportArchiveSizeBytes.Record(archiveSize);
+
+        logger.LogInformation(
+            "Export completed for user {UserId}, export {ExportId}. Archive size: {ArchiveSize} bytes, duration: {Duration:F1}s",
+            UserId, exportId, archiveSize, totalDuration);
 
         // Send "export ready" email
         await SendExportReadyEmailAsync(downloadUrl);
@@ -653,6 +720,18 @@ public class UserDataExportGrain(
         ExportStatus.Failed         => ExportStatusKind.Failed,
         _                           => ExportStatusKind.Idle
     };
+
+    #endregion
+
+    #region Pump
+
+    private ValueTask NotifyPumpRegisteredAsync()
+        => grainFactory.GetGrain<IExportPumpGrain>(IExportPumpGrain.SingletonId)
+            .RegisterActiveExportAsync(UserId);
+
+    private ValueTask NotifyPumpUnregisteredAsync()
+        => grainFactory.GetGrain<IExportPumpGrain>(IExportPumpGrain.SingletonId)
+            .UnregisterExportAsync(UserId);
 
     #endregion
 }
