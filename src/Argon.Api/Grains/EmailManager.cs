@@ -356,4 +356,57 @@ public class EmailManager(
             logger.LogCritical(e, "Failed to send notification to '{email}'", email);
         }
     }
+
+    [OneWay]
+    public async Task SendExportStartedAsync(string email, string displayName)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[EXPORT STARTED]: {Email}", email);
+            return;
+        }
+
+        var form = formStorage.Render("export_started", new Dictionary<string, string>
+        {
+            { "displayName", displayName }
+        });
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var msg = CreateMessage(email, "Your data export has started", form);
+            await SendAsync(email, msg, cts.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send export started email to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendExportReadyAsync(string email, string displayName, string downloadUrl)
+    {
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[EXPORT READY]: {Email}, url: {Url}", email, downloadUrl);
+            return;
+        }
+
+        var form = formStorage.Render("export_ready", new Dictionary<string, string>
+        {
+            { "displayName", displayName },
+            { "downloadUrl", downloadUrl }
+        });
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var msg = CreateMessage(email, "Your data export is ready", form);
+            await SendAsync(email, msg, cts.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send export ready email to '{email}'", email);
+        }
+    }
 }

@@ -36,6 +36,12 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendRawAsync))]
     Task<string> SendRawAsync(string to, string subject, string html, string? from, string? replyTo);
 
+    [Alias(nameof(SendExportStartedAsync)), OneWay]
+    Task SendExportStartedAsync(string email, string displayName);
+
+    [Alias(nameof(SendExportReadyAsync)), OneWay]
+    Task SendExportReadyAsync(string email, string displayName, string downloadUrl);
+
     [Alias(nameof(ValidateEMailDestination))]
     Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default);
 }

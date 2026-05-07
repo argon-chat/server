@@ -17,13 +17,22 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
         string? contentType      = null,
         int     expirationSeconds = 600)
     {
+        return GeneratePresignedPut(_opts.BucketName, objectKey, contentType, expirationSeconds);
+    }
+
+    public PresignedUploadData GeneratePresignedPut(
+        string  bucketName,
+        string  objectKey,
+        string? contentType       = null,
+        int     expirationSeconds = 600)
+    {
         var now       = DateTime.UtcNow;
         var dateStamp = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
         var amzDate   = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
 
         var scheme   = _opts.UseSsl ? "https" : "http";
-        var host     = $"{_opts.BucketName}.{_opts.Endpoint}";
+        var host     = $"{bucketName}.{_opts.Endpoint}";
         var path     = $"/{objectKey}";
 
         // Signed headers
@@ -79,6 +88,63 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
             Url     = url,
             Headers = headers
         };
+    }
+
+    public string GeneratePresignedGet(
+        string objectKey,
+        int    expirationSeconds = 172800)
+    {
+        return GeneratePresignedGet(_opts.BucketName, objectKey, expirationSeconds);
+    }
+
+    public string GeneratePresignedGet(
+        string bucketName,
+        string objectKey,
+        int    expirationSeconds = 172800)
+    {
+        var now       = DateTime.UtcNow;
+        var dateStamp = now.ToString("yyyyMMdd", CultureInfo.InvariantCulture);
+        var amzDate   = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
+        var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
+
+        var scheme = _opts.UseSsl ? "https" : "http";
+        var host   = $"{bucketName}.{_opts.Endpoint}";
+        var path   = $"/{objectKey}";
+
+        const string signedHeaders = "host";
+
+        var queryParams = new SortedDictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["X-Amz-Algorithm"]    = "AWS4-HMAC-SHA256",
+            ["X-Amz-Credential"]   = credential,
+            ["X-Amz-Date"]         = amzDate,
+            ["X-Amz-Expires"]      = expirationSeconds.ToString(CultureInfo.InvariantCulture),
+            ["X-Amz-SignedHeaders"] = signedHeaders
+        };
+
+        var canonicalQueryString = string.Join("&",
+            queryParams.Select(kv => $"{Uri.EscapeDataString(kv.Key)}={Uri.EscapeDataString(kv.Value)}"));
+
+        var canonicalHeaders = $"host:{host}\n";
+
+        var canonicalRequest = string.Join("\n",
+            "GET",
+            path,
+            canonicalQueryString,
+            canonicalHeaders,
+            signedHeaders,
+            "UNSIGNED-PAYLOAD");
+
+        var scope        = $"{dateStamp}/{_opts.Region}/s3/aws4_request";
+        var stringToSign = string.Join("\n",
+            "AWS4-HMAC-SHA256",
+            amzDate,
+            scope,
+            HexHash(canonicalRequest));
+
+        var signature = CalculateSignature(dateStamp, stringToSign);
+
+        return $"{scheme}://{host}{path}?{canonicalQueryString}&X-Amz-Signature={signature}";
     }
 
     private string CalculateSignature(string dateStamp, string stringToSign)

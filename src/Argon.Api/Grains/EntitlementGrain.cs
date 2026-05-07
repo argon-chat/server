@@ -340,6 +340,12 @@ public class EntitlementGrain(
 
         if (isGrant)
         {
+            var existing = await ctx.MemberArchetypes
+               .AnyAsync(x => x.SpaceMemberId == memberId && x.ArchetypeId == archetypeId);
+
+            if (existing)
+                return true;
+
             await ctx.MemberArchetypes.AddAsync(new SpaceMemberArchetypeEntity()
             {
                 ArchetypeId    = archetypeId,

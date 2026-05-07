@@ -12,6 +12,7 @@ public static class StorageFeature
         builder.Services.AddSingleton<IS3ClientPool, S3ClientPool>();
         builder.Services.AddSingleton<IS3StorageService, S3StorageService>();
         builder.Services.AddSingleton<S3PresignedUrlGenerator>();
+        builder.Services.AddSingleton<IExportS3Service, ExportS3Service>();
         builder.Services.AddScoped<IReferenceCountService, ReferenceCountService>();
     }
 }

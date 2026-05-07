@@ -260,6 +260,7 @@ public class SpaceGrain(
            .Include(serverMember => serverMember.SpaceMemberArchetypes)
            .FirstAsync(x => x.UserId == userId);
 
+
         return targetMember.User.Profile.ToDto() with
         {
             archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto()))

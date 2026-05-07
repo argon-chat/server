@@ -17,6 +17,12 @@ public class StorageOptions
     /// </summary>
     public bool FlatAvatarKeys { get; set; } = true;
 
+    /// <summary>
+    ///     Separate bucket for user data export archives.
+    ///     Objects in this bucket should have a lifecycle rule to expire after 48 hours.
+    /// </summary>
+    public string ExportBucketName { get; set; } = "";
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(AccessKey) && !string.IsNullOrWhiteSpace(SecretKey);
 
     public CdnOptions Cdn { get; set; } = new();

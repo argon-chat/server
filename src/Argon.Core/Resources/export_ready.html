@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Account Deletion Notice</title>
+    <title>Your Data Export is Ready</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -26,7 +26,7 @@
             font-size: 24px;
             font-weight: bold;
             text-align: center;
-            color: #db7070;
+            color: #4caf50;
             margin-bottom: 20px;
         }
 
@@ -37,15 +37,38 @@
             margin-bottom: 20px;
         }
 
-        .highlight {
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .download-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #4caf50, #81c784);
+            color: #ffffff;
+            padding: 16px 48px;
+            text-decoration: none;
+            border-radius: 10px;
             font-size: 18px;
             font-weight: bold;
-            text-align: center;
-            color: #000000;
-            background-color: #f0f0f0;
-            padding: 15px;
-            border-radius: 6px;
+            letter-spacing: 1px;
+        }
+
+        .warning-box {
+            font-size: 14px;
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 16px;
+            border-radius: 4px;
             margin: 20px 0;
+            color: #555555;
+        }
+
+        .link-fallback {
+            font-size: 13px;
+            color: #888888;
+            word-break: break-all;
+            margin-bottom: 24px;
         }
 
         .footer {
@@ -65,9 +88,8 @@
 
         .legal a {
             color: #bbbbbb;
-            text-decoration: none;
+            text-decoration: underline;
             margin: 0 8px;
-			text-decoration: underline;
         }
 
         .legal a:hover {
@@ -77,29 +99,26 @@
 </head>
 <body>
 <div class="container">
-    <div class="header">Account Deletion Notice</div>
+    <div class="header">Your Data Export is Ready</div>
     <div class="message">
-        Hi {{displayName}},
+        Hi {{ displayName }},
     </div>
     <div class="message">
-        We noticed that your account has been inactive for a prolonged period.<br><br>
-        To maintain a secure and efficient environment, we regularly remove inactive accounts.
+        Your account data export has been completed. You can download your archive using the button below.
+    </div>
+    <div class="button-container">
+        <a href="{{ downloadUrl }}" class="download-button">Download Archive</a>
+    </div>
+    <div class="warning-box">
+        ⚠️ <strong>Important:</strong> This download link will expire in <strong>48 hours</strong>.
+        After that, the archive will be permanently deleted and you'll need to request a new export.
+    </div>
+    <div class="link-fallback">
+        If the button above doesn't work, copy and paste this URL into your browser:<br>
+        {{ downloadUrl }}
     </div>
     <div class="message">
-        Your account is scheduled for deletion on:
-    </div>
-    <div class="highlight">
-        {{ deletion_date }}
-    </div>
-    <div class="message">
-        To prevent your account from being deleted, please open the app and sign in before this date.<br><br>
-        This will cancel the deletion process and keep your account active.
-    </div>
-    <div class="message">
-        If you do not take any action, your account and all associated data will be permanently removed and cannot be recovered.
-    </div>
-    <div class="message">
-        If you received this message in error, or no longer wish to use the account, you can safely ignore this email.
+        The archive contains your data in JSON format. Media files are referenced as links to our CDN.
     </div>
     <div class="footer">
         Thank you,<br>
