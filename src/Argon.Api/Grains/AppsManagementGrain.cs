@@ -60,6 +60,7 @@ public sealed class AppsManagementGrain(IServiceProvider serviceProvider, ILogge
                 a.Name,
                 a.Description,
                 TeamName = a.Team.Name,
+                a.IsInternalApp
             })
            .FirstOrDefaultAsync(ct);
 
@@ -80,6 +81,7 @@ public sealed class AppsManagementGrain(IServiceProvider serviceProvider, ILogge
             app.TeamName,
             null,
             isVerified,
+            app.IsInternalApp,
             requestedScopes);
     }
 }
