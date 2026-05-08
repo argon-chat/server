@@ -62,7 +62,7 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
         try
         {
             var cert = await Vault.V1.Secrets.PKI.ReadCertificateAsync(
-                serialNumber, CertificateFormat.pem, _options.MountPoint);
+                serialNumber, _options.MountPoint);
             return cert.Data.RevocationTime > 0;
         }
         catch (Exception e)
