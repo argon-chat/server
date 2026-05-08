@@ -99,6 +99,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Operators
+
+    public DbSet<OperatorEntity> Operators => Set<OperatorEntity>();
+
+#endregion
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
 

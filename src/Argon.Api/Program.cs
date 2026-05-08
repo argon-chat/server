@@ -1,5 +1,6 @@
 using Argon.Core.Features.EF;
 using Argon.Core.Features.Transport;
+using Argon.Features.Admin;
 using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
@@ -55,6 +56,7 @@ builder.Services.Configure<AccountDeletionOptions>(
     builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
 
 builder.AddContentModeration();
+builder.AddOperatorAuth();
 
 var app = builder.Build();
 

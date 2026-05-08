@@ -21,6 +21,7 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
 
     public         ICollection<SpaceMemberEntity>   ServerMembers   { get; set; } = new List<SpaceMemberEntity>();
     public virtual ICollection<DevTeamMemberEntity> TeamMemberships { get; set; } = new List<DevTeamMemberEntity>();
+    public virtual OperatorEntity? Operator { get; set; }
 
     public DateOnly? DateOfBirth { get; set; }
 
