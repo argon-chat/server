@@ -36,4 +36,5 @@ public record OAuthAppInfo(
     string DeveloperName,
     string? WebsiteUrl,
     bool IsVerified,
+    bool IsInternalApp,
     IReadOnlyList<string> RequestedScopes);
