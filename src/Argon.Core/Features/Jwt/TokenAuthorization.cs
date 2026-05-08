@@ -45,6 +45,15 @@ public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthoriz
         {
             return TokenValidationError.BAD_TOKEN;
         }
+        catch (SecurityTokenInvalidAudienceException e)
+        {
+            var jwtOptions = scope.ServiceProvider.GetRequiredService<IOptions<JwtOptions>>().Value;
+            var tokenAudiences = string.Join(", ", tokenData.Audiences);
+            logger.LogCritical(e,
+                "Audience validation failed. Token audiences: [{TokenAudiences}], Expected: [{ExpectedAudience}], Issuer: [{Issuer}], kid: {Kid}",
+                tokenAudiences, jwtOptions.Audience, jwtOptions.Issuer, tokenData.Header.Kid);
+            return TokenValidationError.BAD_TOKEN;
+        }
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed validate token, kid from key {kid}", tokenData.Header.Kid);
