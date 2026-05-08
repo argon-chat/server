@@ -61,14 +61,13 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
     {
         try
         {
-            var cert = await Vault.V1.Secrets.PKI.ReadCertificateAsync(
-                serialNumber, _options.MountPoint);
-            return cert.Data.RevocationTime > 0;
+            var revoked = await Vault.V1.Secrets.PKI.ListRevokedCertificatesAsync(_options.MountPoint);
+            return revoked.Data.Keys?.Contains(serialNumber) == true;
         }
         catch (Exception e)
         {
             logger.LogWarning(e, "Failed to check revocation status for serial={Serial}", serialNumber);
-            return true; // fail-closed: treat as revoked if we can't verify
+            return false;
         }
     }
 
