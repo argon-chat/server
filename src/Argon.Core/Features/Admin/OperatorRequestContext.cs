@@ -15,6 +15,7 @@ public static class OperatorRequestContext
 
 public sealed class OperatorRequestContextData
 {
+    public required Guid   UserId                { get; init; }
     public required Guid   OperatorId            { get; init; }
     public required string Email                 { get; init; }
     public required string CertificateThumbprint { get; init; }
