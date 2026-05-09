@@ -1,3 +1,5 @@
+using Argon.Api.Features.AdminApi;
+using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Core.Features.EF;
 using Argon.Core.Features.Transport;
 using Argon.Features.Admin;
@@ -8,8 +10,8 @@ using Argon.Features.Logic;
 using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
+using ConsoleContracts;
 using Microsoft.AspNetCore.Http.Connections;
-
 
 if (BotApiCli.TryHandleCommand(args))
     return;
@@ -41,7 +43,11 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
+
+    x.AddService<IAdminConsole, AdminConsoleImpl>(8920, true);
+    x.AddInterceptor<OperatorAuthInterceptor>(8920);
 });
+builder.AddDiagnosticServices();
 builder.AddSignalRAppHub();
 builder.Services.AddHttpClient();
 builder.Services.AddSentryTunneling("sentry.argon.gl");
@@ -57,6 +63,7 @@ builder.Services.Configure<AccountDeletionOptions>(
 
 builder.AddContentModeration();
 builder.AddOperatorAuth();
+builder.UseIonPorts();
 
 var app = builder.Build();
 

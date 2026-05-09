@@ -1,0 +1,23 @@
+{
+    "name": "ConsoleContracts",
+    "features": [
+        "orleans",
+        "std"
+    ],
+    "modules": {
+        "argon": "./../Argon.Ion"
+    },
+    "generators": {
+        "dotnet": {
+            "features": [
+                "server",
+                "client",
+                "models"
+            ],
+            "outputs": "./../Argon.CodeGenAdmin/"
+        },
+        "browser": {
+            "outputFile": "./../Widget/src/lib/glue/argonControl.ts"
+        }
+    }
+}   

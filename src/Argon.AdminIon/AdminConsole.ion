@@ -1,0 +1,361 @@
+#import { LockdownReason, ArgonUserProfile } from "argon";
+
+
+service AdminConsole() {
+    SearchUser(query: string): SearchUserResult;
+    
+    GetUserCard(userId: guid): UserCardDetails;
+    
+    GetPlatformStats(): PlatformStats;
+    
+    GetItemTemplates(): ItemTemplateList;
+    CreateItemTemplate(input: CreateItemTemplateInput): CreateItemTemplateResult;
+    DeleteItemTemplate(itemId: guid): DeleteItemResult;
+
+    DeleteItemFromUserInventory(userId: guid, itemId: guid): DeleteItemResult;
+    
+    GetCoupons(): CouponList;
+    CreateCoupon(input: CreateCouponInput): CreateCouponResult;
+    
+    BlockUser(userId: guid, reason: LockdownReason, expiration: datetime?, isAppealable: bool): UserActionResult;
+    UnblockUser(userId: guid): UserActionResult;
+    GrantXp(userId: guid, amount: i4): UserActionResult;
+    GrantItem(userId: guid, itemId: guid): UserActionResult;
+    ChangeUsername(userId: guid, newUsername: string): UserActionResult;
+    RemoveTwoFactor(userId: guid): UserActionResult;
+    RemovePhoneNumber(userId: guid): UserActionResult;
+    ChangeEmail(userId: guid, newEmail: string): UserActionResult;
+    
+    GetDiagnostics(): DiagnosticsResult;
+}
+
+msg SearchUserResult {
+    found: bool;
+    userId: guid?;
+    matchedBy: SearchMatchKind;
+}
+
+enum SearchMatchKind {
+    None,
+    UserId,
+    Username,
+    Email,
+    Phone
+}
+
+msg UserCardDetails {
+    account: UserAccountInfo;
+    profile: ArgonUserProfile;
+    passkeyCount: i4;
+    hasTwoFactor: bool;
+    items: InventoryItemInfo[];
+    recentMessages: MessageInfo[];
+    deviceHistory: DeviceHistoryInfo[];
+    redeemedCoupons: RedeemedCouponInfo[];
+    spaces: UserSpaceInfo[];
+    level: UserLevelInfo;
+    stats: UserStatsInfo;
+    teams: UserTeamInfo[];
+    friendCount: i4;
+    autoDeleteSettings: AutoDeleteSettingsInfo?;
+}
+
+msg UserAccountInfo {
+    userId: guid;
+    username: string;
+    displayName: string;
+    email: string;
+    phoneNumber: string?;
+    avatarFileId: string?;
+    dateOfBirth: dateonly?;
+    createdAt: datetime;
+    lockdownReason: LockdownReason;
+    lockDownExpiration: datetime?;
+    lockDownIsAppealable: bool;
+    preferredAuthMode: ArgonAuthMode;
+    preferredOtpMethod: OtpMethod;
+    agreeTOS: bool;
+    lastLoginAt: datetime?;
+    blockedUsersCount: i4;
+    directMessagesCount: i4;
+    conversationsCount: i4;
+}
+
+enum ArgonAuthMode {
+    Password,
+    Passwordless,
+    Passkey
+}
+
+enum OtpMethod {
+    None,
+    Totp,
+    Sms,
+    Email
+}
+
+msg InventoryItemInfo {
+    itemId: guid;
+    templateId: string;
+    isUsable: bool;
+    isGiftable: bool;
+    receivedFrom: guid?;
+    ttl: i4?;
+    createdAt: datetime;
+    isBox: bool;
+    boxContents: BoxContentInfo[];
+}
+
+msg BoxContentInfo {
+    itemId: guid;
+    templateId: string;
+}
+
+msg MessageInfo {
+    messageId: i8;
+    spaceId: guid;
+    spaceName: string;
+    channelId: guid;
+    channelName: string;
+    text: string;
+    createdAt: datetime;
+}
+
+msg DeviceHistoryInfo {
+    machineId: string;
+    lastLogi4ime: datetime?;
+    lastKnownIP: string;
+    regionAddress: string;
+    appId: string;
+    deviceType: DeviceTypeKind;
+}
+
+enum DeviceTypeKind {
+    Unknown,
+    WindowsDesktop,
+    OsxDesktop,
+    Browser,
+    IosMobile,
+    AndroidMobile,
+    Xbox,
+    SteamDevice
+}
+
+msg RedeemedCouponInfo {
+    couponId: guid;
+    couponCode: string;
+    redeemedAt: datetime;
+    itemsReceived: i4;
+}
+
+msg UserSpaceInfo {
+    spaceId: guid;
+    name: string;
+    avatarFileId: string?;
+    memberCount: i4;
+    channelCount: i4;
+    joinedAt: datetime;
+    isOwner: bool;
+}
+
+msg UserLevelInfo {
+    currentLevel: i4;
+    currentCycleXp: i4;
+    totalXpAllTime: i8;
+    canClaimMedal: bool;
+    lastXpAward: datetime;
+}
+
+msg UserStatsInfo {
+    totalTimeInVoiceSeconds: i4;
+    totalCallsMade: i4;
+    totalMessagesSent: i4;
+    totalXpEarned: i4;
+}
+
+msg UserTeamInfo {
+    teamId: guid;
+    name: string;
+    avatarFileId: string?;
+    isOwner: bool;
+    joinedAt: datetime;
+}
+
+msg AutoDeleteSettingsInfo {
+    enabled: bool;
+    months: i4?;
+}
+
+
+msg PlatformStats {
+    totalUsers: i8;
+    totalSpaces: i8;
+    totalChannels: i8;
+    totalMessages: i8;
+    totalCustomItems: i8;
+    totalCouponsRedeemed: i8;
+    newUsersLast1Month: i8;
+    activeUsersLast1Month: i8;
+    peakActiveUsersLast1Month: i8;
+    newSpacesLast1Month: i8;
+    activeSpacesLast1Month: i8;
+    peakActiveSpacesLast1Month: i8;
+    totalApps: i8;
+    totalBots: i8;
+}
+
+msg ItemTemplateList {
+    templates: ItemTemplateInfo[];
+}
+
+msg ItemTemplateInfo {
+    itemId: guid;
+    templateId: string;
+    isUsable: bool;
+    isGiftable: bool;
+    isAffectBadge: bool;
+    ttl: i4?;
+    createdAt: datetime;
+    scenarioType: ItemScenarioKind;
+    boxContents: BoxContentInfo[];
+}
+
+enum ItemScenarioKind {
+    None,
+    RedeemCode,
+    Premium,
+    QualifierBox,
+    Box
+}
+
+msg CreateItemTemplateInput {
+    templateId: string;
+    isUsable: bool;
+    isGiftable: bool;
+    isAffectBadge: bool;
+    ttl: i4?;
+    scenarioType: ItemScenarioKind;
+    boxContentTemplateIds: string[];
+}
+
+msg CreateItemTemplateResult {
+    success: bool;
+    itemId: guid?;
+    error: string?;
+}
+
+msg DeleteItemResult {
+    success: bool;
+    itemId: guid?;
+    error: string?;
+}
+
+msg CouponList {
+    coupons: CouponInfo[];
+}
+
+msg CouponInfo {
+    couponId: guid;
+    code: string;
+    description: string?;
+    validFrom: datetime;
+    validTo: datetime;
+    maxRedemptions: i4;
+    redemptionCount: i4;
+    isActive: bool;
+    referenceItemTemplateId: string?;
+}
+
+msg CreateCouponInput {
+    code: string;
+    description: string?;
+    validFrom: datetime;
+    validTo: datetime;
+    maxRedemptions: i4;
+    referenceItemId: guid?;
+}
+
+msg CreateCouponResult {
+    success: bool;
+    couponId: guid?;
+    error: string?;
+}
+
+
+msg UserActionResult {
+    success: bool;
+    error: string?;
+}
+
+msg DiagnosticsResult {
+    runtime: RuntimeDiagnostics;
+    database: DatabaseDiagnostics?;
+    kubernetes: KubernetesDiagnostics?;
+    nats: NatsDiagnostics?;
+    redis: RedisDiagnostics?;
+    orleans: OrleansDiagnostics?;
+    collectedAt: datetime;
+}
+
+msg RuntimeDiagnostics {
+    dotnetVersion: string;
+    osVersion: string;
+    processorCount: i4;
+    workingSetMb: i8;
+    gcTotalMemoryMb: i8;
+    gen0Collections: i4;
+    gen1Collections: i4;
+    gen2Collections: i4;
+    threadPoolThreads: i4;
+    completionPortThreads: i4;
+    uptimeSeconds: i8;
+}
+
+msg DatabaseDiagnostics {
+    provider: string;
+    connectionPoolSize: i4;
+    idleConnections: i4;
+    activeConnections: i4;
+    isHealthy: bool;
+    avgQueryTimeMs: i8?;
+    error: string?;
+}
+
+msg KubernetesDiagnostics {
+    k8sNamespace: string;
+    podName: string;
+    nodeName: string;
+    cpuLimitMillicores: i8?;
+    memoryLimitMb: i8?;
+    isHealthy: bool;
+    error: string?;
+}
+
+msg NatsDiagnostics {
+    isConnected: bool;
+    serverUrl: string;
+    subscriptions: i4;
+    pendingMessages: i8;
+    error: string?;
+}
+
+msg RedisDiagnostics {
+    isConnected: bool;
+    serverVersion: string?;
+    usedMemoryMb: i8?;
+    connectedClients: i4?;
+    totalKeys: i8?;
+    error: string?;
+}
+
+msg OrleansDiagnostics {
+    clusterId: string;
+    siloName: string;
+    siloAddress: string;
+    siloStatus: string;
+    activeSilos: i4;
+    totalGrains: i4;
+    activationCount: i4;
+    isHealthy: bool;
+    error: string?;
+}

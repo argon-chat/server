@@ -1,0 +1,1446 @@
+{
+  "version": 1,
+  "module": "ConsoleContracts",
+  "definitions": {
+    "SearchUserResult": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "found",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "userId",
+          "type": "Maybe\u003Cguid\u003E"
+        },
+        {
+          "index": 2,
+          "name": "matchedBy",
+          "type": "SearchMatchKind"
+        }
+      ]
+    },
+    "UserCardDetails": {
+      "kind": "Msg",
+      "nextIndex": 14,
+      "fields": [
+        {
+          "index": 0,
+          "name": "account",
+          "type": "UserAccountInfo"
+        },
+        {
+          "index": 1,
+          "name": "profile",
+          "type": "ArgonUserProfile"
+        },
+        {
+          "index": 2,
+          "name": "passkeyCount",
+          "type": "i4"
+        },
+        {
+          "index": 3,
+          "name": "hasTwoFactor",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "items",
+          "type": "Array\u003CInventoryItemInfo\u003E"
+        },
+        {
+          "index": 5,
+          "name": "recentMessages",
+          "type": "Array\u003CMessageInfo\u003E"
+        },
+        {
+          "index": 6,
+          "name": "deviceHistory",
+          "type": "Array\u003CDeviceHistoryInfo\u003E"
+        },
+        {
+          "index": 7,
+          "name": "redeemedCoupons",
+          "type": "Array\u003CRedeemedCouponInfo\u003E"
+        },
+        {
+          "index": 8,
+          "name": "spaces",
+          "type": "Array\u003CUserSpaceInfo\u003E"
+        },
+        {
+          "index": 9,
+          "name": "level",
+          "type": "UserLevelInfo"
+        },
+        {
+          "index": 10,
+          "name": "stats",
+          "type": "UserStatsInfo"
+        },
+        {
+          "index": 11,
+          "name": "teams",
+          "type": "Array\u003CUserTeamInfo\u003E"
+        },
+        {
+          "index": 12,
+          "name": "friendCount",
+          "type": "i4"
+        },
+        {
+          "index": 13,
+          "name": "autoDeleteSettings",
+          "type": "Maybe\u003CAutoDeleteSettingsInfo\u003E"
+        }
+      ]
+    },
+    "UserAccountInfo": {
+      "kind": "Msg",
+      "nextIndex": 18,
+      "fields": [
+        {
+          "index": 0,
+          "name": "userId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "username",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "displayName",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "email",
+          "type": "string"
+        },
+        {
+          "index": 4,
+          "name": "phoneNumber",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 5,
+          "name": "avatarFileId",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 6,
+          "name": "dateOfBirth",
+          "type": "Maybe\u003Cdateonly\u003E"
+        },
+        {
+          "index": 7,
+          "name": "createdAt",
+          "type": "datetime"
+        },
+        {
+          "index": 8,
+          "name": "lockdownReason",
+          "type": "LockdownReason"
+        },
+        {
+          "index": 9,
+          "name": "lockDownExpiration",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 10,
+          "name": "lockDownIsAppealable",
+          "type": "bool"
+        },
+        {
+          "index": 11,
+          "name": "preferredAuthMode",
+          "type": "ArgonAuthMode"
+        },
+        {
+          "index": 12,
+          "name": "preferredOtpMethod",
+          "type": "OtpMethod"
+        },
+        {
+          "index": 13,
+          "name": "agreeTOS",
+          "type": "bool"
+        },
+        {
+          "index": 14,
+          "name": "lastLoginAt",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 15,
+          "name": "blockedUsersCount",
+          "type": "i4"
+        },
+        {
+          "index": 16,
+          "name": "directMessagesCount",
+          "type": "i4"
+        },
+        {
+          "index": 17,
+          "name": "conversationsCount",
+          "type": "i4"
+        }
+      ]
+    },
+    "InventoryItemInfo": {
+      "kind": "Msg",
+      "nextIndex": 9,
+      "fields": [
+        {
+          "index": 0,
+          "name": "itemId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "templateId",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "isUsable",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isGiftable",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "receivedFrom",
+          "type": "Maybe\u003Cguid\u003E"
+        },
+        {
+          "index": 5,
+          "name": "ttl",
+          "type": "Maybe\u003Ci4\u003E"
+        },
+        {
+          "index": 6,
+          "name": "createdAt",
+          "type": "datetime"
+        },
+        {
+          "index": 7,
+          "name": "isBox",
+          "type": "bool"
+        },
+        {
+          "index": 8,
+          "name": "boxContents",
+          "type": "Array\u003CBoxContentInfo\u003E"
+        }
+      ]
+    },
+    "BoxContentInfo": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "itemId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "templateId",
+          "type": "string"
+        }
+      ]
+    },
+    "MessageInfo": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "messageId",
+          "type": "i8"
+        },
+        {
+          "index": 1,
+          "name": "spaceId",
+          "type": "guid"
+        },
+        {
+          "index": 2,
+          "name": "spaceName",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "channelId",
+          "type": "guid"
+        },
+        {
+          "index": 4,
+          "name": "channelName",
+          "type": "string"
+        },
+        {
+          "index": 5,
+          "name": "text",
+          "type": "string"
+        },
+        {
+          "index": 6,
+          "name": "createdAt",
+          "type": "datetime"
+        }
+      ]
+    },
+    "DeviceHistoryInfo": {
+      "kind": "Msg",
+      "nextIndex": 6,
+      "fields": [
+        {
+          "index": 0,
+          "name": "machineId",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "lastLogi4ime",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 2,
+          "name": "lastKnownIP",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "regionAddress",
+          "type": "string"
+        },
+        {
+          "index": 4,
+          "name": "appId",
+          "type": "string"
+        },
+        {
+          "index": 5,
+          "name": "deviceType",
+          "type": "DeviceTypeKind"
+        }
+      ]
+    },
+    "RedeemedCouponInfo": {
+      "kind": "Msg",
+      "nextIndex": 4,
+      "fields": [
+        {
+          "index": 0,
+          "name": "couponId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "couponCode",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "redeemedAt",
+          "type": "datetime"
+        },
+        {
+          "index": 3,
+          "name": "itemsReceived",
+          "type": "i4"
+        }
+      ]
+    },
+    "UserSpaceInfo": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "spaceId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "avatarFileId",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 3,
+          "name": "memberCount",
+          "type": "i4"
+        },
+        {
+          "index": 4,
+          "name": "channelCount",
+          "type": "i4"
+        },
+        {
+          "index": 5,
+          "name": "joinedAt",
+          "type": "datetime"
+        },
+        {
+          "index": 6,
+          "name": "isOwner",
+          "type": "bool"
+        }
+      ]
+    },
+    "UserLevelInfo": {
+      "kind": "Msg",
+      "nextIndex": 5,
+      "fields": [
+        {
+          "index": 0,
+          "name": "currentLevel",
+          "type": "i4"
+        },
+        {
+          "index": 1,
+          "name": "currentCycleXp",
+          "type": "i4"
+        },
+        {
+          "index": 2,
+          "name": "totalXpAllTime",
+          "type": "i8"
+        },
+        {
+          "index": 3,
+          "name": "canClaimMedal",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "lastXpAward",
+          "type": "datetime"
+        }
+      ]
+    },
+    "UserStatsInfo": {
+      "kind": "Msg",
+      "nextIndex": 4,
+      "fields": [
+        {
+          "index": 0,
+          "name": "totalTimeInVoiceSeconds",
+          "type": "i4"
+        },
+        {
+          "index": 1,
+          "name": "totalCallsMade",
+          "type": "i4"
+        },
+        {
+          "index": 2,
+          "name": "totalMessagesSent",
+          "type": "i4"
+        },
+        {
+          "index": 3,
+          "name": "totalXpEarned",
+          "type": "i4"
+        }
+      ]
+    },
+    "UserTeamInfo": {
+      "kind": "Msg",
+      "nextIndex": 5,
+      "fields": [
+        {
+          "index": 0,
+          "name": "teamId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "avatarFileId",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 3,
+          "name": "isOwner",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "joinedAt",
+          "type": "datetime"
+        }
+      ]
+    },
+    "AutoDeleteSettingsInfo": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "enabled",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "months",
+          "type": "Maybe\u003Ci4\u003E"
+        }
+      ]
+    },
+    "PlatformStats": {
+      "kind": "Msg",
+      "nextIndex": 14,
+      "fields": [
+        {
+          "index": 0,
+          "name": "totalUsers",
+          "type": "i8"
+        },
+        {
+          "index": 1,
+          "name": "totalSpaces",
+          "type": "i8"
+        },
+        {
+          "index": 2,
+          "name": "totalChannels",
+          "type": "i8"
+        },
+        {
+          "index": 3,
+          "name": "totalMessages",
+          "type": "i8"
+        },
+        {
+          "index": 4,
+          "name": "totalCustomItems",
+          "type": "i8"
+        },
+        {
+          "index": 5,
+          "name": "totalCouponsRedeemed",
+          "type": "i8"
+        },
+        {
+          "index": 6,
+          "name": "newUsersLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 7,
+          "name": "activeUsersLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 8,
+          "name": "peakActiveUsersLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 9,
+          "name": "newSpacesLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 10,
+          "name": "activeSpacesLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 11,
+          "name": "peakActiveSpacesLast1Month",
+          "type": "i8"
+        },
+        {
+          "index": 12,
+          "name": "totalApps",
+          "type": "i8"
+        },
+        {
+          "index": 13,
+          "name": "totalBots",
+          "type": "i8"
+        }
+      ]
+    },
+    "ItemTemplateList": {
+      "kind": "Msg",
+      "nextIndex": 1,
+      "fields": [
+        {
+          "index": 0,
+          "name": "templates",
+          "type": "Array\u003CItemTemplateInfo\u003E"
+        }
+      ]
+    },
+    "ItemTemplateInfo": {
+      "kind": "Msg",
+      "nextIndex": 9,
+      "fields": [
+        {
+          "index": 0,
+          "name": "itemId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "templateId",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "isUsable",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isGiftable",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "isAffectBadge",
+          "type": "bool"
+        },
+        {
+          "index": 5,
+          "name": "ttl",
+          "type": "Maybe\u003Ci4\u003E"
+        },
+        {
+          "index": 6,
+          "name": "createdAt",
+          "type": "datetime"
+        },
+        {
+          "index": 7,
+          "name": "scenarioType",
+          "type": "ItemScenarioKind"
+        },
+        {
+          "index": 8,
+          "name": "boxContents",
+          "type": "Array\u003CBoxContentInfo\u003E"
+        }
+      ]
+    },
+    "CreateItemTemplateInput": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "templateId",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "isUsable",
+          "type": "bool"
+        },
+        {
+          "index": 2,
+          "name": "isGiftable",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isAffectBadge",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "ttl",
+          "type": "Maybe\u003Ci4\u003E"
+        },
+        {
+          "index": 5,
+          "name": "scenarioType",
+          "type": "ItemScenarioKind"
+        },
+        {
+          "index": 6,
+          "name": "boxContentTemplateIds",
+          "type": "Array\u003Cstring\u003E"
+        }
+      ]
+    },
+    "CreateItemTemplateResult": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "itemId",
+          "type": "Maybe\u003Cguid\u003E"
+        },
+        {
+          "index": 2,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "DeleteItemResult": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "itemId",
+          "type": "Maybe\u003Cguid\u003E"
+        },
+        {
+          "index": 2,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "CouponList": {
+      "kind": "Msg",
+      "nextIndex": 1,
+      "fields": [
+        {
+          "index": 0,
+          "name": "coupons",
+          "type": "Array\u003CCouponInfo\u003E"
+        }
+      ]
+    },
+    "CouponInfo": {
+      "kind": "Msg",
+      "nextIndex": 9,
+      "fields": [
+        {
+          "index": 0,
+          "name": "couponId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "code",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "description",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 3,
+          "name": "validFrom",
+          "type": "datetime"
+        },
+        {
+          "index": 4,
+          "name": "validTo",
+          "type": "datetime"
+        },
+        {
+          "index": 5,
+          "name": "maxRedemptions",
+          "type": "i4"
+        },
+        {
+          "index": 6,
+          "name": "redemptionCount",
+          "type": "i4"
+        },
+        {
+          "index": 7,
+          "name": "isActive",
+          "type": "bool"
+        },
+        {
+          "index": 8,
+          "name": "referenceItemTemplateId",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "CreateCouponInput": {
+      "kind": "Msg",
+      "nextIndex": 6,
+      "fields": [
+        {
+          "index": 0,
+          "name": "code",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "description",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 2,
+          "name": "validFrom",
+          "type": "datetime"
+        },
+        {
+          "index": 3,
+          "name": "validTo",
+          "type": "datetime"
+        },
+        {
+          "index": 4,
+          "name": "maxRedemptions",
+          "type": "i4"
+        },
+        {
+          "index": 5,
+          "name": "referenceItemId",
+          "type": "Maybe\u003Cguid\u003E"
+        }
+      ]
+    },
+    "CreateCouponResult": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "couponId",
+          "type": "Maybe\u003Cguid\u003E"
+        },
+        {
+          "index": 2,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "UserActionResult": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "DiagnosticsResult": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "runtime",
+          "type": "RuntimeDiagnostics"
+        },
+        {
+          "index": 1,
+          "name": "database",
+          "type": "Maybe\u003CDatabaseDiagnostics\u003E"
+        },
+        {
+          "index": 2,
+          "name": "kubernetes",
+          "type": "Maybe\u003CKubernetesDiagnostics\u003E"
+        },
+        {
+          "index": 3,
+          "name": "nats",
+          "type": "Maybe\u003CNatsDiagnostics\u003E"
+        },
+        {
+          "index": 4,
+          "name": "redis",
+          "type": "Maybe\u003CRedisDiagnostics\u003E"
+        },
+        {
+          "index": 5,
+          "name": "orleans",
+          "type": "Maybe\u003COrleansDiagnostics\u003E"
+        },
+        {
+          "index": 6,
+          "name": "collectedAt",
+          "type": "datetime"
+        }
+      ]
+    },
+    "RuntimeDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 11,
+      "fields": [
+        {
+          "index": 0,
+          "name": "dotnetVersion",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "osVersion",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "processorCount",
+          "type": "i4"
+        },
+        {
+          "index": 3,
+          "name": "workingSetMb",
+          "type": "i8"
+        },
+        {
+          "index": 4,
+          "name": "gcTotalMemoryMb",
+          "type": "i8"
+        },
+        {
+          "index": 5,
+          "name": "gen0Collections",
+          "type": "i4"
+        },
+        {
+          "index": 6,
+          "name": "gen1Collections",
+          "type": "i4"
+        },
+        {
+          "index": 7,
+          "name": "gen2Collections",
+          "type": "i4"
+        },
+        {
+          "index": 8,
+          "name": "threadPoolThreads",
+          "type": "i4"
+        },
+        {
+          "index": 9,
+          "name": "completionPortThreads",
+          "type": "i4"
+        },
+        {
+          "index": 10,
+          "name": "uptimeSeconds",
+          "type": "i8"
+        }
+      ]
+    },
+    "DatabaseDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "provider",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "connectionPoolSize",
+          "type": "i4"
+        },
+        {
+          "index": 2,
+          "name": "idleConnections",
+          "type": "i4"
+        },
+        {
+          "index": 3,
+          "name": "activeConnections",
+          "type": "i4"
+        },
+        {
+          "index": 4,
+          "name": "isHealthy",
+          "type": "bool"
+        },
+        {
+          "index": 5,
+          "name": "avgQueryTimeMs",
+          "type": "Maybe\u003Ci8\u003E"
+        },
+        {
+          "index": 6,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "KubernetesDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "k8sNamespace",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "podName",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "nodeName",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "cpuLimitMillicores",
+          "type": "Maybe\u003Ci8\u003E"
+        },
+        {
+          "index": 4,
+          "name": "memoryLimitMb",
+          "type": "Maybe\u003Ci8\u003E"
+        },
+        {
+          "index": 5,
+          "name": "isHealthy",
+          "type": "bool"
+        },
+        {
+          "index": 6,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "NatsDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 5,
+      "fields": [
+        {
+          "index": 0,
+          "name": "isConnected",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "serverUrl",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "subscriptions",
+          "type": "i4"
+        },
+        {
+          "index": 3,
+          "name": "pendingMessages",
+          "type": "i8"
+        },
+        {
+          "index": 4,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "RedisDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 6,
+      "fields": [
+        {
+          "index": 0,
+          "name": "isConnected",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "serverVersion",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 2,
+          "name": "usedMemoryMb",
+          "type": "Maybe\u003Ci8\u003E"
+        },
+        {
+          "index": 3,
+          "name": "connectedClients",
+          "type": "Maybe\u003Ci4\u003E"
+        },
+        {
+          "index": 4,
+          "name": "totalKeys",
+          "type": "Maybe\u003Ci8\u003E"
+        },
+        {
+          "index": 5,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "OrleansDiagnostics": {
+      "kind": "Msg",
+      "nextIndex": 9,
+      "fields": [
+        {
+          "index": 0,
+          "name": "clusterId",
+          "type": "string"
+        },
+        {
+          "index": 1,
+          "name": "siloName",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "siloAddress",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "siloStatus",
+          "type": "string"
+        },
+        {
+          "index": 4,
+          "name": "activeSilos",
+          "type": "i4"
+        },
+        {
+          "index": 5,
+          "name": "totalGrains",
+          "type": "i4"
+        },
+        {
+          "index": 6,
+          "name": "activationCount",
+          "type": "i4"
+        },
+        {
+          "index": 7,
+          "name": "isHealthy",
+          "type": "bool"
+        },
+        {
+          "index": 8,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "SearchMatchKind": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "UserId": "1",
+        "Username": "2",
+        "Email": "3",
+        "Phone": "4"
+      },
+      "baseType": "u4"
+    },
+    "ArgonAuthMode": {
+      "kind": "Enum",
+      "members": {
+        "Password": "0",
+        "Passwordless": "1",
+        "Passkey": "2"
+      },
+      "baseType": "u4"
+    },
+    "OtpMethod": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "Totp": "1",
+        "Sms": "2",
+        "Email": "3"
+      },
+      "baseType": "u4"
+    },
+    "DeviceTypeKind": {
+      "kind": "Enum",
+      "members": {
+        "Unknown": "0",
+        "WindowsDesktop": "1",
+        "OsxDesktop": "2",
+        "Browser": "3",
+        "IosMobile": "4",
+        "AndroidMobile": "5",
+        "Xbox": "6",
+        "SteamDevice": "7"
+      },
+      "baseType": "u4"
+    },
+    "ItemScenarioKind": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "RedeemCode": "1",
+        "Premium": "2",
+        "QualifierBox": "3",
+        "Box": "4"
+      },
+      "baseType": "u4"
+    },
+    "AdminConsole": {
+      "kind": "Service",
+      "methods": {
+        "SearchUser": {
+          "args": [
+            {
+              "index": 0,
+              "name": "query",
+              "type": "string"
+            }
+          ],
+          "returns": "SearchUserResult",
+          "modifiers": []
+        },
+        "GetUserCard": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UserCardDetails",
+          "modifiers": []
+        },
+        "GetPlatformStats": {
+          "args": [],
+          "returns": "PlatformStats",
+          "modifiers": []
+        },
+        "GetItemTemplates": {
+          "args": [],
+          "returns": "ItemTemplateList",
+          "modifiers": []
+        },
+        "CreateItemTemplate": {
+          "args": [
+            {
+              "index": 0,
+              "name": "input",
+              "type": "CreateItemTemplateInput"
+            }
+          ],
+          "returns": "CreateItemTemplateResult",
+          "modifiers": []
+        },
+        "DeleteItemTemplate": {
+          "args": [
+            {
+              "index": 0,
+              "name": "itemId",
+              "type": "guid"
+            }
+          ],
+          "returns": "DeleteItemResult",
+          "modifiers": []
+        },
+        "DeleteItemFromUserInventory": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "itemId",
+              "type": "guid"
+            }
+          ],
+          "returns": "DeleteItemResult",
+          "modifiers": []
+        },
+        "GetCoupons": {
+          "args": [],
+          "returns": "CouponList",
+          "modifiers": []
+        },
+        "CreateCoupon": {
+          "args": [
+            {
+              "index": 0,
+              "name": "input",
+              "type": "CreateCouponInput"
+            }
+          ],
+          "returns": "CreateCouponResult",
+          "modifiers": []
+        },
+        "BlockUser": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "reason",
+              "type": "LockdownReason"
+            },
+            {
+              "index": 2,
+              "name": "expiration",
+              "type": "Maybe\u003Cdatetime\u003E"
+            },
+            {
+              "index": 3,
+              "name": "isAppealable",
+              "type": "bool"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "UnblockUser": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "GrantXp": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "amount",
+              "type": "i4"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "GrantItem": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "itemId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "ChangeUsername": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "newUsername",
+              "type": "string"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "RemoveTwoFactor": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "RemovePhoneNumber": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "ChangeEmail": {
+          "args": [
+            {
+              "index": 0,
+              "name": "userId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "newEmail",
+              "type": "string"
+            }
+          ],
+          "returns": "UserActionResult",
+          "modifiers": []
+        },
+        "GetDiagnostics": {
+          "args": [],
+          "returns": "DiagnosticsResult",
+          "modifiers": []
+        }
+      }
+    }
+  }
+}
