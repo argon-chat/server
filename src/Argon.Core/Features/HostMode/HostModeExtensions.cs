@@ -195,7 +195,7 @@ public static class HostModeExtensions
                 builder.AddArchetypesCache();
                 builder.Services.AddHostedService<FileGcService>();
             }
-
+            // temporary for entry access to db
             builder.AddPooledDatabase<ApplicationDbContext>();
 
             if (builder.IsHybridRole())

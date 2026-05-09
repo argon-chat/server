@@ -331,6 +331,126 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<DiagnosticsResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetOperators_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetOperators();
+        
+        IonFormatterStorage<OperatorList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetOperatorDetails_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetOperatorDetails(__operatorid);
+        
+        IonFormatterStorage<OperatorDetails>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateOperator_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<CreateOperatorInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateOperator(__input);
+        
+        IonFormatterStorage<CreateOperatorResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeactivateOperator_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeactivateOperator(__operatorid);
+        
+        IonFormatterStorage<OperatorActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ActivateOperator_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ActivateOperator(__operatorid);
+        
+        IonFormatterStorage<OperatorActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeOperatorCertificate_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RevokeOperatorCertificate(__operatorid);
+        
+        IonFormatterStorage<OperatorActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task EnrollOperatorCertificate_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __csrpem = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.EnrollOperatorCertificate(__operatorid, __csrpem);
+        
+        IonFormatterStorage<EnrollCertificateResult>.Write(writer, result);
+    }
 
     
     
@@ -374,6 +494,20 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return ChangeEmail_Execute(reader, writer, ct);
         if (methodName.Equals("GetDiagnostics", StringComparison.InvariantCultureIgnoreCase))
             return GetDiagnostics_Execute(reader, writer, ct);
+        if (methodName.Equals("GetOperators", StringComparison.InvariantCultureIgnoreCase))
+            return GetOperators_Execute(reader, writer, ct);
+        if (methodName.Equals("GetOperatorDetails", StringComparison.InvariantCultureIgnoreCase))
+            return GetOperatorDetails_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateOperator", StringComparison.InvariantCultureIgnoreCase))
+            return CreateOperator_Execute(reader, writer, ct);
+        if (methodName.Equals("DeactivateOperator", StringComparison.InvariantCultureIgnoreCase))
+            return DeactivateOperator_Execute(reader, writer, ct);
+        if (methodName.Equals("ActivateOperator", StringComparison.InvariantCultureIgnoreCase))
+            return ActivateOperator_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeOperatorCertificate", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeOperatorCertificate_Execute(reader, writer, ct);
+        if (methodName.Equals("EnrollOperatorCertificate", StringComparison.InvariantCultureIgnoreCase))
+            return EnrollOperatorCertificate_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

@@ -54,6 +54,20 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(ChangeEmail), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetDiagnostics_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetDiagnostics), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetOperators_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetOperators), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetOperatorDetails_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetOperatorDetails), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateOperator_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CreateOperator), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeactivateOperator_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeactivateOperator), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ActivateOperator_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ActivateOperator), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeOperatorCertificate_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(RevokeOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> EnrollOperatorCertificate_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(EnrollOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -370,6 +384,126 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<DiagnosticsResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorList> GetOperators(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetOperators_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorDetails> GetOperatorDetails(guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetOperatorDetails_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<CreateOperatorResult> CreateOperator(CreateOperatorInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CreateOperator_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CreateOperatorInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<CreateOperatorResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorActionResult> DeactivateOperator(guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeactivateOperator_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorActionResult> ActivateOperator(guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ActivateOperator_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorActionResult> RevokeOperatorCertificate(guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), RevokeOperatorCertificate_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(guid __operatorid, string __csrpem, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), EnrollOperatorCertificate_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        IonFormatterStorage<string>.Write(writer, __csrpem);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<EnrollCertificateResult>(writer.Encode(), ct: ct);
     }
 
 }

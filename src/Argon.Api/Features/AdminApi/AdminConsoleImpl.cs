@@ -3,6 +3,7 @@ namespace Argon.Api.Features.AdminApi;
 using Argon.Api.Entities.Data;
 using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Api.Grains.Interfaces;
+using Argon.Features.Admin;
 using ConsoleContracts;
 using ion.runtime;
 using Livekit.Server.Sdk.Dotnet;
@@ -16,7 +17,8 @@ public class AdminConsoleImpl(
     KubernetesDiagnosticsService? kubernetesDiagnostics,
     NatsDiagnosticsService? natsDiagnostics,
     RedisDiagnosticsService? redisDiagnostics,
-    OrleansDiagnosticsService? orleansDiagnostics
+    OrleansDiagnosticsService? orleansDiagnostics,
+    IOperatorCertificateService certificateService
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -987,6 +989,242 @@ public class AdminConsoleImpl(
             await redisTask,
             await orleansTask,
             DateTime.UtcNow
+        );
+    }
+
+    public async Task<OperatorList> GetOperators(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var entities = await db.Operators
+           .Where(o => !o.IsDeleted)
+           .OrderByDescending(o => o.CreatedAt)
+           .ToListAsync(ct);
+
+        var operators = entities.Select(MapOperatorInfo).ToList();
+
+        return new OperatorList(new IonArray<OperatorInfo>(operators));
+    }
+
+    public async Task<OperatorDetails> GetOperatorDetails(Guid operatorId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var op = await db.Operators
+                    .Include(o => o.User)
+                    .FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct)
+                 ?? throw new InvalidOperationException("Operator not found");
+
+        var info = MapOperatorInfo(op);
+        var linkedUsername = op.User?.Username;
+
+        return new OperatorDetails(info, linkedUsername);
+    }
+
+    public async Task<CreateOperatorResult> CreateOperator(CreateOperatorInput input, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new CreateOperatorResult(false, null, "Only system operators can create new operators");
+
+            if (string.IsNullOrWhiteSpace(input.displayName) || string.IsNullOrWhiteSpace(input.email))
+                return new CreateOperatorResult(false, null, "Display name and email are required");
+
+            var exists = await db.Operators.AnyAsync(o => o.Email == input.email && !o.IsDeleted, ct);
+            if (exists)
+                return new CreateOperatorResult(false, null, "An operator with this email already exists");
+
+            if (input.userId.HasValue)
+            {
+                var userExists = await db.Users.AnyAsync(u => u.Id == input.userId.Value, ct);
+                if (!userExists)
+                    return new CreateOperatorResult(false, null, "Linked user not found");
+
+                var alreadyLinked = await db.Operators.AnyAsync(o => o.UserId == input.userId.Value && !o.IsDeleted, ct);
+                if (alreadyLinked)
+                    return new CreateOperatorResult(false, null, "This user is already linked to another operator");
+            }
+
+            var entity = new OperatorEntity
+            {
+                DisplayName      = input.displayName.Trim(),
+                Email            = input.email.Trim().ToLowerInvariant(),
+                UserId           = input.userId,
+                IsActive         = true,
+                IsSystemOperator = input.isSystemOperator
+            };
+
+            db.Operators.Add(entity);
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Created operator={OperatorId} email={Email}", entity.Id, entity.Email);
+
+            return new CreateOperatorResult(true, entity.Id, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create operator");
+            return new CreateOperatorResult(false, null, "Failed to create operator");
+        }
+    }
+
+    public async Task<OperatorActionResult> DeactivateOperator(Guid operatorId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (caller.OperatorId == operatorId)
+                return new OperatorActionResult(false, "Cannot deactivate yourself");
+
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorActionResult(false, "Only system operators can deactivate other operators");
+
+            var op = await db.Operators.FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct);
+            if (op is null)
+                return new OperatorActionResult(false, "Operator not found");
+
+            if (!op.IsActive)
+                return new OperatorActionResult(false, "Operator is already inactive");
+
+            op.IsActive = false;
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Operator={CallerId} deactivated operator={OperatorId}", caller.OperatorId, operatorId);
+            return new OperatorActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to deactivate operator={OperatorId}", operatorId);
+            return new OperatorActionResult(false, "Failed to deactivate operator");
+        }
+    }
+
+    public async Task<OperatorActionResult> ActivateOperator(Guid operatorId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorActionResult(false, "Only system operators can activate other operators");
+
+            var op = await db.Operators.FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct);
+            if (op is null)
+                return new OperatorActionResult(false, "Operator not found");
+
+            if (op.IsActive)
+                return new OperatorActionResult(false, "Operator is already active");
+
+            op.IsActive = true;
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Operator={CallerId} activated operator={OperatorId}", caller.OperatorId, operatorId);
+            return new OperatorActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to activate operator={OperatorId}", operatorId);
+            return new OperatorActionResult(false, "Failed to activate operator");
+        }
+    }
+
+    public async Task<OperatorActionResult> RevokeOperatorCertificate(Guid operatorId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (caller.OperatorId == operatorId)
+                return new OperatorActionResult(false, "Cannot revoke your own certificate");
+
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorActionResult(false, "Only system operators can revoke certificates");
+
+            await certificateService.RevokeCertificateAsync(operatorId);
+
+            logger.LogInformation("Operator={CallerId} revoked certificate for operator={OperatorId}", caller.OperatorId, operatorId);
+            return new OperatorActionResult(true, null);
+        }
+        catch (InvalidOperationException ex)
+        {
+            return new OperatorActionResult(false, ex.Message);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to revoke certificate for operator={OperatorId}", operatorId);
+            return new OperatorActionResult(false, "Failed to revoke certificate");
+        }
+    }
+
+    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(Guid operatorId, string csrPem, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var caller = OperatorRequestContext.Current;
+        if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+            return new EnrollCertificateResult(false, null, null, null, null, "Only system operators can enroll certificates");
+
+        var result = await certificateService.EnrollCertificateAsync(operatorId, csrPem);
+
+        if (result.IsSuccess)
+        {
+            var s = result.Value;
+            return new EnrollCertificateResult(
+                true,
+                s.CertificatePem,
+                s.CaChainPem,
+                s.SerialNumber,
+                s.NotAfter.UtcDateTime,
+                null);
+        }
+
+        var errorMessage = result.Error switch
+        {
+            EnrollmentError.OperatorNotFound  => "Operator not found",
+            EnrollmentError.OperatorInactive  => "Operator is inactive",
+            EnrollmentError.InvalidCsr        => "Invalid CSR format",
+            EnrollmentError.CsrKeyTooSmall    => "CSR key size is too small (min RSA 2048, EC 256)",
+            EnrollmentError.VaultSigningFailed => "Vault PKI signing failed",
+            _                                 => "Unknown error"
+        };
+
+        return new EnrollCertificateResult(false, null, null, null, null, errorMessage);
+    }
+
+    private static OperatorInfo MapOperatorInfo(OperatorEntity op)
+    {
+        OperatorCertificateInfo? certInfo = null;
+        if (!string.IsNullOrEmpty(op.CertificateSerialNumber))
+        {
+            certInfo = new OperatorCertificateInfo(
+                op.CertificateSerialNumber,
+                op.CertificateThumbprint ?? "",
+                op.CertificateSubject ?? "",
+                op.CertificateNotBefore?.UtcDateTime ?? DateTime.MinValue,
+                op.CertificateNotAfter?.UtcDateTime ?? DateTime.MinValue,
+                op.CertificateNotAfter.HasValue && op.CertificateNotAfter.Value < DateTimeOffset.UtcNow
+            );
+        }
+
+        return new OperatorInfo(
+            op.Id,
+            op.DisplayName,
+            op.Email,
+            op.UserId,
+            op.IsActive,
+            op.IsSystemOperator,
+            certInfo,
+            op.LastAuthAt?.UtcDateTime,
+            op.CreatedAt.UtcDateTime
         );
     }
 }

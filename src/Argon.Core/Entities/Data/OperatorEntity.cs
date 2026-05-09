@@ -14,6 +14,7 @@ public record OperatorEntity : ArgonEntity, IEntityTypeConfiguration<OperatorEnt
     public          DateTimeOffset? CertificateNotBefore { get; set; }
     public          DateTimeOffset? CertificateNotAfter  { get; set; }
     public          bool    IsActive                { get; set; } = true;
+    public          bool    IsSystemOperator        { get; set; }
     public          DateTimeOffset? LastAuthAt       { get; set; }
 
     public void Configure(EntityTypeBuilder<OperatorEntity> builder)

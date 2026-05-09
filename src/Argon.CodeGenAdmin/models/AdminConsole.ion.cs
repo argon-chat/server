@@ -139,6 +139,38 @@ public sealed record OrleansDiagnostics(string clusterId, string siloName, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorList(IonArray<OperatorInfo> operators);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorInfo(guid operatorId, string displayName, string email, guid? userId, bool isActive, bool isSystemOperator, OperatorCertificateInfo? certificate, datetime? lastAuthAt, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorCertificateInfo(string serialNumber, string thumbprint, string subject, datetime notBefore, datetime notAfter, bool isExpired);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorDetails(OperatorInfo info, string? linkedUsername);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateOperatorInput(string displayName, string email, guid? userId, bool isSystemOperator);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateOperatorResult(bool success, guid? operatorId, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorActionResult(bool success, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EnrollCertificateResult(bool success, string? certificatePem, string? caChainPem, string? serialNumber, datetime? notAfter, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -214,6 +246,13 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> RemovePhoneNumber(guid userId, CancellationToken ct = default);
     Task<UserActionResult> ChangeEmail(guid userId, string newEmail, CancellationToken ct = default);
     Task<DiagnosticsResult> GetDiagnostics(CancellationToken ct = default);
+    Task<OperatorList> GetOperators(CancellationToken ct = default);
+    Task<OperatorDetails> GetOperatorDetails(guid operatorId, CancellationToken ct = default);
+    Task<CreateOperatorResult> CreateOperator(CreateOperatorInput input, CancellationToken ct = default);
+    Task<OperatorActionResult> DeactivateOperator(guid operatorId, CancellationToken ct = default);
+    Task<OperatorActionResult> ActivateOperator(guid operatorId, CancellationToken ct = default);
+    Task<OperatorActionResult> RevokeOperatorCertificate(guid operatorId, CancellationToken ct = default);
+    Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, CancellationToken ct = default);
 }
 
 

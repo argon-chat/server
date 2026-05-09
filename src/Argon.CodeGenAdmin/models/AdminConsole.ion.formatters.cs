@@ -995,6 +995,224 @@ public sealed class Ion_OrleansDiagnostics_Formatter : IonFormatter<OrleansDiagn
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorList_Formatter : IonFormatter<OperatorList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __operators = IonFormatterStorage<OperatorInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__operators);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<OperatorInfo>.WriteArray(writer, value.operators);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorInfo_Formatter : IonFormatter<OperatorInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __email = IonFormatterStorage<string>.Read(reader);
+        var __userid = reader.ReadNullable<guid>();
+        var __isactive = IonFormatterStorage<bool>.Read(reader);
+        var __issystemoperator = IonFormatterStorage<bool>.Read(reader);
+        var __certificate = reader.ReadNullable<OperatorCertificateInfo>();
+        var __lastauthat = reader.ReadNullable<datetime>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__operatorid, __displayname, __email, __userid, __isactive, __issystemoperator, __certificate, __lastauthat, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorInfo value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<guid>.Write(writer, value.operatorId);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.Write(writer, value.email);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.userId);
+        IonFormatterStorage<bool>.Write(writer, value.isActive);
+        IonFormatterStorage<bool>.Write(writer, value.isSystemOperator);
+        IonFormatterStorage<OperatorCertificateInfo>.WriteNullable(writer, value.certificate);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastAuthAt);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorCertificateInfo_Formatter : IonFormatter<OperatorCertificateInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorCertificateInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __serialnumber = IonFormatterStorage<string>.Read(reader);
+        var __thumbprint = IonFormatterStorage<string>.Read(reader);
+        var __subject = IonFormatterStorage<string>.Read(reader);
+        var __notbefore = IonFormatterStorage<datetime>.Read(reader);
+        var __notafter = IonFormatterStorage<datetime>.Read(reader);
+        var __isexpired = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__serialnumber, __thumbprint, __subject, __notbefore, __notafter, __isexpired);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorCertificateInfo value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<string>.Write(writer, value.serialNumber);
+        IonFormatterStorage<string>.Write(writer, value.thumbprint);
+        IonFormatterStorage<string>.Write(writer, value.subject);
+        IonFormatterStorage<datetime>.Write(writer, value.notBefore);
+        IonFormatterStorage<datetime>.Write(writer, value.notAfter);
+        IonFormatterStorage<bool>.Write(writer, value.isExpired);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorDetails_Formatter : IonFormatter<OperatorDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __info = IonFormatterStorage<OperatorInfo>.Read(reader);
+        var __linkedusername = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__info, __linkedusername);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorDetails value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<OperatorInfo>.Write(writer, value.info);
+        IonFormatterStorage<string>.WriteNullable(writer, value.linkedUsername);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateOperatorInput_Formatter : IonFormatter<CreateOperatorInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateOperatorInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __email = IonFormatterStorage<string>.Read(reader);
+        var __userid = reader.ReadNullable<guid>();
+        var __issystemoperator = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__displayname, __email, __userid, __issystemoperator);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateOperatorInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.Write(writer, value.email);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.userId);
+        IonFormatterStorage<bool>.Write(writer, value.isSystemOperator);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateOperatorResult_Formatter : IonFormatter<CreateOperatorResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateOperatorResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __operatorid = reader.ReadNullable<guid>();
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __operatorid, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateOperatorResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.operatorId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorActionResult_Formatter : IonFormatter<OperatorActionResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorActionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__success, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorActionResult value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_EnrollCertificateResult_Formatter : IonFormatter<EnrollCertificateResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public EnrollCertificateResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __certificatepem = reader.ReadNullable<string>();
+        var __cachainpem = reader.ReadNullable<string>();
+        var __serialnumber = reader.ReadNullable<string>();
+        var __notafter = reader.ReadNullable<datetime>();
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__success, __certificatepem, __cachainpem, __serialnumber, __notafter, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, EnrollCertificateResult value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.WriteNullable(writer, value.certificatePem);
+        IonFormatterStorage<string>.WriteNullable(writer, value.caChainPem);
+        IonFormatterStorage<string>.WriteNullable(writer, value.serialNumber);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.notAfter);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
