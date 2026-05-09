@@ -151,7 +151,7 @@ public sealed record OperatorCertificateInfo(string serialNumber, string thumbpr
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record OperatorDetails(OperatorInfo info, string? linkedUsername);
+public sealed record OperatorDetails(OperatorInfo info, UserAccountInfo? linkedUser, ArgonUserProfile? linkedProfile, IonArray<AuditEntry> recentAuditEntries);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -168,6 +168,18 @@ public sealed record OperatorActionResult(bool success, string? error);
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record EnrollCertificateResult(bool success, string? certificatePem, string? caChainPem, string? serialNumber, datetime? notAfter, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AuditLogQuery(guid? operatorId, string? action, string? targetId, datetime? fromDate, datetime? toDate, i4 page, i4 pageSize);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AuditLogPage(IonArray<AuditEntry> entries, i4 totalCount, i4 page, i4 pageSize);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AuditEntry(guid auditId, guid operatorId, string operatorEmail, string action, string? targetType, string? targetId, string? details, datetime timestamp);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -253,6 +265,7 @@ public interface IAdminConsole : IIonService
     Task<OperatorActionResult> ActivateOperator(guid operatorId, CancellationToken ct = default);
     Task<OperatorActionResult> RevokeOperatorCertificate(guid operatorId, CancellationToken ct = default);
     Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, CancellationToken ct = default);
+    Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default);
 }
 
 

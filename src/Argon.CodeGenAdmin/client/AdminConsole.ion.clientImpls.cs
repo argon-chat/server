@@ -68,6 +68,8 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(RevokeOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> EnrollOperatorCertificate_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(EnrollOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetAuditLog_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetAuditLog), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -504,6 +506,23 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<EnrollCertificateResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AuditLogPage> GetAuditLog(AuditLogQuery __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetAuditLog_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<AuditLogQuery>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AuditLogPage>(writer.Encode(), ct: ct);
     }
 
 }

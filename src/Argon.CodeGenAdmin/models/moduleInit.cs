@@ -59,6 +59,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CreateOperatorResult>.Value = new Ion_CreateOperatorResult_Formatter();
       IonFormatterStorage<OperatorActionResult>.Value = new Ion_OperatorActionResult_Formatter();
       IonFormatterStorage<EnrollCertificateResult>.Value = new Ion_EnrollCertificateResult_Formatter();
+      IonFormatterStorage<AuditLogQuery>.Value = new Ion_AuditLogQuery_Formatter();
+      IonFormatterStorage<AuditLogPage>.Value = new Ion_AuditLogPage_Formatter();
+      IonFormatterStorage<AuditEntry>.Value = new Ion_AuditEntry_Formatter();
       IonFormatterStorage<SearchMatchKind>.Value = new Ion_SearchMatchKind_Formatter();
       IonFormatterStorage<ArgonAuthMode>.Value = new Ion_ArgonAuthMode_Formatter();
       IonFormatterStorage<OtpMethod>.Value = new Ion_OtpMethod_Formatter();

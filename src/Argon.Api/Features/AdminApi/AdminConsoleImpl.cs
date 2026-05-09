@@ -18,7 +18,8 @@ public class AdminConsoleImpl(
     NatsDiagnosticsService? natsDiagnostics,
     RedisDiagnosticsService? redisDiagnostics,
     OrleansDiagnosticsService? orleansDiagnostics,
-    IOperatorCertificateService certificateService
+    IOperatorCertificateService certificateService,
+    IOperatorAuditService auditService
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -799,6 +800,8 @@ public class AdminConsoleImpl(
             user.LockDownIsAppealable = isAppealable;
 
             await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("BlockUser", "User", userId.ToString(),
+                $"Reason={reason}, expiration={expiration}, appealable={isAppealable}");
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -822,6 +825,7 @@ public class AdminConsoleImpl(
             user.LockDownIsAppealable = false;
 
             await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("UnblockUser", "User", userId.ToString());
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -843,6 +847,7 @@ public class AdminConsoleImpl(
             var grain = grainFactory.GetGrain<IUserLevelGrain>(userId);
             await grain.AwardXpAsync(amount, XpSource.Event);
 
+            await auditService.LogAsync("GrantXp", "User", userId.ToString(), $"Amount={amount}");
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -864,9 +869,11 @@ public class AdminConsoleImpl(
             var inventoryGrain = grainFactory.GetGrain<IInventoryGrain>(Guid.Empty);
             var success = await inventoryGrain.GiveItemFor(userId, itemId, ct);
 
-            return success
-                ? new UserActionResult(true, null)
-                : new UserActionResult(false, "Failed to grant item");
+            if (!success)
+                return new UserActionResult(false, "Failed to grant item");
+
+            await auditService.LogAsync("GrantItem", "User", userId.ToString(), $"ItemId={itemId}");
+            return new UserActionResult(true, null);
         }
         catch (Exception ex)
         {
@@ -892,6 +899,7 @@ public class AdminConsoleImpl(
             user.Username = newUsername;
             await db.SaveChangesAsync(ct);
 
+            await auditService.LogAsync("ChangeUsername", "User", userId.ToString(), $"NewUsername={newUsername}");
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -914,6 +922,7 @@ public class AdminConsoleImpl(
             user.TotpSecret = null;
             await db.SaveChangesAsync(ct);
 
+            await auditService.LogAsync("RemoveTwoFactor", "User", userId.ToString());
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -936,6 +945,7 @@ public class AdminConsoleImpl(
             user.PhoneNumber = null;
             await db.SaveChangesAsync(ct);
 
+            await auditService.LogAsync("RemovePhoneNumber", "User", userId.ToString());
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -962,6 +972,7 @@ public class AdminConsoleImpl(
             user.Email = newEmail;
             await db.SaveChangesAsync(ct);
 
+            await auditService.LogAsync("ChangeEmail", "User", userId.ToString(), $"NewEmail={newEmail}");
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -1012,13 +1023,41 @@ public class AdminConsoleImpl(
 
         var op = await db.Operators
                     .Include(o => o.User)
+                    .ThenInclude(u => u!.Profile)
                     .FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct)
                  ?? throw new InvalidOperationException("Operator not found");
 
         var info = MapOperatorInfo(op);
-        var linkedUsername = op.User?.Username;
 
-        return new OperatorDetails(info, linkedUsername);
+        UserAccountInfo? account = null;
+        ArgonUserProfile? profile = null;
+        if (op.User is { } user)
+        {
+            account = new UserAccountInfo(
+                user.Id,
+                user.Username,
+                user.DisplayName,
+                user.Email,
+                user.PhoneNumber,
+                user.AvatarFileId,
+                user.DateOfBirth,
+                user.CreatedAt.UtcDateTime,
+                (LockdownReason)(int)user.LockdownReason,
+                user.LockDownExpiration?.UtcDateTime,
+                user.LockDownIsAppealable,
+                (ArgonAuthMode)(int)user.PreferredAuthMode,
+                (OtpMethod)(int)user.PreferredOtpMethod,
+                user.AgreeTOS,
+                null,
+                0, 0, 0
+            );
+            profile = user.Profile?.ToDto();
+        }
+
+        var recentAudit = await auditService.GetRecentByOperatorAsync(operatorId, 20, ct);
+        var auditEntries = recentAudit.Select(MapAuditEntry).ToList();
+
+        return new OperatorDetails(info, account, profile, new IonArray<AuditEntry>(auditEntries));
     }
 
     public async Task<CreateOperatorResult> CreateOperator(CreateOperatorInput input, CancellationToken ct = default)
@@ -1062,6 +1101,8 @@ public class AdminConsoleImpl(
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Created operator={OperatorId} email={Email}", entity.Id, entity.Email);
+            await auditService.LogAsync("CreateOperator", "Operator", entity.Id.ToString(),
+                $"Created operator '{entity.DisplayName}' ({entity.Email}), system={entity.IsSystemOperator}");
 
             return new CreateOperatorResult(true, entity.Id, null);
         }
@@ -1096,6 +1137,7 @@ public class AdminConsoleImpl(
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Operator={CallerId} deactivated operator={OperatorId}", caller.OperatorId, operatorId);
+            await auditService.LogAsync("DeactivateOperator", "Operator", operatorId.ToString());
             return new OperatorActionResult(true, null);
         }
         catch (Exception ex)
@@ -1127,6 +1169,7 @@ public class AdminConsoleImpl(
             await db.SaveChangesAsync(ct);
 
             logger.LogInformation("Operator={CallerId} activated operator={OperatorId}", caller.OperatorId, operatorId);
+            await auditService.LogAsync("ActivateOperator", "Operator", operatorId.ToString());
             return new OperatorActionResult(true, null);
         }
         catch (Exception ex)
@@ -1152,6 +1195,7 @@ public class AdminConsoleImpl(
             await certificateService.RevokeCertificateAsync(operatorId);
 
             logger.LogInformation("Operator={CallerId} revoked certificate for operator={OperatorId}", caller.OperatorId, operatorId);
+            await auditService.LogAsync("RevokeOperatorCertificate", "Operator", operatorId.ToString());
             return new OperatorActionResult(true, null);
         }
         catch (InvalidOperationException ex)
@@ -1178,6 +1222,8 @@ public class AdminConsoleImpl(
         if (result.IsSuccess)
         {
             var s = result.Value;
+            await auditService.LogAsync("EnrollOperatorCertificate", "Operator", operatorId.ToString(),
+                $"Enrolled certificate serial={s.SerialNumber}");
             return new EnrollCertificateResult(
                 true,
                 s.CertificatePem,
@@ -1198,6 +1244,27 @@ public class AdminConsoleImpl(
         };
 
         return new EnrollCertificateResult(false, null, null, null, null, errorMessage);
+    }
+
+    public async Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default)
+    {
+        var page = Math.Max(0, query.page);
+        var pageSize = Math.Clamp(query.pageSize, 1, 100);
+
+        var (entries, totalCount) = await auditService.QueryAsync(
+            query.operatorId, query.action, query.targetId,
+            query.fromDate.HasValue ? new DateTimeOffset(query.fromDate.Value, TimeSpan.Zero) : null,
+            query.toDate.HasValue ? new DateTimeOffset(query.toDate.Value, TimeSpan.Zero) : null,
+            page, pageSize, ct);
+
+        var mapped = entries.Select(MapAuditEntry).ToList();
+
+        return new AuditLogPage(
+            new IonArray<AuditEntry>(mapped),
+            totalCount,
+            page,
+            pageSize
+        );
     }
 
     private static OperatorInfo MapOperatorInfo(OperatorEntity op)
@@ -1227,4 +1294,16 @@ public class AdminConsoleImpl(
             op.CreatedAt.UtcDateTime
         );
     }
+
+    private static AuditEntry MapAuditEntry(OperatorAuditEntity a)
+        => new(
+            a.Id,
+            a.OperatorId,
+            a.OperatorEmail,
+            a.Action,
+            a.TargetType,
+            a.TargetId,
+            a.Details,
+            a.CreatedAt.UtcDateTime
+        );
 }

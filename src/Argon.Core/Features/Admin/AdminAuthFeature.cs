@@ -13,6 +13,7 @@ public static class AdminAuthFeature
             builder.Configuration.GetSection(VaultPkiOptions.SectionName));
         builder.Services.AddSingleton<IVaultPkiService, VaultPkiService>();
         builder.Services.AddScoped<IOperatorCertificateService, OperatorCertificateService>();
+        builder.Services.AddScoped<IOperatorAuditService, OperatorAuditService>();
 
         return builder.Services;
     }
