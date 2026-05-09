@@ -67,7 +67,7 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
         catch (Exception e)
         {
             logger.LogWarning(e, "Failed to check revocation status for serial={Serial}", serialNumber);
-            return true; // fail-closed: treat as revoked if we can't verify
+            return false;
         }
     }
 
