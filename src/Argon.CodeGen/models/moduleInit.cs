@@ -108,6 +108,16 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
+      IonFormatterStorage<ReportTarget>.Value = new Ion_ReportTarget_Formatter();
+      IonFormatterStorage<CreateReportInput>.Value = new Ion_CreateReportInput_Formatter();
+      IonFormatterStorage<ReportInfo>.Value = new Ion_ReportInfo_Formatter();
+      IonFormatterStorage<UserTrustInfo>.Value = new Ion_UserTrustInfo_Formatter();
+      IonFormatterStorage<ReportTargetKind>.Value = new Ion_ReportTargetKind_Formatter();
+      IonFormatterStorage<ReportCategory>.Value = new Ion_ReportCategory_Formatter();
+      IonFormatterStorage<ReportReason>.Value = new Ion_ReportReason_Formatter();
+      IonFormatterStorage<ReportStatus>.Value = new Ion_ReportStatus_Formatter();
+      IonFormatterStorage<SubmitReportError>.Value = new Ion_SubmitReportError_Formatter();
+      IonFormatterStorage<ISubmitReportResult>.Value = new Ion_ISubmitReportResult_Formatter();
       IonFormatterStorage<SecurityDetails>.Value = new Ion_SecurityDetails_Formatter();
       IonFormatterStorage<Passkey>.Value = new Ion_Passkey_Formatter();
       IonFormatterStorage<PasskeyCredentialDescriptor>.Value = new Ion_PasskeyCredentialDescriptor_Formatter();
@@ -313,6 +323,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CertificateErrorAuthStatus>.Value = new Ion_CertificateErrorAuthStatus_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
+      IonFormatterStorage<SuccessSubmitReport>.Value = new Ion_SuccessSubmitReport_Formatter();
+      IonFormatterStorage<FailedSubmitReport>.Value = new Ion_FailedSubmitReport_Formatter();
       IonFormatterStorage<SuccessRequestEmailChange>.Value = new Ion_SuccessRequestEmailChange_Formatter();
       IonFormatterStorage<FailedRequestEmailChange>.Value = new Ion_FailedRequestEmailChange_Formatter();
       IonFormatterStorage<SuccessConfirmEmailChange>.Value = new Ion_SuccessConfirmEmailChange_Formatter();
@@ -378,6 +390,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_UserChatInteractions_ServiceExecutor>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_ReportInteraction_ServiceExecutor>("IReportInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_SecurityInteraction_ServiceExecutor>("ISecurityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_UltimaInteraction_ServiceExecutor>("IUltimaInteraction");
@@ -394,6 +407,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_UserChatInteractions_ClientImpl>("IUserChatInteractions");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_ReportInteraction_ClientImpl>("IReportInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_SecurityInteraction_ClientImpl>("ISecurityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_UltimaInteraction_ClientImpl>("IUltimaInteraction");

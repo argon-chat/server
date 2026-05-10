@@ -62,44 +62,11 @@ builder.Services.Configure<AccountDeletionOptions>(
     builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
 
 builder.AddContentModeration();
+builder.AddReportSystem();
 builder.AddOperatorAuth();
 builder.UseIonPorts();
 
 var app = builder.Build();
-
-app.Map("/debug", (HttpContext context) =>
-{
-    var request = context.Request;
-    var connection = context.Connection;
-
-    var result = new
-    {
-        Request = new
-        {
-            request.Method,
-            request.Scheme,
-            request.Protocol,
-            Host = request.Host.ToString(),
-            request.Path,
-            PathBase = request.PathBase.ToString(),
-            QueryString = request.QueryString.ToString(),
-            ContentType = request.ContentType,
-            ContentLength = request.ContentLength,
-        },
-        Connection = new
-        {
-            RemoteIpAddress = connection.RemoteIpAddress?.ToString(),
-            RemotePort = connection.RemotePort,
-            LocalIpAddress = connection.LocalIpAddress?.ToString(),
-            LocalPort = connection.LocalPort,
-        },
-        Headers = request.Headers
-            .OrderBy(h => h.Key)
-            .ToDictionary(h => h.Key, h => h.Value.ToString()),
-    };
-
-    return Results.Json(result, statusCode: 200);
-});
 
 app.UseSentryTunneling("/k");
 if (builder.Environment.IsSingleInstance())

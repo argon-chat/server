@@ -89,12 +89,17 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AdminTransactionInfo>.Value = new Ion_AdminTransactionInfo_Formatter();
       IonFormatterStorage<AdminTransactionDetails>.Value = new Ion_AdminTransactionDetails_Formatter();
       IonFormatterStorage<AdminTransactionItemInfo>.Value = new Ion_AdminTransactionItemInfo_Formatter();
+      IonFormatterStorage<AdminReportPage>.Value = new Ion_AdminReportPage_Formatter();
+      IonFormatterStorage<AdminReportEntry>.Value = new Ion_AdminReportEntry_Formatter();
+      IonFormatterStorage<ResolveReportInput>.Value = new Ion_ResolveReportInput_Formatter();
+      IonFormatterStorage<AdminUserTrustCard>.Value = new Ion_AdminUserTrustCard_Formatter();
       IonFormatterStorage<SearchMatchKind>.Value = new Ion_SearchMatchKind_Formatter();
       IonFormatterStorage<DeviceTypeKind>.Value = new Ion_DeviceTypeKind_Formatter();
       IonFormatterStorage<ItemScenarioKind>.Value = new Ion_ItemScenarioKind_Formatter();
       IonFormatterStorage<AdminBotLifecycleState>.Value = new Ion_AdminBotLifecycleState_Formatter();
       IonFormatterStorage<AdminDevAppType>.Value = new Ion_AdminDevAppType_Formatter();
       IonFormatterStorage<SpaceSearchMatchKind>.Value = new Ion_SpaceSearchMatchKind_Formatter();
+      IonFormatterStorage<ReportActionKind>.Value = new Ion_ReportActionKind_Formatter();
       IonExecutorMetadataStorage.AddExecutor<Ion_AdminConsole_ServiceExecutor>("IAdminConsole");
       IonExecutorMetadataStorage.AddClient<Ion_AdminConsole_ClientImpl>("IAdminConsole");
 

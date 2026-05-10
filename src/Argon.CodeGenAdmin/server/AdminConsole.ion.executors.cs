@@ -821,6 +821,112 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<UserActionResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetReports_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __status = reader.ReadNullable<ReportStatus>();
+        var __category = reader.ReadNullable<ReportCategory>();
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetReports(__status, __category, __limit, __offset);
+        
+        IonFormatterStorage<AdminReportPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetReportById_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __reportid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetReportById(__reportid);
+        
+        IonFormatterStorage<AdminReportEntry>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ResolveReport_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<ResolveReportInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ResolveReport(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AssignReport_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __reportid = IonFormatterStorage<guid>.Read(reader);
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.AssignReport(__reportid, __operatorid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetUserTrustCard_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetUserTrustCard(__userid);
+        
+        IonFormatterStorage<AdminUserTrustCard>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RecalculateUserTrust_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RecalculateUserTrust(__userid);
+        
+        IonFormatterStorage<AdminUserTrustCard>.Write(writer, result);
+    }
 
     
     
@@ -920,6 +1026,18 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return BeginUploadUserAvatar_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadUserAvatar", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadUserAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("GetReports", StringComparison.InvariantCultureIgnoreCase))
+            return GetReports_Execute(reader, writer, ct);
+        if (methodName.Equals("GetReportById", StringComparison.InvariantCultureIgnoreCase))
+            return GetReportById_Execute(reader, writer, ct);
+        if (methodName.Equals("ResolveReport", StringComparison.InvariantCultureIgnoreCase))
+            return ResolveReport_Execute(reader, writer, ct);
+        if (methodName.Equals("AssignReport", StringComparison.InvariantCultureIgnoreCase))
+            return AssignReport_Execute(reader, writer, ct);
+        if (methodName.Equals("GetUserTrustCard", StringComparison.InvariantCultureIgnoreCase))
+            return GetUserTrustCard_Execute(reader, writer, ct);
+        if (methodName.Equals("RecalculateUserTrust", StringComparison.InvariantCultureIgnoreCase))
+            return RecalculateUserTrust_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

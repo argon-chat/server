@@ -110,6 +110,18 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(BeginUploadUserAvatar), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadUserAvatar_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(CompleteUploadUserAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetReports_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetReports), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetReportById_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetReportById), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ResolveReport_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ResolveReport), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AssignReport_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(AssignReport), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetUserTrustCard_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetUserTrustCard), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RecalculateUserTrust_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(RecalculateUserTrust), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -916,6 +928,112 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminReportPage> GetReports(ReportStatus? __status, ReportCategory? __category, i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetReports_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<ReportStatus>.WriteNullable(writer, __status);
+        IonFormatterStorage<ReportCategory>.WriteNullable(writer, __category);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminReportPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminReportEntry> GetReportById(guid __reportid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetReportById_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __reportid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminReportEntry>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ResolveReport(ResolveReportInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ResolveReport_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<ResolveReportInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> AssignReport(guid __reportid, guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), AssignReport_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __reportid);
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminUserTrustCard> GetUserTrustCard(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetUserTrustCard_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminUserTrustCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminUserTrustCard> RecalculateUserTrust(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), RecalculateUserTrust_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminUserTrustCard>(writer.Encode(), ct: ct);
     }
 
 }

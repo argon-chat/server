@@ -291,6 +291,22 @@ public sealed record AdminTransactionItemInfo(guid itemId, string templateId, da
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminReportPage(IonArray<AdminReportEntry> reports, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminReportEntry(guid reportId, guid reporterId, string reporterUsername, ReportTarget target, string targetDisplayName, ReportCategory category, ReportReason reason, string? additionalInfo, ReportStatus status, guid? referenceReportId, guid? assignedOperatorId, string? resolutionNote, datetime createdAt, datetime? resolvedAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ResolveReportInput(guid reportId, ReportStatus status, string? resolutionNote, ReportActionKind applyAction);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminUserTrustCard(guid userId, string username, i4 trustScore, i4 totalReportsReceived, i4 confirmedReportsReceived, i4 totalReportsFiled, i4 falseReportsFiled, i4 autoActionsApplied, duration accountAge, datetime lastActivity);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -354,6 +370,19 @@ public enum SpaceSearchMatchKind
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ReportActionKind
+{
+    NONE = 0,
+    WARN_USER = 1,
+    MUTE_USER = 2,
+    RESTRICT_USER = 3,
+    BAN_USER = 4,
+    DELETE_CONTENT = 5,
+    QUARANTINE_CONTENT = 6,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IAdminConsole : IIonService
 {
     Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default);
@@ -402,6 +431,12 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> ChangeUserOtpMethod(guid userId, OtpMethod otpMethod, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadUserAvatar(guid userId, CancellationToken ct = default);
     Task<UserActionResult> CompleteUploadUserAvatar(guid userId, guid blobId, CancellationToken ct = default);
+    Task<AdminReportPage> GetReports(ReportStatus? status, ReportCategory? category, i4 limit, i4 offset, CancellationToken ct = default);
+    Task<AdminReportEntry> GetReportById(guid reportId, CancellationToken ct = default);
+    Task<UserActionResult> ResolveReport(ResolveReportInput input, CancellationToken ct = default);
+    Task<UserActionResult> AssignReport(guid reportId, guid operatorId, CancellationToken ct = default);
+    Task<AdminUserTrustCard> GetUserTrustCard(guid userId, CancellationToken ct = default);
+    Task<AdminUserTrustCard> RecalculateUserTrust(guid userId, CancellationToken ct = default);
 }
 
 

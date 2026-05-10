@@ -99,6 +99,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Reports & Trust
+
+    public DbSet<ReportEntity>         Reports         => Set<ReportEntity>();
+    public DbSet<UserTrustScoreEntity> UserTrustScores => Set<UserTrustScoreEntity>();
+
+#endregion
+
 #region Operators
 
     public DbSet<OperatorEntity> Operators => Set<OperatorEntity>();
