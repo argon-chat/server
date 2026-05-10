@@ -70,6 +70,46 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(EnrollOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAuditLog_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetAuditLog), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SearchBot_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SearchBot), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetBotCard_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetBotCard), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetBotVerified_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetBotVerified), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetBotMaxSpaces_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetBotMaxSpaces), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetBotInternalApp_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetBotInternalApp), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetBotLifecycleState_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetBotLifecycleState), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SearchTeam_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SearchTeam), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetTeamCard_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetTeamCard), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SearchSpace_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SearchSpace), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSpaceCard_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetSpaceCard), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSpaceMembers_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetSpaceMembers), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CancelUserSubscription_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CancelUserSubscription), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ExpireUserSubscription_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ExpireUserSubscription), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GrantPremium_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GrantPremium), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetUserTransactions_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetUserTransactions), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetTransactionByXsollaId_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetTransactionByXsollaId), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ChangeUserAuthMode_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ChangeUserAuthMode), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ChangeUserOtpMethod_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ChangeUserOtpMethod), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadUserAvatar_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(BeginUploadUserAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadUserAvatar_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CompleteUploadUserAvatar), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -523,6 +563,359 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AuditLogPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminBotSearchResult> SearchBot(string __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SearchBot_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminBotSearchResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminBotCard> GetBotCard(guid __appid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetBotCard_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminBotCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetBotVerified(guid __appid, bool __isverified, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetBotVerified_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        IonFormatterStorage<bool>.Write(writer, __isverified);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetBotMaxSpaces(guid __appid, i4 __maxspaces, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetBotMaxSpaces_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        IonFormatterStorage<i4>.Write(writer, __maxspaces);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetBotInternalApp(guid __appid, bool __isinternalapp, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetBotInternalApp_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        IonFormatterStorage<bool>.Write(writer, __isinternalapp);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetBotLifecycleState(guid __appid, AdminBotLifecycleState __state, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetBotLifecycleState_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        IonFormatterStorage<AdminBotLifecycleState>.Write(writer, __state);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminTeamSearchResult> SearchTeam(string __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SearchTeam_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminTeamSearchResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminTeamCard> GetTeamCard(guid __teamid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetTeamCard_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __teamid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminTeamCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminSpaceSearchResult> SearchSpace(string __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SearchSpace_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminSpaceSearchResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminSpaceCard> GetSpaceCard(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetSpaceCard_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminSpaceCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminSpaceMemberPage> GetSpaceMembers(guid __spaceid, i4 __offset, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetSpaceMembers_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminSpaceMemberPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> CancelUserSubscription(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CancelUserSubscription_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ExpireUserSubscription(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ExpireUserSubscription_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> GrantPremium(guid __userid, UltimaPlan __tier, i4 __durationdays, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GrantPremium_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<UltimaPlan>.Write(writer, __tier);
+        IonFormatterStorage<i4>.Write(writer, __durationdays);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminTransactionPage> GetUserTransactions(guid __userid, i4 __page, i4 __pagesize, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetUserTransactions_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<i4>.Write(writer, __page);
+        IonFormatterStorage<i4>.Write(writer, __pagesize);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminTransactionPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminTransactionDetails?> GetTransactionByXsollaId(string __xsollatxid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetTransactionByXsollaId_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __xsollatxid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncNullable<AdminTransactionDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ChangeUserAuthMode(guid __userid, ArgonAuthMode __authmode, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ChangeUserAuthMode_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<ArgonAuthMode>.Write(writer, __authmode);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ChangeUserOtpMethod(guid __userid, OtpMethod __otpmethod, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ChangeUserOtpMethod_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<OtpMethod>.Write(writer, __otpmethod);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadUserAvatar(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), BeginUploadUserAvatar_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> CompleteUploadUserAvatar(guid __userid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CompleteUploadUserAvatar_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
     }
 
 }

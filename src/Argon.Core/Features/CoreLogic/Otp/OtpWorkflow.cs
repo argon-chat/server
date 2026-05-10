@@ -1,13 +1,4 @@
-using Argon.Api.Features.CoreLogic.Otp;
-
 namespace Argon.Api.Features.CoreLogic.Otp;
-
-public enum OtpMethod
-{
-    Email,
-    Phone,
-    Totp
-}
 
 public enum OtpPurpose { SignIn, ChangeEmail, ResetPassword }
 public record SendOtpRequest(string Target, Guid UserId, OtpPurpose Purpose, string? DeviceId, OtpMethod Method);

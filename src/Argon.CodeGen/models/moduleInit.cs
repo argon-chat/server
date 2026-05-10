@@ -146,6 +146,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArgonEntitlement>.Value = new Ion_ArgonEntitlement_Formatter();
       IonFormatterStorage<UserFlag>.Value = new Ion_UserFlag_Formatter();
       IonFormatterStorage<ArgonIonTicket>.Value = new Ion_ArgonIonTicket_Formatter();
+      IonFormatterStorage<ArgonAuthMode>.Value = new Ion_ArgonAuthMode_Formatter();
+      IonFormatterStorage<OtpMethod>.Value = new Ion_OtpMethod_Formatter();
       IonFormatterStorage<UltimaPricing>.Value = new Ion_UltimaPricing_Formatter();
       IonFormatterStorage<ProductPrice>.Value = new Ion_ProductPrice_Formatter();
       IonFormatterStorage<UltimaSubscriptionInfo>.Value = new Ion_UltimaSubscriptionInfo_Formatter();

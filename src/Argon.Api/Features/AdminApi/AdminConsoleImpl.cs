@@ -3,6 +3,7 @@ namespace Argon.Api.Features.AdminApi;
 using Argon.Api.Entities.Data;
 using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Api.Grains.Interfaces;
+using Argon.Core.Entities.Data;
 using Argon.Features.Admin;
 using ConsoleContracts;
 using ion.runtime;
@@ -102,11 +103,11 @@ public class AdminConsoleImpl(
             user.AvatarFileId,
             user.DateOfBirth,
             user.CreatedAt.UtcDateTime,
-            (LockdownReason)(int)user.LockdownReason,
+            user.LockdownReason,
             user.LockDownExpiration?.UtcDateTime,
             user.LockDownIsAppealable,
-            (ArgonAuthMode)(int)user.PreferredAuthMode,
-            (OtpMethod)(int)user.PreferredOtpMethod,
+            user.PreferredAuthMode,
+            user.PreferredOtpMethod,
             user.AgreeTOS,
             lastLogin?.UtcDateTime,
             blockedUsersCount,
@@ -298,6 +299,59 @@ public class AdminConsoleImpl(
             ? new AutoDeleteSettingsInfo(autoDeleteEntity.Enabled, autoDeleteEntity.Months)
             : null;
 
+        // Bots owned by user (through team membership)
+        var userTeamIds = await db.MemberTeamEntities
+           .Where(tm => tm.UserId == userId)
+           .Select(tm => tm.TeamId)
+           .ToListAsync(ct);
+
+        var userBots = userTeamIds.Count > 0
+            ? await db.BotEntities
+               .Where(b => userTeamIds.Contains(b.TeamId))
+               .Include(b => b.BotAsUser)
+               .Include(b => b.Team)
+               .Select(b => new AdminUserBotInfo(
+                    b.AppId,
+                    b.Name,
+                    b.BotAsUser.Username,
+                    b.IsVerified,
+                    b.LifecycleState == BotLifecycleState.Published,
+                    b.TeamId,
+                    b.Team.Name
+                ))
+               .ToListAsync(ct)
+            : [];
+
+        // Premium info
+        AdminPremiumInfo? premiumInfo = null;
+        var subscription = await db.UltimaSubscriptions
+           .Where(s => s.UserId == userId)
+           .OrderByDescending(s => s.StartsAt)
+           .FirstOrDefaultAsync(ct);
+
+        if (subscription is not null)
+        {
+            var usedBoostSlots = await db.SpaceBoosts
+               .CountAsync(b => b.SubscriptionId == subscription.Id && b.SpaceId != null, ct);
+            premiumInfo = new AdminPremiumInfo(
+                subscription.Id,
+                (UltimaPlan)(int)subscription.Tier,
+                (UltimaSubscriptionStatus)(int)subscription.Status,
+                subscription.StartsAt.UtcDateTime,
+                subscription.ExpiresAt.UtcDateTime,
+                subscription.AutoRenew,
+                subscription.BoostSlots,
+                usedBoostSlots,
+                subscription.CancelledAt?.UtcDateTime,
+                subscription.XsollaSubscriptionId,
+                subscription.ActivatedFromItemId
+            );
+        }
+
+        // Bot flag & user flags
+        var isBot = user.BotEntityId is not null;
+        var flags = (UserFlag)(int)UserEntity.GetFlags(user);
+
         return new UserCardDetails(
             account,
             profile,
@@ -312,7 +366,11 @@ public class AdminConsoleImpl(
             stats,
             new IonArray<UserTeamInfo>(teamMemberships),
             friendCount,
-            autoDeleteSettings
+            autoDeleteSettings,
+            new IonArray<AdminUserBotInfo>(userBots),
+            premiumInfo,
+            isBot,
+            flags
         );
     }
 
@@ -1042,11 +1100,11 @@ public class AdminConsoleImpl(
                 user.AvatarFileId,
                 user.DateOfBirth,
                 user.CreatedAt.UtcDateTime,
-                (LockdownReason)(int)user.LockdownReason,
+                user.LockdownReason,
                 user.LockDownExpiration?.UtcDateTime,
                 user.LockDownIsAppealable,
-                (ArgonAuthMode)(int)user.PreferredAuthMode,
-                (OtpMethod)(int)user.PreferredOtpMethod,
+                user.PreferredAuthMode,
+                user.PreferredOtpMethod,
                 user.AgreeTOS,
                 null,
                 0, 0, 0
@@ -1266,6 +1324,720 @@ public class AdminConsoleImpl(
             pageSize
         );
     }
+
+    // ===== Bot Management =====
+
+    public async Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new AdminBotSearchResult(false, null);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+
+        // Try GUID first
+        if (Guid.TryParse(query, out var appId))
+        {
+            var bot = await db.BotEntities
+               .Include(b => b.BotAsUser)
+               .Include(b => b.Team)
+               .FirstOrDefaultAsync(b => b.AppId == appId, ct);
+
+            if (bot is not null)
+                return new AdminBotSearchResult(true, MapBotSummary(bot));
+        }
+
+        // Search by bot username or name
+        var byName = await db.BotEntities
+           .Include(b => b.BotAsUser)
+           .Include(b => b.Team)
+           .FirstOrDefaultAsync(b =>
+                b.BotAsUser.NormalizedUsername == normalizedQuery ||
+                b.Name.ToLower() == normalizedQuery, ct);
+
+        return byName is not null
+            ? new AdminBotSearchResult(true, MapBotSummary(byName))
+            : new AdminBotSearchResult(false, null);
+    }
+
+    public async Task<AdminBotCard> GetBotCard(Guid appId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var bot = await db.BotEntities
+                     .Include(b => b.BotAsUser)
+                     .Include(b => b.Team).ThenInclude(t => t.Owner)
+                     .FirstOrDefaultAsync(b => b.AppId == appId, ct)
+                  ?? throw new InvalidOperationException("Bot not found");
+
+        // Installed spaces
+        var botMemberships = await db.UsersToServerRelations
+           .Where(sm => sm.UserId == bot.BotAsUserId && !sm.IsDeleted)
+           .Include(sm => sm.Space)
+           .ToListAsync(ct);
+
+        var installedSpaces = new List<AdminBotSpaceInfo>();
+        foreach (var sm in botMemberships)
+        {
+            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == sm.SpaceId && !x.IsDeleted, ct);
+
+            // Check archetype for entitlements
+            var botArchetype = await db.Archetypes
+               .Where(a => a.SpaceId == sm.SpaceId && a.IsLocked && !a.IsDeleted)
+               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == sm.Id),
+                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
+               .FirstOrDefaultAsync(ct);
+
+            installedSpaces.Add(new AdminBotSpaceInfo(
+                sm.SpaceId,
+                sm.Space.Name,
+                sm.Space.AvatarFileId,
+                memberCount,
+                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
+                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bot.RequiredEntitlements
+            ));
+        }
+
+        // Commands
+        var commands = await db.BotCommands
+           .Where(c => c.AppId == appId)
+           .Select(c => new AdminBotCommandInfo(
+                c.CommandId,
+                c.Name,
+                c.Description,
+                c.Options != null ? c.Options.Count : 0,
+                c.SpaceId == null
+            ))
+           .ToListAsync(ct);
+
+        var team = MapTeamSummary(bot.Team);
+        var creator = new AdminUserSummary(
+            bot.Team.Owner.Id,
+            bot.Team.Owner.Username,
+            bot.Team.Owner.DisplayName,
+            bot.Team.Owner.AvatarFileId
+        );
+
+        return new AdminBotCard(
+            bot.AppId,
+            bot.Name,
+            bot.BotAsUser.Username,
+            bot.Description,
+            bot.BotAsUser.AvatarFileId,
+            bot.IsVerified,
+            bot.IsPublic,
+            bot.IsInternalApp,
+            (AdminBotLifecycleState)(int)bot.LifecycleState,
+            bot.MaxSpaces,
+            botMemberships.Count,
+            (ArgonEntitlement)(ulong)bot.RequiredEntitlements,
+            new IonArray<string>(bot.RequiredScopes),
+            bot.CreatedAt.UtcDateTime,
+            team,
+            creator,
+            new IonArray<AdminBotSpaceInfo>(installedSpaces),
+            new IonArray<AdminBotCommandInfo>(commands)
+        );
+    }
+
+    public async Task<UserActionResult> SetBotVerified(Guid appId, bool isVerified, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
+            if (bot is null) return new UserActionResult(false, "Bot not found");
+
+            bot.IsVerified = isVerified;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("SetBotVerified", "Bot", appId.ToString(), $"IsVerified={isVerified}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> SetBotMaxSpaces(Guid appId, int maxSpaces, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
+            if (bot is null) return new UserActionResult(false, "Bot not found");
+
+            bot.MaxSpaces = maxSpaces;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("SetBotMaxSpaces", "Bot", appId.ToString(), $"MaxSpaces={maxSpaces}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> SetBotInternalApp(Guid appId, bool isInternalApp, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var app = await db.AppEntities.FirstOrDefaultAsync(a => a.AppId == appId, ct);
+            if (app is null) return new UserActionResult(false, "App not found");
+
+            app.IsInternalApp = isInternalApp;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("SetBotInternalApp", "App", appId.ToString(), $"IsInternalApp={isInternalApp}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> SetBotLifecycleState(Guid appId, AdminBotLifecycleState state, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var bot = await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId, ct);
+            if (bot is null) return new UserActionResult(false, "Bot not found");
+
+            bot.LifecycleState = (BotLifecycleState)(int)state;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("SetBotLifecycleState", "Bot", appId.ToString(), $"State={state}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    // ===== Team Management =====
+
+    public async Task<AdminTeamSearchResult> SearchTeam(string query, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new AdminTeamSearchResult(false, null);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        // Try GUID first
+        if (Guid.TryParse(query, out var teamId))
+        {
+            var team = await db.TeamEntities
+               .Include(t => t.Members)
+               .Include(t => t.Applications)
+               .FirstOrDefaultAsync(t => t.TeamId == teamId && !t.IsDeleted, ct);
+
+            if (team is not null)
+                return new AdminTeamSearchResult(true, MapTeamSummary(team));
+        }
+
+        // Search by name
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+        var byName = await db.TeamEntities
+           .Include(t => t.Members)
+           .Include(t => t.Applications)
+           .FirstOrDefaultAsync(t => !t.IsDeleted && t.Name.ToLower() == normalizedQuery, ct);
+
+        return byName is not null
+            ? new AdminTeamSearchResult(true, MapTeamSummary(byName))
+            : new AdminTeamSearchResult(false, null);
+    }
+
+    public async Task<AdminTeamCard> GetTeamCard(Guid teamId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var team = await db.TeamEntities
+                      .Include(t => t.Owner)
+                      .Include(t => t.Members).ThenInclude(m => m.User)
+                      .Include(t => t.Applications)
+                      .FirstOrDefaultAsync(t => t.TeamId == teamId && !t.IsDeleted, ct)
+                   ?? throw new InvalidOperationException("Team not found");
+
+        var owner = new AdminUserSummary(
+            team.Owner.Id,
+            team.Owner.Username,
+            team.Owner.DisplayName,
+            team.Owner.AvatarFileId
+        );
+
+        var members = team.Members.Select(m => new AdminTeamMemberInfo(
+            m.UserId,
+            m.User.Username,
+            m.User.DisplayName,
+            m.User.AvatarFileId,
+            m.IsOwner,
+            m.JoinedAt,
+            new IonArray<string>(m.Claims ?? [])
+        )).ToList();
+
+        var apps = team.Applications.Select(a =>
+        {
+            var isVerified = a is BotEntity bot ? bot.IsVerified : a is ClientAppEntity client && client.IsVerified;
+            return new AdminTeamAppInfo(
+                a.AppId,
+                a.Name,
+                (AdminDevAppType)(int)a.AppType,
+                a.IsInternalApp,
+                isVerified,
+                a.CreatedAt.UtcDateTime
+            );
+        }).ToList();
+
+        return new AdminTeamCard(
+            team.TeamId,
+            team.Name,
+            team.AvatarFileId,
+            owner,
+            team.CreatedAt.UtcDateTime,
+            new IonArray<AdminTeamMemberInfo>(members),
+            new IonArray<AdminTeamAppInfo>(apps)
+        );
+    }
+
+    // ===== Space Management =====
+
+    public async Task<AdminSpaceSearchResult> SearchSpace(string query, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new AdminSpaceSearchResult(false, null, SpaceSearchMatchKind.None);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        // Try GUID first
+        if (Guid.TryParse(query, out var spaceId))
+        {
+            var space = await db.Spaces.FirstOrDefaultAsync(s => s.Id == spaceId && !s.IsDeleted, ct);
+            if (space is not null)
+            {
+                var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == spaceId && !x.IsDeleted, ct);
+                var channelCount = await db.Channels.CountAsync(c => c.SpaceId == spaceId && !c.IsDeleted, ct);
+                return new AdminSpaceSearchResult(true,
+                    new AdminSpaceSummary(space.Id, space.Name, space.AvatarFileId, memberCount, channelCount, space.CreatedAt.UtcDateTime),
+                    SpaceSearchMatchKind.SpaceId);
+            }
+        }
+
+        // Search by name
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+        var byName = await db.Spaces
+           .FirstOrDefaultAsync(s => !s.IsDeleted && s.Name.ToLower() == normalizedQuery, ct);
+
+        if (byName is not null)
+        {
+            var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == byName.Id && !x.IsDeleted, ct);
+            var channelCount = await db.Channels.CountAsync(c => c.SpaceId == byName.Id && !c.IsDeleted, ct);
+            return new AdminSpaceSearchResult(true,
+                new AdminSpaceSummary(byName.Id, byName.Name, byName.AvatarFileId, memberCount, channelCount, byName.CreatedAt.UtcDateTime),
+                SpaceSearchMatchKind.Name);
+        }
+
+        return new AdminSpaceSearchResult(false, null, SpaceSearchMatchKind.None);
+    }
+
+    public async Task<AdminSpaceCard> GetSpaceCard(Guid spaceId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var space = await db.Spaces
+                       .Include(s => s.Channels.Where(c => !c.IsDeleted))
+                       .Include(s => s.ChannelGroups.Where(g => !g.IsDeleted))
+                       .Include(s => s.Archetypes.Where(a => !a.IsDeleted))
+                       .FirstOrDefaultAsync(s => s.Id == spaceId && !s.IsDeleted, ct)
+                    ?? throw new InvalidOperationException("Space not found");
+
+        var creator = await db.Users
+           .Where(u => u.Id == space.CreatorId)
+           .Select(u => new AdminUserSummary(u.Id, u.Username, u.DisplayName, u.AvatarFileId))
+           .FirstOrDefaultAsync(ct) ?? new AdminUserSummary(space.CreatorId, "Unknown", "Unknown", null);
+
+        var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == spaceId && !x.IsDeleted, ct);
+
+        var channels = space.Channels.Select(c => new AdminChannelInfo(
+            c.Id,
+            c.Name,
+            (ChannelType)(int)c.ChannelType,
+            c.Description,
+            c.ChannelGroupId,
+            c.SlowMode.HasValue ? (int)c.SlowMode.Value.TotalSeconds : null,
+            c.DoNotRestrictBoosters,
+            c.LastMessageId
+        )).ToList();
+
+        var channelGroups = space.ChannelGroups.Select(g => new AdminChannelGroupInfo(
+            g.Id,
+            g.Name,
+            g.Description,
+            space.Channels.Count(c => c.ChannelGroupId == g.Id)
+        )).ToList();
+
+        // Archetype member counts
+        var archetypeMemberCounts = await db.MemberArchetypes
+           .Where(ma => space.Archetypes.Select(a => a.Id).Contains(ma.ArchetypeId))
+           .GroupBy(ma => ma.ArchetypeId)
+           .Select(g => new { g.Key, Count = g.Count() })
+           .ToDictionaryAsync(x => x.Key, x => x.Count, ct);
+
+        var archetypes = space.Archetypes.Select(a => new AdminArchetypeInfo(
+            a.Id,
+            a.Name,
+            (ArgonEntitlement)(ulong)a.Entitlement,
+            a.IsDefault,
+            a.IsLocked,
+            a.IsHidden,
+            archetypeMemberCounts.GetValueOrDefault(a.Id, 0)
+        )).ToList();
+
+        // Installed bots
+        var botMembers = await db.UsersToServerRelations
+           .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
+           .Join(db.Users.Where(u => u.BotEntityId != null),
+                sm => sm.UserId, u => u.Id, (sm, u) => new { sm, u })
+           .Join(db.BotEntities,
+                x => x.u.BotEntityId, b => b.AppId, (x, b) => new { x.sm, x.u, b })
+           .ToListAsync(ct);
+
+        var installedBots = new List<AdminSpaceBotInfo>();
+        foreach (var bm in botMembers)
+        {
+            var botArchetype = await db.Archetypes
+               .Where(a => a.SpaceId == spaceId && a.IsLocked && !a.IsDeleted)
+               .Join(db.MemberArchetypes.Where(ma => ma.SpaceMemberId == bm.sm.Id),
+                    a => a.Id, ma => ma.ArchetypeId, (a, _) => a)
+               .FirstOrDefaultAsync(ct);
+
+            installedBots.Add(new AdminSpaceBotInfo(
+                bm.b.AppId,
+                bm.b.Name,
+                bm.u.Username,
+                bm.u.AvatarFileId,
+                bm.b.IsVerified,
+                (ArgonEntitlement)(ulong)(botArchetype?.Entitlement ?? ArgonEntitlement.None),
+                botArchetype is not null && (ulong)botArchetype.Entitlement != (ulong)bm.b.RequiredEntitlements
+            ));
+        }
+
+        // Recent invites (last 10)
+        var invites = await db.Invites
+           .Where(i => i.SpaceId == spaceId)
+           .OrderByDescending(i => i.CreatedAt)
+           .Take(10)
+           .ToListAsync(ct);
+
+        var issuerIds = invites.Select(i => i.CreatorId).Distinct().ToList();
+        var issuerNames = await db.Users
+           .Where(u => issuerIds.Contains(u.Id))
+           .ToDictionaryAsync(u => u.Id, u => u.Username, ct);
+
+        var recentInvites = invites.Select(i => new AdminInviteInfo(
+            i.Id.ToString(),
+            i.CreatorId,
+            issuerNames.GetValueOrDefault(i.CreatorId, "Unknown"),
+            i.ExpireAt.UtcDateTime,
+            0
+        )).ToList();
+
+        return new AdminSpaceCard(
+            space.Id,
+            space.Name,
+            space.Description,
+            space.AvatarFileId,
+            space.TopBannedFileId,
+            space.IsCommunity,
+            space.BoostCount,
+            space.BoostLevel,
+            creator,
+            space.CreatedAt.UtcDateTime,
+            memberCount,
+            space.Channels.Count,
+            botMembers.Count,
+            new IonArray<AdminChannelInfo>(channels),
+            new IonArray<AdminChannelGroupInfo>(channelGroups),
+            new IonArray<AdminArchetypeInfo>(archetypes),
+            new IonArray<AdminSpaceBotInfo>(installedBots),
+            new IonArray<AdminInviteInfo>(recentInvites)
+        );
+    }
+
+    public async Task<AdminSpaceMemberPage> GetSpaceMembers(Guid spaceId, int offset, int limit, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        offset = Math.Max(0, offset);
+        limit = Math.Clamp(limit, 1, 100);
+
+        var totalCount = await db.UsersToServerRelations
+           .CountAsync(sm => sm.SpaceId == spaceId && !sm.IsDeleted, ct);
+
+        var memberEntities = await db.UsersToServerRelations
+           .Where(sm => sm.SpaceId == spaceId && !sm.IsDeleted)
+           .OrderBy(sm => sm.CreatedAt)
+           .Skip(offset)
+           .Take(limit)
+           .Include(sm => sm.User)
+           .Include(sm => sm.SpaceMemberArchetypes).ThenInclude(sma => sma.Archetype)
+           .ToListAsync(ct);
+
+        var members = memberEntities.Select(sm => new AdminSpaceMemberInfo(
+            sm.UserId,
+            sm.User.Username,
+            sm.User.DisplayName,
+            sm.User.AvatarFileId,
+            sm.CreatedAt.UtcDateTime,
+            new IonArray<string>(sm.SpaceMemberArchetypes.Select(sma => sma.Archetype.Name).ToList())
+        )).ToList();
+
+        return new AdminSpaceMemberPage(
+            new IonArray<AdminSpaceMemberInfo>(members),
+            totalCount,
+            offset,
+            limit
+        );
+    }
+
+    // ===== Premium Management =====
+
+    public async Task<UserActionResult> CancelUserSubscription(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            var grain = grainFactory.GetGrain<IUltimaGrain>(userId);
+            var result = await grain.CancelSubscriptionAsync(ct);
+            if (!result)
+                return new UserActionResult(false, "No active subscription to cancel");
+            await auditService.LogAsync("CancelUserSubscription", "User", userId.ToString());
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> ExpireUserSubscription(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            var grain = grainFactory.GetGrain<IUltimaGrain>(userId);
+            await grain.ExpireSubscriptionAsync(ct);
+            await auditService.LogAsync("ExpireUserSubscription", "User", userId.ToString());
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> GrantPremium(Guid userId, UltimaPlan tier, int durationDays, CancellationToken ct = default)
+    {
+        try
+        {
+            var grain = grainFactory.GetGrain<IUltimaGrain>(userId);
+            await grain.ActivateSubscriptionAsync((UltimaTier)(int)tier, durationDays, null, null, ct);
+            await auditService.LogAsync("GrantPremium", "User", userId.ToString(), $"Tier={tier}, Days={durationDays}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    // ===== Payment/Transaction API =====
+
+    public async Task<AdminTransactionPage> GetUserTransactions(Guid userId, int page, int pageSize, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        page = Math.Max(0, page);
+        pageSize = Math.Clamp(pageSize, 1, 100);
+
+        var totalCount = await db.PaymentTransactions.CountAsync(t => t.UserId == userId, ct);
+
+        var username = await db.Users
+           .Where(u => u.Id == userId)
+           .Select(u => u.Username)
+           .FirstOrDefaultAsync(ct) ?? "Unknown";
+
+        var transactions = await db.PaymentTransactions
+           .Where(t => t.UserId == userId)
+           .OrderByDescending(t => t.CreatedAt)
+           .Skip(page * pageSize)
+           .Take(pageSize)
+           .Select(t => new AdminTransactionInfo(
+                t.Id,
+                t.UserId,
+                username,
+                t.XsollaTxId,
+                t.TransactionType,
+                t.PlanExternalId,
+                t.BoostPackType,
+                t.BoostCount,
+                t.Amount,
+                t.Currency,
+                t.RecipientId,
+                t.CardSuffix,
+                t.CardBrand,
+                t.Status,
+                t.CreatedAt.UtcDateTime
+            ))
+           .ToListAsync(ct);
+
+        return new AdminTransactionPage(
+            new IonArray<AdminTransactionInfo>(transactions),
+            totalCount,
+            page,
+            pageSize
+        );
+    }
+
+    public async Task<AdminTransactionDetails?> GetTransactionByXsollaId(string xsollaTxId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var tx = await db.PaymentTransactions
+           .Include(t => t.User)
+           .FirstOrDefaultAsync(t => t.XsollaTxId == xsollaTxId, ct);
+
+        if (tx is null)
+            return null;
+
+        var transactionInfo = new AdminTransactionInfo(
+            tx.Id,
+            tx.UserId,
+            tx.User.Username,
+            tx.XsollaTxId,
+            tx.TransactionType,
+            tx.PlanExternalId,
+            tx.BoostPackType,
+            tx.BoostCount,
+            tx.Amount,
+            tx.Currency,
+            tx.RecipientId,
+            tx.CardSuffix,
+            tx.CardBrand,
+            tx.Status,
+            tx.CreatedAt.UtcDateTime
+        );
+
+        // Related items granted around the same time
+        var relatedItems = await db.Items
+           .Where(i => i.OwnerId == tx.UserId && !i.IsReference &&
+                        i.CreatedAt >= tx.CreatedAt.AddMinutes(-1) &&
+                        i.CreatedAt <= tx.CreatedAt.AddMinutes(5))
+           .Select(i => new AdminTransactionItemInfo(i.Id, i.TemplateId, i.CreatedAt.UtcDateTime))
+           .ToListAsync(ct);
+
+        // Premium info
+        AdminPremiumInfo? premiumInfo = null;
+        var subscription = await db.UltimaSubscriptions
+           .Where(s => s.UserId == tx.UserId)
+           .OrderByDescending(s => s.StartsAt)
+           .FirstOrDefaultAsync(ct);
+
+        if (subscription is not null)
+        {
+            var usedBoostSlots = await db.SpaceBoosts
+               .CountAsync(b => b.SubscriptionId == subscription.Id && b.SpaceId != null, ct);
+            premiumInfo = new AdminPremiumInfo(
+                subscription.Id,
+                (UltimaPlan)(int)subscription.Tier,
+                (UltimaSubscriptionStatus)(int)subscription.Status,
+                subscription.StartsAt.UtcDateTime,
+                subscription.ExpiresAt.UtcDateTime,
+                subscription.AutoRenew,
+                subscription.BoostSlots,
+                usedBoostSlots,
+                subscription.CancelledAt?.UtcDateTime,
+                subscription.XsollaSubscriptionId,
+                subscription.ActivatedFromItemId
+            );
+        }
+
+        return new AdminTransactionDetails(
+            transactionInfo,
+            new IonArray<AdminTransactionItemInfo>(relatedItems),
+            premiumInfo
+        );
+    }
+
+    // ===== User Settings Mutations =====
+
+    public async Task<UserActionResult> ChangeUserAuthMode(Guid userId, ArgonAuthMode authMode, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+            if (user is null) return new UserActionResult(false, "User not found");
+
+            user.PreferredAuthMode = authMode;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("ChangeUserAuthMode", "User", userId.ToString(), $"AuthMode={authMode}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<UserActionResult> ChangeUserOtpMethod(Guid userId, OtpMethod otpMethod, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var user = await db.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
+            if (user is null) return new UserActionResult(false, "User not found");
+
+            user.PreferredOtpMethod = otpMethod;
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("ChangeUserOtpMethod", "User", userId.ToString(), $"OtpMethod={otpMethod}");
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    public async Task<IUploadFileResult> BeginUploadUserAvatar(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            var userGrain = grainFactory.GetGrain<IUserGrain>(userId);
+            var result = await userGrain.BeginUploadUserFile(UserFileKind.Avatar, ct);
+
+            if (result.IsSuccess)
+            {
+                var t = result.Value;
+                var formFields = new IonArray<FormField>(
+                    t.Fields.Select(kv => new FormField(kv.Key, kv.Value)).ToList());
+                return new SuccessUploadFile(t.BlobId, t.Url, formFields, t.TtlSeconds);
+            }
+            return new FailedUploadFile(result.Error);
+        }
+        catch (Exception)
+        {
+            return new FailedUploadFile(UploadFileError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<UserActionResult> CompleteUploadUserAvatar(Guid userId, Guid blobId, CancellationToken ct = default)
+    {
+        try
+        {
+            var userGrain = grainFactory.GetGrain<IUserGrain>(userId);
+            await userGrain.CompleteUploadUserFile(blobId, UserFileKind.Avatar, ct);
+            await auditService.LogAsync("ChangeUserAvatar", "User", userId.ToString());
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
+    }
+
+    // ===== Private Helpers =====
+
+    private static AdminBotSummary MapBotSummary(BotEntity bot) => new(
+        bot.AppId,
+        bot.Name,
+        bot.BotAsUser.Username,
+        bot.Description,
+        bot.BotAsUser.AvatarFileId,
+        bot.IsVerified,
+        bot.IsPublic,
+        bot.TeamId,
+        bot.Team.Name
+    );
+
+    private static AdminTeamSummary MapTeamSummary(DevTeamEntity team) => new(
+        team.TeamId,
+        team.Name,
+        team.AvatarFileId,
+        team.OwnerId,
+        team.Members?.Count ?? 0,
+        team.Applications?.Count ?? 0,
+        team.CreatedAt.UtcDateTime
+    );
 
     private static OperatorInfo MapOperatorInfo(OperatorEntity op)
     {

@@ -468,6 +468,359 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<AuditLogPage>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SearchBot_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __query = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SearchBot(__query);
+        
+        IonFormatterStorage<AdminBotSearchResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetBotCard_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetBotCard(__appid);
+        
+        IonFormatterStorage<AdminBotCard>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBotVerified_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetBotVerified(__appid, __isverified);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBotMaxSpaces_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __maxspaces = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetBotMaxSpaces(__appid, __maxspaces);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBotInternalApp_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __isinternalapp = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetBotInternalApp(__appid, __isinternalapp);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBotLifecycleState_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __state = IonFormatterStorage<AdminBotLifecycleState>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetBotLifecycleState(__appid, __state);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SearchTeam_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __query = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SearchTeam(__query);
+        
+        IonFormatterStorage<AdminTeamSearchResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetTeamCard_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetTeamCard(__teamid);
+        
+        IonFormatterStorage<AdminTeamCard>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SearchSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __query = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SearchSpace(__query);
+        
+        IonFormatterStorage<AdminSpaceSearchResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSpaceCard_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSpaceCard(__spaceid);
+        
+        IonFormatterStorage<AdminSpaceCard>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSpaceMembers_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSpaceMembers(__spaceid, __offset, __limit);
+        
+        IonFormatterStorage<AdminSpaceMemberPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CancelUserSubscription_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CancelUserSubscription(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ExpireUserSubscription_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ExpireUserSubscription(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GrantPremium_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __tier = IonFormatterStorage<UltimaPlan>.Read(reader);
+        var __durationdays = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GrantPremium(__userid, __tier, __durationdays);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetUserTransactions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __page = IonFormatterStorage<i4>.Read(reader);
+        var __pagesize = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetUserTransactions(__userid, __page, __pagesize);
+        
+        IonFormatterStorage<AdminTransactionPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetTransactionByXsollaId_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __xsollatxid = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetTransactionByXsollaId(__xsollatxid);
+        
+        IonFormatterStorage<AdminTransactionDetails>.WriteNullable(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ChangeUserAuthMode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __authmode = IonFormatterStorage<ArgonAuthMode>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ChangeUserAuthMode(__userid, __authmode);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ChangeUserOtpMethod_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __otpmethod = IonFormatterStorage<OtpMethod>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ChangeUserOtpMethod(__userid, __otpmethod);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadUserAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadUserAvatar(__userid);
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadUserAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CompleteUploadUserAvatar(__userid, __blobid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
 
     
     
@@ -527,6 +880,46 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return EnrollOperatorCertificate_Execute(reader, writer, ct);
         if (methodName.Equals("GetAuditLog", StringComparison.InvariantCultureIgnoreCase))
             return GetAuditLog_Execute(reader, writer, ct);
+        if (methodName.Equals("SearchBot", StringComparison.InvariantCultureIgnoreCase))
+            return SearchBot_Execute(reader, writer, ct);
+        if (methodName.Equals("GetBotCard", StringComparison.InvariantCultureIgnoreCase))
+            return GetBotCard_Execute(reader, writer, ct);
+        if (methodName.Equals("SetBotVerified", StringComparison.InvariantCultureIgnoreCase))
+            return SetBotVerified_Execute(reader, writer, ct);
+        if (methodName.Equals("SetBotMaxSpaces", StringComparison.InvariantCultureIgnoreCase))
+            return SetBotMaxSpaces_Execute(reader, writer, ct);
+        if (methodName.Equals("SetBotInternalApp", StringComparison.InvariantCultureIgnoreCase))
+            return SetBotInternalApp_Execute(reader, writer, ct);
+        if (methodName.Equals("SetBotLifecycleState", StringComparison.InvariantCultureIgnoreCase))
+            return SetBotLifecycleState_Execute(reader, writer, ct);
+        if (methodName.Equals("SearchTeam", StringComparison.InvariantCultureIgnoreCase))
+            return SearchTeam_Execute(reader, writer, ct);
+        if (methodName.Equals("GetTeamCard", StringComparison.InvariantCultureIgnoreCase))
+            return GetTeamCard_Execute(reader, writer, ct);
+        if (methodName.Equals("SearchSpace", StringComparison.InvariantCultureIgnoreCase))
+            return SearchSpace_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSpaceCard", StringComparison.InvariantCultureIgnoreCase))
+            return GetSpaceCard_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSpaceMembers", StringComparison.InvariantCultureIgnoreCase))
+            return GetSpaceMembers_Execute(reader, writer, ct);
+        if (methodName.Equals("CancelUserSubscription", StringComparison.InvariantCultureIgnoreCase))
+            return CancelUserSubscription_Execute(reader, writer, ct);
+        if (methodName.Equals("ExpireUserSubscription", StringComparison.InvariantCultureIgnoreCase))
+            return ExpireUserSubscription_Execute(reader, writer, ct);
+        if (methodName.Equals("GrantPremium", StringComparison.InvariantCultureIgnoreCase))
+            return GrantPremium_Execute(reader, writer, ct);
+        if (methodName.Equals("GetUserTransactions", StringComparison.InvariantCultureIgnoreCase))
+            return GetUserTransactions_Execute(reader, writer, ct);
+        if (methodName.Equals("GetTransactionByXsollaId", StringComparison.InvariantCultureIgnoreCase))
+            return GetTransactionByXsollaId_Execute(reader, writer, ct);
+        if (methodName.Equals("ChangeUserAuthMode", StringComparison.InvariantCultureIgnoreCase))
+            return ChangeUserAuthMode_Execute(reader, writer, ct);
+        if (methodName.Equals("ChangeUserOtpMethod", StringComparison.InvariantCultureIgnoreCase))
+            return ChangeUserOtpMethod_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadUserAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadUserAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadUserAvatar", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadUserAvatar_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

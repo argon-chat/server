@@ -59,14 +59,18 @@ public sealed class Ion_UserCardDetails_Formatter : IonFormatter<UserCardDetails
         var __teams = IonFormatterStorage<UserTeamInfo>.ReadArray(reader);
         var __friendcount = IonFormatterStorage<i4>.Read(reader);
         var __autodeletesettings = reader.ReadNullable<AutoDeleteSettingsInfo>();
-        reader.ReadEndArrayAndSkip(arraySize - 14);
-        return new(__account, __profile, __passkeycount, __hastwofactor, __items, __recentmessages, __devicehistory, __redeemedcoupons, __spaces, __level, __stats, __teams, __friendcount, __autodeletesettings);
+        var __bots = IonFormatterStorage<AdminUserBotInfo>.ReadArray(reader);
+        var __premiuminfo = reader.ReadNullable<AdminPremiumInfo>();
+        var __isbot = IonFormatterStorage<bool>.Read(reader);
+        var __flags = IonFormatterStorage<UserFlag>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 18);
+        return new(__account, __profile, __passkeycount, __hastwofactor, __items, __recentmessages, __devicehistory, __redeemedcoupons, __spaces, __level, __stats, __teams, __friendcount, __autodeletesettings, __bots, __premiuminfo, __isbot, __flags);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UserCardDetails value)
     {
-        writer.WriteStartArray(14);
+        writer.WriteStartArray(18);
         IonFormatterStorage<UserAccountInfo>.Write(writer, value.account);
         IonFormatterStorage<ArgonUserProfile>.Write(writer, value.profile);
         IonFormatterStorage<i4>.Write(writer, value.passkeyCount);
@@ -81,6 +85,10 @@ public sealed class Ion_UserCardDetails_Formatter : IonFormatter<UserCardDetails
         IonFormatterStorage<UserTeamInfo>.WriteArray(writer, value.teams);
         IonFormatterStorage<i4>.Write(writer, value.friendCount);
         IonFormatterStorage<AutoDeleteSettingsInfo>.WriteNullable(writer, value.autoDeleteSettings);
+        IonFormatterStorage<AdminUserBotInfo>.WriteArray(writer, value.bots);
+        IonFormatterStorage<AdminPremiumInfo>.WriteNullable(writer, value.premiumInfo);
+        IonFormatterStorage<bool>.Write(writer, value.isBot);
+        IonFormatterStorage<UserFlag>.Write(writer, value.flags);
         writer.WriteEndArray();
     }
 }
@@ -1312,6 +1320,887 @@ public sealed class Ion_AuditEntry_Formatter : IonFormatter<AuditEntry>
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotSearchResult_Formatter : IonFormatter<AdminBotSearchResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotSearchResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __found = IonFormatterStorage<bool>.Read(reader);
+        var __bot = reader.ReadNullable<AdminBotSummary>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__found, __bot);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotSearchResult value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<bool>.Write(writer, value.found);
+        IonFormatterStorage<AdminBotSummary>.WriteNullable(writer, value.bot);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotSummary_Formatter : IonFormatter<AdminBotSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __ispublic = IonFormatterStorage<bool>.Read(reader);
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+        var __teamname = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __ispublic, __teamid, __teamname);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotSummary value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isPublic);
+        IonFormatterStorage<guid>.Write(writer, value.teamId);
+        IonFormatterStorage<string>.Write(writer, value.teamName);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotCard_Formatter : IonFormatter<AdminBotCard>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotCard Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __ispublic = IonFormatterStorage<bool>.Read(reader);
+        var __isinternalapp = IonFormatterStorage<bool>.Read(reader);
+        var __lifecyclestate = IonFormatterStorage<AdminBotLifecycleState>.Read(reader);
+        var __maxspaces = IonFormatterStorage<i4>.Read(reader);
+        var __currentspacecount = IonFormatterStorage<i4>.Read(reader);
+        var __requiredentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __requiredscopes = IonFormatterStorage<string>.ReadArray(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __team = IonFormatterStorage<AdminTeamSummary>.Read(reader);
+        var __creator = IonFormatterStorage<AdminUserSummary>.Read(reader);
+        var __installedspaces = IonFormatterStorage<AdminBotSpaceInfo>.ReadArray(reader);
+        var __commands = IonFormatterStorage<AdminBotCommandInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 18);
+        return new(__appid, __name, __username, __description, __avatarfileid, __isverified, __ispublic, __isinternalapp, __lifecyclestate, __maxspaces, __currentspacecount, __requiredentitlements, __requiredscopes, __createdat, __team, __creator, __installedspaces, __commands);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotCard value)
+    {
+        writer.WriteStartArray(18);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isPublic);
+        IonFormatterStorage<bool>.Write(writer, value.isInternalApp);
+        IonFormatterStorage<AdminBotLifecycleState>.Write(writer, value.lifecycleState);
+        IonFormatterStorage<i4>.Write(writer, value.maxSpaces);
+        IonFormatterStorage<i4>.Write(writer, value.currentSpaceCount);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.requiredEntitlements);
+        IonFormatterStorage<string>.WriteArray(writer, value.requiredScopes);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<AdminTeamSummary>.Write(writer, value.team);
+        IonFormatterStorage<AdminUserSummary>.Write(writer, value.creator);
+        IonFormatterStorage<AdminBotSpaceInfo>.WriteArray(writer, value.installedSpaces);
+        IonFormatterStorage<AdminBotCommandInfo>.WriteArray(writer, value.commands);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotSpaceInfo_Formatter : IonFormatter<AdminBotSpaceInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotSpaceInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __grantedentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __pendingapproval = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__spaceid, __name, __avatarfileid, __membercount, __grantedentitlements, __pendingapproval);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotSpaceInfo value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.grantedEntitlements);
+        IonFormatterStorage<bool>.Write(writer, value.pendingApproval);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotCommandInfo_Formatter : IonFormatter<AdminBotCommandInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotCommandInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __commandid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = IonFormatterStorage<string>.Read(reader);
+        var __optioncount = IonFormatterStorage<i4>.Read(reader);
+        var __isglobal = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__commandid, __name, __description, __optioncount, __isglobal);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotCommandInfo value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.commandId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.description);
+        IonFormatterStorage<i4>.Write(writer, value.optionCount);
+        IonFormatterStorage<bool>.Write(writer, value.isGlobal);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminUserSummary_Formatter : IonFormatter<AdminUserSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminUserSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__userid, __username, __displayname, __avatarfileid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminUserSummary value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTeamSearchResult_Formatter : IonFormatter<AdminTeamSearchResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTeamSearchResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __found = IonFormatterStorage<bool>.Read(reader);
+        var __team = reader.ReadNullable<AdminTeamSummary>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__found, __team);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTeamSearchResult value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<bool>.Write(writer, value.found);
+        IonFormatterStorage<AdminTeamSummary>.WriteNullable(writer, value.team);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTeamSummary_Formatter : IonFormatter<AdminTeamSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTeamSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __owneruserid = IonFormatterStorage<guid>.Read(reader);
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __appcount = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__teamid, __name, __avatarfileid, __owneruserid, __membercount, __appcount, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTeamSummary value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.teamId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<guid>.Write(writer, value.ownerUserId);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<i4>.Write(writer, value.appCount);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTeamCard_Formatter : IonFormatter<AdminTeamCard>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTeamCard Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __owner = IonFormatterStorage<AdminUserSummary>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __members = IonFormatterStorage<AdminTeamMemberInfo>.ReadArray(reader);
+        var __apps = IonFormatterStorage<AdminTeamAppInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__teamid, __name, __avatarfileid, __owner, __createdat, __members, __apps);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTeamCard value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.teamId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<AdminUserSummary>.Write(writer, value.owner);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<AdminTeamMemberInfo>.WriteArray(writer, value.members);
+        IonFormatterStorage<AdminTeamAppInfo>.WriteArray(writer, value.apps);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTeamMemberInfo_Formatter : IonFormatter<AdminTeamMemberInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTeamMemberInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __isowner = IonFormatterStorage<bool>.Read(reader);
+        var __joinedat = IonFormatterStorage<datetime>.Read(reader);
+        var __claims = IonFormatterStorage<string>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__userid, __username, __displayname, __avatarfileid, __isowner, __joinedat, __claims);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTeamMemberInfo value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isOwner);
+        IonFormatterStorage<datetime>.Write(writer, value.joinedAt);
+        IonFormatterStorage<string>.WriteArray(writer, value.claims);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTeamAppInfo_Formatter : IonFormatter<AdminTeamAppInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTeamAppInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __apptype = IonFormatterStorage<AdminDevAppType>.Read(reader);
+        var __isinternalapp = IonFormatterStorage<bool>.Read(reader);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__appid, __name, __apptype, __isinternalapp, __isverified, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTeamAppInfo value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<AdminDevAppType>.Write(writer, value.appType);
+        IonFormatterStorage<bool>.Write(writer, value.isInternalApp);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceSearchResult_Formatter : IonFormatter<AdminSpaceSearchResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceSearchResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __found = IonFormatterStorage<bool>.Read(reader);
+        var __space = reader.ReadNullable<AdminSpaceSummary>();
+        var __matchedby = IonFormatterStorage<SpaceSearchMatchKind>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__found, __space, __matchedby);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceSearchResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.found);
+        IonFormatterStorage<AdminSpaceSummary>.WriteNullable(writer, value.space);
+        IonFormatterStorage<SpaceSearchMatchKind>.Write(writer, value.matchedBy);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceSummary_Formatter : IonFormatter<AdminSpaceSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __channelcount = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__spaceid, __name, __avatarfileid, __membercount, __channelcount, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceSummary value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<i4>.Write(writer, value.channelCount);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceCard_Formatter : IonFormatter<AdminSpaceCard>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceCard Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __topbannerfileid = reader.ReadNullable<string>();
+        var __iscommunity = IonFormatterStorage<bool>.Read(reader);
+        var __boostcount = IonFormatterStorage<i4>.Read(reader);
+        var __boostlevel = IonFormatterStorage<i4>.Read(reader);
+        var __creator = IonFormatterStorage<AdminUserSummary>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __channelcount = IonFormatterStorage<i4>.Read(reader);
+        var __botcount = IonFormatterStorage<i4>.Read(reader);
+        var __channels = IonFormatterStorage<AdminChannelInfo>.ReadArray(reader);
+        var __channelgroups = IonFormatterStorage<AdminChannelGroupInfo>.ReadArray(reader);
+        var __archetypes = IonFormatterStorage<AdminArchetypeInfo>.ReadArray(reader);
+        var __installedbots = IonFormatterStorage<AdminSpaceBotInfo>.ReadArray(reader);
+        var __recentinvites = IonFormatterStorage<AdminInviteInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 18);
+        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __iscommunity, __boostcount, __boostlevel, __creator, __createdat, __membercount, __channelcount, __botcount, __channels, __channelgroups, __archetypes, __installedbots, __recentinvites);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceCard value)
+    {
+        writer.WriteStartArray(18);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.topBannerFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isCommunity);
+        IonFormatterStorage<i4>.Write(writer, value.boostCount);
+        IonFormatterStorage<i4>.Write(writer, value.boostLevel);
+        IonFormatterStorage<AdminUserSummary>.Write(writer, value.creator);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<i4>.Write(writer, value.channelCount);
+        IonFormatterStorage<i4>.Write(writer, value.botCount);
+        IonFormatterStorage<AdminChannelInfo>.WriteArray(writer, value.channels);
+        IonFormatterStorage<AdminChannelGroupInfo>.WriteArray(writer, value.channelGroups);
+        IonFormatterStorage<AdminArchetypeInfo>.WriteArray(writer, value.archetypes);
+        IonFormatterStorage<AdminSpaceBotInfo>.WriteArray(writer, value.installedBots);
+        IonFormatterStorage<AdminInviteInfo>.WriteArray(writer, value.recentInvites);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminChannelInfo_Formatter : IonFormatter<AdminChannelInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminChannelInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __type = IonFormatterStorage<ChannelType>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __groupid = reader.ReadNullable<guid>();
+        var __slowmodeseconds = reader.ReadNullable<i4>();
+        var __donotrestrictboosters = IonFormatterStorage<bool>.Read(reader);
+        var __lastmessageid = IonFormatterStorage<i8>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__channelid, __name, __type, __description, __groupid, __slowmodeseconds, __donotrestrictboosters, __lastmessageid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminChannelInfo value)
+    {
+        writer.WriteStartArray(8);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<ChannelType>.Write(writer, value.type);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.groupId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.slowModeSeconds);
+        IonFormatterStorage<bool>.Write(writer, value.doNotRestrictBoosters);
+        IonFormatterStorage<i8>.Write(writer, value.lastMessageId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminChannelGroupInfo_Formatter : IonFormatter<AdminChannelGroupInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminChannelGroupInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __groupid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __channelcount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__groupid, __name, __description, __channelcount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminChannelGroupInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.groupId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<i4>.Write(writer, value.channelCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminArchetypeInfo_Formatter : IonFormatter<AdminArchetypeInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminArchetypeInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __archetypeid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __entitlement = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __isdefault = IonFormatterStorage<bool>.Read(reader);
+        var __islocked = IonFormatterStorage<bool>.Read(reader);
+        var __ishidden = IonFormatterStorage<bool>.Read(reader);
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__archetypeid, __name, __entitlement, __isdefault, __islocked, __ishidden, __membercount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminArchetypeInfo value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.archetypeId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.entitlement);
+        IonFormatterStorage<bool>.Write(writer, value.isDefault);
+        IonFormatterStorage<bool>.Write(writer, value.isLocked);
+        IonFormatterStorage<bool>.Write(writer, value.isHidden);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceBotInfo_Formatter : IonFormatter<AdminSpaceBotInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceBotInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __grantedentitlements = IonFormatterStorage<ArgonEntitlement>.Read(reader);
+        var __pendingapproval = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__appid, __name, __username, __avatarfileid, __isverified, __grantedentitlements, __pendingapproval);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceBotInfo value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<ArgonEntitlement>.Write(writer, value.grantedEntitlements);
+        IonFormatterStorage<bool>.Write(writer, value.pendingApproval);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminInviteInfo_Formatter : IonFormatter<AdminInviteInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminInviteInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __code = IonFormatterStorage<string>.Read(reader);
+        var __issuerid = IonFormatterStorage<guid>.Read(reader);
+        var __issuerusername = IonFormatterStorage<string>.Read(reader);
+        var __expiretime = IonFormatterStorage<datetime>.Read(reader);
+        var __used = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__code, __issuerid, __issuerusername, __expiretime, __used);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminInviteInfo value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<string>.Write(writer, value.code);
+        IonFormatterStorage<guid>.Write(writer, value.issuerId);
+        IonFormatterStorage<string>.Write(writer, value.issuerUsername);
+        IonFormatterStorage<datetime>.Write(writer, value.expireTime);
+        IonFormatterStorage<i4>.Write(writer, value.used);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceMemberPage_Formatter : IonFormatter<AdminSpaceMemberPage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceMemberPage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __members = IonFormatterStorage<AdminSpaceMemberInfo>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__members, __totalcount, __offset, __limit);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceMemberPage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<AdminSpaceMemberInfo>.WriteArray(writer, value.members);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminSpaceMemberInfo_Formatter : IonFormatter<AdminSpaceMemberInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminSpaceMemberInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __joinedat = IonFormatterStorage<datetime>.Read(reader);
+        var __archetypenames = IonFormatterStorage<string>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__userid, __username, __displayname, __avatarfileid, __joinedat, __archetypenames);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminSpaceMemberInfo value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<datetime>.Write(writer, value.joinedAt);
+        IonFormatterStorage<string>.WriteArray(writer, value.archetypeNames);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminUserBotInfo_Formatter : IonFormatter<AdminUserBotInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminUserBotInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __ispublic = IonFormatterStorage<bool>.Read(reader);
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+        var __teamname = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__appid, __name, __username, __isverified, __ispublic, __teamid, __teamname);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminUserBotInfo value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isPublic);
+        IonFormatterStorage<guid>.Write(writer, value.teamId);
+        IonFormatterStorage<string>.Write(writer, value.teamName);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminPremiumInfo_Formatter : IonFormatter<AdminPremiumInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminPremiumInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __subscriptionid = IonFormatterStorage<guid>.Read(reader);
+        var __tier = IonFormatterStorage<UltimaPlan>.Read(reader);
+        var __status = IonFormatterStorage<UltimaSubscriptionStatus>.Read(reader);
+        var __startsat = IonFormatterStorage<datetime>.Read(reader);
+        var __expiresat = IonFormatterStorage<datetime>.Read(reader);
+        var __autorenew = IonFormatterStorage<bool>.Read(reader);
+        var __totalboostslots = IonFormatterStorage<i4>.Read(reader);
+        var __usedboostslots = IonFormatterStorage<i4>.Read(reader);
+        var __cancelledat = reader.ReadNullable<datetime>();
+        var __xsollasubscriptionid = reader.ReadNullable<string>();
+        var __activatedfromitemid = reader.ReadNullable<guid>();
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__subscriptionid, __tier, __status, __startsat, __expiresat, __autorenew, __totalboostslots, __usedboostslots, __cancelledat, __xsollasubscriptionid, __activatedfromitemid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminPremiumInfo value)
+    {
+        writer.WriteStartArray(11);
+        IonFormatterStorage<guid>.Write(writer, value.subscriptionId);
+        IonFormatterStorage<UltimaPlan>.Write(writer, value.tier);
+        IonFormatterStorage<UltimaSubscriptionStatus>.Write(writer, value.status);
+        IonFormatterStorage<datetime>.Write(writer, value.startsAt);
+        IonFormatterStorage<datetime>.Write(writer, value.expiresAt);
+        IonFormatterStorage<bool>.Write(writer, value.autoRenew);
+        IonFormatterStorage<i4>.Write(writer, value.totalBoostSlots);
+        IonFormatterStorage<i4>.Write(writer, value.usedBoostSlots);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.cancelledAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.xsollaSubscriptionId);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.activatedFromItemId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTransactionPage_Formatter : IonFormatter<AdminTransactionPage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTransactionPage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __transactions = IonFormatterStorage<AdminTransactionInfo>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __page = IonFormatterStorage<i4>.Read(reader);
+        var __pagesize = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__transactions, __totalcount, __page, __pagesize);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTransactionPage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<AdminTransactionInfo>.WriteArray(writer, value.transactions);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.page);
+        IonFormatterStorage<i4>.Write(writer, value.pageSize);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTransactionInfo_Formatter : IonFormatter<AdminTransactionInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTransactionInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __transactionid = IonFormatterStorage<guid>.Read(reader);
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __xsollatxid = IonFormatterStorage<string>.Read(reader);
+        var __transactiontype = IonFormatterStorage<string>.Read(reader);
+        var __planexternalid = reader.ReadNullable<string>();
+        var __boostpacktype = reader.ReadNullable<string>();
+        var __boostcount = reader.ReadNullable<i4>();
+        var __amount = reader.ReadNullable<string>();
+        var __currency = reader.ReadNullable<string>();
+        var __recipientid = reader.ReadNullable<guid>();
+        var __cardsuffix = reader.ReadNullable<string>();
+        var __cardbrand = reader.ReadNullable<string>();
+        var __status = reader.ReadNullable<string>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 15);
+        return new(__transactionid, __userid, __username, __xsollatxid, __transactiontype, __planexternalid, __boostpacktype, __boostcount, __amount, __currency, __recipientid, __cardsuffix, __cardbrand, __status, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTransactionInfo value)
+    {
+        writer.WriteStartArray(15);
+        IonFormatterStorage<guid>.Write(writer, value.transactionId);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.xsollaTxId);
+        IonFormatterStorage<string>.Write(writer, value.transactionType);
+        IonFormatterStorage<string>.WriteNullable(writer, value.planExternalId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.boostPackType);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.boostCount);
+        IonFormatterStorage<string>.WriteNullable(writer, value.amount);
+        IonFormatterStorage<string>.WriteNullable(writer, value.currency);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.recipientId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.cardSuffix);
+        IonFormatterStorage<string>.WriteNullable(writer, value.cardBrand);
+        IonFormatterStorage<string>.WriteNullable(writer, value.status);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTransactionDetails_Formatter : IonFormatter<AdminTransactionDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTransactionDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __transaction = IonFormatterStorage<AdminTransactionInfo>.Read(reader);
+        var __relateditems = IonFormatterStorage<AdminTransactionItemInfo>.ReadArray(reader);
+        var __premiuminfo = reader.ReadNullable<AdminPremiumInfo>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__transaction, __relateditems, __premiuminfo);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTransactionDetails value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<AdminTransactionInfo>.Write(writer, value.transaction);
+        IonFormatterStorage<AdminTransactionItemInfo>.WriteArray(writer, value.relatedItems);
+        IonFormatterStorage<AdminPremiumInfo>.WriteNullable(writer, value.premiumInfo);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminTransactionItemInfo_Formatter : IonFormatter<AdminTransactionItemInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminTransactionItemInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __itemid = IonFormatterStorage<guid>.Read(reader);
+        var __templateid = IonFormatterStorage<string>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__itemid, __templateid, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminTransactionItemInfo value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.itemId);
+        IonFormatterStorage<string>.Write(writer, value.templateId);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1322,40 +2211,6 @@ public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SearchMatchKind value)
-    {
-        var casted = (u4)value;
-        IonFormatterStorage<u4>.Write(writer, casted);
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_ArgonAuthMode_Formatter : IonFormatter<ArgonAuthMode>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public ArgonAuthMode Read(CborReader reader)
-    {
-         return (ArgonAuthMode)(IonFormatterStorage<u4>.Read(reader));
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, ArgonAuthMode value)
-    {
-        var casted = (u4)value;
-        IonFormatterStorage<u4>.Write(writer, casted);
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_OtpMethod_Formatter : IonFormatter<OtpMethod>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public OtpMethod Read(CborReader reader)
-    {
-         return (OtpMethod)(IonFormatterStorage<u4>.Read(reader));
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, OtpMethod value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);
@@ -1390,6 +2245,57 @@ public sealed class Ion_ItemScenarioKind_Formatter : IonFormatter<ItemScenarioKi
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ItemScenarioKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminBotLifecycleState_Formatter : IonFormatter<AdminBotLifecycleState>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminBotLifecycleState Read(CborReader reader)
+    {
+         return (AdminBotLifecycleState)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminBotLifecycleState value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminDevAppType_Formatter : IonFormatter<AdminDevAppType>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminDevAppType Read(CborReader reader)
+    {
+         return (AdminDevAppType)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminDevAppType value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceSearchMatchKind_Formatter : IonFormatter<SpaceSearchMatchKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceSearchMatchKind Read(CborReader reader)
+    {
+         return (SpaceSearchMatchKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceSearchMatchKind value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

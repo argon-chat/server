@@ -18,6 +18,24 @@ namespace ArgonContracts;
 public sealed record ArgonIonTicket(guid userId, string ip, string ray, string clientName, string hostName, string appId, guid sessionId, string machineId, string region);
 
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ArgonAuthMode
+{
+    EmailPassword = 0,
+    EmailOtp = 1,
+    EmailPasswordOtp = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum OtpMethod
+{
+    Email = 0,
+    Phone = 1,
+    Totp = 2,
+}
+
+
 [AttributeUsage(AttributeTargets.All)]
 public sealed class AllowAnonymousAttribute() : System.Attribute
 {

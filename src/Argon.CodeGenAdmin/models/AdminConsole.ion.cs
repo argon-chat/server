@@ -19,7 +19,7 @@ public sealed record SearchUserResult(bool found, guid? userId, SearchMatchKind 
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserCardDetails(UserAccountInfo account, ArgonUserProfile profile, i4 passkeyCount, bool hasTwoFactor, IonArray<InventoryItemInfo> items, IonArray<MessageInfo> recentMessages, IonArray<DeviceHistoryInfo> deviceHistory, IonArray<RedeemedCouponInfo> redeemedCoupons, IonArray<UserSpaceInfo> spaces, UserLevelInfo level, UserStatsInfo stats, IonArray<UserTeamInfo> teams, i4 friendCount, AutoDeleteSettingsInfo? autoDeleteSettings);
+public sealed record UserCardDetails(UserAccountInfo account, ArgonUserProfile profile, i4 passkeyCount, bool hasTwoFactor, IonArray<InventoryItemInfo> items, IonArray<MessageInfo> recentMessages, IonArray<DeviceHistoryInfo> deviceHistory, IonArray<RedeemedCouponInfo> redeemedCoupons, IonArray<UserSpaceInfo> spaces, UserLevelInfo level, UserStatsInfo stats, IonArray<UserTeamInfo> teams, i4 friendCount, AutoDeleteSettingsInfo? autoDeleteSettings, IonArray<AdminUserBotInfo> bots, AdminPremiumInfo? premiumInfo, bool isBot, UserFlag flags);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -183,6 +183,114 @@ public sealed record AuditEntry(guid auditId, guid operatorId, string operatorEm
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminBotSearchResult(bool found, AdminBotSummary? bot);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminBotSummary(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, guid teamId, string teamName);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminBotCard(guid appId, string name, string username, string? description, string? avatarFileId, bool isVerified, bool isPublic, bool isInternalApp, AdminBotLifecycleState lifecycleState, i4 maxSpaces, i4 currentSpaceCount, ArgonEntitlement requiredEntitlements, IonArray<string> requiredScopes, datetime createdAt, AdminTeamSummary team, AdminUserSummary creator, IonArray<AdminBotSpaceInfo> installedSpaces, IonArray<AdminBotCommandInfo> commands);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminBotSpaceInfo(guid spaceId, string name, string? avatarFileId, i4 memberCount, ArgonEntitlement grantedEntitlements, bool pendingApproval);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminBotCommandInfo(guid commandId, string name, string description, i4 optionCount, bool isGlobal);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminUserSummary(guid userId, string username, string displayName, string? avatarFileId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTeamSearchResult(bool found, AdminTeamSummary? team);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTeamSummary(guid teamId, string name, string? avatarFileId, guid ownerUserId, i4 memberCount, i4 appCount, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTeamCard(guid teamId, string name, string? avatarFileId, AdminUserSummary owner, datetime createdAt, IonArray<AdminTeamMemberInfo> members, IonArray<AdminTeamAppInfo> apps);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTeamMemberInfo(guid userId, string username, string displayName, string? avatarFileId, bool isOwner, datetime joinedAt, IonArray<string> claims);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTeamAppInfo(guid appId, string name, AdminDevAppType appType, bool isInternalApp, bool isVerified, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceSearchResult(bool found, AdminSpaceSummary? space, SpaceSearchMatchKind matchedBy);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceSummary(guid spaceId, string name, string? avatarFileId, i4 memberCount, i4 channelCount, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceCard(guid spaceId, string name, string? description, string? avatarFileId, string? topBannerFileId, bool isCommunity, i4 boostCount, i4 boostLevel, AdminUserSummary creator, datetime createdAt, i4 memberCount, i4 channelCount, i4 botCount, IonArray<AdminChannelInfo> channels, IonArray<AdminChannelGroupInfo> channelGroups, IonArray<AdminArchetypeInfo> archetypes, IonArray<AdminSpaceBotInfo> installedBots, IonArray<AdminInviteInfo> recentInvites);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminChannelInfo(guid channelId, string name, ChannelType type, string? description, guid? groupId, i4? slowModeSeconds, bool doNotRestrictBoosters, i8 lastMessageId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminChannelGroupInfo(guid groupId, string name, string? description, i4 channelCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminArchetypeInfo(guid archetypeId, string name, ArgonEntitlement entitlement, bool isDefault, bool isLocked, bool isHidden, i4 memberCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceBotInfo(guid appId, string name, string username, string? avatarFileId, bool isVerified, ArgonEntitlement grantedEntitlements, bool pendingApproval);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminInviteInfo(string code, guid issuerId, string issuerUsername, datetime expireTime, i4 used);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceMemberPage(IonArray<AdminSpaceMemberInfo> members, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminSpaceMemberInfo(guid userId, string username, string displayName, string? avatarFileId, datetime joinedAt, IonArray<string> archetypeNames);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminUserBotInfo(guid appId, string name, string username, bool isVerified, bool isPublic, guid teamId, string teamName);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminPremiumInfo(guid subscriptionId, UltimaPlan tier, UltimaSubscriptionStatus status, datetime startsAt, datetime expiresAt, bool autoRenew, i4 totalBoostSlots, i4 usedBoostSlots, datetime? cancelledAt, string? xsollaSubscriptionId, guid? activatedFromItemId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTransactionPage(IonArray<AdminTransactionInfo> transactions, i4 totalCount, i4 page, i4 pageSize);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTransactionInfo(guid transactionId, guid userId, string username, string xsollaTxId, string transactionType, string? planExternalId, string? boostPackType, i4? boostCount, string? amount, string? currency, guid? recipientId, string? cardSuffix, string? cardBrand, string? status, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTransactionDetails(AdminTransactionInfo transaction, IonArray<AdminTransactionItemInfo> relatedItems, AdminPremiumInfo? premiumInfo);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminTransactionItemInfo(guid itemId, string templateId, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -190,25 +298,6 @@ public enum SearchMatchKind
     Username = 2,
     Email = 3,
     Phone = 4,
-}
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ArgonAuthMode
-{
-    Password = 0,
-    Passwordless = 1,
-    Passkey = 2,
-}
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum OtpMethod
-{
-    None = 0,
-    Totp = 1,
-    Sms = 2,
-    Email = 3,
 }
 
 
@@ -234,6 +323,33 @@ public enum ItemScenarioKind
     Premium = 2,
     QualifierBox = 3,
     Box = 4,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum AdminBotLifecycleState
+{
+    Development = 0,
+    Published = 1,
+    Suspended = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum AdminDevAppType
+{
+    Application = 0,
+    Bot = 1,
+    WebApp = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SpaceSearchMatchKind
+{
+    None = 0,
+    SpaceId = 1,
+    Name = 2,
 }
 
 
@@ -266,6 +382,26 @@ public interface IAdminConsole : IIonService
     Task<OperatorActionResult> RevokeOperatorCertificate(guid operatorId, CancellationToken ct = default);
     Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, CancellationToken ct = default);
     Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default);
+    Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default);
+    Task<AdminBotCard> GetBotCard(guid appId, CancellationToken ct = default);
+    Task<UserActionResult> SetBotVerified(guid appId, bool isVerified, CancellationToken ct = default);
+    Task<UserActionResult> SetBotMaxSpaces(guid appId, i4 maxSpaces, CancellationToken ct = default);
+    Task<UserActionResult> SetBotInternalApp(guid appId, bool isInternalApp, CancellationToken ct = default);
+    Task<UserActionResult> SetBotLifecycleState(guid appId, AdminBotLifecycleState state, CancellationToken ct = default);
+    Task<AdminTeamSearchResult> SearchTeam(string query, CancellationToken ct = default);
+    Task<AdminTeamCard> GetTeamCard(guid teamId, CancellationToken ct = default);
+    Task<AdminSpaceSearchResult> SearchSpace(string query, CancellationToken ct = default);
+    Task<AdminSpaceCard> GetSpaceCard(guid spaceId, CancellationToken ct = default);
+    Task<AdminSpaceMemberPage> GetSpaceMembers(guid spaceId, i4 offset, i4 limit, CancellationToken ct = default);
+    Task<UserActionResult> CancelUserSubscription(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> ExpireUserSubscription(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> GrantPremium(guid userId, UltimaPlan tier, i4 durationDays, CancellationToken ct = default);
+    Task<AdminTransactionPage> GetUserTransactions(guid userId, i4 page, i4 pageSize, CancellationToken ct = default);
+    Task<AdminTransactionDetails?> GetTransactionByXsollaId(string xsollaTxId, CancellationToken ct = default);
+    Task<UserActionResult> ChangeUserAuthMode(guid userId, ArgonAuthMode authMode, CancellationToken ct = default);
+    Task<UserActionResult> ChangeUserOtpMethod(guid userId, OtpMethod otpMethod, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadUserAvatar(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> CompleteUploadUserAvatar(guid userId, guid blobId, CancellationToken ct = default);
 }
 
 

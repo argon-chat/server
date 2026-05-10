@@ -1,6 +1,5 @@
 namespace Argon.Entities;
 
-using Api.Features.CoreLogic.Otp;
 using Core.Entities.Data;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
