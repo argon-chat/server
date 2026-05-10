@@ -287,7 +287,7 @@ public class UserGrain(
     {
         try
         {
-            var userId = this.GetUserId();
+            var userId = this.GetPrimaryKey();
             var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
             var purpose = kind switch
             {
@@ -308,7 +308,7 @@ public class UserGrain(
 
     public async ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default)
     {
-        var userId = this.GetUserId();
+        var userId = this.GetPrimaryKey();
         var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
         var fileInfo = await fileGrain.FinalizeUploadAsync(blobId, ct);
 
@@ -365,7 +365,7 @@ public class UserGrain(
     private async ValueTask UpdateAvatarFileId(Guid fileId, string s3Key, CancellationToken ct = default)
     {
         await using var ctx    = await context.CreateDbContextAsync(ct);
-        var             userId = this.GetUserId();
+        var             userId = this.GetPrimaryKey();
 
         var user = await ctx.Users.FirstAsync(x => x.Id == userId, cancellationToken: ct);
 
