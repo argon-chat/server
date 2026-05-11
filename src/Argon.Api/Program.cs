@@ -42,6 +42,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
+    x.AddService<IReportInteraction, ReportInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 
     x.AddService<IAdminConsole, AdminConsoleImpl>(8920, true);
