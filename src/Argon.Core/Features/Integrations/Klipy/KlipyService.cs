@@ -3,6 +3,8 @@ namespace Argon.Features.Integrations.Klipy;
 using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Text;
+using Argon.Features.Storage;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
@@ -14,6 +16,7 @@ public interface IKlipyService
     Task<List<KlipyCategory>> GetCategoriesAsync(string? locale = null, CancellationToken ct = default);
     Task<KlipyMediaItem?> GetItemBySlugAsync(string slug, CancellationToken ct = default);
     Task<byte[]> DownloadMediaAsync(string url, CancellationToken ct = default);
+    Task<(Guid FileId, int Width, int Height)?> EnsureCachedAsync(string slug, CancellationToken ct = default);
     string ComputeUserHmac(string gifId, Guid userId);
     bool ValidateUserHmac(string gifId, Guid userId, string hmac);
     string ComputeCachePath(string slug);
@@ -22,6 +25,9 @@ public interface IKlipyService
 public class KlipyService(
     HttpClient httpClient,
     IOptions<KlipyOptions> options,
+    IDbContextFactory<ApplicationDbContext> dbFactory,
+    IS3StorageService s3,
+    IReferenceCountService refCount,
     HybridCache cache,
     ILogger<KlipyService> logger) : IKlipyService
 {
@@ -136,6 +142,62 @@ public class KlipyService(
         var payloadBytes = Encoding.UTF8.GetBytes(payload);
         var hash = HMACSHA256.HashData(keyBytes, payloadBytes);
         return $"gifs/{Convert.ToHexStringLower(hash)}";
+    }
+
+    public async Task<(Guid FileId, int Width, int Height)?> EnsureCachedAsync(string slug, CancellationToken ct = default)
+    {
+        var cdnKey = ComputeCachePath(slug);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var cachedFile = await db.Files
+            .FirstOrDefaultAsync(x => x.S3Key == cdnKey && x.Finalized, ct);
+
+        if (cachedFile is not null)
+        {
+            await refCount.IncrementAsync(cachedFile.Id, ct: ct);
+            return (cachedFile.Id, 0, 0);
+        }
+
+        var mediaItem = await GetItemBySlugAsync(slug, ct);
+        if (mediaItem is null) return null;
+
+        var bestFile = mediaItem.File?.Md?.Webp
+            ?? mediaItem.File?.Hd?.Webp
+            ?? mediaItem.File?.Sm?.Webp
+            ?? mediaItem.File?.Md?.Gif
+            ?? mediaItem.File?.Sm?.Gif;
+
+        if (bestFile?.Url is null) return null;
+
+        var mediaBytes = await DownloadMediaAsync(bestFile.Url, ct);
+        using var stream = new MemoryStream(mediaBytes);
+        if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
+            return null;
+
+        var fileId = Guid.NewGuid();
+        db.Files.Add(new FileEntity
+        {
+            Id          = fileId,
+            OwnerId     = Guid.Empty,
+            Purpose     = FilePurpose.Gif,
+            S3Key       = cdnKey,
+            BucketName  = "cdn",
+            FileSize    = mediaBytes.Length,
+            ContentType = "image/webp",
+            Finalized   = true,
+            CreatedAt   = DateTimeOffset.UtcNow,
+            UpdatedAt   = DateTimeOffset.UtcNow
+        });
+        db.FileCounters.Add(new FileCounterEntity
+        {
+            Id        = fileId,
+            RefCount  = 1,
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await db.SaveChangesAsync(ct);
+
+        return (fileId, bestFile.Width, bestFile.Height);
     }
 
     #region Private helpers

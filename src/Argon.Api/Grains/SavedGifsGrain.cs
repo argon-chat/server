@@ -53,68 +53,11 @@ public class SavedGifsGrain(
 
         await EnforceLimitsAsync(db, userId, ct);
 
-        var cdnKey = klipy.ComputeCachePath(slug);
-        int width, height;
+        var cached = await klipy.EnsureCachedAsync(slug, ct);
+        if (cached is null)
+            return new FailedSaveGif(SaveGifError.NOT_FOUND);
 
-        // Dedup via deterministic S3Key
-        var cachedFile = await db.Files
-            .FirstOrDefaultAsync(x => x.S3Key == cdnKey && x.Finalized, ct);
-
-        Guid fileId;
-        if (cachedFile is not null)
-        {
-            fileId = cachedFile.Id;
-            await refCount.IncrementAsync(fileId, ct: ct);
-
-            // Get dimensions from an existing saved gif with same file
-            var dims = await db.SavedGifs
-                .Where(x => x.FileId == fileId)
-                .Select(x => new { x.Width, x.Height })
-                .FirstOrDefaultAsync(ct);
-            width  = dims?.Width  ?? 0;
-            height = dims?.Height ?? 0;
-        }
-        else
-        {
-            var mediaItem = await ResolveMediaItemAsync(slug, ct);
-            if (mediaItem is null)
-                return new FailedSaveGif(SaveGifError.NOT_FOUND);
-
-            var bestFile = SelectBestFile(mediaItem);
-            if (bestFile is null)
-                return new FailedSaveGif(SaveGifError.NOT_FOUND);
-
-            width  = bestFile.Width;
-            height = bestFile.Height;
-
-            var mediaBytes = await klipy.DownloadMediaAsync(bestFile.Url!, ct);
-
-            using var stream = new MemoryStream(mediaBytes);
-            if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
-                return new FailedSaveGif(SaveGifError.NOT_FOUND);
-
-            fileId = Guid.NewGuid();
-            db.Files.Add(new FileEntity
-            {
-                Id          = fileId,
-                OwnerId     = Guid.Empty,
-                Purpose     = FilePurpose.Gif,
-                S3Key       = cdnKey,
-                BucketName  = "cdn",
-                FileSize    = mediaBytes.Length,
-                ContentType = "image/webp",
-                Finalized   = true,
-                CreatedAt   = DateTimeOffset.UtcNow,
-                UpdatedAt   = DateTimeOffset.UtcNow
-            });
-            db.FileCounters.Add(new FileCounterEntity
-            {
-                Id        = fileId,
-                RefCount  = 1,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            });
-        }
+        var (fileId, width, height) = cached.Value;
 
         var savedGif = new SavedGifEntity
         {
@@ -131,7 +74,7 @@ public class SavedGifsGrain(
         db.SavedGifs.Add(savedGif);
         await db.SaveChangesAsync(ct);
 
-        var resultUrl = s3.GetDownloadUrl(cdnKey);
+        var resultUrl = s3.GetDownloadUrl(klipy.ComputeCachePath(slug));
         return new SuccessSaveGif(new SavedGif(savedGif.Id, slug, fileId, resultUrl, resultUrl, width, height, savedGif.AddedAt.DateTime));
     }
 
@@ -153,16 +96,6 @@ public class SavedGifsGrain(
     }
 
     #region Private Helpers
-
-    private async Task<KlipyMediaItem?> ResolveMediaItemAsync(string slug, CancellationToken ct)
-        => await klipy.GetItemBySlugAsync(slug, ct);
-
-    private static KlipyFileMetadata? SelectBestFile(KlipyMediaItem item)
-        => item.File?.Md?.Webp
-        ?? item.File?.Hd?.Webp
-        ?? item.File?.Sm?.Webp
-        ?? item.File?.Md?.Gif
-        ?? item.File?.Sm?.Gif;
 
     private async Task EnforceLimitsAsync(ApplicationDbContext db, Guid userId, CancellationToken ct)
     {

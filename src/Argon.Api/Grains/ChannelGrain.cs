@@ -17,6 +17,7 @@ using System.Diagnostics;
 using Core.Features.Transport;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
+using Argon.Features.Integrations.Klipy;
 using Core.Entities.Data;
 
 public class ChannelGrain(
@@ -29,6 +30,7 @@ public class ChannelGrain(
     BotEventPublisher botEventPublisher,
     BotUserCache botUserCache,
     IS3StorageService s3,
+    IKlipyService klipy,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -701,12 +703,15 @@ public class ChannelGrain(
                 string.Join(", ", entities.Select((e, i) => $"[{i}]={e.GetType().Name}")));
         }
         
+        var sanitized = SanitizeEntities(entities ?? []);
+        await CacheGifEntitiesAsync(sanitized, senderId);
+
         var message = new ArgonMessageEntity
         {
             SpaceId   = _self.SpaceId,
             ChannelId = channelId,
             CreatorId = senderId,
-            Entities  = SanitizeEntities(entities ?? []),
+            Entities  = sanitized,
             Controls  = controls,
             Text      = text ?? "",
             CreatedAt = DateTimeOffset.UtcNow,
@@ -944,6 +949,31 @@ public class ChannelGrain(
             {
                 message.Entities[i] = gif with { previewUrl = gifUrl };
             }
+        }
+    }
+
+    private async Task CacheGifEntitiesAsync(List<IMessageEntity> entities, Guid senderId)
+    {
+        for (var i = 0; i < entities.Count; i++)
+        {
+            if (entities[i] is not MessageEntityGif gif) continue;
+
+            if (!klipy.ValidateUserHmac(gif.gifId, senderId, gif.hmac))
+            {
+                logger.LogWarning("Invalid GIF HMAC for slug={Slug}, user={UserId}", gif.gifId, senderId);
+                entities.RemoveAt(i--);
+                continue;
+            }
+
+            var cached = await klipy.EnsureCachedAsync(gif.gifId);
+            if (cached is null)
+            {
+                logger.LogWarning("Failed to cache GIF: slug={Slug}", gif.gifId);
+                entities.RemoveAt(i--);
+                continue;
+            }
+
+            entities[i] = gif with { fileId = cached.Value.FileId };
         }
     }
 
