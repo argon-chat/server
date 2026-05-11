@@ -118,7 +118,7 @@ public class ReportGrain(
                 }
             }
 
-            if (Cfg.CriticalCategories.Contains(input.category))
+            if (escalationRule == "CLUSTER_ESCALATION" && Cfg.CriticalCategories.Contains(input.category))
             {
                 try
                 {
@@ -129,12 +129,14 @@ public class ReportGrain(
                         targetUser.LockDownExpiration   = DateTimeOffset.UtcNow.AddDays(Cfg.CriticalCategoryLockdownDays);
                         targetUser.LockDownIsAppealable = true;
                         await ctx.SaveChangesAsync(ct);
-                        logger.LogWarning("Critical category report: auto-locked user {TargetId} for investigation", input.target.targetId);
+                        logger.LogWarning(
+                            "Cluster escalation on critical category: auto-locked user {TargetId} for investigation",
+                            input.target.targetId);
                     }
                 }
                 catch (Exception ex)
                 {
-                    logger.LogError(ex, "Failed to auto-lock user {TargetId} for critical report", input.target.targetId);
+                    logger.LogError(ex, "Failed to auto-lock user {TargetId} on cluster escalation", input.target.targetId);
                 }
             }
 

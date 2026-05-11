@@ -378,17 +378,11 @@ public class UserTrustGrain(
             {
                 if (entity.TrustScore < threshold.ScoreBelow && previousScore >= threshold.ScoreBelow)
                 {
-                    if (threshold.Reason is not null && threshold.LockdownDays > 0)
-                    {
-                        user.LockdownReason      = Enum.Parse<LockdownReason>(threshold.Reason);
-                        user.LockDownExpiration   = DateTimeOffset.UtcNow.AddDays(threshold.LockdownDays);
-                        user.LockDownIsAppealable = true;
-                    }
-
                     entity.AutoActionsApplied++;
                     await ctx.SaveChangesAsync(ct);
-                    logger.LogWarning("Auto-action triggered: user {UserId} trust score {Score} crossed threshold {Threshold}",
-                        userId, entity.TrustScore, threshold.ScoreBelow);
+                    logger.LogWarning(
+                        "Trust threshold crossed: user {UserId} score {Score} < {Threshold} (reason={Reason}). Flagged for support review",
+                        userId, entity.TrustScore, threshold.ScoreBelow, threshold.Reason ?? "none");
                     break;
                 }
             }
