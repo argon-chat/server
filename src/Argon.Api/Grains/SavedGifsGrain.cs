@@ -53,20 +53,32 @@ public class SavedGifsGrain(
 
         await EnforceLimitsAsync(db, userId, ct);
 
-        var cached = await klipy.EnsureCachedAsync(slug, ct);
-        if (cached is null)
-            return new FailedSaveGif(SaveGifError.NOT_FOUND);
+        var cdnKey = klipy.ComputeCachePath(slug);
+        var file = await db.Files
+            .Where(x => x.S3Key == cdnKey && x.Finalized)
+            .Select(x => new { x.Id, x.FileSize })
+            .FirstOrDefaultAsync(ct);
 
-        var (fileId, width, height) = cached.Value;
+        if (file is null)
+        {
+            var cached = await klipy.EnsureCachedAsync(slug, ct);
+            if (cached is null)
+                return new FailedSaveGif(SaveGifError.NOT_FOUND);
+            file = new { Id = cached.Value.FileId, FileSize = 0L };
+        }
+        else
+        {
+            await refCount.IncrementAsync(file.Id, ct: ct);
+        }
 
         var savedGif = new SavedGifEntity
         {
             Id        = Guid.NewGuid(),
             UserId    = userId,
             Slug      = slug,
-            FileId    = fileId,
-            Width     = width,
-            Height    = height,
+            FileId    = file.Id,
+            Width     = 0,
+            Height    = 0,
             AddedAt   = DateTimeOffset.UtcNow,
             CreatedAt = DateTimeOffset.UtcNow,
             UpdatedAt = DateTimeOffset.UtcNow
@@ -74,8 +86,8 @@ public class SavedGifsGrain(
         db.SavedGifs.Add(savedGif);
         await db.SaveChangesAsync(ct);
 
-        var resultUrl = s3.GetDownloadUrl(klipy.ComputeCachePath(slug));
-        return new SuccessSaveGif(new SavedGif(savedGif.Id, slug, fileId, resultUrl, resultUrl, width, height, savedGif.AddedAt.DateTime));
+        var resultUrl = s3.GetDownloadUrl(cdnKey);
+        return new SuccessSaveGif(new SavedGif(savedGif.Id, slug, file.Id, resultUrl, resultUrl, 0, 0, savedGif.AddedAt.DateTime));
     }
 
     public async Task<bool> RemoveSavedGifAsync(Guid savedGifId, CancellationToken ct = default)

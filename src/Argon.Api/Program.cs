@@ -6,6 +6,7 @@ using Argon.Features.Admin;
 using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
+using Argon.Features.Integrations.Klipy;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
@@ -62,9 +63,7 @@ builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 builder.Services.Configure<AccountDeletionOptions>(
     builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
-builder.Services.Configure<Argon.Features.Integrations.Klipy.KlipyOptions>(
-    builder.Configuration.GetSection(Argon.Features.Integrations.Klipy.KlipyOptions.SectionName));
-builder.Services.AddHttpClient<Argon.Features.Integrations.Klipy.IKlipyService, Argon.Features.Integrations.Klipy.KlipyService>();
+builder.AddKlipyFeature();
 
 builder.AddContentModeration();
 builder.AddReportSystem();

@@ -158,46 +158,54 @@ public class KlipyService(
             return (cachedFile.Id, 0, 0);
         }
 
-        var mediaItem = await GetItemBySlugAsync(slug, ct);
-        if (mediaItem is null) return null;
+        try
+        {
+            var mediaItem = await GetItemBySlugAsync(slug, ct);
+            if (mediaItem is null) return null;
 
-        var bestFile = mediaItem.File?.Md?.Webp
-            ?? mediaItem.File?.Hd?.Webp
-            ?? mediaItem.File?.Sm?.Webp
-            ?? mediaItem.File?.Md?.Gif
-            ?? mediaItem.File?.Sm?.Gif;
+            var bestFile = mediaItem.File?.Md?.Webp
+                ?? mediaItem.File?.Hd?.Webp
+                ?? mediaItem.File?.Sm?.Webp
+                ?? mediaItem.File?.Md?.Gif
+                ?? mediaItem.File?.Sm?.Gif;
 
-        if (bestFile?.Url is null) return null;
+            if (bestFile?.Url is null) return null;
 
-        var mediaBytes = await DownloadMediaAsync(bestFile.Url, ct);
-        using var stream = new MemoryStream(mediaBytes);
-        if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
+            var mediaBytes = await DownloadMediaAsync(bestFile.Url, ct);
+            using var stream = new MemoryStream(mediaBytes);
+            if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
+                return null;
+
+            var fileId = Guid.NewGuid();
+            db.Files.Add(new FileEntity
+            {
+                Id          = fileId,
+                OwnerId     = Guid.Empty,
+                Purpose     = FilePurpose.Gif,
+                S3Key       = cdnKey,
+                BucketName  = "cdn",
+                FileSize    = mediaBytes.Length,
+                ContentType = "image/webp",
+                Finalized   = true,
+                CreatedAt   = DateTimeOffset.UtcNow,
+                UpdatedAt   = DateTimeOffset.UtcNow
+            });
+            db.FileCounters.Add(new FileCounterEntity
+            {
+                Id        = fileId,
+                RefCount  = 1,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+
+            return (fileId, bestFile.Width, bestFile.Height);
+        }
+        catch (HttpRequestException ex)
+        {
+            logger.LogWarning(ex, "Klipy API error while caching GIF slug={Slug}", slug);
             return null;
-
-        var fileId = Guid.NewGuid();
-        db.Files.Add(new FileEntity
-        {
-            Id          = fileId,
-            OwnerId     = Guid.Empty,
-            Purpose     = FilePurpose.Gif,
-            S3Key       = cdnKey,
-            BucketName  = "cdn",
-            FileSize    = mediaBytes.Length,
-            ContentType = "image/webp",
-            Finalized   = true,
-            CreatedAt   = DateTimeOffset.UtcNow,
-            UpdatedAt   = DateTimeOffset.UtcNow
-        });
-        db.FileCounters.Add(new FileCounterEntity
-        {
-            Id        = fileId,
-            RefCount  = 1,
-            CreatedAt = DateTimeOffset.UtcNow,
-            UpdatedAt = DateTimeOffset.UtcNow
-        });
-        await db.SaveChangesAsync(ct);
-
-        return (fileId, bestFile.Width, bestFile.Height);
+        }
     }
 
     #region Private helpers

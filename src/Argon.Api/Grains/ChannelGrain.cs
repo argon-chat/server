@@ -974,6 +974,8 @@ public class ChannelGrain(
             }
 
             entities[i] = gif with { fileId = cached.Value.FileId };
+
+            _ = this.GrainFactory.GetGrain<ISavedGifsGrain>(senderId).SaveGifAsync(gif.gifId);
         }
     }
 
