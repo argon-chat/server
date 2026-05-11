@@ -8,6 +8,8 @@ using Argon.Features.Admin;
 using ConsoleContracts;
 using ion.runtime;
 using Livekit.Server.Sdk.Dotnet;
+using Argon.Services.Ion;
+using Microsoft.Extensions.Caching.Hybrid;
 
 public class AdminConsoleImpl(
     IGrainFactory grainFactory,
@@ -20,7 +22,8 @@ public class AdminConsoleImpl(
     RedisDiagnosticsService? redisDiagnostics,
     OrleansDiagnosticsService? orleansDiagnostics,
     IOperatorCertificateService certificateService,
-    IOperatorAuditService auditService
+    IOperatorAuditService auditService,
+    HybridCache lockdownCache
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -859,6 +862,7 @@ public class AdminConsoleImpl(
             user.LockDownIsAppealable = isAppealable;
 
             await db.SaveChangesAsync(ct);
+            await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
             await auditService.LogAsync("BlockUser", "User", userId.ToString(),
                 $"Reason={reason}, expiration={expiration}, appealable={isAppealable}");
             return new UserActionResult(true, null);
@@ -884,6 +888,7 @@ public class AdminConsoleImpl(
             user.LockDownIsAppealable = false;
 
             await db.SaveChangesAsync(ct);
+            await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
             await auditService.LogAsync("UnblockUser", "User", userId.ToString());
             return new UserActionResult(true, null);
         }

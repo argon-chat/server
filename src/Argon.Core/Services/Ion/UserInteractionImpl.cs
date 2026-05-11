@@ -53,6 +53,8 @@ public class UserInteractionImpl(
 
     public async Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default)
     {
+        this.EnforceLockdown(LockdownSeverity.Middle);
+
         var invite = this.GetGrain<IInviteGrain>(inviteCode.inviteCode);
         var result = await invite.AcceptAsync();
 

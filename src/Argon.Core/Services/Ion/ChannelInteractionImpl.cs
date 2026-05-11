@@ -58,14 +58,18 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public async Task<long> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
         long? replyTo, CancellationToken ct = default)
-        => await this
+    {
+        this.EnforceLockdown(LockdownSeverity.Critical);
+        return await this
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
+    }
 
     public async Task<SendMessageReadback> SendMessageWithReadback(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
         long randomId, long? replyTo,
         CancellationToken ct = default)
     {
+        this.EnforceLockdown(LockdownSeverity.Critical);
         var msgId = await this
            .GetGrain<IChannelGrain>(channelId)
            .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
@@ -79,6 +83,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
 
     public async Task<IInterlinkResult> Interlink(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {
+        this.EnforceLockdown(LockdownSeverity.Middle);
         var result = await this.GetGrain<IChannelGrain>(channelId).Join();
 
         if (!result.IsSuccess) 

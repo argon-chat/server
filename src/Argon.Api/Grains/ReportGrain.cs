@@ -2,7 +2,9 @@ namespace Argon.Grains;
 
 using ArgonContracts;
 using Argon.Features.Moderation;
+using Argon.Services.Ion;
 using Core.Entities.Data;
+using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 
 [StatelessWorker]
@@ -10,6 +12,7 @@ public class ReportGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IGrainFactory grainFactory,
     IOptions<ReportSystemOptions> reportOptions,
+    HybridCache lockdownCache,
     ILogger<IReportGrain> logger) : Grain, IReportGrain
 {
     private ReportSystemOptions Cfg => reportOptions.Value;
@@ -17,7 +20,7 @@ public class ReportGrain(
     public async Task<ISubmitReportResult> SubmitReportAsync(CreateReportInput input, CancellationToken ct = default)
     {
         if (!Cfg.IsEnabled)
-            return new FailedSubmitReport(SubmitReportError.INTERNAL_ERROR);
+            return new SuccessSubmitReport(Guid.Empty);
 
         var reporterId = this.GetUserId();
 
@@ -35,18 +38,18 @@ public class ReportGrain(
                .FirstOrDefaultAsync(u => u.Id == reporterId, ct);
 
             if (reporter is null)
-                return new FailedSubmitReport(SubmitReportError.INTERNAL_ERROR);
+                return new SuccessSubmitReport(Guid.Empty);
 
             var accountAgeDays = (int)(DateTimeOffset.UtcNow - reporter.CreatedAt).TotalDays;
             if (accountAgeDays < Cfg.MinAccountAgeDays)
-                return new FailedSubmitReport(SubmitReportError.RATE_LIMITED);
+                return new SuccessSubmitReport(Guid.Empty);
 
             var oneHourAgo = DateTimeOffset.UtcNow.AddHours(-1);
             var recentCount = await ctx.Reports
                .CountAsync(x => x.ReporterId == reporterId && x.CreatedAt > oneHourAgo, ct);
 
             if (recentCount >= Cfg.MaxReportsPerHour)
-                return new FailedSubmitReport(SubmitReportError.RATE_LIMITED);
+                return new SuccessSubmitReport(Guid.Empty);
 
             var oneDayAgo = DateTimeOffset.UtcNow.AddDays(-1);
             var perTargetCount = await ctx.Reports
@@ -55,7 +58,7 @@ public class ReportGrain(
                     && x.CreatedAt > oneDayAgo, ct);
 
             if (perTargetCount >= Cfg.MaxReportsPerTargetPerDay)
-                return new FailedSubmitReport(SubmitReportError.DUPLICATE_REPORT);
+                return new SuccessSubmitReport(Guid.Empty);
 
             var isDuplicate = await ctx.Reports
                .AnyAsync(x => x.ReporterId == reporterId
@@ -64,7 +67,7 @@ public class ReportGrain(
                     && x.CreatedAt > oneDayAgo, ct);
 
             if (isDuplicate)
-                return new FailedSubmitReport(SubmitReportError.DUPLICATE_REPORT);
+                return new SuccessSubmitReport(Guid.Empty);
 
             var reporterTrust = await ctx.UserTrustScores
                .AsNoTracking()
@@ -118,25 +121,63 @@ public class ReportGrain(
                 }
             }
 
-            if (escalationRule == "CLUSTER_ESCALATION" && Cfg.CriticalCategories.Contains(input.category))
+            if (escalationRule == "CLUSTER_ESCALATION")
             {
-                try
+                if (input.target.messageId is not null && input.target.channelId is not null)
                 {
-                    var targetUser = await ctx.Users.FindAsync([input.target.targetId], ct);
-                    if (targetUser is not null && targetUser.LockdownReason == LockdownReason.NONE)
+                    try
                     {
-                        targetUser.LockdownReason      = LockdownReason.UNDER_INVESTIGATION;
-                        targetUser.LockDownExpiration   = DateTimeOffset.UtcNow.AddDays(Cfg.CriticalCategoryLockdownDays);
-                        targetUser.LockDownIsAppealable = true;
-                        await ctx.SaveChangesAsync(ct);
-                        logger.LogWarning(
-                            "Cluster escalation on critical category: auto-locked user {TargetId} for investigation",
-                            input.target.targetId);
+                        var channel = await ctx.Channels
+                           .AsNoTracking()
+                           .FirstOrDefaultAsync(c => c.Id == input.target.channelId.Value, ct);
+
+                        if (channel is not null)
+                        {
+                            var msg = await ctx.Messages
+                               .FirstOrDefaultAsync(m => m.SpaceId == channel.SpaceId
+                                    && m.ChannelId == input.target.channelId.Value
+                                    && m.MessageId == (long)input.target.messageId.Value, ct);
+
+                            if (msg is not null)
+                            {
+                                msg.Text      = "[Message hidden by moderation]";
+                                msg.Entities  = [];
+                                msg.Controls  = null;
+                                msg.UpdatedAt = DateTimeOffset.UtcNow;
+                                await ctx.SaveChangesAsync(ct);
+                                logger.LogWarning(
+                                    "Cluster escalation: hid message {MessageId} in channel {ChannelId}",
+                                    input.target.messageId, input.target.channelId);
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Failed to hide message {MessageId} on cluster escalation", input.target.messageId);
                     }
                 }
-                catch (Exception ex)
+
+                if (Cfg.CriticalCategories.Contains(input.category))
                 {
-                    logger.LogError(ex, "Failed to auto-lock user {TargetId} on cluster escalation", input.target.targetId);
+                    try
+                    {
+                        var targetUser = await ctx.Users.FindAsync([input.target.targetId], ct);
+                        if (targetUser is not null && targetUser.LockdownReason == LockdownReason.NONE)
+                        {
+                            targetUser.LockdownReason      = LockdownReason.UNDER_INVESTIGATION;
+                            targetUser.LockDownExpiration   = DateTimeOffset.UtcNow.AddDays(Cfg.CriticalCategoryLockdownDays);
+                            targetUser.LockDownIsAppealable = true;
+                            await ctx.SaveChangesAsync(ct);
+                            await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(input.target.targetId), ct);
+                            logger.LogWarning(
+                                "Cluster escalation on critical category: auto-locked user {TargetId} for investigation",
+                                input.target.targetId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        logger.LogError(ex, "Failed to auto-lock user {TargetId} on cluster escalation", input.target.targetId);
+                    }
                 }
             }
 
@@ -145,7 +186,7 @@ public class ReportGrain(
         catch (Exception e)
         {
             logger.LogError(e, "Failed to submit report from {ReporterId}", reporterId);
-            return new FailedSubmitReport(SubmitReportError.INTERNAL_ERROR);
+            return new SuccessSubmitReport(Guid.Empty);
         }
     }
 

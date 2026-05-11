@@ -9,6 +9,8 @@ public static class ArgonRequestContext
 
     public static   void Set(ArgonRequestContextData data) => _current.Value = data;
     internal static void Clear()                           => _current.Value = null;
+
+    public static string LockdownCacheKey(Guid userId) => $"lockdown:{userId}";
 }
 
 public sealed class ArgonRequestContextData
@@ -23,6 +25,7 @@ public sealed class ArgonRequestContextData
     public required Guid?            UserId     { get; init; }
     public required IServiceProvider Scope      { get; init; }
 
+    public LockdownSeverity LockdownSeverity { get; init; }
 
     public IDictionary<string, string> Props         { get; init; } = new Dictionary<string, string>();
     public IClusterClient              ClusterClient => Scope.GetRequiredService<IClusterClient>();
@@ -46,5 +49,12 @@ public static class ServiceEx
         public Guid    GetSessionId()   => ArgonRequestContext.Current.SessionId ?? throw new InvalidOperationException();
         public string? GetClientId()    => ArgonRequestContext.Current.AppId;
         public string  GetUserCountry() => ArgonRequestContext.Current.Region;
+        public string? GetUserIp()      => ArgonRequestContext.Current.Ip;
+
+        public void EnforceLockdown(LockdownSeverity minSeverity)
+        {
+            if (ArgonRequestContext.Current.LockdownSeverity >= minSeverity)
+                throw new InvalidOperationException("Account restricted");
+        }
     }
 }
