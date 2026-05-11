@@ -155,16 +155,7 @@ public class SavedGifsGrain(
     #region Private Helpers
 
     private async Task<KlipyMediaItem?> ResolveMediaItemAsync(string slug, CancellationToken ct)
-    {
-        var userId = this.GetUserId();
-        var locale = this.GetUserRegion();
-        var (trending, _) = await klipy.GetTrendingAsync(1, 50, userId, locale, ct);
-        var item = trending.FirstOrDefault(x => x.Slug == slug);
-        if (item is not null) return item;
-
-        var (search, _) = await klipy.SearchAsync(slug, 1, 10, userId, locale, ct);
-        return search.FirstOrDefault(x => x.Slug == slug);
-    }
+        => await klipy.GetItemBySlugAsync(slug, ct);
 
     private static KlipyFileMetadata? SelectBestFile(KlipyMediaItem item)
         => item.File?.Md?.Webp

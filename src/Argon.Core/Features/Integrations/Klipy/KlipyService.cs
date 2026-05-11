@@ -11,7 +11,8 @@ public interface IKlipyService
 {
     Task<(List<KlipyMediaItem> Items, bool HasNext)> GetTrendingAsync(int page, int perPage, Guid userId, string? locale = null, CancellationToken ct = default);
     Task<(List<KlipyMediaItem> Items, bool HasNext)> SearchAsync(string query, int page, int perPage, Guid userId, string? locale = null, CancellationToken ct = default);
-    Task<List<KlipyCategory>> GetCategoriesAsync(CancellationToken ct = default);
+    Task<List<KlipyCategory>> GetCategoriesAsync(string? locale = null, CancellationToken ct = default);
+    Task<KlipyMediaItem?> GetItemBySlugAsync(string slug, CancellationToken ct = default);
     Task<byte[]> DownloadMediaAsync(string url, CancellationToken ct = default);
     string ComputeUserHmac(string gifId, Guid userId);
     bool ValidateUserHmac(string gifId, Guid userId, string hmac);
@@ -25,6 +26,8 @@ public class KlipyService(
     ILogger<KlipyService> logger) : IKlipyService
 {
     private KlipyOptions Opts => options.Value;
+
+    private string ApiBase => $"{Opts.BaseUrl}/api/v1/{Opts.ApiKey}";
 
     private static readonly HybridCacheEntryOptions TrendingCacheOptions = new()
     {
@@ -53,10 +56,15 @@ public class KlipyService(
         var loc = NormalizeLocale(locale);
         var key = $"klipy:trending:{loc}:{page}:{perPage}";
         var cid = ComputeCustomerId(userId);
-        var result = await cache.GetOrCreateAsync(key,
-            async token => await FetchTrendingAsync(page, perPage, cid, loc, token),
+        return await cache.GetOrCreateAsync(key,
+            async token =>
+            {
+                var url = $"{ApiBase}/gifs/trending?page={page}&per_page={perPage}&customer_id={cid}&locale={loc}";
+                var resp = await CallApiAsync<KlipyPagedData<KlipyMediaItem>>(url, token);
+                var paged = resp.Data;
+                return (paged?.Data ?? [], paged?.HasNext ?? false);
+            },
             TrendingCacheOptions, cancellationToken: ct);
-        return result;
     }
 
     public async Task<(List<KlipyMediaItem> Items, bool HasNext)> SearchAsync(
@@ -66,18 +74,35 @@ public class KlipyService(
         var loc = NormalizeLocale(locale);
         var key = $"klipy:search:{loc}:{normalizedQuery}:{page}:{perPage}";
         var cid = ComputeCustomerId(userId);
-        var result = await cache.GetOrCreateAsync(key,
-            async token => await FetchSearchAsync(normalizedQuery, page, perPage, cid, loc, token),
+        return await cache.GetOrCreateAsync(key,
+            async token =>
+            {
+                var url = $"{ApiBase}/gifs/search?q={Uri.EscapeDataString(normalizedQuery)}&page={page}&per_page={perPage}&customer_id={cid}&locale={loc}";
+                var resp = await CallApiAsync<KlipyPagedData<KlipyMediaItem>>(url, token);
+                var paged = resp.Data;
+                return (paged?.Data ?? [], paged?.HasNext ?? false);
+            },
             SearchCacheOptions, cancellationToken: ct);
-        return result;
     }
 
-    public async Task<List<KlipyCategory>> GetCategoriesAsync(CancellationToken ct = default)
+    public async Task<List<KlipyCategory>> GetCategoriesAsync(string? locale = null, CancellationToken ct = default)
     {
-        var result = await cache.GetOrCreateAsync("klipy:categories",
-            async token => await FetchCategoriesAsync(token),
+        var loc = NormalizeLocale(locale);
+        return await cache.GetOrCreateAsync($"klipy:categories:{loc}",
+            async token =>
+            {
+                var url = $"{ApiBase}/gifs/categories?locale={loc}";
+                var resp = await CallApiAsync<KlipyCategoriesData>(url, token);
+                return resp.Data?.Categories ?? [];
+            },
             CategoriesCacheOptions, cancellationToken: ct);
-        return result;
+    }
+
+    public async Task<KlipyMediaItem?> GetItemBySlugAsync(string slug, CancellationToken ct = default)
+    {
+        var url = $"{ApiBase}/gifs/items?slugs={Uri.EscapeDataString(slug)}";
+        var resp = await CallApiAsync<KlipyPagedData<KlipyMediaItem>>(url, ct);
+        return resp.Data?.Data?.FirstOrDefault();
     }
 
     public async Task<byte[]> DownloadMediaAsync(string url, CancellationToken ct = default)
@@ -113,7 +138,7 @@ public class KlipyService(
         return $"gifs/{Convert.ToHexStringLower(hash)}";
     }
 
-    #region Private fetch methods
+    #region Private helpers
 
     private string ComputeCustomerId(Guid userId)
     {
@@ -127,45 +152,9 @@ public class KlipyService(
     private static string NormalizeLocale(string? locale)
         => string.IsNullOrWhiteSpace(locale) ? "en" : locale.Trim().ToLowerInvariant()[..Math.Min(locale.Trim().Length, 5)];
 
-    private string BuildQueryParams(string? customerId, string? locale)
-    {
-        var sb = new StringBuilder();
-        if (!string.IsNullOrEmpty(customerId))
-            sb.Append($"&customer_id={customerId}");
-        if (!string.IsNullOrEmpty(locale))
-            sb.Append($"&locale={Uri.EscapeDataString(locale)}");
-        return sb.ToString();
-    }
-
-    private async Task<(List<KlipyMediaItem> Items, bool HasNext)> FetchTrendingAsync(
-        int page, int perPage, string customerId, string locale, CancellationToken ct)
-    {
-        var url = $"{Opts.BaseUrl}/gifs/trending?page={page}&per_page={perPage}{BuildQueryParams(customerId, locale)}";
-        var response = await CallApiAsync<List<KlipyMediaItem>>(url, ct);
-        return (response.Data ?? [], response.HasNext);
-    }
-
-    private async Task<(List<KlipyMediaItem> Items, bool HasNext)> FetchSearchAsync(
-        string query, int page, int perPage, string customerId, string locale, CancellationToken ct)
-    {
-        var url = $"{Opts.BaseUrl}/gifs/search?q={Uri.EscapeDataString(query)}&page={page}&per_page={perPage}{BuildQueryParams(customerId, locale)}";
-        var response = await CallApiAsync<List<KlipyMediaItem>>(url, ct);
-        return (response.Data ?? [], response.HasNext);
-    }
-
-    private async Task<List<KlipyCategory>> FetchCategoriesAsync(CancellationToken ct)
-    {
-        var url = $"{Opts.BaseUrl}/gifs/categories";
-        var response = await CallApiAsync<List<KlipyCategory>>(url, ct);
-        return response.Data ?? [];
-    }
-
     private async Task<KlipyResponse<T>> CallApiAsync<T>(string url, CancellationToken ct)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, url);
-        request.Headers.Add("X-API-Key", Opts.ApiKey);
-
-        using var response = await httpClient.SendAsync(request, ct);
+        using var response = await httpClient.SendAsync(new HttpRequestMessage(HttpMethod.Get, url), ct);
         response.EnsureSuccessStatusCode();
 
         var result = await response.Content.ReadFromJsonAsync<KlipyResponse<T>>(ct);

@@ -11,7 +11,7 @@ public class GifInteractionImpl(
     public async Task<GifSearchResult> GetTrending(int page, int perPage, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        var locale = RequestContext.Get("$caller_country") as string;
+        var locale = this.GetUserCountry();
         var (items, hasNext) = await klipy.GetTrendingAsync(page, perPage, userId, locale, ct);
         return new GifSearchResult(items.Select(x => MapToGifItem(x, userId)).ToList(), hasNext);
     }
@@ -19,15 +19,16 @@ public class GifInteractionImpl(
     public async Task<GifSearchResult> Search(string query, int page, int perPage, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        var locale = RequestContext.Get("$caller_country") as string;
+        var locale = this.GetUserCountry();
         var (items, hasNext) = await klipy.SearchAsync(query, page, perPage, userId, locale, ct);
         return new GifSearchResult(items.Select(x => MapToGifItem(x, userId)).ToList(), hasNext);
     }
 
     public async Task<IonArray<GifCategory>> GetCategories(CancellationToken ct = default)
     {
-        var categories = await klipy.GetCategoriesAsync(ct);
-        return new(categories.Select(c => new GifCategory(c.Title, c.Url)).ToList());
+        var locale = this.GetUserCountry();
+        var categories = await klipy.GetCategoriesAsync(locale, ct);
+        return new(categories.Select(c => new GifCategory(c.Category, c.PreviewUrl)).ToList());
     }
 
     public async Task<IonArray<SavedGif>> GetSavedGifs(int page, int perPage, CancellationToken ct = default)

@@ -11,6 +11,13 @@ public record KlipyResponse<T>
 
     [JsonPropertyName("data")]
     public T? Data { get; init; }
+}
+
+/// <summary>Paginated response: data.data[] + data.has_next</summary>
+public record KlipyPagedData<T>
+{
+    [JsonPropertyName("data")]
+    public List<T>? Data { get; init; }
 
     [JsonPropertyName("has_next")]
     public bool HasNext { get; init; }
@@ -88,13 +95,25 @@ public record KlipyFileMetadata
 
 #region Categories
 
+public record KlipyCategoriesData
+{
+    [JsonPropertyName("locale")]
+    public string? Locale { get; init; }
+
+    [JsonPropertyName("categories")]
+    public List<KlipyCategory>? Categories { get; init; }
+}
+
 public record KlipyCategory
 {
-    [JsonPropertyName("title")]
-    public string Title { get; init; } = string.Empty;
+    [JsonPropertyName("category")]
+    public string Category { get; init; } = string.Empty;
 
-    [JsonPropertyName("url")]
-    public string Url { get; init; } = string.Empty;
+    [JsonPropertyName("query")]
+    public string Query { get; init; } = string.Empty;
+
+    [JsonPropertyName("preview_url")]
+    public string PreviewUrl { get; init; } = string.Empty;
 }
 
 #endregion
