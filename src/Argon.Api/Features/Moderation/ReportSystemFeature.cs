@@ -7,6 +7,15 @@ public static class ReportSystemFeature
         var reportSection = builder.Configuration.GetSection(ReportSystemOptions.SectionName);
         var trustSection  = builder.Configuration.GetSection(TrustScoringOptions.SectionName);
 
+        var appSett = new FileInfo("./appsettings.json");
+        var appSettProd = new FileInfo("./appsettings.Production.json");
+
+
+        Console.WriteLine($"{appSett}, {appSettProd}");
+        Console.WriteLine($"Exists: {appSett.Exists}, {appSettProd.Exists}");
+        Console.WriteLine($"appSett: {File.ReadAllText(appSett.FullName)}");
+        Console.WriteLine($"appSettProd: {File.ReadAllText(appSettProd.FullName)}");
+
         var log = LoggerFactory.Create(b => b.AddConsole()).CreateLogger("ReportSystem");
 
         var rOpts = reportSection.Get<ReportSystemOptions>();
