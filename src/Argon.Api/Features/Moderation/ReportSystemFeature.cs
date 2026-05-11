@@ -1,14 +1,9 @@
 namespace Argon.Features.Moderation;
 
-using Argon.Features.Env;
-
 public static class ReportSystemFeature
 {
     public static void AddReportSystem(this WebApplicationBuilder builder)
     {
-        if (!builder.IsWorkerRole() && !builder.IsHybridRole())
-            return;
-
         var reportSection = builder.Configuration.GetSection(ReportSystemOptions.SectionName);
         var trustSection  = builder.Configuration.GetSection(TrustScoringOptions.SectionName);
 
