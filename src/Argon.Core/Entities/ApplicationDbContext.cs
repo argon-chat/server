@@ -93,6 +93,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region GIF Storage
+
+    public DbSet<SavedGifEntity> SavedGifs => Set<SavedGifEntity>();
+
+#endregion
+
 #region Content Moderation
 
     public DbSet<ContentViolationEntity> ContentViolations => Set<ContentViolationEntity>();

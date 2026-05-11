@@ -681,12 +681,12 @@ public class ChannelGrain(
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
 
-        if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment))
+        if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
         {
             if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.AttachFiles))
                 throw new InvalidOperationException("User does not have AttachFiles permission");
 
-            var attachmentCount = entities.Count(e => e is MessageEntityAttachment);
+            var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif);
             if (attachmentCount > 10)
                 throw new InvalidOperationException("Maximum 10 attachments per message");
         }
@@ -865,6 +865,17 @@ public class ChannelGrain(
            .Distinct()
            .ToList();
 
+        var gifFileIds = messages
+           .SelectMany(m => m.Entities ?? [])
+           .OfType<MessageEntityGif>()
+           .Where(g => g.previewUrl is null && g.fileId is not null)
+           .Select(g => g.fileId!.Value)
+           .Distinct()
+           .ToList();
+
+        fileIds.AddRange(gifFileIds);
+        fileIds = fileIds.Distinct().ToList();
+
         if (fileIds.Count == 0) return;
 
         await using var db = await context.CreateDbContextAsync();
@@ -885,6 +896,11 @@ public class ChannelGrain(
                 {
                     message.Entities[i] = att with { downloadUrl = url };
                 }
+                if (message.Entities[i] is MessageEntityGif { previewUrl: null } gif &&
+                    gif.fileId is not null && urlMap.TryGetValue(gif.fileId.Value, out var gifUrl))
+                {
+                    message.Entities[i] = gif with { previewUrl = gifUrl };
+                }
             }
         }
     }
@@ -897,9 +913,16 @@ public class ChannelGrain(
            .Where(a => a.downloadUrl is null)
            .ToList();
 
-        if (attachments.Count == 0) return;
+        var gifs = message.Entities.OfType<MessageEntityGif>()
+           .Where(g => g.previewUrl is null && g.fileId is not null)
+           .ToList();
 
-        var fileIds = attachments.Select(a => a.fileId).Distinct().ToList();
+        if (attachments.Count == 0 && gifs.Count == 0) return;
+
+        var fileIds = attachments.Select(a => a.fileId)
+           .Concat(gifs.Where(g => g.fileId is not null).Select(g => g.fileId!.Value))
+           .Distinct()
+           .ToList();
 
         await using var db = await context.CreateDbContextAsync();
         var files = await db.Files
@@ -916,6 +939,11 @@ public class ChannelGrain(
             {
                 message.Entities[i] = att with { downloadUrl = url };
             }
+            if (message.Entities[i] is MessageEntityGif { previewUrl: null } gif &&
+                gif.fileId is not null && urlMap.TryGetValue(gif.fileId.Value, out var gifUrl))
+            {
+                message.Entities[i] = gif with { previewUrl = gifUrl };
+            }
         }
     }
 
@@ -929,6 +957,8 @@ public class ChannelGrain(
         {
             if (entities[i] is MessageEntityAttachment att && att.downloadUrl is not null)
                 entities[i] = att with { downloadUrl = null };
+            if (entities[i] is MessageEntityGif gif && gif.previewUrl is not null)
+                entities[i] = gif with { previewUrl = null };
         }
         return entities;
     }

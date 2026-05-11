@@ -9,6 +9,7 @@ public interface IS3StorageService
     Task<S3FileMetadata?> HeadFileAsync(string objectKey, CancellationToken ct = default);
     Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default);
     Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default);
+    Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, CancellationToken ct = default);
     string GetDownloadUrl(string objectKey, string? countryCode = null);
 }
 
@@ -107,5 +108,23 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         await response.Content.CopyToAsync(ms, ct);
         ms.Position = 0;
         return ms;
+    }
+
+    public async Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, CancellationToken ct = default)
+    {
+        using var activity = StorageInstruments.ActivitySource.StartActivity("S3.PutObject");
+        activity?.SetTag("s3.key", objectKey);
+        var sw = Stopwatch.StartNew();
+
+        var client = clientPool.GetClient();
+        var response = await client.PutObjectAsync(_opts.BucketName, objectKey, content, null, ct);
+
+        sw.Stop();
+        StorageInstruments.S3Operations.Add(1,
+            new KeyValuePair<string, object?>("operation", "put"),
+            new KeyValuePair<string, object?>("status", response.IsSuccess ? "success" : "failed"));
+        StorageInstruments.S3OperationDuration.Record(sw.Elapsed.TotalMilliseconds, new KeyValuePair<string, object?>("operation", "put"));
+
+        return response.IsSuccess;
     }
 }

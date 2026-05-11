@@ -89,6 +89,7 @@ public enum BotEntityType
     SystemCallTimeout  = 18,
     SystemUserJoined   = 19,
     Attachment         = 20,
+    Gif                = 21,
 }
 
 /// <summary>

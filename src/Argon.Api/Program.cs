@@ -43,6 +43,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
     x.AddService<IReportInteraction, ReportInteractionImpl>();
+    x.AddService<IGifInteraction, GifInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
 
     x.AddService<IAdminConsole, AdminConsoleImpl>(8920, true);
@@ -61,6 +62,9 @@ builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 builder.Services.Configure<AccountDeletionOptions>(
     builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
+builder.Services.Configure<Argon.Features.Integrations.Klipy.KlipyOptions>(
+    builder.Configuration.GetSection(Argon.Features.Integrations.Klipy.KlipyOptions.SectionName));
+builder.Services.AddHttpClient<Argon.Features.Integrations.Klipy.IKlipyService, Argon.Features.Integrations.Klipy.KlipyService>();
 
 builder.AddContentModeration();
 builder.AddReportSystem();

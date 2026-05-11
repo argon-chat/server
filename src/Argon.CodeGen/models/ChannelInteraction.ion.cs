@@ -167,6 +167,7 @@ public enum EntityType
     SystemCallTimeout = 18,
     SystemUserJoined = 19,
     Attachment = 20,
+    Gif = 21,
 }
 
 
@@ -435,6 +436,8 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
 
     internal bool IsMessageEntityAttachment => this is MessageEntityAttachment;
 
+    internal bool IsMessageEntityGif => this is MessageEntityGif;
+
 }
 
 
@@ -585,6 +588,13 @@ public sealed record MessageEntityAttachment(EntityType type, i4 offset, i4 leng
     public uint UnionIndex => 20;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityGif(EntityType type, i4 offset, i4 length, i4 version, string gifId, string hmac, guid? fileId, i4 width, i4 height, string? previewUrl) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityGif);
+    public uint UnionIndex => 21;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -659,6 +669,9 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
 
         else if (unionIndex == 20)
             result = IonFormatterStorage<MessageEntityAttachment>.Read(reader);
+
+        else if (unionIndex == 21)
+            result = IonFormatterStorage<MessageEntityGif>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -818,6 +831,13 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
             if (n_20.UnionIndex != 20)
                 throw new InvalidOperationException();
             IonFormatterStorage<MessageEntityAttachment>.Write(writer, n_20);
+        }
+
+        else if (value is MessageEntityGif n_21)
+        {
+            if (n_21.UnionIndex != 21)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityGif>.Write(writer, n_21);
         }
     
         else
@@ -1444,6 +1464,45 @@ public sealed class Ion_MessageEntityAttachment_Formatter : IonFormatter<Message
         IonFormatterStorage<i4>.WriteNullable(writer, value.height);
         IonFormatterStorage<string>.WriteNullable(writer, value.thumbHash);
         IonFormatterStorage<string>.WriteNullable(writer, value.downloadUrl);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityGif_Formatter : IonFormatter<MessageEntityGif>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityGif Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __gifid = IonFormatterStorage<string>.Read(reader);
+        var __hmac = IonFormatterStorage<string>.Read(reader);
+        var __fileid = reader.ReadNullable<guid>();
+        var __width = IonFormatterStorage<i4>.Read(reader);
+        var __height = IonFormatterStorage<i4>.Read(reader);
+        var __previewurl = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__type, __offset, __length, __version, __gifid, __hmac, __fileid, __width, __height, __previewurl);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityGif value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<string>.Write(writer, value.gifId);
+        IonFormatterStorage<string>.Write(writer, value.hmac);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.fileId);
+        IonFormatterStorage<i4>.Write(writer, value.width);
+        IonFormatterStorage<i4>.Write(writer, value.height);
+        IonFormatterStorage<string>.WriteNullable(writer, value.previewUrl);
         writer.WriteEndArray();
     }
 }
