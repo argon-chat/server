@@ -19,15 +19,29 @@ public class UserTrustGrain(
     {
         var userId = this.GetPrimaryKey();
 
+        logger.LogInformation(
+            "[TrustDiag] GetTrustScore for {UserId}: IsEnabled={IsEnabled}, DefaultTrustScore={DefaultTrustScore}, MaxTrustScore={MaxTrustScore}, CredBase={CredBase}",
+            userId, RCfg.IsEnabled, Cfg.DefaultTrustScore, Cfg.MaxTrustScore, Cfg.CredibilityBase);
+
         if (!RCfg.IsEnabled)
+        {
+            logger.LogWarning("[TrustDiag] Report system DISABLED, returning default {DefaultTrustScore} for {UserId}", Cfg.DefaultTrustScore, userId);
             return new UserTrustInfo(userId, Cfg.DefaultTrustScore, 0, 0, 0, 0, DateTime.UtcNow);
+        }
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         var entity = await ctx.UserTrustScores.FindAsync([userId], ct);
 
         if (entity is null)
+        {
+            logger.LogInformation("[TrustDiag] No UserTrustScore entity for {UserId}, returning default {DefaultTrustScore}", userId, Cfg.DefaultTrustScore);
             return new UserTrustInfo(userId, Cfg.DefaultTrustScore, 0, 0, 0, 0, DateTime.UtcNow);
+        }
+
+        logger.LogInformation(
+            "[TrustDiag] Found entity for {UserId}: TrustScore={TrustScore}, TotalReceived={TotalReceived}, Confirmed={Confirmed}, Filed={Filed}, False={False}",
+            userId, entity.TrustScore, entity.TotalReportsReceived, entity.ConfirmedReportsReceived, entity.TotalReportsFiled, entity.FalseReportsFiled);
 
         return new UserTrustInfo(
             entity.UserId,

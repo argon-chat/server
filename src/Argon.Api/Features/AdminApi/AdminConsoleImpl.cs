@@ -2269,6 +2269,10 @@ public class AdminConsoleImpl(
 
         var lastActivity = user?.UpdatedAt.UtcDateTime ?? DateTime.UtcNow;
 
+        logger.LogInformation(
+            "[TrustCardDiag] userId={UserId}, userFound={UserFound}, username={Username}, trustScore={TrustScore}, accountAge={AccountAge}, entityExists={EntityExists}, entityScore={EntityScore}",
+            userId, user is not null, user?.Username, trustInfo.trustScore, accountAge, trustEntity is not null, trustEntity?.TrustScore);
+
         return new AdminUserTrustCard(
             userId,
             user?.Username ?? "unknown",
