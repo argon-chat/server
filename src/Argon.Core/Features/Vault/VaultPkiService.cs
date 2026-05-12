@@ -3,6 +3,7 @@ namespace Argon.Features.Vault;
 using System.Net.Http;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using Microsoft.Extensions.Caching.Hybrid;
 using VaultSharp;
 using VaultSharp.V1.SecretsEngines.PKI;
 
@@ -26,6 +27,7 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
     private readonly VaultPkiOptions _options = options.Value;
 
     private IVaultClient Vault => provider.GetRequiredService<IVaultClient>();
+    private HybridCache Cache => provider.GetRequiredService<HybridCache>();
 
     public async Task<SignedCertificateResult> SignCsrAsync(string csrPem, string commonName, TimeSpan? ttl = null)
     {
@@ -62,34 +64,29 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
 
     public async Task<bool> IsCertificateRevokedAsync(X509Certificate2 certificate, X509Certificate2 issuerCertificate)
     {
-        // OCSP check via the public PKI endpoint
-        using var chain = new X509Chain();
-        chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
-        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EndCertificateOnly;
-        chain.ChainPolicy.UrlRetrievalTimeout = TimeSpan.FromSeconds(10);
-        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
-        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
-        chain.ChainPolicy.CustomTrustStore.Add(issuerCertificate);
-
-        var valid = chain.Build(certificate);
-
-        foreach (var status in chain.ChainStatus)
-        {
-            if (status.Status == X509ChainStatusFlags.Revoked)
+        var crlPem = await Cache.GetOrCreateAsync(
+            "pki:crl",
+            async cancel =>
             {
-                logger.LogWarning("Certificate serial={Serial} is revoked (OCSP/CRL)", certificate.SerialNumber);
-                return true;
-            }
-        }
+                var httpClientFactory = provider.GetRequiredService<IHttpClientFactory>();
+                using var httpClient = httpClientFactory.CreateClient();
+                httpClient.Timeout = TimeSpan.FromSeconds(10);
+                return await httpClient.GetStringAsync(_options.CrlUrl, cancel);
+            },
+            new HybridCacheEntryOptions
+            {
+                Expiration = TimeSpan.FromMinutes(5),
+                LocalCacheExpiration = TimeSpan.FromMinutes(5)
+            });
 
-        if (!valid)
-        {
-            // Log non-revocation chain errors but don't treat as revoked
-            foreach (var status in chain.ChainStatus)
-                logger.LogWarning("Certificate chain status: {Status} - {Info}", status.Status, status.StatusInformation);
-        }
+        var derBytes = Convert.FromBase64String(
+            crlPem.Replace("-----BEGIN X509 CRL-----", "")
+                   .Replace("-----END X509 CRL-----", "")
+                   .ReplaceLineEndings("")
+                   .Trim());
 
-        return false;
+        var builder = CertificateRevocationListBuilder.Load(derBytes, out _);
+        return builder.RemoveEntry(Convert.FromHexString(certificate.SerialNumber));
     }
 
     public async Task<string> GetCaCertificateAsync()

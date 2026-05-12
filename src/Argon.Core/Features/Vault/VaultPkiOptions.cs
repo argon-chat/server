@@ -6,6 +6,7 @@ public record VaultPkiOptions
 
     public string MountPoint  { get; set; } = "pki-admin";
     public string RoleName    { get; set; } = "operator";
+    public string CrlUrl       { get; set; } = "https://pki.argon.gl/crl/pem";
     public TimeSpan DefaultTtl { get; set; } = TimeSpan.FromDays(365);
     public TimeSpan MaxTtl     { get; set; } = TimeSpan.FromDays(730);
 }
