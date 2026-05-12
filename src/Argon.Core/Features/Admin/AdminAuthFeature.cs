@@ -1,25 +1,19 @@
 namespace Argon.Features.Admin;
 
-using Argon.Features.Vault;
-using Microsoft.AspNetCore.Authentication;
+using Vault;
 using Microsoft.Extensions.DependencyInjection;
 
 public static class AdminAuthFeature
 {
     public static IServiceCollection AddOperatorAuth(this WebApplicationBuilder builder)
     {
+        builder.Services.Configure<OperatorAuthOptions>(
+            builder.Configuration.GetSection(OperatorAuthOptions.SectionName));
         builder.Services.Configure<VaultPkiOptions>(
             builder.Configuration.GetSection(VaultPkiOptions.SectionName));
-        builder.Services.Configure<OperatorJwtOptions>(
-            builder.Configuration.GetSection(OperatorJwtOptions.SectionName));
-
         builder.Services.AddSingleton<IVaultPkiService, VaultPkiService>();
-        builder.Services.AddSingleton<OperatorJwtService>();
         builder.Services.AddScoped<IOperatorCertificateService, OperatorCertificateService>();
-
-        builder.Services.AddAuthentication()
-           .AddScheme<AuthenticationSchemeOptions, OperatorCertificateAuthenticationHandler>(
-                OperatorCertificateAuthenticationHandler.SchemeName, _ => { });
+        builder.Services.AddScoped<IOperatorAuditService, OperatorAuditService>();
 
         return builder.Services;
     }

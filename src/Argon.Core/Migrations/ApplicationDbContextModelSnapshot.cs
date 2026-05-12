@@ -969,6 +969,72 @@ namespace Argon.Core.Migrations
                     b.ToTable("UserLevels");
                 });
 
+            modelBuilder.Entity("Argon.Core.Entities.Data.UserTrustScoreEntity", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AutoActionsApplied")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BlockedByCount")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("CommercialAbuseScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ConfirmedReportsReceived")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ContentViolationScore")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("FalseReportsFiled")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset?>("LastConfirmedReportAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("LastRecalculatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PositiveSignalScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ReporterCredibility")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("SocialBehaviorScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalReportsFiled")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TotalReportsReceived")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("TrustScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("UniqueReporterCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("UserId");
+
+                    b.HasIndex("ReporterCredibility");
+
+                    b.HasIndex("TrustScore");
+
+                    b.ToTable("UserTrustScores");
+                });
+
             modelBuilder.Entity("Argon.Entities.ArchetypeEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1475,6 +1541,62 @@ namespace Argon.Core.Migrations
                     b.ToTable("Files");
                 });
 
+            modelBuilder.Entity("Argon.Entities.OperatorAuditEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("varchar(128)");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(4096)
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("OperatorEmail")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("TargetId")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<string>("TargetType")
+                        .HasMaxLength(128)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Action");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("OperatorId");
+
+                    b.HasIndex("TargetId");
+
+                    b.ToTable("OperatorAuditLog");
+                });
+
             modelBuilder.Entity("Argon.Entities.OperatorEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1519,6 +1641,9 @@ namespace Argon.Core.Migrations
                         .HasColumnType("boolean");
 
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsSystemOperator")
                         .HasColumnType("boolean");
 
                     b.Property<DateTimeOffset?>("LastAuthAt")
@@ -1723,6 +1848,159 @@ namespace Argon.Core.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("PendingPhoneChanges");
+                });
+
+            modelBuilder.Entity("Argon.Entities.ReportEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AdditionalInfo")
+                        .HasMaxLength(2000)
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("AssignedOperatorId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Category")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("EscalationRule")
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.Property<bool>("IsAutoEscalated")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<long?>("MessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("PriorityScore")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Reason")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid?>("ReferenceReportId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ReporterAccountAgeDays")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ReporterCredibilityAtTime")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("ReporterId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ReporterIpHash")
+                        .HasMaxLength(64)
+                        .HasColumnType("text");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("text");
+
+                    b.Property<DateTimeOffset?>("ResolvedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("TargetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("TargetKind")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Category");
+
+                    b.HasIndex("CreatedAt");
+
+                    b.HasIndex("PriorityScore")
+                        .HasDatabaseName("idx_reports_priority");
+
+                    b.HasIndex("ReporterId");
+
+                    b.HasIndex("Status");
+
+                    b.HasIndex("TargetId");
+
+                    b.HasIndex("ReporterId", "TargetId")
+                        .HasDatabaseName("idx_reports_per_target");
+
+                    b.HasIndex("ReporterId", "TargetId", "Category")
+                        .HasDatabaseName("idx_reports_dedup");
+
+                    b.ToTable("Reports");
+                });
+
+            modelBuilder.Entity("Argon.Entities.SavedGifEntity", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FileId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Height")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Slug")
+                        .HasMaxLength(256)
+                        .HasColumnType("varchar(256)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Width")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FileId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("UserId", "Slug")
+                        .IsUnique()
+                        .HasFilter("\"Slug\" IS NOT NULL");
+
+                    b.ToTable("SavedGifs");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceBoostEntity", b =>
@@ -2738,6 +3016,17 @@ namespace Argon.Core.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Argon.Entities.ReportEntity", b =>
+                {
+                    b.HasOne("Argon.Entities.UserEntity", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Reporter");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceBoostEntity", b =>

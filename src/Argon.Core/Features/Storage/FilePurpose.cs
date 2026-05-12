@@ -8,7 +8,8 @@ public enum FilePurpose
     Emoji           = 3,
     Sticker         = 4,
     Banner          = 5,
-    Video           = 6
+    Video           = 6,
+    Gif             = 7
 }
 
 public static class FilePurposeExtensions
@@ -20,6 +21,7 @@ public static class FilePurposeExtensions
         FilePurpose.Emoji       => true,
         FilePurpose.Sticker     => true,
         FilePurpose.Banner      => true,
+        FilePurpose.Gif         => true,
         _                       => false
     };
 
@@ -32,6 +34,7 @@ public static class FilePurposeExtensions
         FilePurpose.Banner            => "banner",
         FilePurpose.ChannelAttachment => "channels",
         FilePurpose.Video             => "video",
+        FilePurpose.Gif               => "gifs",
         _                             => "misc"
     };
 

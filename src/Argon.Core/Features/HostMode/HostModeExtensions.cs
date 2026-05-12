@@ -183,7 +183,6 @@ public static class HostModeExtensions
             if (!builder.IsEntryPointRole())
             {
                 builder.AddBeforeMigrations();
-                builder.AddPooledDatabase<ApplicationDbContext>();
                 builder.AddNotificationFeature();
                 builder.AddEfRepositories();
                 builder.AddArgonPermissions();
@@ -196,6 +195,8 @@ public static class HostModeExtensions
                 builder.AddArchetypesCache();
                 builder.Services.AddHostedService<FileGcService>();
             }
+            // temporary for entry access to db
+            builder.AddPooledDatabase<ApplicationDbContext>();
 
             if (builder.IsHybridRole())
             {

@@ -93,15 +93,29 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region GIF Storage
+
+    public DbSet<SavedGifEntity> SavedGifs => Set<SavedGifEntity>();
+
+#endregion
+
 #region Content Moderation
 
     public DbSet<ContentViolationEntity> ContentViolations => Set<ContentViolationEntity>();
 
 #endregion
 
+#region Reports & Trust
+
+    public DbSet<ReportEntity>         Reports         => Set<ReportEntity>();
+    public DbSet<UserTrustScoreEntity> UserTrustScores => Set<UserTrustScoreEntity>();
+
+#endregion
+
 #region Operators
 
     public DbSet<OperatorEntity> Operators => Set<OperatorEntity>();
+    public DbSet<OperatorAuditEntity> OperatorAuditLog => Set<OperatorAuditEntity>();
 
 #endregion
 

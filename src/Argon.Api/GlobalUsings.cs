@@ -11,6 +11,7 @@ global using Argon.ArchetypeModel;
 global using Argon.Entities;
 global using Argon.Extensions;
 global using Argon.Features;
+global using Argon.Features.Moderation;
 global using Argon.Grains.Interfaces;
 global using Argon.Streaming;
 global using Argon.Users;

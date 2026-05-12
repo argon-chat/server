@@ -1,15 +1,18 @@
+using Argon.Api.Features.AdminApi;
+using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Core.Features.EF;
 using Argon.Core.Features.Transport;
 using Argon.Features.Admin;
 using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
+using Argon.Features.Integrations.Klipy;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
+using ConsoleContracts;
 using Microsoft.AspNetCore.Http.Connections;
-
 
 if (BotApiCli.TryHandleCommand(args))
     return;
@@ -40,8 +43,14 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
+    x.AddService<IReportInteraction, ReportInteractionImpl>();
+    x.AddService<IGifInteraction, GifInteractionImpl>();
     x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
+
+    x.AddService<IAdminConsole, AdminConsoleImpl>(8920, true);
+    x.AddInterceptor<OperatorAuthInterceptor>(8920);
 });
+builder.AddDiagnosticServices();
 builder.AddSignalRAppHub();
 builder.Services.AddHttpClient();
 builder.Services.AddSentryTunneling("sentry.argon.gl");
@@ -54,45 +63,14 @@ builder.Services.AddBotApiJson();
 builder.Services.AddHostedService<BotContractVerificationStartupFilter>();
 builder.Services.Configure<AccountDeletionOptions>(
     builder.Configuration.GetSection(AccountDeletionOptions.SectionName));
+builder.AddKlipyFeature();
 
 builder.AddContentModeration();
+builder.AddReportSystem();
 builder.AddOperatorAuth();
+builder.UseIonPorts();
 
 var app = builder.Build();
-
-app.Map("/debug", (HttpContext context) =>
-{
-    var request = context.Request;
-    var connection = context.Connection;
-
-    var result = new
-    {
-        Request = new
-        {
-            request.Method,
-            request.Scheme,
-            request.Protocol,
-            Host = request.Host.ToString(),
-            request.Path,
-            PathBase = request.PathBase.ToString(),
-            QueryString = request.QueryString.ToString(),
-            ContentType = request.ContentType,
-            ContentLength = request.ContentLength,
-        },
-        Connection = new
-        {
-            RemoteIpAddress = connection.RemoteIpAddress?.ToString(),
-            RemotePort = connection.RemotePort,
-            LocalIpAddress = connection.LocalIpAddress?.ToString(),
-            LocalPort = connection.LocalPort,
-        },
-        Headers = request.Headers
-            .OrderBy(h => h.Key)
-            .ToDictionary(h => h.Key, h => h.Value.ToString()),
-    };
-
-    return Results.Json(result, statusCode: 200);
-});
 
 app.UseSentryTunneling("/k");
 if (builder.Environment.IsSingleInstance())

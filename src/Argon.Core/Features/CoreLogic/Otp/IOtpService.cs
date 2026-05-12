@@ -18,13 +18,6 @@ public static class OtpExtensions
     }
 }
 
-public enum ArgonAuthMode
-{
-    EmailPassword,
-    EmailOtp,
-    EmailPasswordOtp
-}
-
 public interface IOtpService
 {
     Task       SendAsync(SendOtpRequest req, string ip, string? requestId = null, CancellationToken ct = default);
