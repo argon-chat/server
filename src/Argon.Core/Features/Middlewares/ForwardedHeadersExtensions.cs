@@ -2,10 +2,7 @@ namespace Argon.Features.Middlewares;
 
 using System.Net;
 using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 
 public static class ForwardedHeadersExtensions
 {
@@ -13,25 +10,14 @@ public static class ForwardedHeadersExtensions
 
     /// <summary>
     /// Configures forwarded headers with trusted proxy networks from configuration.
-    /// Reads CIDRs from "ForwardedHeaders:KnownNetworks" section, defaults to K3s pod/service CIDRs.
-    /// Also strips X-Forwarded-Tls-Client-Cert from untrusted sources.
+    /// Reads CIDRs from "ForwardedHeaders:KnownNetworks" and individual IPs from "ForwardedHeaders:KnownProxies".
     /// </summary>
     public static WebApplication UseConfiguredForwardedHeaders(this WebApplication app)
     {
         var cidrs = app.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>()
                     ?? DefaultKnownNetworks;
-
-        var trustedNetworks = new List<System.Net.IPNetwork>();
-        foreach (var cidr in cidrs)
-        {
-            var parts = cidr.Split('/');
-            if (parts.Length == 2
-                && IPAddress.TryParse(parts[0], out var address)
-                && int.TryParse(parts[1], out var prefixLength))
-            {
-                trustedNetworks.Add(new System.Net.IPNetwork(address, prefixLength));
-            }
-        }
+        var proxyIps = app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>()
+                       ?? [];
 
         var options = new ForwardedHeadersOptions
         {
@@ -40,45 +26,25 @@ public static class ForwardedHeadersExtensions
                              | ForwardedHeaders.XForwardedProto
         };
 
-        foreach (var network in trustedNetworks)
-            options.KnownIPNetworks.Add(network);
-
-        // Strip X-Forwarded-Tls-Client-Cert BEFORE UseForwardedHeaders,
-        // because ForwardedHeaders overwrites RemoteIpAddress with the client IP from X-Forwarded-For
-        app.Use((context, next) =>
+        foreach (var cidr in cidrs)
         {
-            if (context.Request.Headers.ContainsKey("X-Forwarded-Tls-Client-Cert"))
+            var parts = cidr.Split('/');
+            if (parts.Length == 2
+                && IPAddress.TryParse(parts[0], out var address)
+                && int.TryParse(parts[1], out var prefixLength))
             {
-                var remoteIp = context.Connection.RemoteIpAddress;
-                if (remoteIp is null || !IsInTrustedNetwork(remoteIp, trustedNetworks))
-                {
-                    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
-                        .CreateLogger("Argon.ForwardedHeaders");
-                    logger.LogWarning(
-                        "[ForwardedHeaders] Stripped X-Forwarded-Tls-Client-Cert from untrusted IP {RemoteIp}",
-                        remoteIp);
-                    context.Request.Headers.Remove("X-Forwarded-Tls-Client-Cert");
-                }
+                options.KnownIPNetworks.Add(new System.Net.IPNetwork(address, prefixLength));
             }
-            return next(context);
-        });
+        }
+
+        foreach (var ip in proxyIps)
+        {
+            if (IPAddress.TryParse(ip, out var parsed))
+                options.KnownProxies.Add(parsed);
+        }
 
         app.UseForwardedHeaders(options);
 
         return app;
-    }
-
-    private static bool IsInTrustedNetwork(IPAddress address, List<System.Net.IPNetwork> networks)
-    {
-        // Normalize IPv4-mapped IPv6 to IPv4
-        if (address.IsIPv4MappedToIPv6)
-            address = address.MapToIPv4();
-
-        foreach (var network in networks)
-        {
-            if (network.Contains(address))
-                return true;
-        }
-        return false;
     }
 }
