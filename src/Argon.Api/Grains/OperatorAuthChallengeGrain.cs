@@ -77,7 +77,8 @@ public class OperatorAuthChallengeGrain(
         if (string.IsNullOrEmpty(op.CertificateSerialNumber))
             return OperatorAuthError.OperatorNotFound;
 
-        var isRevoked = await pkiService.IsCertificateRevokedAsync(op.CertificateSerialNumber);
+        using var caCert = X509Certificate2.CreateFromPem(caPem);
+        var isRevoked = await pkiService.IsCertificateRevokedAsync(cert, caCert);
         if (isRevoked)
             return OperatorAuthError.CertificateRevoked;
 

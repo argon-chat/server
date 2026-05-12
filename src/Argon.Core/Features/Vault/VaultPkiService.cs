@@ -1,5 +1,8 @@
 namespace Argon.Features.Vault;
 
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using VaultSharp;
 using VaultSharp.V1.SecretsEngines.PKI;
 
@@ -13,7 +16,7 @@ public interface IVaultPkiService
 {
     Task<SignedCertificateResult> SignCsrAsync(string csrPem, string commonName, TimeSpan? ttl = null);
     Task RevokeCertificateAsync(string serialNumber);
-    Task<bool> IsCertificateRevokedAsync(string serialNumber);
+    Task<bool> IsCertificateRevokedAsync(X509Certificate2 certificate, X509Certificate2 issuerCertificate);
     Task<string> GetCaCertificateAsync();
 }
 
@@ -57,18 +60,36 @@ public sealed class VaultPkiService(IServiceProvider provider, IOptions<VaultPki
         logger.LogInformation("Revoked certificate serial={Serial}", serialNumber);
     }
 
-    public async Task<bool> IsCertificateRevokedAsync(string serialNumber)
+    public async Task<bool> IsCertificateRevokedAsync(X509Certificate2 certificate, X509Certificate2 issuerCertificate)
     {
-        try
+        // OCSP check via the public PKI endpoint
+        using var chain = new X509Chain();
+        chain.ChainPolicy.RevocationMode = X509RevocationMode.Online;
+        chain.ChainPolicy.RevocationFlag = X509RevocationFlag.EndCertificateOnly;
+        chain.ChainPolicy.UrlRetrievalTimeout = TimeSpan.FromSeconds(10);
+        chain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
+        chain.ChainPolicy.TrustMode = X509ChainTrustMode.CustomRootTrust;
+        chain.ChainPolicy.CustomTrustStore.Add(issuerCertificate);
+
+        var valid = chain.Build(certificate);
+
+        foreach (var status in chain.ChainStatus)
         {
-            var revoked = await Vault.V1.Secrets.PKI.ListRevokedCertificatesAsync(_options.MountPoint);
-            return revoked.Data.Keys?.Contains(serialNumber) == true;
+            if (status.Status == X509ChainStatusFlags.Revoked)
+            {
+                logger.LogWarning("Certificate serial={Serial} is revoked (OCSP/CRL)", certificate.SerialNumber);
+                return true;
+            }
         }
-        catch (Exception e)
+
+        if (!valid)
         {
-            logger.LogWarning(e, "Failed to check revocation status for serial={Serial}", serialNumber);
-            return false;
+            // Log non-revocation chain errors but don't treat as revoked
+            foreach (var status in chain.ChainStatus)
+                logger.LogWarning("Certificate chain status: {Status} - {Info}", status.Status, status.StatusInformation);
         }
+
+        return false;
     }
 
     public async Task<string> GetCaCertificateAsync()
