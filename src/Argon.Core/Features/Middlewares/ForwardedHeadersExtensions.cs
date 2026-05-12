@@ -4,6 +4,8 @@ using System.Net;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 public static class ForwardedHeadersExtensions
 {
@@ -49,7 +51,14 @@ public static class ForwardedHeadersExtensions
             {
                 var remoteIp = context.Connection.RemoteIpAddress;
                 if (remoteIp is null || !IsInTrustedNetwork(remoteIp, trustedNetworks))
+                {
+                    var logger = context.RequestServices.GetRequiredService<ILoggerFactory>()
+                        .CreateLogger("Argon.ForwardedHeaders");
+                    logger.LogWarning(
+                        "[ForwardedHeaders] Stripped X-Forwarded-Tls-Client-Cert from untrusted IP {RemoteIp}",
+                        remoteIp);
                     context.Request.Headers.Remove("X-Forwarded-Tls-Client-Cert");
+                }
             }
             return next(context);
         });
