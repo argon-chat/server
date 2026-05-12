@@ -41,9 +41,8 @@ public static class ForwardedHeadersExtensions
         foreach (var network in trustedNetworks)
             options.KnownIPNetworks.Add(network);
 
-        app.UseForwardedHeaders(options);
-
-        // Strip X-Forwarded-Tls-Client-Cert from requests not originating from trusted proxy networks
+        // Strip X-Forwarded-Tls-Client-Cert BEFORE UseForwardedHeaders,
+        // because ForwardedHeaders overwrites RemoteIpAddress with the client IP from X-Forwarded-For
         app.Use((context, next) =>
         {
             if (context.Request.Headers.ContainsKey("X-Forwarded-Tls-Client-Cert"))
@@ -54,6 +53,8 @@ public static class ForwardedHeadersExtensions
             }
             return next(context);
         });
+
+        app.UseForwardedHeaders(options);
 
         return app;
     }
