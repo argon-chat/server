@@ -2500,61 +2500,6 @@ namespace Argon.Core.Migrations
                         });
                 });
 
-            modelBuilder.Entity("Argon.Entities.UserPasskeyEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AaGuid")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<byte[]>("CredentialId")
-                        .HasMaxLength(1024)
-                        .HasColumnType("bytea");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsCompleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset?>("LastUsedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("text");
-
-                    b.Property<byte[]>("PublicKey")
-                        .HasMaxLength(2048)
-                        .HasColumnType("bytea");
-
-                    b.Property<long>("SignCount")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CredentialId");
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("Passkeys");
-                });
-
             modelBuilder.Entity("Argon.Entities.UserProfileEntity", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3134,17 +3079,6 @@ namespace Argon.Core.Migrations
                 });
 
             modelBuilder.Entity("Argon.Entities.UserDeviceHistoryEntity", b =>
-                {
-                    b.HasOne("Argon.Entities.UserEntity", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("Argon.Entities.UserPasskeyEntity", b =>
                 {
                     b.HasOne("Argon.Entities.UserEntity", "User")
                         .WithMany()
