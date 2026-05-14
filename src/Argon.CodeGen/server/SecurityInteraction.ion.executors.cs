@@ -212,16 +212,15 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     {
         var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
     
-        const int argumentSize = 2;
+        const int argumentSize = 1;
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
-        var __passkeyid = IonFormatterStorage<guid>.Read(reader);
-        var __publickey = IonFormatterStorage<string>.Read(reader);
+        var __registrationresponse = IonFormatterStorage<string>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.CompleteAddPasskey(__passkeyid, __publickey);
+        var result = await service.CompleteAddPasskey(__registrationresponse);
         
         IonFormatterStorage<ICompletePasskeyResult>.Write(writer, result);
     }
@@ -315,18 +314,15 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     {
         var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
     
-        const int argumentSize = 4;
+        const int argumentSize = 1;
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
-        var __credentialid = IonFormatterStorage<string>.Read(reader);
-        var __signature = IonFormatterStorage<string>.Read(reader);
-        var __authenticatordata = IonFormatterStorage<string>.Read(reader);
-        var __clientdatajson = IonFormatterStorage<string>.Read(reader);
+        var __authenticationresponse = IonFormatterStorage<string>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.CompleteValidatePasskey(__credentialid, __signature, __authenticatordata, __clientdatajson);
+        var result = await service.CompleteValidatePasskey(__authenticationresponse);
         
         IonFormatterStorage<ICompletePasskeyResult>.Write(writer, result);
     }

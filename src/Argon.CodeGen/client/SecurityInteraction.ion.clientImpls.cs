@@ -248,18 +248,17 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         return await req.CallAsync<IBeginPasskeyResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ICompletePasskeyResult> CompleteAddPasskey(guid __passkeyid, string __publickey, CancellationToken ct = default)
+    public async Task<ICompletePasskeyResult> CompleteAddPasskey(string __registrationresponse, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(ISecurityInteraction), CompleteAddPasskey_Ref.Value);
     
         var writer = new CborWriter();
         
-        const int argsSize = 2;
+        const int argsSize = 1;
     
         writer.WriteStartArray(argsSize);
         
-        IonFormatterStorage<guid>.Write(writer, __passkeyid);
-        IonFormatterStorage<string>.Write(writer, __publickey);
+        IonFormatterStorage<string>.Write(writer, __registrationresponse);
         
         writer.WriteEndArray();
     
@@ -351,20 +350,17 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         return await req.CallAsync<IBeginPasskeyValidateResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<ICompletePasskeyResult> CompleteValidatePasskey(string __credentialid, string __signature, string __authenticatordata, string __clientdatajson, CancellationToken ct = default)
+    public async Task<ICompletePasskeyResult> CompleteValidatePasskey(string __authenticationresponse, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(ISecurityInteraction), CompleteValidatePasskey_Ref.Value);
     
         var writer = new CborWriter();
         
-        const int argsSize = 4;
+        const int argsSize = 1;
     
         writer.WriteStartArray(argsSize);
         
-        IonFormatterStorage<string>.Write(writer, __credentialid);
-        IonFormatterStorage<string>.Write(writer, __signature);
-        IonFormatterStorage<string>.Write(writer, __authenticatordata);
-        IonFormatterStorage<string>.Write(writer, __clientdatajson);
+        IonFormatterStorage<string>.Write(writer, __authenticationresponse);
         
         writer.WriteEndArray();
     

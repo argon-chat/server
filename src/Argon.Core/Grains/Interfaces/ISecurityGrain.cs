@@ -39,7 +39,7 @@ public interface ISecurityGrain : IGrainWithGuidKey
     Task<IBeginPasskeyResult> BeginAddPasskeyAsync(string name, CancellationToken ct = default);
 
     [Alias(nameof(CompleteAddPasskeyAsync))]
-    Task<ICompletePasskeyResult> CompleteAddPasskeyAsync(Guid passkeyId, string publicKey, CancellationToken ct = default);
+    Task<ICompletePasskeyResult> CompleteAddPasskeyAsync(string registrationResponse, CancellationToken ct = default);
 
     [Alias(nameof(RemovePasskeyAsync))]
     Task<IRemovePasskeyResult> RemovePasskeyAsync(Guid passkeyId, CancellationToken ct = default);
@@ -57,5 +57,5 @@ public interface ISecurityGrain : IGrainWithGuidKey
     Task<IBeginPasskeyValidateResult> BeginValidatePasskeyAsync(CancellationToken ct = default);
 
     [Alias(nameof(CompleteValidatePasskeyAsync))]
-    Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default);
+    Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string authenticationResponse, CancellationToken ct = default);
 }

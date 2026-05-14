@@ -4,6 +4,7 @@ using Argon.Features.Integrations.Phones;
 using Argon.Core.Features.CoreLogic.Passkeys;
 using Services;
 using OtpNet;
+using Fido2NetLib;
 
 public static class OtpExtensions
 {
@@ -15,6 +16,18 @@ public static class OtpExtensions
         builder.Services.AddSingleton<IOtpStrategy, PhoneOtpStrategy>();
         builder.Services.AddSingleton<IOtpStrategy, TotpOtpStrategy>();
         builder.Services.AddSingleton<IOtpStrategy, EmailOtpStrategy>();
+
+        builder.Services.AddSingleton<IFido2>(new Fido2(new Fido2Configuration
+        {
+            RPID = "argon.gl",
+            RPName = "ArgonChat",
+            Origins = new HashSet<string>
+            {
+                "https://argon.gl",
+                "https://aegis.argon.gl",
+                "https://app.argon.gl"
+            }
+        }));
     }
 }
 

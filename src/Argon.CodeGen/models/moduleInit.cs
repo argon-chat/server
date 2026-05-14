@@ -126,7 +126,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ISubmitReportResult>.Value = new Ion_ISubmitReportResult_Formatter();
       IonFormatterStorage<SecurityDetails>.Value = new Ion_SecurityDetails_Formatter();
       IonFormatterStorage<Passkey>.Value = new Ion_Passkey_Formatter();
-      IonFormatterStorage<PasskeyCredentialDescriptor>.Value = new Ion_PasskeyCredentialDescriptor_Formatter();
       IonFormatterStorage<AutoDeletePeriod>.Value = new Ion_AutoDeletePeriod_Formatter();
       IonFormatterStorage<EmailChangeError>.Value = new Ion_EmailChangeError_Formatter();
       IonFormatterStorage<PhoneChangeError>.Value = new Ion_PhoneChangeError_Formatter();

@@ -8,6 +8,9 @@ using ion.runtime;
 using Orleans.Concurrency;
 using OtpNet;
 using Services;
+using Fido2NetLib;
+using Fido2NetLib.Objects;
+using System.Buffers.Text;
 
 [StatelessWorker]
 public class SecurityGrain(
@@ -18,6 +21,7 @@ public class SecurityGrain(
     IPhoneProvider phoneProvider,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
+    IFido2 fido2,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
 {
     private const int MaxPasskeys = 10;
@@ -414,7 +418,9 @@ public class SecurityGrain(
                     p.Id, 
                     p.Name, 
                     p.CreatedAt.UtcDateTime, 
-                    p.LastUsedAt?.UtcDateTime))
+                    p.LastUsedAt?.UtcDateTime,
+                    p.AaGuid,
+                    p.AaGuid.HasValue ? AuthenticatorNames.Lookup(p.AaGuid.Value) : null))
                 .ToList();
         }
         catch (Exception e)
@@ -435,10 +441,44 @@ public class SecurityGrain(
                 return new FailedBeginPasskey(PasskeyError.LIMIT_REACHED);
 
             if (string.IsNullOrWhiteSpace(name))
-                return new FailedBeginPasskey(PasskeyError.INVALID_PUBLIC_KEY);
+                return new FailedBeginPasskey(PasskeyError.INVALID_CREDENTIAL);
 
-            var (passkeyId, challenge) = await pendingPasskeyStore.CreatePendingAsync(UserId, name, ct);
-            return new SuccessBeginPasskey(passkeyId, challenge);
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId, ct);
+            if (user is null)
+                return new FailedBeginPasskey(PasskeyError.INTERNAL_ERROR);
+
+            // Get existing credential IDs to exclude (prevent re-registration)
+            var existingCredentials = await db.Passkeys
+                .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted && p.CredentialId != null)
+                .Select(p => new PublicKeyCredentialDescriptor(p.CredentialId!))
+                .ToListAsync(ct);
+
+            // Generate Fido2 credential creation options
+            var fido2User = new Fido2User
+            {
+                Id = UserId.ToByteArray(),
+                Name = user.Username ?? user.Email,
+                DisplayName = user.DisplayName ?? user.Username ?? user.Email
+            };
+
+            var options = fido2.RequestNewCredential(
+                new RequestNewCredentialParams
+                {
+                    User = fido2User,
+                    ExcludeCredentials = existingCredentials,
+                    AuthenticatorSelection = new AuthenticatorSelection
+                    {
+                        UserVerification = UserVerificationRequirement.Preferred,
+                        ResidentKey = ResidentKeyRequirement.Preferred
+                    },
+                    AttestationPreference = AttestationConveyancePreference.Direct
+                });
+
+            var optionsJson = options.ToJson();
+
+            await pendingPasskeyStore.StoreRegistrationStateAsync(UserId, name, optionsJson, ct);
+
+            return new SuccessBeginPasskey(optionsJson);
         }
         catch (Exception e)
         {
@@ -447,36 +487,48 @@ public class SecurityGrain(
         }
     }
 
-    public async Task<ICompletePasskeyResult> CompleteAddPasskeyAsync(Guid passkeyId, string publicKey, CancellationToken ct = default)
+    public async Task<ICompletePasskeyResult> CompleteAddPasskeyAsync(string registrationResponse, CancellationToken ct = default)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(publicKey))
-                return new FailedCompletePasskey(PasskeyError.INVALID_PUBLIC_KEY);
+            if (string.IsNullOrWhiteSpace(registrationResponse))
+                return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
 
-            // Retrieve pending passkey from cache
-            var pending = await pendingPasskeyStore.GetPendingAsync(UserId, passkeyId, ct);
-            if (pending is null)
-                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
+            var attestationResponse = System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAttestationRawResponse>(registrationResponse);
+            if (attestationResponse is null)
+                return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
+
+            // Retrieve stored registration state from cache
+            var registration = await pendingPasskeyStore.GetRegistrationStateAsync(UserId, ct);
+            if (registration is null)
+                return new FailedCompletePasskey(PasskeyError.CHALLENGE_EXPIRED);
+
+            var options = CredentialCreateOptions.FromJson(registration.OptionsJson);
 
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-            // Check if passkey already exists in DB (shouldn't happen if flow is correct)
-            var existingPasskey = await db.Passkeys.FirstOrDefaultAsync(p => p.Id == passkeyId && p.UserId == UserId, ct);
-            if (existingPasskey is not null)
-            {
-                await pendingPasskeyStore.DeletePendingAsync(UserId, passkeyId, ct);
-                return new FailedCompletePasskey(PasskeyError.INTERNAL_ERROR);
-            }
+            var credential = await fido2.MakeNewCredentialAsync(new MakeNewCredentialParams
+                {
+                    AttestationResponse = attestationResponse,
+                    OriginalOptions = options,
+                    IsCredentialIdUniqueToUserCallback = async (args, cancellationToken) =>
+                    {
+                        var exists = await db.Passkeys.AnyAsync(
+                            p => p.CredentialId != null && p.CredentialId == args.CredentialId && !p.IsDeleted,
+                            cancellationToken);
+                        return !exists;
+                    }
+                }, ct);
 
-            // Create new passkey in database
             var passkey = new UserPasskeyEntity
             {
-                Id = passkeyId,
+                Id = Guid.CreateVersion7(),
                 UserId = UserId,
-                Name = pending.Name,
-                PublicKey = publicKey,
-                Challenge = null,
+                Name = registration.Name,
+                CredentialId = credential.Id,
+                PublicKey = credential.PublicKey,
+                SignCount = credential.SignCount,
+                AaGuid = credential.AaGuid,
                 IsCompleted = true,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -485,13 +537,18 @@ public class SecurityGrain(
             await db.Passkeys.AddAsync(passkey, ct);
             await db.SaveChangesAsync(ct);
 
-            // Clean up cache
-            await pendingPasskeyStore.DeletePendingAsync(UserId, passkeyId, ct);
+            await pendingPasskeyStore.DeleteRegistrationStateAsync(UserId, ct);
 
             _ = NotifySecurityDetailsChangedAsync(ct);
 
-            var result = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime);
+            var result = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime,
+                passkey.AaGuid, passkey.AaGuid.HasValue ? AuthenticatorNames.Lookup(passkey.AaGuid.Value) : null);
             return new SuccessCompletePasskey(result);
+        }
+        catch (Fido2VerificationException ex)
+        {
+            logger.LogWarning(ex, "Passkey registration verification failed for user {UserId}", UserId);
+            return new FailedCompletePasskey(PasskeyError.VERIFICATION_FAILED);
         }
         catch (Exception e)
         {
@@ -637,19 +694,28 @@ public class SecurityGrain(
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
             var passkeys = await db.Passkeys
-                .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted)
+                .Where(p => p.UserId == UserId && p.IsCompleted && !p.IsDeleted && p.CredentialId != null)
                 .ToListAsync(ct);
 
             if (passkeys.Count == 0)
                 return new FailedBeginValidatePasskey(PasskeyError.NOT_FOUND);
 
-            var challenge = Convert.ToBase64String(OtpSecurity.GenerateSalt(32));
-
             var allowedCredentials = passkeys
-                .Select(p => new PasskeyCredentialDescriptor(p.PublicKey?.ToString()!, "public-key"))
+                .Select(p => new PublicKeyCredentialDescriptor(p.CredentialId!))
                 .ToList();
 
-            return new SuccessBeginValidatePasskey(challenge, new IonArray<PasskeyCredentialDescriptor>(allowedCredentials));
+            var options = fido2.GetAssertionOptions(
+                new GetAssertionOptionsParams
+                {
+                    AllowedCredentials = allowedCredentials,
+                    UserVerification = UserVerificationRequirement.Preferred
+                });
+
+            var optionsJson = options.ToJson();
+
+            await pendingPasskeyStore.StoreValidationOptionsAsync(UserId, optionsJson, ct);
+
+            return new SuccessBeginValidatePasskey(optionsJson);
         }
         catch (Exception e)
         {
@@ -658,36 +724,66 @@ public class SecurityGrain(
         }
     }
 
-    public async Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default)
+    public async Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string authenticationResponse, CancellationToken ct = default)
     {
         try
         {
-            if (string.IsNullOrWhiteSpace(credentialId) || 
-                string.IsNullOrWhiteSpace(signature) || 
-                string.IsNullOrWhiteSpace(authenticatorData) || 
-                string.IsNullOrWhiteSpace(clientDataJSON))
-            {
-                return new FailedCompletePasskey(PasskeyError.INVALID_PUBLIC_KEY);
-            }
+            if (string.IsNullOrWhiteSpace(authenticationResponse))
+                return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
 
-            if (!Guid.TryParse(credentialId, out var passkeyId))
-                return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
+            var assertionResponse = System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(authenticationResponse);
+            if (assertionResponse is null)
+                return new FailedCompletePasskey(PasskeyError.INVALID_CREDENTIAL);
+
+            var optionsJson = await pendingPasskeyStore.GetValidationOptionsAsync(UserId, ct);
+            if (optionsJson is null)
+                return new FailedCompletePasskey(PasskeyError.CHALLENGE_EXPIRED);
+
+            var options = AssertionOptions.FromJson(optionsJson);
 
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
+            // Find the passkey by credential ID
+            var credentialIdBytes = Base64Url.DecodeFromChars(assertionResponse.Id);
             var passkey = await db.Passkeys.FirstOrDefaultAsync(
-                p => p.Id == passkeyId && p.UserId == UserId && p.IsCompleted && !p.IsDeleted, ct);
+                p => p.CredentialId != null && p.CredentialId == credentialIdBytes 
+                     && p.UserId == UserId && p.IsCompleted && !p.IsDeleted, ct);
 
-            if (passkey is null)
+            if (passkey is null || passkey.PublicKey is null)
                 return new FailedCompletePasskey(PasskeyError.NOT_FOUND);
 
+            var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
+                {
+                    AssertionResponse = assertionResponse,
+                    OriginalOptions = options,
+                    StoredPublicKey = passkey.PublicKey,
+                    StoredSignatureCounter = passkey.SignCount,
+                    IsUserHandleOwnerOfCredentialIdCallback = async (args, cancellationToken) =>
+                    {
+                        var stored = await db.Passkeys.AnyAsync(
+                            p => p.CredentialId != null && p.CredentialId == args.CredentialId
+                                 && p.UserId == UserId && !p.IsDeleted,
+                            cancellationToken);
+                        return stored;
+                    }
+                }, ct);
+
+            // Update sign count for clone detection
+            passkey.SignCount = result.SignCount;
             passkey.LastUsedAt = DateTimeOffset.UtcNow;
             passkey.UpdatedAt = DateTimeOffset.UtcNow;
 
             await db.SaveChangesAsync(ct);
+            await pendingPasskeyStore.DeleteValidationOptionsAsync(UserId, ct);
 
-            var result = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime);
-            return new SuccessCompletePasskey(result);
+            var passkeyResult = new Passkey(passkey.Id, passkey.Name, passkey.CreatedAt.UtcDateTime, passkey.LastUsedAt?.UtcDateTime,
+                passkey.AaGuid, passkey.AaGuid.HasValue ? AuthenticatorNames.Lookup(passkey.AaGuid.Value) : null);
+            return new SuccessCompletePasskey(passkeyResult);
+        }
+        catch (Fido2VerificationException ex)
+        {
+            logger.LogWarning(ex, "Passkey authentication verification failed for user {UserId}", UserId);
+            return new FailedCompletePasskey(PasskeyError.VERIFICATION_FAILED);
         }
         catch (Exception e)
         {

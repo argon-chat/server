@@ -19,11 +19,7 @@ public sealed record SecurityDetails(bool otpEnabled, IonArray<Passkey> passkeys
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record Passkey(guid id, string name, datetime createdAt, datetime? lastUsedAt);
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record PasskeyCredentialDescriptor(string id, string type);
+public sealed record Passkey(guid id, string name, datetime createdAt, datetime? lastUsedAt, guid? aaGuid, string? authenticatorName);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -89,8 +85,10 @@ public enum PasskeyError
     NONE = 0,
     NOT_FOUND = 1,
     LIMIT_REACHED = 2,
-    INVALID_PUBLIC_KEY = 3,
-    INTERNAL_ERROR = 4,
+    INVALID_CREDENTIAL = 3,
+    VERIFICATION_FAILED = 4,
+    CHALLENGE_EXPIRED = 5,
+    INTERNAL_ERROR = 6,
 }
 
 
@@ -118,13 +116,13 @@ public interface ISecurityInteraction : IIonService
     Task<IDisableOTPResult> DisableOTP(string code, CancellationToken ct = default);
     Task<IonArray<Passkey>> GetPasskeys(CancellationToken ct = default);
     Task<IBeginPasskeyResult> BeginAddPasskey(string name, CancellationToken ct = default);
-    Task<ICompletePasskeyResult> CompleteAddPasskey(guid passkeyId, string publicKey, CancellationToken ct = default);
+    Task<ICompletePasskeyResult> CompleteAddPasskey(string registrationResponse, CancellationToken ct = default);
     Task<IRemovePasskeyResult> RemovePasskey(guid passkeyId, CancellationToken ct = default);
     Task<ISetAutoDeleteResult> SetAutoDeletePeriod(i4? months, CancellationToken ct = default);
     Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default);
     Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default);
     Task<IBeginPasskeyValidateResult> BeginValidatePasskey(CancellationToken ct = default);
-    Task<ICompletePasskeyResult> CompleteValidatePasskey(string credentialId, string signature, string authenticatorData, string clientDataJSON, CancellationToken ct = default);
+    Task<ICompletePasskeyResult> CompleteValidatePasskey(string authenticationResponse, CancellationToken ct = default);
 }
 
 
@@ -1262,7 +1260,7 @@ public interface IBeginPasskeyResult : IIonUnion<IBeginPasskeyResult>
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessBeginPasskey(guid passkeyId, string challenge) : IBeginPasskeyResult
+public sealed record SuccessBeginPasskey(string optionsJson) : IBeginPasskeyResult
 {
     public string UnionKey => nameof(SuccessBeginPasskey);
     public uint UnionIndex => 0;
@@ -1334,18 +1332,16 @@ public sealed class Ion_SuccessBeginPasskey_Formatter : IonFormatter<SuccessBegi
     public SuccessBeginPasskey Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __passkeyid = IonFormatterStorage<guid>.Read(reader);
-        var __challenge = IonFormatterStorage<string>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__passkeyid, __challenge);
+        var __optionsjson = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__optionsjson);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessBeginPasskey value)
     {
-        writer.WriteStartArray(2);
-        IonFormatterStorage<guid>.Write(writer, value.passkeyId);
-        IonFormatterStorage<string>.Write(writer, value.challenge);
+        writer.WriteStartArray(1);
+        IonFormatterStorage<string>.Write(writer, value.optionsJson);
         writer.WriteEndArray();
     }
 }
@@ -1636,7 +1632,7 @@ public interface IBeginPasskeyValidateResult : IIonUnion<IBeginPasskeyValidateRe
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SuccessBeginValidatePasskey(string challenge, IonArray<PasskeyCredentialDescriptor> allowedCredentials) : IBeginPasskeyValidateResult
+public sealed record SuccessBeginValidatePasskey(string optionsJson) : IBeginPasskeyValidateResult
 {
     public string UnionKey => nameof(SuccessBeginValidatePasskey);
     public uint UnionIndex => 0;
@@ -1708,18 +1704,16 @@ public sealed class Ion_SuccessBeginValidatePasskey_Formatter : IonFormatter<Suc
     public SuccessBeginValidatePasskey Read(CborReader reader)
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __challenge = IonFormatterStorage<string>.Read(reader);
-        var __allowedcredentials = IonFormatterStorage<PasskeyCredentialDescriptor>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 2);
-        return new(__challenge, __allowedcredentials);
+        var __optionsjson = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__optionsjson);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SuccessBeginValidatePasskey value)
     {
-        writer.WriteStartArray(2);
-        IonFormatterStorage<string>.Write(writer, value.challenge);
-        IonFormatterStorage<PasskeyCredentialDescriptor>.WriteArray(writer, value.allowedCredentials);
+        writer.WriteStartArray(1);
+        IonFormatterStorage<string>.Write(writer, value.optionsJson);
         writer.WriteEndArray();
     }
 }
