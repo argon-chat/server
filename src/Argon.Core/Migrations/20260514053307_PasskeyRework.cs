@@ -11,9 +11,7 @@ namespace Argon.Core.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "Challenge",
-                table: "Passkeys");
+            migrationBuilder.Sql("ALTER TABLE \"Passkeys\" DROP COLUMN IF EXISTS \"Challenge\"");
 
             migrationBuilder.AlterColumn<byte[]>(
                 name: "PublicKey",
