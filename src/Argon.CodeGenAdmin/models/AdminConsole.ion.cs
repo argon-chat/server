@@ -171,6 +171,26 @@ public sealed record EnrollCertificateResult(bool success, string? certificatePe
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorAppAccessList(IonArray<OperatorAppAccessEntry> entries);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorAppAccessEntry(guid operatorId, guid appId, string appName, string appClientId, IonArray<string> allowedScopes, IonArray<string> claims, guid grantedBy, datetime grantedAt, bool isActive);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record GrantOperatorAppAccessInput(guid operatorId, guid appId, IonArray<string> allowedScopes, IonArray<string> claims);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UpdateOperatorAppAccessInput(guid operatorId, guid appId, IonArray<string> allowedScopes, IonArray<string> claims, bool isActive);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record OperatorAppAccessResult(bool success, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AuditLogQuery(guid? operatorId, string? action, string? targetId, datetime? fromDate, datetime? toDate, i4 page, i4 pageSize);
 
 
@@ -410,6 +430,10 @@ public interface IAdminConsole : IIonService
     Task<OperatorActionResult> ActivateOperator(guid operatorId, CancellationToken ct = default);
     Task<OperatorActionResult> RevokeOperatorCertificate(guid operatorId, CancellationToken ct = default);
     Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, CancellationToken ct = default);
+    Task<OperatorAppAccessList> GetOperatorAppAccess(guid operatorId, CancellationToken ct = default);
+    Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput input, CancellationToken ct = default);
+    Task<OperatorActionResult> RevokeOperatorAppAccess(guid operatorId, guid appId, CancellationToken ct = default);
+    Task<OperatorAppAccessResult> UpdateOperatorAppAccess(UpdateOperatorAppAccessInput input, CancellationToken ct = default);
     Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default);
     Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default);
     Task<AdminBotCard> GetBotCard(guid appId, CancellationToken ct = default);

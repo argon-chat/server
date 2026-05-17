@@ -452,6 +452,75 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<EnrollCertificateResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetOperatorAppAccess_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetOperatorAppAccess(__operatorid);
+        
+        IonFormatterStorage<OperatorAppAccessList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GrantOperatorAppAccess_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<GrantOperatorAppAccessInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GrantOperatorAppAccess(__input);
+        
+        IonFormatterStorage<OperatorAppAccessResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeOperatorAppAccess_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RevokeOperatorAppAccess(__operatorid, __appid);
+        
+        IonFormatterStorage<OperatorActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateOperatorAppAccess_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<UpdateOperatorAppAccessInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UpdateOperatorAppAccess(__input);
+        
+        IonFormatterStorage<OperatorAppAccessResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetAuditLog_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -984,6 +1053,14 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return RevokeOperatorCertificate_Execute(reader, writer, ct);
         if (methodName.Equals("EnrollOperatorCertificate", StringComparison.InvariantCultureIgnoreCase))
             return EnrollOperatorCertificate_Execute(reader, writer, ct);
+        if (methodName.Equals("GetOperatorAppAccess", StringComparison.InvariantCultureIgnoreCase))
+            return GetOperatorAppAccess_Execute(reader, writer, ct);
+        if (methodName.Equals("GrantOperatorAppAccess", StringComparison.InvariantCultureIgnoreCase))
+            return GrantOperatorAppAccess_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeOperatorAppAccess", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeOperatorAppAccess_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateOperatorAppAccess", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateOperatorAppAccess_Execute(reader, writer, ct);
         if (methodName.Equals("GetAuditLog", StringComparison.InvariantCultureIgnoreCase))
             return GetAuditLog_Execute(reader, writer, ct);
         if (methodName.Equals("SearchBot", StringComparison.InvariantCultureIgnoreCase))

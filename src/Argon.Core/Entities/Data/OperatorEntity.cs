@@ -17,6 +17,8 @@ public record OperatorEntity : ArgonEntity, IEntityTypeConfiguration<OperatorEnt
     public          bool    IsSystemOperator        { get; set; }
     public          DateTimeOffset? LastAuthAt       { get; set; }
 
+    public virtual ICollection<OperatorAppAccessEntity> AppAccess { get; set; } = new List<OperatorAppAccessEntity>();
+
     public void Configure(EntityTypeBuilder<OperatorEntity> builder)
     {
         builder.HasIndex(x => x.Email).IsUnique();

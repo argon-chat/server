@@ -1225,6 +1225,143 @@ public sealed class Ion_EnrollCertificateResult_Formatter : IonFormatter<EnrollC
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorAppAccessList_Formatter : IonFormatter<OperatorAppAccessList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorAppAccessList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __entries = IonFormatterStorage<OperatorAppAccessEntry>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__entries);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorAppAccessList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<OperatorAppAccessEntry>.WriteArray(writer, value.entries);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorAppAccessEntry_Formatter : IonFormatter<OperatorAppAccessEntry>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorAppAccessEntry Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __appname = IonFormatterStorage<string>.Read(reader);
+        var __appclientid = IonFormatterStorage<string>.Read(reader);
+        var __allowedscopes = IonFormatterStorage<string>.ReadArray(reader);
+        var __claims = IonFormatterStorage<string>.ReadArray(reader);
+        var __grantedby = IonFormatterStorage<guid>.Read(reader);
+        var __grantedat = IonFormatterStorage<datetime>.Read(reader);
+        var __isactive = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__operatorid, __appid, __appname, __appclientid, __allowedscopes, __claims, __grantedby, __grantedat, __isactive);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorAppAccessEntry value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<guid>.Write(writer, value.operatorId);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.appName);
+        IonFormatterStorage<string>.Write(writer, value.appClientId);
+        IonFormatterStorage<string>.WriteArray(writer, value.allowedScopes);
+        IonFormatterStorage<string>.WriteArray(writer, value.claims);
+        IonFormatterStorage<guid>.Write(writer, value.grantedBy);
+        IonFormatterStorage<datetime>.Write(writer, value.grantedAt);
+        IonFormatterStorage<bool>.Write(writer, value.isActive);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_GrantOperatorAppAccessInput_Formatter : IonFormatter<GrantOperatorAppAccessInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public GrantOperatorAppAccessInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __allowedscopes = IonFormatterStorage<string>.ReadArray(reader);
+        var __claims = IonFormatterStorage<string>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__operatorid, __appid, __allowedscopes, __claims);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, GrantOperatorAppAccessInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.operatorId);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.WriteArray(writer, value.allowedScopes);
+        IonFormatterStorage<string>.WriteArray(writer, value.claims);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateOperatorAppAccessInput_Formatter : IonFormatter<UpdateOperatorAppAccessInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateOperatorAppAccessInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __allowedscopes = IonFormatterStorage<string>.ReadArray(reader);
+        var __claims = IonFormatterStorage<string>.ReadArray(reader);
+        var __isactive = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__operatorid, __appid, __allowedscopes, __claims, __isactive);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateOperatorAppAccessInput value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.operatorId);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.WriteArray(writer, value.allowedScopes);
+        IonFormatterStorage<string>.WriteArray(writer, value.claims);
+        IonFormatterStorage<bool>.Write(writer, value.isActive);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_OperatorAppAccessResult_Formatter : IonFormatter<OperatorAppAccessResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public OperatorAppAccessResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__success, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, OperatorAppAccessResult value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_AuditLogQuery_Formatter : IonFormatter<AuditLogQuery>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

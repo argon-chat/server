@@ -68,6 +68,14 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(RevokeOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> EnrollOperatorCertificate_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(EnrollOperatorCertificate), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetOperatorAppAccess_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GrantOperatorAppAccess_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GrantOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeOperatorAppAccess_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(RevokeOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateOperatorAppAccess_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UpdateOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAuditLog_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetAuditLog), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SearchBot_Ref = new(() =>
@@ -558,6 +566,75 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<EnrollCertificateResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorAppAccessList> GetOperatorAppAccess(guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetOperatorAppAccess_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorAppAccessList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GrantOperatorAppAccess_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<GrantOperatorAppAccessInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorAppAccessResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorActionResult> RevokeOperatorAppAccess(guid __operatorid, guid __appid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), RevokeOperatorAppAccess_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        IonFormatterStorage<guid>.Write(writer, __appid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<OperatorAppAccessResult> UpdateOperatorAppAccess(UpdateOperatorAppAccessInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UpdateOperatorAppAccess_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<UpdateOperatorAppAccessInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<OperatorAppAccessResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<AuditLogPage> GetAuditLog(AuditLogQuery __query, CancellationToken ct = default)

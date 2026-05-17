@@ -30,6 +30,7 @@ public record LoginAllowedResult(bool IsAllowed, string? Reason);
 /// OAuth consent screen information.
 /// </summary>
 public record OAuthAppInfo(
+    Guid AppId,
     string AppName,
     string? AppDescription,
     string? AppAvatarFileId,

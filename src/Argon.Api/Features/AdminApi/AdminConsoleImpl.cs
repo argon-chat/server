@@ -1310,6 +1310,162 @@ public class AdminConsoleImpl(
         return new EnrollCertificateResult(false, null, null, null, null, errorMessage);
     }
 
+    // ===== Operator App Access =====
+
+    public async Task<OperatorAppAccessList> GetOperatorAppAccess(Guid operatorId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var records = await db.OperatorAppAccess
+           .AsNoTracking()
+           .Where(a => a.OperatorId == operatorId)
+           .Join(db.AppEntities.AsNoTracking(),
+                a => a.AppId,
+                app => app.AppId,
+                (a, app) => new OperatorAppAccessEntry(
+                    a.OperatorId,
+                    a.AppId,
+                    app.Name,
+                    app.ClientId,
+                    new IonArray<string>(a.AllowedScopes),
+                    new IonArray<string>(a.Claims),
+                    a.GrantedBy,
+                    a.GrantedAt.UtcDateTime,
+                    a.IsActive))
+           .ToListAsync(ct);
+
+        return new OperatorAppAccessList(new IonArray<OperatorAppAccessEntry>(records));
+    }
+
+    public async Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput input, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorAppAccessResult(false, "Only system operators can manage operator app access");
+
+            var operatorExists = await db.Operators.AnyAsync(o => o.Id == input.operatorId && !o.IsDeleted, ct);
+            if (!operatorExists)
+                return new OperatorAppAccessResult(false, "Operator not found");
+
+            var app = await db.AppEntities.AsNoTracking().FirstOrDefaultAsync(a => a.AppId == input.appId, ct);
+            if (app is null)
+                return new OperatorAppAccessResult(false, "Application not found");
+
+            var existing = await db.OperatorAppAccess
+               .FirstOrDefaultAsync(a => a.OperatorId == input.operatorId && a.AppId == input.appId, ct);
+
+            if (existing is not null)
+                return new OperatorAppAccessResult(false, "Access record already exists. Use UpdateOperatorAppAccess to modify it.");
+
+            var entity = new OperatorAppAccessEntity
+            {
+                OperatorId    = input.operatorId,
+                AppId         = input.appId,
+                AllowedScopes = input.allowedScopes.Values.ToList(),
+                Claims        = input.claims.Values.ToList(),
+                GrantedBy     = caller.OperatorId,
+                GrantedAt     = DateTimeOffset.UtcNow,
+                IsActive      = true
+            };
+
+            db.OperatorAppAccess.Add(entity);
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Operator={CallerId} granted app access: operator={OperatorId} app={AppId} ({AppName})",
+                caller.OperatorId, input.operatorId, input.appId, app.Name);
+            await auditService.LogAsync("GrantOperatorAppAccess", "OperatorAppAccess",
+                $"{input.operatorId}:{input.appId}",
+                $"Granted access to app '{app.Name}' (clientId={app.ClientId}), scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}]");
+
+            await InvalidateOperatorAppAccessCacheAsync(input.operatorId, input.appId);
+
+            return new OperatorAppAccessResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to grant operator app access");
+            return new OperatorAppAccessResult(false, "Failed to grant operator app access");
+        }
+    }
+
+    public async Task<OperatorActionResult> RevokeOperatorAppAccess(Guid operatorId, Guid appId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorActionResult(false, "Only system operators can manage operator app access");
+
+            var record = await db.OperatorAppAccess
+               .FirstOrDefaultAsync(a => a.OperatorId == operatorId && a.AppId == appId, ct);
+
+            if (record is null)
+                return new OperatorActionResult(false, "Access record not found");
+
+            db.OperatorAppAccess.Remove(record);
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Operator={CallerId} revoked app access: operator={OperatorId} app={AppId}",
+                caller.OperatorId, operatorId, appId);
+            await auditService.LogAsync("RevokeOperatorAppAccess", "OperatorAppAccess",
+                $"{operatorId}:{appId}", "Revoked app access");
+
+            await InvalidateOperatorAppAccessCacheAsync(operatorId, appId);
+
+            return new OperatorActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to revoke operator app access");
+            return new OperatorActionResult(false, "Failed to revoke operator app access");
+        }
+    }
+
+    public async Task<OperatorAppAccessResult> UpdateOperatorAppAccess(UpdateOperatorAppAccessInput input, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new OperatorAppAccessResult(false, "Only system operators can manage operator app access");
+
+            var record = await db.OperatorAppAccess
+               .FirstOrDefaultAsync(a => a.OperatorId == input.operatorId && a.AppId == input.appId, ct);
+
+            if (record is null)
+                return new OperatorAppAccessResult(false, "Access record not found");
+
+            record.AllowedScopes = input.allowedScopes.Values.ToList();
+            record.Claims        = input.claims.Values.ToList();
+            record.IsActive      = input.isActive;
+
+            await db.SaveChangesAsync(ct);
+
+            logger.LogInformation("Operator={CallerId} updated app access: operator={OperatorId} app={AppId} active={IsActive}",
+                caller.OperatorId, input.operatorId, input.appId, input.isActive);
+            await auditService.LogAsync("UpdateOperatorAppAccess", "OperatorAppAccess",
+                $"{input.operatorId}:{input.appId}",
+                $"Updated: scopes=[{string.Join(",", input.allowedScopes)}], claims=[{string.Join(",", input.claims)}], active={input.isActive}");
+
+            await InvalidateOperatorAppAccessCacheAsync(input.operatorId, input.appId);
+
+            return new OperatorAppAccessResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to update operator app access");
+            return new OperatorAppAccessResult(false, "Failed to update operator app access");
+        }
+    }
+
     public async Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default)
     {
         var page = Math.Max(0, query.page);
@@ -2084,6 +2240,17 @@ public class AdminConsoleImpl(
             a.Details,
             a.CreatedAt.UtcDateTime
         );
+
+    /// <summary>
+    /// Invalidate Aegis-side HybridCache entries for operator app access.
+    /// Keys match CachedTeamsRepository patterns; clears Redis L2 immediately,
+    /// L1 on Aegis side expires within LocalCacheExpiration (1 min).
+    /// </summary>
+    private async Task InvalidateOperatorAppAccessCacheAsync(Guid operatorId, Guid appId)
+    {
+        await lockdownCache.RemoveAsync($"aegis:operator:app-access:{operatorId}:{appId}");
+        await lockdownCache.RemoveAsync($"aegis:operator:has-app-access:{operatorId}");
+    }
 
     // ===== Reports & Trust =====
 

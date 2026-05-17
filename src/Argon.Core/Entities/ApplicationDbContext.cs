@@ -116,6 +116,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     public DbSet<OperatorEntity> Operators => Set<OperatorEntity>();
     public DbSet<OperatorAuditEntity> OperatorAuditLog => Set<OperatorAuditEntity>();
+    public DbSet<OperatorAppAccessEntity> OperatorAppAccess => Set<OperatorAppAccessEntity>();
 
 #endregion
 

@@ -57,6 +57,7 @@ public sealed class AppsManagementGrain(IServiceProvider serviceProvider, ILogge
            .Where(a => a.ClientId == clientId)
            .Select(a => new
             {
+                a.AppId,
                 a.Name,
                 a.Description,
                 TeamName = a.Team.Name,
@@ -75,6 +76,7 @@ public sealed class AppsManagementGrain(IServiceProvider serviceProvider, ILogge
            .FirstOrDefaultAsync(ct);
 
         return new OAuthAppInfo(
+            app.AppId,
             app.Name,
             app.Description,
             null,
