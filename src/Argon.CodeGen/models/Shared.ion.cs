@@ -24,6 +24,8 @@ public enum ArgonAuthMode
     EmailPassword = 0,
     EmailOtp = 1,
     EmailPasswordOtp = 2,
+    PasskeyOnly = 3,
+    PasskeyWithOtp = 4,
 }
 
 

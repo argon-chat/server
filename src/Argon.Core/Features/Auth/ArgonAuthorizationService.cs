@@ -1,8 +1,11 @@
 namespace Argon.Features.Auth;
 
 using Argon.Api.Features.CoreLogic.Otp;
+using Argon.Core.Features.CoreLogic.Passkeys;
 using Services;
 using System.Diagnostics.Metrics;
+using Fido2NetLib;
+using Fido2NetLib.Objects;
 
 public class ArgonAuthorizationService(
     IGrainFactory grainFactory,
@@ -10,7 +13,10 @@ public class ArgonAuthorizationService(
     UserManagerService managerService,
     IPasswordHashingService passwordHashingService,
     IDbContextFactory<ApplicationDbContext> dbFactory,
-    IOtpService otpService
+    IOtpService otpService,
+    IFido2 fido2,
+    IPendingPasskeyStore pendingPasskeyStore,
+    IArgonCacheDatabase cacheDatabase
 ) : IArgonAuthorizationService
 {
     public async Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input, string userIp, string machineId)
@@ -42,6 +48,8 @@ public class ArgonAuthorizationService(
             ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input, true, machineId),
             ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, true, userIp, machineId),
             ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, true, userIp, machineId),
+            ArgonAuthMode.PasskeyOnly or ArgonAuthMode.PasskeyWithOtp
+                                           => AuthorizationError.BAD_CREDENTIALS, // passkey users must use passkey login flow
             _                              => AuthorizationError.NONE
         };
 
@@ -93,6 +101,8 @@ public class ArgonAuthorizationService(
             ArgonAuthMode.EmailPassword    => await AuthorizePassword(user, input, false),
             ArgonAuthMode.EmailOtp         => await AuthorizeWithOtp(user, input, requirePassword: false, requiredMachineId: false),
             ArgonAuthMode.EmailPasswordOtp => await AuthorizeWithOtp(user, input, requirePassword: true, requiredMachineId: false),
+            ArgonAuthMode.PasskeyOnly or ArgonAuthMode.PasskeyWithOtp
+                                           => AuthorizationError.BAD_CREDENTIALS, // passkey users must use passkey login flow
             _                              => AuthorizationError.NONE
         };
 
@@ -488,11 +498,219 @@ public class ArgonAuthorizationService(
         return user.PreferredAuthMode.ToString();
     }
 
+    public async Task<BeginPasskeyLoginResult> BeginPasskeyLogin(string? email, CancellationToken ct)
+    {
+        try
+        {
+            var allowedCredentials = new List<PublicKeyCredentialDescriptor>();
+
+            if (!string.IsNullOrEmpty(email))
+            {
+                await using var db = await dbFactory.CreateDbContextAsync(ct);
+                var normalizedEmail = email.ToLowerInvariant();
+                var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
+                if (user is null)
+                    return new BeginPasskeyLoginResult(null, PasskeyLoginError.USER_NOT_FOUND);
+
+                var passkeys = await db.Passkeys
+                    .Where(p => p.UserId == user.Id && p.IsCompleted && !p.IsDeleted && p.CredentialId != null)
+                    .Select(p => new PublicKeyCredentialDescriptor(p.CredentialId!))
+                    .ToListAsync(ct);
+
+                if (passkeys.Count == 0)
+                    return new BeginPasskeyLoginResult(null, PasskeyLoginError.NO_PASSKEYS);
+
+                allowedCredentials = passkeys;
+            }
+
+            var options = fido2.GetAssertionOptions(
+                new GetAssertionOptionsParams
+                {
+                    AllowedCredentials = allowedCredentials,
+                    UserVerification = UserVerificationRequirement.Required
+                });
+
+            var optionsJson = options.ToJson();
+
+            // Store challenge keyed by a nonce (not user-scoped since user may be unknown)
+            var challengeNonce = Guid.NewGuid().ToString("N");
+            await cacheDatabase.StringSetAsync(
+                $"passkey:login:{challengeNonce}",
+                optionsJson,
+                TimeSpan.FromMinutes(5), ct);
+
+            // Embed the nonce in the response so the client can send it back
+            var responseJson = System.Text.Json.JsonSerializer.Serialize(new { nonce = challengeNonce, options = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(optionsJson) });
+
+            return new BeginPasskeyLoginResult(responseJson, PasskeyLoginError.NONE);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to begin passkey login");
+            return new BeginPasskeyLoginResult(null, PasskeyLoginError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<PasskeyLoginResult> CompletePasskeyLogin(string assertionResponseJson, CancellationToken ct)
+    {
+        try
+        {
+            if (string.IsNullOrWhiteSpace(assertionResponseJson))
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INVALID_ASSERTION);
+
+            var payload = System.Text.Json.JsonSerializer.Deserialize<PasskeyCompletePayload>(assertionResponseJson);
+            if (payload is null || string.IsNullOrEmpty(payload.Nonce) || string.IsNullOrEmpty(payload.AssertionResponseJson))
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INVALID_ASSERTION);
+
+            // Retrieve stored assertion options
+            var optionsJson = await cacheDatabase.StringGetAsync($"passkey:login:{payload.Nonce}", ct);
+            if (string.IsNullOrEmpty(optionsJson))
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.CHALLENGE_EXPIRED);
+
+            var options = AssertionOptions.FromJson(optionsJson);
+
+            var assertionResponse = System.Text.Json.JsonSerializer.Deserialize<AuthenticatorAssertionRawResponse>(payload.AssertionResponseJson);
+            if (assertionResponse is null)
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INVALID_ASSERTION);
+
+            // Extract userHandle to find the user
+            if (assertionResponse.Response.UserHandle is null || assertionResponse.Response.UserHandle.Length == 0)
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INVALID_ASSERTION);
+
+            var userId = new Guid(assertionResponse.Response.UserHandle);
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            // Find the passkey by credential ID and user
+            var credentialIdBytes = assertionResponse.RawId;
+            var passkey = await db.Passkeys.FirstOrDefaultAsync(
+                p => p.CredentialId != null && p.CredentialId == credentialIdBytes
+                     && p.UserId == userId && p.IsCompleted && !p.IsDeleted, ct);
+
+            if (passkey is null || passkey.PublicKey is null)
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INVALID_ASSERTION);
+
+            var result = await fido2.MakeAssertionAsync(new MakeAssertionParams
+            {
+                AssertionResponse = assertionResponse,
+                OriginalOptions = options,
+                StoredPublicKey = passkey.PublicKey,
+                StoredSignatureCounter = passkey.SignCount,
+                IsUserHandleOwnerOfCredentialIdCallback = async (args, cancellationToken) =>
+                {
+                    var stored = await db.Passkeys.AnyAsync(
+                        p => p.CredentialId != null && p.CredentialId == args.CredentialId
+                             && p.UserId == userId && !p.IsDeleted,
+                        cancellationToken);
+                    return stored;
+                }
+            }, ct);
+
+            // Update sign count for clone detection
+            passkey.SignCount = result.SignCount;
+            passkey.LastUsedAt = DateTimeOffset.UtcNow;
+            passkey.UpdatedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            // Delete challenge from cache
+            await cacheDatabase.KeyDeleteAsync($"passkey:login:{payload.Nonce}");
+
+            // Check if user requires OTP after passkey
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+            if (user is null)
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.USER_NOT_FOUND);
+
+            if (user.PreferredAuthMode == ArgonAuthMode.PasskeyWithOtp)
+            {
+                // Store a nonce marking passkey-verified, send OTP
+                var passkeyNonce = Guid.NewGuid().ToString("N");
+                await cacheDatabase.StringSetAsync(
+                    $"passkey:otp:{passkeyNonce}",
+                    userId.ToString(),
+                    TimeSpan.FromMinutes(10), ct);
+
+                var method = user.PreferredOtpMethod;
+                await otpService.SendAsync(
+                    new SendOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, null, method),
+                    "passkey-login");
+
+                logger.LogInformation("Passkey verified for user {UserId}, OTP sent via {Method}", userId, method);
+                return new PasskeyLoginResult(false, null, userId, true, passkeyNonce, PasskeyLoginError.NONE);
+            }
+
+            // PasskeyOnly — generate JWT directly
+            logger.LogInformation("Passkey login successful for user {UserId}", userId);
+            var jwt = await managerService.GenerateJwt(userId, ["argon.app"]);
+            return new PasskeyLoginResult(true, jwt.token, userId, false, null, PasskeyLoginError.NONE);
+        }
+        catch (Fido2VerificationException ex)
+        {
+            logger.LogWarning(ex, "Passkey login verification failed");
+            return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.VERIFICATION_FAILED);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to complete passkey login");
+            return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<PasskeyLoginResult> ConfirmPasskeyOtp(string passkeyNonce, string otpCode, CancellationToken ct)
+    {
+        try
+        {
+            if (string.IsNullOrEmpty(passkeyNonce) || string.IsNullOrEmpty(otpCode))
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.BAD_OTP);
+
+            var userIdStr = await cacheDatabase.StringGetAsync($"passkey:otp:{passkeyNonce}", ct);
+            if (string.IsNullOrEmpty(userIdStr))
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.NONCE_EXPIRED);
+
+            var userId = Guid.Parse(userIdStr);
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == userId, ct);
+            if (user is null)
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.USER_NOT_FOUND);
+
+            var method = user.PreferredOtpMethod;
+            var verified = await otpService.VerifyAsync(
+                new VerifyOtpRequest(user.Email, user.Id, OtpPurpose.SignIn, otpCode, null, method));
+
+            if (!verified)
+            {
+                logger.LogWarning("Invalid OTP for passkey login, user {UserId}", userId);
+                return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.BAD_OTP);
+            }
+
+            // Delete the OTP nonce
+            await cacheDatabase.KeyDeleteAsync($"passkey:otp:{passkeyNonce}");
+
+            logger.LogInformation("Passkey + OTP login successful for user {UserId}", userId);
+            var jwt = await managerService.GenerateJwt(userId, ["argon.app"]);
+            return new PasskeyLoginResult(true, jwt.token, userId, false, null, PasskeyLoginError.NONE);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to confirm passkey OTP");
+            return new PasskeyLoginResult(false, null, null, false, null, PasskeyLoginError.INTERNAL_ERROR);
+        }
+    }
+
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user, string machineId)
         => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"]);
 
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user)
         => await managerService.GenerateJwt(user.Id, ["argon.app"]);
+}
+
+public record PasskeyCompletePayload
+{
+    [System.Text.Json.Serialization.JsonPropertyName("nonce")]
+    public string? Nonce { get; init; }
+
+    [System.Text.Json.Serialization.JsonPropertyName("assertionResponseJson")]
+    public string? AssertionResponseJson { get; init; }
 }
 
 public static class AuthorizationGrainInstrument
