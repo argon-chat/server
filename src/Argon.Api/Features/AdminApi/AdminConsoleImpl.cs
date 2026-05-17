@@ -1316,23 +1316,37 @@ public class AdminConsoleImpl(
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
-        var records = await db.OperatorAppAccess
+        var raw = await db.OperatorAppAccess
            .AsNoTracking()
            .Where(a => a.OperatorId == operatorId)
            .Join(db.AppEntities.AsNoTracking(),
                 a => a.AppId,
                 app => app.AppId,
-                (a, app) => new OperatorAppAccessEntry(
+                (a, app) => new
+                {
                     a.OperatorId,
                     a.AppId,
-                    app.Name,
+                    AppName = app.Name,
                     app.ClientId,
-                    new IonArray<string>(a.AllowedScopes),
-                    new IonArray<string>(a.Claims),
+                    a.AllowedScopes,
+                    a.Claims,
                     a.GrantedBy,
-                    a.GrantedAt.UtcDateTime,
-                    a.IsActive))
+                    a.GrantedAt,
+                    a.IsActive
+                })
            .ToListAsync(ct);
+
+        var records = raw.Select(r => new OperatorAppAccessEntry(
+            r.OperatorId,
+            r.AppId,
+            r.AppName,
+            r.ClientId,
+            new IonArray<string>(r.AllowedScopes),
+            new IonArray<string>(r.Claims),
+            r.GrantedBy,
+            r.GrantedAt.UtcDateTime,
+            r.IsActive
+        )).ToList();
 
         return new OperatorAppAccessList(new IonArray<OperatorAppAccessEntry>(records));
     }
@@ -1465,6 +1479,67 @@ public class AdminConsoleImpl(
             return new OperatorAppAccessResult(false, "Failed to update operator app access");
         }
     }
+
+    public async Task<InternalAppSearchResult> SearchInternalApps(string query, CancellationToken ct = default)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+            return new InternalAppSearchResult(new IonArray<InternalAppInfo>([]));
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var normalizedQuery = query.Trim().ToLowerInvariant();
+
+        // Try GUID first
+        if (Guid.TryParse(query, out var appId))
+        {
+            var byId = await db.AppEntities
+               .AsNoTracking()
+               .Include(a => a.Team)
+               .Where(a => a.AppId == appId && a.IsInternalApp && !a.IsDeleted)
+               .FirstOrDefaultAsync(ct);
+
+            if (byId is not null)
+                return new InternalAppSearchResult(new IonArray<InternalAppInfo>([MapInternalApp(byId)]));
+        }
+
+        // Search by name, clientId, or bot username
+        var byNameOrClient = await db.AppEntities
+           .AsNoTracking()
+           .Include(a => a.Team)
+           .Where(a => a.IsInternalApp && !a.IsDeleted &&
+                       (a.Name.ToLower().Contains(normalizedQuery) ||
+                        a.ClientId.ToLower().Contains(normalizedQuery)))
+           .Take(20)
+           .ToListAsync(ct);
+
+        // Also search by bot username
+        var byBotUsername = await db.BotEntities
+           .AsNoTracking()
+           .Include(b => b.BotAsUser)
+           .Include(b => b.Team)
+           .Where(b => b.IsInternalApp && !b.IsDeleted &&
+                       b.BotAsUser.NormalizedUsername.Contains(normalizedQuery))
+           .Take(20)
+           .ToListAsync(ct);
+
+        var results = byNameOrClient
+           .Select(MapInternalApp)
+           .Concat(byBotUsername.Select(b => MapInternalApp((DevAppEntity)b)))
+           .DistinctBy(x => x.appId)
+           .ToList();
+
+        return new InternalAppSearchResult(new IonArray<InternalAppInfo>(results));
+    }
+
+    private static InternalAppInfo MapInternalApp(DevAppEntity app) => new(
+        app.AppId,
+        app.Name,
+        app.ClientId,
+        app.Description,
+        (AdminDevAppType)(int)app.AppType,
+        app.TeamId,
+        app.Team?.Name ?? "",
+        app.IsInternalApp
+    );
 
     public async Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default)
     {

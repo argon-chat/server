@@ -64,6 +64,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<GrantOperatorAppAccessInput>.Value = new Ion_GrantOperatorAppAccessInput_Formatter();
       IonFormatterStorage<UpdateOperatorAppAccessInput>.Value = new Ion_UpdateOperatorAppAccessInput_Formatter();
       IonFormatterStorage<OperatorAppAccessResult>.Value = new Ion_OperatorAppAccessResult_Formatter();
+      IonFormatterStorage<InternalAppSearchResult>.Value = new Ion_InternalAppSearchResult_Formatter();
+      IonFormatterStorage<InternalAppInfo>.Value = new Ion_InternalAppInfo_Formatter();
       IonFormatterStorage<AuditLogQuery>.Value = new Ion_AuditLogQuery_Formatter();
       IonFormatterStorage<AuditLogPage>.Value = new Ion_AuditLogPage_Formatter();
       IonFormatterStorage<AuditEntry>.Value = new Ion_AuditEntry_Formatter();

@@ -191,6 +191,14 @@ public sealed record OperatorAppAccessResult(bool success, string? error);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InternalAppSearchResult(IonArray<InternalAppInfo> apps);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InternalAppInfo(guid appId, string name, string clientId, string? description, AdminDevAppType appType, guid teamId, string teamName, bool isInternalApp);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AuditLogQuery(guid? operatorId, string? action, string? targetId, datetime? fromDate, datetime? toDate, i4 page, i4 pageSize);
 
 
@@ -434,6 +442,7 @@ public interface IAdminConsole : IIonService
     Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput input, CancellationToken ct = default);
     Task<OperatorActionResult> RevokeOperatorAppAccess(guid operatorId, guid appId, CancellationToken ct = default);
     Task<OperatorAppAccessResult> UpdateOperatorAppAccess(UpdateOperatorAppAccessInput input, CancellationToken ct = default);
+    Task<InternalAppSearchResult> SearchInternalApps(string query, CancellationToken ct = default);
     Task<AuditLogPage> GetAuditLog(AuditLogQuery query, CancellationToken ct = default);
     Task<AdminBotSearchResult> SearchBot(string query, CancellationToken ct = default);
     Task<AdminBotCard> GetBotCard(guid appId, CancellationToken ct = default);

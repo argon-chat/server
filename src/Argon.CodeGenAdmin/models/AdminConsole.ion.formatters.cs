@@ -1362,6 +1362,62 @@ public sealed class Ion_OperatorAppAccessResult_Formatter : IonFormatter<Operato
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InternalAppSearchResult_Formatter : IonFormatter<InternalAppSearchResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InternalAppSearchResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __apps = IonFormatterStorage<InternalAppInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__apps);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InternalAppSearchResult value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<InternalAppInfo>.WriteArray(writer, value.apps);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InternalAppInfo_Formatter : IonFormatter<InternalAppInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InternalAppInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __appid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __clientid = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __apptype = IonFormatterStorage<AdminDevAppType>.Read(reader);
+        var __teamid = IonFormatterStorage<guid>.Read(reader);
+        var __teamname = IonFormatterStorage<string>.Read(reader);
+        var __isinternalapp = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__appid, __name, __clientid, __description, __apptype, __teamid, __teamname, __isinternalapp);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InternalAppInfo value)
+    {
+        writer.WriteStartArray(8);
+        IonFormatterStorage<guid>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.clientId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<AdminDevAppType>.Write(writer, value.appType);
+        IonFormatterStorage<guid>.Write(writer, value.teamId);
+        IonFormatterStorage<string>.Write(writer, value.teamName);
+        IonFormatterStorage<bool>.Write(writer, value.isInternalApp);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_AuditLogQuery_Formatter : IonFormatter<AuditLogQuery>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

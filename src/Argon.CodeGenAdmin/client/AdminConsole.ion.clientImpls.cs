@@ -76,6 +76,8 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(RevokeOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UpdateOperatorAppAccess_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(UpdateOperatorAppAccess), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SearchInternalApps_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SearchInternalApps), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAuditLog_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetAuditLog), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SearchBot_Ref = new(() =>
@@ -635,6 +637,23 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<OperatorAppAccessResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<InternalAppSearchResult> SearchInternalApps(string __query, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SearchInternalApps_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __query);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<InternalAppSearchResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<AuditLogPage> GetAuditLog(AuditLogQuery __query, CancellationToken ct = default)

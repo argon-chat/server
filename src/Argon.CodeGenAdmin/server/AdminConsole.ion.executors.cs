@@ -521,6 +521,23 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<OperatorAppAccessResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SearchInternalApps_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __query = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SearchInternalApps(__query);
+        
+        IonFormatterStorage<InternalAppSearchResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetAuditLog_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1061,6 +1078,8 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return RevokeOperatorAppAccess_Execute(reader, writer, ct);
         if (methodName.Equals("UpdateOperatorAppAccess", StringComparison.InvariantCultureIgnoreCase))
             return UpdateOperatorAppAccess_Execute(reader, writer, ct);
+        if (methodName.Equals("SearchInternalApps", StringComparison.InvariantCultureIgnoreCase))
+            return SearchInternalApps_Execute(reader, writer, ct);
         if (methodName.Equals("GetAuditLog", StringComparison.InvariantCultureIgnoreCase))
             return GetAuditLog_Execute(reader, writer, ct);
         if (methodName.Equals("SearchBot", StringComparison.InvariantCultureIgnoreCase))
