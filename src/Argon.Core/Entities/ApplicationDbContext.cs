@@ -29,6 +29,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<MuteSettingsEntity>                 MuteSettings                 => Set<MuteSettingsEntity>();
     public DbSet<SystemNotificationEntity>           SystemNotifications          => Set<SystemNotificationEntity>();
 
+#region Regions
+
+    public DbSet<DatacenterEntity>          Datacenters          => Set<DatacenterEntity>();
+
+#endregion
+
 #region Feature Flags
 
     public DbSet<FeatureFlagEntity>         FeatureFlags         => Set<FeatureFlagEntity>();

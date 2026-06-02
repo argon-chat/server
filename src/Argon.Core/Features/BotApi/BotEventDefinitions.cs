@@ -19,9 +19,9 @@ public sealed record ReadyEventPayload(long Intents, BotSpaceInfo[] Spaces);
 public sealed record HeartbeatEventPayload(long Timestamp);
 
 [BotEventDefinition(BotEventType.Resumed, "Connection")]
-[BotEventDescription("Sent after replaying missed events on reconnection via Last-Event-ID.")]
+[BotEventDescription("Sent on reconnection via Last-Event-ID cursor. Indicates if catch-up from REST API is needed for events that fell off the stream.")]
 [StableEventContract("4b687afe115130e27be5dc122c3a46d2c0133e5a946a340264030928b8069d30")]
-public sealed record ResumedEventPayload(int ReplayedCount);
+public sealed record ResumedEventPayload(bool CatchUpRequired);
 
 // ─── Messages ────────────────────────────────────────────
 

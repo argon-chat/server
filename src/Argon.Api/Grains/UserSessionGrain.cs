@@ -12,7 +12,8 @@ public class UserSessionGrain(
     IGrainFactory grainFactory,
     IClusterClient clusterClient,
     ILogger<IUserSessionGrain> logger,
-    IUserPresenceService presenceService)
+    IUserPresenceService presenceService,
+    MultiDcPresenceService multiDcPresence)
     : Grain, IUserSessionGrain
 {
     private Guid   _userId;
@@ -26,6 +27,7 @@ public class UserSessionGrain(
     private DateTime? _lastHeartbeatTime;
     private DateTime? _lastDebouncedHeartbeatTime;
     private DateTime? _sessionStartTime;
+    private int       _tickCounter;
 
     private string SessionId => this.GetPrimaryKeyString();
 
@@ -86,6 +88,7 @@ public class UserSessionGrain(
         
         await presenceService.SetSessionOnlineAsync(_userId, SessionId);
         await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus.Value);
+        await multiDcPresence.AnnounceSessionOnlineAsync(_userId, SessionId, _preferredStatus.Value);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
 
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
@@ -137,6 +140,10 @@ public class UserSessionGrain(
         // Session is alive — refresh TTLs for both status and presence keys
         await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
         await presenceService.HeartbeatAsync(_userId, SessionId, arg);
+
+        // Announce cross-DC heartbeat every ~60s (every 4th tick)
+        if (++_tickCounter % 4 == 0)
+            await multiDcPresence.AnnounceHeartbeatAsync(_userId, SessionId);
     }
 
     public async ValueTask<bool> HeartBeatAsync(UserStatus status)
@@ -187,6 +194,7 @@ public class UserSessionGrain(
             
             // Update this session's status and re-aggregate through UserGrain
             await presenceService.SetSessionStatusAsync(_userId, SessionId, status);
+            await multiDcPresence.AnnounceStatusChangeAsync(_userId, SessionId, status);
             await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
             await presenceService.HeartbeatAsync(_userId, SessionId);
         }
@@ -229,6 +237,7 @@ public class UserSessionGrain(
 
         // Remove presence key
         await presenceService.RemoveSessionAsync(_userId, SessionId);
+        await multiDcPresence.AnnounceSessionOfflineAsync(_userId, SessionId);
         
         await SelfDestroy();
     }

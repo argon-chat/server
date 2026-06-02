@@ -21,28 +21,8 @@ public static class OrleansExtension
 {
     extension(WebApplicationBuilder builder)
     {
-        public WebApplicationBuilder AddMultiOrleansClient()
-        {
-            builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-            builder.Services.AddHostedService<DcWatcherService>();
-            builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
-            //builder.Services.AddHostedService<EntryPointWatcher>();
-            return builder;
-        }
-
-        public WebApplicationBuilder AddShimsForHybridRole()
-        {
-            builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonHybridDcRegistry>();
-            return builder;
-        }
-
-
         public WebApplicationBuilder AddSingleOrleansClient()
         {
-            //builder.AddMultiOrleansClient();
-            //return builder;
             builder.Services.AddSerializer(x =>
             {
                 x.AddNewtonsoftJsonSerializer(q => true,
@@ -61,10 +41,8 @@ public static class OrleansExtension
                     });
             });
             builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-            //builder.Services.AddHostedService<EntryPointWatcher>();
             builder.Services.AddOrleansClient(q
-                => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
+                => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration));
             return builder;
         }
 
@@ -94,7 +72,7 @@ public static class OrleansExtension
                 siloBuilder.Configure<ClusterOptions>(q =>
                 {
                     q.ClusterId = "argon-cluster";
-                    q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
+                    q.ServiceId = "argon-service";
                 });
                 siloBuilder
                    .UseStorages([
@@ -174,7 +152,7 @@ public static class OrleansExtension
                 siloBuilder.Configure<ClusterOptions>(q =>
                 {
                     q.ClusterId = "argon-cluster";
-                    q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
+                    q.ServiceId = "argon-service";
                 });
                 siloBuilder
                    .AddStreaming()
@@ -190,9 +168,7 @@ public static class OrleansExtension
                     ], "Npgsql", "DefaultConnection")
                    .UseRedisReminderService(x
                         => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!))
-                   .AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                       .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-                       .EnsureSchedulerActiveAsync())
+                   // AutoDeleteSchedulerGrain replaced by ScheduledTasksService (NATS WorkQueue)
                    .Configure<ClusterMembershipOptions>(options =>
                     {
                         options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);

@@ -6,6 +6,7 @@ using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
 using Argon.Core.Features.Transport;
 using Argon.Features.BotApi;
+using Argon.Features.EphemeralState;
 using Argon.Features.Storage;
 using Argon.Features.Moderation;
 using Core.Services;
@@ -29,6 +30,7 @@ public class SpaceGrain(
     ISystemMessageService systemMessageService,
     AppHubServer appHubServer,
     BotEventPublisher botEventPublisher,
+    IEphemeralStateStore ephemeralStore,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
 
@@ -1103,6 +1105,7 @@ public class SpaceGrain(
     public Task OnUserJoinedVoiceAsync(Guid userId, Guid channelId, DateTimeOffset joinedAt)
     {
         state.State.VoiceMembers[userId] = new VoiceSlot(channelId, joinedAt);
+        _ = ephemeralStore.SetUserVoiceSlotAsync(this.GetPrimaryKey(), userId, new VoiceSlotEntry(channelId, joinedAt));
         return state.WriteStateAsync();
     }
 
@@ -1110,6 +1113,7 @@ public class SpaceGrain(
     {
         if (!state.State.VoiceMembers.Remove(userId))
             return Task.CompletedTask;
+        _ = ephemeralStore.RemoveUserVoiceSlotAsync(this.GetPrimaryKey(), userId);
         return state.WriteStateAsync();
     }
 

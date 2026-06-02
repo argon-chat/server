@@ -11,6 +11,8 @@ public static class UserPresenceFeature
         hostBuilder.Services.AddSingleton<IUserSessionDiscoveryService, LocalUserSessionDiscoveryService>();
         hostBuilder.Services.AddSingleton<IUserSessionNotifier, UserStreamNotifier>();
         hostBuilder.Services.AddHostedService<UserPresenceMetricsService>();
+        hostBuilder.Services.AddSingleton<MultiDcPresenceService>();
+        hostBuilder.Services.AddHostedService(sp => sp.GetRequiredService<MultiDcPresenceService>());
         return hostBuilder.Services;
     }
 }

@@ -2,68 +2,22 @@ namespace Argon.Features;
 
 using Api.Features.Orleans.Client;
 using Env;
-using Microsoft.Extensions.DependencyInjection.Extensions;
-using NatsStreaming;
 using Orleans.Configuration;
 using Orleans.Serialization;
-using Orleans.Serialization.Configuration;
-using Services;
 using StackExchange.Redis;
 
-public interface IClusterClientFactory
+public static class OrleansClientFactory
 {
-    Task<IServiceProvider> CreateClusterClient(string dc, CancellationToken ct = default);
-}
-
-public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment env, IServiceProvider provider) : IClusterClientFactory
-{
-    public async Task<IServiceProvider> CreateClusterClient(string dc, CancellationToken ct = default)
-    {
-        var services = new ServiceCollection();
-        
-        services.AddKeyedSingleton("dc", dc);
-
-        services.Add(new ServiceDescriptor(typeof(ILoggerFactory), null,
-            (_, _) => provider.GetRequiredService(typeof(ILoggerFactory)),
-            ServiceLifetime.Singleton));
-        services.TryAdd(ServiceDescriptor.Singleton(typeof(ILogger<>), typeof(Logger<>)));
-
-        services.Add(new ServiceDescriptor(typeof(IConfiguration), null,
-            (_, _) => provider.GetRequiredService(typeof(IConfiguration)),
-            ServiceLifetime.Singleton));
-        services.Add(new ServiceDescriptor(typeof(IArgonDcRegistry), null,
-            (_, _) => provider.GetRequiredService(typeof(IArgonDcRegistry)),
-            ServiceLifetime.Singleton));
-        services.Add(new ServiceDescriptor(typeof(IHostApplicationLifetime), null,
-            (_, _) => provider.GetRequiredService(typeof(IHostApplicationLifetime)),
-            ServiceLifetime.Singleton));
-        services.Add(new ServiceDescriptor(typeof(NatsContext), null,
-            (_, _) => provider.GetRequiredService(typeof(NatsContext)),
-            ServiceLifetime.Singleton));
-
-        services.AddOrleansClient(q => Builder(q, env, configuration, dc));
-
-
-        var typeManifests = provider.GetServices<IConfigureOptions<TypeManifestOptions>>();
-
-        foreach (var manifest in typeManifests)
-            services.AddSingleton(manifest);
-
-        return services.BuildServiceProvider(true);
-    }
-
-    public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
+    public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config)
     {
         x.Configure<ClusterOptions>(q =>
         {
             q.ClusterId = "argon-cluster";
-            q.ServiceId = $"argon-region-{region}";
+            q.ServiceId = "argon-service";
         });
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
         x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
         x.Configure<ExceptionSerializationOptions>(q => q.SupportedNamespacePrefixes.Add("Argon"));
-        if (env.IsMultiRegion())
-            x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
         if (!env.IsSingleInstance())
             x.UseRedisClustering(z
             => z.ConfigurationOptions = ConfigurationOptions.Parse(config.GetConnectionString("cache")!));

@@ -4,6 +4,7 @@ using Argon.Features.BotApi;
 using Argon.Features.Logic;
 using Argon.Features.NatsStreaming;
 using Argon.Core.Entities.Data;
+using Microsoft.Extensions.Configuration;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
 
@@ -11,6 +12,8 @@ using NATS.Client.JetStream.Models;
 /// Gateway grain for bot SSE event streaming via NATS JetStream.
 /// Each bot (BotAsUserId) gets one grain instance.
 /// Uses durable NATS consumers that persist across reconnects for automatic resume.
+/// Multi-DC: consumers are named with DC prefix so each DC has independent NATS position tracking.
+/// Stream MaxAge is 30min to allow cross-DC failover with cursor-based reconnect.
 /// </summary>
 public sealed class BotGatewayGrain(
     INatsJSContext                            js,
@@ -18,6 +21,7 @@ public sealed class BotGatewayGrain(
     IUserPresenceService                      presenceService,
     IDbContextFactory<ApplicationDbContext>    dbContextFactory,
     BotEventPublisher                         botEventPublisher,
+    IConfiguration                            configuration,
     ILogger<BotGatewayGrain>                  logger) : Grain, IBotGatewayGrain
 {
     private static readonly Dictionary<BotEventType, BotIntent> EventIntents = BuildEventIntentMap();
@@ -44,7 +48,9 @@ public sealed class BotGatewayGrain(
 
     private Guid BotUserId => this.GetPrimaryKey();
 
-    private string BotSessionId => $"bot_{BotUserId:N}";
+    private string DcId => configuration["Datacenter:Id"] ?? "local";
+
+    private string BotSessionId => $"bot_{DcId}_{BotUserId:N}";
 
     public async Task<List<BotSpaceInfo>> ConnectAsync(BotIntent intents)
     {
@@ -84,6 +90,70 @@ public sealed class BotGatewayGrain(
             BotUserId, intents, spaceIds.Count);
 
         return spaceInfos;
+    }
+
+    public async Task<BotResumeResult> ConnectWithCursorAsync(BotIntent intents, string cursor)
+    {
+        _intents     = intents;
+        _isConnected = true;
+
+        // Parse cursor: "spaceId:seq,spaceId:seq,..." or timestamp-based
+        var cursorMap = ParseCursor(cursor);
+
+        // Get bot's spaces
+        var spaceIds = await GrainFactory.GetGrain<IUserGrain>(BotUserId).GetMyServersIds();
+        _spaceIds.Clear();
+        _spaceIds.AddRange(spaceIds);
+
+        // Create consumers with DeliverPolicy.ByStartTime for spaces that have a cursor
+        foreach (var spaceId in spaceIds)
+        {
+            if (cursorMap.TryGetValue(spaceId, out var seq))
+                await CreateConsumerForSpaceFromSequence(spaceId, seq);
+            else
+                await CreateConsumerForSpace(spaceId);
+        }
+
+        await CreateDirectConsumer();
+
+        await presenceService.SetSessionOnlineAsync(BotUserId, BotSessionId);
+        await presenceService.SetSessionStatusAsync(BotUserId, BotSessionId, UserStatus.Online);
+
+        foreach (var spaceId in spaceIds)
+            _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
+
+        _heartbeatTimer = this.RegisterGrainTimer(
+            BotPresenceTickAsync,
+            new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
+
+        var spaceInfos = await BuildSpaceInfosAsync(spaceIds);
+
+        logger.LogInformation("Bot {BotId} reconnected with cursor on DC {DcId}, intents {Intents}, spaces: {SpaceCount}",
+            BotUserId, DcId, intents, spaceIds.Count);
+
+        return new BotResumeResult(spaceInfos, false);
+    }
+
+    private static Dictionary<Guid, ulong> ParseCursor(string cursor)
+    {
+        var result = new Dictionary<Guid, ulong>();
+        if (string.IsNullOrEmpty(cursor) || cursor == "0")
+            return result;
+
+        foreach (var part in cursor.Split(','))
+        {
+            var colonIdx = part.LastIndexOf(':');
+            if (colonIdx <= 0)
+                continue;
+
+            var spaceStr = part[..colonIdx];
+            var seqStr = part[(colonIdx + 1)..];
+
+            if (Guid.TryParse(spaceStr, out var spaceId) && ulong.TryParse(seqStr, out var seq))
+                result[spaceId] = seq;
+        }
+
+        return result;
     }
 
     /// <summary>
@@ -321,18 +391,18 @@ public sealed class BotGatewayGrain(
 
         try
         {
-            // Ensure stream exists
+            // Ensure stream exists — 30min MaxAge for cross-DC failover window
             try
             {
                 await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
                 {
-                    DuplicateWindow = TimeSpan.Zero,
-                    MaxAge          = TimeSpan.FromMinutes(5),
+                    DuplicateWindow = TimeSpan.FromMinutes(2),
+                    MaxAge          = TimeSpan.FromMinutes(30),
                     AllowDirect     = true,
                     MaxBytes        = -1,
-                    MaxMsgs         = 5000,
+                    MaxMsgs         = 50000,
                     Retention       = StreamConfigRetention.Limits,
-                    Storage         = StreamConfigStorage.Memory,
+                    Storage         = StreamConfigStorage.File,
                     Discard         = StreamConfigDiscard.Old
                 });
             }
@@ -356,13 +426,10 @@ public sealed class BotGatewayGrain(
         }
     }
 
-    private string GetConsumerName(Guid spaceId)
-        => $"bot_{BotUserId:N}_{spaceId:N}";
-
-    private async Task CreateDirectConsumer()
+    private async Task CreateConsumerForSpaceFromSequence(Guid spaceId, ulong startSequence)
     {
-        var streamName   = NatsStreamExtensions.ToBotDirectSubject(BotUserId);
-        var consumerName = $"bot_{BotUserId:N}_direct";
+        var streamName   = NatsStreamExtensions.ToBotEventSubject(spaceId);
+        var consumerName = GetConsumerName(spaceId);
 
         try
         {
@@ -370,13 +437,61 @@ public sealed class BotGatewayGrain(
             {
                 await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
                 {
-                    DuplicateWindow = TimeSpan.Zero,
-                    MaxAge          = TimeSpan.FromMinutes(5),
+                    DuplicateWindow = TimeSpan.FromMinutes(2),
+                    MaxAge          = TimeSpan.FromMinutes(30),
                     AllowDirect     = true,
                     MaxBytes        = -1,
-                    MaxMsgs         = 1000,
+                    MaxMsgs         = 50000,
                     Retention       = StreamConfigRetention.Limits,
-                    Storage         = StreamConfigStorage.Memory,
+                    Storage         = StreamConfigStorage.File,
+                    Discard         = StreamConfigDiscard.Old
+                });
+            }
+            catch { /* stream may already exist */ }
+
+            // Resume from the sequence AFTER the last one the bot consumed
+            var consumer = await js.CreateOrUpdateConsumerAsync(streamName, new ConsumerConfig(consumerName)
+            {
+                AckPolicy     = ConsumerConfigAckPolicy.Explicit,
+                DeliverPolicy = ConsumerConfigDeliverPolicy.ByStartSequence,
+                OptStartSeq   = startSequence + 1,
+                AckWait       = TimeSpan.FromSeconds(30),
+                MaxAckPending = 100,
+                InactiveThreshold = TimeSpan.FromMinutes(10)
+            });
+
+            _consumers[spaceId] = consumer;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to create NATS consumer from sequence for bot {BotId} space {SpaceId} seq {Seq}",
+                BotUserId, spaceId, startSequence);
+            // Fallback to latest
+            await CreateConsumerForSpace(spaceId);
+        }
+    }
+
+    private string GetConsumerName(Guid spaceId)
+        => $"bot_{DcId}_{BotUserId:N}_{spaceId:N}";
+
+    private async Task CreateDirectConsumer()
+    {
+        var streamName   = NatsStreamExtensions.ToBotDirectSubject(BotUserId);
+        var consumerName = $"bot_{DcId}_{BotUserId:N}_direct";
+
+        try
+        {
+            try
+            {
+                await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
+                {
+                    DuplicateWindow = TimeSpan.FromMinutes(2),
+                    MaxAge          = TimeSpan.FromMinutes(30),
+                    AllowDirect     = true,
+                    MaxBytes        = -1,
+                    MaxMsgs         = 5000,
+                    Retention       = StreamConfigRetention.Limits,
+                    Storage         = StreamConfigStorage.File,
                     Discard         = StreamConfigDiscard.Old
                 });
             }

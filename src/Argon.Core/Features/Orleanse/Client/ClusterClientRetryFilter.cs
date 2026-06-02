@@ -1,6 +1,6 @@
 namespace Argon.Api.Features.Orleans.Client;
 
-public class ClusterClientRetryFilter(ILogger<ClusterClientRetryFilter> logger, [FromKeyedServices("dc")] string dc) : IClientConnectionRetryFilter
+public class ClusterClientRetryFilter(ILogger<ClusterClientRetryFilter> logger) : IClientConnectionRetryFilter
 {
     private const int BaseDelayMilliseconds = 500;
     private const int MaxDelayMilliseconds = 30_000;
@@ -16,8 +16,8 @@ public class ClusterClientRetryFilter(ILogger<ClusterClientRetryFilter> logger, 
             var exponentialDelay = Math.Min(BaseDelayMilliseconds * Math.Pow(2, attempt), MaxDelayMilliseconds);
             var jitter = random.Next((int)(exponentialDelay / 2), (int)exponentialDelay);
 
-            logger.LogDebug("Retry attempt {Attempt} in connection to '{dc}' datacenter, waiting for {Delay}ms before next try",
-                attempt, dc, jitter);
+            logger.LogDebug("Retry attempt {Attempt}, waiting for {Delay}ms before next try",
+                attempt, jitter);
 
             try
             {

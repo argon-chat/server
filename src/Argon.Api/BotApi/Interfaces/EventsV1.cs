@@ -24,8 +24,25 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
 
             ctx.PropagateToOrleans();
 
-            var gateway    = grains.GetGrain<IBotGatewayGrain>(botUserId);
-            var spaceInfos = await gateway.ConnectAsync(requestedIntents);
+            var gateway = grains.GetGrain<IBotGatewayGrain>(botUserId);
+
+            // Resolve cursor: Last-Event-ID header (SSE standard) > query param
+            var cursor = ctx.Request.Headers["Last-Event-ID"].FirstOrDefault() ?? lastEventId;
+            var isReconnect = !string.IsNullOrEmpty(cursor) && cursor != "0" && cursor != "ready";
+
+            List<BotSpaceInfo> spaceInfos;
+            bool catchUpRequired = false;
+
+            if (isReconnect)
+            {
+                var resumeResult = await gateway.ConnectWithCursorAsync(requestedIntents, cursor!);
+                spaceInfos = resumeResult.SpaceInfos;
+                catchUpRequired = resumeResult.CatchUpRequired;
+            }
+            else
+            {
+                spaceInfos = await gateway.ConnectAsync(requestedIntents);
+            }
 
             async IAsyncEnumerable<SseItem<string>> Stream(
                 [EnumeratorCancellation] CancellationToken ct = default)
@@ -33,15 +50,27 @@ public sealed class EventsV1(IGrainFactory grains) : IBotInterface
                 BotApiInstrument.SseConnectionsOpened.Add(1);
                 BotApiInstrument.IncrementSseConnection();
 
-                // READY event
-                yield return ToSseItem(new BotSseEvent
+                // READY or RESUMED event
+                if (isReconnect)
                 {
-                    Id   = "ready",
-                    Type = BotEventType.Ready,
-                    Data = new ReadyEventPayload((long)requestedIntents, spaceInfos.ToArray())
-                });
+                    yield return ToSseItem(new BotSseEvent
+                    {
+                        Id   = "resumed",
+                        Type = BotEventType.Resumed,
+                        Data = new ResumedEventPayload(catchUpRequired)
+                    });
+                }
+                else
+                {
+                    yield return ToSseItem(new BotSseEvent
+                    {
+                        Id   = "ready",
+                        Type = BotEventType.Ready,
+                        Data = new ReadyEventPayload((long)requestedIntents, spaceInfos.ToArray())
+                    });
+                }
                 BotApiInstrument.SseEventsDelivered.Add(1,
-                    new KeyValuePair<string, object?>("event_type", nameof(BotEventType.Ready)));
+                    new KeyValuePair<string, object?>("event_type", isReconnect ? nameof(BotEventType.Resumed) : nameof(BotEventType.Ready)));
 
                 // Stream live events via NATS consumers
                 var heartbeatInterval = TimeSpan.FromSeconds(30);

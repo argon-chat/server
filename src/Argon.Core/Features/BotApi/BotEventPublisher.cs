@@ -398,13 +398,13 @@ public sealed class BotEventPublisher(
         {
             await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
             {
-                DuplicateWindow = TimeSpan.Zero,
-                MaxAge          = TimeSpan.FromMinutes(5),
+                DuplicateWindow = TimeSpan.FromMinutes(2),
+                MaxAge          = TimeSpan.FromMinutes(30),
                 AllowDirect     = true,
                 MaxBytes        = -1,
-                MaxMsgs         = 1000,
+                MaxMsgs         = 5000,
                 Retention       = StreamConfigRetention.Limits,
-                Storage         = StreamConfigStorage.Memory,
+                Storage         = StreamConfigStorage.File,
                 Discard         = StreamConfigDiscard.Old
             });
         }
@@ -424,19 +424,18 @@ public sealed class BotEventPublisher(
         {
             await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
             {
-                DuplicateWindow = TimeSpan.Zero,
-                MaxAge          = TimeSpan.FromMinutes(5),
+                DuplicateWindow = TimeSpan.FromMinutes(2),
+                MaxAge          = TimeSpan.FromMinutes(30),
                 AllowDirect     = true,
                 MaxBytes        = -1,
-                MaxMsgs         = 5000,
+                MaxMsgs         = 50000,
                 Retention       = StreamConfigRetention.Limits,
-                Storage         = StreamConfigStorage.Memory,
+                Storage         = StreamConfigStorage.File,
                 Discard         = StreamConfigDiscard.Old
             });
         }
         catch
         {
-            // Stream may already exist; remove from dict so next attempt retries
             _ensuredStreams.TryRemove(spaceId, out _);
         }
     }

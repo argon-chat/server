@@ -58,6 +58,14 @@ public interface IBotGatewayGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(GetCursor))]
     Task<string> GetCursor();
+
+    /// <summary>
+    /// Reconnects with a cursor from a previous session (possibly on a different DC).
+    /// Creates NATS consumers starting from the sequence after the cursor position.
+    /// Enables cross-DC failover: bot disconnects from DC-A, reconnects to DC-B with cursor.
+    /// </summary>
+    [Alias(nameof(ConnectWithCursorAsync))]
+    Task<BotResumeResult> ConnectWithCursorAsync(BotIntent intents, string cursor);
 }
 
 /// <summary>
@@ -69,3 +77,11 @@ public sealed record BotSpaceInfo(
     [property: Id(0)] Guid             SpaceId,
     [property: Id(1)] ArgonEntitlement GrantedEntitlements,
     [property: Id(2)] bool             PendingApproval);
+
+/// <summary>
+/// Result of cursor-based reconnect.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record BotResumeResult(
+    [property: Id(0)] List<BotSpaceInfo> SpaceInfos,
+    [property: Id(1)] bool               CatchUpRequired);

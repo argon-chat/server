@@ -14,6 +14,7 @@ using Orleans.Providers;
 using Persistence.States;
 using Sfu;
 using System.Diagnostics;
+using Argon.Features.EphemeralState;
 using Core.Features.Transport;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
@@ -31,6 +32,7 @@ public class ChannelGrain(
     BotUserCache botUserCache,
     IS3StorageService s3,
     IKlipyService klipy,
+    IEphemeralStateStore ephemeralStore,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -49,6 +51,15 @@ public class ChannelGrain(
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
 
+    // ── Ephemeral store write-through for cross-DC voice state visibility ──
+
+    private Task SyncVoiceJoinToStoreAsync(Guid userId, string sessionId = "")
+        => ephemeralStore.SetVoiceChannelMemberAsync(this.GetPrimaryKey(), userId,
+            new VoiceChannelMember(userId, sessionId, ChannelMemberState.NONE, DateTimeOffset.UtcNow));
+
+    private Task SyncVoiceLeaveFromStoreAsync(Guid userId)
+        => ephemeralStore.RemoveVoiceChannelMemberAsync(this.GetPrimaryKey(), userId);
+
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         _self = await Get();
@@ -61,6 +72,9 @@ public class ChannelGrain(
         state.State.EgressActive = false;
 
         await state.WriteStateAsync(cancellationToken);
+
+        // Clear ephemeral store for this channel (grain reactivated = voice session reset)
+        await ephemeralStore.RemoveAllVoiceChannelMembersAsync(this.GetPrimaryKey(), cancellationToken);
 
         _reactionFlushTimer = this.RegisterGrainTimer(
             async _ => await FlushReactionsAsync(),
@@ -76,6 +90,9 @@ public class ChannelGrain(
         await SettleXpForAllUsersAsync();
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
+
+        // Clear ephemeral store on deactivation
+        await ephemeralStore.RemoveAllVoiceChannelMembersAsync(this.GetPrimaryKey(), cancellationToken);
     }
 
     public Task<List<RealtimeChannelUser>> GetMembers()
@@ -478,6 +495,7 @@ public class ChannelGrain(
             await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(oderId);
             state.State.Users.Remove(oderId);
+            _ = SyncVoiceLeaveFromStoreAsync(oderId);
             await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
             await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
         }
@@ -496,6 +514,7 @@ public class ChannelGrain(
         }
 
         await state.WriteStateAsync(ct);
+        _ = SyncVoiceJoinToStoreAsync(oderId);
         await Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(oderId, channelId, DateTimeOffset.UtcNow);
 
@@ -534,6 +553,7 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(oderId);
+        _ = SyncVoiceLeaveFromStoreAsync(oderId);
         await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
         await state.WriteStateAsync(ct);
@@ -562,6 +582,7 @@ public class ChannelGrain(
             await SettleXpForAllUsersAsync();
             state.State.UserJoinTimes.Remove(userId);
             state.State.Users.Remove(userId);
+            _ = SyncVoiceLeaveFromStoreAsync(userId);
             await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
             await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
         }
@@ -572,6 +593,9 @@ public class ChannelGrain(
         state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
         await state.WriteStateAsync();
+
+        // Write-through to ephemeral store for cross-DC visibility
+        _ = SyncVoiceJoinToStoreAsync(userId);
 
         // Track call joined for stats
         _ = TrackCallJoinedAsync(userId);
@@ -608,6 +632,7 @@ public class ChannelGrain(
         }
 
         state.State.Users.Remove(userId);
+        _ = SyncVoiceLeaveFromStoreAsync(userId);
         await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
         await state.WriteStateAsync();
@@ -634,6 +659,8 @@ public class ChannelGrain(
         state.State.Users.Add(userId, new RealtimeChannelUser(userId, ChannelMemberState.NONE));
         state.State.UserJoinTimes[userId] = DateTimeOffset.UtcNow;
         await state.WriteStateAsync();
+
+        _ = SyncVoiceJoinToStoreAsync(userId);
 
         await Fire(new JoinedToChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(userId, this.GetPrimaryKey(), DateTimeOffset.UtcNow);

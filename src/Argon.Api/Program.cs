@@ -7,9 +7,9 @@ using Argon.Features.BotApi;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.Integrations.Klipy;
+using Argon.Features.Logging;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
-using Argon.Features.RegionalUnit;
 using Argon.Services.Ion;
 using ConsoleContracts;
 using Microsoft.AspNetCore.Http.Connections;
@@ -17,13 +17,13 @@ using Microsoft.AspNetCore.Http.Connections;
 if (BotApiCli.TryHandleCommand(args))
     return;
 
-var builder = await RegionalUnitApp.CreateBuilder(args);
+var builder = WebApplication.CreateBuilder(args);
+builder.AddLogging();
+
 if (builder.Environment.IsSingleInstance())
     builder.AddSingleInstanceWorkload();
-else if (builder.Environment.IsSingleRegion())
-    builder.AddSingleRegionWorkloads();
 else
-    builder.AddMultiRegionWorkloads();
+    builder.AddSingleRegionWorkloads();
 
 builder.Services.AddIonProtocol((x) =>
 {
@@ -75,10 +75,8 @@ var app = builder.Build();
 app.UseSentryTunneling("/k");
 if (builder.Environment.IsSingleInstance())
     app.UseSingleInstanceWorkloads();
-else if (builder.Environment.IsSingleRegion())
-    app.UseSingleRegionWorkloads();
 else
-    app.UseMultiRegionWorkloads();
+    app.UseSingleRegionWorkloads();
 app.UseSentryTracing();
 
 if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())

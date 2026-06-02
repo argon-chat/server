@@ -1,0 +1,170 @@
+# Multi-DC local test environment
+# Simulates 2 data centers (dc1, dc2) with:
+# - Independent NATS clusters connected via gateways (super-cluster)
+# - Independent Redis per DC
+# - Shared CockroachDB (multi-region)
+# - 2 Argon API instances (one per DC)
+#
+# Usage:
+#   docker compose -f deploy/docker-compose.multidc.yml up -d
+#   Then start Argon instances with ARGON_DC=dc1 / ARGON_DC=dc2
+
+networks:
+  dc1:
+    name: argon-dc1
+    driver: bridge
+  dc2:
+    name: argon-dc2
+    driver: bridge
+  shared:
+    name: argon-shared
+    driver: bridge
+
+services:
+  # ─── NATS DC1 (3-node cluster) ─────────────────────────
+  nats-dc1-1:
+    image: nats:2.11
+    container_name: nats-dc1-1
+    hostname: nats-dc1-1
+    ports:
+      - "4221:4222"
+      - "8221:8222"
+    volumes:
+      - ./nats/dc1-1.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc1
+      - shared
+
+  nats-dc1-2:
+    image: nats:2.11
+    container_name: nats-dc1-2
+    hostname: nats-dc1-2
+    volumes:
+      - ./nats/dc1-2.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc1
+      - shared
+
+  nats-dc1-3:
+    image: nats:2.11
+    container_name: nats-dc1-3
+    hostname: nats-dc1-3
+    volumes:
+      - ./nats/dc1-3.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc1
+      - shared
+
+  # ─── NATS DC2 (3-node cluster) ─────────────────────────
+  nats-dc2-1:
+    image: nats:2.11
+    container_name: nats-dc2-1
+    hostname: nats-dc2-1
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - ./nats/dc2-1.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc2
+      - shared
+
+  nats-dc2-2:
+    image: nats:2.11
+    container_name: nats-dc2-2
+    hostname: nats-dc2-2
+    volumes:
+      - ./nats/dc2-2.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc2
+      - shared
+
+  nats-dc2-3:
+    image: nats:2.11
+    container_name: nats-dc2-3
+    hostname: nats-dc2-3
+    volumes:
+      - ./nats/dc2-3.conf:/etc/nats/nats.conf:ro
+    command: ["--config", "/etc/nats/nats.conf"]
+    networks:
+      - dc2
+      - shared
+
+  # ─── Redis per DC ──────────────────────────────────────
+  redis-dc1:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: redis-dc1
+    ports:
+      - "6381:6379"
+    networks:
+      - dc1
+
+  redis-dc2:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: redis-dc2
+    ports:
+      - "6382:6379"
+    networks:
+      - dc2
+
+  # ─── CockroachDB (shared, multi-region) ────────────────
+  cockroach1:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: crdb-dc1
+    hostname: crdb-dc1
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=crdb-dc1:26257
+      - --http-addr=crdb-dc1:8080
+      - --join=crdb-dc1:26257,crdb-dc2:26257
+      - --locality=region=dc1,zone=dc1-z1
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - crdb-dc1:/cockroach/cockroach-data
+    networks:
+      - shared
+
+  cockroach2:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: crdb-dc2
+    hostname: crdb-dc2
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=crdb-dc2:26257
+      - --http-addr=crdb-dc2:8081
+      - --join=crdb-dc1:26257,crdb-dc2:26257
+      - --locality=region=dc2,zone=dc2-z1
+    ports:
+      - "26258:26257"
+      - "8081:8081"
+    volumes:
+      - crdb-dc2:/cockroach/cockroach-data
+    networks:
+      - shared
+
+  crdb-init:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: crdb-init
+    depends_on:
+      - cockroach1
+      - cockroach2
+    networks:
+      - shared
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 10 && /cockroach/cockroach init --insecure --host=crdb-dc1:26257"
+
+volumes:
+  crdb-dc1:
+  crdb-dc2:

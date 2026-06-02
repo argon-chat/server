@@ -2,6 +2,7 @@ namespace Argon.Features.HostMode;
 
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.CoreLogic.Otp;
+using Argon.Features.Regions;
 using Argon.Api.Features.CoreLogic.Social;
 using Argon.Core.Features.Integrations.Captcha;
 using Argon.Core.Features.Integrations.Xsolla;
@@ -10,8 +11,10 @@ using Argon.Features.BotApi;
 using Argon.Features.Storage;
 using Auth;
 using EF;
+using EphemeralState;
 using Env;
 using GeoIP;
+using Scheduling;
 using global::Sentry.Infrastructure;
 using Jwt;
 using k8s;
@@ -23,7 +26,6 @@ using Middlewares;
 using Orleans.Dashboard;
 using Orleans.Hosting;
 using Pex;
-using RegionalUnit;
 using Repositories;
 using Serilog;
 using Services;
@@ -119,7 +121,6 @@ public static class HostModeExtensions
 
         public WebApplicationBuilder AddSingleRegionWorkloads()
         {
-            builder.Services.AddSingleton<IArgonRegionalBus, ArgonRegionalBus>();
             builder.AddDefaultWorkloadServices();
             builder.AddGeoIpSupport();
             if (builder.IsEntryPointRole() || builder.IsHybridRole())
@@ -134,14 +135,6 @@ public static class HostModeExtensions
             // builder.AddKubeResources(); // Removed - KubeResources no longer used
             builder.AddTemplateEngine();
 
-            return builder;
-        }
-
-        public WebApplicationBuilder AddMultiRegionWorkloads()
-        {
-            throw null!;
-            builder.AddSingleRegionWorkloads();
-            // TODO
             return builder;
         }
 
@@ -165,6 +158,9 @@ public static class HostModeExtensions
             });
        
             builder.AddUserPresenceFeature();
+            builder.AddEphemeralStateFeature();
+            builder.AddScheduledTasks();
+            builder.AddDatacenterRegistry();
             builder.AddArgonCacheDatabase();
             builder.AddArgonAuthorization();
             builder.AddJwt();
@@ -203,16 +199,10 @@ public static class HostModeExtensions
                 if (!builder.IsSingleInstance())
                     throw new InvalidOperationException("Hybrid role is only allowed in single instance mode");
                 builder.AddWorkerOrleans();
-                builder.AddShimsForHybridRole();
             }
             else if (builder.IsEntryPointRole())
             {
-                if (builder.IsSingleRegion())
-                    builder.AddSingleOrleansClient();
-                else if (builder.IsMultiRegion())
-                    builder.AddMultiOrleansClient();
-                //else
-                //    throw new InvalidOperationException("Cannot determine configuration for entry point role");
+                builder.AddSingleOrleansClient();
             }
             else
                 builder.AddWorkerOrleans();
@@ -288,7 +278,5 @@ public static class RunHostModeExtensions
             return app;
         }
 
-        public WebApplication UseMultiRegionWorkloads()
-            => throw new InvalidOperationException();
     }
 }

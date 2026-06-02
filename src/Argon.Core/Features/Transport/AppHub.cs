@@ -1,13 +1,16 @@
 namespace Argon.Core.Features.Transport;
 
 using Argon.Features.BotApi;
+using Argon.Features.EphemeralState;
 using Argon.Features.Env;
+using Argon.Features.Transport;
 using ion.runtime;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Net.Http.Headers;
+using NATS.Client.Core;
 using StackExchange.Redis;
 using System.Formats.Cbor;
 using System.IdentityModel.Tokens.Jwt;
@@ -15,13 +18,36 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 
 [Authorize(AuthenticationSchemes = "Ticket", Policy = "ticket")]
-public class AppHub(IGrainFactory factory) : Hub
+public class AppHub(
+    IGrainFactory factory,
+    ISpaceSubscriptionTracker subscriptionTracker,
+    UserEventsFanoutService userEventsFanout,
+    IEphemeralStateStore ephemeralStore,
+    NatsSessionLocator sessionLocator,
+    IConfiguration configuration) : Hub
 {
+    private static readonly TimeSpan SessionRouteTtl = TimeSpan.FromMinutes(5);
+
     public async override Task OnConnectedAsync()
     {
         EnsureBeforeCall(true);
         var spaceIds = await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds();
         await Task.WhenAll(spaceIds.Select(x => Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{x}")));
+        foreach (var spaceId in spaceIds)
+            subscriptionTracker.Increment(spaceId);
+        Context.Items["subscribedSpaces"] = spaceIds;
+
+        // Register session route for cross-DC discovery
+        var route = new SessionRoute(
+            SessionId: Context.ConnectionId,
+            UserId: UserId,
+            DatacenterId: configuration.GetValue<string>("Datacenter:Id") ?? "local",
+            EntryPointId: Environment.MachineName,
+            ConnectedAt: DateTimeOffset.UtcNow);
+        await ephemeralStore.SetSessionRouteAsync(Context.ConnectionId, route, SessionRouteTtl);
+        await sessionLocator.AnnounceSessionAsync(route, connected: true);
+        userEventsFanout.TrackUser(UserId);
+
         await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).BeginRealtimeSession();
     }
 
@@ -59,16 +85,43 @@ public class AppHub(IGrainFactory factory) : Hub
     }
 
     public async override Task OnDisconnectedAsync(Exception? exception)
-        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).EndRealtimeSession();
+    {
+        if (Context.Items["subscribedSpaces"] is List<Guid> spaces)
+            foreach (var spaceId in spaces)
+                subscriptionTracker.Decrement(spaceId);
+
+        // Remove session route and announce disconnect
+        var route = await ephemeralStore.GetSessionRouteAsync(Context.ConnectionId);
+        await ephemeralStore.RemoveSessionRouteAsync(Context.ConnectionId);
+        if (route is not null)
+            await sessionLocator.AnnounceSessionAsync(route, connected: false);
+        userEventsFanout.UntrackUser(UserId);
+
+        await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).EndRealtimeSession();
+    }
 
     public async Task SubscribeToSpace(Guid spaceId)
-        => await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+    {
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+        subscriptionTracker.Increment(spaceId);
+        if (Context.Items["subscribedSpaces"] is List<Guid> spaces)
+            spaces.Add(spaceId);
+    }
 
     public async Task UnSubscribeToSpace(Guid spaceId)
-        => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+    {
+        await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+        subscriptionTracker.Decrement(spaceId);
+        if (Context.Items["subscribedSpaces"] is List<Guid> spaces)
+            spaces.Remove(spaceId);
+    }
 
     public async Task Heartbeat(UserStatus status)
-        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).HeartBeatAsync(status);
+    {
+        await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).HeartBeatAsync(status);
+        // Refresh session route TTL on heartbeat
+        await ephemeralStore.RefreshSessionRouteAsync(Context.ConnectionId, SessionRouteTtl);
+    }
 
     public async Task IAmTyping(Guid channelId)
     {
@@ -83,19 +136,31 @@ public class AppHub(IGrainFactory factory) : Hub
     }
 }
 
-public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEventPublisher, ILogger<AppHubServer> logger)
+public class AppHubServer(
+    IHubContext<AppHub> appHub,
+    BotEventPublisher botEventPublisher,
+    INatsClient natsClient,
+    IConfiguration configuration,
+    ILogger<AppHubServer> logger)
 {
+    private readonly string _localDcId = configuration.GetValue<string>("Datacenter:Id") ?? "local";
+
     public async Task BroadcastSpace<T>(T @event, Guid spaceId, CancellationToken ct = default)
         where T : IArgonEvent
     {
         var writer = new CborWriter();
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
+        var payload = writer.Encode();
 
+        // Local SignalR broadcast (immediate delivery for users on this DC)
         await appHub.Clients.Group($"spaces/{spaceId}")
-           .SendAsync("broadcastSpace", writer.Encode(), cancellationToken: ct);
+           .SendAsync("broadcastSpace", payload, cancellationToken: ct);
+
+        // Cross-DC: publish to NATS for other DCs' FanoutServices
+        await PublishCrossDcAsync(CrossDcFanoutService.ToSpaceEventsSubject(spaceId), payload);
 
         // Publish to NATS for bots — single publish, bots consume independently
-        _ = botEventPublisher.PublishIfMappedAsync(@event, spaceId);
+        await botEventPublisher.PublishIfMappedAsync(@event, spaceId);
     }
 
     public async Task ForUser<T>(T @event, Guid userId, CancellationToken ct = default)
@@ -103,11 +168,47 @@ public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEvent
     {
         var writer = new CborWriter();
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
+        var payload = writer.Encode();
+
+        // Local SignalR delivery
         await appHub.Clients.User(userId.ToString())
-           .SendAsync("forSelf", writer.Encode(), cancellationToken: ct);
+           .SendAsync("forSelf", payload, cancellationToken: ct);
+
+        // Cross-DC: publish for user events to reach other DCs
+        await PublishCrossDcForUserAsync(userId, payload);
 
         // Publish to NATS for bots (calls, DMs)
-        _ = botEventPublisher.PublishForUserAsync(@event, userId);
+        await botEventPublisher.PublishForUserAsync(@event, userId);
+    }
+
+    private async Task PublishCrossDcForUserAsync(Guid userId, byte[] payload)
+    {
+        try
+        {
+            var headers = new NatsHeaders
+            {
+                { "X-Source-Dc", _localDcId },
+                { "X-Target-User", userId.ToString("N") }
+            };
+            await natsClient.PublishAsync($"user.events.{userId:N}", payload, headers: headers);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to publish cross-DC user event for {UserId}", userId);
+        }
+    }
+
+    private async Task PublishCrossDcAsync(string subject, byte[] payload)
+    {
+        try
+        {
+            var headers = new NatsHeaders { { "X-Source-Dc", _localDcId } };
+            await natsClient.PublishAsync(subject, payload, headers: headers);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to publish cross-DC event to {Subject}", subject);
+        }
     }
 }
 
@@ -142,12 +243,18 @@ public static class SignalRHubExtensions
 
         builder.Services
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
+           .AddSingleton<ISpaceSubscriptionTracker, SpaceSubscriptionTracker>()
            .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
            .AddSingleton<Argon.Features.BotApi.BotUserCache>()
            .AddSingleton<Argon.Features.BotApi.InteractionContextStore>()
            .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
            .AddScoped<Argon.Features.BotApi.InteractionResponsePusher>()
            .AddScoped<AppHubServer>()
+           .AddHostedService<CrossDcFanoutService>()
+           .AddSingleton<UserEventsFanoutService>()
+           .AddHostedService(sp => sp.GetRequiredService<UserEventsFanoutService>())
+           .AddSingleton<NatsSessionLocator>()
+           .AddHostedService(sp => sp.GetRequiredService<NatsSessionLocator>())
            .AddSignalR()
            //.AddMessagePackProtocol()
            .AddHubOptions<AppHub>(options => options.EnableDetailedErrors = true)
