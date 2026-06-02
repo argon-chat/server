@@ -45,6 +45,11 @@ public record FeatureFlagEntity : ArgonEntity<string>, IEntityTypeConfiguration<
     /// </summary>
     public DateTimeOffset? ExpiresAt { get; set; }
 
+    /// <summary>
+    /// USSD code that activates this flag for the dialing user. Null means the flag is not USSD-activatable.
+    /// </summary>
+    public string? UssdActivationCode { get; set; }
+
     public ICollection<FeatureFlagOverrideEntity> Overrides { get; set; } = [];
 
     public void Configure(EntityTypeBuilder<FeatureFlagEntity> builder)
@@ -53,8 +58,10 @@ public record FeatureFlagEntity : ArgonEntity<string>, IEntityTypeConfiguration<
         builder.Property(x => x.Id).HasMaxLength(128);
         builder.Property(x => x.Description).HasMaxLength(512);
         builder.Property(x => x.Variants).HasMaxLength(2048);
+        builder.Property(x => x.UssdActivationCode).HasMaxLength(32);
 
         builder.HasIndex(x => x.DefaultEnabled);
         builder.HasIndex(x => x.ExpiresAt);
+        builder.HasIndex(x => x.UssdActivationCode).IsUnique().HasFilter("\"UssdActivationCode\" IS NOT NULL");
     }
 }

@@ -132,6 +132,20 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(GetUserTrustCard), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> RecalculateUserTrust_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(RecalculateUserTrust), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetFeatureFlags_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetFeatureFlags), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetFeatureFlag_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetFeatureFlag), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateFeatureFlag_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CreateFeatureFlag), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateFeatureFlag_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UpdateFeatureFlag), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteFeatureFlag_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeleteFeatureFlag), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetFeatureFlagOverride_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteFeatureFlagOverride_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeleteFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -1130,6 +1144,125 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AdminUserTrustCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetFeatureFlags_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagDetails> GetFeatureFlag(string __flagid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetFeatureFlag_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __flagid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagActionResult> CreateFeatureFlag(CreateFeatureFlagInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CreateFeatureFlag_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CreateFeatureFlagInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagActionResult> UpdateFeatureFlag(UpdateFeatureFlagInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UpdateFeatureFlag_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<UpdateFeatureFlagInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagActionResult> DeleteFeatureFlag(string __flagid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeleteFeatureFlag_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __flagid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagActionResult> SetFeatureFlagOverride(SetFeatureFlagOverrideInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetFeatureFlagOverride_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<SetFeatureFlagOverrideInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<FeatureFlagActionResult> DeleteFeatureFlagOverride(guid __overrideid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeleteFeatureFlagOverride_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __overrideid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
     }
 
 }

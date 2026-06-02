@@ -100,6 +100,14 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AdminReportEntry>.Value = new Ion_AdminReportEntry_Formatter();
       IonFormatterStorage<ResolveReportInput>.Value = new Ion_ResolveReportInput_Formatter();
       IonFormatterStorage<AdminUserTrustCard>.Value = new Ion_AdminUserTrustCard_Formatter();
+      IonFormatterStorage<FeatureFlagList>.Value = new Ion_FeatureFlagList_Formatter();
+      IonFormatterStorage<FeatureFlagSummary>.Value = new Ion_FeatureFlagSummary_Formatter();
+      IonFormatterStorage<FeatureFlagDetails>.Value = new Ion_FeatureFlagDetails_Formatter();
+      IonFormatterStorage<FeatureFlagOverrideInfo>.Value = new Ion_FeatureFlagOverrideInfo_Formatter();
+      IonFormatterStorage<CreateFeatureFlagInput>.Value = new Ion_CreateFeatureFlagInput_Formatter();
+      IonFormatterStorage<UpdateFeatureFlagInput>.Value = new Ion_UpdateFeatureFlagInput_Formatter();
+      IonFormatterStorage<SetFeatureFlagOverrideInput>.Value = new Ion_SetFeatureFlagOverrideInput_Formatter();
+      IonFormatterStorage<FeatureFlagActionResult>.Value = new Ion_FeatureFlagActionResult_Formatter();
       IonFormatterStorage<SearchMatchKind>.Value = new Ion_SearchMatchKind_Formatter();
       IonFormatterStorage<DeviceTypeKind>.Value = new Ion_DeviceTypeKind_Formatter();
       IonFormatterStorage<ItemScenarioKind>.Value = new Ion_ItemScenarioKind_Formatter();

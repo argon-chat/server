@@ -34,4 +34,46 @@ public interface IFeatureFlagGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(InvalidateCacheAsync))]
     ValueTask InvalidateCacheAsync();
+
+    /// <summary>
+    /// Resolves the flag id whose USSD activation code matches the given dialed code (exact, trimmed).
+    /// Returns null when no flag claims the code.
+    /// </summary>
+    [Alias(nameof(FindFlagIdByUssdCodeAsync))]
+    ValueTask<string?> FindFlagIdByUssdCodeAsync(string code);
+
+    /// <summary>
+    /// Activates a flag for a single user by upserting a User-scope override (Enabled = true).
+    /// Idempotent. Returns the evaluated result for that user (disabled result when the flag is missing/expired).
+    /// Does not emit notifications — the caller fires the user event.
+    /// </summary>
+    [Alias(nameof(ActivateForUserAsync))]
+    ValueTask<FeatureFlagResult> ActivateForUserAsync(Guid userId, string flagId);
+
+    /// <summary>
+    /// Lists all non-deleted flags with override counts for admin management.
+    /// </summary>
+    [Alias(nameof(ListFlagsAsync))]
+    ValueTask<List<FeatureFlagSummaryDto>> ListFlagsAsync();
+
+    /// <summary>
+    /// Returns a single flag with its overrides, or null when not found.
+    /// </summary>
+    [Alias(nameof(GetFlagAsync))]
+    ValueTask<FeatureFlagDetailsDto?> GetFlagAsync(string flagId);
+
+    [Alias(nameof(CreateFlagAsync))]
+    ValueTask<FeatureFlagOpResult> CreateFlagAsync(FeatureFlagInput input);
+
+    [Alias(nameof(UpdateFlagAsync))]
+    ValueTask<FeatureFlagOpResult> UpdateFlagAsync(FeatureFlagInput input);
+
+    [Alias(nameof(DeleteFlagAsync))]
+    ValueTask<FeatureFlagOpResult> DeleteFlagAsync(string flagId);
+
+    [Alias(nameof(SetOverrideAsync))]
+    ValueTask<FeatureFlagOpResult> SetOverrideAsync(FeatureFlagOverrideInput input);
+
+    [Alias(nameof(DeleteOverrideAsync))]
+    ValueTask<FeatureFlagOpResult> DeleteOverrideAsync(Guid overrideId);
 }

@@ -335,6 +335,38 @@ public sealed record AdminUserTrustCard(guid userId, string username, i4 trustSc
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagList(IonArray<FeatureFlagSummary> flags);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagSummary(string id, string? description, bool defaultEnabled, i4? rolloutPercentage, bool hasVariants, string? ussdActivationCode, datetime? expiresAt, i4 overrideCount, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagDetails(string id, string? description, bool defaultEnabled, i4? rolloutPercentage, string? variants, string? ussdActivationCode, datetime? expiresAt, datetime createdAt, IonArray<FeatureFlagOverrideInfo> overrides);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagOverrideInfo(guid overrideId, i4 scope, string targetId, bool? enabled, i4? rolloutPercentage, string? forcedVariant, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateFeatureFlagInput(string flagId, string? description, bool defaultEnabled, i4? rolloutPercentage, string? variants, string? ussdActivationCode, datetime? expiresAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UpdateFeatureFlagInput(string flagId, string? description, bool defaultEnabled, i4? rolloutPercentage, string? variants, string? ussdActivationCode, datetime? expiresAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SetFeatureFlagOverrideInput(string flagId, i4 scope, string targetId, bool? enabled, i4? rolloutPercentage, string? forcedVariant);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagActionResult(bool success, string? flagId, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -470,6 +502,13 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> AssignReport(guid reportId, guid operatorId, CancellationToken ct = default);
     Task<AdminUserTrustCard> GetUserTrustCard(guid userId, CancellationToken ct = default);
     Task<AdminUserTrustCard> RecalculateUserTrust(guid userId, CancellationToken ct = default);
+    Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default);
+    Task<FeatureFlagDetails> GetFeatureFlag(string flagId, CancellationToken ct = default);
+    Task<FeatureFlagActionResult> CreateFeatureFlag(CreateFeatureFlagInput input, CancellationToken ct = default);
+    Task<FeatureFlagActionResult> UpdateFeatureFlag(UpdateFeatureFlagInput input, CancellationToken ct = default);
+    Task<FeatureFlagActionResult> DeleteFeatureFlag(string flagId, CancellationToken ct = default);
+    Task<FeatureFlagActionResult> SetFeatureFlagOverride(SetFeatureFlagOverrideInput input, CancellationToken ct = default);
+    Task<FeatureFlagActionResult> DeleteFeatureFlagOverride(guid overrideId, CancellationToken ct = default);
 }
 
 

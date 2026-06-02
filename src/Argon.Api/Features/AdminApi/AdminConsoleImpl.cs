@@ -4,7 +4,9 @@ using Argon.Api.Entities.Data;
 using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
+using Argon.Core.Features.Logic;
 using Argon.Features.Admin;
+using Argon.Grains.Interfaces;
 using ConsoleContracts;
 using ion.runtime;
 using Livekit.Server.Sdk.Dotnet;
@@ -23,7 +25,9 @@ public class AdminConsoleImpl(
     OrleansDiagnosticsService? orleansDiagnostics,
     IOperatorCertificateService certificateService,
     IOperatorAuditService auditService,
-    HybridCache lockdownCache
+    HybridCache lockdownCache,
+    IUserSessionDiscoveryService sessionDiscovery,
+    IUserSessionNotifier sessionNotifier
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -2589,4 +2593,150 @@ public class AdminConsoleImpl(
         var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == report.TargetId, ct);
         return user?.DisplayName ?? user?.Username ?? "Unknown User";
     }
+
+    #region Feature Flags
+
+    public async Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default)
+    {
+        var grain = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var flags = await grain.ListFlagsAsync();
+
+        var summaries = flags.Select(f => new FeatureFlagSummary(
+            f.Id,
+            f.Description,
+            f.DefaultEnabled,
+            f.RolloutPercentage,
+            f.HasVariants,
+            f.UssdActivationCode,
+            f.ExpiresAt?.UtcDateTime,
+            f.OverrideCount,
+            f.CreatedAt.UtcDateTime)).ToList();
+
+        return new FeatureFlagList(new IonArray<FeatureFlagSummary>(summaries));
+    }
+
+    public async Task<FeatureFlagDetails> GetFeatureFlag(string flagId, CancellationToken ct = default)
+    {
+        var grain = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var flag  = await grain.GetFlagAsync(flagId);
+        if (flag is null)
+            throw new InvalidOperationException($"Feature flag '{flagId}' not found");
+
+        var overrides = flag.Overrides.Select(o => new FeatureFlagOverrideInfo(
+            o.OverrideId,
+            (int)o.Scope,
+            o.TargetId,
+            o.Enabled,
+            o.RolloutPercentage,
+            o.ForcedVariant,
+            o.CreatedAt.UtcDateTime)).ToList();
+
+        return new FeatureFlagDetails(
+            flag.Id,
+            flag.Description,
+            flag.DefaultEnabled,
+            flag.RolloutPercentage,
+            flag.Variants,
+            flag.UssdActivationCode,
+            flag.ExpiresAt?.UtcDateTime,
+            flag.CreatedAt.UtcDateTime,
+            new IonArray<FeatureFlagOverrideInfo>(overrides));
+    }
+
+    public async Task<FeatureFlagActionResult> CreateFeatureFlag(CreateFeatureFlagInput input, CancellationToken ct = default)
+    {
+        var grain  = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var result = await grain.CreateFlagAsync(new FeatureFlagInput(
+            input.flagId, input.description, input.defaultEnabled, input.rolloutPercentage,
+            input.variants, input.ussdActivationCode, ToOffset(input.expiresAt)));
+
+        if (result.Success)
+            await auditService.LogAsync("CreateFeatureFlag", "FeatureFlag", input.flagId,
+                $"Created feature flag '{input.flagId}', ussd={input.ussdActivationCode ?? "-"}");
+
+        return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
+    }
+
+    public async Task<FeatureFlagActionResult> UpdateFeatureFlag(UpdateFeatureFlagInput input, CancellationToken ct = default)
+    {
+        var grain  = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var result = await grain.UpdateFlagAsync(new FeatureFlagInput(
+            input.flagId, input.description, input.defaultEnabled, input.rolloutPercentage,
+            input.variants, input.ussdActivationCode, ToOffset(input.expiresAt)));
+
+        if (result.Success)
+            await auditService.LogAsync("UpdateFeatureFlag", "FeatureFlag", input.flagId,
+                $"Updated feature flag '{input.flagId}'");
+
+        return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
+    }
+
+    public async Task<FeatureFlagActionResult> DeleteFeatureFlag(string flagId, CancellationToken ct = default)
+    {
+        var grain  = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var result = await grain.DeleteFlagAsync(flagId);
+
+        if (result.Success)
+            await auditService.LogAsync("DeleteFeatureFlag", "FeatureFlag", flagId, $"Deleted feature flag '{flagId}'");
+
+        return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
+    }
+
+    public async Task<FeatureFlagActionResult> SetFeatureFlagOverride(SetFeatureFlagOverrideInput input, CancellationToken ct = default)
+    {
+        var grain = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var scope = (FeatureFlagScope)input.scope;
+
+        // User-scope enable routes through the activation path so the user gets the same realtime event.
+        if (scope == FeatureFlagScope.User && input.enabled == true)
+        {
+            if (!Guid.TryParse(input.targetId, out var userId))
+                return new FeatureFlagActionResult(false, input.flagId, "Target id must be a user GUID for User scope");
+
+            var activation = await grain.ActivateForUserAsync(userId, input.flagId);
+            if (!activation.IsEnabled)
+                return new FeatureFlagActionResult(false, input.flagId, "Activation failed (flag missing or expired)");
+
+            await NotifyUserAsync(userId, new FeatureFlagActivated(userId, input.flagId, true, activation.Variant));
+            await auditService.LogAsync("SetFeatureFlagOverride", "FeatureFlag", input.flagId,
+                $"Activated flag '{input.flagId}' for user {userId} (User scope)");
+
+            return new FeatureFlagActionResult(true, input.flagId, null);
+        }
+
+        var result = await grain.SetOverrideAsync(new FeatureFlagOverrideInput(
+            input.flagId, scope, input.targetId, input.enabled, input.rolloutPercentage, input.forcedVariant));
+
+        if (result.Success)
+            await auditService.LogAsync("SetFeatureFlagOverride", "FeatureFlag", input.flagId,
+                $"Set override scope={scope} target={input.targetId} enabled={input.enabled}");
+
+        return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
+    }
+
+    public async Task<FeatureFlagActionResult> DeleteFeatureFlagOverride(Guid overrideId, CancellationToken ct = default)
+    {
+        var grain  = grainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty);
+        var result = await grain.DeleteOverrideAsync(overrideId);
+
+        if (result.Success)
+            await auditService.LogAsync("DeleteFeatureFlagOverride", "FeatureFlag", result.FlagId,
+                $"Deleted override {overrideId}");
+
+        return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
+    }
+
+    private static DateTimeOffset? ToOffset(DateTime? dt)
+        => dt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(dt.Value, DateTimeKind.Utc)) : null;
+
+    private async Task NotifyUserAsync<T>(Guid userId, T payload) where T : IArgonEvent
+    {
+        var sessions = await sessionDiscovery.GetUserSessionsAsync(userId);
+        if (sessions.Count == 0)
+            return;
+
+        await sessionNotifier.NotifySessionsAsync(sessions, payload);
+    }
+
+    #endregion
 }

@@ -1013,6 +1013,125 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<AdminUserTrustCard>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetFeatureFlags_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetFeatureFlags();
+        
+        IonFormatterStorage<FeatureFlagList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetFeatureFlag_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetFeatureFlag(__flagid);
+        
+        IonFormatterStorage<FeatureFlagDetails>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateFeatureFlag_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<CreateFeatureFlagInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateFeatureFlag(__input);
+        
+        IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateFeatureFlag_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<UpdateFeatureFlagInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UpdateFeatureFlag(__input);
+        
+        IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteFeatureFlag_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteFeatureFlag(__flagid);
+        
+        IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetFeatureFlagOverride_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<SetFeatureFlagOverrideInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetFeatureFlagOverride(__input);
+        
+        IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteFeatureFlagOverride_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __overrideid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteFeatureFlagOverride(__overrideid);
+        
+        IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
+    }
 
     
     
@@ -1134,6 +1253,20 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return GetUserTrustCard_Execute(reader, writer, ct);
         if (methodName.Equals("RecalculateUserTrust", StringComparison.InvariantCultureIgnoreCase))
             return RecalculateUserTrust_Execute(reader, writer, ct);
+        if (methodName.Equals("GetFeatureFlags", StringComparison.InvariantCultureIgnoreCase))
+            return GetFeatureFlags_Execute(reader, writer, ct);
+        if (methodName.Equals("GetFeatureFlag", StringComparison.InvariantCultureIgnoreCase))
+            return GetFeatureFlag_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateFeatureFlag", StringComparison.InvariantCultureIgnoreCase))
+            return CreateFeatureFlag_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateFeatureFlag", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateFeatureFlag_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteFeatureFlag", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteFeatureFlag_Execute(reader, writer, ct);
+        if (methodName.Equals("SetFeatureFlagOverride", StringComparison.InvariantCultureIgnoreCase))
+            return SetFeatureFlagOverride_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteFeatureFlagOverride", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteFeatureFlagOverride_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

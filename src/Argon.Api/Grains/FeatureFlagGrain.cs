@@ -67,6 +67,287 @@ public sealed class FeatureFlagGrain(
         return ValueTask.CompletedTask;
     }
 
+    public async ValueTask<string?> FindFlagIdByUssdCodeAsync(string code)
+    {
+        var trimmed = code?.Trim();
+        if (string.IsNullOrEmpty(trimmed))
+            return null;
+
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        return await ctx.FeatureFlags
+            .AsNoTracking()
+            .Where(f => !f.IsDeleted && f.UssdActivationCode == trimmed)
+            .Select(f => f.Id)
+            .FirstOrDefaultAsync();
+    }
+
+    public async ValueTask<FeatureFlagResult> ActivateForUserAsync(Guid userId, string flagId)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        var flag = await ctx.FeatureFlags.FirstOrDefaultAsync(f => f.Id == flagId && !f.IsDeleted);
+        if (flag is null)
+        {
+            logger.LogWarning("ActivateForUserAsync: flag {FlagId} not found", flagId);
+            return FeatureFlagResult.Disabled(flagId);
+        }
+
+        if (flag.ExpiresAt.HasValue && flag.ExpiresAt.Value < DateTimeOffset.UtcNow)
+        {
+            logger.LogWarning("ActivateForUserAsync: flag {FlagId} has expired", flagId);
+            return FeatureFlagResult.Disabled(flagId);
+        }
+
+        var targetId = userId.ToString();
+        var existing = await ctx.FeatureFlagOverrides.FirstOrDefaultAsync(o =>
+            o.FeatureFlagId == flagId && o.Scope == FeatureFlagScope.User && o.TargetId == targetId);
+
+        if (existing is null)
+        {
+            ctx.FeatureFlagOverrides.Add(new FeatureFlagOverrideEntity
+            {
+                Id            = Guid.CreateVersion7(),
+                FeatureFlagId = flagId,
+                Scope         = FeatureFlagScope.User,
+                TargetId      = targetId,
+                Enabled       = true
+            });
+        }
+        else
+        {
+            existing.Enabled   = true;
+            existing.IsDeleted = false;
+            existing.DeletedAt = null;
+        }
+
+        await ctx.SaveChangesAsync();
+
+        // Refresh this activation's cache so the returned evaluation reflects the new override.
+        _cacheExpiry = DateTime.MinValue;
+        await EnsureCacheLoadedAsync();
+
+        return EvaluateFlag(flagId, FeatureFlagEvaluationContext.ForUser(userId));
+    }
+
+    public async ValueTask<List<FeatureFlagSummaryDto>> ListFlagsAsync()
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        return await ctx.FeatureFlags
+            .AsNoTracking()
+            .Where(f => !f.IsDeleted)
+            .OrderBy(f => f.Id)
+            .Select(f => new FeatureFlagSummaryDto(
+                f.Id,
+                f.Description,
+                f.DefaultEnabled,
+                f.RolloutPercentage,
+                f.Variants != null,
+                f.UssdActivationCode,
+                f.ExpiresAt,
+                f.Overrides.Count(o => !o.IsDeleted),
+                f.CreatedAt))
+            .ToListAsync();
+    }
+
+    public async ValueTask<FeatureFlagDetailsDto?> GetFlagAsync(string flagId)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        var flag = await ctx.FeatureFlags
+            .AsNoTracking()
+            .Include(f => f.Overrides.Where(o => !o.IsDeleted))
+            .FirstOrDefaultAsync(f => f.Id == flagId && !f.IsDeleted);
+
+        if (flag is null)
+            return null;
+
+        return new FeatureFlagDetailsDto(
+            flag.Id,
+            flag.Description,
+            flag.DefaultEnabled,
+            flag.RolloutPercentage,
+            flag.Variants,
+            flag.UssdActivationCode,
+            flag.ExpiresAt,
+            flag.CreatedAt,
+            flag.Overrides
+                .Select(o => new FeatureFlagOverrideDto(
+                    o.Id, o.Scope, o.TargetId, o.Enabled, o.RolloutPercentage, o.ForcedVariant, o.CreatedAt))
+                .ToList());
+    }
+
+    public async ValueTask<FeatureFlagOpResult> CreateFlagAsync(FeatureFlagInput input)
+    {
+        var validation = ValidateFlagInput(input);
+        if (validation is not null)
+            return FeatureFlagOpResult.Fail(validation);
+
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        if (await ctx.FeatureFlags.AnyAsync(f => f.Id == input.FlagId))
+            return FeatureFlagOpResult.Fail($"Flag '{input.FlagId}' already exists");
+
+        var code = NormalizeUssd(input.UssdActivationCode);
+        if (code is not null && await ctx.FeatureFlags.AnyAsync(f => f.UssdActivationCode == code))
+            return FeatureFlagOpResult.Fail($"USSD code '{code}' is already in use");
+
+        ctx.FeatureFlags.Add(new FeatureFlagEntity
+        {
+            Id                 = input.FlagId,
+            Description        = input.Description,
+            DefaultEnabled     = input.DefaultEnabled,
+            RolloutPercentage  = input.RolloutPercentage,
+            Variants           = input.Variants,
+            UssdActivationCode = code,
+            ExpiresAt          = input.ExpiresAt
+        });
+
+        await ctx.SaveChangesAsync();
+        _cacheExpiry = DateTime.MinValue;
+
+        logger.LogInformation("Created feature flag {FlagId}", input.FlagId);
+        return FeatureFlagOpResult.Ok(input.FlagId);
+    }
+
+    public async ValueTask<FeatureFlagOpResult> UpdateFlagAsync(FeatureFlagInput input)
+    {
+        var validation = ValidateFlagInput(input);
+        if (validation is not null)
+            return FeatureFlagOpResult.Fail(validation);
+
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        var flag = await ctx.FeatureFlags.FirstOrDefaultAsync(f => f.Id == input.FlagId && !f.IsDeleted);
+        if (flag is null)
+            return FeatureFlagOpResult.Fail($"Flag '{input.FlagId}' not found");
+
+        var code = NormalizeUssd(input.UssdActivationCode);
+        if (code is not null && await ctx.FeatureFlags.AnyAsync(f => f.UssdActivationCode == code && f.Id != input.FlagId))
+            return FeatureFlagOpResult.Fail($"USSD code '{code}' is already in use");
+
+        flag.Description        = input.Description;
+        flag.DefaultEnabled     = input.DefaultEnabled;
+        flag.RolloutPercentage  = input.RolloutPercentage;
+        flag.Variants           = input.Variants;
+        flag.UssdActivationCode = code;
+        flag.ExpiresAt          = input.ExpiresAt;
+
+        await ctx.SaveChangesAsync();
+        _cacheExpiry = DateTime.MinValue;
+
+        logger.LogInformation("Updated feature flag {FlagId}", input.FlagId);
+        return FeatureFlagOpResult.Ok(input.FlagId);
+    }
+
+    public async ValueTask<FeatureFlagOpResult> DeleteFlagAsync(string flagId)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        var flag = await ctx.FeatureFlags.FirstOrDefaultAsync(f => f.Id == flagId && !f.IsDeleted);
+        if (flag is null)
+            return FeatureFlagOpResult.Fail($"Flag '{flagId}' not found");
+
+        flag.IsDeleted          = true;
+        flag.DeletedAt          = DateTimeOffset.UtcNow;
+        flag.UssdActivationCode = null; // release the USSD code so it can be reused
+
+        await ctx.SaveChangesAsync();
+        _cacheExpiry = DateTime.MinValue;
+
+        logger.LogInformation("Deleted feature flag {FlagId}", flagId);
+        return FeatureFlagOpResult.Ok(flagId);
+    }
+
+    public async ValueTask<FeatureFlagOpResult> SetOverrideAsync(FeatureFlagOverrideInput input)
+    {
+        if (string.IsNullOrWhiteSpace(input.TargetId))
+            return FeatureFlagOpResult.Fail("Target id cannot be empty");
+        if (input.RolloutPercentage is < 0 or > 100)
+            return FeatureFlagOpResult.Fail("Rollout percentage must be between 0 and 100");
+
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        if (!await ctx.FeatureFlags.AnyAsync(f => f.Id == input.FlagId && !f.IsDeleted))
+            return FeatureFlagOpResult.Fail($"Flag '{input.FlagId}' not found");
+
+        var existing = await ctx.FeatureFlagOverrides.FirstOrDefaultAsync(o =>
+            o.FeatureFlagId == input.FlagId && o.Scope == input.Scope && o.TargetId == input.TargetId);
+
+        if (existing is null)
+        {
+            ctx.FeatureFlagOverrides.Add(new FeatureFlagOverrideEntity
+            {
+                Id                = Guid.CreateVersion7(),
+                FeatureFlagId     = input.FlagId,
+                Scope             = input.Scope,
+                TargetId          = input.TargetId,
+                Enabled           = input.Enabled,
+                RolloutPercentage = input.RolloutPercentage,
+                ForcedVariant     = input.ForcedVariant
+            });
+        }
+        else
+        {
+            existing.Enabled           = input.Enabled;
+            existing.RolloutPercentage = input.RolloutPercentage;
+            existing.ForcedVariant     = input.ForcedVariant;
+            existing.IsDeleted         = false;
+            existing.DeletedAt         = null;
+        }
+
+        await ctx.SaveChangesAsync();
+        _cacheExpiry = DateTime.MinValue;
+
+        return FeatureFlagOpResult.Ok(input.FlagId);
+    }
+
+    public async ValueTask<FeatureFlagOpResult> DeleteOverrideAsync(Guid overrideId)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync();
+
+        var existing = await ctx.FeatureFlagOverrides.FirstOrDefaultAsync(o => o.Id == overrideId && !o.IsDeleted);
+        if (existing is null)
+            return FeatureFlagOpResult.Fail("Override not found");
+
+        existing.IsDeleted = true;
+        existing.DeletedAt = DateTimeOffset.UtcNow;
+
+        await ctx.SaveChangesAsync();
+        _cacheExpiry = DateTime.MinValue;
+
+        return FeatureFlagOpResult.Ok(existing.FeatureFlagId);
+    }
+
+    private static string? NormalizeUssd(string? code)
+        => string.IsNullOrWhiteSpace(code) ? null : code.Trim();
+
+    private static string? ValidateFlagInput(FeatureFlagInput input)
+    {
+        if (string.IsNullOrWhiteSpace(input.FlagId))
+            return "Flag id cannot be empty";
+
+        if (input.RolloutPercentage is < 0 or > 100)
+            return "Rollout percentage must be between 0 and 100";
+
+        if (!string.IsNullOrWhiteSpace(input.Variants))
+        {
+            try
+            {
+                var parsed = JsonSerializer.Deserialize<Dictionary<string, int>>(input.Variants);
+                if (parsed is null || parsed.Count == 0)
+                    return "Variants JSON must be a non-empty object of {name: weight}";
+            }
+            catch (JsonException)
+            {
+                return "Variants must be valid JSON of shape {name: weight}";
+            }
+        }
+
+        return null;
+    }
+
     private FeatureFlagResult EvaluateFlag(string flagId, FeatureFlagEvaluationContext context)
     {
         if (!_flags.TryGetValue(flagId, out var flag))

@@ -2534,6 +2534,256 @@ public sealed class Ion_AdminUserTrustCard_Formatter : IonFormatter<AdminUserTru
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagList_Formatter : IonFormatter<FeatureFlagList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __flags = IonFormatterStorage<FeatureFlagSummary>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__flags);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<FeatureFlagSummary>.WriteArray(writer, value.flags);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagSummary_Formatter : IonFormatter<FeatureFlagSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __id = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __defaultenabled = IonFormatterStorage<bool>.Read(reader);
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __hasvariants = IonFormatterStorage<bool>.Read(reader);
+        var __ussdactivationcode = reader.ReadNullable<string>();
+        var __expiresat = reader.ReadNullable<datetime>();
+        var __overridecount = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__id, __description, __defaultenabled, __rolloutpercentage, __hasvariants, __ussdactivationcode, __expiresat, __overridecount, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagSummary value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<string>.Write(writer, value.id);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<bool>.Write(writer, value.defaultEnabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<bool>.Write(writer, value.hasVariants);
+        IonFormatterStorage<string>.WriteNullable(writer, value.ussdActivationCode);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        IonFormatterStorage<i4>.Write(writer, value.overrideCount);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagDetails_Formatter : IonFormatter<FeatureFlagDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __id = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __defaultenabled = IonFormatterStorage<bool>.Read(reader);
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __variants = reader.ReadNullable<string>();
+        var __ussdactivationcode = reader.ReadNullable<string>();
+        var __expiresat = reader.ReadNullable<datetime>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __overrides = IonFormatterStorage<FeatureFlagOverrideInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__id, __description, __defaultenabled, __rolloutpercentage, __variants, __ussdactivationcode, __expiresat, __createdat, __overrides);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagDetails value)
+    {
+        writer.WriteStartArray(9);
+        IonFormatterStorage<string>.Write(writer, value.id);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<bool>.Write(writer, value.defaultEnabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<string>.WriteNullable(writer, value.variants);
+        IonFormatterStorage<string>.WriteNullable(writer, value.ussdActivationCode);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<FeatureFlagOverrideInfo>.WriteArray(writer, value.overrides);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagOverrideInfo_Formatter : IonFormatter<FeatureFlagOverrideInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagOverrideInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __overrideid = IonFormatterStorage<guid>.Read(reader);
+        var __scope = IonFormatterStorage<i4>.Read(reader);
+        var __targetid = IonFormatterStorage<string>.Read(reader);
+        var __enabled = reader.ReadNullable<bool>();
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __forcedvariant = reader.ReadNullable<string>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__overrideid, __scope, __targetid, __enabled, __rolloutpercentage, __forcedvariant, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagOverrideInfo value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.overrideId);
+        IonFormatterStorage<i4>.Write(writer, value.scope);
+        IonFormatterStorage<string>.Write(writer, value.targetId);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.enabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<string>.WriteNullable(writer, value.forcedVariant);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateFeatureFlagInput_Formatter : IonFormatter<CreateFeatureFlagInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateFeatureFlagInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __defaultenabled = IonFormatterStorage<bool>.Read(reader);
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __variants = reader.ReadNullable<string>();
+        var __ussdactivationcode = reader.ReadNullable<string>();
+        var __expiresat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__flagid, __description, __defaultenabled, __rolloutpercentage, __variants, __ussdactivationcode, __expiresat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateFeatureFlagInput value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<string>.Write(writer, value.flagId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<bool>.Write(writer, value.defaultEnabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<string>.WriteNullable(writer, value.variants);
+        IonFormatterStorage<string>.WriteNullable(writer, value.ussdActivationCode);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateFeatureFlagInput_Formatter : IonFormatter<UpdateFeatureFlagInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateFeatureFlagInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __defaultenabled = IonFormatterStorage<bool>.Read(reader);
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __variants = reader.ReadNullable<string>();
+        var __ussdactivationcode = reader.ReadNullable<string>();
+        var __expiresat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__flagid, __description, __defaultenabled, __rolloutpercentage, __variants, __ussdactivationcode, __expiresat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateFeatureFlagInput value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<string>.Write(writer, value.flagId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<bool>.Write(writer, value.defaultEnabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<string>.WriteNullable(writer, value.variants);
+        IonFormatterStorage<string>.WriteNullable(writer, value.ussdActivationCode);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SetFeatureFlagOverrideInput_Formatter : IonFormatter<SetFeatureFlagOverrideInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SetFeatureFlagOverrideInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+        var __scope = IonFormatterStorage<i4>.Read(reader);
+        var __targetid = IonFormatterStorage<string>.Read(reader);
+        var __enabled = reader.ReadNullable<bool>();
+        var __rolloutpercentage = reader.ReadNullable<i4>();
+        var __forcedvariant = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__flagid, __scope, __targetid, __enabled, __rolloutpercentage, __forcedvariant);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SetFeatureFlagOverrideInput value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<string>.Write(writer, value.flagId);
+        IonFormatterStorage<i4>.Write(writer, value.scope);
+        IonFormatterStorage<string>.Write(writer, value.targetId);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.enabled);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.rolloutPercentage);
+        IonFormatterStorage<string>.WriteNullable(writer, value.forcedVariant);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagActionResult_Formatter : IonFormatter<FeatureFlagActionResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagActionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __flagid = reader.ReadNullable<string>();
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __flagid, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagActionResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.WriteNullable(writer, value.flagId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

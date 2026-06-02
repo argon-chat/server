@@ -2630,6 +2630,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsUserProfileUpdated => this is UserProfileUpdated;
 
+    internal bool IsFeatureFlagActivated => this is FeatureFlagActivated;
+
 }
 
 
@@ -3039,6 +3041,13 @@ public sealed record UserProfileUpdated(guid spaceId, guid userId, ArgonUserProf
     public uint UnionIndex => 57;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FeatureFlagActivated(guid userId, string flagId, bool isEnabled, string? variant) : IArgonEvent
+{
+    public string UnionKey => nameof(FeatureFlagActivated);
+    public uint UnionIndex => 58;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3224,6 +3233,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 57)
             result = IonFormatterStorage<UserProfileUpdated>.Read(reader);
+
+        else if (unionIndex == 58)
+            result = IonFormatterStorage<FeatureFlagActivated>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -3642,6 +3654,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_57.UnionIndex != 57)
                 throw new InvalidOperationException();
             IonFormatterStorage<UserProfileUpdated>.Write(writer, n_57);
+        }
+
+        else if (value is FeatureFlagActivated n_58)
+        {
+            if (n_58.UnionIndex != 58)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FeatureFlagActivated>.Write(writer, n_58);
         }
     
         else
@@ -5045,6 +5064,33 @@ public sealed class Ion_UserProfileUpdated_Formatter : IonFormatter<UserProfileU
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<ArgonUserProfile>.Write(writer, value.profile);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FeatureFlagActivated_Formatter : IonFormatter<FeatureFlagActivated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FeatureFlagActivated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __flagid = IonFormatterStorage<string>.Read(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+        var __variant = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__userid, __flagid, __isenabled, __variant);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FeatureFlagActivated value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.flagId);
+        IonFormatterStorage<bool>.Write(writer, value.isEnabled);
+        IonFormatterStorage<string>.WriteNullable(writer, value.variant);
         writer.WriteEndArray();
     }
 }

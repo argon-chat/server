@@ -319,6 +319,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceBoostUpdated>.Value = new Ion_SpaceBoostUpdated_Formatter();
       IonFormatterStorage<UltimaGiftReceived>.Value = new Ion_UltimaGiftReceived_Formatter();
       IonFormatterStorage<UserProfileUpdated>.Value = new Ion_UserProfileUpdated_Formatter();
+      IonFormatterStorage<FeatureFlagActivated>.Value = new Ion_FeatureFlagActivated_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
