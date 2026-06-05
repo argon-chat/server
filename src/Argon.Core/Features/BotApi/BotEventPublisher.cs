@@ -17,6 +17,7 @@ public sealed class BotEventPublisher(
     INatsJSContext              js,
     BotSseEventSerializer      serializer,
     BotUserCache                userCache,
+    UserLocaleRegistry          localeRegistry,
     InteractionContextStore     interactionStore,
     IGrainFactory               grainFactory,
     ILogger<BotEventPublisher>  logger)
@@ -62,7 +63,7 @@ public sealed class BotEventPublisher(
                 case UserUpdated e:
                 {
                     userCache.Invalidate(e.dto.userId);
-                    var user = userCache.FromArgonUser(e.dto);
+                    var user = await userCache.FromArgonUser(e.dto);
                     await PublishAsync(spaceId, BotEventType.MemberUpdate,
                         new MemberUpdateEvent(e.spaceId, user));
                     break;
@@ -337,7 +338,7 @@ public sealed class BotEventPublisher(
                 case CallIncoming e:
                 {
                     await PublishDirectAsync(userId, BotEventType.CallIncoming,
-                        new CallIncomingEvent(e.callId, e.fromId));
+                        new CallIncomingEvent(e.callId, e.fromId, await localeRegistry.Get(e.fromId)));
                     break;
                 }
 

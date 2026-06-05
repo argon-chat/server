@@ -105,8 +105,9 @@ public sealed record VoiceLeaveEvent(
 [BotEventDefinition(BotEventType.CallIncoming, "Calls", Intent = BotIntent.Calls)]
 [BotEventDescription("An incoming call is ringing for the bot.")]
 public sealed record CallIncomingEvent(
-    Guid CallId,
-    Guid FromUserId);
+    Guid    CallId,
+    Guid    FromUserId,
+    string? FromLocale = null);
 
 [BotEventDefinition(BotEventType.CallEnded, "Calls", Intent = BotIntent.Calls)]
 [BotEventDescription("A call the bot was involved in has ended.")]

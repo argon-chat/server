@@ -59,6 +59,13 @@ public static class HttpContextExtensions
                 ? ctx.Request.Headers["User-Agent"].ToString()
                 : "unknown";
 
+        // The client's current app locale (raw app code, e.g. "ru", "jp", "ru_pt").
+        // Normalized to BCP-47 at the Bot API boundary via LocaleNormalizer.
+        public string? GetClientLocale()
+            => ctx.Request.Headers.TryGetValue("x-argon-locale", out var locale) && !string.IsNullOrWhiteSpace(locale)
+                ? locale.ToString()
+                : null;
+
         public Guid GetSessionId()
         {
             if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())

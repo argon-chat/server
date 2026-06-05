@@ -56,6 +56,26 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         else
             SetRequestContext(context, httpContext, user, severity);
 
+        // Record the user's current app locale (normalized to BCP-47) for this session, so the Bot API
+        // can surface it on BotUserV1. Ephemeral & best-effort — never blocks or fails the request.
+        if (user is not null)
+        {
+            var locale = Argon.Features.BotApi.LocaleNormalizer.ToBcp47(httpContext.GetClientLocale());
+            if (locale is not null)
+            {
+                try
+                {
+                    await context.ServiceProvider
+                       .GetRequiredService<Argon.Features.BotApi.UserLocaleRegistry>()
+                       .Set(user.Value, locale);
+                }
+                catch (Exception e)
+                {
+                    logger.LogWarning(e, "Failed to record user locale for {UserId}", user.Value);
+                }
+            }
+        }
+
         await next(context, ct);
     }
 

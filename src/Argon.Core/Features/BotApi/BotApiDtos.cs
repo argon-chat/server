@@ -13,7 +13,8 @@ public sealed record BotUserV1(
     string   Username,
     string   DisplayName,
     string?  AvatarUrl,
-    UserFlag Flags);
+    UserFlag Flags,
+    string?  Locale = null);
 
 // ─── Voice State ─────────────────────────────────────────
 

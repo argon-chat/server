@@ -11,6 +11,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 public sealed class BotUserCache(
     IGrainFactory                          grainFactory,
     HybridCache                            cache,
+    UserLocaleRegistry                     localeRegistry,
     ILogger<BotUserCache>                  logger)
 {
     private static readonly HybridCacheEntryOptions Options = new()
@@ -23,7 +24,7 @@ public sealed class BotUserCache(
 
     public async ValueTask<BotUserV1> GetOrResolveAsync(Guid userId)
     {
-        return await cache.GetOrCreateAsync(
+        var cached = await cache.GetOrCreateAsync(
             Key(userId),
             (grainFactory, userId),
             static async (state, ct) =>
@@ -39,16 +40,19 @@ public sealed class BotUserCache(
                     user.flags);
             },
             Options);
+
+        // Locale is intentionally NOT cached (it's a live, per-session value) — compose it fresh.
+        return cached with { Locale = await localeRegistry.Get(userId) };
     }
 
     /// <summary>
     /// Converts an already-loaded <see cref="ArgonUser"/> and populates the cache.
     /// </summary>
-    public BotUserV1 FromArgonUser(ArgonUser user)
+    public async ValueTask<BotUserV1> FromArgonUser(ArgonUser user)
     {
         var botUser = new BotUserV1(user.userId, user.username, user.displayName, user.avatarFileId, user.flags);
         _ = cache.SetAsync(Key(user.userId), botUser, Options);
-        return botUser;
+        return botUser with { Locale = await localeRegistry.Get(user.userId) };
     }
 
     public void Invalidate(Guid userId)

@@ -208,6 +208,7 @@ public static class SignalRHubExtensions
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
            .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
            .AddSingleton<Argon.Features.BotApi.BotUserCache>()
+           .AddSingleton<Argon.Features.BotApi.UserLocaleRegistry>()
            .AddSingleton<Argon.Features.BotApi.InteractionContextStore>()
            .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
            .AddScoped<Argon.Features.BotApi.InteractionResponsePusher>()
