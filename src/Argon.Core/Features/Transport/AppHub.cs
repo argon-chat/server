@@ -15,7 +15,7 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 
 [Authorize(AuthenticationSchemes = "Ticket", Policy = "ticket")]
-public class AppHub(IGrainFactory factory) : Hub
+public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
 {
     public async override Task OnConnectedAsync()
     {
@@ -23,6 +23,53 @@ public class AppHub(IGrainFactory factory) : Hub
         var spaceIds = await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds();
         await Task.WhenAll(spaceIds.Select(x => Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{x}")));
         await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).BeginRealtimeSession();
+    }
+
+    /// <summary>
+    /// Replay events the client missed while it was briefly disconnected.
+    ///
+    /// The client passes the last entry id it saw on its personal (<c>forSelf</c>) stream and
+    /// on each subscribed space (<c>broadcastSpace</c>) stream. We re-send everything after
+    /// those cursors through the normal client handlers (the client dedupes by id). If any
+    /// cursor is too old to guarantee continuity we set <see cref="ResumeAck.NeedFullResync"/>
+    /// so the client reloads its state from scratch instead of trusting a partial replay.
+    /// </summary>
+    public async Task<ResumeAck> Resume(string? userCursor, Dictionary<string, string>? spaceCursors)
+    {
+        EnsureBeforeCall(true);
+
+        var needFullResync = false;
+
+        var userResult = await replay.ReadUserSinceAsync(UserId, userCursor);
+        if (userResult.Gap)
+            needFullResync = true;
+        foreach (var e in userResult.Entries)
+            await Clients.Caller.SendAsync("forSelf", e.Payload, e.Id);
+
+        if (spaceCursors is { Count: > 0 })
+        {
+            // Only replay spaces the user is still a member of — membership may have changed
+            // during the gap, and we must not leak events from spaces they no longer belong to.
+            var mySpaces = (await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds()).ToHashSet();
+
+            foreach (var (spaceIdRaw, cursor) in spaceCursors)
+            {
+                if (!Guid.TryParse(spaceIdRaw, out var spaceId) || !mySpaces.Contains(spaceId))
+                    continue;
+
+                var spaceResult = await replay.ReadSpaceSinceAsync(spaceId, cursor);
+                if (spaceResult.Gap)
+                {
+                    needFullResync = true;
+                    continue;
+                }
+
+                foreach (var e in spaceResult.Entries)
+                    await Clients.Caller.SendAsync("broadcastSpace", e.Payload, spaceId, e.Id);
+            }
+        }
+
+        return new ResumeAck(needFullResync);
     }
 
     private Guid UserId => Guid.Parse(Context.UserIdentifier!);
@@ -83,16 +130,28 @@ public class AppHub(IGrainFactory factory) : Hub
     }
 }
 
-public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEventPublisher, ILogger<AppHubServer> logger)
+/// <summary>Result of <see cref="AppHub.Resume"/>. Serialized to the client over the hub protocol.</summary>
+public sealed record ResumeAck(bool NeedFullResync);
+
+public class AppHubServer(
+    IHubContext<AppHub> appHub,
+    BotEventPublisher botEventPublisher,
+    IRealtimeReplayBuffer replay,
+    ILogger<AppHubServer> logger)
 {
     public async Task BroadcastSpace<T>(T @event, Guid spaceId, CancellationToken ct = default)
         where T : IArgonEvent
     {
         var writer = new CborWriter();
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
+        var payload = writer.Encode();
+
+        // Persist to the replay log first so the cursor (entry id) we hand the client is
+        // durable: if it reconnects it can ask for everything after this id.
+        var entryId = await replay.AppendSpaceAsync(spaceId, payload, ct);
 
         await appHub.Clients.Group($"spaces/{spaceId}")
-           .SendAsync("broadcastSpace", writer.Encode(), cancellationToken: ct);
+           .SendAsync("broadcastSpace", payload, spaceId, entryId, cancellationToken: ct);
 
         // Publish to NATS for bots — single publish, bots consume independently
         _ = botEventPublisher.PublishIfMappedAsync(@event, spaceId);
@@ -103,8 +162,12 @@ public class AppHubServer(IHubContext<AppHub> appHub, BotEventPublisher botEvent
     {
         var writer = new CborWriter();
         IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
+        var payload = writer.Encode();
+
+        var entryId = await replay.AppendUserAsync(userId, payload, ct);
+
         await appHub.Clients.User(userId.ToString())
-           .SendAsync("forSelf", writer.Encode(), cancellationToken: ct);
+           .SendAsync("forSelf", payload, entryId, cancellationToken: ct);
 
         // Publish to NATS for bots (calls, DMs)
         _ = botEventPublisher.PublishForUserAsync(@event, userId);
@@ -141,6 +204,7 @@ public static class SignalRHubExtensions
         }
 
         builder.Services
+           .AddSingleton<IRealtimeReplayBuffer, RedisRealtimeReplayBuffer>()
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
            .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
            .AddSingleton<Argon.Features.BotApi.BotUserCache>()
