@@ -95,7 +95,7 @@ public sealed record SendMessageReadback(i8 messageId, guid channelId, guid spac
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record DrawingSession(string sessionId, guid streamerId, IonArray<guid> allowedDrawers, i4 defaultTtlMs);
+public sealed record DrawingSession(string sessionId, guid ownerId, IonArray<guid> allowedDrawers, i4 defaultTtlMs);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3194,7 +3194,7 @@ public sealed record FeatureFlagActivated(guid userId, string flagId, bool isEna
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record DrawingSessionStarted(guid spaceId, guid channelId, string sessionId, guid erId, IonArray<guid> allowedDrawers, i4 defaultTtlMs) : IArgonEvent
+public sealed record DrawingSessionStarted(guid spaceId, guid channelId, string sessionId, guid ownerId, IonArray<guid> allowedDrawers, i4 defaultTtlMs) : IArgonEvent
 {
     public string UnionKey => nameof(DrawingSessionStarted);
     public uint UnionIndex => 59;
@@ -5284,11 +5284,11 @@ public sealed class Ion_DrawingSessionStarted_Formatter : IonFormatter<DrawingSe
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __sessionid = IonFormatterStorage<string>.Read(reader);
-        var __erid = IonFormatterStorage<guid>.Read(reader);
+        var __ownerid = IonFormatterStorage<guid>.Read(reader);
         var __alloweddrawers = IonFormatterStorage<guid>.ReadArray(reader);
         var __defaultttlms = IonFormatterStorage<i4>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 6);
-        return new(__spaceid, __channelid, __sessionid, __erid, __alloweddrawers, __defaultttlms);
+        return new(__spaceid, __channelid, __sessionid, __ownerid, __alloweddrawers, __defaultttlms);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -5298,7 +5298,7 @@ public sealed class Ion_DrawingSessionStarted_Formatter : IonFormatter<DrawingSe
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<string>.Write(writer, value.sessionId);
-        IonFormatterStorage<guid>.Write(writer, value.erId);
+        IonFormatterStorage<guid>.Write(writer, value.ownerId);
         IonFormatterStorage<guid>.WriteArray(writer, value.allowedDrawers);
         IonFormatterStorage<i4>.Write(writer, value.defaultTtlMs);
         writer.WriteEndArray();

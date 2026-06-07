@@ -589,11 +589,11 @@ public sealed class Ion_DrawingSession_Formatter : IonFormatter<DrawingSession>
     {
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
         var __sessionid = IonFormatterStorage<string>.Read(reader);
-        var __streamerid = IonFormatterStorage<guid>.Read(reader);
+        var __ownerid = IonFormatterStorage<guid>.Read(reader);
         var __alloweddrawers = IonFormatterStorage<guid>.ReadArray(reader);
         var __defaultttlms = IonFormatterStorage<i4>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 4);
-        return new(__sessionid, __streamerid, __alloweddrawers, __defaultttlms);
+        return new(__sessionid, __ownerid, __alloweddrawers, __defaultttlms);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -601,7 +601,7 @@ public sealed class Ion_DrawingSession_Formatter : IonFormatter<DrawingSession>
     {
         writer.WriteStartArray(4);
         IonFormatterStorage<string>.Write(writer, value.sessionId);
-        IonFormatterStorage<guid>.Write(writer, value.streamerId);
+        IonFormatterStorage<guid>.Write(writer, value.ownerId);
         IonFormatterStorage<guid>.WriteArray(writer, value.allowedDrawers);
         IonFormatterStorage<i4>.Write(writer, value.defaultTtlMs);
         writer.WriteEndArray();
