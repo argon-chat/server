@@ -95,6 +95,10 @@ public sealed record SendMessageReadback(i8 messageId, guid channelId, guid spac
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DrawingSession(string sessionId, guid streamerId, IonArray<guid> allowedDrawers, i4 defaultTtlMs);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ChannelReadState(guid channelId, guid? spaceId, i8 lastReadMessageId, i4 mentionCount);
 
 
@@ -285,6 +289,17 @@ public enum StartStreamError
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum DrawingDenyReason
+{
+    NONE = 0,
+    FEATURE_DISABLED = 1,
+    NOT_STREAMING = 2,
+    NO_PERMISSION = 3,
+    INTERNAL_ERROR = 4,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum TypingKind
 {
     TYPING = 0,
@@ -359,6 +374,8 @@ public interface IChannelInteraction : IIonService
     Task DisconnectFromVoiceChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkResult> Interlink(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IInterlinkStreamResult> InterlinkStream(guid spaceId, guid channelId, i4 density, CancellationToken ct = default);
+    Task<IStartDrawingResult> StartDrawingSession(guid spaceId, guid channelId, CancellationToken ct = default);
+    Task<bool> StopDrawingSession(guid spaceId, guid channelId, string sessionId, CancellationToken ct = default);
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
     Task<bool> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
@@ -2508,6 +2525,130 @@ public sealed class Ion_FailedStartStream_Formatter : IonFormatter<FailedStartSt
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IStartDrawingResult : IIonUnion<IStartDrawingResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsDrawingStarted => this is DrawingStarted;
+
+    internal bool IsDrawingDenied => this is DrawingDenied;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DrawingStarted(DrawingSession session) : IStartDrawingResult
+{
+    public string UnionKey => nameof(DrawingStarted);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DrawingDenied(DrawingDenyReason error) : IStartDrawingResult
+{
+    public string UnionKey => nameof(DrawingDenied);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IStartDrawingResult_Formatter : IonFormatter<IStartDrawingResult>
+{
+    public IStartDrawingResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IStartDrawingResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<DrawingStarted>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<DrawingDenied>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IStartDrawingResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is DrawingStarted n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<DrawingStarted>.Write(writer, n_0);
+        }
+
+        else if (value is DrawingDenied n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<DrawingDenied>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingStarted_Formatter : IonFormatter<DrawingStarted>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingStarted Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __session = IonFormatterStorage<DrawingSession>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__session);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingStarted value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DrawingSession>.Write(writer, value.session);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingDenied_Formatter : IonFormatter<DrawingDenied>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingDenied Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<DrawingDenyReason>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingDenied value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DrawingDenyReason>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IArgonEvent : IIonUnion<IArgonEvent>
 {
     string UnionKey { get; }
@@ -2631,6 +2772,10 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
     internal bool IsUserProfileUpdated => this is UserProfileUpdated;
 
     internal bool IsFeatureFlagActivated => this is FeatureFlagActivated;
+
+    internal bool IsDrawingSessionStarted => this is DrawingSessionStarted;
+
+    internal bool IsDrawingSessionEnded => this is DrawingSessionEnded;
 
 }
 
@@ -3048,6 +3193,20 @@ public sealed record FeatureFlagActivated(guid userId, string flagId, bool isEna
     public uint UnionIndex => 58;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DrawingSessionStarted(guid spaceId, guid channelId, string sessionId, guid erId, IonArray<guid> allowedDrawers, i4 defaultTtlMs) : IArgonEvent
+{
+    public string UnionKey => nameof(DrawingSessionStarted);
+    public uint UnionIndex => 59;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DrawingSessionEnded(guid spaceId, guid channelId, string sessionId) : IArgonEvent
+{
+    public string UnionKey => nameof(DrawingSessionEnded);
+    public uint UnionIndex => 60;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3236,6 +3395,12 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 58)
             result = IonFormatterStorage<FeatureFlagActivated>.Read(reader);
+
+        else if (unionIndex == 59)
+            result = IonFormatterStorage<DrawingSessionStarted>.Read(reader);
+
+        else if (unionIndex == 60)
+            result = IonFormatterStorage<DrawingSessionEnded>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -3661,6 +3826,20 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_58.UnionIndex != 58)
                 throw new InvalidOperationException();
             IonFormatterStorage<FeatureFlagActivated>.Write(writer, n_58);
+        }
+
+        else if (value is DrawingSessionStarted n_59)
+        {
+            if (n_59.UnionIndex != 59)
+                throw new InvalidOperationException();
+            IonFormatterStorage<DrawingSessionStarted>.Write(writer, n_59);
+        }
+
+        else if (value is DrawingSessionEnded n_60)
+        {
+            if (n_60.UnionIndex != 60)
+                throw new InvalidOperationException();
+            IonFormatterStorage<DrawingSessionEnded>.Write(writer, n_60);
         }
     
         else
@@ -5091,6 +5270,62 @@ public sealed class Ion_FeatureFlagActivated_Formatter : IonFormatter<FeatureFla
         IonFormatterStorage<string>.Write(writer, value.flagId);
         IonFormatterStorage<bool>.Write(writer, value.isEnabled);
         IonFormatterStorage<string>.WriteNullable(writer, value.variant);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingSessionStarted_Formatter : IonFormatter<DrawingSessionStarted>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingSessionStarted Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __sessionid = IonFormatterStorage<string>.Read(reader);
+        var __erid = IonFormatterStorage<guid>.Read(reader);
+        var __alloweddrawers = IonFormatterStorage<guid>.ReadArray(reader);
+        var __defaultttlms = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__spaceid, __channelid, __sessionid, __erid, __alloweddrawers, __defaultttlms);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingSessionStarted value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<string>.Write(writer, value.sessionId);
+        IonFormatterStorage<guid>.Write(writer, value.erId);
+        IonFormatterStorage<guid>.WriteArray(writer, value.allowedDrawers);
+        IonFormatterStorage<i4>.Write(writer, value.defaultTtlMs);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingSessionEnded_Formatter : IonFormatter<DrawingSessionEnded>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingSessionEnded Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __sessionid = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __channelid, __sessionid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingSessionEnded value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<string>.Write(writer, value.sessionId);
         writer.WriteEndArray();
     }
 }

@@ -18,7 +18,9 @@ using Core.Features.Transport;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
 using Argon.Features.Integrations.Klipy;
+using Argon.Core.Features.CoreLogic.Privacy;
 using Core.Entities.Data;
+using ion.runtime;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
@@ -45,6 +47,10 @@ public class ChannelGrain(
     private readonly LinkedList<long> _reactionLru = new();
     private const int MaxCachedReactionMessages = 100;
     private IGrainTimer? _reactionFlushTimer;
+
+    // ── Screencast drawing session (ephemeral, lives with the share) ──
+    private const int DrawingDefaultTtlMs = 6000;
+    private (string SessionId, Guid StreamerId, HashSet<Guid> AllowedDrawers)? _drawingSession;
 
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
@@ -591,6 +597,62 @@ public class ChannelGrain(
             new ArgonRoomId(this.SpaceId, this.GetPrimaryKey()), SfuPermissionKind.DefaultUser);
     }
 
+    public async Task<Either<DrawingSessionDescriptor, DrawingDenyKind>> StartDrawingSession()
+    {
+        if (_self.ChannelType != ChannelType.Voice)
+            return DrawingDenyKind.NotStreaming;
+
+        var streamerId = this.GetUserId();
+
+        // The caller must currently be in the voice channel (i.e. actually able to share).
+        if (!state.State.Users.ContainsKey(streamerId))
+            return DrawingDenyKind.NotStreaming;
+
+        // Feature flag gate (evaluated for the streamer).
+        var ff = await this.GrainFactory.GetGrain<IFeatureFlagGrain>(Guid.Empty)
+           .EvaluateAsync("af.screencast.drawing", FeatureFlagEvaluationContext.ForUser(streamerId));
+        if (!ff.IsEnabled)
+            return DrawingDenyKind.FeatureDisabled;
+
+        // Compute the allowed-drawers set: members passing BOTH the channel CanDrawOnStream
+        // entitlement AND the streamer's "stream.draw" privacy rule.
+        var privacy = this.GrainFactory.GetGrain<IPrivacyPolicyGrain>(streamerId);
+        var allowed = new List<Guid>();
+        foreach (var memberId in state.State.Users.Keys.ToList())
+        {
+            if (memberId == streamerId) continue; // streamer annotates their own surface client-side
+
+            var hasEntitlement = await entitlementChecker.HasChannelAccessAsync(
+                SpaceId, this.GetPrimaryKey(), memberId, ArgonEntitlement.CanDrawOnStream);
+            if (!hasEntitlement) continue;
+
+            var privacyOk = await privacy.EvaluateAsync(memberId, PrivacyKeys.StreamDraw, SpaceId);
+            if (!privacyOk) continue;
+
+            allowed.Add(memberId);
+        }
+
+        var sessionId = Guid.NewGuid().ToString("N");
+        _drawingSession = (sessionId, streamerId, allowed.ToHashSet());
+
+        await Fire(new DrawingSessionStarted(
+            SpaceId, this.GetPrimaryKey(), sessionId, streamerId,
+            new IonArray<Guid>(allowed), DrawingDefaultTtlMs));
+
+        return new DrawingSessionDescriptor(sessionId, streamerId, allowed, DrawingDefaultTtlMs);
+    }
+
+    public async Task<bool> StopDrawingSession(string sessionId)
+    {
+        if (_drawingSession is not { } session) return false;
+        if (session.SessionId != sessionId) return false;
+        if (session.StreamerId != this.GetUserId()) return false; // only the streamer may close
+
+        _drawingSession = null;
+        await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
+        return true;
+    }
+
     public async Task Leave(Guid userId)
     {
         if (!state.State.Users.ContainsKey(userId))
@@ -611,6 +673,14 @@ public class ChannelGrain(
         await Fire(new LeavedFromChannelUser(SpaceId, this.GetPrimaryKey(), userId));
         await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(userId);
         await state.WriteStateAsync();
+
+        // End the streamer's drawing session if they left the channel.
+        if (_drawingSession is { } ds && ds.StreamerId == userId)
+        {
+            var sessionId = ds.SessionId;
+            _drawingSession = null;
+            await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
+        }
 
         if (state.State.Users.Count == 0)
             this.DelayDeactivation(TimeSpan.MinValue);

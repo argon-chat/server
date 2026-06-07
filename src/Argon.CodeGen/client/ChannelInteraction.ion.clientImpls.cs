@@ -46,6 +46,10 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(Interlink), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> InterlinkStream_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(InterlinkStream), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> StartDrawingSession_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(StartDrawingSession), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> StopDrawingSession_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(StopDrawingSession), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> KickMemberFromChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(KickMemberFromChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> BeginRecord_Ref = new(() =>
@@ -352,6 +356,43 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<IInterlinkStreamResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IStartDrawingResult> StartDrawingSession(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), StartDrawingSession_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IStartDrawingResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<bool> StopDrawingSession(guid __spaceid, guid __channelid, string __sessionid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), StopDrawingSession_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<string>.Write(writer, __sessionid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<bool>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<bool> KickMemberFromChannel(guid __spaceid, guid __channelid, guid __memberid, CancellationToken ct = default)

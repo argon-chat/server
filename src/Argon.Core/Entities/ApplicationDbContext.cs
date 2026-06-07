@@ -70,6 +70,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
 
+    // Flexible "about-me" privacy rules (who may do X to/about me), e.g. "stream.draw".
+    public DbSet<PrivacyRuleEntity>   PrivacyRules  => Set<PrivacyRuleEntity>();
+
     // Conversation-based DM system
     public DbSet<ConversationEntity>     Conversations     => Set<ConversationEntity>();
     public DbSet<DirectMessageV2Entity>  DirectMessages    => Set<DirectMessageV2Entity>();

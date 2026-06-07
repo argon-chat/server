@@ -582,6 +582,33 @@ public sealed class Ion_SendMessageReadback_Formatter : IonFormatter<SendMessage
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingSession_Formatter : IonFormatter<DrawingSession>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingSession Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __sessionid = IonFormatterStorage<string>.Read(reader);
+        var __streamerid = IonFormatterStorage<guid>.Read(reader);
+        var __alloweddrawers = IonFormatterStorage<guid>.ReadArray(reader);
+        var __defaultttlms = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__sessionid, __streamerid, __alloweddrawers, __defaultttlms);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingSession value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.Write(writer, value.sessionId);
+        IonFormatterStorage<guid>.Write(writer, value.streamerId);
+        IonFormatterStorage<guid>.WriteArray(writer, value.allowedDrawers);
+        IonFormatterStorage<i4>.Write(writer, value.defaultTtlMs);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_ChannelReadState_Formatter : IonFormatter<ChannelReadState>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -1037,6 +1064,23 @@ public sealed class Ion_StartStreamError_Formatter : IonFormatter<StartStreamErr
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, StartStreamError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DrawingDenyReason_Formatter : IonFormatter<DrawingDenyReason>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DrawingDenyReason Read(CborReader reader)
+    {
+         return (DrawingDenyReason)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DrawingDenyReason value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);

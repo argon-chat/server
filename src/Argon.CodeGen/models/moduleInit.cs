@@ -54,6 +54,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MultipleModalSelectOption>.Value = new Ion_MultipleModalSelectOption_Formatter();
       IonFormatterStorage<IonModalDefinition>.Value = new Ion_IonModalDefinition_Formatter();
       IonFormatterStorage<SendMessageReadback>.Value = new Ion_SendMessageReadback_Formatter();
+      IonFormatterStorage<DrawingSession>.Value = new Ion_DrawingSession_Formatter();
       IonFormatterStorage<ChannelReadState>.Value = new Ion_ChannelReadState_Formatter();
       IonFormatterStorage<MuteSettingsDto>.Value = new Ion_MuteSettingsDto_Formatter();
       IonFormatterStorage<SystemNotificationDto>.Value = new Ion_SystemNotificationDto_Formatter();
@@ -76,6 +77,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IonTextInputStyle>.Value = new Ion_IonTextInputStyle_Formatter();
       IonFormatterStorage<IonModalComponentType>.Value = new Ion_IonModalComponentType_Formatter();
       IonFormatterStorage<StartStreamError>.Value = new Ion_StartStreamError_Formatter();
+      IonFormatterStorage<DrawingDenyReason>.Value = new Ion_DrawingDenyReason_Formatter();
       IonFormatterStorage<TypingKind>.Value = new Ion_TypingKind_Formatter();
       IonFormatterStorage<MuteLevelType>.Value = new Ion_MuteLevelType_Formatter();
       IonFormatterStorage<MuteTargetKind>.Value = new Ion_MuteTargetKind_Formatter();
@@ -91,6 +93,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IRemoveReactionResult>.Value = new Ion_IRemoveReactionResult_Formatter();
       IonFormatterStorage<IInterlinkResult>.Value = new Ion_IInterlinkResult_Formatter();
       IonFormatterStorage<IInterlinkStreamResult>.Value = new Ion_IInterlinkStreamResult_Formatter();
+      IonFormatterStorage<IStartDrawingResult>.Value = new Ion_IStartDrawingResult_Formatter();
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
       IonFormatterStorage<FeatureFlagData>.Value = new Ion_FeatureFlagData_Formatter();
@@ -114,6 +117,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
+      IonFormatterStorage<PrivacyRuleView>.Value = new Ion_PrivacyRuleView_Formatter();
+      IonFormatterStorage<PrivacyRuleMode>.Value = new Ion_PrivacyRuleMode_Formatter();
       IonFormatterStorage<ReportTarget>.Value = new Ion_ReportTarget_Formatter();
       IonFormatterStorage<CreateReportInput>.Value = new Ion_CreateReportInput_Formatter();
       IonFormatterStorage<ReportInfo>.Value = new Ion_ReportInfo_Formatter();
@@ -261,6 +266,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedJoinVoice>.Value = new Ion_FailedJoinVoice_Formatter();
       IonFormatterStorage<SuccessStartStream>.Value = new Ion_SuccessStartStream_Formatter();
       IonFormatterStorage<FailedStartStream>.Value = new Ion_FailedStartStream_Formatter();
+      IonFormatterStorage<DrawingStarted>.Value = new Ion_DrawingStarted_Formatter();
+      IonFormatterStorage<DrawingDenied>.Value = new Ion_DrawingDenied_Formatter();
       IonFormatterStorage<ArchetypeChanged>.Value = new Ion_ArchetypeChanged_Formatter();
       IonFormatterStorage<ArchetypeCreated>.Value = new Ion_ArchetypeCreated_Formatter();
       IonFormatterStorage<ChannelCreated>.Value = new Ion_ChannelCreated_Formatter();
@@ -320,6 +327,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UltimaGiftReceived>.Value = new Ion_UltimaGiftReceived_Formatter();
       IonFormatterStorage<UserProfileUpdated>.Value = new Ion_UserProfileUpdated_Formatter();
       IonFormatterStorage<FeatureFlagActivated>.Value = new Ion_FeatureFlagActivated_Formatter();
+      IonFormatterStorage<DrawingSessionStarted>.Value = new Ion_DrawingSessionStarted_Formatter();
+      IonFormatterStorage<DrawingSessionEnded>.Value = new Ion_DrawingSessionEnded_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
@@ -400,6 +409,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_GifInteraction_ServiceExecutor>("IGifInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_PrivacyInteraction_ServiceExecutor>("IPrivacyInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ReportInteraction_ServiceExecutor>("IReportInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_SecurityInteraction_ServiceExecutor>("ISecurityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ServerInteraction_ServiceExecutor>("IServerInteraction");
@@ -418,6 +428,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_GifInteraction_ClientImpl>("IGifInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_PrivacyInteraction_ClientImpl>("IPrivacyInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ReportInteraction_ClientImpl>("IReportInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_SecurityInteraction_ClientImpl>("ISecurityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ServerInteraction_ClientImpl>("IServerInteraction");

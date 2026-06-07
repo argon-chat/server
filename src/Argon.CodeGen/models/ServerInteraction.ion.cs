@@ -89,6 +89,7 @@ public enum ArgonEntitlement : u8
     Speak = 2097152,
     Video = 4194304,
     Stream = 8388608,
+    CanDrawOnStream = 16777216,
     UseASIO = 1073741824,
     AdditionalStreams = 2147483648,
     DisconnectMember = 1099511627776,

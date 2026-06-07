@@ -41,6 +41,7 @@ builder.Services.AddIonProtocol((x) =>
     x.AddService<IUserChatInteractions, UserChatInteractionImpl>();
     x.AddService<ISecurityInteraction, SecurityInteractionImpl>();
     x.AddService<IFeatureFlagInteractions, FeatureFlagInteractions>();
+    x.AddService<IPrivacyInteraction, PrivacyInteractionImpl>();
     x.AddService<IBotManagementInteraction, BotManagementInteractionImpl>();
     x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
     x.AddService<IReportInteraction, ReportInteractionImpl>();

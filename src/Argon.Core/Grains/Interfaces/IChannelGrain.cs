@@ -53,6 +53,18 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("KickMemberFromChannel")]
     Task<bool> KickMemberFromChannel(Guid memberId);
 
+    /// <summary>
+    /// Opens a screencast drawing session for the caller's active share. Validates the
+    /// feature flag, computes the allowed-drawers set (CanDrawOnStream entitlement AND the
+    /// streamer's "stream.draw" privacy rule) and broadcasts DrawingSessionStarted.
+    /// </summary>
+    [Alias("StartDrawingSession")]
+    Task<Either<DrawingSessionDescriptor, DrawingDenyKind>> StartDrawingSession();
+
+    /// <summary>Closes the drawing session (only the streamer who opened it may close it).</summary>
+    [Alias("StopDrawingSession")]
+    Task<bool> StopDrawingSession(string sessionId);
+
     [Alias("BeginRecord")]
     Task<bool> BeginRecord(CancellationToken ct = default);
     [Alias("StopRecord")]
@@ -154,3 +166,21 @@ public sealed record ParticipantInfo(
     string UserName,
     bool IsMicEnabled,
     bool IsCameraEnabled);
+
+/// <summary>Grain-layer result of opening a screencast drawing session.</summary>
+[GenerateSerializer, Immutable]
+public sealed record DrawingSessionDescriptor(
+    [property: Id(0)] string SessionId,
+    [property: Id(1)] Guid StreamerId,
+    [property: Id(2)] List<Guid> AllowedDrawers,
+    [property: Id(3)] int DefaultTtlMs);
+
+/// <summary>Why a drawing session could not be opened (mapped to the ion DrawingDenyReason).</summary>
+public enum DrawingDenyKind
+{
+    None = 0,
+    FeatureDisabled,
+    NotStreaming,
+    NoPermission,
+    InternalError,
+}
