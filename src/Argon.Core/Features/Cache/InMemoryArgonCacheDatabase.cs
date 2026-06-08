@@ -71,4 +71,22 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
            .Replace(@"\?", ".");
         return new Regex($"^{escaped}$", RegexOptions.Compiled);
     }
+
+    // In-memory analogue of the Redis SET ops used by the presence index (single-instance mode).
+    private static readonly ConcurrentDictionary<string, ConcurrentDictionary<string, byte>> _sets = new();
+
+    public Task<bool> SetAddAsync(string key, string member, CancellationToken ct = default)
+    {
+        var set = _sets.GetOrAdd(key, _ => new());
+        return Task.FromResult(set.TryAdd(member, 0));
+    }
+
+    public Task<bool> SetRemoveAsync(string key, string member, CancellationToken ct = default)
+    {
+        var removed = _sets.TryGetValue(key, out var set) && set.TryRemove(member, out _);
+        return Task.FromResult(removed);
+    }
+
+    public Task<string[]> SetMembersAsync(string key, CancellationToken ct = default)
+        => Task.FromResult(_sets.TryGetValue(key, out var set) ? set.Keys.ToArray() : System.Array.Empty<string>());
 }

@@ -119,7 +119,16 @@ public class RedisArgonCacheDatabase(IRedisPoolConnections pool, ILogger<IArgonC
     {
         await using var scope  = pool.Rent();
         var             server = scope.GetServer();
-        foreach (var key in server.Keys(pattern: pattern, pageSize: 1))
+        foreach (var key in server.Keys(pattern: pattern, pageSize: 1000))
             yield return key!;
     }
+
+    public Task<bool> SetAddAsync(string key, string member, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SetAddAsync(key, member));
+
+    public Task<bool> SetRemoveAsync(string key, string member, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SetRemoveAsync(key, member));
+
+    public async Task<string[]> SetMembersAsync(string key, CancellationToken ct = default)
+        => (await ExecWithRetry(db => db.SetMembersAsync(key))).Select(v => v.ToString()).ToArray();
 }

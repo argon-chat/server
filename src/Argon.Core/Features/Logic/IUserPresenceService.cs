@@ -72,6 +72,10 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string SessionKeyPrefix(Guid userId)
         => $"presence:user:{userId}:session:*";
 
+    // O(1) index of this user's live session ids (mirrors the TTL'd SessionKey entries).
+    private static string SessionsSetKey(Guid userId)
+        => $"presence:user:{userId}:sessions";
+
     private static string SessionPresenceKey(Guid userId)
         => $"activity:user:{userId}:session:broadcast";
 
@@ -81,10 +85,11 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     public Task SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default)
         => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
 
-    public Task SetSessionOnlineAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
+    public async Task SetSessionOnlineAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
-        return cache.StringSetAsync(key, "1", ttl, ct);
+        await cache.StringSetAsync(key, "1", ttl, ct);                  // TTL'd source of truth
+        await cache.SetAddAsync(SessionsSetKey(userId), sessionId, ct); // O(1) live-session index
     }
 
     private Task UpdateSessionAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
@@ -93,33 +98,41 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         return cache.UpdateStringExpirationAsync(key, ttl, ct);
     }
 
-    public Task RemoveSessionAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    public async Task RemoveSessionAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var key = SessionKey(userId, sessionId);
-        return cache.KeyDeleteAsync(key, ct);
+        await cache.KeyDeleteAsync(key, ct);
+        await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId, ct);
     }
 
-    public Task HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default)
-        => UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
+    public async Task HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    {
+        await UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
+        // Self-heal the live-session index on every heartbeat: an idempotent SADD re-adds sessions
+        // that predate a deploy/cutover (or any lost SADD) so they reappear in presence within one
+        // ~15s tick instead of looking offline until reconnect. Covers user and bot sessions, since
+        // both route their heartbeat through here.
+        await cache.SetAddAsync(SessionsSetKey(userId), sessionId, ct);
+    }
 
     public async Task<bool> IsUserOnlineAsync(Guid userId, CancellationToken ct = default)
     {
-        await foreach (var _ in cache.ScanKeysAsync(SessionKeyPrefix(userId)).WithCancellation(ct))
-            return true;
+        // A session is online only while its TTL'd presence key still exists. Walk the O(1) session
+        // index and reconcile against those keys, pruning stale members lazily. No keyspace SCAN.
+        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId), ct))
+        {
+            if (await cache.KeyExistsAsync(SessionKey(userId, sessionId), ct))
+                return true;
+            await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId, ct);
+        }
 
         return false;
     }
 
     public async Task<Dictionary<Guid, bool>> AreUsersOnlineAsync(IEnumerable<Guid> userIds, CancellationToken ct = default)
     {
-        var tasks = userIds.ToDictionary(
-            userId => userId,
-            userId => Task.Run(async () => {
-                await foreach (var _ in cache.ScanKeysAsync(SessionKeyPrefix(userId)).WithCancellation(ct))
-                    return true;
-                return false;
-            }, ct)
-        );
+        var distinct = userIds.Distinct().ToList();
+        var tasks    = distinct.ToDictionary(userId => userId, userId => IsUserOnlineAsync(userId, ct));
 
         var results = await Task.WhenAll(tasks.Values);
 
@@ -130,12 +143,13 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     public async Task<List<string>> GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default)
     {
         var sessionIds = new List<string>();
-        var prefix     = $"presence:user:{userId}:session:";
 
-        await foreach (var key in cache.ScanKeysAsync(SessionKeyPrefix(userId)).WithCancellation(ct))
+        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId), ct))
         {
-            if (key.StartsWith(prefix))
-                sessionIds.Add(key[prefix.Length..]);
+            if (await cache.KeyExistsAsync(SessionKey(userId, sessionId), ct))
+                sessionIds.Add(sessionId);
+            else
+                await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId, ct); // prune stale
         }
 
         return sessionIds;
@@ -168,6 +182,9 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     {
         var key = SessionStatusKey(userId, sessionId);
         await cache.StringSetAsync(key, status.ToString(), DefaultTTL, ct);
+        // Ensure the session is in the live-session index so RecalculateAggregatedStatusAsync,
+        // which folds over that index, always accounts for this session's status.
+        await cache.SetAddAsync(SessionsSetKey(userId), sessionId, ct);
         await RecalculateAggregatedStatusAsync(userId, ct);
     }
 
@@ -204,9 +221,13 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     {
         var aggregatedStatus = UserStatus.Offline;
 
-        await foreach (var key in cache.ScanKeysAsync(SessionStatusKeyPrefix(userId)).WithCancellation(ct))
+        // Fold over this user's live sessions (O(1) index) and read each session's TTL'd status
+        // string key — the source of truth — instead of SCANning the keyspace. A session whose
+        // status key has expired returns null and contributes nothing, exactly as the old SCAN
+        // (which only ever saw not-yet-expired keys).
+        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId), ct))
         {
-            var statusStr = await cache.StringGetAsync(key, ct);
+            var statusStr = await cache.StringGetAsync(SessionStatusKey(userId, sessionId), ct);
             if (string.IsNullOrEmpty(statusStr) || !Enum.TryParse<UserStatus>(statusStr, out var status))
                 continue;
 

@@ -14,4 +14,9 @@ public interface IArgonCacheDatabase
 
 
     IAsyncEnumerable<string> ScanKeysAsync(string pattern, CancellationToken ct = default);
+
+    // O(1) set ops, used for the per-user live-session presence index (replaces keyspace SCAN).
+    Task<bool>     SetAddAsync(string key, string member, CancellationToken ct = default);
+    Task<bool>     SetRemoveAsync(string key, string member, CancellationToken ct = default);
+    Task<string[]> SetMembersAsync(string key, CancellationToken ct = default);
 }
