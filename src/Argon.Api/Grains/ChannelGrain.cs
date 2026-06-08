@@ -1108,23 +1108,40 @@ public class ChannelGrain(
 
                 if (hasEveryoneMention)
                 {
-                    var allMembers = await ctx.UsersToServerRelations
+                    // Bounded probe: most spaces are small, so keep today's exact path (precise
+                    // per-user mention write + immediate cache invalidation), loading at most
+                    // EveryoneInlineCap+1 member ids so the silo heap is never flooded. Only very
+                    // large spaces fall back to a fully set-based SQL upsert that materializes no
+                    // member list (at the cost of TTL-based, not immediate, read-state cache refresh).
+                    const int EveryoneInlineCap = 5000;
+
+                    var members = await ctx.UsersToServerRelations
                         .Where(m => m.SpaceId == _self.SpaceId && m.UserId != senderId)
                         .Select(m => m.UserId)
+                        .Take(EveryoneInlineCap + 1)
                         .ToListAsync();
 
-                    var mutedUsers = await muteService.FilterMutedUsersAsync(this.GetPrimaryKey(), _self.SpaceId, allMembers);
-                    var suppressUsers = await ctx.Set<MuteSettingsEntity>()
-                        .Where(m => allMembers.Contains(m.UserId) && m.SuppressEveryone && (m.TargetId == _self.SpaceId || m.TargetId == this.GetPrimaryKey()))
-                        .Select(m => m.UserId)
-                        .Distinct()
-                        .ToListAsync();
+                    if (members.Count <= EveryoneInlineCap)
+                    {
+                        var mutedUsers = await muteService.FilterMutedUsersAsync(this.GetPrimaryKey(), _self.SpaceId, members);
+                        var suppressUsers = await ctx.Set<MuteSettingsEntity>()
+                            .Where(m => members.Contains(m.UserId) && m.SuppressEveryone && (m.TargetId == _self.SpaceId || m.TargetId == this.GetPrimaryKey()))
+                            .Select(m => m.UserId)
+                            .Distinct()
+                            .ToListAsync();
 
-                    var targetUsers = allMembers
-                        .Where(u => !mutedUsers.Contains(u) && !suppressUsers.Contains(u))
-                        .ToList();
+                        var targetUsers = members
+                            .Where(u => !mutedUsers.Contains(u) && !suppressUsers.Contains(u))
+                            .ToList();
 
-                    await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+                        await readStateService.BatchIncrementMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), targetUsers);
+                    }
+                    else
+                    {
+                        // Heap-free set-based upsert for very large spaces (enumeration + mute/suppress
+                        // exclusion happen entirely in SQL).
+                        await readStateService.BumpEveryoneMentionsAsync(_self.SpaceId, this.GetPrimaryKey(), senderId);
+                    }
 
                     await Fire(new BatchMentionOccurred(_self.SpaceId, this.GetPrimaryKey(), MentionTargetType.Everyone));
                 }

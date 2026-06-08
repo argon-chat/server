@@ -145,6 +145,57 @@ public class ReadStateService(
         logger.LogDebug("BatchIncrementMentions: {Count} users for channel {ChannelId}", userIds.Count, channelId);
     }
 
+    public async Task BumpEveryoneMentionsAsync(Guid spaceId, Guid channelId, Guid senderId, CancellationToken ct = default)
+    {
+        await using var ctx = await contextFactory.CreateDbContextAsync(ct);
+        var now = DateTimeOffset.UtcNow;
+
+        var strategy = ctx.Database.CreateExecutionStrategy();
+        await strategy.ExecuteAsync(async () =>
+        {
+            await using var tx = await ctx.Database.BeginTransactionAsync(ct);
+
+            // Single set-based INSERT..SELECT..ON CONFLICT DO UPDATE. Member enumeration plus the
+            // mute(All)/suppress-everyone exclusion all run in SQL, so the full member list is never
+            // materialized in the silo heap and there are no per-member writes. Semantics mirror
+            // IncrementMentionsAsync exactly:
+            //   existing row -> MentionCount += 1, UpdatedAt = now
+            //   missing row  -> LastReadMessageId = 0, MentionCount = 1, UpdatedAt = now
+            // The mute/suppress predicates mirror MuteSettingsService.FilterMutedUsersAsync and the
+            // SuppressEveryone query in ChannelGrain.ProcessMentionsAsync. IsDeleted is filtered
+            // explicitly because raw SQL bypasses the global soft-delete query filter.
+            await ctx.Database.ExecuteSqlInterpolatedAsync($@"
+INSERT INTO ""ChannelReadStates"" (""UserId"", ""ChannelId"", ""SpaceId"", ""LastReadMessageId"", ""MentionCount"", ""UpdatedAt"")
+SELECT m.""UserId"", {channelId}, {spaceId}, 0, 1, {now}
+FROM ""UsersToServerRelations"" m
+WHERE m.""SpaceId"" = {spaceId}
+  AND m.""IsDeleted"" = false
+  AND m.""UserId"" <> {senderId}
+  AND NOT EXISTS (
+      SELECT 1 FROM ""MuteSettings"" mu
+      WHERE mu.""UserId"" = m.""UserId""
+        AND (mu.""TargetId"" = {channelId} OR mu.""TargetId"" = {spaceId})
+        AND mu.""MuteLevel"" = {(int)MuteLevel.All}
+        AND (mu.""MuteExpiresAt"" IS NULL OR mu.""MuteExpiresAt"" > {now}))
+  AND NOT EXISTS (
+      SELECT 1 FROM ""MuteSettings"" su
+      WHERE su.""UserId"" = m.""UserId""
+        AND su.""SuppressEveryone"" = true
+        AND (su.""TargetId"" = {spaceId} OR su.""TargetId"" = {channelId}))
+ON CONFLICT (""UserId"", ""ChannelId"")
+DO UPDATE SET ""MentionCount"" = ""ChannelReadStates"".""MentionCount"" + 1,
+              ""UpdatedAt"" = {now}", ct);
+
+            await tx.CommitAsync(ct);
+        });
+
+        // No per-user cache invalidation here: this path only runs for very large spaces where
+        // enumerating affected users would defeat the heap-free goal. Those read_state caches
+        // refresh on their 2h TTL. Spaces below the inline cap keep immediate invalidation via
+        // BatchIncrementMentionsAsync (see ChannelGrain.ProcessMentionsAsync).
+        logger.LogDebug("BumpEveryoneMentions (set-based) for channel {ChannelId} in space {SpaceId}", channelId, spaceId);
+    }
+
     public async Task<List<ReadStateEntry>> GetReadStatesForSpaceAsync(Guid userId, Guid spaceId, CancellationToken ct = default)
     {
         await using var ctx = await contextFactory.CreateDbContextAsync(ct);
