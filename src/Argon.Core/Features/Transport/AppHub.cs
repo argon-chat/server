@@ -114,6 +114,14 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     public async Task UnSubscribeToSpace(Guid spaceId)
         => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
 
+    // Channel-scoped subscription: the client joins only the channel it currently has open, so
+    // channel content (messages/typing/reactions) is delivered to viewers instead of the whole space.
+    public async Task SubscribeToChannel(Guid channelId)
+        => await Groups.AddToGroupAsync(Context.ConnectionId, $"channels/{channelId}");
+
+    public async Task UnSubscribeToChannel(Guid channelId)
+        => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"channels/{channelId}");
+
     public async Task Heartbeat(UserStatus status)
         => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).HeartBeatAsync(status);
 
@@ -154,6 +162,28 @@ public class AppHubServer(
            .SendAsync("broadcastSpace", payload, spaceId, entryId, cancellationToken: ct);
 
         // Publish to NATS for bots — single publish, bots consume independently
+        _ = botEventPublisher.PublishIfMappedAsync(@event, spaceId);
+    }
+
+    /// <summary>
+    /// Channel-scoped delivery for high-frequency channel content (messages, typing, reactions).
+    /// Only clients currently viewing the channel join its group, so a message fans out to channel
+    /// viewers — not to all N members of the space. Missed messages on a brief disconnect are
+    /// recovered by the client re-fetching the open channel's recent history on reconnect (messages
+    /// are persisted; reactions load with them; typing is ephemeral), so there is no replay stream.
+    /// </summary>
+    public async Task BroadcastChannel<T>(T @event, Guid spaceId, Guid channelId, CancellationToken ct = default)
+        where T : IArgonEvent
+    {
+        var writer = new CborWriter();
+        IonFormatterStorage.GetFormatter<IArgonEvent>().Write(writer, @event);
+        var payload = writer.Encode();
+
+        await appHub.Clients.Group($"channels/{channelId}")
+           .SendAsync("broadcastChannel", payload, channelId, cancellationToken: ct);
+
+        // Bots are mapped per-space (not per-channel), so channel content still reaches them through
+        // the existing space NATS mapping exactly as before.
         _ = botEventPublisher.PublishIfMappedAsync(@event, spaceId);
     }
 

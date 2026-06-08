@@ -55,6 +55,12 @@ public class ChannelGrain(
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
 
+    // Channel-scoped delivery for high-frequency channel content (messages, edits, reactions,
+    // typing): reaches only clients currently viewing THIS channel, not all members of the space.
+    // Space-wide events (voice membership, recording, meetings, mentions) keep using Fire().
+    private Task FireChannel<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
+        => appHubServer.BroadcastChannel(ev, SpaceId, this.GetPrimaryKey(), ct);
+
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         _self = await Get();
@@ -133,7 +139,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "typing"));
         
-        await Fire(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId(), null));
+        await FireChannel(new UserTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId(), null));
     }
 
     [OneWay]
@@ -142,7 +148,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.TypingEvents.Add(1,
             new KeyValuePair<string, object?>("event_type", "stop_typing"));
         
-        await Fire(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
+        await FireChannel(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, this.GetUserId()));
     }
 
     private static readonly TimeSpan BotTypingTimeout = TimeSpan.FromSeconds(8);
@@ -160,13 +166,13 @@ public class ChannelGrain(
         if (_botTypingTimers.Remove(userId, out var existing))
             existing.Dispose();
 
-        await Fire(new UserTypingEvent(SpaceId, channelId, userId, kind));
+        await FireChannel(new UserTypingEvent(SpaceId, channelId, userId, kind));
 
         // Register auto-stop timer — fires UserStopTypingEvent after timeout
         _botTypingTimers[userId] = this.RegisterGrainTimer(async _ =>
         {
             _botTypingTimers.Remove(userId);
-            await Fire(new UserStopTypingEvent(SpaceId, channelId, userId));
+            await FireChannel(new UserStopTypingEvent(SpaceId, channelId, userId));
         }, new GrainTimerCreationOptions(BotTypingTimeout, Timeout.InfiniteTimeSpan));
     }
 
@@ -831,6 +837,10 @@ public class ChannelGrain(
         await ResolveAttachmentUrls(message);
         dto = message.ToDto();
 
+        // MessageSent stays SPACE-scoped (for now): clients derive unread badges for channels they
+        // are NOT currently viewing from this event. Channel-scoping it needs the space-size gate
+        // (large spaces → channel-scoped + pull-based unread; small spaces → space-scoped + live
+        // unread), unlike typing/reactions/edits which have no cross-channel consumer.
         await Fire(new MessageSent(_self.SpaceId, dto));
 
         // Update channel LastMessageId
@@ -1483,7 +1493,7 @@ public class ChannelGrain(
         message.UpdatedAt = DateTimeOffset.UtcNow;
         await ctx.SaveChangesAsync();
 
-        await Fire(new MessageEdited(SpaceId, channelId, messageId, message.Text, message.UpdatedAt.UtcDateTime));
+        await FireChannel(new MessageEdited(SpaceId, channelId, messageId, message.Text, message.UpdatedAt.UtcDateTime));
     }
 
     // ── Reactions (buffered writes) ──────────────────────────
@@ -1545,7 +1555,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.ReactionsAdded.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
 
-        await Fire(new ReactionAdded(SpaceId, channelId, messageId, userId, emoji, null));
+        await FireChannel(new ReactionAdded(SpaceId, channelId, messageId, userId, emoji, null));
 
         return new SuccessAddReaction();
     }
@@ -1579,7 +1589,7 @@ public class ChannelGrain(
         ChannelGrainInstrument.ReactionsRemoved.Add(1,
             new KeyValuePair<string, object?>("result", "success"));
 
-        await Fire(new ReactionRemoved(SpaceId, channelId, messageId, userId, emoji));
+        await FireChannel(new ReactionRemoved(SpaceId, channelId, messageId, userId, emoji));
 
         return new SuccessRemoveReaction();
     }
