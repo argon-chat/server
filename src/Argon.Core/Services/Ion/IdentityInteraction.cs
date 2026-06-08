@@ -3,10 +3,17 @@ namespace Argon.Services.Ion;
 using Core.Services.Validators;
 using Features.Jwt;
 
-public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJwtFlow flow) : IIdentityInteraction
+public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJwtFlow flow, IArgonCacheDatabase cache) : IIdentityInteraction
 {
     public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default)
     {
+        // Per-email login throttle (complements the per-IP throttle in ArgonTransactionInterceptor).
+        // Surfaced as a generic BAD_CREDENTIALS so we neither leak account existence nor add a new
+        // error code, and generous enough that a real user fixing a typo is never locked out.
+        if (!string.IsNullOrWhiteSpace(data.email) &&
+            !await CheckEmailRateLimitAsync("login", data.email!, max: 15, TimeSpan.FromMinutes(5), ct))
+            return new FailedAuthorize(AuthorizationError.BAD_CREDENTIALS);
+
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Authorize(data);
 
         if (result.IsSuccess)
@@ -24,6 +31,9 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
             return new FailedRegistration(RegistrationError.VALIDATION_FAILED, err.PropertyName, err.ErrorMessage);
         }
 
+        if (!await CheckEmailRateLimitAsync("register", data.email, max: 5, TimeSpan.FromMinutes(15), ct))
+            return new FailedRegistration(RegistrationError.VALIDATION_FAILED, "email", "Too many attempts, please try again later");
+
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Register(data);
 
         if (result.IsSuccess)
@@ -31,11 +41,23 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         return new FailedRegistration(result.Error.error, result.Error.field, result.Error.message);
     }
 
-    public Task<bool> BeginResetPassword(string email, CancellationToken ct = default)
-        => this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).BeginResetPass(email);
+    public async Task<bool> BeginResetPassword(string email, CancellationToken ct = default)
+    {
+        // Quietly drop excess reset requests per-email. Returning true preserves the existing
+        // anti-enumeration contract (BeginResetPass already returns true for unknown emails).
+        if (!string.IsNullOrWhiteSpace(email) &&
+            !await CheckEmailRateLimitAsync("reset", email, max: 5, TimeSpan.FromMinutes(15), ct))
+            return true;
+
+        return await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).BeginResetPass(email);
+    }
 
     public async Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword, CancellationToken ct = default)
     {
+        if (!string.IsNullOrWhiteSpace(email) &&
+            !await CheckEmailRateLimitAsync("reset-verify", email, max: 15, TimeSpan.FromMinutes(10), ct))
+            return new FailedAuthorize(AuthorizationError.BAD_OTP);
+
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).ResetPass(email, otpCode, newPassword);
 
         if (result.IsSuccess)
@@ -116,6 +138,27 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
         {
             logger.LogError(e, "failed call GetMyAuthorization");
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
+        }
+    }
+
+    // Sliding-window per-email limiter mirroring EmailOtpStrategy.CheckRateLimitAsync (INCR, set
+    // EXPIRE on first hit) over the shared Dragonfly cache. Returns true if allowed. Fails OPEN on
+    // any cache error (incl. the InMemory single-instance cache, which doesn't implement INCR) so a
+    // cache incident never blocks legitimate auth.
+    private async Task<bool> CheckEmailRateLimitAsync(string scope, string email, int max, TimeSpan window, CancellationToken ct)
+    {
+        try
+        {
+            var key   = $"rl:auth:email:{scope}:{email.ToLowerInvariant()}";
+            var count = await cache.StringIncrementAsync(key, ct);
+            if (count == 1)
+                await cache.KeyExpireAsync(key, window, ct);
+            return count <= max;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Per-email rate-limit cache call failed; allowing (fail-open)");
+            return true;
         }
     }
 }

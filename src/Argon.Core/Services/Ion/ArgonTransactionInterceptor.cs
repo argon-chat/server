@@ -38,6 +38,13 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         var allowAnonymous             = context.MethodName.GetCustomAttribute<AllowAnonymousAttribute>() != null;
         var doNotRequireSessionContext = context.MethodName.GetCustomAttribute<DoNotRequireSessionContextAttribute>() is not null;
 
+        // Per-IP throttle for the anonymous identity surface (login/register/reset). Reuses the
+        // EmailOtpStrategy sliding-window pattern (INCR + EXPIRE on first hit) over the shared
+        // Dragonfly cache; per-email throttling lives inside IdentityInteraction (args not visible
+        // here). Fail-open on any cache error so a cache blip can never lock out all logins.
+        if (allowAnonymous && context.InterfaceName == typeof(IIdentityInteraction))
+            await EnforceAnonymousIpRateLimitAsync(context, httpContext, ct);
+
         Guid? user = null;
         if (!allowAnonymous)
         {
@@ -183,5 +190,55 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
             LockdownReason.INCITING_MOMENT     => LockdownSeverity.Middle,
             _                                  => LockdownSeverity.Critical
         };
+    }
+
+    // Per-IP windows for the anonymous identity surface. Deliberately generous + short-windowed so
+    // shared/CGNAT IPs and honest retypes are never locked out; the per-email limits (inside
+    // IdentityInteraction) are the tighter, credential-specific guard. Tune freely / move to config.
+    private static (int max, TimeSpan window)? AnonymousIpLimitFor(string methodName) => methodName switch
+    {
+        nameof(IIdentityInteraction.Authorize)                   => (100, TimeSpan.FromMinutes(5)),
+        nameof(IIdentityInteraction.Registration)                => (20, TimeSpan.FromMinutes(10)),
+        nameof(IIdentityInteraction.BeginResetPassword)          => (15, TimeSpan.FromMinutes(15)),
+        nameof(IIdentityInteraction.ResetPassword)               => (30, TimeSpan.FromMinutes(10)),
+        nameof(IIdentityInteraction.GetAuthorizationScenarioFor) => (60, TimeSpan.FromMinutes(5)),
+        // GetAuthorizationScenario / GetMyAuthorization are not credential-bearing; leave unthrottled.
+        _                                                        => null
+    };
+
+    private async Task EnforceAnonymousIpRateLimitAsync(IIonCallContext context, HttpContext httpContext, CancellationToken ct)
+    {
+        var limit = AnonymousIpLimitFor(context.MethodName.Name);
+        if (limit is null)
+            return;
+
+        var ip = httpContext.GetIpAddress();
+        if (string.IsNullOrEmpty(ip) || ip == "unknown")
+            return; // cannot attribute an IP -> fail-open, never lock out
+
+        long count;
+        try
+        {
+            var cache = context.ServiceProvider.GetRequiredService<IArgonCacheDatabase>();
+            var key   = $"rl:auth:ip:{ip}:{context.MethodName.Name}";
+            count = await cache.StringIncrementAsync(key, ct);
+            if (count == 1)
+                await cache.KeyExpireAsync(key, limit.Value.window, ct);
+        }
+        catch (Exception e)
+        {
+            // Fail-open: this gate sits in front of 100% of anonymous logins. A Dragonfly hiccup
+            // (or the InMemory single-instance cache, which doesn't implement INCR) must NOT become
+            // a total login outage. Allow the request and move on.
+            logger.LogWarning(e, "Anonymous auth rate-limit cache call failed; allowing request (fail-open)");
+            return;
+        }
+
+        if (count > limit.Value.max)
+        {
+            logger.LogWarning("Anonymous auth rate limit hit: method={Method} ip={Ip} count={Count}",
+                context.MethodName.Name, ip, count);
+            throw new IonRequestException(new IonProtocolError("RATE_LIMITED", "Too many attempts, please try again later"));
+        }
     }
 }
