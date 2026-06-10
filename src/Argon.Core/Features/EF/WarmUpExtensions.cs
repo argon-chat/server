@@ -104,10 +104,7 @@ public static class WarmUpExtension
     {
         var db = dbCtx.Database;
 
-        var migrations = await db.GetPendingMigrationsAsync();
-        var migrator   = db.GetService<IMigrator>();
-        var dbCreator  = db.GetService<IRelationalDatabaseCreator>();
-
+        var dbCreator = db.GetService<IRelationalDatabaseCreator>();
         if (!await dbCreator.ExistsAsync())
         {
             await dbCreator.CreateAsync();
@@ -123,29 +120,51 @@ public static class WarmUpExtension
             return;
         }
 
-        var applied = await db.GetAppliedMigrationsAsync();
-        var pending = await db.GetPendingMigrationsAsync();
-
-        if (!pending.Any())
-        {
-            logger.LogInformation("No pending migrations.");
-            return;
-        }
-
-        var current = applied.LastOrDefault();
-
         try
         {
-            foreach (var nextMigrationId in migrations)
+            var historyRepo = db.GetService<IHistoryRepository>();
+
+            // The history table must exist before we can record applied migrations.
+            // EF's own migrator creates it as part of the first migration, but we apply
+            // each migration's commands ourselves below, so ensure it up front.
+            if (!await historyRepo.ExistsAsync())
+                await db.ExecuteSqlRawAsync(historyRepo.GetCreateScript());
+
+            var pending = (await db.GetPendingMigrationsAsync()).ToList();
+            if (pending.Count == 0)
             {
-                var sql = migrator.GenerateScript(
-                    fromMigration: current,
-                    toMigration: nextMigrationId,
-                    options: MigrationsSqlGenerationOptions.Script
-                );
-                await db.ExecuteSqlRawAsync(sql);
-                logger.LogInformation("Applied migration {Migration}", nextMigrationId);
-                current = nextMigrationId;
+                logger.LogInformation("No pending migrations.");
+                return;
+            }
+
+            var migrationsAssembly = db.GetService<IMigrationsAssembly>();
+            var sqlGenerator       = db.GetService<IMigrationsSqlGenerator>();
+            var connection         = db.GetService<IRelationalConnection>();
+            var activeProvider     = db.ProviderName!;
+            var productVersion     = typeof(Migration).Assembly.GetName().Version?.ToString() ?? "";
+
+            foreach (var migrationId in pending)
+            {
+                var migration = migrationsAssembly.CreateMigration(
+                    migrationsAssembly.Migrations[migrationId], activeProvider);
+
+                // CockroachDB forbids mixing DDL with DML, and multiple schema changes,
+                // inside a single transaction. The old approach generated one SQL script
+                // per migration and ran it through a single ExecuteSqlRaw — i.e. one
+                // implicit transaction — so a scaffolded "ADD COLUMN; ADD COLUMN; UPDATE"
+                // aborted halfway and left the table in a state the non-idempotent re-run
+                // couldn't recover from. Instead we execute each statement on its own, so
+                // every statement auto-commits independently (the only Cockroach-safe way:
+                // ADD COLUMN commits, then a later UPDATE sees the now-public column), and
+                // we write the history row only after all of a migration's commands apply.
+                var commands = sqlGenerator.Generate(
+                    migration.UpOperations, migration.TargetModel, MigrationsSqlGenerationOptions.Default);
+
+                foreach (var command in commands)
+                    await command.ExecuteNonQueryAsync(connection);
+
+                await db.ExecuteSqlRawAsync(historyRepo.GetInsertScript(new HistoryRow(migrationId, productVersion)));
+                logger.LogInformation("Applied migration {Migration}", migrationId);
             }
         }
         catch (Exception e)
