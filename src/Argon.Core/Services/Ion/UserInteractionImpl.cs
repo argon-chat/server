@@ -8,10 +8,12 @@ using Argon.Core.Grains.Interfaces;
 using ion.runtime;
 
 public class UserInteractionImpl(
-    IOptions<BetaLimitationOptions> betaOptions,
+    IDbContextFactory<ApplicationDbContext> context,
     ILogger<IUserInteraction> logger) : IUserInteraction
 
 {
+    private const int MaxOwnedSpacesPerUser = 10;
+
     public async Task<ArgonUser> GetMe(CancellationToken ct = default)
     {
         var user = await this.GetGrain<IUserGrain>(this.GetUserId()).GetMe();
@@ -20,11 +22,14 @@ public class UserInteractionImpl(
 
     public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default)
     {
-#if !DEBUG
         var callerId = this.GetUserId();
-        if (!betaOptions.Value.AllowedCreationSpaceUsers.Contains(callerId))
-            return new FailedCreateSpace(CreateSpaceError.LIMIT_REACHED);
-#endif
+
+        await using (var ctx = await context.CreateDbContextAsync(ct))
+        {
+            var ownedCount = await ctx.Spaces.CountAsync(s => s.CreatorId == callerId, ct);
+            if (ownedCount >= MaxOwnedSpacesPerUser)
+                return new FailedCreateSpace(CreateSpaceError.LIMIT_REACHED);
+        }
 
         try
         {
