@@ -275,14 +275,16 @@ public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUser
         var __birthdate = IonFormatterStorage<dateonly>.Read(reader);
         var __argreeoptionalemails = IonFormatterStorage<bool>.Read(reader);
         var __captchatoken = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__email, __username, __password, __displayname, __argreetos, __birthdate, __argreeoptionalemails, __captchatoken);
+        var __tosversion = reader.ReadNullable<string>();
+        var __privacyversion = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__email, __username, __password, __displayname, __argreetos, __birthdate, __argreeoptionalemails, __captchatoken, __tosversion, __privacyversion);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, NewUserCredentialsInput value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(10);
         IonFormatterStorage<string>.Write(writer, value.email);
         IonFormatterStorage<string>.Write(writer, value.username);
         IonFormatterStorage<string>.Write(writer, value.password);
@@ -291,6 +293,54 @@ public sealed class Ion_NewUserCredentialsInput_Formatter : IonFormatter<NewUser
         IonFormatterStorage<dateonly>.Write(writer, value.birthDate);
         IonFormatterStorage<bool>.Write(writer, value.argreeOptionalEmails);
         IonFormatterStorage<string>.WriteNullable(writer, value.captchaToken);
+        IonFormatterStorage<string>.WriteNullable(writer, value.tosVersion);
+        IonFormatterStorage<string>.WriteNullable(writer, value.privacyVersion);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_LegalState_Formatter : IonFormatter<LegalState>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public LegalState Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __tosversion = reader.ReadNullable<string>();
+        var __privacyversion = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__tosversion, __privacyversion);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, LegalState value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.WriteNullable(writer, value.tosVersion);
+        IonFormatterStorage<string>.WriteNullable(writer, value.privacyVersion);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AcceptLegalInput_Formatter : IonFormatter<AcceptLegalInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AcceptLegalInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __tosversion = IonFormatterStorage<string>.Read(reader);
+        var __privacyversion = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__tosversion, __privacyversion);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AcceptLegalInput value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.tosVersion);
+        IonFormatterStorage<string>.Write(writer, value.privacyVersion);
         writer.WriteEndArray();
     }
 }

@@ -257,7 +257,9 @@ public class ArgonAuthorizationService(
                 DisplayName               = input.displayName,
                 DateOfBirth               = input.birthDate,
                 AgreeTOS                  = input.argreeTos,
-                AllowedSendOptionalEmails = input.argreeOptionalEmails
+                AllowedSendOptionalEmails = input.argreeOptionalEmails,
+                AgreeTosVersion           = input.tosVersion,
+                AgreePrivacyVersion       = input.privacyVersion
             };
             await ctx.Users.AddAsync(user);
 
@@ -354,7 +356,9 @@ public class ArgonAuthorizationService(
                 DisplayName               = input.displayName,
                 DateOfBirth               = input.birthDate,
                 AgreeTOS                  = input.argreeTos,
-                AllowedSendOptionalEmails = input.argreeOptionalEmails
+                AllowedSendOptionalEmails = input.argreeOptionalEmails,
+                AgreeTosVersion           = input.tosVersion,
+                AgreePrivacyVersion       = input.privacyVersion
             };
             await ctx.Users.AddAsync(user);
 

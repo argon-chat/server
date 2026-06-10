@@ -39,6 +39,13 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public bool AllowedSendOptionalEmails { get; set; }
     public bool AgreeTOS                  { get; set; }
 
+    // Date-string (DD.MM.YYYY) of the TOS / Privacy version the user last accepted.
+    // Null for accounts created before legal versioning — the client shows the
+    // update gate until they accept. Deliberately NOT exposed on the public
+    // ArgonUser DTO; surfaced only via GetMyLegalState for the current user.
+    public string? AgreeTosVersion     { get; set; }
+    public string? AgreePrivacyVersion { get; set; }
+
     public         Guid?     BotEntityId { get; set; }
     public virtual BotEntity BotEntity   { get; set; }
 

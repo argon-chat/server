@@ -51,7 +51,15 @@ public sealed record UserLoginInput(string? email, string? phone, string? userna
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record NewUserCredentialsInput(string email, string username, string password, string displayName, bool argreeTos, dateonly birthDate, bool argreeOptionalEmails, string? captchaToken);
+public sealed record NewUserCredentialsInput(string email, string username, string password, string displayName, bool argreeTos, dateonly birthDate, bool argreeOptionalEmails, string? captchaToken, string? tosVersion, string? privacyVersion);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LegalState(string? tosVersion, string? privacyVersion);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AcceptLegalInput(string tosVersion, string privacyVersion);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -174,6 +182,8 @@ public interface IUserInteraction : IIonService
     Task<IonArray<SystemNotificationDto>> GetNotificationFeed(i4 limit, datetime? before, CancellationToken ct = default);
     Task MarkNotificationRead(guid notificationId, CancellationToken ct = default);
     Task MarkAllNotificationsRead(string? type, CancellationToken ct = default);
+    Task<LegalState> GetMyLegalState(CancellationToken ct = default);
+    Task<LegalState> AcceptLegal(AcceptLegalInput request, CancellationToken ct = default);
 }
 
 

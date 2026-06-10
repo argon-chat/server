@@ -20,6 +20,12 @@ public class UserInteractionImpl(
         return user.ToDto();
     }
 
+    public Task<LegalState> GetMyLegalState(CancellationToken ct = default)
+        => this.GetGrain<IUserGrain>(this.GetUserId()).GetLegalState();
+
+    public Task<LegalState> AcceptLegal(AcceptLegalInput request, CancellationToken ct = default)
+        => this.GetGrain<IUserGrain>(this.GetUserId()).AcceptLegal(request.tosVersion, request.privacyVersion);
+
     public async Task<ICreateSpaceResult> CreateSpace(CreateServerRequest request, CancellationToken ct = default)
     {
         var callerId = this.GetUserId();

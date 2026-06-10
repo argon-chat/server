@@ -364,6 +364,40 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         await service.MarkAllNotificationsRead(__type);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMyLegalState_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMyLegalState();
+        
+        IonFormatterStorage<LegalState>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AcceptLegal_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __request = IonFormatterStorage<AcceptLegalInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.AcceptLegal(__request);
+        
+        IonFormatterStorage<LegalState>.Write(writer, result);
+    }
 
     
     
@@ -413,6 +447,10 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return MarkNotificationRead_Execute(reader, writer, ct);
         if (methodName.Equals("MarkAllNotificationsRead", StringComparison.InvariantCultureIgnoreCase))
             return MarkAllNotificationsRead_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMyLegalState", StringComparison.InvariantCultureIgnoreCase))
+            return GetMyLegalState_Execute(reader, writer, ct);
+        if (methodName.Equals("AcceptLegal", StringComparison.InvariantCultureIgnoreCase))
+            return AcceptLegal_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

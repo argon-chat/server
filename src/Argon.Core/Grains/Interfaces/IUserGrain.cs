@@ -49,6 +49,12 @@ public interface IUserGrain : IGrainWithGuidKey
 
     [Alias(nameof(ResetPremiumProfileAsync))]
     ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
+
+    [Alias(nameof(GetLegalState))]
+    Task<LegalState> GetLegalState();
+
+    [Alias(nameof(AcceptLegal))]
+    Task<LegalState> AcceptLegal(string tosVersion, string privacyVersion);
 }
 
 

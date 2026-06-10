@@ -200,6 +200,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UserCredentialsInput>.Value = new Ion_UserCredentialsInput_Formatter();
       IonFormatterStorage<UserLoginInput>.Value = new Ion_UserLoginInput_Formatter();
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
+      IonFormatterStorage<LegalState>.Value = new Ion_LegalState_Formatter();
+      IonFormatterStorage<AcceptLegalInput>.Value = new Ion_AcceptLegalInput_Formatter();
       IonFormatterStorage<UploadFileError>.Value = new Ion_UploadFileError_Formatter();
       IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
       IonFormatterStorage<UpdateMeError>.Value = new Ion_UpdateMeError_Formatter();

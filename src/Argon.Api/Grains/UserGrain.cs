@@ -130,6 +130,29 @@ public class UserGrain(
            .FirstAsync(user => user.Id == this.GetPrimaryKey());
     }
 
+    public async Task<LegalState> GetLegalState()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users
+           .AsNoTracking()
+           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+
+        return new LegalState(user.AgreeTosVersion, user.AgreePrivacyVersion);
+    }
+
+    public async Task<LegalState> AcceptLegal(string tosVersion, string privacyVersion)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstAsync(u => u.Id == this.GetPrimaryKey());
+        user.AgreeTosVersion     = tosVersion;
+        user.AgreePrivacyVersion = privacyVersion;
+        await ctx.SaveChangesAsync();
+
+        return new LegalState(user.AgreeTosVersion, user.AgreePrivacyVersion);
+    }
+
     public async Task<ArgonUser> GetAsArgonUser()
     {
         await using var ctx = await context.CreateDbContextAsync();

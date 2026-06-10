@@ -60,6 +60,10 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         typeof(IUserInteraction).GetMethod(nameof(MarkNotificationRead), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> MarkAllNotificationsRead_Ref = new(() =>
         typeof(IUserInteraction).GetMethod(nameof(MarkAllNotificationsRead), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMyLegalState_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(GetMyLegalState), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AcceptLegal_Ref = new(() =>
+        typeof(IUserInteraction).GetMethod(nameof(AcceptLegal), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -425,6 +429,40 @@ public sealed class Ion_UserInteraction_ClientImpl(IonClientContext context) : I
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<LegalState> GetMyLegalState(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), GetMyLegalState_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<LegalState>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<LegalState> AcceptLegal(AcceptLegalInput __request, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserInteraction), AcceptLegal_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<AcceptLegalInput>.Write(writer, __request);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<LegalState>(writer.Encode(), ct: ct);
     }
 
 }
