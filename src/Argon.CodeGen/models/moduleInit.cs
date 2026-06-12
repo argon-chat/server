@@ -159,7 +159,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceMember>.Value = new Ion_SpaceMember_Formatter();
       IonFormatterStorage<RealtimeServerMember>.Value = new Ion_RealtimeServerMember_Formatter();
       IonFormatterStorage<InviteCodeEntity>.Value = new Ion_InviteCodeEntity_Formatter();
+      IonFormatterStorage<ServerInvites>.Value = new Ion_ServerInvites_Formatter();
       IonFormatterStorage<InviteCode>.Value = new Ion_InviteCode_Formatter();
+      IonFormatterStorage<SpaceStats>.Value = new Ion_SpaceStats_Formatter();
       IonFormatterStorage<ArgonUser>.Value = new Ion_ArgonUser_Formatter();
       IonFormatterStorage<ArgonUserProfile>.Value = new Ion_ArgonUserProfile_Formatter();
       IonFormatterStorage<UserStatus>.Value = new Ion_UserStatus_Formatter();
@@ -202,6 +204,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<NewUserCredentialsInput>.Value = new Ion_NewUserCredentialsInput_Formatter();
       IonFormatterStorage<LegalState>.Value = new Ion_LegalState_Formatter();
       IonFormatterStorage<AcceptLegalInput>.Value = new Ion_AcceptLegalInput_Formatter();
+      IonFormatterStorage<InvitePreview>.Value = new Ion_InvitePreview_Formatter();
       IonFormatterStorage<UploadFileError>.Value = new Ion_UploadFileError_Formatter();
       IonFormatterStorage<CreateSpaceError>.Value = new Ion_CreateSpaceError_Formatter();
       IonFormatterStorage<UpdateMeError>.Value = new Ion_UpdateMeError_Formatter();
@@ -216,6 +219,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IAuthorizeResult>.Value = new Ion_IAuthorizeResult_Formatter();
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
+      IonFormatterStorage<IPreviewInviteResult>.Value = new Ion_IPreviewInviteResult_Formatter();
       IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
       IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
       IonFormatterStorage<ServiceUssdResult>.Value = new Ion_ServiceUssdResult_Formatter();
@@ -395,6 +399,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedRegistration>.Value = new Ion_FailedRegistration_Formatter();
       IonFormatterStorage<SuccessJoin>.Value = new Ion_SuccessJoin_Formatter();
       IonFormatterStorage<FailedJoin>.Value = new Ion_FailedJoin_Formatter();
+      IonFormatterStorage<SuccessPreview>.Value = new Ion_SuccessPreview_Formatter();
+      IonFormatterStorage<FailedPreview>.Value = new Ion_FailedPreview_Formatter();
       IonFormatterStorage<SuccessDingDong>.Value = new Ion_SuccessDingDong_Formatter();
       IonFormatterStorage<FailedDingDong>.Value = new Ion_FailedDingDong_Formatter();
       IonFormatterStorage<SuccessPickUp>.Value = new Ion_SuccessPickUp_Formatter();

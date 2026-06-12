@@ -61,7 +61,16 @@ public interface ISpaceGrain : IGrainWithGuidKey
     Task<List<RealtimeChannel>> GetChannels();
 
     [Alias(nameof(DoJoinUserAsync))]
-    Task DoJoinUserAsync();
+    Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null);
+
+    [Alias(nameof(SetBoostStripHidden))]
+    Task SetBoostStripHidden(bool hidden);
+
+    [Alias(nameof(GetSpaceStats))]
+    Task<SpaceStats> GetSpaceStats();
+
+    [Alias(nameof(GetInvitePreview))]
+    Task<InvitePreview> GetInvitePreview();
 
     [Alias(nameof(DoUserUpdatedAsync))]
     Task DoUserUpdatedAsync(ArgonUser user);
@@ -122,7 +131,8 @@ public sealed record ServerInput(
 public enum SpaceFileKind
 {
     Avatar,
-    ProfileHeader
+    ProfileHeader,
+    InviteImage
 }
 
 [GenerateSerializer, Immutable]

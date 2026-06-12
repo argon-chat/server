@@ -75,6 +75,17 @@ public class UserInteractionImpl(
         return new SuccessJoin(space.ToDto());
     }
 
+    public async Task<IPreviewInviteResult> PreviewInvite(InviteCode inviteCode, CancellationToken ct = default)
+    {
+        var (spaceId, error) = await this.GetGrain<IInviteGrain>(inviteCode.inviteCode).PreviewAsync();
+
+        if (error != AcceptInviteError.NONE)
+            return new FailedPreview(error);
+
+        var preview = await this.GetGrain<ISpaceGrain>(spaceId).GetInvitePreview();
+        return new SuccessPreview(preview);
+    }
+
     public async Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).BroadcastPresenceAsync(presence);
 

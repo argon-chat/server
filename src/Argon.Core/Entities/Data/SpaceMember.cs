@@ -8,6 +8,9 @@ public record SpaceMemberEntity : ArgonEntityWithOwnership, IEntityTypeConfigura
     public Guid SpaceId { get; set; }
     public Guid UserId  { get; set; }
 
+    /// <summary>Id of the <see cref="SpaceInvite"/> the member joined through, if any (null for owners / direct joins).</summary>
+    public ulong? JoinedViaInviteId { get; set; }
+
     public virtual UserEntity  User  { get; set; }
     public virtual SpaceEntity Space { get; set; }
 

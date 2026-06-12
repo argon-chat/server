@@ -15,9 +15,18 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public string? AvatarFileId { get; set; } = string.Empty;
     [MaxLength(128)]
     public string? TopBannedFileId { get; set; }
-    
+    [MaxLength(128)]
+    public string? InviteImageFileId { get; set; }
+
     public bool IsCommunity { get; set; }
     public Guid? DefaultChannelId { get; set; }
+
+    /// <summary>Platform-controlled verification badge (issued by Argon staff).</summary>
+    public bool IsVerified { get; set; }
+    /// <summary>Platform-controlled official badge (first-party / partner spaces).</summary>
+    public bool IsOfficial { get; set; }
+    /// <summary>Admin toggle that hides the boost strip in the space header.</summary>
+    public bool HideBoostStrip { get; set; }
 
     public int BoostCount { get; set; }
     public int BoostLevel { get; set; }
@@ -31,5 +40,6 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
 
     public static ArgonSpace Map(scoped in SpaceEntity self)
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,
-            IonArray<ArgonChannel>.Empty, IonArray<SpaceMember>.Empty, IonArray<Archetype>.Empty);
+            IonArray<ArgonChannel>.Empty, IonArray<SpaceMember>.Empty, IonArray<Archetype>.Empty,
+            self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId);
 }

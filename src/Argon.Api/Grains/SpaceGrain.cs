@@ -67,10 +67,15 @@ public class SpaceGrain(
                 x.AvatarFileId,
                 x.TopBannedFileId,
                 x.BoostCount,
-                x.BoostLevel
+                x.BoostLevel,
+                x.IsVerified,
+                x.IsOfficial,
+                x.HideBoostStrip,
+                x.InviteImageFileId
             })
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
-        return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId, result.BoostCount, result.BoostLevel);
+        return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId,
+            result.BoostCount, result.BoostLevel, result.IsVerified, result.IsOfficial, result.HideBoostStrip, result.InviteImageFileId);
     }
 
     public async Task<SpaceEntity> GetSpace()
@@ -83,17 +88,30 @@ public class SpaceGrain(
 
     public async Task<SpaceEntity> UpdateSpace(ServerInput input)
     {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
         await using var ctx = await context.CreateDbContextAsync();
 
-        var server = await ctx.Spaces
-           .FirstAsync(s => s.Id == this.GetPrimaryKey());
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, spaceId, callerId, ArgonEntitlement.ManageServer);
 
-        server.Name         = input.Name ?? server.Name;
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage server");
+
+        var server = await ctx.Spaces
+           .FirstAsync(s => s.Id == spaceId);
+
+        server.Name         = string.IsNullOrWhiteSpace(input.Name) ? server.Name : input.Name;
         server.Description  = input.Description ?? server.Description;
         server.AvatarFileId = input.AvatarUrl ?? server.AvatarFileId;
 
         await ctx.SaveChangesAsync();
-        await Fire(new ServerModified(this.GetPrimaryKey(), IonArray<string>.Empty));
+
+        var spaceBase = new ArgonSpaceBase(server.Id, server.Name, server.Description!, server.AvatarFileId, server.TopBannedFileId,
+            server.BoostCount, server.BoostLevel, server.IsVerified, server.IsOfficial, server.HideBoostStrip, server.InviteImageFileId);
+        await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
+        await Fire(new ServerModified(spaceId, IonArray<string>.Empty));
         return server;
     }
 
@@ -192,10 +210,10 @@ public class SpaceGrain(
         return results;
     }
 
-    public Task DoJoinUserAsync()
-        => AddMemberAsync(this.GetUserId());
+    public Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null)
+        => AddMemberAsync(this.GetUserId(), joinedViaInviteId);
 
-    private async Task AddMemberAsync(Guid userId)
+    private async Task<bool> AddMemberAsync(Guid userId, ulong? joinedViaInviteId = null)
     {
         await using var ctx = await context.CreateDbContextAsync();
 
@@ -205,14 +223,15 @@ public class SpaceGrain(
            .AnyAsync(x => x.SpaceId == spaceId && x.UserId == userId);
 
         if (exists)
-            return;
+            return false;
 
         var member = Guid.NewGuid();
         await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
         {
-            Id      = member,
-            SpaceId = spaceId,
-            UserId  = userId
+            Id                = member,
+            SpaceId           = spaceId,
+            UserId            = userId,
+            JoinedViaInviteId = joinedViaInviteId
         });
         await ctx.SaveChangesAsync();
 
@@ -220,6 +239,84 @@ public class SpaceGrain(
         await UserJoined(userId);
 
         _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
+        return true;
+    }
+
+    public async Task SetBoostStripHidden(bool hidden)
+    {
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var hasPermission = await entitlementChecker.HasAccessAsync(
+            ctx, spaceId, callerId, ArgonEntitlement.ManageServer);
+
+        if (!hasPermission)
+            throw new UnauthorizedAccessException("No permission to manage server");
+
+        var space = await ctx.Spaces.FirstAsync(x => x.Id == spaceId);
+        space.HideBoostStrip = hidden;
+        await ctx.SaveChangesAsync();
+
+        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
+            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId);
+        await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
+    }
+
+    public async Task<SpaceStats> GetSpaceStats()
+    {
+        var spaceId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var space = await ctx.Spaces
+           .AsNoTracking()
+           .Select(x => new { x.Id, x.BoostCount, x.BoostLevel, x.CreatedAt })
+           .FirstAsync(x => x.Id == spaceId);
+
+        var memberIds = await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(x => x.SpaceId == spaceId)
+           .Select(x => x.UserId)
+           .ToListAsync();
+
+        var channelCount = await ctx.Channels
+           .AsNoTracking()
+           .CountAsync(x => x.SpaceId == spaceId);
+
+        var statuses    = await userPresence.BatchGetAggregatedStatusAsync(memberIds);
+        var onlineCount = statuses.Count(kv => kv.Value != UserStatus.Offline);
+
+        return new SpaceStats(memberIds.Count, onlineCount, channelCount, space.BoostCount, space.BoostLevel, space.CreatedAt.UtcDateTime);
+    }
+
+    public async Task<InvitePreview> GetInvitePreview()
+    {
+        var spaceId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var space = await ctx.Spaces
+           .AsNoTracking()
+           .Select(x => new
+            {
+                x.Id, x.Name, x.Description, x.AvatarFileId, x.TopBannedFileId,
+                x.InviteImageFileId, x.IsVerified, x.IsOfficial
+            })
+           .FirstAsync(x => x.Id == spaceId);
+
+        var memberIds = await ctx.UsersToServerRelations
+           .AsNoTracking()
+           .Where(x => x.SpaceId == spaceId)
+           .Select(x => x.UserId)
+           .ToListAsync();
+
+        var statuses    = await userPresence.BatchGetAggregatedStatusAsync(memberIds);
+        var onlineCount = statuses.Count(kv => kv.Value != UserStatus.Offline);
+
+        return new InvitePreview(space.Id, space.Name, space.Description ?? "", space.AvatarFileId, space.TopBannedFileId,
+            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount);
     }
 
     public Task DoUserUpdatedAsync(ArgonUser user)
@@ -685,6 +782,7 @@ public class SpaceGrain(
         {
             SpaceFileKind.Avatar        => FilePurpose.SpaceAvatar,
             SpaceFileKind.ProfileHeader => FilePurpose.Banner,
+            SpaceFileKind.InviteImage   => FilePurpose.InviteImage,
             _                           => FilePurpose.SpaceAvatar
         };
 
@@ -704,6 +802,19 @@ public class SpaceGrain(
 
         if (!hasPermission)
             return UploadFileError.NOT_AUTHORIZED;
+
+        // The fullscreen invite splash image is a premium surface — only verified/official spaces may set it.
+        if (kind == SpaceFileKind.InviteImage)
+        {
+            var badges = await ctx.Spaces
+               .AsNoTracking()
+               .Where(x => x.Id == spaceId)
+               .Select(x => new { x.IsVerified, x.IsOfficial })
+               .FirstOrDefaultAsync(ct);
+
+            if (badges is null || (!badges.IsVerified && !badges.IsOfficial))
+                return UploadFileError.NOT_AUTHORIZED;
+        }
 
         try
         {
@@ -777,11 +888,15 @@ public class SpaceGrain(
             case SpaceFileKind.ProfileHeader:
                 space.TopBannedFileId = fileId.ToString();
                 break;
+            case SpaceFileKind.InviteImage:
+                space.InviteImageFileId = fileId.ToString();
+                break;
         }
 
         await ctx.SaveChangesAsync(ct);
 
-        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId, space.BoostCount, space.BoostLevel);
+        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
+            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 

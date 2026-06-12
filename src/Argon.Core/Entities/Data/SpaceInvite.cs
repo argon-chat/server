@@ -9,6 +9,11 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
     public required Guid           SpaceId  { get; set; }
     public virtual  SpaceEntity    Space    { get; set; }
 
+    /// <summary>Maximum number of joins allowed through this invite. 0 = unlimited.</summary>
+    public int  MaxUses   { get; set; }
+    /// <summary>How many members have joined through this invite so far.</summary>
+    public long UsedCount { get; set; }
+
     public void Configure(EntityTypeBuilder<SpaceInvite> builder)
     {
         builder.HasOne(c => c.Space)
@@ -35,7 +40,7 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
 
 public readonly record struct InviteCode(string inviteCode);
 
-public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId, Guid issuerId, DateTimeOffset expireTime, long used)
+public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId, Guid issuerId, DateTimeOffset expireTime, long used, int maxUses, DateTimeOffset createdAt)
 {
     public const string CacheEntityKey = $"{nameof(InviteCodeEntity)}_{{0}}";
 

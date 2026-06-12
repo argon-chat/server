@@ -63,6 +63,10 @@ public sealed record AcceptLegalInput(string tosVersion, string privacyVersion);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InvitePreview(guid spaceId, string name, string description, string? avatarFileId, string? topBannerFileId, string? inviteImageFileId, bool isVerified, bool isOfficial, i4 memberCount, i4 onlineCount);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum UploadFileError
 {
     NONE = 0,
@@ -98,6 +102,7 @@ public enum AcceptInviteError
     NOT_FOUND = 1,
     EXPIRED = 2,
     YOU_ARE_BANNED = 3,
+    LIMIT_REACHED = 4,
 }
 
 
@@ -166,6 +171,7 @@ public interface IUserInteraction : IIonService
     Task<IonArray<ArgonSpaceBase>> GetSpaces(CancellationToken ct = default);
     Task<IUpdateMeResult> UpdateMe(UserEditInput request, CancellationToken ct = default);
     Task<IJoinToSpaceResult> JoinToSpace(InviteCode inviteCode, CancellationToken ct = default);
+    Task<IPreviewInviteResult> PreviewInvite(InviteCode inviteCode, CancellationToken ct = default);
     Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default);
     Task RemoveBroadcastPresence(CancellationToken ct = default);
     Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default);
@@ -939,6 +945,130 @@ public sealed class Ion_FailedJoin_Formatter : IonFormatter<FailedJoin>
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, FailedJoin value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<AcceptInviteError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IPreviewInviteResult : IIonUnion<IPreviewInviteResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessPreview => this is SuccessPreview;
+
+    internal bool IsFailedPreview => this is FailedPreview;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessPreview(InvitePreview preview) : IPreviewInviteResult
+{
+    public string UnionKey => nameof(SuccessPreview);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedPreview(AcceptInviteError error) : IPreviewInviteResult
+{
+    public string UnionKey => nameof(FailedPreview);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IPreviewInviteResult_Formatter : IonFormatter<IPreviewInviteResult>
+{
+    public IPreviewInviteResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IPreviewInviteResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessPreview>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedPreview>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IPreviewInviteResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessPreview n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessPreview>.Write(writer, n_0);
+        }
+
+        else if (value is FailedPreview n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedPreview>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessPreview_Formatter : IonFormatter<SuccessPreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessPreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __preview = IonFormatterStorage<InvitePreview>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__preview);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessPreview value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<InvitePreview>.Write(writer, value.preview);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedPreview_Formatter : IonFormatter<FailedPreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedPreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<AcceptInviteError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedPreview value)
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<AcceptInviteError>.Write(writer, value.error);

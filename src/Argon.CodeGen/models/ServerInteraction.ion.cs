@@ -15,11 +15,11 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel);
+public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonSpace(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, IonArray<ArgonChannel> channels, IonArray<SpaceMember> members, IonArray<Archetype> archetypes);
+public sealed record ArgonSpace(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, IonArray<ArgonChannel> channels, IonArray<SpaceMember> members, IonArray<Archetype> archetypes, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -39,11 +39,19 @@ public sealed record RealtimeServerMember(SpaceMember member, UserStatus status,
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InviteCodeEntity(InviteCode code, guid spaceId, guid issuerId, datetime expireTime, u8 used);
+public sealed record InviteCodeEntity(InviteCode code, guid spaceId, guid issuerId, datetime expireTime, u8 used, i4 maxUses, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ServerInvites(string domain, IonArray<InviteCodeEntity> invites);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record InviteCode(string inviteCode);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceStats(i4 memberCount, i4 onlineCount, i4 channelCount, i4 boostCount, i4 boostLevel, datetime createdAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -125,8 +133,12 @@ public interface IServerInteraction : IIonService
 {
     Task<IonArray<RealtimeServerMember>> GetMembers(guid spaceId, CancellationToken ct = default);
     Task<RealtimeServerMember> GetMember(guid spaceId, guid userId, CancellationToken ct = default);
-    Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid spaceId, CancellationToken ct = default);
-    Task<InviteCode> CreateInviteCode(guid spaceId, CancellationToken ct = default);
+    Task<ServerInvites> GetInviteCodes(guid spaceId, CancellationToken ct = default);
+    Task<InviteCode> CreateInviteCode(guid spaceId, i4 expireMinutes, i4 maxUses, CancellationToken ct = default);
+    Task RevokeInviteCode(guid spaceId, InviteCode code, CancellationToken ct = default);
+    Task UpdateSpaceInfo(guid spaceId, string name, string description, CancellationToken ct = default);
+    Task SetBoostStripHidden(guid spaceId, bool hidden, CancellationToken ct = default);
+    Task<SpaceStats> GetSpaceStats(guid spaceId, CancellationToken ct = default);
     Task<ArgonUser> PrefetchUser(guid spaceId, guid userId, CancellationToken ct = default);
     Task<ArgonUserProfile> PrefetchProfile(guid spaceId, guid userId, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, CancellationToken ct = default);
@@ -136,6 +148,8 @@ public interface IServerInteraction : IIonService
     Task CompleteUploadSpaceProfileHeader(guid spaceId, guid blobId, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadSpaceAvatar(guid spaceId, CancellationToken ct = default);
     Task CompleteUploadSpaceAvatar(guid spaceId, guid blobId, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadInviteImage(guid spaceId, CancellationToken ct = default);
+    Task CompleteUploadInviteImage(guid spaceId, guid blobId, CancellationToken ct = default);
     Task<IonArray<ChannelGroup>> GetChannelGroups(guid spaceId, CancellationToken ct = default);
 }
 

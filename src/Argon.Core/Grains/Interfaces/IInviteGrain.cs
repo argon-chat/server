@@ -8,6 +8,9 @@ public interface IInviteGrain : IGrainWithStringKey
     [Alias("AcceptAsync")]
     ValueTask<(Guid, AcceptInviteError)> AcceptAsync();
 
+    [Alias("PreviewAsync")]
+    ValueTask<(Guid, AcceptInviteError)> PreviewAsync();
+
     [Alias("DropInviteCodeAsync")]
     ValueTask DropInviteCodeAsync();
 }
@@ -16,10 +19,13 @@ public interface IInviteGrain : IGrainWithStringKey
 public interface IServerInvitesGrain : IGrainWithGuidKey
 {
     [Alias("CreateInviteLinkAsync")]
-    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration);
+    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses);
 
     [Alias("GetInviteCodes")]
     Task<List<InviteCodeEntityData>> GetInviteCodes();
+
+    [Alias("RevokeInviteAsync")]
+    Task RevokeInviteAsync(string inviteCode);
 
 
     public const string StorageId = $"{nameof(IServerInvitesGrain)}";

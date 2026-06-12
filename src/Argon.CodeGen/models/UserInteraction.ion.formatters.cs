@@ -346,6 +346,45 @@ public sealed class Ion_AcceptLegalInput_Formatter : IonFormatter<AcceptLegalInp
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public InvitePreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = IonFormatterStorage<string>.Read(reader);
+        var __avatarfileid = reader.ReadNullable<string>();
+        var __topbannerfileid = reader.ReadNullable<string>();
+        var __inviteimagefileid = reader.ReadNullable<string>();
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __isofficial = IonFormatterStorage<bool>.Read(reader);
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __onlinecount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __inviteimagefileid, __isverified, __isofficial, __membercount, __onlinecount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, InvitePreview value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.Write(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.avatarFileId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.topBannerFileId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.inviteImageFileId);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isOfficial);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<i4>.Write(writer, value.onlineCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UploadFileError_Formatter : IonFormatter<UploadFileError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

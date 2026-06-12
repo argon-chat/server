@@ -186,7 +186,8 @@ public class UserGrain(
            .Select(x => x.Space)
            .ToListAsync();
 
-        return result.Select(x => new ArgonSpaceBase(x.Id, x.Name, x.Description!, x.AvatarFileId, x.TopBannedFileId, x.BoostCount, x.BoostLevel)).ToList();
+        return result.Select(x => new ArgonSpaceBase(x.Id, x.Name, x.Description!, x.AvatarFileId, x.TopBannedFileId,
+            x.BoostCount, x.BoostLevel, x.IsVerified, x.IsOfficial, x.HideBoostStrip, x.InviteImageFileId)).ToList();
     }
 
     public async Task<List<Guid>> GetMyServersIds(CancellationToken ct = default)

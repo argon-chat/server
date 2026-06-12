@@ -67,10 +67,78 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         var result = await service.GetInviteCodes(__spaceid);
         
-        IonFormatterStorage<InviteCodeEntity>.WriteArray(writer, result);
+        IonFormatterStorage<ServerInvites>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CreateInviteCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __expireminutes = IonFormatterStorage<i4>.Read(reader);
+        var __maxuses = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateInviteCode(__spaceid, __expireminutes, __maxuses);
+        
+        IonFormatterStorage<InviteCode>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeInviteCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __code = IonFormatterStorage<InviteCode>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.RevokeInviteCode(__spaceid, __code);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateSpaceInfo_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UpdateSpaceInfo(__spaceid, __name, __description);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBoostStripHidden_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __hidden = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.SetBoostStripHidden(__spaceid, __hidden);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSpaceStats_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
     
@@ -82,9 +150,9 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.CreateInviteCode(__spaceid);
+        var result = await service.GetSpaceStats(__spaceid);
         
-        IonFormatterStorage<InviteCode>.Write(writer, result);
+        IonFormatterStorage<SpaceStats>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task PrefetchUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -240,6 +308,39 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         await service.CompleteUploadSpaceAvatar(__spaceid, __blobid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadInviteImage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadInviteImage(__spaceid);
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadInviteImage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CompleteUploadInviteImage(__spaceid, __blobid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetChannelGroups_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
@@ -271,6 +372,14 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return GetInviteCodes_Execute(reader, writer, ct);
         if (methodName.Equals("CreateInviteCode", StringComparison.InvariantCultureIgnoreCase))
             return CreateInviteCode_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeInviteCode", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeInviteCode_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateSpaceInfo", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateSpaceInfo_Execute(reader, writer, ct);
+        if (methodName.Equals("SetBoostStripHidden", StringComparison.InvariantCultureIgnoreCase))
+            return SetBoostStripHidden_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSpaceStats", StringComparison.InvariantCultureIgnoreCase))
+            return GetSpaceStats_Execute(reader, writer, ct);
         if (methodName.Equals("PrefetchUser", StringComparison.InvariantCultureIgnoreCase))
             return PrefetchUser_Execute(reader, writer, ct);
         if (methodName.Equals("PrefetchProfile", StringComparison.InvariantCultureIgnoreCase))
@@ -289,6 +398,10 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return BeginUploadSpaceAvatar_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadSpaceAvatar", StringComparison.InvariantCultureIgnoreCase))
             return CompleteUploadSpaceAvatar_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadInviteImage", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadInviteImage_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadInviteImage", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadInviteImage_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannelGroups", StringComparison.InvariantCultureIgnoreCase))
             return GetChannelGroups_Execute(reader, writer, ct);
 

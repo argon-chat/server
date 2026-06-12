@@ -27,14 +27,18 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         var __topbannerfileid = reader.ReadNullable<string>();
         var __boostcount = IonFormatterStorage<i4>.Read(reader);
         var __boostlevel = IonFormatterStorage<i4>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __boostcount, __boostlevel);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __isofficial = IonFormatterStorage<bool>.Read(reader);
+        var __hidebooststrip = IonFormatterStorage<bool>.Read(reader);
+        var __inviteimagefileid = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __boostcount, __boostlevel, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonSpaceBase value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(11);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -42,6 +46,10 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         IonFormatterStorage<string>.WriteNullable(writer, value.topBannerFileId);
         IonFormatterStorage<i4>.Write(writer, value.boostCount);
         IonFormatterStorage<i4>.Write(writer, value.boostLevel);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isOfficial);
+        IonFormatterStorage<bool>.Write(writer, value.hideBoostStrip);
+        IonFormatterStorage<string>.WriteNullable(writer, value.inviteImageFileId);
         writer.WriteEndArray();
     }
 }
@@ -61,14 +69,18 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
         var __channels = IonFormatterStorage<ArgonChannel>.ReadArray(reader);
         var __members = IonFormatterStorage<SpaceMember>.ReadArray(reader);
         var __archetypes = IonFormatterStorage<Archetype>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __channels, __members, __archetypes);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __isofficial = IonFormatterStorage<bool>.Read(reader);
+        var __hidebooststrip = IonFormatterStorage<bool>.Read(reader);
+        var __inviteimagefileid = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 12);
+        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __channels, __members, __archetypes, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonSpace value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(12);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -77,6 +89,10 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
         IonFormatterStorage<ArgonChannel>.WriteArray(writer, value.channels);
         IonFormatterStorage<SpaceMember>.WriteArray(writer, value.members);
         IonFormatterStorage<Archetype>.WriteArray(writer, value.archetypes);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<bool>.Write(writer, value.isOfficial);
+        IonFormatterStorage<bool>.Write(writer, value.hideBoostStrip);
+        IonFormatterStorage<string>.WriteNullable(writer, value.inviteImageFileId);
         writer.WriteEndArray();
     }
 }
@@ -195,19 +211,46 @@ public sealed class Ion_InviteCodeEntity_Formatter : IonFormatter<InviteCodeEnti
         var __issuerid = IonFormatterStorage<guid>.Read(reader);
         var __expiretime = IonFormatterStorage<datetime>.Read(reader);
         var __used = IonFormatterStorage<u8>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 5);
-        return new(__code, __spaceid, __issuerid, __expiretime, __used);
+        var __maxuses = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__code, __spaceid, __issuerid, __expiretime, __used, __maxuses, __createdat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InviteCodeEntity value)
     {
-        writer.WriteStartArray(5);
+        writer.WriteStartArray(7);
         IonFormatterStorage<InviteCode>.Write(writer, value.code);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.issuerId);
         IonFormatterStorage<datetime>.Write(writer, value.expireTime);
         IonFormatterStorage<u8>.Write(writer, value.used);
+        IonFormatterStorage<i4>.Write(writer, value.maxUses);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ServerInvites_Formatter : IonFormatter<ServerInvites>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ServerInvites Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __domain = IonFormatterStorage<string>.Read(reader);
+        var __invites = IonFormatterStorage<InviteCodeEntity>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__domain, __invites);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ServerInvites value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.domain);
+        IonFormatterStorage<InviteCodeEntity>.WriteArray(writer, value.invites);
         writer.WriteEndArray();
     }
 }
@@ -229,6 +272,37 @@ public sealed class Ion_InviteCode_Formatter : IonFormatter<InviteCode>
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<string>.Write(writer, value.inviteCode);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceStats_Formatter : IonFormatter<SpaceStats>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceStats Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __membercount = IonFormatterStorage<i4>.Read(reader);
+        var __onlinecount = IonFormatterStorage<i4>.Read(reader);
+        var __channelcount = IonFormatterStorage<i4>.Read(reader);
+        var __boostcount = IonFormatterStorage<i4>.Read(reader);
+        var __boostlevel = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__membercount, __onlinecount, __channelcount, __boostcount, __boostlevel, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceStats value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<i4>.Write(writer, value.memberCount);
+        IonFormatterStorage<i4>.Write(writer, value.onlineCount);
+        IonFormatterStorage<i4>.Write(writer, value.channelCount);
+        IonFormatterStorage<i4>.Write(writer, value.boostCount);
+        IonFormatterStorage<i4>.Write(writer, value.boostLevel);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
         writer.WriteEndArray();
     }
 }

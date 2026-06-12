@@ -26,6 +26,14 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(GetInviteCodes), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CreateInviteCode_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(CreateInviteCode), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeInviteCode_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(RevokeInviteCode), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateSpaceInfo_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(UpdateSpaceInfo), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetBoostStripHidden_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(SetBoostStripHidden), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSpaceStats_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(GetSpaceStats), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> PrefetchUser_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(PrefetchUser), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> PrefetchProfile_Ref = new(() =>
@@ -44,6 +52,10 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(BeginUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteUploadSpaceAvatar_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(CompleteUploadSpaceAvatar), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadInviteImage_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(BeginUploadInviteImage), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadInviteImage_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(CompleteUploadInviteImage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetChannelGroups_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(GetChannelGroups), BindingFlags.Public | BindingFlags.Instance)!);
 
@@ -85,7 +97,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         return await req.CallAsync<RealtimeServerMember>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IonArray<InviteCodeEntity>> GetInviteCodes(guid __spaceid, CancellationToken ct = default)
+    public async Task<ServerInvites> GetInviteCodes(guid __spaceid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), GetInviteCodes_Ref.Value);
     
@@ -99,12 +111,86 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsyncWithArray<InviteCodeEntity>(writer.Encode(), ct: ct);
+        return await req.CallAsync<ServerInvites>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<InviteCode> CreateInviteCode(guid __spaceid, CancellationToken ct = default)
+    public async Task<InviteCode> CreateInviteCode(guid __spaceid, i4 __expireminutes, i4 __maxuses, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), CreateInviteCode_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<i4>.Write(writer, __expireminutes);
+        IonFormatterStorage<i4>.Write(writer, __maxuses);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<InviteCode>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeInviteCode(guid __spaceid, InviteCode __code, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), RevokeInviteCode_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<InviteCode>.Write(writer, __code);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateSpaceInfo(guid __spaceid, string __name, string __description, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), UpdateSpaceInfo_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<string>.Write(writer, __name);
+        IonFormatterStorage<string>.Write(writer, __description);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetBoostStripHidden(guid __spaceid, bool __hidden, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), SetBoostStripHidden_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<bool>.Write(writer, __hidden);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<SpaceStats> GetSpaceStats(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), GetSpaceStats_Ref.Value);
     
         var writer = new CborWriter();
         
@@ -116,7 +202,7 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         
         writer.WriteEndArray();
     
-        return await req.CallAsync<InviteCode>(writer.Encode(), ct: ct);
+        return await req.CallAsync<SpaceStats>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<ArgonUser> PrefetchUser(guid __spaceid, guid __userid, CancellationToken ct = default)
@@ -261,6 +347,41 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
     public async Task CompleteUploadSpaceAvatar(guid __spaceid, guid __blobid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IServerInteraction), CompleteUploadSpaceAvatar_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadInviteImage(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), BeginUploadInviteImage_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadInviteImage(guid __spaceid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), CompleteUploadInviteImage_Ref.Value);
 
         var writer = new CborWriter();
         

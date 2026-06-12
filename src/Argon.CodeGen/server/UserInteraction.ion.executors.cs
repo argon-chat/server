@@ -103,6 +103,23 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<IJoinToSpaceResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PreviewInvite_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __invitecode = IonFormatterStorage<InviteCode>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PreviewInvite(__invitecode);
+        
+        IonFormatterStorage<IPreviewInviteResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task BroadcastPresence_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
@@ -415,6 +432,8 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return UpdateMe_Execute(reader, writer, ct);
         if (methodName.Equals("JoinToSpace", StringComparison.InvariantCultureIgnoreCase))
             return JoinToSpace_Execute(reader, writer, ct);
+        if (methodName.Equals("PreviewInvite", StringComparison.InvariantCultureIgnoreCase))
+            return PreviewInvite_Execute(reader, writer, ct);
         if (methodName.Equals("BroadcastPresence", StringComparison.InvariantCultureIgnoreCase))
             return BroadcastPresence_Execute(reader, writer, ct);
         if (methodName.Equals("RemoveBroadcastPresence", StringComparison.InvariantCultureIgnoreCase))

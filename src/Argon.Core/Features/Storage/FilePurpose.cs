@@ -9,7 +9,8 @@ public enum FilePurpose
     Sticker         = 4,
     Banner          = 5,
     Video           = 6,
-    Gif             = 7
+    Gif             = 7,
+    InviteImage     = 8
 }
 
 public static class FilePurposeExtensions
@@ -22,6 +23,7 @@ public static class FilePurposeExtensions
         FilePurpose.Sticker     => true,
         FilePurpose.Banner      => true,
         FilePurpose.Gif         => true,
+        FilePurpose.InviteImage => true,
         _                       => false
     };
 
@@ -35,6 +37,7 @@ public static class FilePurposeExtensions
         FilePurpose.ChannelAttachment => "channels",
         FilePurpose.Video             => "video",
         FilePurpose.Gif               => "gifs",
+        FilePurpose.InviteImage       => "invite",
         _                             => "misc"
     };
 
@@ -49,6 +52,7 @@ public static class FilePurposeExtensions
         FilePurpose.Sticker           => true,
         FilePurpose.ChannelAttachment => true,
         FilePurpose.Video             => true,
+        FilePurpose.InviteImage       => true,
         _                             => false
     };
 }

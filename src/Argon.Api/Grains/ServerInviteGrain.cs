@@ -6,7 +6,7 @@ using InviteCode = Entities.InviteCode;
 [StatelessWorker]
 public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFactory<ApplicationDbContext> context) : Grain, IServerInvitesGrain
 {
-    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration)
+    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses)
     {
         await using var db         = await context.CreateDbContextAsync();
         var             inviteCode = InviteCodeEntityData.GenerateInviteCode();
@@ -19,6 +19,8 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
             UpdatedAt = DateTime.UtcNow,
             ExpireAt  = DateTime.UtcNow + expiration,
             SpaceId   = this.GetPrimaryKey(),
+            MaxUses   = maxUses < 0 ? 0 : maxUses,
+            UsedCount = 0,
         });
         await db.SaveChangesAsync();
         return new InviteCode(inviteCode);
@@ -32,6 +34,19 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
            .Where(x => x.SpaceId == this.GetPrimaryKey())
            .AsNoTracking()
            .ToListAsync();
-        return list.Select(x => new InviteCodeEntityData(new InviteCode(InviteCodeEntityData.DecodeFromUlong(x.Id)), x.SpaceId, x.CreatorId, x.ExpireAt, 0)).ToList();
+        return list.Select(x => new InviteCodeEntityData(
+            new InviteCode(InviteCodeEntityData.DecodeFromUlong(x.Id)),
+            x.SpaceId, x.CreatorId, x.ExpireAt, x.UsedCount, x.MaxUses, x.CreatedAt)).ToList();
+    }
+
+    public async Task RevokeInviteAsync(string inviteCode)
+    {
+        if (!InviteCodeEntityData.TryParseInviteCode(inviteCode, out var inviteId) || inviteId is null)
+            return;
+
+        await using var db = await context.CreateDbContextAsync();
+        await db.Invites
+           .Where(x => x.Id == inviteId.Value && x.SpaceId == this.GetPrimaryKey())
+           .ExecuteDeleteAsync();
     }
 }
