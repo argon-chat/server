@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -58,13 +58,6 @@ namespace Argon.Core.Migrations
                 type: "bigint",
                 nullable: false,
                 defaultValue: 0L);
-
-            migrationBuilder.UpdateData(
-                table: "Spaces",
-                keyColumn: "Id",
-                keyValue: new Guid("11111111-0000-1111-1111-111111111111"),
-                columns: new[] { "HideBoostStrip", "InviteImageFileId", "IsOfficial", "IsVerified" },
-                values: new object[] { false, null, false, false });
         }
 
         /// <inheritdoc />
