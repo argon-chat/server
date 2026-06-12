@@ -140,6 +140,7 @@ public static class WarmUpExtension
             var migrationsAssembly = db.GetService<IMigrationsAssembly>();
             var sqlGenerator       = db.GetService<IMigrationsSqlGenerator>();
             var connection         = db.GetService<IRelationalConnection>();
+            var modelInitializer   = db.GetService<IModelRuntimeInitializer>();
             var activeProvider     = db.ProviderName!;
             var productVersion     = typeof(Migration).Assembly.GetName().Version?.ToString() ?? "";
 
@@ -157,8 +158,19 @@ public static class WarmUpExtension
                 // every statement auto-commits independently (the only Cockroach-safe way:
                 // ADD COLUMN commits, then a later UPDATE sees the now-public column), and
                 // we write the history row only after all of a migration's commands apply.
+                // The SQL generator needs a FINALIZED model. Seed-data operations
+                // (UpdateData / InsertData / DeleteData) call IModel.GetRelationalModel(), which
+                // only works once the model's runtime dependencies are initialized.
+                // migration.TargetModel is the design-time snapshot, so finalize it first — exactly
+                // as EF's own Migrator.FinalizeModel does — otherwise any migration carrying HasData
+                // changes throws "The model must be finalized and its runtime dependencies must be
+                // initialized before 'GetRelationalModel' can be used."
+                var targetModel = migration.TargetModel is null
+                    ? null
+                    : modelInitializer.Initialize(migration.TargetModel);
+
                 var commands = sqlGenerator.Generate(
-                    migration.UpOperations, migration.TargetModel, MigrationsSqlGenerationOptions.Default);
+                    migration.UpOperations, targetModel, MigrationsSqlGenerationOptions.Default);
 
                 foreach (var command in commands)
                     await command.ExecuteNonQueryAsync(connection);
