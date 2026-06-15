@@ -106,7 +106,7 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     }
 
     public async override Task OnDisconnectedAsync(Exception? exception)
-        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).EndRealtimeSession();
+        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).MarkDisconnectedAsync();
 
     public async Task SubscribeToSpace(Guid spaceId)
         => await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");

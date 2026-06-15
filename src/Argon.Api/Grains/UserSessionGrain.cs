@@ -27,6 +27,11 @@ public class UserSessionGrain(
     private DateTime? _lastDebouncedHeartbeatTime;
     private DateTime? _sessionStartTime;
 
+    // Set when the transport connection drops. While true the tick stops refreshing this session's
+    // presence/status TTLs so the keys expire and the existing expiry path cleans the session up —
+    // a uniform grace window that rides out transient drops (OS sleep/modern-standby) without flapping.
+    private bool _clientDisconnected;
+
     private string SessionId => this.GetPrimaryKeyString();
 
     private async ValueTask SelfDestroy()
@@ -134,9 +139,26 @@ public class UserSessionGrain(
             return;
         }
 
+        // Client connection has dropped: deliberately stop refreshing the TTLs so the presence key
+        // lapses and the block above tears the session down on a later tick. This is the grace
+        // window that absorbs transient drops — if the client reconnects it does so as a fresh
+        // session (new connection id), and aggregation keeps reporting the right status meanwhile.
+        if (_clientDisconnected)
+            return;
+
         // Session is alive — refresh TTLs for both status and presence keys
         await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
         await presenceService.HeartbeatAsync(_userId, SessionId, arg);
+    }
+
+    public ValueTask MarkDisconnectedAsync()
+    {
+        // Don't tear down here — let the presence TTL lapse and UserSessionTickAsync do the cleanup.
+        // A transient drop (network blip, OS sleep/modern-standby that reconnects within the grace
+        // window) therefore never removes this session, so a multi-device user's aggregated status
+        // stops flapping on every brief reconnect.
+        _clientDisconnected = true;
+        return ValueTask.CompletedTask;
     }
 
     public async ValueTask<bool> HeartBeatAsync(UserStatus status)
