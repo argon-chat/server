@@ -12,9 +12,6 @@ public interface IUserSessionGrain : IGrainWithStringKey
     [Alias(nameof(EndRealtimeSession))]
     ValueTask EndRealtimeSession();
 
-    [OneWay, Alias(nameof(MarkDisconnectedAsync))]
-    ValueTask MarkDisconnectedAsync();
-
     [Alias(nameof(HeartBeatAsync))]
     ValueTask<bool> HeartBeatAsync(UserStatus status);
 
