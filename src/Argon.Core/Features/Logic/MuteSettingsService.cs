@@ -7,7 +7,7 @@ using StackExchange.Redis;
 
 public class MuteSettingsService(
     IDbContextFactory<ApplicationDbContext> contextFactory,
-    IRedisPoolConnections redis,
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redis,
     ILogger<MuteSettingsService> logger) : IMuteSettingsService
 {
     private const int CacheDbId = 6;

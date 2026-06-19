@@ -9,8 +9,9 @@ public static class RedisExtensions
 {
     public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, Action<RedisGrainStorageOptions> options) =>
         builder.ConfigureServices(services => services.AddRedisStorage(providerName, options));
-    public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName, int indexDb) =>
-        builder.ConfigureServices(services => services.AddRedisStorage(providerName, options => options.DatabaseName = indexDb));
+    // The Redis database is taken from the OrleansStorage profile, not per-provider, so no db arg here.
+    public static ISiloBuilder AddRedisStorage(this ISiloBuilder builder, string providerName) =>
+        builder.AddRedisStorage(providerName, static _ => { });
 
     public static IServiceCollection AddRedisStorage(this IServiceCollection services, string providerName,
         Action<RedisGrainStorageOptions> options)

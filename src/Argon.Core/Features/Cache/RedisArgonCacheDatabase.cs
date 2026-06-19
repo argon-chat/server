@@ -4,7 +4,9 @@ using System.Runtime.CompilerServices;
 using System.Diagnostics;
 using StackExchange.Redis;
 
-public class RedisArgonCacheDatabase(IRedisPoolConnections pool, ILogger<IArgonCacheDatabase> logger) : IArgonCacheDatabase
+public class RedisArgonCacheDatabase(
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections pool,
+    ILogger<IArgonCacheDatabase> logger) : IArgonCacheDatabase
 {
     private async Task<T> ExecWithRetry<T>(
         Func<IDatabase, Task<T>> action,

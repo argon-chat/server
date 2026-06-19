@@ -66,7 +66,7 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
             x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
         if (!env.IsSingleInstance())
             x.UseRedisClustering(z
-            => z.ConfigurationOptions = ConfigurationOptions.Parse(config.GetConnectionString("cache")!));
+            => z.ConfigurationOptions = new RedisProfileRegistry(config).BuildOptions(RedisProfiles.Orleans));
         else
             x.UseLocalhostClustering();
     }

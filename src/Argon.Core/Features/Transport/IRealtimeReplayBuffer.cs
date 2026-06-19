@@ -32,7 +32,8 @@ public readonly record struct ReplayEntry(string Id, byte[] Payload);
 /// events) and the client should do a full resync instead of trusting the replay.</param>
 public readonly record struct ReplayReadResult(IReadOnlyList<ReplayEntry> Entries, bool Gap);
 
-public sealed class RedisRealtimeReplayBuffer(IRedisPoolConnections pool) : IRealtimeReplayBuffer
+public sealed class RedisRealtimeReplayBuffer(
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections pool) : IRealtimeReplayBuffer
 {
     private const string PayloadField = "p";
 

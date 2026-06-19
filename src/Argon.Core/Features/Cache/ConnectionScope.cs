@@ -9,7 +9,8 @@ public struct ConnectionScope(IConnectionMultiplexer connection, RedisConnection
 
     public IConnectionMultiplexer Connection => connection;
 
-    public IDatabase GetDatabase(int index = 0) => connection.GetDatabase(index);
+    // index < 0 → use the multiplexer's DefaultDatabase (configured per Redis profile).
+    public IDatabase GetDatabase(int index = -1) => connection.GetDatabase(index);
 
     public IServer GetServer() => connection.GetServer(connection.GetEndPoints().First());
 

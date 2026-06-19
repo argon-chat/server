@@ -3,19 +3,20 @@ namespace Argon.Services;
 using StackExchange.Redis;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
+using System.Diagnostics.Metrics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 
-public sealed class RedisConnectionPool(
-    IConfiguration cfg,
-    ILogger<RedisConnectionPool> logger,
-    IOptions<RedisConnectionPoolOptions> options) : BackgroundService, IRedisPoolConnections
+public sealed class RedisConnectionPool : BackgroundService, IRedisPoolConnections
 {
+    private readonly string                       profileName;
+    private readonly ConfigurationOptions         configuration;
+    private readonly ILogger<RedisConnectionPool> logger;
+
     private readonly ConcurrentBag<IConnectionMultiplexer> connectionPool = new();
     private readonly PeriodicTimer                         timer          = new(TimeSpan.FromMinutes(2));
 
@@ -23,22 +24,31 @@ public sealed class RedisConnectionPool(
 
     private       long     taken;
     private       long     allocated;
-    private       long     defaultSize = options.Value.MaxSize;
+    private       long     defaultSize;
     private       long     maxSizeOveruseCounter;
     private const long     MaxOveruseThreshold = 5;
     private       DateTime lastScaleUp         = DateTime.UtcNow;
 
-    // Observable properties for metrics
-    internal static long ObservableTaken;
-    internal static long ObservableAllocated;
-    internal static long ObservableMaxSize;
+    // Live pools keyed by profile, so metrics can be reported per profile instead of clobbering
+    // shared static counters when several pools (cache / hybrid-cache / orleans-storage) coexist.
+    private static readonly ConcurrentDictionary<string, RedisConnectionPool> Pools = new();
+
+    public RedisConnectionPool(string profileName, RedisProfileOptions profile, uint maxSize, ILogger<RedisConnectionPool> logger)
+    {
+        this.profileName  = profileName;
+        this.logger       = logger;
+        this.defaultSize  = maxSize;
+        this.configuration                 = ConfigurationOptions.Parse(profile.ConnectionString!);
+        this.configuration.DefaultDatabase = profile.Database;
+
+        Pools[profileName] = this;
+    }
 
     public ConnectionScope Rent()
     {
         Interlocked.Increment(ref taken);
-        ObservableTaken = Interlocked.Read(ref taken);
-        
-        CacheInstruments.ConnectionsRented.Add(1);
+
+        CacheInstruments.ConnectionsRented.Add(1, ProfileTag);
 
         var currentAllocated = Interlocked.Read(ref allocated);
         if (currentAllocated > Interlocked.Read(ref defaultSize))
@@ -60,8 +70,7 @@ public sealed class RedisConnectionPool(
 
             _ = DisposeMuxAsync(mux);
             Interlocked.Decrement(ref allocated);
-            ObservableAllocated = Interlocked.Read(ref allocated);
-            CacheInstruments.ConnectionsDeallocated.Add(1);
+            CacheInstruments.ConnectionsDeallocated.Add(1, ProfileTag);
 
             var fresh = EnsureNew();
             return new ConnectionScope(fresh, this);
@@ -76,27 +85,24 @@ public sealed class RedisConnectionPool(
     internal async Task ReturnAsync(IConnectionMultiplexer connection)
     {
         Interlocked.Decrement(ref taken);
-        ObservableTaken = Interlocked.Read(ref taken);
 
         if (!IsUsable(connection))
         {
             await DisposeMuxAsync(connection);
             Interlocked.Decrement(ref allocated);
-            ObservableAllocated = Interlocked.Read(ref allocated);
-            CacheInstruments.ConnectionsDeallocated.Add(1);
-            CacheInstruments.ConnectionsReturnedFaulted.Add(1);
+            CacheInstruments.ConnectionsDeallocated.Add(1, ProfileTag);
+            CacheInstruments.ConnectionsReturnedFaulted.Add(1, ProfileTag);
             return;
         }
 
         connectionPool.Add(connection);
-        CacheInstruments.ConnectionsReturned.Add(1);
+        CacheInstruments.ConnectionsReturned.Add(1, ProfileTag);
     }
 
     internal async Task ReturnFaultedAsync(IConnectionMultiplexer connection)
     {
         Interlocked.Decrement(ref taken);
-        ObservableTaken = Interlocked.Read(ref taken);
-        CacheInstruments.ConnectionsReturnedFaulted.Add(1);
+        CacheInstruments.ConnectionsReturnedFaulted.Add(1, ProfileTag);
 
         try
         {
@@ -105,20 +111,18 @@ public sealed class RedisConnectionPool(
         finally
         {
             Interlocked.Decrement(ref allocated);
-            ObservableAllocated = Interlocked.Read(ref allocated);
-            CacheInstruments.ConnectionsDeallocated.Add(1);
+            CacheInstruments.ConnectionsDeallocated.Add(1, ProfileTag);
         }
     }
 
     private IConnectionMultiplexer EnsureNew()
     {
         var newAllocated = Interlocked.Increment(ref this.allocated);
-        ObservableAllocated = newAllocated;
-        logger.LogDebug("Allocating new Redis connection. Allocated: {Allocated}", newAllocated);
-        
-        CacheInstruments.ConnectionsAllocated.Add(1);
+        logger.LogDebug("[{Profile}] Allocating new Redis connection. Allocated: {Allocated}", profileName, newAllocated);
 
-        return ConnectionMultiplexer.Connect(cfg.GetConnectionString("cache")!);
+        CacheInstruments.ConnectionsAllocated.Add(1, ProfileTag);
+
+        return ConnectionMultiplexer.Connect(configuration);
     }
 
     private void PopulateInitial()
@@ -151,7 +155,7 @@ public sealed class RedisConnectionPool(
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Failed to validate Redis connection, treating as unusable.");
+            logger.LogDebug(ex, "[{Profile}] Failed to validate Redis connection, treating as unusable.", profileName);
             return false;
         }
     }
@@ -164,7 +168,7 @@ public sealed class RedisConnectionPool(
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Error during Redis connection CloseAsync.");
+            logger.LogDebug(ex, "[{Profile}] Error during Redis connection CloseAsync.", profileName);
         }
 
         try
@@ -173,7 +177,7 @@ public sealed class RedisConnectionPool(
         }
         catch (Exception ex)
         {
-            logger.LogDebug(ex, "Error during Redis connection DisposeAsync.");
+            logger.LogDebug(ex, "[{Profile}] Error during Redis connection DisposeAsync.", profileName);
         }
     }
 
@@ -184,13 +188,13 @@ public sealed class RedisConnectionPool(
         var maxSize   = Interlocked.Read(ref defaultSize);
         var excess    = allocated - taken;
 
-        CacheInstruments.PoolCleanups.Add(1);
+        CacheInstruments.PoolCleanups.Add(1, ProfileTag);
 
         if (excess <= maxSize)
             return;
 
         var rmRequired = excess - maxSize;
-        logger.LogInformation("Cleaning up {Count} excess redis connections", rmRequired);
+        logger.LogInformation("[{Profile}] Cleaning up {Count} excess redis connections", profileName, rmRequired);
 
         var removed = 0;
 
@@ -200,29 +204,26 @@ public sealed class RedisConnectionPool(
             {
                 await DisposeMuxAsync(mux);
                 Interlocked.Decrement(ref this.allocated);
-                ObservableAllocated = Interlocked.Read(ref this.allocated);
-                CacheInstruments.ConnectionsDeallocated.Add(1);
+                CacheInstruments.ConnectionsDeallocated.Add(1, ProfileTag);
                 rmRequired--;
                 removed++;
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Failed to clean up Redis connection.");
+                logger.LogError(e, "[{Profile}] Failed to clean up Redis connection.", profileName);
             }
         }
 
         if (removed > 0)
         {
-            CacheInstruments.PoolConnectionsRemoved.Add(removed);
-            logger.LogInformation("Removed {Removed} redis connections during cleanup", removed);
+            CacheInstruments.PoolConnectionsRemoved.Add(removed, ProfileTag);
+            logger.LogInformation("[{Profile}] Removed {Removed} redis connections during cleanup", profileName, removed);
         }
     }
 
     protected async override Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        logger.LogInformation("Starting RedisConnectionPool with default size {Size}", defaultSize);
-        
-        ObservableMaxSize = Interlocked.Read(ref defaultSize);
+        logger.LogInformation("[{Profile}] Starting RedisConnectionPool with default size {Size}", profileName, defaultSize);
 
         PopulateInitial();
 
@@ -234,15 +235,15 @@ public sealed class RedisConnectionPool(
                 var taken     = Interlocked.Read(ref this.taken);
 
                 logger.LogDebug(
-                    "Cleaning up redis pool call, allocated: {allocated}, taken: {taken}",
-                    allocated, taken);
+                    "[{Profile}] Cleaning up redis pool call, allocated: {allocated}, taken: {taken}",
+                    profileName, allocated, taken);
 
                 await Cleanup();
             }
         }
         catch (OperationCanceledException)
         {
-            logger.LogInformation("Redis cleanup service stopping...");
+            logger.LogInformation("[{Profile}] Redis cleanup service stopping...", profileName);
         }
     }
 
@@ -253,8 +254,8 @@ public sealed class RedisConnectionPool(
         if (current >= MaxAllowedSize)
         {
             logger.LogCritical(
-                "Redis pool reached max allowed size {MaxAllowedSize}. Consider scaling infrastructure or adding replicas!",
-                MaxAllowedSize);
+                "[{Profile}] Redis pool reached max allowed size {MaxAllowedSize}. Consider scaling infrastructure or adding replicas!",
+                profileName, MaxAllowedSize);
             return;
         }
 
@@ -274,26 +275,39 @@ public sealed class RedisConnectionPool(
         if (proposed <= current)
             return;
 
-        logger.LogInformation("Auto-scaling Redis pool size from {Old} to {New}", current, proposed);
+        logger.LogInformation("[{Profile}] Auto-scaling Redis pool size from {Old} to {New}", profileName, current, proposed);
         Interlocked.Exchange(ref defaultSize, proposed);
-        ObservableMaxSize = proposed;
         lastScaleUp = now;
-        
-        CacheInstruments.PoolScaleUps.Add(1);
+
+        CacheInstruments.PoolScaleUps.Add(1, ProfileTag);
     }
 
     public async override Task StopAsync(CancellationToken cancellationToken)
     {
-        logger.LogInformation("Stopping RedisConnectionPool, disposing all connections...");
+        logger.LogInformation("[{Profile}] Stopping RedisConnectionPool, disposing all connections...", profileName);
 
         timer.Dispose();
 
         while (connectionPool.TryTake(out var mux))
         {
             await DisposeMuxAsync(mux);
-            CacheInstruments.ConnectionsDeallocated.Add(1);
+            CacheInstruments.ConnectionsDeallocated.Add(1, ProfileTag);
         }
+
+        Pools.TryRemove(new KeyValuePair<string, RedisConnectionPool>(profileName, this));
 
         await base.StopAsync(cancellationToken);
     }
+
+    private KeyValuePair<string, object?> ProfileTag => new("profile", profileName);
+
+    // Per-pool gauge observations, each tagged with its profile so OpenTelemetry reports them separately.
+    internal static IEnumerable<Measurement<long>> ObserveTaken()
+        => Pools.Values.Select(p => new Measurement<long>(Interlocked.Read(ref p.taken), p.ProfileTag));
+
+    internal static IEnumerable<Measurement<long>> ObserveAllocated()
+        => Pools.Values.Select(p => new Measurement<long>(Interlocked.Read(ref p.allocated), p.ProfileTag));
+
+    internal static IEnumerable<Measurement<long>> ObserveMaxSize()
+        => Pools.Values.Select(p => new Measurement<long>(Interlocked.Read(ref p.defaultSize), p.ProfileTag));
 }

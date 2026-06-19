@@ -12,6 +12,7 @@ using Orleans.Hosting;
 using Orleans.Serialization;
 using Services.Ion;
 using Argon.Grains.Interfaces;
+using Argon.Services;
 using StackExchange.Redis;
 
 #pragma warning disable ORLEANSEXP002
@@ -132,7 +133,7 @@ public static class OrleansExtension
                 siloBuilder
                    .AddDistributedGrainDirectory()
                    .UseRedisClustering(x
-                        => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!));
+                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
             });
 
             return builder;
@@ -189,7 +190,7 @@ public static class OrleansExtension
                         "meets"
                     ], "Npgsql", "DefaultConnection")
                    .UseRedisReminderService(x
-                        => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!))
+                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans))
                    .AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
                        .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
                        .EnsureSchedulerActiveAsync())
@@ -215,7 +216,7 @@ public static class OrleansExtension
                 siloBuilder
                    .AddDistributedGrainDirectory()
                    .UseRedisClustering(x
-                        => x.ConfigurationOptions = ConfigurationOptions.Parse(builder.Configuration.GetConnectionString("cache")!));
+                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
             });
 
             if (builder.Environment.IsWorker() || builder.Environment.IsHybrid())
@@ -232,7 +233,7 @@ public static class OrleansExtension
     public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
     {
         foreach (var key in keys)
-            builder.AddRedisStorage(key, 0);
+            builder.AddRedisStorage(key);
 
         return builder;
     }

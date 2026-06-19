@@ -75,7 +75,6 @@ public class RedisGrainStorageOptions : IStorageProviderSerializerOptions
 #region Implementation of IStorageProviderSerializerOptions
 
     public IGrainStorageSerializer GrainStorageSerializer { get; set; }
-    public int                     DatabaseName           { get; set; } = 7;
 
 #endregion
 }
@@ -86,7 +85,8 @@ public static class RedisGrainStorageFactory
     {
         var optionsMonitor = services.GetRequiredService<IOptionsMonitor<RedisGrainStorageOptions>>();
         var clusterOptions = services.GetProviderClusterOptions(name);
+        var pool           = services.GetRequiredKeyedService<IRedisPoolConnections>(RedisProfiles.OrleansStorage);
 
-        return ActivatorUtilities.CreateInstance<RedisStorage>(services, Options.Create(optionsMonitor.Get(name)), name, clusterOptions);
+        return ActivatorUtilities.CreateInstance<RedisStorage>(services, Options.Create(optionsMonitor.Get(name)), name, clusterOptions, pool);
     }
 }

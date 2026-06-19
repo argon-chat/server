@@ -111,6 +111,16 @@ public static class WarmUpExtension
             logger.LogInformation("Database created");
         }
 
+        // Pin one physical CockroachDB session for the whole migration. The bootstrap tables we
+        // CREATE here (__MigrationLock, __EFMigrationsHistory) must be visible — same database,
+        // same schema/search_path — to the very next statement that uses them. db.ExecuteSqlRawAsync
+        // and command.ExecuteNonQueryAsync otherwise each open/close the ref-counted connection
+        // independently and can land on different pooled sessions; on a brand-new database that
+        // races a CREATE against its first use and surfaces as
+        // 42P01: relation "__EFMigrationsHistory" does not exist. The connection is released when
+        // the warm-up DbContext is disposed.
+        await db.OpenConnectionAsync();
+
         var lockTtl  = TimeSpan.FromMinutes(10);
         var workerId = Environment.MachineName;
 
@@ -125,10 +135,10 @@ public static class WarmUpExtension
             var historyRepo = db.GetService<IHistoryRepository>();
 
             // The history table must exist before we can record applied migrations.
-            // EF's own migrator creates it as part of the first migration, but we apply
-            // each migration's commands ourselves below, so ensure it up front.
-            if (!await historyRepo.ExistsAsync())
-                await db.ExecuteSqlRawAsync(historyRepo.GetCreateScript());
+            // GetCreateIfNotExistsScript is idempotent, so we run it unconditionally rather than
+            // trusting a separate ExistsAsync probe that, on a freshly created database, can
+            // momentarily disagree with the session we actually write through.
+            await db.ExecuteSqlRawAsync(historyRepo.GetCreateIfNotExistsScript());
 
             var pending = (await db.GetPendingMigrationsAsync()).ToList();
             if (pending.Count == 0)

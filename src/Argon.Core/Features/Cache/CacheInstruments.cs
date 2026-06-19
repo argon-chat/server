@@ -38,9 +38,9 @@ internal static class CacheInstruments
     public static readonly ObservableGauge<long> ConnectionsTaken =
         Instruments.Meter.CreateObservableGauge(
             InstrumentNames.RedisConnectionsTaken,
-            observeValue: () => RedisConnectionPool.ObservableTaken,
+            observeValues: RedisConnectionPool.ObserveTaken,
             unit: "{connection}",
-            description: "Current number of Redis connections taken from the pool");
+            description: "Current number of Redis connections taken from the pool (tagged per profile)");
 
     /// <summary>
     /// Gauge: Total connections (taken + available).
@@ -49,9 +49,9 @@ internal static class CacheInstruments
     public static readonly ObservableGauge<long> ConnectionsTotal =
         Instruments.Meter.CreateObservableGauge(
             InstrumentNames.RedisConnectionsTotal,
-            observeValue: () => RedisConnectionPool.ObservableAllocated,
+            observeValues: RedisConnectionPool.ObserveAllocated,
             unit: "{connection}",
-            description: "Current total number of Redis connections in the pool");
+            description: "Current total number of Redis connections in the pool (tagged per profile)");
 
     /// <summary>
     /// Counter: Total <c>Rent()</c> calls.
@@ -110,9 +110,9 @@ internal static class CacheInstruments
     public static readonly ObservableGauge<long> PoolMaxSize =
         Instruments.Meter.CreateObservableGauge(
             InstrumentNames.RedisPoolMaxSize,
-            observeValue: () => RedisConnectionPool.ObservableMaxSize,
+            observeValues: RedisConnectionPool.ObserveMaxSize,
             unit: "{connection}",
-            description: "Current configured maximum pool size");
+            description: "Current configured maximum pool size (tagged per profile)");
 
     /// <summary>
     /// Counter: Auto-scaling events.

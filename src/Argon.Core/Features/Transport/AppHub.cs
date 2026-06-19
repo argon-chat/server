@@ -2,6 +2,7 @@ namespace Argon.Core.Features.Transport;
 
 using Argon.Features.BotApi;
 using Argon.Features.Env;
+using Argon.Services;
 using ion.runtime;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
@@ -265,8 +266,11 @@ public static class SignalRHubExtensions
            .AddSignalR()
            //.AddMessagePackProtocol()
            .AddHubOptions<AppHub>(options => options.EnableDetailedErrors = true)
-           .AddStackExchangeRedis(builder.Configuration.GetConnectionString("cache")!,
-                x => x.Configuration.ChannelPrefix = new RedisChannel("argon-bus", RedisChannel.PatternMode.Literal));
+           .AddStackExchangeRedis(x =>
+            {
+                x.Configuration              = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Backplane);
+                x.Configuration.ChannelPrefix = new RedisChannel("argon-bus", RedisChannel.PatternMode.Literal);
+            });
     }
 }
 

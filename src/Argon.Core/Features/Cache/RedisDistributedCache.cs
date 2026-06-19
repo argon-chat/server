@@ -5,12 +5,8 @@ using System.Diagnostics;
 using Microsoft.Extensions.Caching.Distributed;
 using StackExchange.Redis;
 
-public class RedisDistributedCacheOptions
-{
-    public int DbId { get; set; } = 99;
-}
-
-public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDistributedCacheOptions> options) : IDistributedCache, IDisposable
+public class RedisDistributedCache(
+    [FromKeyedServices(RedisProfiles.HybridCache)] IRedisPoolConnections redis) : IDistributedCache, IDisposable
 {
     private const string AbsoluteExpirationKey = "absexp";
     private const string SlidingExpirationKey  = "sldexp";
@@ -45,7 +41,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
     private byte[]? GetAndRefresh(string key, bool getData)
     {
         using var conn    = redis.Rent();
-        var       cache   = conn.GetDatabase(options.Value.DbId);
+        var       cache   = conn.GetDatabase();
         var       results = cache.HashGet((RedisKey)key, GetHashFields(getData));
         if (results.Length >= 2)
         {
@@ -59,7 +55,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
     private async Task<byte[]?> GetAndRefreshAsync(string key, bool getData, CancellationToken token = default(CancellationToken))
     {
         using var conn    = redis.Rent();
-        var       cache   = conn.GetDatabase(options.Value.DbId);
+        var       cache   = conn.GetDatabase();
         var       results = await cache.HashGetAsync((RedisKey)key, GetHashFields(getData)).ConfigureAwait(false);
         if (results.Length >= 2)
         {
@@ -169,7 +165,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
         try
         {
             using var conn  = redis.Rent();
-            var       cache = conn.GetDatabase(options.Value.DbId);
+            var       cache = conn.GetDatabase();
             cache.KeyDelete((RedisKey)key);
         }
         finally
@@ -184,7 +180,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
         try
         {
             using var conn  = redis.Rent();
-            var       cache = conn.GetDatabase(options.Value.DbId);
+            var       cache = conn.GetDatabase();
             await cache.KeyDeleteAsync((RedisKey)key).ConfigureAwait(false);
         }
         finally
@@ -209,7 +205,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
     private void SetImpl(string key, ReadOnlySequence<byte> value, DistributedCacheEntryOptions opt)
     {
         using var conn  = redis.Rent();
-        var       cache = conn.GetDatabase(options.Value.DbId);
+        var       cache = conn.GetDatabase();
 
         var creationTime = DateTimeOffset.UtcNow;
 
@@ -282,7 +278,7 @@ public class RedisDistributedCache(IRedisPoolConnections redis, IOptions<RedisDi
         token.ThrowIfCancellationRequested();
 
         using var conn  = redis.Rent();
-        var       cache = conn.GetDatabase(options.Value.DbId);
+        var       cache = conn.GetDatabase();
         Debug.Assert(cache is not null);
 
         var creationTime = DateTimeOffset.UtcNow;

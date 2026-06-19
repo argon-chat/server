@@ -26,6 +26,16 @@ public class ArgonServerTargetHost(string redisConnectionString, string natsConn
         builder.UseSetting("ConnectionStrings:cache", redisConnectionString);
         builder.UseSetting("ConnectionStrings:nats", natsConnectionString);
         builder.UseSetting("ConnectionStrings:Default", cockroachConnectionString);
+
+        // Per-purpose Redis profiles (all on the single test container, separated by logical database).
+        foreach (var (profile, db) in new[]
+                 {
+                     ("Cache", 0), ("HybridCache", 10), ("OrleansStorage", 7), ("Orleans", 1), ("Backplane", 2)
+                 })
+        {
+            builder.UseSetting($"Redis:{profile}:ConnectionString", redisConnectionString);
+            builder.UseSetting($"Redis:{profile}:Database", db.ToString());
+        }
         
         builder.UseSetting("CallKit:Sfu:CommandUrl", "http://localhost:7880");
         builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");
