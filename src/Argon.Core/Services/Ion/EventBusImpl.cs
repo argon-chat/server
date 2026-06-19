@@ -26,8 +26,8 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
         //}
     }
         
-    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) => 
-        await DispatchTree(ev, this.GetClusterClient(), this.GetSessionId(), ct);
+    public async Task Dispatch(IArgonClientEvent ev, CancellationToken ct = default) =>
+        await DispatchTree(ev, this.GetClusterClient(), this.GetUserId(), this.GetSessionId(), ct);
 
     public IAsyncEnumerable<IArgonEvent> Pipe(IAsyncEnumerable<IArgonClientEvent>? ev, CancellationToken ct = default)
         => throw new NotImplementedException();
@@ -83,6 +83,7 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
         IAsyncEnumerable<IArgonEvent> serverEvents,
         IAsyncEnumerable<IArgonClientEvent>? clientEvents,
         IClusterClient client,
+        Guid userId,
         Guid sessionId,
         ILogger logger,
         [EnumeratorCancellation] CancellationToken ct)
@@ -93,8 +94,8 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
         try
         {
             var serverTask = GetNextOrNullAsync(serverEnum);
-            var clientTask = clientEnum != null 
-                ? ProcessNextClientEventAsync(clientEnum, client, sessionId, logger) 
+            var clientTask = clientEnum != null
+                ? ProcessNextClientEventAsync(clientEnum, client, userId, sessionId, logger)
                 : Task.FromResult(false);
 
             while (!ct.IsCancellationRequested)
@@ -112,7 +113,7 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
                 else
                 {
                     if (!await clientTask) break;
-                    clientTask = ProcessNextClientEventAsync(clientEnum!, client, sessionId, logger);
+                    clientTask = ProcessNextClientEventAsync(clientEnum!, client, userId, sessionId, logger);
                 }
             }
         }
@@ -166,15 +167,16 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
     private async static Task<bool> ProcessNextClientEventAsync(
         IAsyncEnumerator<IArgonClientEvent> enumerator,
         IClusterClient client,
+        Guid userId,
         Guid sessionId,
         ILogger logger)
     {
         try
         {
-            if (!await enumerator.MoveNextAsync()) 
+            if (!await enumerator.MoveNextAsync())
                 return false;
-            
-            await DispatchTree(enumerator.Current, client, sessionId);
+
+            await DispatchTree(enumerator.Current, client, userId, sessionId);
             return true;
         }
         catch (OperationCanceledException)
@@ -207,9 +209,11 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
         //await Task.WhenAll(tasks);
     }
 
-    private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid sessionId, CancellationToken ct = default)
+    private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid userId, Guid sessionId, CancellationToken ct = default)
     {
-        var sessionGrain = client.GetGrain<IUserSessionGrain>(sessionId.ToString());
+        // Session grain is keyed "{userId}:{sid}". This legacy Ion path has no transport ConnectionId,
+        // so it uses the sid itself as the connection id (one pseudo-connection per session).
+        var sessionGrain = client.GetGrain<IUserSessionGrain>($"{userId}:{sessionId}");
 
         switch (ev)
         {
@@ -220,7 +224,7 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
                 await sessionGrain.OnTypingStopEmit(stopTyping.channelId);
                 break;
             case HeartBeatEvent heartbeat:
-                if (!await sessionGrain.HeartBeatAsync(heartbeat.status))
+                if (!await sessionGrain.HeartBeatAsync(sessionId.ToString(), heartbeat.status))
                     throw new InvalidOperationException("Session expired, dropping connection");
                 break;
             case SubscribeToMySpaces:

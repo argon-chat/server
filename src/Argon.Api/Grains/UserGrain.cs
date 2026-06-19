@@ -203,26 +203,39 @@ public class UserGrain(
            .ToListAsync(cancellationToken: ct);
     }
 
-    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence)
+    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
     {
-        await presenceService.BroadcastActivityPresence(presence, this.GetPrimaryKey(), Guid.Empty);
+        var userId = this.GetPrimaryKey();
+        // Store this session's activity (per-session, so other devices aren't clobbered), then broadcast
+        // the representative activity across all the user's sessions. The wire still carries one activity
+        // ("last"); the full per-session set lives server-side for when the contract grows.
+        await presenceService.BroadcastActivityPresence(presence, userId, sessionId);
+        var representative = await presenceService.GetUsersActivityPresence(userId) ?? presence;
+
         var servers = await GetMyServersIds();
         await Task.WhenAll(servers.Select(server =>
             GrainFactory
                .GetGrain<ISpaceGrain>(server)
-               .SetUserPresence(this.GetPrimaryKey(), presence)));
+               .SetUserPresence(userId, representative)));
     }
 
-    public async ValueTask RemoveBroadcastPresenceAsync()
+    public async ValueTask RemoveBroadcastPresenceAsync(string sessionId)
     {
-        logger.LogInformation("Called remove broadcast presence for {userId}", this.GetPrimaryKey());
-        await presenceService.RemoveActivityPresence(this.GetPrimaryKey());
+        var userId = this.GetPrimaryKey();
+        // Only this session's activity is cleared. If the session had none, there's nothing to
+        // rebroadcast (avoids spamming a "presence removed" event for users who never set activity).
+        if (!await presenceService.RemoveActivityPresence(userId, sessionId))
+            return;
 
-        var servers = await GetMyServersIds();
+        logger.LogInformation("Removed activity presence for {userId} session {sessionId}", userId, sessionId);
+
+        // Another device may still have an activity — fall back to it; otherwise clear.
+        var representative = await presenceService.GetUsersActivityPresence(userId);
+        var servers        = await GetMyServersIds();
         await Task.WhenAll(servers.Select(server =>
-            GrainFactory
-               .GetGrain<ISpaceGrain>(server)
-               .RemoveUserPresence(this.GetPrimaryKey())));
+            representative is not null
+                ? GrainFactory.GetGrain<ISpaceGrain>(server).SetUserPresence(userId, representative)
+                : GrainFactory.GetGrain<ISpaceGrain>(server).RemoveUserPresence(userId)));
     }
 
     //public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
@@ -426,9 +439,16 @@ public class UserGrain(
     {
         var userId = this.GetPrimaryKey();
         var aggregatedStatus = await presenceService.GetAggregatedStatusAsync(userId, ct);
-        
+
         logger.LogDebug("Aggregated status for user {userId}: {status}", userId, aggregatedStatus);
-        
+
+        // Hysteresis: only fan out when the aggregate actually changed since our last broadcast.
+        // Connects/heartbeats/transient reconnects that re-compute the same status now cost nothing
+        // (no per-space SetUserStatus, no replay-stream append). All status broadcast paths funnel
+        // through here so the last-broadcast record stays consistent.
+        if (!await presenceService.MarkBroadcastIfChangedAsync(userId, aggregatedStatus, ct))
+            return;
+
         var servers = await GetMyServersIds(ct);
         await Task.WhenAll(servers.Select(server =>
             GrainFactory

@@ -87,10 +87,10 @@ public class UserInteractionImpl(
     }
 
     public async Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default)
-        => await this.GetGrain<IUserGrain>(this.GetUserId()).BroadcastPresenceAsync(presence);
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).BroadcastPresenceAsync(presence, this.GetSessionId().ToString());
 
     public async Task RemoveBroadcastPresence(CancellationToken ct = default)
-        => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync();
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync(this.GetSessionId().ToString());
 
     public async Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default)
         => IonArray<FeatureFlag>.Empty;

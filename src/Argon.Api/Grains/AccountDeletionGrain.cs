@@ -425,9 +425,10 @@ public class AccountDeletionGrain(
         {
             var sessionIds = await presenceService.GetActiveSessionIdsAsync(UserId);
             foreach (var sessionId in sessionIds)
+            {
+                await presenceService.RemoveActivityPresence(UserId, sessionId);
                 await presenceService.RemoveSessionAsync(UserId, sessionId);
-
-            await presenceService.RemoveActivityPresence(UserId);
+            }
 
             logger.LogInformation("Invalidated {Count} sessions for user {UserId}", sessionIds.Count, UserId);
         }

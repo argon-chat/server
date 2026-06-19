@@ -68,9 +68,6 @@ public static class HttpContextExtensions
 
         public Guid GetSessionId()
         {
-            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
-                return Guid.AllBitsSet;
-            // Priority 1: ArgonSecure cookie
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
             {
                 var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
@@ -78,15 +75,17 @@ public static class HttpContextExtensions
                     return sid;
             }
 
-            // Priority 2: Legacy headers (fallback for compatibility)
             var env = ctx.RequestServices.GetRequiredService<IHostEnvironment>();
 
-            if (env.IsDevelopment() && ctx.Request.Headers.TryGetValue("X-Ctt", out var xCtt) && !string.IsNullOrWhiteSpace(xCtt))
+            if (env.IsDevelopment())
             {
-                if (Guid.TryParse(xCtt.ToString(), out var devSid))
+                if (ctx.Request.Headers.TryGetValue("X-Ctt", out var xCtt) && !string.IsNullOrWhiteSpace(xCtt)
+                    && Guid.TryParse(xCtt.ToString(), out var devSid))
                     return devSid;
+                return Guid.AllBitsSet;
             }
 
+            // Priority 2: Legacy headers (fallback for compatibility)
             if (ctx.Request.Headers.TryGetValue("Sec-Ref", out var secRef) && !string.IsNullOrWhiteSpace(secRef))
             {
                 if (Guid.TryParse(secRef.ToString(), out var legacySid))

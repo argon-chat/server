@@ -22,7 +22,9 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
         EnsureBeforeCall(true);
         var spaceIds = await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds();
         await Task.WhenAll(spaceIds.Select(x => Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{x}")));
-        await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).BeginRealtimeSession();
+        // Session grain is keyed by the stable sid (not this ephemeral ConnectionId); a reconnect of the
+        // same client re-attaches to the same session instead of churning a fresh one.
+        await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).AttachConnectionAsync(Context.ConnectionId);
     }
 
     /// <summary>
@@ -74,6 +76,10 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
 
     private Guid UserId => Guid.Parse(Context.UserIdentifier!);
 
+    // Stable session-grain key "{userId}:{sid}". sid is the per-launch ticket claim, so reconnects of
+    // the same client resolve to the same session grain.
+    private string SessionGrainKey => $"{UserId}:{Context.User!.FindFirstValue("sid")}";
+
     private void EnsureBeforeCall(bool isAllowAbort = false)
     {
         bool takeClaim(string key, out string value)
@@ -106,7 +112,15 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     }
 
     public async override Task OnDisconnectedAsync(Exception? exception)
-        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).EndRealtimeSession();
+    {
+        // Detach this connection from its session. If it was the last one, the session arms a grace
+        // reminder (it does NOT go offline immediately) so a transient drop/reconnect doesn't flap.
+        var sid = Context.User?.FindFirstValue("sid");
+        if (Context.UserIdentifier is null || string.IsNullOrEmpty(sid))
+            return;
+        await factory.GetGrain<IUserSessionGrain>($"{Context.UserIdentifier}:{sid}")
+           .DetachConnectionAsync(Context.ConnectionId);
+    }
 
     public async Task SubscribeToSpace(Guid spaceId)
         => await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
@@ -123,7 +137,12 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
         => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"channels/{channelId}");
 
     public async Task Heartbeat(UserStatus status)
-        => await factory.GetGrain<IUserSessionGrain>(Context.ConnectionId).HeartBeatAsync(status);
+        => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).HeartBeatAsync(Context.ConnectionId, status);
+
+    // Explicit, intentional offline — the client calls this on logout/quit/account-switch so others see
+    // them go offline immediately instead of lingering for the disconnect grace window.
+    public async Task GoOffline()
+        => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).GoOfflineAsync();
 
     public async Task IAmTyping(Guid channelId)
     {

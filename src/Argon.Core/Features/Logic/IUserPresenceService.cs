@@ -24,11 +24,22 @@ public interface IUserPresenceService
     Task                         RemoveSessionAsync(Guid userId, string sessionId, CancellationToken ct = default);
     Task<List<string>>           GetActiveSessionIdsAsync(Guid userId, CancellationToken ct = default);
 
-    Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId);
+    // Activity presence is stored PER SESSION (keyed by sid), so different devices of the same user no
+    // longer clobber each other's activity. The server already keeps the full per-session set; the
+    // current wire still exposes a single ("last") activity via GetUsersActivityPresence, but
+    // GetUserActivitiesAsync surfaces the whole set for when the contract grows to multiple activities.
+    Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, string sessionId);
+
+    /// <summary>Every live session's activity for the user (the multi-activity set).</summary>
+    Task<List<UserActivityPresence>> GetUserActivitiesAsync(Guid userId);
 
     Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds);
-    Task<UserActivityPresence?>                  GetUsersActivityPresence(Guid userId);
-    Task                                         RemoveActivityPresence(Guid userId);
+
+    /// <summary>The single representative ("last") activity for the current single-activity wire.</summary>
+    Task<UserActivityPresence?> GetUsersActivityPresence(Guid userId);
+
+    /// <summary>Removes one session's activity. Returns true if that session actually had an activity.</summary>
+    Task<bool> RemoveActivityPresence(Guid userId, string sessionId);
 
     /// <summary>
     /// Sets the preferred status for a specific session and recalculates the aggregated status.
@@ -60,6 +71,15 @@ public interface IUserPresenceService
     /// Checks whether a specific session's presence key still exists in Redis.
     /// </summary>
     Task<bool> IsSessionAliveAsync(Guid userId, string sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Records <paramref name="status"/> as the user's last-broadcast presence and returns true ONLY
+    /// if it differs from the previously recorded value (true also when nothing was recorded yet).
+    /// Lets the aggregator suppress redundant presence broadcasts — a reconnect/heartbeat that nets
+    /// the same aggregate produces no fan-out and no replay-stream write. NOT a substitute for the
+    /// multi-session flap fix (the aggregate genuinely changes there); this only kills duplicates.
+    /// </summary>
+    Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default);
 }
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
@@ -76,11 +96,9 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string SessionsSetKey(Guid userId)
         => $"presence:user:{userId}:sessions";
 
-    private static string SessionPresenceKey(Guid userId)
-        => $"activity:user:{userId}:session:broadcast";
-
-    private static string SessionPresenceKeyPrefix(Guid userId)
-        => $"activity:user:{userId}:session:broadcast";
+    // One activity entry per session (sid), so multiple devices don't overwrite each other.
+    private static string ActivitySessionKey(Guid userId, string sessionId)
+        => $"activity:user:{userId}:session:{sessionId}";
 
     public Task SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default)
         => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
@@ -155,28 +173,56 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         return sessionIds;
     }
 
-    public async Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, Guid sessionId)
-        => await cache.StringSetAsync(SessionPresenceKey(userId), JsonConvert.SerializeObject(presence), TimeSpan.FromMinutes(10));
+    public Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, string sessionId)
+        => cache.StringSetAsync(ActivitySessionKey(userId, sessionId), JsonConvert.SerializeObject(presence), TimeSpan.FromMinutes(10));
+
+    public async Task<List<UserActivityPresence>> GetUserActivitiesAsync(Guid userId)
+    {
+        // Fold over the user's live sessions (same O(1) index used for status) and read each session's
+        // TTL'd activity entry. Expired/empty entries contribute nothing. No keyspace SCAN.
+        var activities = new List<UserActivityPresence>();
+        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId)))
+        {
+            var json = await cache.StringGetAsync(ActivitySessionKey(userId, sessionId));
+            if (string.IsNullOrEmpty(json))
+                continue;
+            var activity = JsonConvert.DeserializeObject<UserActivityPresence>(json);
+            if (activity is not null)
+                activities.Add(activity);
+        }
+
+        return activities;
+    }
 
     public async Task<Dictionary<Guid, UserActivityPresence>> BatchGetUsersActivityPresence(List<Guid> userIds)
     {
         var distinctIds = userIds.Distinct().ToList();
-        var keys = await Task.WhenAll(distinctIds.Select(async x => (await cache.StringGetAsync(SessionPresenceKeyPrefix(x)), x)));
+        var results = await Task.WhenAll(distinctIds.Select(async id => (id, rep: await GetUsersActivityPresence(id))));
         var dict = new Dictionary<Guid, UserActivityPresence>();
-        foreach (var (presence, userId) in keys.Where(x => !string.IsNullOrEmpty(x.Item1)))
-            dict.TryAdd(userId, JsonConvert.DeserializeObject<UserActivityPresence>(presence!)!);
+        foreach (var (id, rep) in results)
+            if (rep is not null)
+                dict.TryAdd(id, rep);
 
         return dict;
     }
 
     public async Task<UserActivityPresence?> GetUsersActivityPresence(Guid userId)
-    {
-        var presence = await cache.StringGetAsync(SessionPresenceKeyPrefix(userId));
-        return string.IsNullOrEmpty(presence) ? null : JsonConvert.DeserializeObject<UserActivityPresence>(presence);
-    }
+        => PickRepresentativeActivity(await GetUserActivitiesAsync(userId));
 
-    public Task RemoveActivityPresence(Guid userId)
-        => cache.KeyDeleteAsync(SessionPresenceKeyPrefix(userId));
+    // The single activity the current wire exposes = the most recently started one across sessions.
+    private static UserActivityPresence? PickRepresentativeActivity(List<UserActivityPresence> activities)
+        => activities.Count == 0
+            ? null
+            : activities.OrderByDescending(a => a.startTimestampSeconds).First();
+
+    public async Task<bool> RemoveActivityPresence(Guid userId, string sessionId)
+    {
+        var key     = ActivitySessionKey(userId, sessionId);
+        var existed = !string.IsNullOrEmpty(await cache.StringGetAsync(key));
+        if (existed)
+            await cache.KeyDeleteAsync(key);
+        return existed;
+    }
 
     public async Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default)
     {
@@ -257,6 +303,25 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 
     private static string AggregatedStatusKey(Guid userId)
         => $"status:user:{userId}:aggregated";
+
+    // The last status we actually broadcast to spaces for this user (presence hysteresis). Kept a bit
+    // longer than a session TTL so it bridges the gaps between status-change events; if it does lapse
+    // the next change simply re-broadcasts, which is harmless.
+    private static string LastBroadcastStatusKey(Guid userId)
+        => $"status:user:{userId}:lastbroadcast";
+
+    private static readonly TimeSpan LastBroadcastTTL = TimeSpan.FromMinutes(30);
+
+    public async Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default)
+    {
+        var key  = LastBroadcastStatusKey(userId);
+        var prev = await cache.StringGetAsync(key, ct);
+        if (!string.IsNullOrEmpty(prev) && Enum.TryParse<UserStatus>(prev, out var prevStatus) && prevStatus == status)
+            return false;
+
+        await cache.StringSetAsync(key, status.ToString(), LastBroadcastTTL, ct);
+        return true;
+    }
 
     public async Task<Dictionary<Guid, UserStatus>> BatchGetAggregatedStatusAsync(List<Guid> userIds, CancellationToken ct = default)
     {

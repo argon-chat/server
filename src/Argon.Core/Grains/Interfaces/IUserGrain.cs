@@ -23,10 +23,10 @@ public interface IUserGrain : IGrainWithGuidKey
     Task<List<Guid>> GetMyServersIds(CancellationToken ct = default);
 
     [Alias(nameof(BroadcastPresenceAsync))]
-    ValueTask BroadcastPresenceAsync(UserActivityPresence presence);
+    ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId);
 
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
-    ValueTask RemoveBroadcastPresenceAsync();
+    ValueTask RemoveBroadcastPresenceAsync(string sessionId);
 
     [Alias(nameof(UpdateUserDeviceHistory))]
     ValueTask UpdateUserDeviceHistory();
