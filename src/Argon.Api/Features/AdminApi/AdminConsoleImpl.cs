@@ -2726,6 +2726,157 @@ public class AdminConsoleImpl(
         return new FeatureFlagActionResult(result.Success, result.FlagId, result.Error);
     }
 
+    // ── Tenant directory (self-hosted / enterprise routing) ──────────────────────────────────
+
+    public async Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var entities = await db.TenantDirectory
+           .Where(t => !t.IsDeleted)
+           .OrderBy(t => t.Domain)
+           .ToListAsync(ct);
+
+        var tenants = entities.Select(t => new TenantInfo(
+            t.Id, t.Domain, t.InstanceUrl, t.IsVerified, t.OrgName, t.OwnerUserId, t.Notes, t.CreatedAt.UtcDateTime)).ToList();
+
+        return new TenantDirectoryList(new IonArray<TenantInfo>(tenants));
+    }
+
+    public async Task<TenantActionResult> CreateTenant(CreateTenantInput input, CancellationToken ct = default)
+    {
+        try
+        {
+            var domain = NormalizeTenantDomain(input.domain);
+            if (domain is null)
+                return new TenantActionResult(false, null, "A valid email domain is required");
+            if (!IsValidInstanceUrl(input.instanceUrl))
+                return new TenantActionResult(false, null, "Instance URL must be an absolute https URL");
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            if (await db.TenantDirectory.AnyAsync(t => t.Domain == domain && !t.IsDeleted, ct))
+                return new TenantActionResult(false, null, "A tenant for this domain already exists");
+
+            var entity = new TenantDirectoryEntity
+            {
+                Domain      = domain,
+                InstanceUrl = input.instanceUrl.Trim(),
+                IsVerified  = false, // verify is a separate, system-operator-gated step
+                OrgName     = input.orgName?.Trim(),
+                OwnerUserId = input.ownerUserId,
+                Notes       = input.notes?.Trim()
+            };
+            db.TenantDirectory.Add(entity);
+            await db.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("CreateTenant", "Tenant", entity.Id.ToString(),
+                $"Created tenant domain='{domain}' url='{entity.InstanceUrl}' (unverified)");
+            return new TenantActionResult(true, entity.Id, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to create tenant");
+            return new TenantActionResult(false, null, "Failed to create tenant");
+        }
+    }
+
+    public async Task<TenantActionResult> UpdateTenant(UpdateTenantInput input, CancellationToken ct = default)
+    {
+        try
+        {
+            if (!IsValidInstanceUrl(input.instanceUrl))
+                return new TenantActionResult(false, input.tenantId, "Instance URL must be an absolute https URL");
+
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == input.tenantId && !x.IsDeleted, ct);
+            if (t is null)
+                return new TenantActionResult(false, input.tenantId, "Tenant not found");
+
+            t.InstanceUrl = input.instanceUrl.Trim();
+            t.OrgName     = input.orgName?.Trim();
+            t.Notes       = input.notes?.Trim();
+            await db.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("UpdateTenant", "Tenant", t.Id.ToString(), $"Updated tenant '{t.Domain}'");
+            return new TenantActionResult(true, t.Id, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to update tenant={TenantId}", input.tenantId);
+            return new TenantActionResult(false, input.tenantId, "Failed to update tenant");
+        }
+    }
+
+    public async Task<TenantActionResult> SetTenantVerified(Guid tenantId, bool isVerified, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var caller = OperatorRequestContext.Current;
+            if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
+                return new TenantActionResult(false, tenantId, "Only system operators can verify tenants");
+
+            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
+            if (t is null)
+                return new TenantActionResult(false, tenantId, "Tenant not found");
+
+            t.IsVerified = isVerified;
+            await db.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("SetTenantVerified", "Tenant", tenantId.ToString(),
+                $"Set verified={isVerified} for '{t.Domain}'");
+            return new TenantActionResult(true, tenantId, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to set tenant verified={TenantId}", tenantId);
+            return new TenantActionResult(false, tenantId, "Failed to set tenant verification");
+        }
+    }
+
+    public async Task<TenantActionResult> DeleteTenant(Guid tenantId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var t = await db.TenantDirectory.FirstOrDefaultAsync(x => x.Id == tenantId && !x.IsDeleted, ct);
+            if (t is null)
+                return new TenantActionResult(false, tenantId, "Tenant not found");
+
+            t.IsDeleted = true;
+            t.DeletedAt = DateTimeOffset.UtcNow;
+            await db.SaveChangesAsync(ct);
+
+            await auditService.LogAsync("DeleteTenant", "Tenant", tenantId.ToString(), $"Deleted tenant '{t.Domain}'");
+            return new TenantActionResult(true, tenantId, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to delete tenant={TenantId}", tenantId);
+            return new TenantActionResult(false, tenantId, "Failed to delete tenant");
+        }
+    }
+
+    private static string? NormalizeTenantDomain(string? domain)
+    {
+        if (string.IsNullOrWhiteSpace(domain)) return null;
+        var d  = domain.Trim().ToLowerInvariant();
+        var at = d.LastIndexOf('@');
+        if (at >= 0) d = d[(at + 1)..]; // tolerate a full email being pasted in
+        if (d.Length == 0 || !d.Contains('.') || d.Any(char.IsWhiteSpace)) return null;
+        return d;
+    }
+
+    private static bool IsValidInstanceUrl(string? url)
+    {
+        if (string.IsNullOrWhiteSpace(url)) return false;
+        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri)) return false;
+        if (uri.Scheme == Uri.UriSchemeHttps) return true;
+        // allow plain http only for localhost dev instances
+        return uri.Scheme == Uri.UriSchemeHttp && uri.Host is "localhost" or "127.0.0.1";
+    }
+
     private static DateTimeOffset? ToOffset(DateTime? dt)
         => dt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(dt.Value, DateTimeKind.Utc)) : null;
 

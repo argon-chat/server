@@ -123,6 +123,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Discovery (self-hosted / enterprise routing)
+
+    public DbSet<TenantDirectoryEntity> TenantDirectory => Set<TenantDirectoryEntity>();
+
+#endregion
+
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         => configurationBuilder.Conventions.Add(_ => new DefaultStringColumnTypeConvention());
 

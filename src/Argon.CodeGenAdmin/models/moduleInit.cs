@@ -108,6 +108,11 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<UpdateFeatureFlagInput>.Value = new Ion_UpdateFeatureFlagInput_Formatter();
       IonFormatterStorage<SetFeatureFlagOverrideInput>.Value = new Ion_SetFeatureFlagOverrideInput_Formatter();
       IonFormatterStorage<FeatureFlagActionResult>.Value = new Ion_FeatureFlagActionResult_Formatter();
+      IonFormatterStorage<TenantDirectoryList>.Value = new Ion_TenantDirectoryList_Formatter();
+      IonFormatterStorage<TenantInfo>.Value = new Ion_TenantInfo_Formatter();
+      IonFormatterStorage<CreateTenantInput>.Value = new Ion_CreateTenantInput_Formatter();
+      IonFormatterStorage<UpdateTenantInput>.Value = new Ion_UpdateTenantInput_Formatter();
+      IonFormatterStorage<TenantActionResult>.Value = new Ion_TenantActionResult_Formatter();
       IonFormatterStorage<SearchMatchKind>.Value = new Ion_SearchMatchKind_Formatter();
       IonFormatterStorage<DeviceTypeKind>.Value = new Ion_DeviceTypeKind_Formatter();
       IonFormatterStorage<ItemScenarioKind>.Value = new Ion_ItemScenarioKind_Formatter();

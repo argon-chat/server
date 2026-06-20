@@ -146,6 +146,16 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(SetFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteFeatureFlagOverride_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(DeleteFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetTenantDirectory_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetTenantDirectory), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateTenant_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(CreateTenant), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateTenant_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UpdateTenant), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetTenantVerified_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetTenantVerified), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteTenant_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(DeleteTenant), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -1263,6 +1273,92 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetTenantDirectory_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TenantDirectoryList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TenantActionResult> CreateTenant(CreateTenantInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), CreateTenant_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<CreateTenantInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TenantActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TenantActionResult> UpdateTenant(UpdateTenantInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UpdateTenant_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<UpdateTenantInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TenantActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TenantActionResult> SetTenantVerified(guid __tenantid, bool __isverified, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetTenantVerified_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __tenantid);
+        IonFormatterStorage<bool>.Write(writer, __isverified);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TenantActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<TenantActionResult> DeleteTenant(guid __tenantid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), DeleteTenant_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __tenantid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<TenantActionResult>(writer.Encode(), ct: ct);
     }
 
 }

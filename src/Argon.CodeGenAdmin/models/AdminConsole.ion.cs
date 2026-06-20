@@ -367,6 +367,26 @@ public sealed record FeatureFlagActionResult(bool success, string? flagId, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record TenantDirectoryList(IonArray<TenantInfo> tenants);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record TenantInfo(guid tenantId, string domain, string instanceUrl, bool isVerified, string? orgName, guid? ownerUserId, string? notes, datetime createdAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record CreateTenantInput(string domain, string instanceUrl, string? orgName, guid? ownerUserId, string? notes);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UpdateTenantInput(guid tenantId, string instanceUrl, string? orgName, string? notes);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record TenantActionResult(bool success, guid? tenantId, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -509,6 +529,11 @@ public interface IAdminConsole : IIonService
     Task<FeatureFlagActionResult> DeleteFeatureFlag(string flagId, CancellationToken ct = default);
     Task<FeatureFlagActionResult> SetFeatureFlagOverride(SetFeatureFlagOverrideInput input, CancellationToken ct = default);
     Task<FeatureFlagActionResult> DeleteFeatureFlagOverride(guid overrideId, CancellationToken ct = default);
+    Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default);
+    Task<TenantActionResult> CreateTenant(CreateTenantInput input, CancellationToken ct = default);
+    Task<TenantActionResult> UpdateTenant(UpdateTenantInput input, CancellationToken ct = default);
+    Task<TenantActionResult> SetTenantVerified(guid tenantId, bool isVerified, CancellationToken ct = default);
+    Task<TenantActionResult> DeleteTenant(guid tenantId, CancellationToken ct = default);
 }
 
 

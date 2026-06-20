@@ -4,6 +4,7 @@ using Argon.Core.Features.EF;
 using Argon.Core.Features.Transport;
 using Argon.Features.Admin;
 using Argon.Features.BotApi;
+using Argon.Features.Discovery;
 using Argon.Features.Env;
 using Argon.Features.HostMode;
 using Argon.Features.Integrations.Klipy;
@@ -69,6 +70,7 @@ builder.AddKlipyFeature();
 builder.AddContentModeration();
 builder.AddReportSystem();
 builder.AddOperatorAuth();
+builder.AddDiscoveryFeature();
 builder.UseIonPorts();
 
 var app = builder.Build();
@@ -81,6 +83,9 @@ else if (builder.Environment.IsSingleRegion())
 else
     app.UseMultiRegionWorkloads();
 app.UseSentryTracing();
+
+if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())
+    app.MapDiscovery();
 
 if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())
     app.MapHub<AppHub>("/w",

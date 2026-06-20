@@ -2784,6 +2784,143 @@ public sealed class Ion_FeatureFlagActionResult_Formatter : IonFormatter<Feature
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_TenantDirectoryList_Formatter : IonFormatter<TenantDirectoryList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public TenantDirectoryList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __tenants = IonFormatterStorage<TenantInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__tenants);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, TenantDirectoryList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<TenantInfo>.WriteArray(writer, value.tenants);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_TenantInfo_Formatter : IonFormatter<TenantInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public TenantInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __tenantid = IonFormatterStorage<guid>.Read(reader);
+        var __domain = IonFormatterStorage<string>.Read(reader);
+        var __instanceurl = IonFormatterStorage<string>.Read(reader);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+        var __orgname = reader.ReadNullable<string>();
+        var __owneruserid = reader.ReadNullable<guid>();
+        var __notes = reader.ReadNullable<string>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__tenantid, __domain, __instanceurl, __isverified, __orgname, __owneruserid, __notes, __createdat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, TenantInfo value)
+    {
+        writer.WriteStartArray(8);
+        IonFormatterStorage<guid>.Write(writer, value.tenantId);
+        IonFormatterStorage<string>.Write(writer, value.domain);
+        IonFormatterStorage<string>.Write(writer, value.instanceUrl);
+        IonFormatterStorage<bool>.Write(writer, value.isVerified);
+        IonFormatterStorage<string>.WriteNullable(writer, value.orgName);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.ownerUserId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.notes);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateTenantInput_Formatter : IonFormatter<CreateTenantInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateTenantInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __domain = IonFormatterStorage<string>.Read(reader);
+        var __instanceurl = IonFormatterStorage<string>.Read(reader);
+        var __orgname = reader.ReadNullable<string>();
+        var __owneruserid = reader.ReadNullable<guid>();
+        var __notes = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__domain, __instanceurl, __orgname, __owneruserid, __notes);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateTenantInput value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<string>.Write(writer, value.domain);
+        IonFormatterStorage<string>.Write(writer, value.instanceUrl);
+        IonFormatterStorage<string>.WriteNullable(writer, value.orgName);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.ownerUserId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.notes);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateTenantInput_Formatter : IonFormatter<UpdateTenantInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateTenantInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __tenantid = IonFormatterStorage<guid>.Read(reader);
+        var __instanceurl = IonFormatterStorage<string>.Read(reader);
+        var __orgname = reader.ReadNullable<string>();
+        var __notes = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__tenantid, __instanceurl, __orgname, __notes);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateTenantInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.tenantId);
+        IonFormatterStorage<string>.Write(writer, value.instanceUrl);
+        IonFormatterStorage<string>.WriteNullable(writer, value.orgName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.notes);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_TenantActionResult_Formatter : IonFormatter<TenantActionResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public TenantActionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __tenantid = reader.ReadNullable<guid>();
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __tenantid, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, TenantActionResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.tenantId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

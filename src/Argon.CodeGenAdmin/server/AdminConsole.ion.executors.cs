@@ -1132,6 +1132,92 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         
         IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetTenantDirectory_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetTenantDirectory();
+        
+        IonFormatterStorage<TenantDirectoryList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateTenant_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<CreateTenantInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateTenant(__input);
+        
+        IonFormatterStorage<TenantActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateTenant_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __input = IonFormatterStorage<UpdateTenantInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UpdateTenant(__input);
+        
+        IonFormatterStorage<TenantActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetTenantVerified_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __tenantid = IonFormatterStorage<guid>.Read(reader);
+        var __isverified = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetTenantVerified(__tenantid, __isverified);
+        
+        IonFormatterStorage<TenantActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteTenant_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __tenantid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteTenant(__tenantid);
+        
+        IonFormatterStorage<TenantActionResult>.Write(writer, result);
+    }
 
     
     
@@ -1267,6 +1353,16 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return SetFeatureFlagOverride_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteFeatureFlagOverride", StringComparison.InvariantCultureIgnoreCase))
             return DeleteFeatureFlagOverride_Execute(reader, writer, ct);
+        if (methodName.Equals("GetTenantDirectory", StringComparison.InvariantCultureIgnoreCase))
+            return GetTenantDirectory_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateTenant", StringComparison.InvariantCultureIgnoreCase))
+            return CreateTenant_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateTenant", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateTenant_Execute(reader, writer, ct);
+        if (methodName.Equals("SetTenantVerified", StringComparison.InvariantCultureIgnoreCase))
+            return SetTenantVerified_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteTenant", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteTenant_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
