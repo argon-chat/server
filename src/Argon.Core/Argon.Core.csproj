@@ -9,7 +9,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Audit.EntityFramework.Core" Version="32.1.0" />
+        <PackageReference Include="Audit.EntityFramework.Core" Version="32.2.0" />
         <PackageReference Include="Audit.NET" Version="32.1.0" />
         <PackageReference Include="KubernetesClient" Version="19.0.2" />
         <PackageReference Include="Livekit.Server.Sdk.Dotnet" Version="1.2.2" />
