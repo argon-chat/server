@@ -67,7 +67,7 @@
         <PackageReference Include="Twilio" Version="7.14.9" />
         <PackageReference Include="Ulid" Version="1.4.1" />
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
-        <PackageReference Include="Sentry.AspNetCore" Version="6.5.0" />
+        <PackageReference Include="Sentry.AspNetCore" Version="6.6.0" />
         <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
         <PackageReference Include="VaultSharp" Version="1.17.5.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
