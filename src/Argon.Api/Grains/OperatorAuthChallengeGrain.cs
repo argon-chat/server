@@ -68,7 +68,9 @@ public class OperatorAuthChallengeGrain(
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var op = await db.Operators.FirstOrDefaultAsync(
-            x => x.CertificateThumbprint == thumbprint && !x.IsDeleted);
+            x => x.CertificateThumbprint != null &&
+                 x.CertificateThumbprint.Replace(":", "").Replace("-", "").ToUpper() == thumbprint &&
+                 !x.IsDeleted);
 
         if (op is null)
             return OperatorAuthError.OperatorNotFound;
