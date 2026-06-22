@@ -53,7 +53,7 @@
         <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.1.0" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
         <PackageReference Include="NATS.Net" Version="2.7.3" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.1" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.1" />
         <PackageReference Include="Npgsql.Json.NET" Version="10.0.2" />
         <PackageReference Include="ObservableCollections.R3" Version="3.3.4" />
