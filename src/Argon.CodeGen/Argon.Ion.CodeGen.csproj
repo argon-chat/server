@@ -6,7 +6,7 @@
     <RootNamespace>Argon</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="ionpath.runtime" Version="1.11.0" />
+    <PackageReference Include="ionpath.runtime" Version="1.14.0" />
     <PackageReference Include="ionpath.runtime.client" Version="1.11.0" />
     <PackageReference Include="ionpath.runtime.network" Version="1.11.0" />
   </ItemGroup>
