@@ -90,7 +90,8 @@ public class UserInteractionImpl(
         => await this.GetGrain<IUserGrain>(this.GetUserId()).BroadcastPresenceAsync(presence, this.GetSessionId().ToString());
 
     public async Task RemoveBroadcastPresence(CancellationToken ct = default)
-        => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync(this.GetSessionId().ToString());
+        // Explicit user action — always broadcast the clear, even if the activity key already lapsed.
+        => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync(this.GetSessionId().ToString(), alwaysBroadcast: true);
 
     public async Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default)
         => IonArray<FeatureFlag>.Empty;

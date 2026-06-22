@@ -25,8 +25,13 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(BroadcastPresenceAsync))]
     ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId);
 
+    // alwaysBroadcast=true: the user explicitly cleared their activity (client RemoveBroadcastPresence)
+    // — fan out the removal/representative even if this session's activity key already lapsed (TTL), so
+    // already-connected observers don't keep a stale activity forever. alwaysBroadcast=false: a session
+    // just ended — only fan out if it actually had an activity, to avoid spamming removals on every
+    // disconnect of activity-less users.
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
-    ValueTask RemoveBroadcastPresenceAsync(string sessionId);
+    ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast);
 
     [Alias(nameof(UpdateUserDeviceHistory))]
     ValueTask UpdateUserDeviceHistory();

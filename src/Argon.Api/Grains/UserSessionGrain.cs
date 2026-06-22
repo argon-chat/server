@@ -254,9 +254,10 @@ public class UserSessionGrain(
 
         var stillOnline = await presenceService.IsUserOnlineAsync(_userId, ct);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(ct);
-        // Always clear THIS session's activity (per-session now): if another device of the user is still
-        // showing an activity it stays, this session's drops out. No-op for sessions without activity.
-        await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync(SessionId);
+        // Clear THIS session's activity (per-session): if another device still shows an activity it
+        // stays, this session's drops out. alwaysBroadcast=false → no fan-out for activity-less sessions
+        // (avoids a removal storm on every disconnect).
+        await grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync(SessionId, alwaysBroadcast: false);
 
         UserSessionGrainInstrument.Expirations.Add(1,
             new KeyValuePair<string, object?>("result", stillOnline ? "switch_session" : "offline"));

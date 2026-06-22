@@ -219,15 +219,19 @@ public class UserGrain(
                .SetUserPresence(userId, representative)));
     }
 
-    public async ValueTask RemoveBroadcastPresenceAsync(string sessionId)
+    public async ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast)
     {
-        var userId = this.GetPrimaryKey();
-        // Only this session's activity is cleared. If the session had none, there's nothing to
-        // rebroadcast (avoids spamming a "presence removed" event for users who never set activity).
-        if (!await presenceService.RemoveActivityPresence(userId, sessionId))
+        var userId      = this.GetPrimaryKey();
+        var hadActivity = await presenceService.RemoveActivityPresence(userId, sessionId);
+
+        // Skip the fan-out only on the session-ended path when this session had no activity. The
+        // explicit user-cleared path (alwaysBroadcast) must still broadcast even if the key already
+        // lapsed by TTL — otherwise observers keep showing a stale activity indefinitely.
+        if (!hadActivity && !alwaysBroadcast)
             return;
 
-        logger.LogInformation("Removed activity presence for {userId} session {sessionId}", userId, sessionId);
+        logger.LogInformation("Clearing activity presence for {userId} session {sessionId} (hadActivity={hadActivity})",
+            userId, sessionId, hadActivity);
 
         // Another device may still have an activity — fall back to it; otherwise clear.
         var representative = await presenceService.GetUsersActivityPresence(userId);
