@@ -143,11 +143,11 @@ public sealed record OperatorList(IonArray<OperatorInfo> operators);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record OperatorInfo(guid operatorId, string displayName, string email, guid? userId, bool isActive, bool isSystemOperator, OperatorCertificateInfo? certificate, datetime? lastAuthAt, datetime createdAt);
+public sealed record OperatorInfo(guid operatorId, string displayName, string email, guid? userId, bool isActive, bool isSystemOperator, IonArray<OperatorCertificateInfo> certificates, datetime? lastAuthAt, datetime createdAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record OperatorCertificateInfo(string serialNumber, string thumbprint, string subject, datetime notBefore, datetime notAfter, bool isExpired);
+public sealed record OperatorCertificateInfo(guid certificateId, string serialNumber, string thumbprint, string subject, datetime notBefore, datetime notAfter, bool isExpired, bool isRevoked, datetime enrolledAt, string? deviceName, string? deviceSerialNumber);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -167,7 +167,7 @@ public sealed record OperatorActionResult(bool success, string? error);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record EnrollCertificateResult(bool success, string? certificatePem, string? caChainPem, string? serialNumber, datetime? notAfter, string? error);
+public sealed record EnrollCertificateResult(bool success, guid? certificateId, string? certificatePem, string? caChainPem, string? serialNumber, string? thumbprint, datetime? notAfter, string? error);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -488,8 +488,8 @@ public interface IAdminConsole : IIonService
     Task<CreateOperatorResult> CreateOperator(CreateOperatorInput input, CancellationToken ct = default);
     Task<OperatorActionResult> DeactivateOperator(guid operatorId, CancellationToken ct = default);
     Task<OperatorActionResult> ActivateOperator(guid operatorId, CancellationToken ct = default);
-    Task<OperatorActionResult> RevokeOperatorCertificate(guid operatorId, CancellationToken ct = default);
-    Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, CancellationToken ct = default);
+    Task<OperatorActionResult> RevokeOperatorCertificate(guid certificateId, CancellationToken ct = default);
+    Task<EnrollCertificateResult> EnrollOperatorCertificate(guid operatorId, string csrPem, string? deviceName, string? deviceSerialNumber, CancellationToken ct = default);
     Task<OperatorAppAccessList> GetOperatorAppAccess(guid operatorId, CancellationToken ct = default);
     Task<OperatorAppAccessResult> GrantOperatorAppAccess(GrantOperatorAppAccessInput input, CancellationToken ct = default);
     Task<OperatorActionResult> RevokeOperatorAppAccess(guid operatorId, guid appId, CancellationToken ct = default);

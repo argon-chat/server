@@ -5,9 +5,11 @@ using Argon.Entities;
 using Argon.Features.Vault;
 
 public record CertificateEnrollmentResult(
+    Guid CertificateId,
     string CertificatePem,
     string CaChainPem,
     string SerialNumber,
+    string Thumbprint,
     DateTimeOffset NotAfter);
 
 public enum EnrollmentError
@@ -21,8 +23,11 @@ public enum EnrollmentError
 
 public interface IOperatorCertificateService
 {
-    Task<Either<CertificateEnrollmentResult, EnrollmentError>> EnrollCertificateAsync(Guid operatorId, string csrPem);
-    Task RevokeCertificateAsync(Guid operatorId);
+    Task<Either<CertificateEnrollmentResult, EnrollmentError>> EnrollCertificateAsync(
+        Guid operatorId, string csrPem, string? deviceName = null, string? deviceSerialNumber = null);
+
+    /// <summary>Revokes a single certificate by its id (soft-revoke; the record is preserved as history).</summary>
+    Task RevokeCertificateAsync(Guid certificateId);
 }
 
 public sealed class OperatorCertificateService(
@@ -31,7 +36,8 @@ public sealed class OperatorCertificateService(
     ILogger<OperatorCertificateService> logger)
     : IOperatorCertificateService
 {
-    public async Task<Either<CertificateEnrollmentResult, EnrollmentError>> EnrollCertificateAsync(Guid operatorId, string csrPem)
+    public async Task<Either<CertificateEnrollmentResult, EnrollmentError>> EnrollCertificateAsync(
+        Guid operatorId, string csrPem, string? deviceName = null, string? deviceSerialNumber = null)
     {
         var op = await db.Operators.FirstOrDefaultAsync(x => x.Id == operatorId && !x.IsDeleted);
 
@@ -50,20 +56,6 @@ public sealed class OperatorCertificateService(
             };
         }
 
-        // revoke existing certificate if any
-        if (!string.IsNullOrEmpty(op.CertificateSerialNumber))
-        {
-            try
-            {
-                await pkiService.RevokeCertificateAsync(op.CertificateSerialNumber);
-            }
-            catch (Exception e)
-            {
-                logger.LogWarning(e, "Failed to revoke old certificate serial={Serial} for operator={OperatorId}",
-                    op.CertificateSerialNumber, operatorId);
-            }
-        }
-
         SignedCertificateResult signed;
         try
         {
@@ -78,46 +70,53 @@ public sealed class OperatorCertificateService(
         // parse signed cert to extract metadata
         var cert = X509Certificate2.CreateFromPem(signed.CertificatePem);
 
-        op.CertificateSerialNumber = signed.SerialNumber;
-        op.CertificateThumbprint   = Convert.ToHexString(cert.GetCertHash(HashAlgorithmName.SHA256));
-        op.CertificateSubject      = cert.Subject;
-        op.CertificateNotBefore    = cert.NotBefore;
-        op.CertificateNotAfter     = cert.NotAfter;
+        // Add a new certificate record. Existing certificates remain active —
+        // an operator may carry multiple certificates (one per device).
+        var certificate = new OperatorCertificateEntity
+        {
+            OperatorId         = op.Id,
+            SerialNumber       = signed.SerialNumber,
+            Thumbprint         = Convert.ToHexString(cert.GetCertHash(HashAlgorithmName.SHA256)),
+            Subject            = cert.Subject,
+            NotBefore          = cert.NotBefore,
+            NotAfter           = cert.NotAfter,
+            DeviceName         = string.IsNullOrWhiteSpace(deviceName) ? null : deviceName.Trim(),
+            DeviceSerialNumber = string.IsNullOrWhiteSpace(deviceSerialNumber) ? null : deviceSerialNumber.Trim(),
+        };
 
+        db.OperatorCertificates.Add(certificate);
         await db.SaveChangesAsync();
 
-        logger.LogInformation("Enrolled certificate for operator={OperatorId}, serial={Serial}",
-            operatorId, signed.SerialNumber);
+        logger.LogInformation("Enrolled certificate {CertificateId} for operator={OperatorId}, serial={Serial}, device={Device}",
+            certificate.Id, operatorId, signed.SerialNumber, certificate.DeviceSerialNumber);
 
         var caChain = string.Join("\n", signed.CaChainPem);
         if (string.IsNullOrEmpty(caChain))
             caChain = signed.IssuingCaPem;
 
         return new CertificateEnrollmentResult(
+            certificate.Id,
             signed.CertificatePem,
             caChain,
             signed.SerialNumber,
+            certificate.Thumbprint,
             cert.NotAfter);
     }
 
-    public async Task RevokeCertificateAsync(Guid operatorId)
+    public async Task RevokeCertificateAsync(Guid certificateId)
     {
-        var op = await db.Operators.FirstOrDefaultAsync(x => x.Id == operatorId && !x.IsDeleted)
-                 ?? throw new InvalidOperationException($"Operator {operatorId} not found");
+        var cert = await db.OperatorCertificates.FirstOrDefaultAsync(x => x.Id == certificateId && !x.IsDeleted)
+                   ?? throw new InvalidOperationException($"Certificate {certificateId} not found");
 
-        if (!string.IsNullOrEmpty(op.CertificateSerialNumber))
-        {
-            await pkiService.RevokeCertificateAsync(op.CertificateSerialNumber);
+        if (cert.RevokedAt is not null)
+            return;
 
-            op.CertificateSerialNumber = null;
-            op.CertificateThumbprint   = null;
-            op.CertificateSubject      = null;
-            op.CertificateNotBefore    = null;
-            op.CertificateNotAfter     = null;
+        await pkiService.RevokeCertificateAsync(cert.SerialNumber);
 
-            await db.SaveChangesAsync();
+        cert.RevokedAt = DateTimeOffset.UtcNow;
+        await db.SaveChangesAsync();
 
-            logger.LogInformation("Revoked certificate for operator={OperatorId}", operatorId);
-        }
+        logger.LogInformation("Revoked certificate {CertificateId} (serial={Serial}) for operator={OperatorId}",
+            cert.Id, cert.SerialNumber, cert.OperatorId);
     }
 }

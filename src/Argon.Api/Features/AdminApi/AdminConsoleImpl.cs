@@ -1076,6 +1076,7 @@ public class AdminConsoleImpl(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var entities = await db.Operators
+           .Include(o => o.Certificates.Where(c => !c.IsDeleted))
            .Where(o => !o.IsDeleted)
            .OrderByDescending(o => o.CreatedAt)
            .ToListAsync(ct);
@@ -1090,6 +1091,7 @@ public class AdminConsoleImpl(
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var op = await db.Operators
+                    .Include(o => o.Certificates.Where(c => !c.IsDeleted))
                     .Include(o => o.User)
                     .ThenInclude(u => u!.Profile)
                     .FirstOrDefaultAsync(o => o.Id == operatorId && !o.IsDeleted, ct)
@@ -1247,23 +1249,32 @@ public class AdminConsoleImpl(
         }
     }
 
-    public async Task<OperatorActionResult> RevokeOperatorCertificate(Guid operatorId, CancellationToken ct = default)
+    public async Task<OperatorActionResult> RevokeOperatorCertificate(Guid certificateId, CancellationToken ct = default)
     {
         try
         {
             await using var db = await dbFactory.CreateDbContextAsync(ct);
 
             var caller = OperatorRequestContext.Current;
-            if (caller.OperatorId == operatorId)
+
+            var cert = await db.OperatorCertificates
+               .AsNoTracking()
+               .FirstOrDefaultAsync(c => c.Id == certificateId && !c.IsDeleted, ct);
+            if (cert is null)
+                return new OperatorActionResult(false, "Certificate not found");
+
+            if (caller.OperatorId == cert.OperatorId)
                 return new OperatorActionResult(false, "Cannot revoke your own certificate");
 
             if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
                 return new OperatorActionResult(false, "Only system operators can revoke certificates");
 
-            await certificateService.RevokeCertificateAsync(operatorId);
+            await certificateService.RevokeCertificateAsync(certificateId);
 
-            logger.LogInformation("Operator={CallerId} revoked certificate for operator={OperatorId}", caller.OperatorId, operatorId);
-            await auditService.LogAsync("RevokeOperatorCertificate", "Operator", operatorId.ToString());
+            logger.LogInformation("Operator={CallerId} revoked certificate={CertificateId} for operator={OperatorId}",
+                caller.OperatorId, certificateId, cert.OperatorId);
+            await auditService.LogAsync("RevokeOperatorCertificate", "Operator", cert.OperatorId.ToString(),
+                $"Revoked certificate {certificateId} (serial={cert.SerialNumber})");
             return new OperatorActionResult(true, null);
         }
         catch (InvalidOperationException ex)
@@ -1272,31 +1283,33 @@ public class AdminConsoleImpl(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Failed to revoke certificate for operator={OperatorId}", operatorId);
+            logger.LogError(ex, "Failed to revoke certificate={CertificateId}", certificateId);
             return new OperatorActionResult(false, "Failed to revoke certificate");
         }
     }
 
-    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(Guid operatorId, string csrPem, CancellationToken ct = default)
+    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(Guid operatorId, string csrPem, string? deviceName, string? deviceSerialNumber, CancellationToken ct = default)
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var caller = OperatorRequestContext.Current;
         if (!await db.Operators.AnyAsync(o => o.Id == caller.OperatorId && !o.IsDeleted && o.IsSystemOperator, ct))
-            return new EnrollCertificateResult(false, null, null, null, null, "Only system operators can enroll certificates");
+            return new EnrollCertificateResult(false, null, null, null, null, null, null, "Only system operators can enroll certificates");
 
-        var result = await certificateService.EnrollCertificateAsync(operatorId, csrPem);
+        var result = await certificateService.EnrollCertificateAsync(operatorId, csrPem, deviceName, deviceSerialNumber);
 
         if (result.IsSuccess)
         {
             var s = result.Value;
             await auditService.LogAsync("EnrollOperatorCertificate", "Operator", operatorId.ToString(),
-                $"Enrolled certificate serial={s.SerialNumber}");
+                $"Enrolled certificate serial={s.SerialNumber}, device={s.Thumbprint}");
             return new EnrollCertificateResult(
                 true,
+                s.CertificateId,
                 s.CertificatePem,
                 s.CaChainPem,
                 s.SerialNumber,
+                s.Thumbprint,
                 s.NotAfter.UtcDateTime,
                 null);
         }
@@ -1311,7 +1324,7 @@ public class AdminConsoleImpl(
             _                                 => "Unknown error"
         };
 
-        return new EnrollCertificateResult(false, null, null, null, null, errorMessage);
+        return new EnrollCertificateResult(false, null, null, null, null, null, null, errorMessage);
     }
 
     // ===== Operator App Access =====
@@ -2282,18 +2295,10 @@ public class AdminConsoleImpl(
 
     private static OperatorInfo MapOperatorInfo(OperatorEntity op)
     {
-        OperatorCertificateInfo? certInfo = null;
-        if (!string.IsNullOrEmpty(op.CertificateSerialNumber))
-        {
-            certInfo = new OperatorCertificateInfo(
-                op.CertificateSerialNumber,
-                op.CertificateThumbprint ?? "",
-                op.CertificateSubject ?? "",
-                op.CertificateNotBefore?.UtcDateTime ?? DateTime.MinValue,
-                op.CertificateNotAfter?.UtcDateTime ?? DateTime.MinValue,
-                op.CertificateNotAfter.HasValue && op.CertificateNotAfter.Value < DateTimeOffset.UtcNow
-            );
-        }
+        var certificates = (op.Certificates ?? new List<OperatorCertificateEntity>())
+           .OrderByDescending(c => c.CreatedAt)
+           .Select(MapOperatorCertificateInfo)
+           .ToList();
 
         return new OperatorInfo(
             op.Id,
@@ -2302,11 +2307,26 @@ public class AdminConsoleImpl(
             op.UserId,
             op.IsActive,
             op.IsSystemOperator,
-            certInfo,
+            new IonArray<OperatorCertificateInfo>(certificates),
             op.LastAuthAt?.UtcDateTime,
             op.CreatedAt.UtcDateTime
         );
     }
+
+    private static OperatorCertificateInfo MapOperatorCertificateInfo(OperatorCertificateEntity c)
+        => new(
+            c.Id,
+            c.SerialNumber,
+            c.Thumbprint,
+            c.Subject,
+            c.NotBefore.UtcDateTime,
+            c.NotAfter.UtcDateTime,
+            c.NotAfter < DateTimeOffset.UtcNow,
+            c.RevokedAt.HasValue,
+            c.CreatedAt.UtcDateTime,
+            c.DeviceName,
+            c.DeviceSerialNumber
+        );
 
     private static AuditEntry MapAuditEntry(OperatorAuditEntity a)
         => new(

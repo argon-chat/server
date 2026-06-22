@@ -67,17 +67,15 @@ public class OperatorAuthChallengeGrain(
         var thumbprint = Convert.ToHexString(cert.GetCertHash(HashAlgorithmName.SHA256));
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var op = await db.Operators.FirstOrDefaultAsync(
-            x => x.CertificateThumbprint != null &&
-                 x.CertificateThumbprint.Replace(":", "").Replace("-", "").ToUpper() == thumbprint &&
-                 !x.IsDeleted);
+        var certificate = await db.OperatorCertificates
+           .Include(c => c.Operator)
+           .FirstOrDefaultAsync(c => c.Thumbprint == thumbprint && c.RevokedAt == null && !c.IsDeleted);
 
-        if (op is null)
+        var op = certificate?.Operator;
+        if (certificate is null || op is null || op.IsDeleted)
             return OperatorAuthError.OperatorNotFound;
         if (!op.IsActive)
             return OperatorAuthError.OperatorInactive;
-        if (string.IsNullOrEmpty(op.CertificateSerialNumber))
-            return OperatorAuthError.OperatorNotFound;
 
         using var caCert = X509Certificate2.CreateFromPem(caPem);
         var isRevoked = await pkiService.IsCertificateRevokedAsync(cert, caCert);

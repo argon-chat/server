@@ -425,11 +425,11 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
-        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+        var __certificateid = IonFormatterStorage<guid>.Read(reader);
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.RevokeOperatorCertificate(__operatorid);
+        var result = await service.RevokeOperatorCertificate(__certificateid);
         
         IonFormatterStorage<OperatorActionResult>.Write(writer, result);
     }
@@ -438,16 +438,18 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
     
-        const int argumentSize = 2;
+        const int argumentSize = 4;
     
         var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
         var __csrpem = IonFormatterStorage<string>.Read(reader);
+        var __devicename = reader.ReadNullable<string>();
+        var __deviceserialnumber = reader.ReadNullable<string>();
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.EnrollOperatorCertificate(__operatorid, __csrpem);
+        var result = await service.EnrollOperatorCertificate(__operatorid, __csrpem, __devicename, __deviceserialnumber);
         
         IonFormatterStorage<EnrollCertificateResult>.Write(writer, result);
     }

@@ -559,7 +559,7 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<OperatorActionResult> RevokeOperatorCertificate(guid __operatorid, CancellationToken ct = default)
+    public async Task<OperatorActionResult> RevokeOperatorCertificate(guid __certificateid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IAdminConsole), RevokeOperatorCertificate_Ref.Value);
     
@@ -569,25 +569,27 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
     
         writer.WriteStartArray(argsSize);
         
-        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        IonFormatterStorage<guid>.Write(writer, __certificateid);
         
         writer.WriteEndArray();
     
         return await req.CallAsync<OperatorActionResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(guid __operatorid, string __csrpem, CancellationToken ct = default)
+    public async Task<EnrollCertificateResult> EnrollOperatorCertificate(guid __operatorid, string __csrpem, string? __devicename, string? __deviceserialnumber, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IAdminConsole), EnrollOperatorCertificate_Ref.Value);
     
         var writer = new CborWriter();
         
-        const int argsSize = 2;
+        const int argsSize = 4;
     
         writer.WriteStartArray(argsSize);
         
         IonFormatterStorage<guid>.Write(writer, __operatorid);
         IonFormatterStorage<string>.Write(writer, __csrpem);
+        IonFormatterStorage<string>.WriteNullable(writer, __devicename);
+        IonFormatterStorage<string>.WriteNullable(writer, __deviceserialnumber);
         
         writer.WriteEndArray();
     
