@@ -1,6 +1,8 @@
 namespace ArgonComplexTest.Tests;
 
+using Argon.Entities;
 using ArgonContracts;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
 [TestFixture, Parallelizable(ParallelScope.None)]
@@ -257,32 +259,34 @@ public class SecurityTests : TestBase
 
         Assert.That(result, Is.InstanceOf<SuccessBeginPasskey>());
         var success = result as SuccessBeginPasskey;
-        Assert.That(success!.passkeyId, Is.Not.EqualTo(Guid.Empty));
-        Assert.That(success.challenge, Is.Not.Null.And.Not.Empty);
+        Assert.That(success!.optionsJson, Is.Not.Null.And.Not.Empty);
+
+        // optionsJson holds the WebAuthn credential-creation options and must carry a challenge
+        using var options = System.Text.Json.JsonDocument.Parse(success.optionsJson);
+        Assert.That(options.RootElement.TryGetProperty("challenge", out var challenge), Is.True,
+            "WebAuthn options must contain a challenge");
+        Assert.That(challenge.GetString(), Is.Not.Null.And.Not.Empty);
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(32)]
-    public async Task CompleteAddPasskey_WithValidData_ReturnsPasskey(CancellationToken ct = default)
+    public async Task CompleteAddPasskey_WithInvalidResponse_ReturnsFailed(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
 
         var token = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token);
 
-        // Begin add passkey
+        // Begin add passkey to establish a pending registration state
         var beginResult = await GetSecurityService(scope.ServiceProvider)
             .BeginAddPasskey("Test Passkey", ct);
         Assert.That(beginResult, Is.InstanceOf<SuccessBeginPasskey>());
-        var begin = beginResult as SuccessBeginPasskey;
 
-        // Complete with mock public key
-        var mockPublicKey = Convert.ToBase64String(new byte[32]);
+        // A valid attestation can only be produced by a real authenticator;
+        // completing with a malformed registration response must fail gracefully.
         var completeResult = await GetSecurityService(scope.ServiceProvider)
-            .CompleteAddPasskey(begin!.passkeyId, mockPublicKey, ct);
+            .CompleteAddPasskey("{}", ct);
 
-        Assert.That(completeResult, Is.InstanceOf<SuccessCompletePasskey>());
-        var complete = completeResult as SuccessCompletePasskey;
-        Assert.That(complete!.passkey.name, Is.EqualTo("Test Passkey"));
+        Assert.That(completeResult, Is.InstanceOf<FailedCompletePasskey>());
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(33)]
@@ -293,19 +297,40 @@ public class SecurityTests : TestBase
         var token = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token);
 
-        // Add passkey
-        var beginResult = await GetSecurityService(scope.ServiceProvider)
-            .BeginAddPasskey("To Remove", ct);
-        var begin = beginResult as SuccessBeginPasskey;
-        
-        await GetSecurityService(scope.ServiceProvider)
-            .CompleteAddPasskey(begin!.passkeyId, Convert.ToBase64String(new byte[32]), ct);
+        var me = await GetUserService(scope.ServiceProvider).GetMe(ct);
 
-        // Remove passkey
+        // WebAuthn completion needs a real authenticator, so seed a completed passkey
+        // directly for the authenticated user, then remove it through the API.
+        var passkeyId = await CreatePasskeyForUserAsync(me.userId, "To Remove", ct);
+
         var removeResult = await GetSecurityService(scope.ServiceProvider)
-            .RemovePasskey(begin.passkeyId, ct);
+            .RemovePasskey(passkeyId, ct);
 
         Assert.That(removeResult, Is.InstanceOf<SuccessRemovePasskey>());
+    }
+
+    private async Task<Guid> CreatePasskeyForUserAsync(Guid userId, string name, CancellationToken ct)
+    {
+        var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<ApplicationDbContext>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+
+        var passkey = new UserPasskeyEntity
+        {
+            Id           = Guid.CreateVersion7(),
+            UserId       = userId,
+            Name         = name,
+            CredentialId = Guid.NewGuid().ToByteArray(),
+            PublicKey    = new byte[32],
+            SignCount    = 0,
+            IsCompleted  = true,
+            CreatedAt    = DateTimeOffset.UtcNow,
+            UpdatedAt    = DateTimeOffset.UtcNow
+        };
+
+        db.Passkeys.Add(passkey);
+        await db.SaveChangesAsync(ct);
+
+        return passkey.Id;
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(34)]

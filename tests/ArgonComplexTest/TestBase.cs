@@ -133,7 +133,9 @@ public abstract class TestBase
                 creds.argreeTos,
                 creds.birthDate,
                 creds.argreeOptionalEmails,
-                creds.captchaToken),
+                creds.captchaToken,
+                "1.0",
+                "1.0"),
             ct);
 
         if (result is not SuccessRegistration sr)

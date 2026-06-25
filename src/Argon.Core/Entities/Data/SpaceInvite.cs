@@ -49,11 +49,18 @@ public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId
     public static bool TryParseInviteCode(string inviteCode, out ulong? inviteId)
     {
         inviteId = null;
-        if (inviteCode.Length is not (9 or 12))
+        if (string.IsNullOrWhiteSpace(inviteCode))
+            return false;
+
+        // Invite codes are shared in their dashed display form ("ABC-DEF-GHI", 11 chars) produced
+        // by DecodeFromUlong/GetInviteCodes. Strip separators before validating, otherwise the raw
+        // length check rejects every shared code and previews/joins resolve to NOT_FOUND.
+        var clean = RemoveSeparators(inviteCode);
+        if (clean.Length != 9)
             return false;
         try
         {
-            inviteId = EncodeToUlong(inviteCode);
+            inviteId = EncodeToUlong(clean);
             return true;
         }
         catch (Exception)
