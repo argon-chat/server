@@ -73,14 +73,30 @@ public class OperatorAuthChallengeGrain(
 
         var op = certificate?.Operator;
         if (certificate is null || op is null || op.IsDeleted)
+        {
+            logger.LogWarning("Operator certificate not found / not active for thumbprint {Thumbprint}", thumbprint);
             return OperatorAuthError.OperatorNotFound;
+        }
         if (!op.IsActive)
+        {
+            logger.LogWarning("Operator {OperatorId} is inactive (cert {CertificateId})", op.Id, certificate.Id);
             return OperatorAuthError.OperatorInactive;
+        }
 
         using var caCert = X509Certificate2.CreateFromPem(caPem);
         var isRevoked = await pkiService.IsCertificateRevokedAsync(cert, caCert);
         if (isRevoked)
+        {
+            logger.LogWarning("Operator certificate revoked in Vault CRL — operator {OperatorId}, certId {CertificateId}, serial {Serial}, thumbprint {Thumbprint}",
+                op.Id, certificate.Id, certificate.SerialNumber, thumbprint);
+
+            // Reconcile: revoked in Vault but still active in the DB — mark it revoked.
+            certificate.RevokedAt = DateTimeOffset.UtcNow;
+            try { await db.SaveChangesAsync(); }
+            catch (Exception saveEx) { logger.LogError(saveEx, "Failed to reconcile RevokedAt for cert {CertificateId}", certificate.Id); }
+
             return OperatorAuthError.CertificateRevoked;
+        }
 
         // 6. update last auth timestamp
         op.LastAuthAt = DateTimeOffset.UtcNow;
