@@ -83,19 +83,33 @@ public class OperatorAuthChallengeGrain(
             return OperatorAuthError.OperatorInactive;
         }
 
-        using var caCert = X509Certificate2.CreateFromPem(caPem);
-        var isRevoked = await pkiService.IsCertificateRevokedAsync(cert, caCert);
-        if (isRevoked)
+        // ⚠️ TEMPORARY WORKAROUND — Vault CRL revocation check is DISABLED.
+        // FIXME(operator-cert-revocation / Vault): the `operator` PKI role (mount `pki-admin`) has
+        // generate_lease=true with a ~24h mount lease TTL, so Vault auto-revokes every operator cert
+        // ~24h after enrollment (lease expiry), even though the cert is valid for a year. Fix in Vault
+        // (`vault patch pki-admin/roles/operator generate_lease=false`), then flip this flag back to true.
+        var revocationCheckEnabled = false;
+        if (revocationCheckEnabled)
         {
-            logger.LogWarning("Operator certificate revoked in Vault CRL — operator {OperatorId}, certId {CertificateId}, serial {Serial}, thumbprint {Thumbprint}",
-                op.Id, certificate.Id, certificate.SerialNumber, thumbprint);
+            using var caCert = X509Certificate2.CreateFromPem(caPem);
+            var isRevoked = await pkiService.IsCertificateRevokedAsync(cert, caCert);
+            if (isRevoked)
+            {
+                logger.LogWarning("Operator certificate revoked in Vault CRL — operator {OperatorId}, certId {CertificateId}, serial {Serial}, thumbprint {Thumbprint}",
+                    op.Id, certificate.Id, certificate.SerialNumber, thumbprint);
 
-            // Reconcile: revoked in Vault but still active in the DB — mark it revoked.
-            certificate.RevokedAt = DateTimeOffset.UtcNow;
-            try { await db.SaveChangesAsync(); }
-            catch (Exception saveEx) { logger.LogError(saveEx, "Failed to reconcile RevokedAt for cert {CertificateId}", certificate.Id); }
+                // Reconcile: revoked in Vault but still active in the DB — mark it revoked.
+                certificate.RevokedAt = DateTimeOffset.UtcNow;
+                try { await db.SaveChangesAsync(); }
+                catch (Exception saveEx) { logger.LogError(saveEx, "Failed to reconcile RevokedAt for cert {CertificateId}", certificate.Id); }
 
-            return OperatorAuthError.CertificateRevoked;
+                return OperatorAuthError.CertificateRevoked;
+            }
+        }
+        else
+        {
+            logger.LogWarning("Vault CRL revocation check TEMPORARILY DISABLED (Vault generate_lease bug) — operator {OperatorId}, certId {CertificateId} authenticated without revocation verification",
+                op.Id, certificate.Id);
         }
 
         // 6. update last auth timestamp

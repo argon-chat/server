@@ -2,6 +2,7 @@ namespace Argon.Services;
 
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Configuration;
 using StackExchange.Redis;
 
@@ -65,6 +66,9 @@ public sealed class RedisProfileRegistry
         => this.profiles = new Dictionary<string, RedisProfileOptions>(
             profiles ?? new Dictionary<string, RedisProfileOptions>(),
             StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Names of every profile present in configuration (pooled and own-multiplexer alike). Used to health-check each scope.</summary>
+    public IReadOnlyCollection<string> Names => profiles.Keys.ToArray();
 
     /// <summary>Returns the configured profile, throwing if it is missing or has no connection string.</summary>
     public RedisProfileOptions Resolve(string name)
