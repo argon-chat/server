@@ -6,12 +6,12 @@
         <RootNamespace>Argon</RootNamespace>
     </PropertyGroup>
     <ItemGroup>
-        <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj"/>
+        <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.203"/>
+        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
     </ItemGroup>
     <ItemGroup>
-        <Using Include="ArgonContracts"/>
+        <Using Include="ArgonContracts" />
     </ItemGroup>
 </Project>
