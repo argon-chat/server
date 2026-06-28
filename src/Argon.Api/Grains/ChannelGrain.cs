@@ -940,95 +940,32 @@ public class ChannelGrain(
         }
     }
 
-    private async Task ResolveAttachmentUrls(List<ArgonMessageEntity> messages)
+    // URLs are built straight from the fileId — the API resolves the S3 key + region at fetch time
+    // (see CdnRedirectFeature), so nothing region-specific is ever stored. The desktop client ignores
+    // these and builds the same {api}/files/{fileId} URL itself; we still fill them for bot/API
+    // consumers. No DB round-trip needed here anymore.
+    private Task ResolveAttachmentUrls(List<ArgonMessageEntity> messages)
     {
-        var fileIds = messages
-           .SelectMany(m => m.Entities ?? [])
-           .OfType<MessageEntityAttachment>()
-           .Where(a => a.downloadUrl is null)
-           .Select(a => a.fileId)
-           .Distinct()
-           .ToList();
-
-        var gifFileIds = messages
-           .SelectMany(m => m.Entities ?? [])
-           .OfType<MessageEntityGif>()
-           .Where(g => g.previewUrl is null && g.fileId is not null)
-           .Select(g => g.fileId!.Value)
-           .Distinct()
-           .ToList();
-
-        fileIds.AddRange(gifFileIds);
-        fileIds = fileIds.Distinct().ToList();
-
-        if (fileIds.Count == 0) return;
-
-        await using var db = await context.CreateDbContextAsync();
-        var files = await db.Files
-           .Where(f => fileIds.Contains(f.Id) && f.Finalized)
-           .Select(f => new { f.Id, f.S3Key })
-           .ToListAsync();
-
-        var urlMap = files.ToDictionary(f => f.Id, f => s3.GetDownloadUrl(f.S3Key));
-
         foreach (var message in messages)
-        {
-            if (message.Entities is not { Count: > 0 }) continue;
-            for (var i = 0; i < message.Entities.Count; i++)
-            {
-                if (message.Entities[i] is MessageEntityAttachment { downloadUrl: null } att &&
-                    urlMap.TryGetValue(att.fileId, out var url))
-                {
-                    message.Entities[i] = att with { downloadUrl = url };
-                }
-                if (message.Entities[i] is MessageEntityGif { previewUrl: null } gif &&
-                    gif.fileId is not null && urlMap.TryGetValue(gif.fileId.Value, out var gifUrl))
-                {
-                    message.Entities[i] = gif with { previewUrl = gifUrl };
-                }
-            }
-        }
+            FillEntityUrls(message);
+        return Task.CompletedTask;
     }
 
-    private async Task ResolveAttachmentUrls(ArgonMessageEntity message)
+    private Task ResolveAttachmentUrls(ArgonMessageEntity message)
+    {
+        FillEntityUrls(message);
+        return Task.CompletedTask;
+    }
+
+    private void FillEntityUrls(ArgonMessageEntity message)
     {
         if (message.Entities is not { Count: > 0 }) return;
-
-        var attachments = message.Entities.OfType<MessageEntityAttachment>()
-           .Where(a => a.downloadUrl is null)
-           .ToList();
-
-        var gifs = message.Entities.OfType<MessageEntityGif>()
-           .Where(g => g.previewUrl is null && g.fileId is not null)
-           .ToList();
-
-        if (attachments.Count == 0 && gifs.Count == 0) return;
-
-        var fileIds = attachments.Select(a => a.fileId)
-           .Concat(gifs.Where(g => g.fileId is not null).Select(g => g.fileId!.Value))
-           .Distinct()
-           .ToList();
-
-        await using var db = await context.CreateDbContextAsync();
-        var files = await db.Files
-           .Where(f => fileIds.Contains(f.Id) && f.Finalized)
-           .Select(f => new { f.Id, f.S3Key })
-           .ToListAsync();
-
-        var urlMap = files.ToDictionary(f => f.Id, f => s3.GetDownloadUrl(f.S3Key));
-
         for (var i = 0; i < message.Entities.Count; i++)
         {
-            if (message.Entities[i] is MessageEntityAttachment { downloadUrl: null } att &&
-                urlMap.TryGetValue(att.fileId, out var url))
-            {
-                message.Entities[i] = att with { downloadUrl = url };
-            }
-            if (message.Entities[i] is MessageEntityGif { previewUrl: null } gif &&
-                gif.fileId is not null && urlMap.TryGetValue(gif.fileId.Value, out var gifUrl))
-            {
-                message.Entities[i] = gif with { previewUrl = gifUrl };
-            }
+            if (message.Entities[i] is MessageEntityAttachment { downloadUrl: null } att)
+                message.Entities[i] = att with { downloadUrl = s3.GetFileDownloadUrl(att.fileId) };
+            if (message.Entities[i] is MessageEntityGif { previewUrl: null, fileId: not null } gif)
+                message.Entities[i] = gif with { previewUrl = s3.GetFileDownloadUrl(gif.fileId.Value) };
         }
     }
 

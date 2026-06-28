@@ -28,25 +28,66 @@ public class StorageOptions
     public CdnOptions Cdn { get; set; } = new();
 }
 
+// CDN geo-routing.
+//
+// We DO NOT bake a region-specific CDN domain into the URL anymore (that was bug-prone: the resolved
+// absolute URL got embedded in chat messages + aggressively cached on the client, so a transient
+// VPN/region pinned a dead cross-region URL forever). Instead every file URL is by fileId and points
+// at THIS instance's own API: {PublicBaseUrl}/files/{fileId}. The desktop client builds that URL from
+// its OWN configured api endpoint (so self-hosted instances point at their own API), and the API 302s
+// it to the nearest reachable regional mirror by CF-IPCountry — see CdnRedirectFeature. The 302 is
+// (mostly) uncached so a region change self-heals on the next fetch.
+//
+// Config (Storage:Cdn):
+//   PublicBaseUrl        public base for URLs the SERVER emits to API consumers (bot API / upload
+//                        responses), e.g. https://api.argon.gl. Empty => relative "/files/...". The
+//                        desktop client ignores these and builds from its own api endpoint.
+//   Default              fallback regional origin when a country has no explicit Regions entry.
+//   Regions[]            regional origins; each lists the ISO country codes (CF-IPCountry) it serves.
+//   RedirectCacheSeconds max-age for the 302 itself; 0 => no-store (region re-evaluated every fetch).
 public class CdnOptions
 {
-    public CdnEndpoint Default   { get; set; } = new();
-    public Dictionary<string, CdnEndpoint> Overrides { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public string                 PublicBaseUrl        { get; set; } = "";
+    public CdnRegionTarget        Default              { get; set; } = new();
+    public List<CdnRegionTarget>  Regions              { get; set; } = new();
+    public int                    RedirectCacheSeconds { get; set; } = 0;
 
-    public string GetDownloadUrl(string objectKey, string? countryCode = null)
+    // ISO country (UPPER) -> regional origin, built lazily from Regions. Idempotent build, so a
+    // benign race on first access is harmless.
+    private Dictionary<string, CdnRegionTarget>? _byCountry;
+    private Dictionary<string, CdnRegionTarget> ByCountry =>
+        _byCountry ??= Regions
+           .SelectMany(r => (r.Countries ?? []).Select(c => (c, r)))
+           .GroupBy(t => t.c.Trim().ToUpperInvariant(), StringComparer.OrdinalIgnoreCase)
+           .ToDictionary(g => g.Key, g => g.First().r, StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Stable by-fileId URL the API 302s (region resolved per-fetch). Relative when PublicBaseUrl is unset.</summary>
+    public string BuildFileUrl(Guid fileId)
+        => $"{PublicBaseUrl.TrimEnd('/')}/files/{fileId}";
+
+    /// <summary>Stable by-key URL for keyless assets (cached GIFs, flat-keyed avatars in exports).</summary>
+    public string BuildKeyUrl(string objectKey)
+        => $"{PublicBaseUrl.TrimEnd('/')}/files/k/{objectKey}";
+
+    /// <summary>Resolve the regional origin for a country (ISO from CF-IPCountry); falls back to Default.</summary>
+    public CdnRegionTarget ResolveTarget(string? countryCode)
+        => !string.IsNullOrEmpty(countryCode) && ByCountry.TryGetValue(countryCode, out var t) ? t : Default;
+
+    /// <summary>The concrete regional URL the geo-redirect endpoint 302s to: {BaseUrl}/{PathPrefix}/{key}.</summary>
+    public string BuildRegionalUrl(string? countryCode, string objectKey)
     {
-        var endpoint = Default;
-        if (!string.IsNullOrEmpty(countryCode) && Overrides.TryGetValue(countryCode, out var over))
-            endpoint = over;
-
-        return $"{endpoint.BaseUrl.TrimEnd('/')}{endpoint.PathPrefix}/{objectKey}";
+        var t      = ResolveTarget(countryCode);
+        var prefix = string.IsNullOrEmpty(t.PathPrefix) ? "" : $"/{t.PathPrefix.Trim('/')}";
+        return $"{t.BaseUrl.TrimEnd('/')}{prefix}/{objectKey}";
     }
 }
 
-public class CdnEndpoint
+public class CdnRegionTarget
 {
-    public string BaseUrl    { get; set; } = "";
-    public string PathPrefix { get; set; } = "";
+    public string   Name       { get; set; } = "";
+    public string   BaseUrl    { get; set; } = "";
+    public string   PathPrefix { get; set; } = "";
+    public string[] Countries  { get; set; } = [];
 }
 
 public class FileLimitsOptions

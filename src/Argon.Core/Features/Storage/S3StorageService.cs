@@ -10,7 +10,12 @@ public interface IS3StorageService
     Task<bool> DeleteFileAsync(string objectKey, CancellationToken ct = default);
     Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default);
     Task<bool> PutObjectAsync(string objectKey, Stream content, string? contentType = null, CancellationToken ct = default);
-    string GetDownloadUrl(string objectKey, string? countryCode = null);
+    // Region-agnostic URLs. Region is resolved later, per request, by the 302 endpoint in
+    // CdnRedirectFeature — never baked in here.
+    // GetFileDownloadUrl: by fileId (avatars/attachments/banners backed by a file record).
+    // GetDownloadUrl:     by raw S3 key (keyless assets: cached GIFs, flat-keyed avatar in exports).
+    string GetFileDownloadUrl(Guid fileId);
+    string GetDownloadUrl(string objectKey);
 }
 
 public class S3FileMetadata
@@ -84,8 +89,11 @@ public class S3StorageService(IS3ClientPool clientPool, IOptions<StorageOptions>
         return response.IsSuccess;
     }
 
-    public string GetDownloadUrl(string objectKey, string? countryCode = null)
-        => _opts.Cdn.GetDownloadUrl(objectKey, countryCode);
+    public string GetFileDownloadUrl(Guid fileId)
+        => _opts.Cdn.BuildFileUrl(fileId);
+
+    public string GetDownloadUrl(string objectKey)
+        => _opts.Cdn.BuildKeyUrl(objectKey);
 
     public async Task<Stream?> GetObjectStreamAsync(string objectKey, CancellationToken ct = default)
     {

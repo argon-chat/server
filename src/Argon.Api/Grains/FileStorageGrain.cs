@@ -181,7 +181,7 @@ public class FileStorageGrain(
         logger.LogInformation("Upload finalized: fileId={FileId}, purpose={Purpose}, size={Size}, userId={UserId}, elapsed={ElapsedMs}ms",
             file.Id, file.Purpose, file.FileSize, userId, sw.Elapsed.TotalMilliseconds);
 
-        var downloadUrl = s3.GetDownloadUrl(file.S3Key);
+        var downloadUrl = s3.GetFileDownloadUrl(file.Id);
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
@@ -206,7 +206,7 @@ public class FileStorageGrain(
         var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
-        var downloadUrl = s3.GetDownloadUrl(file.S3Key);
+        var downloadUrl = s3.GetFileDownloadUrl(file.Id);
 
         return new FileInfoResponse(
             file.Id, file.FileName, file.FileSize, file.ContentType,
@@ -219,7 +219,7 @@ public class FileStorageGrain(
         var file = await db.Files.FirstOrDefaultAsync(x => x.Id == fileId && x.Finalized, ct);
         if (file is null) return null;
 
-        return s3.GetDownloadUrl(file.S3Key);
+        return s3.GetFileDownloadUrl(file.Id);
     }
 
     // ═══════════════════════════════════════════════════════════════════════════

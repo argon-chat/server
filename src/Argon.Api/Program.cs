@@ -11,6 +11,7 @@ using Argon.Features.Integrations.Klipy;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
 using Argon.Features.RegionalUnit;
+using Argon.Features.Storage;
 using Argon.Services.Ion;
 using ConsoleContracts;
 using Microsoft.AspNetCore.Http.Connections;
@@ -85,7 +86,10 @@ else
 app.UseSentryTracing();
 
 if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())
+{
     app.MapDiscovery();
+    app.MapCdnRedirect();
+}
 
 if (app.Environment.IsEntryPoint() || app.Environment.IsHybrid())
     app.MapHub<AppHub>("/w",
