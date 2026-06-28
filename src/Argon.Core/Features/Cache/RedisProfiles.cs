@@ -67,8 +67,16 @@ public sealed class RedisProfileRegistry
             profiles ?? new Dictionary<string, RedisProfileOptions>(),
             StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Names of every profile present in configuration (pooled and own-multiplexer alike). Used to health-check each scope.</summary>
-    public IReadOnlyCollection<string> Names => profiles.Keys.ToArray();
+    /// <summary>
+    /// Names of every fully-configured profile (those with a connection string), pooled and own-multiplexer alike.
+    /// Used to health-check each scope. Partial/legacy keys without a connection string are skipped so stray
+    /// config (e.g. a leftover <c>redis:l2</c> block) can't break startup — required profiles are still
+    /// validated eagerly by <see cref="ArgonCacheDatabaseFeature"/>.
+    /// </summary>
+    public IReadOnlyCollection<string> Names
+        => profiles.Where(p => !string.IsNullOrWhiteSpace(p.Value.ConnectionString))
+                   .Select(p => p.Key)
+                   .ToArray();
 
     /// <summary>Returns the configured profile, throwing if it is missing or has no connection string.</summary>
     public RedisProfileOptions Resolve(string name)
