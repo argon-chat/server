@@ -14,7 +14,7 @@ services:
       - argon
 
   cockroach1:
-    image: cockroachdb/cockroach:v25.3.3
+    image: cockroachdb/cockroach:v26.2.3
     container_name: cockroach1
     hostname: cockroach1
     command:
@@ -34,7 +34,7 @@ services:
       - argon
 
   cockroach2:
-    image: cockroachdb/cockroach:v25.3.3
+    image: cockroachdb/cockroach:v26.2.3
     container_name: cockroach2
     hostname: cockroach2
     command:
@@ -51,7 +51,7 @@ services:
       - argon
 
   cockroach3:
-    image: cockroachdb/cockroach:v25.3.3
+    image: cockroachdb/cockroach:v26.2.3
     container_name: cockroach3
     hostname: cockroach3
     command:
@@ -68,7 +68,7 @@ services:
       - argon
 
   init:
-    image: cockroachdb/cockroach:v25.3.3
+    image: cockroachdb/cockroach:v26.2.3
     container_name: cockroach-init
     depends_on:
       - cockroach1
