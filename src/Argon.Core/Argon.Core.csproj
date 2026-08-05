@@ -19,10 +19,10 @@
         <PackageReference Include="Hussien.SnowflakeId" Version="3.3.0" />
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.9" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.9" />
-        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.7.0" />
-        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.8.0" />
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
         <PackageReference Include="Fluid.Core" Version="2.31.0" />
         <PackageReference Include="Genbox.SimpleS3.Core" Version="3.2.13" />
         <PackageReference Include="Genbox.SimpleS3.Extensions.GenericS3" Version="3.2.13" />
@@ -32,29 +32,29 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.9" />
-        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.9" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.10" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.7.0" />
-        <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.GrainDirectory.Redis" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Reminders.AdoNet" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Server" Version="10.2.1" />
-        <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.2.1" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
+        <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.GrainDirectory.Redis" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Reminders.AdoNet" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Server" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.2.2" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
-        <PackageReference Include="NATS.Net" Version="2.8.2" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
-        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.2" />
+        <PackageReference Include="NATS.Net" Version="3.1.0" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+        <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NodaTime" Version="10.0.3" />
         <PackageReference Include="Npgsql.Json.NET" Version="10.0.3" />
         <PackageReference Include="ObservableCollections.R3" Version="3.3.4" />
         <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.15.0-beta.1" />
@@ -63,19 +63,19 @@
         <PackageReference Include="Fido2" Version="5.0.0-preview.3" />
         <PackageReference Include="Otp.NET" Version="1.4.1" />
         <PackageReference Include="R3" Version="1.3.1" />
-        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.19.1" />
+        <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.22.0" />
         <PackageReference Include="Twilio" Version="7.14.9" />
         <PackageReference Include="Ulid" Version="1.4.1" />
         <PackageReference Include="Flurl.Http.Newtonsoft" Version="0.9.1" />
-        <PackageReference Include="Sentry.AspNetCore" Version="6.6.0" />
+        <PackageReference Include="Sentry.AspNetCore" Version="6.8.0" />
         <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
         <PackageReference Include="VaultSharp" Version="1.17.5.1" />
         <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.16.0" />
-        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.16.0" />
-        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.16.0" />
-        <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.16.0" />
-        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.15.1" />
+        <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+        <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -102,7 +102,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.301" />
     </ItemGroup>
 
 </Project>

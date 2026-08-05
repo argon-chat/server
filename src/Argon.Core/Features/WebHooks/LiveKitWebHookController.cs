@@ -1,11 +1,17 @@
 namespace Argon.Api.Features.WebHooks;
 
+using Google.Protobuf;
 using Livekit.Server.Sdk.Dotnet;
 using Microsoft.AspNetCore.Mvc;
 
 [ApiController, ApiExplorerSettings(IgnoreApi = true)]
 public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, IClusterClient client) : ControllerBase
 {
+    // WebhookReceiver.Receive ignores its own 'ignoreUnknownFields' flag (it calls MessageParser.WithDiscardUnknownFields,
+    // which is binary-only and returns a new parser that the sdk discards), so any field livekit-server adds after the
+    // protocol version the sdk was built against throws InvalidProtocolBufferException. Parse leniently ourselves instead.
+    private static readonly JsonParser lenientParser = new(JsonParser.Settings.Default.WithIgnoreUnknownFields(true));
+
     [HttpPost("/webhook-endpoint")]
     public async Task<IActionResult> Webhook([FromServices] WebhookReceiver webhookReceiver)
     {
@@ -18,7 +24,25 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
             return Unauthorized();
         }
 
-        var webhookEvent = webhookReceiver.Receive(postData, authHeader);
+        WebhookEvent webhookEvent;
+        try
+        {
+            var claims = webhookReceiver.Verify(authHeader!);
+            var hash   = Convert.ToBase64String(SHA256.HashData(Encoding.UTF8.GetBytes(postData)));
+            if (!string.Equals(claims.Sha256, hash, StringComparison.Ordinal))
+            {
+                logger.LogWarning("Sha256 checksum of webhook body does not match, return 401");
+                return Unauthorized();
+            }
+
+            webhookEvent = lenientParser.Parse<WebhookEvent>(postData);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed process livekit webhook payload");
+            return Unauthorized();
+        }
+
         logger.LogWarning("Received #{WebhookEventId} {WebhookEventEvent} at {WebhookEventCreatedAt}", webhookEvent.Id, webhookEvent.Event,
             webhookEvent.CreatedAt);
 

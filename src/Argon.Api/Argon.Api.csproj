@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
@@ -21,11 +21,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.27.0" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.28.0" />
         <!-- Pin fucking ImAgE ShArP, do not change the version, and it is advisable to remove the fuck this stinky package from the fuckers who have already fucked up to change their stinky fucking packages to a proprietary license -->
         <PackageReference Include="SixLabors.ImageSharp" Version="[3.1.12]" />
     </ItemGroup>
@@ -48,6 +48,6 @@
         <InternalsVisibleTo Include="Argon.EE" />
     </ItemGroup>
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.300" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.301" />
     </ItemGroup>
 </Project>
