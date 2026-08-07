@@ -143,8 +143,11 @@ public class UserLevelGrain(
                 return false;
             }
 
-            // Build coin template id: coin_year_2026_lvl1
-            var coinTemplateId = $"coin_year_{currentYear}_lvl{nextTier}";
+            // Build coin template id: year_2026_coin_lvl1.
+            // This must match the prefix GetNextCoinTierAsync scans for — it previously wrote
+            // "coin_year_{Y}_lvl{N}" while the reader looked for "year_{Y}_coin_lvl{N}", so no
+            // already-owned coin was ever recognised and every claim handed out another tier-1 coin.
+            var coinTemplateId = $"year_{currentYear}_coin_lvl{nextTier}";
 
             // Give coin via inventory system
             var inventoryGrain = grainFactory.GetGrain<IInventoryGrain>(Guid.Empty);

@@ -6,7 +6,7 @@ using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class UltimaTests : TestBase
 {
     [SetUp]
@@ -66,13 +66,14 @@ public class UltimaTests : TestBase
         Assert.That(sub, Is.Not.Null);
         Assert.That(sub!.tier, Is.EqualTo(UltimaPlan.Monthly));
         Assert.That(sub.status, Is.EqualTo(UltimaSubscriptionStatus.Active));
-        Assert.That(sub.totalBoostSlots, Is.EqualTo(3));
+        // A new subscription grants two boost slots (UltimaGrain.ActivateSubscriptionAsync).
+        Assert.That(sub.totalBoostSlots, Is.EqualTo(2));
         Assert.That(sub.usedBoostSlots, Is.EqualTo(0));
         Assert.That(sub.autoRenew, Is.True);
 
-        // Verify 3 boosts created
+        // Verify one boost per slot was created
         var boosts = await grain.GetBoostsAsync(ct);
-        Assert.That(boosts, Has.Count.EqualTo(3));
+        Assert.That(boosts, Has.Count.EqualTo(2));
         Assert.That(boosts.All(b => b.source == BoostSource.Subscription), Is.True);
         Assert.That(boosts.All(b => b.spaceId == null), Is.True);
 
@@ -501,7 +502,7 @@ public class UltimaTests : TestBase
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(31)]
-    public async Task Ion_GetMyBoosts_AfterActivation_Returns3Boosts(CancellationToken ct = default)
+    public async Task Ion_GetMyBoosts_AfterActivation_ReturnsSubscriptionBoosts(CancellationToken ct = default)
     {
         var token = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token);
@@ -514,7 +515,7 @@ public class UltimaTests : TestBase
         await grain.ActivateSubscriptionAsync(UltimaTier.Annual, 365, null, null, ct);
 
         var boosts = await GetUltimaService(scope.ServiceProvider).GetMyBoosts(ct);
-        Assert.That(boosts.Values, Has.Count.EqualTo(3));
+        Assert.That(boosts.Values, Has.Count.EqualTo(2));
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(32)]

@@ -1,4 +1,4 @@
-name: Production
+name: Pull Request
 
 on:
   pull_request:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  contracts:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -34,5 +34,11 @@ jobs:
       - name: Verify Bot API Contracts
         run: dotnet run --project src/Argon.Api -- bot-api verify
 
-      - name: Test
-        run: dotnet test --no-build --verbosity normal
+  # PostgreSQL rather than CockroachDB: same migrations, same assertions, a fraction of the
+  # start-up cost. The nightly canary replays the suite on CockroachDB.
+  test:
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: postgres
+      coverage: true
+      threshold: 50

@@ -4,7 +4,7 @@ using Argon.Grains.Interfaces;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class UserStatsAndLevelTests : TestBase
 {
     // Calculate exact XP needed for level 100 using the same formula as UserLevelGrain

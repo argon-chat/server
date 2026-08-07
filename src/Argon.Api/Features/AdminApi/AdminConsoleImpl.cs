@@ -2099,11 +2099,17 @@ public class AdminConsoleImpl(
            .Select(u => u.Username)
            .FirstOrDefaultAsync(ct) ?? "Unknown";
 
-        var transactions = await db.PaymentTransactions
+        // DateTimeOffset.UtcDateTime has no SQL translation. Projecting it inside the query made EF
+        // throw while compiling the shaper, so this endpoint failed for every caller regardless of
+        // whether the user had any transactions. Materialise first, convert after.
+        var rows = await db.PaymentTransactions
            .Where(t => t.UserId == userId)
            .OrderByDescending(t => t.CreatedAt)
            .Skip(page * pageSize)
            .Take(pageSize)
+           .ToListAsync(ct);
+
+        var transactions = rows
            .Select(t => new AdminTransactionInfo(
                 t.Id,
                 t.UserId,
@@ -2121,7 +2127,7 @@ public class AdminConsoleImpl(
                 t.Status,
                 t.CreatedAt.UtcDateTime
             ))
-           .ToListAsync(ct);
+           .ToList();
 
         return new AdminTransactionPage(
             new IonArray<AdminTransactionInfo>(transactions),

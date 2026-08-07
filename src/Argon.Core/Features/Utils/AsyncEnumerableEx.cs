@@ -45,7 +45,16 @@ public static class AsyncEnumerableEx
                 else
                 {
                     var item = enumerator!.Current;
-                    whenAny.Replace(index, enumerator.MoveNextAsync());
+
+                    // moveNextTasks has to track what whenAny is actually waiting on. It used to be
+                    // left holding the ValueTask that was just consumed, and the cleanup block below
+                    // awaits every entry — re-awaiting an IValueTaskSource-backed ValueTask throws
+                    // NotSupportedException, so any merge over genuinely asynchronous sources ended
+                    // in an AggregateException the moment it finished. (Sources that complete
+                    // synchronously hide it, which is why it survived this long.)
+                    var next = enumerator.MoveNextAsync();
+                    moveNextTasks[index] = next;
+                    whenAny.Replace(index, next);
 
                     yield return item;
                 }
@@ -131,8 +140,10 @@ public static class AsyncEnumerableEx
 
         public void Replace(int index, in ValueTask<T> task)
         {
-            Debug.Assert(tasks[index].IsCompleted, "Task must be completed before replacement.");
-
+            // No Debug.Assert on the outgoing task here: the caller only replaces a slot it has just
+            // awaited, and reading IsCompleted on an already-consumed, IValueTaskSource-backed
+            // ValueTask is exactly what ValueTask forbids. The assertion tripped on every genuinely
+            // asynchronous source in Debug builds while silently doing nothing in Release.
             tasks[index] = task;
             task.ConfigureAwait(false).GetAwaiter().OnCompleted(onReady[index]);
         }

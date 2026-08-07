@@ -9,33 +9,20 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          submodules: recursive
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: postgres
+      coverage: true
+      threshold: 50
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v6
-        with:
-          dotnet-version: 10.0.x
-
-      - name: Cache NuGet packages
-        uses: actions/cache@v6
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-
-      - name: Restore
-        run: dotnet restore
-
-      - name: Build
-        run: dotnet build --no-restore --verbosity normal
-
-      - name: Test
-        run: dotnet test --no-build --verbosity normal
-
+  # The same suite against the engine production actually runs. Slower to start, and the only
+  # place the CockroachDB-specific migration DDL (LOCALITY, row TTL) is exercised at all.
+  test-cockroach:
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: cockroach
+      coverage: false
+      threshold: 0
 
   build-ghcr:
     if: github.ref == 'refs/heads/dev'

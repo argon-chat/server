@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.EF;
 
+using Argon.Features.EF;
 using Argon.Features.Env;
 using Argon.Features.Vault;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +24,9 @@ public static class WarmUpExtension
             await using var db      = await factory.CreateDbContextAsync();
 
             if (isMigrate)
-                await db.MigrateCockroach(scope.ServiceProvider.GetRequiredService<ILogger<T>>());
+                await db.MigrateArgonDatabase(
+                    scope.ServiceProvider.GetRequiredService<ILogger<T>>(),
+                    scope.ServiceProvider.GetService<DatabaseProvider>()?.Kind ?? DatabaseProviderKind.CockroachDb);
             else
                 await db.Database.EnsureCreatedAsync();
             return app;
@@ -56,7 +59,9 @@ public static class WarmUpExtension
             CREATE TABLE IF NOT EXISTS "__MigrationLock" (
                 id INT PRIMARY KEY DEFAULT 1,
                 locked_at TIMESTAMPTZ,
-                locked_by STRING,
+                -- TEXT rather than Cockroach's STRING: both engines accept TEXT, and the same
+                -- bootstrap DDL has to run against vanilla PostgreSQL in tests/local dev.
+                locked_by TEXT,
                 expires_at TIMESTAMPTZ
             );
             """);
@@ -100,7 +105,8 @@ public static class WarmUpExtension
         logger.LogInformation("Migration lock released");
     }
 
-    private async static Task MigrateCockroach<T>(this T dbCtx, ILogger<T> logger) where T : DbContext
+    private async static Task MigrateArgonDatabase<T>(this T dbCtx, ILogger<T> logger, DatabaseProviderKind providerKind)
+        where T : DbContext
     {
         var db = dbCtx.Database;
 
@@ -120,6 +126,12 @@ public static class WarmUpExtension
         // 42P01: relation "__EFMigrationsHistory" does not exist. The connection is released when
         // the warm-up DbContext is disposed.
         await db.OpenConnectionAsync();
+
+        // Migrations scaffolded against CockroachDB reference its built-ins (unique_rowid) in column
+        // defaults. Define equivalents before the first migration runs so vanilla PostgreSQL can
+        // replay exactly the same history.
+        if (providerKind is DatabaseProviderKind.PostgreSql)
+            await PostgresCompatibilityShims.ApplyAsync(dbCtx, logger);
 
         var lockTtl  = TimeSpan.FromMinutes(10);
         var workerId = Environment.MachineName;

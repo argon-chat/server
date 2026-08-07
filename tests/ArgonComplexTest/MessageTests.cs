@@ -4,7 +4,7 @@ using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
 using ion.runtime;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class MessageTests : TestBase
 {
     [Test, CancelAfter(1000 * 60 * 5), Order(0)]

@@ -5,15 +5,9 @@ using Argon.Core.Entities.Data;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class NotificationCounterTests : TestBase
 {
-    private IFriendsInteraction GetFriendsService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IFriendsInteraction>(provider);
-    }
-
     private IUserChatInteractions GetUserChatService(IServiceProvider? serviceProvider = null)
     {
         var provider = serviceProvider ?? FactoryAsp.Services;
@@ -157,8 +151,13 @@ public class NotificationCounterTests : TestBase
         Assert.That(badges.notifications.friendRequests, Is.EqualTo(1), "Should have 1 friend request notification");
     }
 
+    /// <summary>
+    /// Accepting a request notifies the person who <em>sent</em> it — the acceptor already knows
+    /// what they just did. The test used to read the acceptor's own feed and so could only ever
+    /// have passed by accident.
+    /// </summary>
     [Test, CancelAfter(1000 * 60 * 5), Order(21)]
-    public async Task AcceptFriendRequest_NotificationFeedContainsBothEvents(CancellationToken ct = default)
+    public async Task AcceptFriendRequest_NotifiesTheRequester(CancellationToken ct = default)
     {
         await using var scope1 = FactoryAsp.Services.CreateAsyncScope();
         await using var scope2 = FactoryAsp.Services.CreateAsyncScope();
@@ -181,10 +180,19 @@ public class NotificationCounterTests : TestBase
 
         await Task.Delay(500, ct);
 
-        SetAuthToken(token2);
-        var feed = await GetUserService(scope2.ServiceProvider).GetNotificationFeed(50, null, ct);
+        SetAuthToken(token1);
+        var requesterFeed = await GetUserService(scope1.ServiceProvider).GetNotificationFeed(50, null, ct);
 
-        Assert.That(feed.Values.Count, Is.GreaterThanOrEqualTo(1), "Should have at least 1 notification in feed");
+        Assert.That(requesterFeed.Values.Select(x => x.type),
+            Does.Contain(SystemNotificationType.FriendRequestAccepted),
+            "The requester should be told their friend request was accepted");
+
+        SetAuthToken(token2);
+        var acceptorFeed = await GetUserService(scope2.ServiceProvider).GetNotificationFeed(50, null, ct);
+
+        Assert.That(acceptorFeed.Values.Select(x => x.type),
+            Does.Not.Contain(SystemNotificationType.FriendRequestAccepted),
+            "The acceptor should not be notified about their own action");
     }
 
     #endregion

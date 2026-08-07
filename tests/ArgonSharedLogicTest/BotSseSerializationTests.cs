@@ -19,6 +19,9 @@ using Newtonsoft.Json.Linq;
 [TestFixture]
 public class BotSseSerializationTests
 {
+    /// <summary>Shared empty reaction set — these tests are about entity/union serialisation, not reactions.</summary>
+    private static IonArray<ReactionInfo> NoReactions => new([]);
+
     private static readonly JsonSerializerSettings SseSettings = new()
     {
         ContractResolver = new BotSseContractResolver(),
@@ -97,7 +100,7 @@ public class BotSseSerializationTests
         var fileId = Guid.NewGuid();
         var entity = new MessageEntityAttachment(
             EntityType.Attachment, 0, 0, 1,
-            fileId, "image.png", 12345, "image/png", 800, 600, "abc123");
+            fileId, "image.png", 12345, "image/png", 800, 600, "abc123", "https://cdn.test/image.png");
         var json = JsonConvert.SerializeObject(entity, SseSettings);
         var jo = JObject.Parse(json);
 
@@ -166,7 +169,9 @@ public class BotSseSerializationTests
             text: "Hello @user!",
             entities: entities,
             timeSent: DateTime.UtcNow,
-            sender: senderId);
+            sender: senderId,
+            reactions: NoReactions,
+            controls: null);
 
         var evt = new MessageSent(spaceId, msg);
         var json = JsonConvert.SerializeObject(evt, SseSettings);
@@ -214,7 +219,9 @@ public class BotSseSerializationTests
             text: "No entities",
             entities: new IonArray<IMessageEntity>(new List<IMessageEntity>()),
             timeSent: DateTime.UtcNow,
-            sender: senderId);
+            sender: senderId,
+            reactions: NoReactions,
+            controls: null);
 
         var evt = new MessageSent(spaceId, msg);
         var json = JsonConvert.SerializeObject(evt, SseSettings);
@@ -255,7 +262,7 @@ public class BotSseSerializationTests
         {
             new MessageEntityBold(EntityType.Bold, 0, 5, 1),
             new MessageEntityAttachment(EntityType.Attachment, 0, 0, 1,
-                Guid.NewGuid(), "file.pdf", 9999, "application/pdf", null, null, null),
+                Guid.NewGuid(), "file.pdf", 9999, "application/pdf", null, null, null, null),
         });
 
         var original = new BotSseEvent
@@ -264,7 +271,7 @@ public class BotSseSerializationTests
             Type = BotEventType.Ready,
             SpaceId = spaceId,
             Data = new MessageSent(spaceId, new ArgonMessage(
-                42L, null, Guid.NewGuid(), spaceId, "test", entities, DateTime.UtcNow, senderId))
+                42L, null, Guid.NewGuid(), spaceId, "test", entities, DateTime.UtcNow, senderId, NoReactions, null))
         };
 
         // Serialize (NATS write)
@@ -337,6 +344,6 @@ public class BotSseSerializationTests
 
         return new MessageSent(spaceId, new ArgonMessage(
             1L, null, Guid.NewGuid(), spaceId, "Hello",
-            entities, DateTime.UtcNow, Guid.NewGuid()));
+            entities, DateTime.UtcNow, Guid.NewGuid(), NoReactions, null));
     }
 }

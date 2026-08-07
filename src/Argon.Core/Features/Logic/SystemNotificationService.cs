@@ -89,19 +89,35 @@ public class SystemNotificationService(
         if (before.HasValue)
             query = query.Where(x => x.CreatedAt < before.Value);
 
-        return await query
+        // DateTimeOffset.UtcDateTime has no SQL translation, and projecting it inside the query made
+        // EF throw at shaper-compile time ("No coercion operator is defined between types
+        // 'System.DateTimeOffset' and 'System.Nullable<System.DateTime>'") — so this method failed
+        // 100% of the time, for every caller, with a 500. Pull the columns first, convert after.
+        var rows = await query
             .OrderByDescending(x => x.CreatedAt)
             .Take(limit)
-            .Select(x => new SystemNotificationDto(
+            .Select(x => new
+            {
                 x.Id,
                 x.Type,
                 x.ReferenceId,
                 x.Title,
                 x.Body,
                 x.IsRead,
-                x.CreatedAt.UtcDateTime
-            ))
+                x.CreatedAt
+            })
             .ToListAsync(ct);
+
+        return rows
+           .Select(x => new SystemNotificationDto(
+                x.Id,
+                x.Type,
+                x.ReferenceId,
+                x.Title,
+                x.Body,
+                x.IsRead,
+                x.CreatedAt.UtcDateTime))
+           .ToList();
     }
 
     public async Task<(int friendRequests, int inventory, int system)> GetBadgeCountsAsync(Guid userId, CancellationToken ct = default)

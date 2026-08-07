@@ -5,7 +5,7 @@ using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class SecurityTests : TestBase
 {
     #region Email Change Tests

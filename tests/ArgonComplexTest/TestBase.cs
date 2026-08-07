@@ -1,95 +1,82 @@
 namespace ArgonComplexTest;
 
-using Argon.Features.Env;
-using Argon.Features.Testing;
 using ArgonContracts;
 using Argon.Core.Grains.Interfaces;
+using Argon.Features.Testing;
+using ArgonComplexTest.Infrastructure;
 using Bogus;
 using ion.runtime.client;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.DependencyInjection;
 using System.Net.WebSockets;
 using Argon.Grains.Interfaces;
-using Testcontainers.CockroachDb;
-using Testcontainers.Nats;
-using Testcontainers.Redis;
 
+/// <summary>
+/// Base class for fixtures that talk to a real Argon server.
+/// <para>
+/// The server and its containers are <em>not</em> owned here — they belong to
+/// <see cref="ArgonTestEnvironment"/> and are shared by the whole assembly. What each fixture owns
+/// is its client-side identity: its own <see cref="IonClient"/> and
+/// <see cref="DefaultHeaderInterceptor"/>, so that fixtures running concurrently never see each
+/// other's bearer token.
+/// </para>
+/// <para>
+/// Tests inside one fixture still run sequentially (see <c>AssemblyInfo.cs</c>), which is what lets
+/// <see cref="FakedTestCreds"/> and the ambient token stay simple mutable fields. For scenarios that
+/// need two identities at once, use <see cref="CreateSessionAsync"/> instead of the ambient token.
+/// </para>
+/// </summary>
 public abstract class TestBase
 {
-    protected ArgonServerTargetHost FactoryAsp            = null!;
-    protected HttpClient            HttpClient            = null!;
-    protected IonClient             IonClient             = null!;
-    protected RedisContainer        RedisContainer        = null!;
-    protected NatsContainer         NatsContainer         = null!;
-    protected CockroachDbContainer  CockroachDbContainer  = null!;
+    private DefaultHeaderInterceptor _interceptor = null!;
+
+    protected ArgonServerTargetHost FactoryAsp => ArgonTestEnvironment.Instance.Host;
+    protected HttpClient            HttpClient => ArgonTestEnvironment.Instance.HttpClient;
+    protected IonClient             IonClient  = null!;
 
     protected NewUserCredentialsInputForTest FakedTestCreds = null!;
 
+    /// <summary>
+    /// Runs before any <c>[OneTimeSetUp]</c> a derived fixture declares — NUnit walks the hierarchy
+    /// base-first — so fixtures are free to register users and seed data from their own one-time
+    /// setup without the client being null underneath them.
+    /// </summary>
     [OneTimeSetUp]
-    public async Task OneTimeSetup()
+    public void InitialiseFixtureClient()
     {
-        Environment.SetEnvironmentVariable("ARGON_MODE", nameof(ArgonEnvironmentKind.SingleInstance));
-        Environment.SetEnvironmentVariable("ARGON_ROLE", nameof(ArgonRoleKind.Hybrid));
+        _interceptor = new DefaultHeaderInterceptor();
+        IonClient    = IonClient.Create(HttpClient, WsFactory);
+        IonClient.WithInterceptor(_interceptor);
 
-        CockroachDbContainer = new CockroachDbBuilder()
-           .WithImage("cockroachdb/cockroach:latest")
-           .Build();
-        await CockroachDbContainer.StartAsync();
-
-        RedisContainer = new RedisBuilder()
-           .WithImage("redis:7-alpine")
-           .Build();
-        await RedisContainer.StartAsync();
-
-        NatsContainer = new NatsBuilder()
-           .WithImage("nats:latest")
-           .Build();
-        await NatsContainer.StartAsync();
-
-        FactoryAsp = new ArgonServerTargetHost( 
-            RedisContainer.GetConnectionString(), 
-            NatsContainer.GetConnectionString(),
-            CockroachDbContainer.GetConnectionString());
-
-        HttpClient = FactoryAsp.CreateClient();
-
-        IonClient = IonClient.Create(HttpClient, WsFactory);
-        IonClient.WithInterceptor(FactoryAsp.Services.GetRequiredKeyedService<DefaultHeaderInterceptor>(nameof(DefaultHeaderInterceptor)));
+        FakedTestCreds = GenerateCredentials();
     }
 
     [SetUp]
-    public void Setup()
+    public void SetupTestIdentity()
     {
-        // Add timestamp to ensure unique credentials for each test run
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        
-        var userFaker = new Faker<NewUserCredentialsInputForTest>("en")
-           .RuleFor(u => u.displayName, f => f.Internet.UserName())
-           .RuleFor(u => u.username, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}")
-           .RuleFor(u => u.email, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}@test.local")
-           .RuleFor(u => u.argreeTos, f => true)
-           .RuleFor(u => u.argreeOptionalEmails, f => true)
-           .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
-           .RuleFor(u => u.password, f => f.Internet.Password());
-
-        FakedTestCreds = userFaker.Generate();
-        
-        FactoryAsp.Services.GetRequiredKeyedService<DefaultHeaderInterceptor>(nameof(DefaultHeaderInterceptor))
-            .SetToken(null!);
+        // Clear authorisation between tests: leftover credentials from the previous test in this
+        // fixture are the classic source of "passes alone, fails in a run" flakiness.
+        _interceptor.SetToken(null);
+        FakedTestCreds = GenerateCredentials();
     }
 
-    [OneTimeTearDown]
-    public async Task OneTimeTearDown()
+    /// <summary>
+    /// Builds credentials guaranteed unique across parallel fixtures and repeated runs against a
+    /// reused container: a timestamp alone collides when two fixtures register in the same
+    /// millisecond, so a random suffix goes in as well.
+    /// </summary>
+    protected static NewUserCredentialsInputForTest GenerateCredentials()
     {
-        HttpClient?.Dispose();
-        await FactoryAsp.DisposeAsync();
-        await CockroachDbContainer.StopAsync();
-        await CockroachDbContainer.DisposeAsync();
-        await RedisContainer.StopAsync();
-        await RedisContainer.DisposeAsync();
-        await NatsContainer.StopAsync();
-        await NatsContainer.DisposeAsync();
+        var unique = $"{DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()}_{Guid.NewGuid():N}"[..24];
+
+        return new Faker<NewUserCredentialsInputForTest>("en")
+           .RuleFor(u => u.displayName, f => f.Internet.UserName())
+           .RuleFor(u => u.username, f => $"{f.Random.AlphaNumeric(6)}_{unique}")
+           .RuleFor(u => u.email, f => $"{f.Random.AlphaNumeric(6)}_{unique}@test.local")
+           .RuleFor(u => u.argreeTos, _ => true)
+           .RuleFor(u => u.argreeOptionalEmails, _ => true)
+           .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
+           .RuleFor(u => u.password, f => f.Internet.Password(8, false, "\\w", "Aa1!"))
+           .Generate();
     }
 
     private Task<WebSocket> WsFactory(Uri uri, CancellationToken ct, string[]? protocols)
@@ -106,24 +93,13 @@ public abstract class TestBase
     protected async Task<string> RegisterAndGetTokenAsync(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
-        
-        var timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-        var random = Guid.NewGuid().ToString("N")[..8];
-        
-        var userFaker = new Faker<NewUserCredentialsInputForTest>("en")
-           .RuleFor(u => u.displayName, f => f.Internet.UserName())
-           .RuleFor(u => u.username, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}_{random}")
-           .RuleFor(u => u.email, f => $"{f.Random.AlphaNumeric(8)}_{timestamp}_{random}@test.local")
-           .RuleFor(u => u.argreeTos, f => true)
-           .RuleFor(u => u.argreeOptionalEmails, f => true)
-           .RuleFor(u => u.birthDate, f => f.Date.BetweenDateOnly(new DateOnly(1995, 1, 1), new DateOnly(2000, 1, 1)))
-           .RuleFor(u => u.password, f => f.Internet.Password(8, false, "\\w", "Aa1!"));
 
-        var creds = userFaker.Generate();
-        
-        // Update FakedTestCreds so tests can use the correct password
+        var creds = GenerateCredentials();
+
+        // Tests that follow up on the registration (password reset, login) read the credentials back
+        // off the fixture, so the ambient set has to track the user we just created.
         FakedTestCreds = creds;
-        
+
         var result = await IonClient.ForService<IIdentityInteraction>(scope.ServiceProvider).Registration(
             new NewUserCredentialsInput(
                 creds.email,
@@ -148,53 +124,86 @@ public abstract class TestBase
         return sr.token;
     }
 
-    protected void SetAuthToken(string token)
+    /// <summary>
+    /// Registers a user and returns an isolated client already authenticated as them. Use this when
+    /// a test needs more than one identity at a time — two sessions never share a token, so the
+    /// ambient <see cref="SetAuthToken"/> state cannot leak between them.
+    /// </summary>
+    protected async Task<TestUserSession> CreateSessionAsync(CancellationToken ct = default)
     {
-        FactoryAsp.Services.GetRequiredKeyedService<DefaultHeaderInterceptor>(nameof(DefaultHeaderInterceptor))
-            .SetToken(token);
+        var interceptor = new DefaultHeaderInterceptor();
+        var client      = IonClient.Create(HttpClient, WsFactory);
+        client.WithInterceptor(interceptor);
+
+        var creds = GenerateCredentials();
+
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var result = await client.ForService<IIdentityInteraction>(scope.ServiceProvider).Registration(
+            new NewUserCredentialsInput(
+                creds.email,
+                creds.username,
+                creds.password,
+                creds.displayName,
+                creds.argreeTos,
+                creds.birthDate,
+                creds.argreeOptionalEmails,
+                creds.captchaToken,
+                "1.0",
+                "1.0"),
+            ct);
+
+        if (result is not SuccessRegistration sr)
+        {
+            var err = result as FailedRegistration;
+            Assert.Fail($"Registration failed: {err!.error} - Field: {err.field} - Message: {err.message}");
+            return null!;
+        }
+
+        interceptor.SetToken(sr.token);
+
+        var session = new TestUserSession(client, FactoryAsp.Services, creds, sr.token);
+        session.UserId = (await session.Users.GetMe(ct)).userId;
+        return session;
     }
+
+    protected void SetAuthToken(string token)
+        => _interceptor.SetToken(token);
+
+    /// <summary>
+    /// Drops the ambient bearer token so the next call goes out unauthenticated. Tests that switch
+    /// identity mid-test use this between users; it makes "who am I right now" explicit instead of
+    /// leaving the previous user's token in place until the new one happens to overwrite it.
+    /// </summary>
+    protected void ResetAuthentication()
+        => _interceptor.SetToken(null);
 
     protected IIdentityInteraction GetIdentityService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IIdentityInteraction>(provider);
-    }
+        => IonClient.ForService<IIdentityInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected IUserInteraction GetUserService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IUserInteraction>(provider);
-    }
+        => IonClient.ForService<IUserInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected IServerInteraction GetServerService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IServerInteraction>(provider);
-    }
+        => IonClient.ForService<IServerInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected IChannelInteraction GetChannelService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IChannelInteraction>(provider);
-    }
+        => IonClient.ForService<IChannelInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected IInventoryInteraction GetInventoryService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IInventoryInteraction>(provider);
-    }
+        => IonClient.ForService<IInventoryInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected ISecurityInteraction GetSecurityService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<ISecurityInteraction>(provider);
-    }
+        => IonClient.ForService<ISecurityInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected IUltimaInteraction GetUltimaService(IServiceProvider? serviceProvider = null)
-    {
-        var provider = serviceProvider ?? FactoryAsp.Services;
-        return IonClient.ForService<IUltimaInteraction>(provider);
-    }
+        => IonClient.ForService<IUltimaInteraction>(serviceProvider ?? FactoryAsp.Services);
+
+    protected IFriendsInteraction GetFriendsService(IServiceProvider? serviceProvider = null)
+        => IonClient.ForService<IFriendsInteraction>(serviceProvider ?? FactoryAsp.Services);
+
+    protected IPrivacyInteraction GetPrivacyService(IServiceProvider? serviceProvider = null)
+        => IonClient.ForService<IPrivacyInteraction>(serviceProvider ?? FactoryAsp.Services);
 
     protected FakeXsollaService GetFakeXsolla()
         => FactoryAsp.Services.GetRequiredService<FakeXsollaService>();
@@ -214,7 +223,7 @@ public abstract class TestBase
     protected async Task<Guid> CreateSpaceAndGetIdAsync(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
-        
+
         var result = await GetUserService(scope.ServiceProvider).CreateSpace(
             new CreateServerRequest("Test Space", "Description", string.Empty),
             ct);
@@ -232,7 +241,7 @@ public abstract class TestBase
     protected async Task<Guid> CreateTextChannelAsync(Guid spaceId, string channelName = "test-channel", CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
-        
+
         await GetChannelService(scope.ServiceProvider).CreateChannel(
             spaceId,
             Guid.Empty, // не используется в реализации
@@ -242,21 +251,21 @@ public abstract class TestBase
         // Канал создан, нужно получить его ID из БД
         // Получаем текущего пользователя
         var user = await GetUserService(scope.ServiceProvider).GetMe(ct);
-        
+
         // Устанавливаем RequestContext для grain вызова
         Orleans.Runtime.RequestContext.Set("$caller_user_id", user.userId);
-        
+
         try
         {
             var spaceGrain = FactoryAsp.Services.GetRequiredService<IGrainFactory>()
-                .GetGrain<ISpaceGrain>(spaceId);
-            
+               .GetGrain<ISpaceGrain>(spaceId);
+
             var channels = await spaceGrain.GetChannels();
             var createdChannel = channels.FirstOrDefault(c => c.channel.name == channelName);
-            
+
             if (createdChannel == null)
                 Assert.Fail($"Failed to find created channel '{channelName}'");
-                
+
             return createdChannel!.channel.channelId;
         }
         finally
@@ -264,4 +273,31 @@ public abstract class TestBase
             Orleans.Runtime.RequestContext.Clear();
         }
     }
+}
+
+/// <summary>
+/// A registered user plus a client bound to their token. Handing tests a session instead of mutating
+/// one ambient token is what makes multi-user scenarios (friends, permissions, blocking) expressible
+/// without the two identities fighting over the same interceptor.
+/// </summary>
+public sealed class TestUserSession(
+    IonClient client,
+    IServiceProvider services,
+    NewUserCredentialsInputForTest credentials,
+    string token)
+{
+    public IonClient                      Client      { get; } = client;
+    public NewUserCredentialsInputForTest Credentials { get; } = credentials;
+    public string                         Token       { get; } = token;
+    public Guid                           UserId      { get; internal set; }
+
+    public IUserInteraction      Users     => Client.ForService<IUserInteraction>(services);
+    public IServerInteraction    Servers   => Client.ForService<IServerInteraction>(services);
+    public IChannelInteraction   Channels  => Client.ForService<IChannelInteraction>(services);
+    public IFriendsInteraction   Friends   => Client.ForService<IFriendsInteraction>(services);
+    public IIdentityInteraction  Identity  => Client.ForService<IIdentityInteraction>(services);
+    public ISecurityInteraction  Security  => Client.ForService<ISecurityInteraction>(services);
+    public IInventoryInteraction Inventory => Client.ForService<IInventoryInteraction>(services);
+    public IUltimaInteraction    Ultima    => Client.ForService<IUltimaInteraction>(services);
+    public IPrivacyInteraction   Privacy   => Client.ForService<IPrivacyInteraction>(services);
 }

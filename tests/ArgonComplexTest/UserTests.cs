@@ -3,7 +3,7 @@ namespace ArgonComplexTest.Tests;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class UserTests : TestBase
 {
     [Test, CancelAfter(1000 * 60 * 5), Order(1)]

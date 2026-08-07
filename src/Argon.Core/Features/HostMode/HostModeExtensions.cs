@@ -234,13 +234,24 @@ public static class RunHostModeExtensions
                 app.MapOrleansDashboard("dashboard");
             if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
             {
-                app.UseCors();
+                // The path-token rewrite has to happen before endpoint routing, exactly as
+                // BotPathTokenMiddleware's own contract says. WebApplication silently inserts
+                // UseRouting at the head of the pipeline unless it is called explicitly, so the
+                // rewrite used to run after routing had already failed to match
+                // /api/bot/{token}/... and every path-authenticated bot call 404'd.
                 app.UseBotPathTokenAuth();
+                app.UseRouting();
+                app.UseCors();
                 app.UseAuthentication();
                 app.UseAuthorization();
                 app.UseRateLimiter();
                 app.MapRpcEndpoints();
                 app.MapBotApi();
+                // AddControllers() is registered for this role above, but the endpoints were never
+                // mapped — which silently made the Xsolla/LiveKit webhooks and the file-storage
+                // controller return 404 in single-instance mode, the mode local development and the
+                // integration suite both run in.
+                app.MapControllers();
                 app.UseWebSockets();
             }
             if (hasMapRoot)
@@ -262,8 +273,10 @@ public static class RunHostModeExtensions
                 app.MapOrleansDashboard("dashboard");
             if (app.Environment.IsHybrid() || app.Environment.IsEntryPoint())
             {
-                app.UseCors();
+                // See UseSingleInstanceWorkloads: the rewrite must precede routing.
                 app.UseBotPathTokenAuth();
+                app.UseRouting();
+                app.UseCors();
                 app.UseAuthentication();
                 app.UseAuthorization();
                 app.UseRateLimiter();

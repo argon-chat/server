@@ -10,7 +10,7 @@ using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class XsollaWebHookTests : TestBase
 {
     [SetUp]
@@ -165,7 +165,8 @@ public class XsollaWebHookTests : TestBase
         // Verify recipient got inventory item
         SetAuthToken(recipientToken);
         var items = await GetInventoryService(scope.ServiceProvider).GetMyInventoryItems(ct);
-        Assert.That(items.Values.Any(i => i.id == "ultima_gift"), Is.True);
+        // InventoryGrain.GiveUltimaGiftAsync names the item after the gifted plan.
+        Assert.That(items.Values.Any(i => i.id == "gift_ultima_monthly"), Is.True);
 
         // Verify sender got 2 GiftReward boosts
         var senderGrain = GetGrainFactory().GetGrain<IUltimaGrain>(sender.userId);

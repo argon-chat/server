@@ -39,6 +39,19 @@ public record ChannelEntitlementOverwriteEntity
            .OnDelete(DeleteBehavior.Restrict);
     }
 
+    /// <summary>
+    /// This was left throwing <c>NotImplementedException</c>, which made every channel-permission
+    /// call fail: <c>EntitlementGrain.UpsertArchetypeEntitlementForChannel</c>,
+    /// <c>UpsertMemberEntitlementForChannel</c> and <c>GetChannelEntitlementOverwrites</c> all map
+    /// through here before returning, so the whole per-channel overwrite API answered with a 500.
+    /// </summary>
     public static ChannelEntitlementOverwrite Map(scoped in ChannelEntitlementOverwriteEntity self)
-        => throw new NotImplementedException();
+        => new(
+            self.ChannelId,
+            self.ArchetypeId,
+            self.SpaceMemberId,
+            self.Allow,
+            self.Deny,
+            self.CreatorId,
+            self.Id);
 }

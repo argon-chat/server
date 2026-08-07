@@ -27,6 +27,7 @@
     <PackageReference Include="Testcontainers.CockroachDb" Version="4.13.0" />
     <PackageReference Include="Testcontainers.Consul" Version="4.13.0" />
     <PackageReference Include="Testcontainers.Nats" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.Redis" Version="4.13.0" />
   </ItemGroup>
 

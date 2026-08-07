@@ -18,7 +18,7 @@ using Newtonsoft.Json.Linq;
 /// Integration tests for all stable Bot API interfaces (v1).
 /// Seeds a real bot + user + space + channel in the DB, then calls HTTP endpoints.
 /// </summary>
-[TestFixture, Parallelizable(ParallelScope.Self)]
+[TestFixture]
 public class BotApiTests : TestBase
 {
     // Shared state seeded once for all tests in this fixture
@@ -604,9 +604,11 @@ public class BotApiTests : TestBase
         var (readyName, readyData) = events.First(e => e.EventName == "ready");
         Assert.That(readyName, Is.EqualTo("ready"), "First event should be 'ready' (camelCase)");
         Assert.That(readyData["intents"], Is.Not.Null, "Ready event should contain intents");
-        Assert.That(readyData["spaceIds"], Is.Not.Null, "Ready event should contain spaceIds");
+        Assert.That(readyData["spaces"], Is.Not.Null, "Ready event should contain spaces");
 
-        var spaceIds = readyData["spaceIds"]!.ToObject<List<string>>()!;
+        // ReadyEventPayload is (Intents, BotSpaceInfo[] Spaces); each entry carries the space id
+        // alongside the entitlements granted to the bot there.
+        var spaceIds = readyData["spaces"]!.Select(s => s["spaceId"]?.Value<string>()).ToList();
         Assert.That(spaceIds, Does.Contain(_spaceId.ToString()), "Ready event should include bot's space");
     }
 
@@ -644,10 +646,12 @@ public class BotApiTests : TestBase
         // Start collecting events in background
         var eventTask = CollectSseEventsAsync(
             stopWhen: (name, _) => name == "messageCreate",
-            timeout: TimeSpan.FromSeconds(15));
+            timeout: TimeSpan.FromSeconds(40));
 
-        // Wait a moment for the SSE connection to establish
-        await Task.Delay(1000);
+        // Let the SSE connection establish before publishing. Generous on purpose: under coverage
+        // instrumentation the host runs several times slower, and a message published before the
+        // subscription is live is simply never delivered.
+        await Task.Delay(3000);
 
         // Send a message with entities via Bot API
         var sendResp = await BotCallRawAsync(
@@ -700,9 +704,9 @@ public class BotApiTests : TestBase
     {
         var eventTask = CollectSseEventsAsync(
             stopWhen: (name, _) => name == "messageCreate",
-            timeout: TimeSpan.FromSeconds(15));
+            timeout: TimeSpan.FromSeconds(40));
 
-        await Task.Delay(1000);
+        await Task.Delay(3000);
 
         await BotCallAsync(
             HttpMethod.Post, "/IMessages/v1/Send",
@@ -731,9 +735,9 @@ public class BotApiTests : TestBase
         // Connect with only Voice intent (2048) — should NOT receive messageCreate
         var eventTask = CollectSseEventsAsync(
             intents: 2048, // Voice only
-            timeout: TimeSpan.FromSeconds(8));
+            timeout: TimeSpan.FromSeconds(20));
 
-        await Task.Delay(1000);
+        await Task.Delay(3000);
 
         await BotCallAsync(
             HttpMethod.Post, "/IMessages/v1/Send",

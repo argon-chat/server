@@ -16,5 +16,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ArgonComplexTest/ArgonComplexTest.csproj" Id="a8abb116-133f-4001-8399-f9b7fabc8a4a" />
+    <Project Path="tests/ArgonSharedLogicTest/ArgonSharedLogicTest.csproj" />
   </Folder>
 </Solution>

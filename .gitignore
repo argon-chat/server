@@ -31,3 +31,5 @@ deploy/certs/localhost-key.pem
 certs/jwt-keys/
 
 src/Argon.Api/appsettings.Production.json
+
+artifacts/

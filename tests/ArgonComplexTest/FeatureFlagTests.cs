@@ -6,7 +6,7 @@ using Argon.Grains.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class FeatureFlagTests : TestBase
 {
     private async Task<FeatureFlagEntity> CreateFeatureFlagAsync(

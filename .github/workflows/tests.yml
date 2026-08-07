@@ -1,0 +1,81 @@
+name: Tests
+
+# Reusable test job. Callers pick the database engine and whether to enforce the coverage gate,
+# so PRs get a fast PostgreSQL run with a threshold while nightly builds can additionally replay
+# the same suite against CockroachDB — the engine production runs on.
+on:
+  workflow_call:
+    inputs:
+      database:
+        description: 'postgres or cockroach'
+        type: string
+        default: 'postgres'
+      coverage:
+        description: 'Collect coverage and publish the report'
+        type: boolean
+        default: true
+      threshold:
+        description: 'Minimum line coverage %. 0 disables the gate.'
+        type: number
+        default: 0
+
+jobs:
+  test:
+    name: test (${{ inputs.database }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+
+      - name: Restore
+        run: |
+          dotnet restore
+          dotnet tool restore
+
+      - name: Build
+        run: dotnet build --no-restore --verbosity minimal
+
+      - name: Test
+        shell: pwsh
+        run: |
+          ./scipts/run-tests.ps1 `
+            -Database ${{ inputs.database }} `
+            ${{ inputs.coverage && '-Coverage' || '' }} `
+            -Threshold ${{ inputs.threshold }} `
+            -Verbosity normal
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ inputs.database }}
+          path: artifacts/test-results/**/*.trx
+          if-no-files-found: ignore
+
+      - name: Upload coverage report
+        if: always() && inputs.coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ inputs.database }}
+          path: artifacts/coverage
+          if-no-files-found: ignore
+
+      - name: Coverage summary
+        if: always() && inputs.coverage
+        shell: pwsh
+        run: |
+          $summary = 'artifacts/coverage/SummaryGithub.md'
+          if (Test-Path $summary) { Get-Content $summary >> $env:GITHUB_STEP_SUMMARY }

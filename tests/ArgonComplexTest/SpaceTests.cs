@@ -4,7 +4,7 @@ using ArgonContracts;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class SpaceTests : TestBase
 {
     [Test, CancelAfter(1000 * 60 * 5), Order(0)]
@@ -169,7 +169,7 @@ public class SpaceTests : TestBase
             Argon.Entities.InviteCodeEntityData.EncodeToUlong(invite.inviteCode));
 
         // Second user joins via the shared (dashed) code.
-        Setup();
+        ResetAuthentication();
         var joinerToken = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(joinerToken);
 

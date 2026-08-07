@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using InviteCodeContract = ArgonContracts.InviteCode;
 
-[TestFixture, Parallelizable(ParallelScope.None)]
+[TestFixture]
 public class SystemMessageTests : TestBase
 {
     #region Call System Messages Tests
@@ -24,7 +24,7 @@ public class SystemMessageTests : TestBase
         var user1 = await GetUserService(scope1.ServiceProvider).GetMe(ct);
 
         // Register second user (callee)
-        Setup(); // Reset creds
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
         var user2 = await GetUserService(scope2.ServiceProvider).GetMe(ct);
@@ -75,7 +75,7 @@ public class SystemMessageTests : TestBase
         var user1 = await GetUserService(scope1.ServiceProvider).GetMe(ct);
 
         // Register second user (callee)
-        Setup();
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
         var user2 = await GetUserService(scope2.ServiceProvider).GetMe(ct);
@@ -123,7 +123,7 @@ public class SystemMessageTests : TestBase
         var user1 = await GetUserService(scope1.ServiceProvider).GetMe(ct);
 
         // Register second user (callee) - but will not answer
-        Setup();
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
         var user2 = await GetUserService(scope2.ServiceProvider).GetMe(ct);
@@ -171,7 +171,7 @@ public class SystemMessageTests : TestBase
         var inviteCode = await CreateInviteForSpaceAsync(spaceId, ct);
 
         // Register second user and join via invite
-        Setup();
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
         var user2 = await GetUserService(scope2.ServiceProvider).GetMe(ct);
@@ -217,7 +217,7 @@ public class SystemMessageTests : TestBase
         var inviteCode = await CreateInviteForSpaceAsync(spaceId, ct);
 
         // Register second user and join
-        Setup();
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
 
@@ -252,7 +252,7 @@ public class SystemMessageTests : TestBase
         var inviteCode = await CreateInviteForSpaceAsync(spaceId, ct);
 
         // Register second user
-        Setup();
+        ResetAuthentication();
         var token2 = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token2);
         var user2 = await GetUserService(scope2.ServiceProvider).GetMe(ct);
