@@ -59,7 +59,7 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ inputs.database }}
           path: artifacts/test-results/**/*.trx
@@ -67,7 +67,7 @@ jobs:
 
       - name: Upload coverage report
         if: always() && inputs.coverage
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ inputs.database }}
           path: artifacts/coverage
