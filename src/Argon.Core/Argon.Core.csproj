@@ -19,10 +19,10 @@
         <PackageReference Include="Hussien.SnowflakeId" Version="3.3.0" />
         <PackageReference Include="JetBrains.Annotations" Version="2026.2.0" />
         <PackageReference Include="MailKit" Version="4.17.0" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.10" />
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.10" />
-        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.8.0" />
-        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.10" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Protocols.MessagePack" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Caching.Hybrid" Version="10.9.0" />
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.11" />
         <PackageReference Include="Fluid.Core" Version="2.31.0" />
         <PackageReference Include="Genbox.SimpleS3.Core" Version="3.2.13" />
         <PackageReference Include="Genbox.SimpleS3.Extensions.GenericS3" Version="3.2.13" />
@@ -32,14 +32,14 @@
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
-        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.10" />
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10">
+        <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.Mvc.NewtonsoftJson" Version="10.0.11" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
-        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
-        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.8.0" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
+        <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.9.0" />
         <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.2.2" />
         <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.2.2" />
         <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.2.2" />
@@ -102,7 +102,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.301" />
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.400" />
     </ItemGroup>
 
 </Project>
