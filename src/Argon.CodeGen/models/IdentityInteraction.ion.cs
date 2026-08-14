@@ -15,6 +15,27 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LoginRequestTicket(string token, datetime expiresAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record LoginRequestPreview(string clientName, string? hostName, string ip, string region, datetime createdAt, datetime expiresAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum LoginRequestError
+{
+    NONE = 0,
+    NOT_FOUND = 1,
+    EXPIRED = 2,
+    ALREADY_USED = 3,
+    DEVICE_MISMATCH = 4,
+    RATE_LIMITED = 5,
+    INTERNAL_ERROR = 6,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum BadAuthKind
 {
     SESSION_EXPIRED = 0,
@@ -41,6 +62,715 @@ public interface IIdentityInteraction : IIonService
     [AllowAnonymous()]
     [DoNotRequireSessionContext()]
     Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default);
+    [AllowAnonymous()]
+    Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default);
+    [AllowAnonymous()]
+    Task<ILoginPollResult> PollLoginRequest(string token, CancellationToken ct = default);
+    Task<ILoginRequestPreviewResult> PreviewLoginRequest(string token, CancellationToken ct = default);
+    Task<IApproveLoginRequestResult> ApproveLoginRequest(string token, CancellationToken ct = default);
+    Task<IRejectLoginRequestResult> RejectLoginRequest(string token, CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ICreateLoginRequestResult : IIonUnion<ICreateLoginRequestResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessCreateLoginRequest => this is SuccessCreateLoginRequest;
+
+    internal bool IsFailedCreateLoginRequest => this is FailedCreateLoginRequest;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessCreateLoginRequest(LoginRequestTicket ticket) : ICreateLoginRequestResult
+{
+    public string UnionKey => nameof(SuccessCreateLoginRequest);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedCreateLoginRequest(LoginRequestError error) : ICreateLoginRequestResult
+{
+    public string UnionKey => nameof(FailedCreateLoginRequest);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ICreateLoginRequestResult_Formatter : IonFormatter<ICreateLoginRequestResult>
+{
+    public ICreateLoginRequestResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ICreateLoginRequestResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessCreateLoginRequest>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedCreateLoginRequest>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ICreateLoginRequestResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessCreateLoginRequest n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessCreateLoginRequest>.Write(writer, n_0);
+        }
+
+        else if (value is FailedCreateLoginRequest n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedCreateLoginRequest>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessCreateLoginRequest_Formatter : IonFormatter<SuccessCreateLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessCreateLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __ticket = IonFormatterStorage<LoginRequestTicket>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__ticket);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessCreateLoginRequest value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestTicket>.Write(writer, value.ticket);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedCreateLoginRequest_Formatter : IonFormatter<FailedCreateLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedCreateLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LoginRequestError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedCreateLoginRequest value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ILoginPollResult : IIonUnion<ILoginPollResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsPendingLoginRequest => this is PendingLoginRequest;
+
+    internal bool IsApprovedLoginRequest => this is ApprovedLoginRequest;
+
+    internal bool IsRejectedLoginRequest => this is RejectedLoginRequest;
+
+    internal bool IsFailedLoginPoll => this is FailedLoginPoll;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record PendingLoginRequest(datetime expiresAt) : ILoginPollResult
+{
+    public string UnionKey => nameof(PendingLoginRequest);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ApprovedLoginRequest(string token, string? refreshToken) : ILoginPollResult
+{
+    public string UnionKey => nameof(ApprovedLoginRequest);
+    public uint UnionIndex => 1;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record RejectedLoginRequest() : ILoginPollResult
+{
+    public string UnionKey => nameof(RejectedLoginRequest);
+    public uint UnionIndex => 2;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedLoginPoll(LoginRequestError error) : ILoginPollResult
+{
+    public string UnionKey => nameof(FailedLoginPoll);
+    public uint UnionIndex => 3;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ILoginPollResult_Formatter : IonFormatter<ILoginPollResult>
+{
+    public ILoginPollResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ILoginPollResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<PendingLoginRequest>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<ApprovedLoginRequest>.Read(reader);
+
+        else if (unionIndex == 2)
+            result = IonFormatterStorage<RejectedLoginRequest>.Read(reader);
+
+        else if (unionIndex == 3)
+            result = IonFormatterStorage<FailedLoginPoll>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ILoginPollResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is PendingLoginRequest n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<PendingLoginRequest>.Write(writer, n_0);
+        }
+
+        else if (value is ApprovedLoginRequest n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ApprovedLoginRequest>.Write(writer, n_1);
+        }
+
+        else if (value is RejectedLoginRequest n_2)
+        {
+            if (n_2.UnionIndex != 2)
+                throw new InvalidOperationException();
+            IonFormatterStorage<RejectedLoginRequest>.Write(writer, n_2);
+        }
+
+        else if (value is FailedLoginPoll n_3)
+        {
+            if (n_3.UnionIndex != 3)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedLoginPoll>.Write(writer, n_3);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_PendingLoginRequest_Formatter : IonFormatter<PendingLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public PendingLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __expiresat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__expiresat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, PendingLoginRequest value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<datetime>.Write(writer, value.expiresAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ApprovedLoginRequest_Formatter : IonFormatter<ApprovedLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ApprovedLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __token = IonFormatterStorage<string>.Read(reader);
+        var __refreshtoken = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__token, __refreshtoken);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ApprovedLoginRequest value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<string>.Write(writer, value.token);
+        IonFormatterStorage<string>.WriteNullable(writer, value.refreshToken);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_RejectedLoginRequest_Formatter : IonFormatter<RejectedLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public RejectedLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, RejectedLoginRequest value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedLoginPoll_Formatter : IonFormatter<FailedLoginPoll>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedLoginPoll Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LoginRequestError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedLoginPoll value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ILoginRequestPreviewResult : IIonUnion<ILoginRequestPreviewResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessLoginRequestPreview => this is SuccessLoginRequestPreview;
+
+    internal bool IsFailedLoginRequestPreview => this is FailedLoginRequestPreview;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessLoginRequestPreview(LoginRequestPreview preview) : ILoginRequestPreviewResult
+{
+    public string UnionKey => nameof(SuccessLoginRequestPreview);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedLoginRequestPreview(LoginRequestError error) : ILoginRequestPreviewResult
+{
+    public string UnionKey => nameof(FailedLoginRequestPreview);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ILoginRequestPreviewResult_Formatter : IonFormatter<ILoginRequestPreviewResult>
+{
+    public ILoginRequestPreviewResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ILoginRequestPreviewResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessLoginRequestPreview>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedLoginRequestPreview>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ILoginRequestPreviewResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessLoginRequestPreview n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessLoginRequestPreview>.Write(writer, n_0);
+        }
+
+        else if (value is FailedLoginRequestPreview n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedLoginRequestPreview>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessLoginRequestPreview_Formatter : IonFormatter<SuccessLoginRequestPreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessLoginRequestPreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __preview = IonFormatterStorage<LoginRequestPreview>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__preview);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessLoginRequestPreview value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestPreview>.Write(writer, value.preview);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedLoginRequestPreview_Formatter : IonFormatter<FailedLoginRequestPreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedLoginRequestPreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LoginRequestError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedLoginRequestPreview value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IApproveLoginRequestResult : IIonUnion<IApproveLoginRequestResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessApproveLoginRequest => this is SuccessApproveLoginRequest;
+
+    internal bool IsFailedApproveLoginRequest => this is FailedApproveLoginRequest;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessApproveLoginRequest() : IApproveLoginRequestResult
+{
+    public string UnionKey => nameof(SuccessApproveLoginRequest);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedApproveLoginRequest(LoginRequestError error) : IApproveLoginRequestResult
+{
+    public string UnionKey => nameof(FailedApproveLoginRequest);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IApproveLoginRequestResult_Formatter : IonFormatter<IApproveLoginRequestResult>
+{
+    public IApproveLoginRequestResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IApproveLoginRequestResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessApproveLoginRequest>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedApproveLoginRequest>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IApproveLoginRequestResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessApproveLoginRequest n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessApproveLoginRequest>.Write(writer, n_0);
+        }
+
+        else if (value is FailedApproveLoginRequest n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedApproveLoginRequest>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessApproveLoginRequest_Formatter : IonFormatter<SuccessApproveLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessApproveLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessApproveLoginRequest value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedApproveLoginRequest_Formatter : IonFormatter<FailedApproveLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedApproveLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LoginRequestError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedApproveLoginRequest value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IRejectLoginRequestResult : IIonUnion<IRejectLoginRequestResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessRejectLoginRequest => this is SuccessRejectLoginRequest;
+
+    internal bool IsFailedRejectLoginRequest => this is FailedRejectLoginRequest;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessRejectLoginRequest() : IRejectLoginRequestResult
+{
+    public string UnionKey => nameof(SuccessRejectLoginRequest);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedRejectLoginRequest(LoginRequestError error) : IRejectLoginRequestResult
+{
+    public string UnionKey => nameof(FailedRejectLoginRequest);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IRejectLoginRequestResult_Formatter : IonFormatter<IRejectLoginRequestResult>
+{
+    public IRejectLoginRequestResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IRejectLoginRequestResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessRejectLoginRequest>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedRejectLoginRequest>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IRejectLoginRequestResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessRejectLoginRequest n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessRejectLoginRequest>.Write(writer, n_0);
+        }
+
+        else if (value is FailedRejectLoginRequest n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedRejectLoginRequest>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessRejectLoginRequest_Formatter : IonFormatter<SuccessRejectLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessRejectLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessRejectLoginRequest value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedRejectLoginRequest_Formatter : IonFormatter<FailedRejectLoginRequest>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedRejectLoginRequest Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LoginRequestError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedRejectLoginRequest value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LoginRequestError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

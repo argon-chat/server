@@ -2,6 +2,8 @@ namespace Argon.Grains;
 
 using Argon.Core.Features.Logic;
 using Argon.Core.Features.CoreLogic.Passkeys;
+using Argon.Features.Auth;
+using Argon.Features.Logic;
 using Features.Integrations.Phones;
 using Api.Features.CoreLogic.Otp;
 using ion.runtime;
@@ -21,6 +23,8 @@ public class SecurityGrain(
     IPhoneProvider phoneProvider,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
+    IUserPresenceService presence,
+    IArgonCacheDatabase cache,
     IFido2 fido2,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
 {
@@ -790,6 +794,131 @@ public class SecurityGrain(
             logger.LogError(e, "Failed to complete validate passkey for user {UserId}", UserId);
             return new FailedCompletePasskey(PasskeyError.INTERNAL_ERROR);
         }
+    }
+
+    public async Task<List<SessionInfo>> GetSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+    {
+        try
+        {
+            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
+            var result   = new List<SessionInfo>(sessions.Count);
+
+            foreach (var session in sessions)
+            {
+                // A sid that will not parse is not a session this screen can offer to end — RevokeSession
+                // takes a guid — so listing it would put a row on the screen whose button cannot work.
+                if (!Guid.TryParse(session.SessionId, out var sessionId))
+                    continue;
+
+                result.Add(new SessionInfo(
+                    sessionId,
+                    session.ClientName ?? "",
+                    session.ClientRegion ?? "",
+                    session.LastSeenAt ?? DateTime.UtcNow,
+                    sessionId == currentSessionId));
+            }
+
+            // Current first, then most recently seen: the row the user is least likely to want is the
+            // one they are least likely to hit by accident, and the rest sort into recognisability
+            // order — a session from ten minutes ago is far easier to place than one from Tuesday.
+            return result
+               .OrderByDescending(x => x.isCurrent)
+               .ThenByDescending(x => x.lastSeenAt)
+               .ToList();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to list sessions for user {UserId}", UserId);
+            return [];
+        }
+    }
+
+    public async Task<IRevokeSessionResult> RevokeSessionAsync(Guid sessionId, Guid currentSessionId, CancellationToken ct = default)
+    {
+        if (sessionId == currentSessionId)
+            return new FailedRevokeSession(SessionError.CANNOT_REVOKE_CURRENT);
+
+        try
+        {
+            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
+
+            // Scoped to this user's own live sessions, so a guessed or copied sid from another account
+            // reads as NOT_FOUND rather than becoming a way to sign strangers out.
+            if (!sessions.Any(x => Guid.TryParse(x.SessionId, out var id) && id == sessionId))
+                return new FailedRevokeSession(SessionError.NOT_FOUND);
+
+            await EndSessionAsync(sessionId, ct);
+            await NotifySecurityDetailsChangedAsync(ct);
+
+            return new SuccessRevokeSession();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to revoke session {SessionId} for user {UserId}", sessionId, UserId);
+            return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
+        }
+    }
+
+    public async Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
+    {
+        try
+        {
+            var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
+            var revoked  = 0;
+
+            foreach (var session in sessions)
+            {
+                if (!Guid.TryParse(session.SessionId, out var sessionId) || sessionId == currentSessionId)
+                    continue;
+
+                await EndSessionAsync(sessionId, ct);
+                revoked++;
+            }
+
+            // Deliberately spares the caller. The button that reaches here sits on the devices screen
+            // next to the phone's own row, and a user auditing their sessions is trying to remove the
+            // ones they do not recognise — signing themselves out as a side effect would cost them the
+            // screen they are working on. Signing out this device is what the sign-out button is for.
+            logger.LogInformation("Revoked {Count} session(s) for user {UserId}", revoked, UserId);
+
+            if (revoked > 0)
+                await NotifySecurityDetailsChangedAsync(ct);
+
+            return new SuccessRevokeSession();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to revoke all sessions for user {UserId}", UserId);
+            return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
+        }
+    }
+
+    /// <summary>
+    /// Ends one session three times over, because none of the three is sufficient alone.
+    /// </summary>
+    /// <remarks>
+    /// The tombstone is what actually shuts the credentials out (see <see cref="SessionRevocation"/>);
+    /// <c>GoOfflineAsync</c> is what makes it immediate, since a connected client would otherwise keep
+    /// receiving events off a transport that was authenticated before the tombstone existed; and
+    /// removing the presence key is what stops the row reappearing on the screen a moment later.
+    /// </remarks>
+    private async Task EndSessionAsync(Guid sessionId, CancellationToken ct)
+    {
+        await cache.StringSetAsync(SessionRevocation.Key(UserId, sessionId), "1", SessionRevocation.Window, ct);
+
+        try
+        {
+            await GrainFactory.GetGrain<IUserSessionGrain>($"{UserId}:{sessionId}").GoOfflineAsync();
+        }
+        catch (Exception e)
+        {
+            // A session whose grain cannot be reached is still revoked — the tombstone is already
+            // written, and presence will lapse on its own TTL within two minutes.
+            logger.LogWarning(e, "Could not take session {SessionId} offline for user {UserId}", sessionId, UserId);
+        }
+
+        await presence.RemoveSessionAsync(UserId, sessionId.ToString(), ct);
+        await presence.RemoveSessionStatusAsync(UserId, sessionId.ToString(), ct);
     }
 
     private async Task NotifySecurityDetailsChangedAsync(CancellationToken ct = default)

@@ -54,6 +54,12 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         typeof(ISecurityInteraction).GetMethod(nameof(BeginValidatePasskey), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CompleteValidatePasskey_Ref = new(() =>
         typeof(ISecurityInteraction).GetMethod(nameof(CompleteValidatePasskey), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSessions_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(GetSessions), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeSession_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(RevokeSession), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RevokeAllSessions_Ref = new(() =>
+        typeof(ISecurityInteraction).GetMethod(nameof(RevokeAllSessions), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -365,6 +371,57 @@ public sealed class Ion_SecurityInteraction_ClientImpl(IonClientContext context)
         writer.WriteEndArray();
     
         return await req.CallAsync<ICompletePasskeyResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<SessionInfo>> GetSessions(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), GetSessions_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<SessionInfo>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IRevokeSessionResult> RevokeSession(guid __sessionid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), RevokeSession_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __sessionid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IRevokeSessionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IRevokeSessionResult> RevokeAllSessions(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(ISecurityInteraction), RevokeAllSessions_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IRevokeSessionResult>(writer.Encode(), ct: ct);
     }
 
 }

@@ -11,6 +11,7 @@ public static class AuthorizationFeature
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
+        builder.Services.AddSingleton<IQrLoginService, QrLoginService>();
         builder.Services.AddDataProtection();
         builder.Services.AddScoped<IArgonAuthorizationService, ArgonAuthorizationService>();
         builder.AddPhoneVerification();

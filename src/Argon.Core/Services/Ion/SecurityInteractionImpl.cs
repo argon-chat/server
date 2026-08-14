@@ -57,4 +57,15 @@ public class SecurityInteractionImpl : ISecurityInteraction
 
     public async Task<ICompletePasskeyResult> CompleteValidatePasskey(string authenticationResponse, CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).CompleteValidatePasskeyAsync(authenticationResponse, ct);
+
+    // GetSessionId() is read here rather than inside the grain: it is the caller's own session, and
+    // the ion request context is the only place it exists.
+    public async Task<IonArray<SessionInfo>> GetSessions(CancellationToken ct = default)
+        => new(await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSessionsAsync(this.GetSessionId(), ct));
+
+    public async Task<IRevokeSessionResult> RevokeSession(Guid sessionId, CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RevokeSessionAsync(sessionId, this.GetSessionId(), ct);
+
+    public async Task<IRevokeSessionResult> RevokeAllSessions(CancellationToken ct = default)
+        => await this.GetGrain<ISecurityGrain>(this.GetUserId()).RevokeAllSessionsAsync(this.GetSessionId(), ct);
 }

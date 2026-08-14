@@ -139,6 +139,91 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
         
         IonFormatterStorage<IMyAuthStatus>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateLoginRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateLoginRequest();
+        
+        IonFormatterStorage<ICreateLoginRequestResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PollLoginRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __token = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PollLoginRequest(__token);
+        
+        IonFormatterStorage<ILoginPollResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task PreviewLoginRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __token = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.PreviewLoginRequest(__token);
+        
+        IonFormatterStorage<ILoginRequestPreviewResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ApproveLoginRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __token = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ApproveLoginRequest(__token);
+        
+        IonFormatterStorage<IApproveLoginRequestResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RejectLoginRequest_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IIdentityInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __token = IonFormatterStorage<string>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RejectLoginRequest(__token);
+        
+        IonFormatterStorage<IRejectLoginRequestResult>.Write(writer, result);
+    }
 
     
     
@@ -160,6 +245,16 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
             return GetAuthorizationScenarioFor_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyAuthorization", StringComparison.InvariantCultureIgnoreCase))
             return GetMyAuthorization_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateLoginRequest", StringComparison.InvariantCultureIgnoreCase))
+            return CreateLoginRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("PollLoginRequest", StringComparison.InvariantCultureIgnoreCase))
+            return PollLoginRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("PreviewLoginRequest", StringComparison.InvariantCultureIgnoreCase))
+            return PreviewLoginRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("ApproveLoginRequest", StringComparison.InvariantCultureIgnoreCase))
+            return ApproveLoginRequest_Execute(reader, writer, ct);
+        if (methodName.Equals("RejectLoginRequest", StringComparison.InvariantCultureIgnoreCase))
+            return RejectLoginRequest_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

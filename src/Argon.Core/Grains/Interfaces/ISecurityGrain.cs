@@ -58,4 +58,17 @@ public interface ISecurityGrain : IGrainWithGuidKey
 
     [Alias(nameof(CompleteValidatePasskeyAsync))]
     Task<ICompletePasskeyResult> CompleteValidatePasskeyAsync(string authenticationResponse, CancellationToken ct = default);
+
+    // The caller's own sid is passed in rather than read off the request context: grains only receive
+    // the ids ArgonOrleansInterceptor copies across, and there is no getter for the session id on that
+    // side. Making it a parameter also keeps "which session am I" answerable in a test.
+
+    [Alias(nameof(GetSessionsAsync))]
+    Task<List<SessionInfo>> GetSessionsAsync(Guid currentSessionId, CancellationToken ct = default);
+
+    [Alias(nameof(RevokeSessionAsync))]
+    Task<IRevokeSessionResult> RevokeSessionAsync(Guid sessionId, Guid currentSessionId, CancellationToken ct = default);
+
+    [Alias(nameof(RevokeAllSessionsAsync))]
+    Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default);
 }

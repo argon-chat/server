@@ -14,6 +14,35 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SessionInfo_Formatter : IonFormatter<SessionInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SessionInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __sessionid = IonFormatterStorage<guid>.Read(reader);
+        var __clientname = IonFormatterStorage<string>.Read(reader);
+        var __region = IonFormatterStorage<string>.Read(reader);
+        var __lastseenat = IonFormatterStorage<datetime>.Read(reader);
+        var __iscurrent = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__sessionid, __clientname, __region, __lastseenat, __iscurrent);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SessionInfo value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.sessionId);
+        IonFormatterStorage<string>.Write(writer, value.clientName);
+        IonFormatterStorage<string>.Write(writer, value.region);
+        IonFormatterStorage<datetime>.Write(writer, value.lastSeenAt);
+        IonFormatterStorage<bool>.Write(writer, value.isCurrent);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SecurityDetails_Formatter : IonFormatter<SecurityDetails>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -93,6 +122,23 @@ public sealed class Ion_AutoDeletePeriod_Formatter : IonFormatter<AutoDeletePeri
         IonFormatterStorage<i4>.WriteNullable(writer, value.months);
         IonFormatterStorage<bool>.Write(writer, value.enabled);
         writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SessionError_Formatter : IonFormatter<SessionError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SessionError Read(CborReader reader)
+    {
+         return (SessionError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SessionError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
     }
 }
 

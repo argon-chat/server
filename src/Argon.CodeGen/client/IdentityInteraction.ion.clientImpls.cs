@@ -32,6 +32,16 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         typeof(IIdentityInteraction).GetMethod(nameof(GetAuthorizationScenarioFor), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMyAuthorization_Ref = new(() =>
         typeof(IIdentityInteraction).GetMethod(nameof(GetMyAuthorization), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateLoginRequest_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(CreateLoginRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PollLoginRequest_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(PollLoginRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> PreviewLoginRequest_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(PreviewLoginRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ApproveLoginRequest_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(ApproveLoginRequest), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RejectLoginRequest_Ref = new(() =>
+        typeof(IIdentityInteraction).GetMethod(nameof(RejectLoginRequest), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -156,6 +166,91 @@ public sealed class Ion_IdentityInteraction_ClientImpl(IonClientContext context)
         writer.WriteEndArray();
     
         return await req.CallAsync<IMyAuthStatus>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), CreateLoginRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 0;
+    
+        writer.WriteStartArray(argsSize);
+        
+        
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ICreateLoginRequestResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ILoginPollResult> PollLoginRequest(string __token, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), PollLoginRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __token);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ILoginPollResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ILoginRequestPreviewResult> PreviewLoginRequest(string __token, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), PreviewLoginRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __token);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ILoginRequestPreviewResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IApproveLoginRequestResult> ApproveLoginRequest(string __token, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), ApproveLoginRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __token);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IApproveLoginRequestResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IRejectLoginRequestResult> RejectLoginRequest(string __token, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IIdentityInteraction), RejectLoginRequest_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<string>.Write(writer, __token);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IRejectLoginRequestResult>(writer.Encode(), ct: ct);
     }
 
 }

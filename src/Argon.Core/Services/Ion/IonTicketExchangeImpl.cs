@@ -2,9 +2,10 @@ namespace Argon.Services.Ion;
 
 using System.Buffers;
 using System.Formats.Cbor;
+using Argon.Features.Logic;
 using ion.runtime;
 
-public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider provider) : IIonTicketExchange
+public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider provider, IUserPresenceService presence) : IIonTicketExchange
 {
     public async Task<ReadOnlyMemory<byte>> OnExchangeCreateAsync(IIonCallContext callContext)
     {
@@ -29,6 +30,13 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
         writer.Encode(mem.Memory.Span);
 
         await cache.StringSetAsync($"ion_exchange_{ticketId}", Convert.ToBase64String(mem.Memory.Span), TimeSpan.FromMinutes(1));
+
+        // The ticket is where a session becomes describable: it is issued once per connection and
+        // already carries the client string and the country that the devices screen needs to name the
+        // row. Recording it here rather than per request keeps a Redis write off the hot path, and
+        // rather than in UserSessionGrain because the grain is reached through Orleans' request
+        // context, which carries the ids but not the client name.
+        await presence.TouchSessionMetaAsync(ticket.userId, ticket.sessionId.ToString(), ticket.clientName, ticket.region);
 
         return ticketId.ToByteArray();
     }

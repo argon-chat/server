@@ -326,6 +326,57 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
         
         IonFormatterStorage<ICompletePasskeyResult>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSessions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSessions();
+        
+        IonFormatterStorage<SessionInfo>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeSession_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __sessionid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RevokeSession(__sessionid);
+        
+        IonFormatterStorage<IRevokeSessionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RevokeAllSessions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RevokeAllSessions();
+        
+        IonFormatterStorage<IRevokeSessionResult>.Write(writer, result);
+    }
 
     
     
@@ -369,6 +420,12 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
             return BeginValidatePasskey_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteValidatePasskey", StringComparison.InvariantCultureIgnoreCase))
             return CompleteValidatePasskey_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSessions", StringComparison.InvariantCultureIgnoreCase))
+            return GetSessions_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeSession", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeSession_Execute(reader, writer, ct);
+        if (methodName.Equals("RevokeAllSessions", StringComparison.InvariantCultureIgnoreCase))
+            return RevokeAllSessions_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

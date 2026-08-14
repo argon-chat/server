@@ -80,7 +80,36 @@ public interface IUserPresenceService
     /// multi-session flap fix (the aggregate genuinely changes there); this only kills duplicates.
     /// </summary>
     Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default);
+
+    /// <summary>
+    /// Records who a session belongs to, so it can be named on the devices screen.
+    /// </summary>
+    /// <remarks>
+    /// Presence answers "is this sid alive", which is all the fan-out ever needed; naming a session
+    /// needs the client string and the country, and neither is derivable from a sid. Written once
+    /// per session from the ion ticket exchange — the one place that already has the whole
+    /// <c>ArgonIonTicket</c> in hand — rather than per request, which would put a Redis write on the
+    /// hot path to restate a constant.
+    /// </remarks>
+    Task TouchSessionMetaAsync(Guid userId, string sessionId, string clientName, string region, CancellationToken ct = default);
+
+    /// <summary>The naming record for one session, or null if it was never written or has lapsed.</summary>
+    Task<UserSessionMeta?> GetSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default);
+
+    /// <summary>Forgets a session's naming record. Paired with <see cref="RemoveSessionAsync"/>.</summary>
+    Task RemoveSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default);
 }
+
+/// <summary>
+/// What is known about a session beyond the fact that it is alive.
+/// </summary>
+/// <remarks>
+/// <see cref="LastSeenAt"/> is the last heartbeat, not the last write of this record: the record is
+/// written once and the timestamp is refreshed by <c>HeartbeatAsync</c>, which is the only signal
+/// that arrives often enough to mean anything. A session whose presence key is alive but whose
+/// heartbeat is a minute old is exactly the distinction the devices list is there to show.
+/// </remarks>
+public sealed record UserSessionMeta(string ClientName, string Region, DateTime StartedAt, DateTime LastSeenAt);
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
 {
@@ -99,6 +128,21 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     // One activity entry per session (sid), so multiple devices don't overwrite each other.
     private static string ActivitySessionKey(Guid userId, string sessionId)
         => $"activity:user:{userId}:session:{sessionId}";
+
+    // Who the session is, and when it was last heard from. Split in two because the two halves are
+    // written by different things at wildly different rates: the name is a constant established once
+    // at session start, the timestamp moves on every ~15s heartbeat. Folding them into one JSON blob
+    // would turn each heartbeat into a read-modify-write of a value that never changes.
+    private static string SessionMetaKey(Guid userId, string sessionId)
+        => $"session:meta:{userId}:{sessionId}";
+
+    private static string SessionSeenKey(Guid userId, string sessionId)
+        => $"session:seen:{userId}:{sessionId}";
+
+    // Outlives the 120s presence TTL so a session that briefly drops off and heartbeats back keeps
+    // its name instead of reappearing anonymous. Nothing reads it for a session that is not also in
+    // the live index, so a stale one is invisible rather than wrong.
+    private static readonly TimeSpan SessionMetaTTL = TimeSpan.FromHours(24);
 
     public Task SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default)
         => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
@@ -121,11 +165,53 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var key = SessionKey(userId, sessionId);
         await cache.KeyDeleteAsync(key, ct);
         await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId, ct);
+        await RemoveSessionMetaAsync(userId, sessionId, ct);
+    }
+
+    public async Task TouchSessionMetaAsync(Guid userId, string sessionId, string clientName, string region, CancellationToken ct = default)
+    {
+        var now = DateTime.UtcNow;
+
+        await cache.StringSetAsync(SessionMetaKey(userId, sessionId),
+            JsonConvert.SerializeObject(new UserSessionMeta(clientName, region, now, now)), SessionMetaTTL, ct);
+        await cache.StringSetAsync(SessionSeenKey(userId, sessionId), now.Ticks.ToString(), SessionMetaTTL, ct);
+    }
+
+    public async Task<UserSessionMeta?> GetSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    {
+        var json = await cache.StringGetAsync(SessionMetaKey(userId, sessionId), ct);
+        var seen = await cache.StringGetAsync(SessionSeenKey(userId, sessionId), ct);
+
+        var lastSeenAt = long.TryParse(seen, out var ticks)
+            ? new DateTime(ticks, DateTimeKind.Utc)
+            : (DateTime?)null;
+
+        var meta = string.IsNullOrEmpty(json) ? null : JsonConvert.DeserializeObject<UserSessionMeta>(json);
+
+        // A heartbeat alone is enough to describe a session as "still here, name unknown" — bot
+        // sessions never pass through the ticket exchange, and neither does anything that predates
+        // the meta record. Returning null for those would drop them off the devices screen entirely,
+        // which is the one place a user goes to end a session they do not recognise.
+        if (meta is null)
+            return lastSeenAt is null ? null : new UserSessionMeta("", "", lastSeenAt.Value, lastSeenAt.Value);
+
+        return lastSeenAt is null ? meta : meta with { LastSeenAt = lastSeenAt.Value };
+    }
+
+    public async Task RemoveSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    {
+        await cache.KeyDeleteAsync(SessionMetaKey(userId, sessionId), ct);
+        await cache.KeyDeleteAsync(SessionSeenKey(userId, sessionId), ct);
     }
 
     public async Task HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         await UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
+        // Unconditional SET rather than an EXPIRE like the presence key above: this one is allowed to
+        // be created by a heartbeat. A session that predates the meta record — or a bot session, which
+        // never goes through the ticket exchange — still gets a truthful last-seen, and stays a row
+        // the devices screen can offer to end even though it has no name to show.
+        await cache.StringSetAsync(SessionSeenKey(userId, sessionId), DateTime.UtcNow.ToString("O"), SessionMetaTTL, ct);
         // Self-heal the live-session index on every heartbeat: an idempotent SADD re-adds sessions
         // that predate a deploy/cutover (or any lost SADD) so they reappear in presence within one
         // ~15s tick instead of looking offline until reconnect. Covers user and bot sessions, since

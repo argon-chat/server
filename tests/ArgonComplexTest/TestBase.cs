@@ -167,6 +167,27 @@ public abstract class TestBase
         return session;
     }
 
+    /// <summary>
+    /// An unauthenticated client with a machine identity of its own — a browser sitting on the
+    /// sign-in screen.
+    /// </summary>
+    /// <remarks>
+    /// QR login is the one flow that needs both sides at once and needs them to be <em>different
+    /// machines</em>: the desktop asking for a code has no token, the phone approving it has one,
+    /// and the whole security argument rests on the two not being the same device. Acting the
+    /// desktop with the ambient client would make the machine ids match and quietly pass a test
+    /// that should have caught a missing check.
+    /// </remarks>
+    protected TestBrowser CreateBrowser()
+    {
+        var interceptor = new DefaultHeaderInterceptor();
+        var client      = IonClient.Create(HttpClient, WsFactory);
+
+        client.WithInterceptor(interceptor);
+
+        return new TestBrowser(client, FactoryAsp.Services);
+    }
+
     protected void SetAuthToken(string token)
         => _interceptor.SetToken(token);
 
@@ -273,6 +294,17 @@ public abstract class TestBase
             Orleans.Runtime.RequestContext.Clear();
         }
     }
+}
+
+/// <summary>
+/// A client that has never signed in, with its own machine identity. See
+/// <see cref="TestBase.CreateBrowser"/> for why QR login needs one.
+/// </summary>
+public sealed class TestBrowser(IonClient client, IServiceProvider services)
+{
+    public IonClient Client { get; } = client;
+
+    public IIdentityInteraction Identity => Client.ForService<IIdentityInteraction>(services);
 }
 
 /// <summary>

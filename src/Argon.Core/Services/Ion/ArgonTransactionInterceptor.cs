@@ -1,6 +1,7 @@
 namespace Argon.Services.Ion;
 
 using ion.runtime;
+using Features.Auth;
 using Features.Jwt;
 using Microsoft.Extensions.Caching.Hybrid;
 using AllowAnonymousAttribute = ArgonContracts.AllowAnonymousAttribute;
@@ -62,6 +63,15 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
             SafeSetRequestContext(context, httpContext, user, severity);
         else
             SetRequestContext(context, httpContext, user, severity);
+
+        // A session the user ended from another device must stop being honoured here, not merely lose
+        // its transport: the refresh token it was issued with is stateless and outlives any access
+        // token, so without this check GetMyAuthorization would keep re-minting for a session that was
+        // revoked. Placed after the context is set because the sid comes out of the same cookie.
+        if (user is not null &&
+            ArgonRequestContext.Current.SessionId is { } sessionId &&
+            await IsSessionRevokedAsync(context.ServiceProvider, user.Value, sessionId, ct))
+            throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
 
         // Record the user's current app locale (normalized to BCP-47) for this session, so the Bot API
         // can surface it on BotUserV1. Ephemeral & best-effort — never blocks or fails the request.
@@ -162,6 +172,38 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         Expiration      = TimeSpan.FromSeconds(30),
         LocalCacheExpiration = TimeSpan.FromSeconds(10),
     };
+
+    // Shorter than the lockdown window above, and for the opposite reason: lockdown is a moderation
+    // decision that can wait half a minute to take effect, while a revocation is a user watching a
+    // screen and expecting the other device to fall off it. Still cached, because the answer is "no"
+    // for essentially every request ever made and one Redis EXISTS per call is not worth paying.
+    private static readonly HybridCacheEntryOptions RevokedSessionCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(15),
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
+    };
+
+    private static async Task<bool> IsSessionRevokedAsync(
+        IServiceProvider sp, Guid userId, Guid sessionId, CancellationToken ct)
+    {
+        var key = SessionRevocation.Key(userId, sessionId);
+
+        try
+        {
+            return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+                key,
+                async token => await sp.GetRequiredService<IArgonCacheDatabase>().KeyExistsAsync(key, token),
+                RevokedSessionCacheOptions,
+                cancellationToken: ct);
+        }
+        catch (Exception)
+        {
+            // Fail-open, consistently with every other cache gate on this path: a store incident must
+            // not sign the whole instance out. The blast radius is that a revoked session survives
+            // until the cache is answering again.
+            return false;
+        }
+    }
 
     private static async Task<LockdownSeverity> ResolveLockdownSeverityAsync(
         IServiceProvider sp, Guid userId, CancellationToken ct)

@@ -15,6 +15,10 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SessionInfo(guid sessionId, string clientName, string region, datetime lastSeenAt, bool isCurrent);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SecurityDetails(bool otpEnabled, IonArray<Passkey> passkeys, string? email, string? phone, AutoDeletePeriod autoDeletePeriod);
 
 
@@ -24,6 +28,16 @@ public sealed record Passkey(guid id, string name, datetime createdAt, datetime?
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AutoDeletePeriod(i4? months, bool enabled);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SessionError
+{
+    NONE = 0,
+    NOT_FOUND = 1,
+    CANNOT_REVOKE_CURRENT = 2,
+    INTERNAL_ERROR = 3,
+}
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -123,6 +137,133 @@ public interface ISecurityInteraction : IIonService
     Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default);
     Task<IBeginPasskeyValidateResult> BeginValidatePasskey(CancellationToken ct = default);
     Task<ICompletePasskeyResult> CompleteValidatePasskey(string authenticationResponse, CancellationToken ct = default);
+    Task<IonArray<SessionInfo>> GetSessions(CancellationToken ct = default);
+    Task<IRevokeSessionResult> RevokeSession(guid sessionId, CancellationToken ct = default);
+    Task<IRevokeSessionResult> RevokeAllSessions(CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IRevokeSessionResult : IIonUnion<IRevokeSessionResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessRevokeSession => this is SuccessRevokeSession;
+
+    internal bool IsFailedRevokeSession => this is FailedRevokeSession;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessRevokeSession() : IRevokeSessionResult
+{
+    public string UnionKey => nameof(SuccessRevokeSession);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedRevokeSession(SessionError error) : IRevokeSessionResult
+{
+    public string UnionKey => nameof(FailedRevokeSession);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IRevokeSessionResult_Formatter : IonFormatter<IRevokeSessionResult>
+{
+    public IRevokeSessionResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IRevokeSessionResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessRevokeSession>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedRevokeSession>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IRevokeSessionResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessRevokeSession n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessRevokeSession>.Write(writer, n_0);
+        }
+
+        else if (value is FailedRevokeSession n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedRevokeSession>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessRevokeSession_Formatter : IonFormatter<SuccessRevokeSession>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessRevokeSession Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessRevokeSession value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedRevokeSession_Formatter : IonFormatter<FailedRevokeSession>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedRevokeSession Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<SessionError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedRevokeSession value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<SessionError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

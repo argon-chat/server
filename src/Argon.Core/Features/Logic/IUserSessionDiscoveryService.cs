@@ -12,11 +12,31 @@ public interface IUserSessionDiscoveryService
     Task<IReadOnlyList<UserSessionDescriptor>> GetUserSessionsAsync(Guid userId, CancellationToken ct = default);
 }
 
+/// <summary>
+/// One live session of one user.
+/// </summary>
+/// <remarks>
+/// <para><see cref="ClientName"/>, <see cref="ClientRegion"/> and <see cref="LastSeenAt"/> were
+/// added for the devices screen, which has to say <em>which</em> session it is offering to end — a
+/// list of opaque sids is not something anyone can make a safety decision from. They come from the
+/// per-session record <c>IUserPresenceService</c> writes at session start (see
+/// <c>TouchSessionMetaAsync</c>), so a session that predates that write, or whose record lapsed,
+/// degrades to the same anonymous row the fan-out callers already tolerated rather than dropping
+/// out of the list.</para>
+///
+/// <para><see cref="ClientRegion"/> is separate from <see cref="Region"/> on purpose and they are
+/// not interchangeable: <see cref="Region"/>/<see cref="ServerId"/> say where the session is being
+/// <em>served</em> from and are what the notifier routes on, while <see cref="ClientRegion"/> is
+/// the country the request came from — the only one of the two that answers "was this me?".</para>
+/// </remarks>
 public sealed record UserSessionDescriptor(
     string SessionId,
     Guid UserId,
     string Region,
-    string ServerId
+    string ServerId,
+    string? ClientName = null,
+    string? ClientRegion = null,
+    DateTime? LastSeenAt = null
 );
 
 public interface IUserSessionNotifier
@@ -44,7 +64,19 @@ public sealed class LocalUserSessionDiscoveryService(
 
         var list = new List<UserSessionDescriptor>(sessions.Count);
 
-        list.AddRange(sessions.Select(sid => new UserSessionDescriptor(SessionId: sid, UserId: userId, Region: "ru-3", ServerId: "ru-spb-3")));
+        foreach (var sid in sessions)
+        {
+            var meta = await presence.GetSessionMetaAsync(userId, sid, ct);
+
+            list.Add(new UserSessionDescriptor(
+                SessionId: sid,
+                UserId: userId,
+                Region: "ru-3",
+                ServerId: "ru-spb-3",
+                ClientName: meta?.ClientName,
+                ClientRegion: meta?.Region,
+                LastSeenAt: meta?.LastSeenAt));
+        }
 
         return list;
     }

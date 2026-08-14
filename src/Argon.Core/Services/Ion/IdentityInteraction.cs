@@ -1,9 +1,14 @@
 namespace Argon.Services.Ion;
 
 using Core.Services.Validators;
+using Features.Auth;
 using Features.Jwt;
 
-public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJwtFlow flow, IArgonCacheDatabase cache) : IIdentityInteraction
+public class IdentityInteraction(
+    ILogger<IIdentityInteraction> logger,
+    ClassicJwtFlow flow,
+    IArgonCacheDatabase cache,
+    IQrLoginService qrLogin) : IIdentityInteraction
 {
     public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default)
     {
@@ -140,6 +145,28 @@ public class IdentityInteraction(ILogger<IIdentityInteraction> logger, ClassicJw
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
         }
     }
+
+    // The two anonymous halves of the QR sign-in. Both are @AllowAnonymous but NOT
+    // @DoNotRequireSessionContext: the desktop already sends its ArgonSecure cookie on Authorize, and
+    // the machine id inside it is what binds a pending request to the browser that opened it. The
+    // per-IP throttle in ArgonTransactionInterceptor does not cover these methods (its table is
+    // keyed by method name), so QrLoginService carries its own.
+    public Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default)
+        => qrLogin.CreateAsync(ct);
+
+    public Task<ILoginPollResult> PollLoginRequest(string token, CancellationToken ct = default)
+        => qrLogin.PollAsync(token, ct);
+
+    // The three authenticated halves — the phone is already signed in, and its user is the one the
+    // desktop will be signed in as.
+    public Task<ILoginRequestPreviewResult> PreviewLoginRequest(string token, CancellationToken ct = default)
+        => qrLogin.PreviewAsync(token, this.GetUserId(), ct);
+
+    public Task<IApproveLoginRequestResult> ApproveLoginRequest(string token, CancellationToken ct = default)
+        => qrLogin.ApproveAsync(token, this.GetUserId(), ct);
+
+    public Task<IRejectLoginRequestResult> RejectLoginRequest(string token, CancellationToken ct = default)
+        => qrLogin.RejectAsync(token, this.GetUserId(), ct);
 
     // Sliding-window per-email limiter mirroring EmailOtpStrategy.CheckRateLimitAsync (INCR, set
     // EXPIRE on first hit) over the shared Dragonfly cache. Returns true if allowed. Fails OPEN on
