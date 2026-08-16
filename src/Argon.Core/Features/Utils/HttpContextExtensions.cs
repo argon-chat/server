@@ -117,11 +117,23 @@ public static class HttpContextExtensions
             }
         }
 
+        /// <summary>
+        /// Which machine this request came from.
+        /// </summary>
+        /// <remarks>
+        /// <para>The development constant below used to be checked <em>first</em>, which made every
+        /// caller on a development host the same machine. That is not a test-only inconvenience:
+        /// the machine identity is what binds a QR sign-in code to the browser that asked for it,
+        /// and what the <c>mh</c> claim on every access token is checked against. Collapsing it to a
+        /// constant turns both of those into no-ops on any deployment running in Development.</para>
+        ///
+        /// <para>So it is a fallback now rather than an override: a caller that presents a machine
+        /// identity gets its own, and the constant only stands in for callers that present none —
+        /// which is the case the constant existed for, since a local host has no
+        /// <c>ArgonSecure</c> cookie to read.</para>
+        /// </remarks>
         public string GetMachineId()
         {
-            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
-                return "1234";
-
             // Priority 1: ArgonSecure cookie
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
             {
@@ -147,6 +159,12 @@ public static class HttpContextExtensions
                     return machineId;
                 throw new InvalidOperationException("MachineId invalid");
             }
+
+            // Nothing identified the caller. Locally that is ordinary — there is no ArgonSecure
+            // cookie on a dev host — so stand one in rather than failing every request. Anywhere
+            // else an unidentified caller is a caller we cannot bind a token to.
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return "1234";
 
             throw new InvalidOperationException("MachineId is not defined");
         }

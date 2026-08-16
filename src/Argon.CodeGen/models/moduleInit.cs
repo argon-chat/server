@@ -66,6 +66,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelType>.Value = new Ion_ChannelType_Formatter();
       IonFormatterStorage<JoinToChannelError>.Value = new Ion_JoinToChannelError_Formatter();
       IonFormatterStorage<EntityType>.Value = new Ion_EntityType_Formatter();
+      IonFormatterStorage<UpdateChannelError>.Value = new Ion_UpdateChannelError_Formatter();
+      IonFormatterStorage<VoiceInviteError>.Value = new Ion_VoiceInviteError_Formatter();
+      IonFormatterStorage<DeleteMessageError>.Value = new Ion_DeleteMessageError_Formatter();
       IonFormatterStorage<ControlType>.Value = new Ion_ControlType_Formatter();
       IonFormatterStorage<ButtonVariant>.Value = new Ion_ButtonVariant_Formatter();
       IonFormatterStorage<InvokeSlashCommandError>.Value = new Ion_InvokeSlashCommandError_Formatter();
@@ -85,6 +88,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ActivityPresenceKind>.Value = new Ion_ActivityPresenceKind_Formatter();
       IonFormatterStorage<ChannelMemberState>.Value = new Ion_ChannelMemberState_Formatter();
       IonFormatterStorage<IMessageEntity>.Value = new Ion_IMessageEntity_Formatter();
+      IonFormatterStorage<IUpdateChannelResult>.Value = new Ion_IUpdateChannelResult_Formatter();
+      IonFormatterStorage<ICreateVoiceInviteResult>.Value = new Ion_ICreateVoiceInviteResult_Formatter();
+      IonFormatterStorage<IDeleteMessageResult>.Value = new Ion_IDeleteMessageResult_Formatter();
       IonFormatterStorage<IInvokeSlashCommandResult>.Value = new Ion_IInvokeSlashCommandResult_Formatter();
       IonFormatterStorage<IInteractWithControlResult>.Value = new Ion_IInteractWithControlResult_Formatter();
       IonFormatterStorage<IInteractWithSelectResult>.Value = new Ion_IInteractWithSelectResult_Formatter();
@@ -267,6 +273,12 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntitySystemUserJoined>.Value = new Ion_MessageEntitySystemUserJoined_Formatter();
       IonFormatterStorage<MessageEntityAttachment>.Value = new Ion_MessageEntityAttachment_Formatter();
       IonFormatterStorage<MessageEntityGif>.Value = new Ion_MessageEntityGif_Formatter();
+      IonFormatterStorage<SuccessUpdateChannel>.Value = new Ion_SuccessUpdateChannel_Formatter();
+      IonFormatterStorage<FailedUpdateChannel>.Value = new Ion_FailedUpdateChannel_Formatter();
+      IonFormatterStorage<SuccessCreateVoiceInvite>.Value = new Ion_SuccessCreateVoiceInvite_Formatter();
+      IonFormatterStorage<FailedCreateVoiceInvite>.Value = new Ion_FailedCreateVoiceInvite_Formatter();
+      IonFormatterStorage<SuccessDeleteMessage>.Value = new Ion_SuccessDeleteMessage_Formatter();
+      IonFormatterStorage<FailedDeleteMessage>.Value = new Ion_FailedDeleteMessage_Formatter();
       IonFormatterStorage<SuccessInvokeSlashCommand>.Value = new Ion_SuccessInvokeSlashCommand_Formatter();
       IonFormatterStorage<FailedInvokeSlashCommand>.Value = new Ion_FailedInvokeSlashCommand_Formatter();
       IonFormatterStorage<SuccessInteractWithControl>.Value = new Ion_SuccessInteractWithControl_Formatter();
@@ -346,6 +358,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FeatureFlagActivated>.Value = new Ion_FeatureFlagActivated_Formatter();
       IonFormatterStorage<DrawingSessionStarted>.Value = new Ion_DrawingSessionStarted_Formatter();
       IonFormatterStorage<DrawingSessionEnded>.Value = new Ion_DrawingSessionEnded_Formatter();
+      IonFormatterStorage<MessageDeleted>.Value = new Ion_MessageDeleted_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

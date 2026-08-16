@@ -109,14 +109,15 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         var __groupid = reader.ReadNullable<guid>();
         var __fractionalindex = reader.ReadNullable<string>();
         var __lastmessageid = IonFormatterStorage<i8>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex, __lastmessageid);
+        var __slowmodeseconds = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex, __lastmessageid, __slowmodeseconds);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonChannel value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(9);
         IonFormatterStorage<ChannelType>.Write(writer, value.type);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
@@ -125,6 +126,7 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         IonFormatterStorage<guid>.WriteNullable(writer, value.groupId);
         IonFormatterStorage<string>.WriteNullable(writer, value.fractionalIndex);
         IonFormatterStorage<i8>.Write(writer, value.lastMessageId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.slowModeSeconds);
         writer.WriteEndArray();
     }
 }
@@ -877,6 +879,57 @@ public sealed class Ion_EntityType_Formatter : IonFormatter<EntityType>
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, EntityType value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateChannelError_Formatter : IonFormatter<UpdateChannelError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateChannelError Read(CborReader reader)
+    {
+         return (UpdateChannelError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateChannelError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_VoiceInviteError_Formatter : IonFormatter<VoiceInviteError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public VoiceInviteError Read(CborReader reader)
+    {
+         return (VoiceInviteError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, VoiceInviteError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DeleteMessageError_Formatter : IonFormatter<DeleteMessageError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DeleteMessageError Read(CborReader reader)
+    {
+         return (DeleteMessageError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DeleteMessageError value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);

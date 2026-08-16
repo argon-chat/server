@@ -127,12 +127,12 @@ public class MessageTests : TestBase
         var spaceId   = await CreateSpaceAndGetIdAsync(ct);
         var channelId = await CreateTextChannelAsync(spaceId, "metadata", ct);
 
-        var beforeSend = DateTime.UtcNow;
+        var beforeSend = DateTimeOffset.UtcNow;
 
         await GetChannelService(scope.ServiceProvider).SendMessage(
             spaceId, channelId, "Test message", new IonArray<IMessageEntity>([]), 1, null, ct);
 
-        var afterSend = DateTime.UtcNow;
+        var afterSend = DateTimeOffset.UtcNow;
 
         var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
             spaceId, channelId, null, 10, ct);

@@ -5,9 +5,15 @@ using Argon.Core.Grains.Interfaces;
 using Argon.Sfu;
 using ion.runtime;
 using Livekit.Server.Sdk.Dotnet;
+using Microsoft.Extensions.Configuration;
 
-public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger<IChannelInteraction> logger) : IChannelInteraction
+public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfiguration configuration, ILogger<IChannelInteraction> logger)
+    : IChannelInteraction
 {
+    // Voice links get their own path so a plain space invite and a room invite stay tellable apart
+    // by eye — "argon.gl/v/..." is the shape the design hands out.
+    private const string DefaultVoiceInviteDomain = "https://argon.gl/v";
+
     public async Task CreateChannelGroup(Guid spaceId, Guid channelId, string name, string? description, CancellationToken ct = default)
         => await this
            .GetGrain<ISpaceGrain>(spaceId)
@@ -46,6 +52,49 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, ILogger
         => await this
            .GetGrain<ISpaceGrain>(spaceId)
            .UpdateChannelGroup(groupId, name, description, null, ct);
+
+    public async Task<IUpdateChannelResult> UpdateChannel(Guid spaceId, Guid channelId, string? name, string? description, int? slowModeSeconds,
+        CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .UpdateChannelSettings(name, description, slowModeSeconds, ct);
+
+        return result.IsSuccess
+            ? new SuccessUpdateChannel(result.Value.ToDto())
+            : new FailedUpdateChannel(result.Error);
+    }
+
+    public async Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(Guid spaceId, Guid channelId, int expireMinutes, int maxUses,
+        CancellationToken ct = default)
+    {
+        // Same "0 means never" convention as ServerInteraction.CreateInviteCode: a far-future
+        // timestamp instead of a null column, so the TTL sweeper needs no special case.
+        var expiration = expireMinutes <= 0
+            ? TimeSpan.FromDays(365 * 100)
+            : TimeSpan.FromMinutes(expireMinutes);
+
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .CreateVoiceInvite(expiration, maxUses, ct);
+
+        if (!result.IsSuccess)
+            return new FailedCreateVoiceInvite(result.Error);
+
+        var domain = configuration["Invites:VoiceDomain"] ?? DefaultVoiceInviteDomain;
+        return new SuccessCreateVoiceInvite(new ArgonContracts.InviteCode(result.Value), $"{domain}/{result.Value}");
+    }
+
+    public async Task<IDeleteMessageResult> DeleteMessage(Guid spaceId, Guid channelId, long messageId, CancellationToken ct = default)
+    {
+        var error = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .DeleteMessage(messageId, ct);
+
+        return error is DeleteMessageError.NONE
+            ? new SuccessDeleteMessage()
+            : new FailedDeleteMessage(error);
+    }
 
     public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, long? from, int limit, CancellationToken ct = default)
     {

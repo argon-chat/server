@@ -57,5 +57,9 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             self.AvatarFrameId,
             self.NickEffectId,
             self.PrimaryColor,
-            self.AccentColor);
+            self.AccentColor,
+            // The user row is the authority on "in Argon since", but most call sites read the profile
+            // without joining it. The profile row is inserted in the same transaction as the user
+            // (see registration), so its own CreatedAt is the same instant and serves as the fallback.
+            (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime);
 }

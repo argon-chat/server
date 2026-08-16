@@ -37,10 +37,10 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
         return (invite.SpaceId, AcceptInviteError.NONE);
     }
 
-    public async ValueTask<(Guid, AcceptInviteError)> PreviewAsync()
+    public async ValueTask<(InviteTarget?, AcceptInviteError)> PreviewAsync()
     {
         if (!InviteCodeEntityData.TryParseInviteCode(this.GetPrimaryKeyString(), out var inviteId) || inviteId is null)
-            return (Guid.Empty, AcceptInviteError.NOT_FOUND);
+            return (null, AcceptInviteError.NOT_FOUND);
 
         await using var db = await context.CreateDbContextAsync();
 
@@ -49,13 +49,26 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
            .FirstOrDefaultAsync(x => x.Id == inviteId.Value);
 
         if (invite is null)
-            return (Guid.Empty, AcceptInviteError.NOT_FOUND);
+            return (null, AcceptInviteError.NOT_FOUND);
         if (invite.ExpireAt < DateTimeOffset.UtcNow)
-            return (Guid.Empty, AcceptInviteError.EXPIRED);
+            return (null, AcceptInviteError.EXPIRED);
         if (invite.MaxUses > 0 && invite.UsedCount >= invite.MaxUses)
-            return (Guid.Empty, AcceptInviteError.LIMIT_REACHED);
+            return (null, AcceptInviteError.LIMIT_REACHED);
 
-        return (invite.SpaceId, AcceptInviteError.NONE);
+        if (invite.ChannelId is not { } channelId)
+            return (new InviteTarget(invite.SpaceId), AcceptInviteError.NONE);
+
+        // A room that was deleted since the link was minted degrades the invite to a plain space
+        // invite rather than breaking it — the space is still a valid place to land.
+        var channel = await db.Channels
+           .AsNoTracking()
+           .Where(c => c.Id == channelId && c.SpaceId == invite.SpaceId && !c.IsDeleted)
+           .Select(c => new { c.Name })
+           .FirstOrDefaultAsync();
+
+        return channel is null
+            ? (new InviteTarget(invite.SpaceId), AcceptInviteError.NONE)
+            : (new InviteTarget(invite.SpaceId, channelId, channel.Name), AcceptInviteError.NONE);
     }
 
     public async ValueTask DropInviteCodeAsync()

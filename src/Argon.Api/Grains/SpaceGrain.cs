@@ -315,8 +315,10 @@ public class SpaceGrain(
         var statuses    = await userPresence.BatchGetAggregatedStatusAsync(memberIds);
         var onlineCount = statuses.Count(kv => kv.Value != UserStatus.Offline);
 
+        // The room a voice link points at is a property of the invite, not of the space, so it is
+        // stitched on by the caller that resolved the code (UserInteractionImpl.PreviewInvite).
         return new InvitePreview(space.Id, space.Name, space.Description ?? "", space.AvatarFileId, space.TopBannedFileId,
-            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount);
+            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount, null, null);
     }
 
     public Task DoUserUpdatedAsync(ArgonUser user)
@@ -343,8 +345,9 @@ public class SpaceGrain(
         var caller = this.GetUserId();
 
         if (IsGuestUserId(userId))
+            // Guests never registered, so there is no "in Argon since" to show for them.
             return new ArgonUserProfile(userId, null, null, null, null, "Guest User", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null);
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
 
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
@@ -360,7 +363,7 @@ public class SpaceGrain(
 
         if (targetMember is null)
             return new ArgonUserProfile(userId, null, null, null, null, "Deleted Account", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null);
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
 
         return targetMember.User.Profile.ToDto() with
         {

@@ -9,17 +9,28 @@ public interface IInviteGrain : IGrainWithStringKey
     ValueTask<(Guid, AcceptInviteError)> AcceptAsync();
 
     [Alias("PreviewAsync")]
-    ValueTask<(Guid, AcceptInviteError)> PreviewAsync();
+    ValueTask<(InviteTarget?, AcceptInviteError)> PreviewAsync();
 
     [Alias("DropInviteCodeAsync")]
     ValueTask DropInviteCodeAsync();
 }
 
+/// <summary>
+/// Where an invite code leads. The voice room is resolved here rather than by the caller because the
+/// invite row is the only thing that knows a link was minted for a room, and the preview sheet has to
+/// name that room before the user commits to joining.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record InviteTarget(
+    [property: Id(0)] Guid    SpaceId,
+    [property: Id(1)] Guid?   VoiceChannelId = null,
+    [property: Id(2)] string? VoiceChannelName = null);
+
 [Alias("Argon.Grains.Interfaces.IServerInvitesGrain")]
 public interface IServerInvitesGrain : IGrainWithGuidKey
 {
     [Alias("CreateInviteLinkAsync")]
-    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses);
+    Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses, Guid? channelId = null);
 
     [Alias("GetInviteCodes")]
     Task<List<InviteCodeEntityData>> GetInviteCodes();

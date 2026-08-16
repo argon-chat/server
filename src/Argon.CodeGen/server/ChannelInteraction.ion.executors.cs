@@ -161,6 +161,47 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         await service.UpdateChannelGroup(__spaceid, __channelid, __groupid, __name, __description);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UpdateChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 5;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __name = reader.ReadNullable<string>();
+        var __description = reader.ReadNullable<string>();
+        var __slowmodeseconds = reader.ReadNullable<i4>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UpdateChannel(__spaceid, __channelid, __name, __description, __slowmodeseconds);
+        
+        IonFormatterStorage<IUpdateChannelResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CreateVoiceInviteCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __expireminutes = IonFormatterStorage<i4>.Read(reader);
+        var __maxuses = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CreateVoiceInviteCode(__spaceid, __channelid, __expireminutes, __maxuses);
+        
+        IonFormatterStorage<ICreateVoiceInviteResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task QueryMessages_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -223,6 +264,25 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         var result = await service.SendMessageWithReadback(__spaceid, __channelid, __text, __entities, __randomid, __replyto);
         
         IonFormatterStorage<SendMessageReadback>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteMessage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __messageid = IonFormatterStorage<i8>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteMessage(__spaceid, __channelid, __messageid);
+        
+        IonFormatterStorage<IDeleteMessageResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -603,12 +663,18 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return GetChannels_Execute(reader, writer, ct);
         if (methodName.Equals("UpdateChannelGroup", StringComparison.InvariantCultureIgnoreCase))
             return UpdateChannelGroup_Execute(reader, writer, ct);
+        if (methodName.Equals("UpdateChannel", StringComparison.InvariantCultureIgnoreCase))
+            return UpdateChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("CreateVoiceInviteCode", StringComparison.InvariantCultureIgnoreCase))
+            return CreateVoiceInviteCode_Execute(reader, writer, ct);
         if (methodName.Equals("QueryMessages", StringComparison.InvariantCultureIgnoreCase))
             return QueryMessages_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessage", StringComparison.InvariantCultureIgnoreCase))
             return SendMessage_Execute(reader, writer, ct);
         if (methodName.Equals("SendMessageWithReadback", StringComparison.InvariantCultureIgnoreCase))
             return SendMessageWithReadback_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteMessage", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteMessage_Execute(reader, writer, ct);
         if (methodName.Equals("DisconnectFromVoiceChannel", StringComparison.InvariantCultureIgnoreCase))
             return DisconnectFromVoiceChannel_Execute(reader, writer, ct);
         if (methodName.Equals("Interlink", StringComparison.InvariantCultureIgnoreCase))

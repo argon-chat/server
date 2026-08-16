@@ -357,14 +357,15 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         var __nickeffectid = reader.ReadNullable<i4>();
         var __primarycolor = reader.ReadNullable<i4>();
         var __accentcolor = reader.ReadNullable<i4>();
-        reader.ReadEndArrayAndSkip(arraySize - 14);
-        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __badges, __archetypes, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __primarycolor, __accentcolor);
+        var __registeredat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 15);
+        return new(__userid, __customstatus, __customstatusiconid, __bannerfileid, __dateofbirth, __bio, __badges, __archetypes, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __primarycolor, __accentcolor, __registeredat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonUserProfile value)
     {
-        writer.WriteStartArray(14);
+        writer.WriteStartArray(15);
         IonFormatterStorage<guid>.Write(writer, value.userId);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatus);
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatusIconId);
@@ -379,6 +380,7 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         IonFormatterStorage<i4>.WriteNullable(writer, value.nickEffectId);
         IonFormatterStorage<i4>.WriteNullable(writer, value.primaryColor);
         IonFormatterStorage<i4>.WriteNullable(writer, value.accentColor);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.registeredAt);
         writer.WriteEndArray();
     }
 }

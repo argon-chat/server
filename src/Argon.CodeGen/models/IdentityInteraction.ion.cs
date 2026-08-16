@@ -47,24 +47,24 @@ public enum BadAuthKind
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IIdentityInteraction : IIonService
 {
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<IRegistrationResult> Registration(NewUserCredentialsInput data, CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<bool> BeginResetPassword(string email, CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<IAuthorizeResult> ResetPassword(string email, string otpCode, string newPassword, CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<string> GetAuthorizationScenario(CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct = default);
-    [AllowAnonymous()]
-    [DoNotRequireSessionContext()]
+    [AllowAnonymous]
+    [DoNotRequireSessionContext]
     Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default);
-    [AllowAnonymous()]
+    [AllowAnonymous]
     Task<ILoginPollResult> PollLoginRequest(string token, CancellationToken ct = default);
     Task<ILoginRequestPreviewResult> PreviewLoginRequest(string token, CancellationToken ct = default);
     Task<IApproveLoginRequestResult> ApproveLoginRequest(string token, CancellationToken ct = default);

@@ -5,7 +5,9 @@ public static class EntitlementAnalyzer
     private const ulong CHAT_MASK  = 0b111111111000000 << 5;
     private const ulong VOICE_MASK = 0b1111UL << 20;
     private const ulong MOD_MASK   = 0b11111UL << 40;
-    private const ulong ADMIN_MASK = 0b111111UL << 50;
+    // Seven bits, not six: ManageMessages (1 << 56) had to go above ManageServer because the
+    // moderation block at 1 << 4x is full, so the admin block now runs 50..56.
+    private const ulong ADMIN_MASK = 0b1111111UL << 50;
 
     public static bool HasEntitlement(SpaceMemberEntity member, IArchetypeObject obj, ArgonEntitlement target)
     {

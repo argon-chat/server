@@ -30,9 +30,16 @@ public record ChannelEntity :
     public ICollection<IArchetypeOverwrite> Overwrites
         => EntitlementOverwrites.OfType<IArchetypeOverwrite>().ToList();
 
+    /// <summary>The cooldowns a channel may carry. Anything else is refused rather than rounded,
+    /// so the picker on one client can never render a value another client cannot.</summary>
+    public static readonly int[] AllowedSlowModeSeconds = [0, 5, 15, 30, 60, 300];
+
     public static ArgonChannel Map(scoped in ChannelEntity self)
         => new(self.ChannelType, self.SpaceId, self.Id, self.Name, self.Description, self.ChannelGroupId,
-            string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex, self.LastMessageId);
+            string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex, self.LastMessageId,
+            // A zero interval is never stored — "off" travels as null so the client has one
+            // representation of "no cooldown" instead of two.
+            self.SlowMode is { } window && window > TimeSpan.Zero ? (int)window.TotalSeconds : null);
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {

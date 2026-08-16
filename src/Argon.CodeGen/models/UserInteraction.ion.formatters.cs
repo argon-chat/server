@@ -107,14 +107,15 @@ public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
         var __customstatusiconid = reader.ReadNullable<string>();
         var __primarycolor = reader.ReadNullable<i4>();
         var __accentcolor = reader.ReadNullable<i4>();
-        reader.ReadEndArrayAndSkip(arraySize - 10);
-        return new(__displayname, __avatarid, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __customstatus, __customstatusiconid, __primarycolor, __accentcolor);
+        var __bio = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__displayname, __avatarid, __backgroundid, __voicecardeffectid, __avatarframeid, __nickeffectid, __customstatus, __customstatusiconid, __primarycolor, __accentcolor, __bio);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UserEditInput value)
     {
-        writer.WriteStartArray(10);
+        writer.WriteStartArray(11);
         IonFormatterStorage<string>.WriteNullable(writer, value.displayName);
         IonFormatterStorage<string>.WriteNullable(writer, value.avatarId);
         IonFormatterStorage<i4>.WriteNullable(writer, value.backgroundId);
@@ -125,6 +126,7 @@ public sealed class Ion_UserEditInput_Formatter : IonFormatter<UserEditInput>
         IonFormatterStorage<string>.WriteNullable(writer, value.customStatusIconId);
         IonFormatterStorage<i4>.WriteNullable(writer, value.primaryColor);
         IonFormatterStorage<i4>.WriteNullable(writer, value.accentColor);
+        IonFormatterStorage<string>.WriteNullable(writer, value.bio);
         writer.WriteEndArray();
     }
 }
@@ -362,14 +364,16 @@ public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
         var __isofficial = IonFormatterStorage<bool>.Read(reader);
         var __membercount = IonFormatterStorage<i4>.Read(reader);
         var __onlinecount = IonFormatterStorage<i4>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 10);
-        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __inviteimagefileid, __isverified, __isofficial, __membercount, __onlinecount);
+        var __voicechannelid = reader.ReadNullable<guid>();
+        var __voicechannelname = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 12);
+        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __inviteimagefileid, __isverified, __isofficial, __membercount, __onlinecount, __voicechannelid, __voicechannelname);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InvitePreview value)
     {
-        writer.WriteStartArray(10);
+        writer.WriteStartArray(12);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -380,6 +384,8 @@ public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
         IonFormatterStorage<bool>.Write(writer, value.isOfficial);
         IonFormatterStorage<i4>.Write(writer, value.memberCount);
         IonFormatterStorage<i4>.Write(writer, value.onlineCount);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.voiceChannelId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.voiceChannelName);
         writer.WriteEndArray();
     }
 }

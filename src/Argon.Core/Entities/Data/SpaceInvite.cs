@@ -14,6 +14,14 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
     /// <summary>How many members have joined through this invite so far.</summary>
     public long UsedCount { get; set; }
 
+    /// <summary>
+    /// The voice room this invite points at, or null for a plain space invite. Kept on the same row
+    /// rather than in a second table so that one code — and therefore one link — covers both "not a
+    /// member yet" and "already a member, wrong room"; splitting them would force the client to try
+    /// two lookups for every pasted link.
+    /// </summary>
+    public Guid? ChannelId { get; set; }
+
     public void Configure(EntityTypeBuilder<SpaceInvite> builder)
     {
         builder.HasOne(c => c.Space)
@@ -40,7 +48,7 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
 
 public readonly record struct InviteCode(string inviteCode);
 
-public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId, Guid issuerId, DateTimeOffset expireTime, long used, int maxUses, DateTimeOffset createdAt)
+public readonly record struct InviteCodeEntityData(InviteCode code, Guid spaceId, Guid issuerId, DateTimeOffset expireTime, long used, int maxUses, DateTimeOffset createdAt, Guid? channelId = null)
 {
     public const string CacheEntityKey = $"{nameof(InviteCodeEntity)}_{{0}}";
 

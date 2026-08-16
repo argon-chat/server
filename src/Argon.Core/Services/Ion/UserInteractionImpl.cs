@@ -77,13 +77,20 @@ public class UserInteractionImpl(
 
     public async Task<IPreviewInviteResult> PreviewInvite(InviteCode inviteCode, CancellationToken ct = default)
     {
-        var (spaceId, error) = await this.GetGrain<IInviteGrain>(inviteCode.inviteCode).PreviewAsync();
+        var (target, error) = await this.GetGrain<IInviteGrain>(inviteCode.inviteCode).PreviewAsync();
 
-        if (error != AcceptInviteError.NONE)
-            return new FailedPreview(error);
+        if (error != AcceptInviteError.NONE || target is null)
+            return new FailedPreview(error == AcceptInviteError.NONE ? AcceptInviteError.NOT_FOUND : error);
 
-        var preview = await this.GetGrain<ISpaceGrain>(spaceId).GetInvitePreview();
-        return new SuccessPreview(preview);
+        var preview = await this.GetGrain<ISpaceGrain>(target.SpaceId).GetInvitePreview();
+
+        // The space grain builds the generic preview; only the invite knows it was minted for a room,
+        // so the room is stitched on here rather than pushed down into GetInvitePreview.
+        return new SuccessPreview(preview with
+        {
+            voiceChannelId = target.VoiceChannelId,
+            voiceChannelName = target.VoiceChannelName
+        });
     }
 
     public async Task BroadcastPresence(UserActivityPresence presence, CancellationToken ct = default)
@@ -144,10 +151,10 @@ public class UserInteractionImpl(
         await this.GetGrain<INotificationGrain>(userId).AckChannelAsync(channelId, null, lastReadMessageId, ct);
     }
 
-    public async Task MuteTarget(Guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, DateTime? expiresAt, CancellationToken ct = default)
+    public async Task MuteTarget(Guid targetId, MuteTargetKind targetType, MuteLevelType muteLevel, bool suppressEveryone, DateTimeOffset? expiresAt, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        await this.GetGrain<INotificationGrain>(userId).MuteAsync(targetId, targetType, muteLevel, suppressEveryone, expiresAt, ct);
+        await this.GetGrain<INotificationGrain>(userId).MuteAsync(targetId, targetType, muteLevel, suppressEveryone, expiresAt?.UtcDateTime, ct);
     }
 
     public async Task UnmuteTarget(Guid targetId, CancellationToken ct = default)
@@ -156,10 +163,10 @@ public class UserInteractionImpl(
         await this.GetGrain<INotificationGrain>(userId).UnmuteAsync(targetId, ct);
     }
 
-    public async Task<IonArray<SystemNotificationDto>> GetNotificationFeed(int limit, DateTime? before, CancellationToken ct = default)
+    public async Task<IonArray<SystemNotificationDto>> GetNotificationFeed(int limit, DateTimeOffset? before, CancellationToken ct = default)
     {
         var userId = this.GetUserId();
-        var feed = await this.GetGrain<INotificationGrain>(userId).GetNotificationFeedAsync(limit, before, ct);
+        var feed = await this.GetGrain<INotificationGrain>(userId).GetNotificationFeedAsync(limit, before?.UtcDateTime, ct);
         return new IonArray<SystemNotificationDto>(feed.ToArray());
     }
 

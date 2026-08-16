@@ -22,6 +22,30 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("UpdateChannel")]
     Task<ChannelEntity> UpdateChannel(ChannelInput input);
 
+    /// <summary>
+    /// Partial update behind the ion <c>UpdateChannel</c>: every argument is optional and null means
+    /// "leave alone". <paramref name="slowModeSeconds"/> is the exception — 0 clears the cooldown —
+    /// which is why it cannot be folded into <see cref="ChannelInput"/>, whose fields are all
+    /// mandatory replacements.
+    /// </summary>
+    [Alias("UpdateChannelSettings")]
+    Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
+        CancellationToken ct = default);
+
+    /// <summary>
+    /// Soft-deletes a message. Authors may always retract their own; anyone else needs
+    /// <see cref="ArgonEntitlement.ManageMessages"/>.
+    /// </summary>
+    [Alias("DeleteMessage")]
+    Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Mints an invite code that points at this voice room. Returns the raw code; turning it into a
+    /// link is the caller's job because the domain is configuration, not grain state.
+    /// </summary>
+    [Alias("CreateVoiceInvite")]
+    Task<Either<string, VoiceInviteError>> CreateVoiceInvite(TimeSpan expiration, int maxUses, CancellationToken ct = default);
+
     [Alias(nameof(SendMessage))]
     Task<long> SendMessage(string text, List<IMessageEntity> entities, long randomId, long? replyTo, List<ControlRowV1>? controls = null);
 

@@ -62,7 +62,7 @@ public static class BotEventMapper
 
         return new BotMessageV1(
             msg.messageId, msg.replyId, msg.channelId, msg.spaceId,
-            msg.text, entities, msg.timeSent, sender, controls, reactions);
+            msg.text, entities, msg.timeSent.UtcDateTime, sender, controls, reactions);
     }
 
     private static BotMessageEntityV1 Base(EntityType type, int offset, int length) => new()

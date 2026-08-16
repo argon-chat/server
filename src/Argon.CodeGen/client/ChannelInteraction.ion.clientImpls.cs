@@ -34,12 +34,18 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(GetChannels), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UpdateChannelGroup_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(UpdateChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UpdateChannel_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(UpdateChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CreateVoiceInviteCode_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(CreateVoiceInviteCode), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> QueryMessages_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(QueryMessages), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendMessage_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(SendMessage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendMessageWithReadback_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(SendMessageWithReadback), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteMessage_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(DeleteMessage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DisconnectFromVoiceChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(DisconnectFromVoiceChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> Interlink_Ref = new(() =>
@@ -239,6 +245,47 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUpdateChannelResult> UpdateChannel(guid __spaceid, guid __channelid, string? __name, string? __description, i4? __slowmodeseconds, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), UpdateChannel_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 5;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<string>.WriteNullable(writer, __name);
+        IonFormatterStorage<string>.WriteNullable(writer, __description);
+        IonFormatterStorage<i4>.WriteNullable(writer, __slowmodeseconds);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUpdateChannelResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(guid __spaceid, guid __channelid, i4 __expireminutes, i4 __maxuses, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), CreateVoiceInviteCode_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i4>.Write(writer, __expireminutes);
+        IonFormatterStorage<i4>.Write(writer, __maxuses);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ICreateVoiceInviteResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<ArgonMessage>> QueryMessages(guid __spaceid, guid __channelid, i8? __from, i4 __limit, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), QueryMessages_Ref.Value);
@@ -301,6 +348,25 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         writer.WriteEndArray();
     
         return await req.CallAsync<SendMessageReadback>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IDeleteMessageResult> DeleteMessage(guid __spaceid, guid __channelid, i8 __messageid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), DeleteMessage_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        IonFormatterStorage<i8>.Write(writer, __messageid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IDeleteMessageResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task DisconnectFromVoiceChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)

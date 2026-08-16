@@ -27,7 +27,7 @@ public sealed record FormField(string key, string value);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record UserEditInput(string? displayName, string? avatarId, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, string? customStatus, string? customStatusIconId, i4? primaryColor, i4? accentColor);
+public sealed record UserEditInput(string? displayName, string? avatarId, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, string? customStatus, string? customStatusIconId, i4? primaryColor, i4? accentColor, string? bio);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -63,7 +63,7 @@ public sealed record AcceptLegalInput(string tosVersion, string privacyVersion);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InvitePreview(guid spaceId, string name, string description, string? avatarFileId, string? topBannerFileId, string? inviteImageFileId, bool isVerified, bool isOfficial, i4 memberCount, i4 onlineCount);
+public sealed record InvitePreview(guid spaceId, string name, string description, string? avatarFileId, string? topBannerFileId, string? inviteImageFileId, bool isVerified, bool isOfficial, i4 memberCount, i4 onlineCount, guid? voiceChannelId, string? voiceChannelName);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -92,6 +92,7 @@ public enum UpdateMeError
     INVALID_PRESET_ID = 3,
     DISPLAY_NAME_TOO_LONG = 4,
     DISPLAY_NAME_EMPTY = 5,
+    BIO_TOO_LONG = 6,
 }
 
 

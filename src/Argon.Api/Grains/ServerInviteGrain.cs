@@ -6,7 +6,7 @@ using InviteCode = Entities.InviteCode;
 [StatelessWorker]
 public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFactory<ApplicationDbContext> context) : Grain, IServerInvitesGrain
 {
-    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses)
+    public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses, Guid? channelId = null)
     {
         await using var db         = await context.CreateDbContextAsync();
         var             inviteCode = InviteCodeEntityData.GenerateInviteCode();
@@ -21,6 +21,7 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
             SpaceId   = this.GetPrimaryKey(),
             MaxUses   = maxUses < 0 ? 0 : maxUses,
             UsedCount = 0,
+            ChannelId = channelId,
         });
         await db.SaveChangesAsync();
         return new InviteCode(inviteCode);
@@ -36,7 +37,7 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
            .ToListAsync();
         return list.Select(x => new InviteCodeEntityData(
             new InviteCode(InviteCodeEntityData.DecodeFromUlong(x.Id)),
-            x.SpaceId, x.CreatorId, x.ExpireAt, x.UsedCount, x.MaxUses, x.CreatedAt)).ToList();
+            x.SpaceId, x.CreatorId, x.ExpireAt, x.UsedCount, x.MaxUses, x.CreatedAt, x.ChannelId)).ToList();
     }
 
     public async Task RevokeInviteAsync(string inviteCode)

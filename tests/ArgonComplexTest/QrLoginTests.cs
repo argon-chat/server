@@ -46,7 +46,7 @@ public class QrLoginTests : TestBase
             Assert.That(ticket.token, Has.Length.EqualTo(48));
             Assert.That(ticket.token, Does.Match("^[0-9a-f]+$"));
 
-            Assert.That(ticket.expiresAt, Is.GreaterThan(DateTime.UtcNow));
+            Assert.That(ticket.expiresAt, Is.GreaterThan(DateTimeOffset.UtcNow));
         });
     }
 
@@ -72,7 +72,7 @@ public class QrLoginTests : TestBase
             // The card exists to answer "was this me?", and it cannot answer that with blanks.
             Assert.That(card.clientName, Is.Not.Empty);
             Assert.That(card.ip, Is.Not.Empty);
-            Assert.That(card.createdAt, Is.LessThanOrEqualTo(DateTime.UtcNow));
+            Assert.That(card.createdAt, Is.LessThanOrEqualTo(DateTimeOffset.UtcNow));
             Assert.That(card.expiresAt, Is.GreaterThan(card.createdAt));
         });
     }
@@ -135,11 +135,30 @@ public class QrLoginTests : TestBase
         Assert.That(((FailedLoginPoll)second).error, Is.EqualTo(LoginRequestError.NOT_FOUND));
     }
 
-    // The machine binding — that an approved code only pays out to the browser that asked for it —
-    // is not asserted here. It cannot be: GetMachineId returns the constant "1234" on any host
-    // running in Development, so two deliberately different clients look like one machine and the
-    // check has nothing to fire on. It is pinned instead in
-    // ArgonSharedLogicTest.QrLoginMachineBindingTests, against the service directly.
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task PollLoginRequest_FromAnotherMachine_IsRefused(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var browser   = CreateBrowser();
+        var bystander = CreateBrowser();
+
+        var ticket = await RequestCodeAsync(browser, ct);
+
+        SetAuthToken(await RegisterAndGetTokenAsync(ct));
+        await GetIdentityService(scope.ServiceProvider).ApproveLoginRequest(ticket.token, ct);
+
+        // Someone who photographed the screen polls first. Without the machine check they would
+        // walk away with a working session, and the approval would look ordinary to its owner.
+        var stolen = await bystander.Identity.PollLoginRequest(ticket.token, ct);
+
+        Assert.That(stolen, Is.InstanceOf<FailedLoginPoll>());
+        Assert.That(((FailedLoginPoll)stolen).error, Is.EqualTo(LoginRequestError.DEVICE_MISMATCH));
+
+        // And the refusal must not have consumed the record: the real desktop is still waiting.
+        var collected = await browser.Identity.PollLoginRequest(ticket.token, ct);
+        Assert.That(collected, Is.InstanceOf<ApprovedLoginRequest>());
+    }
 
     [Test, CancelAfter(1000 * 60 * 5)]
     public async Task ApproveLoginRequest_Twice_ReportsTheCodeAsSpent(CancellationToken ct = default)

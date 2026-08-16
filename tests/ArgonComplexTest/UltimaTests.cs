@@ -315,7 +315,7 @@ public class UltimaTests : TestBase
         var transferred = boostsAfter.First(b => b.boostId == boostId);
         Assert.That(transferred.spaceId, Is.EqualTo(space2));
         Assert.That(transferred.transferCooldownUntil, Is.Not.Null);
-        Assert.That(transferred.transferCooldownUntil, Is.GreaterThan(DateTime.UtcNow));
+        Assert.That(transferred.transferCooldownUntil, Is.GreaterThan(DateTimeOffset.UtcNow));
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(15)]

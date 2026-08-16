@@ -52,6 +52,8 @@ public class ChannelGrain(
     private const int DrawingDefaultTtlMs = 6000;
     private (string SessionId, Guid StreamerId, HashSet<Guid> AllowedDrawers)? _drawingSession;
 
+    private readonly Dictionary<Guid, DateTimeOffset> _lastSentBySender = new();
+
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
 
@@ -736,9 +738,188 @@ public class ChannelGrain(
         channel.Name        = input.Name;
         channel.Description = input.Description ?? channel.Description;
         channel.ChannelType = input.ChannelType;
-        
+
         await ctx.SaveChangesAsync();
+        _self = channel;
         return channel;
+    }
+
+    public async Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
+        CancellationToken ct = default)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageChannels, ct))
+            return UpdateChannelError.INSUFFICIENT_PERMISSIONS;
+
+        // Validate before opening the context: a rejected request should not have touched the DB.
+        if (name is not null)
+        {
+            name = name.Trim();
+            if (name.Length == 0)
+                return UpdateChannelError.NAME_EMPTY;
+            if (name.Length > 128)
+                return UpdateChannelError.NAME_TOO_LONG;
+        }
+
+        if (description is { Length: > 1024 })
+            return UpdateChannelError.DESCRIPTION_TOO_LONG;
+
+        if (slowModeSeconds is { } seconds)
+        {
+            if (_self.ChannelType != ChannelType.Text)
+                return UpdateChannelError.NOT_A_TEXT_CHANNEL;
+            if (!ChannelEntity.AllowedSlowModeSeconds.Contains(seconds))
+                return UpdateChannelError.SLOW_MODE_NOT_ALLOWED;
+        }
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var channel = await ctx.Channels.FirstOrDefaultAsync(c => c.Id == channelId, ct);
+        if (channel is null)
+            return UpdateChannelError.CHANNEL_NOT_FOUND;
+
+        // The bag tells subscribers which fields to re-read; sending the whole channel back would
+        // race with any concurrent reorder, which travels on its own event.
+        var changed = new List<string>();
+
+        if (name is not null && name != channel.Name)
+        {
+            channel.Name = name;
+            changed.Add(nameof(ArgonChannel.name));
+        }
+
+        if (description is not null && description != channel.Description)
+        {
+            channel.Description = description;
+            changed.Add(nameof(ArgonChannel.description));
+        }
+
+        if (slowModeSeconds is { } window)
+        {
+            var value = window == 0 ? null : (TimeSpan?)TimeSpan.FromSeconds(window);
+            if (value != channel.SlowMode)
+            {
+                channel.SlowMode = value;
+                changed.Add(nameof(ArgonChannel.slowModeSeconds));
+            }
+        }
+
+        if (changed.Count == 0)
+            return channel;
+
+        await ctx.SaveChangesAsync(ct);
+
+        // Refresh the activation's copy: SendMessage reads the cooldown off _self on every send, and
+        // the write went through a detached context that the activation cannot see.
+        _self = channel;
+
+        await Fire(new ChannelModified(SpaceId, channelId, new IonArray<string>(changed)), ct);
+
+        return channel;
+    }
+
+    public async Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var message = await ctx.Messages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
+           .Select(m => new { m.CreatorId })
+           .FirstOrDefaultAsync(ct);
+
+        if (message is null)
+            return DeleteMessageError.MESSAGE_NOT_FOUND;
+
+        // Retracting your own words needs no permission; taking down somebody else's is moderation.
+        if (message.CreatorId != callerId
+         && !await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.ManageMessages, ct))
+            return DeleteMessageError.INSUFFICIENT_PERMISSIONS;
+
+        // Soft delete: reports and audit trails reference messages by id, so the row has to outlive
+        // its visibility. ArgonMessageEntity is not an ArgonEntity, so neither the global soft-delete
+        // filter nor the timestamp interceptor covers it — both columns are set by hand here and the
+        // read path filters on IsDeleted explicitly (see PgSqlMessagesLayout.QueryMessages).
+        var affected = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
+           .ExecuteUpdateAsync(s => s
+               .SetProperty(m => m.IsDeleted, true)
+               .SetProperty(m => m.DeletedAt, DateTimeOffset.UtcNow)
+               .SetProperty(m => m.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+        // Lost the race with a concurrent delete — the message is gone either way, but say so
+        // truthfully rather than broadcasting a second removal event for it.
+        if (affected == 0)
+            return DeleteMessageError.MESSAGE_NOT_FOUND;
+
+        await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, callerId), ct);
+
+        return DeleteMessageError.NONE;
+    }
+
+    /// <summary>
+    /// Refuses a send that arrives inside the channel's cooldown. Slow mode is a tool moderators
+    /// point at a room, not at themselves, so anyone holding <c>ManageMessages</c> — the same
+    /// entitlement that lets them clean up afterwards — passes straight through.
+    /// </summary>
+    private async Task EnforceSlowModeAsync(Guid senderId, Guid channelId)
+    {
+        if (_self.SlowMode is not { } window || window <= TimeSpan.Zero)
+            return;
+
+        if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.ManageMessages))
+            return;
+
+        if (_lastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
+            throw new InvalidOperationException("Slow mode is active in this channel");
+    }
+
+    private void NoteSent(Guid senderId)
+    {
+        if (_self.SlowMode is not { } window || window <= TimeSpan.Zero)
+            return;
+
+        // Everyone who ever posted here would otherwise stay in the dictionary for the lifetime of
+        // the activation; entries older than the window can no longer block anyone, so drop them.
+        if (_lastSentBySender.Count > 512)
+        {
+            var cutoff = DateTimeOffset.UtcNow - window;
+            foreach (var stale in _lastSentBySender.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
+                _lastSentBySender.Remove(stale);
+        }
+
+        _lastSentBySender[senderId] = DateTimeOffset.UtcNow;
+    }
+
+    public async Task<Either<string, VoiceInviteError>> CreateVoiceInvite(TimeSpan expiration, int maxUses, CancellationToken ct = default)
+    {
+        var callerId  = this.GetUserId();
+        var channelId = this.GetPrimaryKey();
+
+        if (_self.ChannelType != ChannelType.Voice)
+            return VoiceInviteError.CHANNEL_IS_NOT_VOICE;
+
+        // You cannot hand out a key to a room you cannot walk into yourself — Connect also implies
+        // JoinToVoice and ViewChannel through the entitlement analyzer, so one check covers the path.
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, callerId, ArgonEntitlement.Connect, ct))
+            return VoiceInviteError.INSUFFICIENT_PERMISSIONS;
+
+        try
+        {
+            var code = await GrainFactory.GetGrain<IServerInvitesGrain>(SpaceId)
+               .CreateInviteLinkAsync(callerId, expiration, maxUses, channelId);
+            return code.inviteCode;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed to create voice invite for channel {ChannelId}", channelId);
+            return VoiceInviteError.INTERNAL_ERROR;
+        }
     }
 
     public async Task<List<ArgonMessageEntity>> QueryMessages(long? @from, int limit)
@@ -758,6 +939,8 @@ public class ChannelGrain(
         var sw = Stopwatch.StartNew();
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
+
+        await EnforceSlowModeAsync(senderId, channelId);
 
         if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
         {
@@ -809,6 +992,10 @@ public class ChannelGrain(
         }
 
         var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
+
+        // Only a message that actually landed starts the next cooldown — a retry that de-duplicated
+        // above returned earlier and must not push the author's window forward.
+        NoteSent(senderId);
 
         message.MessageId = msgId;
 

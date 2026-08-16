@@ -50,7 +50,7 @@ public class SessionTests : TestBase
                 // A row the user cannot recognise is a row they cannot act on. The id has to be
                 // real, because it is what RevokeSession takes.
                 Assert.That(session.sessionId, Is.Not.EqualTo(Guid.Empty));
-                Assert.That(session.lastSeenAt, Is.Not.EqualTo(default(DateTime)));
+                Assert.That(session.lastSeenAt, Is.Not.EqualTo(default(DateTimeOffset)));
             }
         });
     }

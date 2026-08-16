@@ -83,6 +83,18 @@ public class UserGrain(
         if (input.customStatusIconId is not null)
             profile.CustomStatusIconId = input.customStatusIconId;
 
+        // Bio is truncated nowhere: the column caps at 512 and silently cutting somebody's "about me"
+        // mid-sentence is worse than telling them it did not fit.
+        if (input.bio is not null)
+        {
+            if (input.bio.Length > 512)
+                return UpdateMeError.BIO_TOO_LONG;
+
+            // An empty string is how the client says "clear it"; storing "" instead of null would
+            // make an emptied bio read back as present-but-blank.
+            profile.Bio = input.bio.Length == 0 ? null : input.bio;
+        }
+
         ctx.Users.Update(user);
         ctx.UserProfiles.Update(profile);
         await ctx.SaveChangesAsync(ct);

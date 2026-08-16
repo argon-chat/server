@@ -59,15 +59,18 @@ public class PgSqlMessagesLayout(
     {
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // IsDeleted is filtered here rather than by the global query filter: that filter only covers
+        // ArgonEntity, and ArgonMessageEntity descends from ArgonEntityNoKey (composite key), so a
+        // deleted message would otherwise keep being served.
         if (fromMessageId.HasValue)
             return await ctx.Messages
-               .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId < fromMessageId.Value)
+               .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && m.MessageId < fromMessageId.Value && !m.IsDeleted)
                .OrderByDescending(m => m.MessageId)
                .Take(limit)
                .ToListAsync(cancellationToken: ct);
-        
+
         return await ctx.Messages
-           .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId)
+           .Where(m => m.SpaceId == spaceId && m.ChannelId == channelId && !m.IsDeleted)
            .OrderByDescending(m => m.MessageId)
            .Take(limit)
            .ToListAsync(cancellationToken: ct);
