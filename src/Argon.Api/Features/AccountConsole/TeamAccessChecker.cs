@@ -1,5 +1,6 @@
 namespace Argon.Api.Features.AccountConsole;
 
+using Argon.Features.AccountConsole;
 using Microsoft.Extensions.Caching.Memory;
 
 public interface ITeamAccessChecker
@@ -13,12 +14,15 @@ public interface ITeamAccessChecker
 /// request is allowed to name a team id.
 /// </summary>
 /// <remarks>
-/// Answers are cached in process for <see cref="CacheTtl"/>, so a membership that is revoked stays
-/// usable on an already-warm console node until the entry expires.
+/// Answers are cached in process for <c>accountConsole:accessCacheTtl</c>, so a membership that is
+/// revoked stays usable on an already-warm console node until the entry expires.
 /// </remarks>
-public sealed class TeamAccessChecker(IClusterClient cluster, IMemoryCache cache) : ITeamAccessChecker
+public sealed class TeamAccessChecker(
+    IClusterClient cluster,
+    IMemoryCache cache,
+    IOptions<AccountConsoleOptions> options) : ITeamAccessChecker
 {
-    private static readonly TimeSpan CacheTtl = TimeSpan.FromMinutes(50);
+    private TimeSpan CacheTtl => options.Value.AccessCacheTtl;
 
     private IDevTeamsGrain Teams => cluster.GetGrain<IDevTeamsGrain>(Guid.Empty);
 

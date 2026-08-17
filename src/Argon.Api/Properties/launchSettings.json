@@ -3,12 +3,11 @@
     "https": {
       "commandName": "Project",
       "launchUrl": "swagger",
+      "commandLineArgs": "--role entrypoint",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "ARGON_ROLE": "Hybrid",
-        "ARGON_MODE": "SingleInstance",
-        "NO_STRUCTURED_LOGS": "true",
-        "USE_LOCALHOST_CERTS": "true"
+        "Logging__Structured": "false",
+        "Kestrel__Argon__UseLocalhostCertificate": "true"
       },
       "dotnetRunMessages": true
     },

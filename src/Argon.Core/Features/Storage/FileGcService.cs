@@ -12,11 +12,12 @@ public class FileGcService(
     IServiceScopeFactory scopeFactory,
     IS3StorageService s3,
     IOptions<FileLimitsOptions> limitsOptions,
+    IOptions<Argon.Features.Logic.FileGcOptions> gcOptions,
     ILogger<FileGcService> logger) : BackgroundService
 {
-    private static readonly TimeSpan BlobSweepInterval   = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan OrphanSweepInterval = TimeSpan.FromHours(1);
-    private static readonly TimeSpan OrphanGracePeriod   = TimeSpan.FromHours(1);
+    private TimeSpan BlobSweepInterval   => gcOptions.Value.BlobSweepInterval;
+    private TimeSpan OrphanSweepInterval => gcOptions.Value.OrphanSweepInterval;
+    private TimeSpan OrphanGracePeriod   => gcOptions.Value.OrphanGracePeriod;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {

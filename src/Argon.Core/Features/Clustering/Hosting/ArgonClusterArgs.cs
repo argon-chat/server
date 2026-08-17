@@ -12,14 +12,15 @@ public sealed class ArgonClusterArgs
     public string?      Explain      { get; private init; }
     public string       GraphFormat  { get; private init; } = "dot";
 
-    public bool Validate  { get; private init; }
-    public bool ListRoles { get; private init; }
-    public bool Graph     { get; private init; }
-    public bool Help      { get; private init; }
+    public bool Validate       { get; private init; }
+    public bool ValidateConfig { get; private init; }
+    public bool ListRoles      { get; private init; }
+    public bool Graph          { get; private init; }
+    public bool Help           { get; private init; }
 
     /// <summary>True when the arguments describe a diagnostic command rather than a server start.</summary>
     public bool IsCommand
-        => Validate || ListRoles || Graph || Help || Explain is not null;
+        => Validate || ValidateConfig || ListRoles || Graph || Help || Explain is not null;
 
     public static ArgonClusterArgs Parse(string[] args)
     {
@@ -31,7 +32,7 @@ public sealed class ArgonClusterArgs
         string?      topology = null;
         string?      explain  = null;
         var          format   = "dot";
-        bool validate = false, listRoles = false, graph = false, help = false;
+        bool validate = false, validateConfig = false, listRoles = false, graph = false, help = false;
 
         for (var i = 0; i < args.Length; i++)
         {
@@ -54,6 +55,9 @@ public sealed class ArgonClusterArgs
                 case "--validate":
                     validate = true;
                     break;
+                case "--validate-config":
+                    validateConfig = true;
+                    break;
                 case "--roles":
                     listRoles = true;
                     break;
@@ -68,14 +72,15 @@ public sealed class ArgonClusterArgs
 
         return new ArgonClusterArgs
         {
-            Role        = role,
-            Topology    = topology,
-            Explain     = explain,
-            GraphFormat = format,
-            Validate    = validate,
-            ListRoles   = listRoles,
-            Graph       = graph,
-            Help        = help
+            Role           = role,
+            Topology       = topology,
+            Explain        = explain,
+            GraphFormat    = format,
+            Validate       = validate,
+            ValidateConfig = validateConfig,
+            ListRoles      = listRoles,
+            Graph          = graph,
+            Help           = help
         };
     }
 

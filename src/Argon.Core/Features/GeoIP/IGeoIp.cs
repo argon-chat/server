@@ -7,7 +7,6 @@ public static class GeoIpFeature
 {
     public static WebApplicationBuilder AddGeoIpSupport(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<GeoIpOptions>(builder.Configuration.GetSection("GeoIp"));
         builder.Services.AddSingleton<IGeoIp, InternalGeoIp>();
         return builder;
     }

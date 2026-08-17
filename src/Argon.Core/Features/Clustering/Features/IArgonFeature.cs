@@ -64,6 +64,27 @@ public interface IFeatureDescriptor
     IFeatureDescriptor Conflicts<TFeature>() where TFeature : IArgonFeature;
 
     /// <summary>
+    /// Declares a configuration section this feature owns and the type it binds to.
+    /// </summary>
+    /// <param name="section">
+    /// Configuration path, colon-separated. Defaults to the feature's name, which is what a new
+    /// section should be called; pass it explicitly only to keep an existing key that deployments
+    /// already set.
+    /// </param>
+    /// <remarks>
+    /// What counts as a valid value is <typeparamref name="TOptions"/>'s business, not this call's:
+    /// the <c>required</c> keyword, the data annotations, and
+    /// <see cref="IValidatableFeatureOptions"/> for anything conditional. Keeping the rules on the
+    /// model is what stops a setting's meaning from being split between two files.
+    /// <para>
+    /// Ownership is enforced: a per-feature file under <c>conf.d/</c> may only set sections declared
+    /// here, which is what keeps one feature's file from quietly reconfiguring another's.
+    /// Call this more than once for a feature that binds more than one options class.
+    /// </para>
+    /// </remarks>
+    IFeatureDescriptor Options<TOptions>(string? section = null) where TOptions : class;
+
+    /// <summary>
     /// Grain analysis roots this feature brings with it — the services it registers that call
     /// grains. Applied to the enabling role's registry.
     /// </summary>

@@ -28,14 +28,27 @@ public static class CorsFeature
 
     ];
 
-    public static void AddDefaultCors(this WebApplicationBuilder builder)
-        => builder.Services.AddCors(x => x.AddDefaultPolicy(z => z.SetIsOriginAllowed(origin =>
+    /// <summary>
+    /// Turns a configured <c>scheme://host</c> list into the pair form the matcher uses. Anything
+    /// unparseable is dropped here; the feature's validation rule is what reports it.
+    /// </summary>
+    public static List<(string scheme, string host)> Parse(IEnumerable<string> origins)
+        => origins
+           .Select(o => Uri.TryCreate(o, UriKind.Absolute, out var uri) ? (uri.Scheme, uri.Host) : default)
+           .Where(pair => pair.Scheme is not null)
+           .ToList();
+
+    public static void AddDefaultCors(this WebApplicationBuilder builder, IReadOnlyList<string>? origins = null)
+    {
+        var allowed = origins is { Count: > 0 } ? Parse(origins) : AllowedHost;
+
+        builder.Services.AddCors(x => x.AddDefaultPolicy(z => z.SetIsOriginAllowed(origin =>
             {
                 try
                 {
                     var uri = new Uri(origin);
 
-                    return AllowedHost.Any(w =>
+                    return allowed.Any(w =>
                     {
                         if (!uri.Scheme.Equals(w.scheme, StringComparison.InvariantCulture))
                             return false;
@@ -57,4 +70,5 @@ public static class CorsFeature
            .AllowCredentials()
            .WithExposedHeaders("X-Wt-Upgrade", "X-Wt-Fingerprint", "X-Wt-AAT")
            .SetPreflightMaxAge(TimeSpan.FromDays(1))));
+    }
 }

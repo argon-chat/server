@@ -2,6 +2,8 @@ namespace Argon.Api.Clustering;
 
 using AccountContracts;
 using Argon.Api.Features.AccountConsole;
+using Argon.Features.AccountConsole;
+using Argon.Features.Admin;
 using ConsoleContracts;
 
 using global::Sentry.Infrastructure;
@@ -71,20 +73,21 @@ public sealed class IonProtocolFeature : IArgonFeature
 
 public sealed class AdminConsoleFeature : IArgonFeature
 {
-    private const int AdminPort = 8920;
-
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing($"IAdminConsole on port {AdminPort}")
+        => d.Describing("IAdminConsole on a port of its own")
             .Requires<OperatorAuthFeature>()
             .Requires<IonEndpointsFeature>()
-            .After<RoutingFeature>();
+            .After<RoutingFeature>()
+            .Options<AdminConsoleOptions>("AdminConsole");
 
     public void Configure(ArgonFeatureContext ctx)
     {
+        var port = ctx.Options<AdminConsoleOptions>().Port;
+
         ctx.Services.AddIonProtocol(x =>
         {
-            x.AddService<IAdminConsole, AdminConsoleImpl>(AdminPort, true);
-            x.AddInterceptor<OperatorAuthInterceptor>(AdminPort);
+            x.AddService<IAdminConsole, AdminConsoleImpl>(port, true);
+            x.AddInterceptor<OperatorAuthInterceptor>(port);
         });
 
         ctx.Builder.AddDiagnosticServices();
@@ -93,26 +96,27 @@ public sealed class AdminConsoleFeature : IArgonFeature
 
 public sealed class AccountConsoleFeature : IArgonFeature
 {
-    private const int AccountConsolePort = 8930;
-
     public static void Describe(IFeatureDescriptor d)
         => d.Named("account-console")
-            .Describing($"the developer account console on port {AccountConsolePort}")
+            .Describing("the developer account console on a port of its own")
             .Requires<AccountConsoleAuthFeature>()
             .Requires<IonEndpointsFeature>()
-            .After<RoutingFeature>();
+            .After<RoutingFeature>()
+            .Options<AccountConsoleOptions>("AccountConsole");
 
     public void Configure(ArgonFeatureContext ctx)
     {
+        var options = ctx.Options<AccountConsoleOptions>();
+
         // A port of its own, with the interceptor scoped to it. The console authenticates against the
         // OAuth provider rather than an Argon session, so its interceptor must never see a call meant
         // for the first-party surface if the two ever share a process.
         ctx.Services.AddIonProtocol(x =>
         {
-            x.AddService<IAccountConsole, AccountConsoleService>(AccountConsolePort, true);
-            x.AddService<ITeamConsole, TeamConsoleService>(AccountConsolePort, true);
-            x.AddService<IAppManagement, AppManagementService>(AccountConsolePort, true);
-            x.AddInterceptor<AccountConsoleAuthInterceptor>(AccountConsolePort);
+            x.AddService<IAccountConsole, AccountConsoleService>(options.Port, true);
+            x.AddService<ITeamConsole, TeamConsoleService>(options.Port, true);
+            x.AddService<IAppManagement, AppManagementService>(options.Port, true);
+            x.AddInterceptor<AccountConsoleAuthInterceptor>(options.Port);
         });
 
         ctx.Services.AddHttpContextAccessor();

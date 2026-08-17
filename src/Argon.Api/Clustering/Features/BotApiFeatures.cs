@@ -20,7 +20,8 @@ public sealed class BotApiFeature : IArgonFeature
             .Requires<ArgonAuthorizationFeature>()
             .Requires<CacheFeature>()
             .Requires<AppHubFeature>()
-            .After<RoutingFeature>();
+            .After<RoutingFeature>()
+            .Options<BotRateLimitOptions>(BotRateLimitOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
     {
@@ -30,7 +31,7 @@ public sealed class BotApiFeature : IArgonFeature
            .AddScheme<AuthenticationSchemeOptions, BotTokenAuthenticationHandler>(
                 BotTokenAuthenticationHandler.SchemeName, _ => { });
 
-        ctx.Services.AddBotRateLimiting(ctx.Configuration);
+        ctx.Services.AddBotRateLimiting(ctx.Options<BotRateLimitOptions>());
         ctx.Services.AddBotApiJson();
         ctx.Services.AddHostedService<BotContractVerificationStartupFilter>();
     }

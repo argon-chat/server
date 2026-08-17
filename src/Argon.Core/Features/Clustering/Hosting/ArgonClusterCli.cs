@@ -53,7 +53,66 @@ public static class ArgonClusterCli
         if (parsed.Graph)
             return PrintGraph(catalog, index, scanner, parsed.GraphFormat);
 
+        if (parsed.ValidateConfig)
+            return ValidateConfiguration(catalog, parsed.Role);
+
         return RunValidation(catalog, index, scanner, parsed.Topology, options);
+    }
+
+    // ── --validate-config ───────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Checks what every enabled feature reads against the configuration this working directory would
+    /// actually start with, without starting anything.
+    /// </summary>
+    /// <remarks>
+    /// The configuration is assembled the same way the host assembles it, per-feature files included,
+    /// so a <c>conf.d</c> mounted into a container can be checked by running this inside it. Roles are
+    /// checked one at a time because their configuration is genuinely different — a silo has no
+    /// business carrying the entry point's Kestrel settings.
+    /// </remarks>
+    private static int ValidateConfiguration(ArgonClusterCatalog catalog, ArgonRoleId? only)
+    {
+        var roles = only is { } id
+            ? catalog.Find(id) is { } single ? [single] : Array.Empty<RoleDescriptor>()
+            : catalog.Roles.Values.OrderBy(r => r.Id.Value, StringComparer.Ordinal).ToArray();
+
+        if (roles.Length == 0)
+        {
+            Console.Error.WriteLine($"unknown role '{only}'. Known: " +
+                                    string.Join(", ", catalog.Roles.Keys.Select(r => r.Value).Order()));
+            return 1;
+        }
+
+        var failed = false;
+
+        foreach (var role in roles)
+        {
+            var configuration = FeatureConfigurationProbe.Build(role);
+            var report        = FeatureConfigurationValidator.Validate(role, configuration.Configuration);
+
+            var sections = role.Features.Ordered.SelectMany(f => f.Options).ToArray();
+            Console.WriteLine($"role '{role.Id}' — {sections.Length} configuration section(s) across " +
+                              $"{role.Features.Ordered.Count} feature(s)");
+
+            foreach (var diagnostic in configuration.Diagnostics.Concat(report.Diagnostics)
+                        .OrderByDescending(d => d.Severity)
+                        .ThenBy(d => d.Code, StringComparer.Ordinal)
+                        .ThenBy(d => d.Message, StringComparer.Ordinal))
+                Console.WriteLine($"  {diagnostic}");
+
+            var errors = configuration.Diagnostics.Concat(report.Diagnostics)
+               .Count(d => d.Severity is ClusterDiagnosticSeverity.Error);
+            var warnings = configuration.Diagnostics.Concat(report.Diagnostics)
+               .Count(d => d.Severity is ClusterDiagnosticSeverity.Warning);
+
+            Console.WriteLine($"  => {errors} error(s), {warnings} warning(s)");
+            Console.WriteLine();
+
+            failed |= errors > 0;
+        }
+
+        return failed ? 1 : 0;
     }
 
     // ── --validate ──────────────────────────────────────────────────────────────────────────
@@ -199,7 +258,19 @@ public static class ArgonClusterCli
         {
             Console.WriteLine($"\nfeatures, in configure order:");
             foreach (var feature in role.Features.Ordered)
-                Console.WriteLine($"  {feature.Name}");
+            {
+                var sections = feature.Options.Count == 0
+                    ? string.Empty
+                    : $"  [{string.Join(", ", feature.Options.Select(o => o.Section))}]";
+                Console.WriteLine($"  {feature.Name}{sections}");
+            }
+
+            var configured = role.Features.Ordered.Where(f => f.Options.Count > 0).ToArray();
+            if (configured.Length > 0)
+            {
+                Console.WriteLine($"\nreads {configured.Sum(f => f.Options.Count)} configuration section(s); " +
+                                  $"each may also come from {FeatureConfigurationSources.DefaultDirectory}/<feature>.json");
+            }
         }
 
         foreach (var site in graph.Unresolved.DistinctBy(s => (s.DeclaringType, s.MethodName)))
@@ -262,10 +333,19 @@ public static class ArgonClusterCli
               --topology <name>             deployment topology this process belongs to
 
               --validate [--topology X]     validate all topologies, or one; exit 0 on success
+              --validate-config [--role X]  check every feature's configuration; exit 0 on success
               --roles                       list declared roles and topologies
-              --explain <role>              what a role hosts, calls and enables
+              --explain <role>              what a role hosts, calls, enables and reads
               --graph [--format dot|json]   dump the grain call graph
               --cluster-help                this text
+
+            Configuration, lowest precedence first:
+              appsettings.json, appsettings.{Environment}.json
+              conf.d/<feature>.json         one file per feature, holding only that feature's sections
+              $ARGON_CONFIG_FILE            one extra document, any sections
+              environment variables, command line
+
+              ARGON_CONFIG_DIR              use another directory instead of ./conf.d
 
             ARGON_ROLE and ARGON_MODE are not supported; the role replaces them.
             ARGON_DUMP_LOADED=1 makes --roles report which assemblies discovery pulled in, which is

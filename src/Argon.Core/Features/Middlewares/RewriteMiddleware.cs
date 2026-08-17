@@ -16,8 +16,13 @@ public class RewritePath
 
 public static class RewriteMiddlewareEx
 {
+    /// <summary>
+    /// Nothing to register: <see cref="RewriteMiddlewareOptions"/> is bound by the feature that
+    /// declares the <c>Rewriter</c> section.
+    /// </summary>
     public static void AddRewrites(this WebApplicationBuilder builder)
-        => builder.Services.Configure<RewriteMiddlewareOptions>(builder.Configuration.GetSection("Rewriter"));
+    {
+    }
 
     public static void UseRewrites(this WebApplication app)
         => app.UseMiddleware<RewriteMiddleware>();

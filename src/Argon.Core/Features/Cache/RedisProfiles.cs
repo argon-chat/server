@@ -33,6 +33,31 @@ public static class RedisProfiles
     public static readonly string[] Pooled = [Cache, HybridCache, OrleansStorage];
 }
 
+/// <summary>
+/// Every configured Redis profile, keyed by purpose. Exists as a named type so the cache feature can
+/// declare the <c>Redis</c> section and validate it rather than throwing from a constructor.
+/// </summary>
+public sealed class RedisProfilesOptions : Dictionary<string, RedisProfileOptions>,
+    Argon.Features.Clustering.IValidatableFeatureOptions
+{
+    public RedisProfilesOptions() : base(StringComparer.OrdinalIgnoreCase)
+    {
+    }
+
+    /// <summary>
+    /// Every pooled profile is resolved eagerly at startup, so a missing one is a crash rather than a
+    /// degradation. Naming which profile is missing is the difference between a five-second fix and
+    /// reading a stack trace.
+    /// </summary>
+    public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
+    {
+        foreach (var profile in RedisProfiles.Pooled)
+            report.Require(
+                TryGetValue(profile, out var configured) && !string.IsNullOrWhiteSpace(configured.ConnectionString),
+                profile, "has no connection string; the pool cannot be built");
+    }
+}
+
 /// <summary>One configured Redis connection: a connection string plus the default database and pool sizing.</summary>
 public sealed class RedisProfileOptions
 {

@@ -6,10 +6,12 @@ using Serilog.Formatting.Json;
 
 public static class LoggingFeature
 {
+    /// <summary>
+    /// Installs Serilog. Whether to call this at all is the caller's decision — the feature owns the
+    /// <c>Logging:Structured</c> setting that used to be the <c>NO_STRUCTURED_LOGS</c> variable.
+    /// </summary>
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
-        if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is not null)
-            return builder;
         Log.Logger = new LoggerConfiguration()
            .Enrich.FromLogContext()
            .ReadFrom.Configuration(builder.Configuration)

@@ -1,38 +1,39 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Sentry;
+using Argon.Features.Web;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
-using global::Sentry.Infrastructure;
 
 public sealed class KestrelFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("listeners, TLS and HTTP/3");
+        => d.Describing("listeners, TLS and HTTP/3").Options<ArgonKestrelOptions>("Kestrel:Argon");
 
     public void Configure(ArgonFeatureContext ctx)
     {
+        var options = ctx.Options<ArgonKestrelOptions>();
+
         ctx.Builder.WebHost.UseQuic();
-        ctx.Builder.WebHost.ConfigureKestrel(options =>
+        ctx.Builder.WebHost.ConfigureKestrel(kestrel =>
         {
-            options.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
+            kestrel.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
 
-            var port = Environment.GetEnvironmentVariable("OVERRIDE_PORT") is { } p ? int.Parse(p) : 5002;
-
-            if (Environment.GetEnvironmentVariable("USE_LOCALHOST_CERTS") is not null)
+            if (options.UseLocalhostCertificate)
             {
-                options.ListenAnyIP(port, listen =>
+                kestrel.ListenAnyIP(options.Port, listen =>
                 {
-                    listen.UseHttps(LoadLocalhostCertificate(ctx));
+                    listen.UseHttps(LoadLocalhostCertificate(ctx, options));
                     listen.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
                 });
             }
-            else if (File.Exists("/etc/tls/tls.crt") && File.Exists("/etc/tls/tls.key") &&
-                     Environment.GetEnvironmentVariable("LEGACY_CERT_LOADING") is not null)
+            else if (options.UseFileCertificate &&
+                     File.Exists(options.CertificatePath) && File.Exists(options.CertificateKeyPath))
             {
-                options.ListenAnyIP(port, listen =>
+                kestrel.ListenAnyIP(options.Port, listen =>
                 {
-                    listen.UseHttps(x => x.ServerCertificate =
-                        X509Certificate2.CreateFromPemFile("/etc/tls/tls.crt", "/etc/tls/tls.key"));
+                    listen.UseHttps(https => https.ServerCertificate =
+                        X509Certificate2.CreateFromPemFile(options.CertificatePath, options.CertificateKeyPath));
                     listen.DisableAltSvcHeader = false;
                     listen.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
                 });
@@ -40,14 +41,15 @@ public sealed class KestrelFeature : IArgonFeature
         });
     }
 
-    private static X509Certificate2 LoadLocalhostCertificate(ArgonFeatureContext ctx)
+    private static X509Certificate2 LoadLocalhostCertificate(ArgonFeatureContext ctx, ArgonKestrelOptions options)
     {
-        if (!File.Exists("localhost.pfx"))
+        if (!File.Exists(options.LocalhostCertificatePath))
             throw new InvalidOperationException(
-                "USE_LOCALHOST_CERTS is set but localhost.pfx is missing; generate it with " +
-                "'mkcert -pkcs12 -p12-file localhost.pfx localhost'");
+                $"kestrel:argon:useLocalhostCertificate is set but '{options.LocalhostCertificatePath}' is missing; " +
+                $"generate it with 'mkcert -pkcs12 -p12-file {options.LocalhostCertificatePath} localhost'");
 
-        var certificate = X509CertificateLoader.LoadPkcs12FromFile("localhost.pfx", "changeit");
+        var certificate = X509CertificateLoader.LoadPkcs12FromFile(
+            options.LocalhostCertificatePath, options.LocalhostCertificatePassword);
 
         // The transport layer pins against this fingerprint, so it has to be published back into
         // configuration before anything reads it.
@@ -62,11 +64,12 @@ public sealed class RoutingFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("routing, CORS, authn, authz, rate limiting")
-            .Requires<ArgonAuthorizationFeature>();
+            .Requires<ArgonAuthorizationFeature>()
+            .Options<ArgonCorsOptions>("Cors");
 
     public void Configure(ArgonFeatureContext ctx)
     {
-        ctx.Builder.AddDefaultCors();
+        ctx.Builder.AddDefaultCors(ctx.Options<ArgonCorsOptions>().AllowedOrigins);
         ctx.Services.AddAuthorization();
         ctx.Services.AddAuthentication();
         ctx.Services.AddRateLimiter();
@@ -99,14 +102,18 @@ public sealed class ControllersFeature : IArgonFeature
 public sealed class WebSocketsFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Named("websockets").After<RoutingFeature>();
+        => d.Named("websockets").After<RoutingFeature>().Options<ArgonWebSocketOptions>("WebSockets");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddWebSockets(x =>
+    {
+        var options = ctx.Options<ArgonWebSocketOptions>();
+
+        ctx.Services.AddWebSockets(x =>
         {
-            x.KeepAliveInterval = TimeSpan.FromMinutes(1);
-            x.KeepAliveTimeout  = TimeSpan.MaxValue;
+            x.KeepAliveInterval = options.KeepAliveInterval;
+            x.KeepAliveTimeout  = options.KeepAliveTimeout;
         });
+    }
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.UseWebSockets();
@@ -115,10 +122,7 @@ public sealed class WebSocketsFeature : IArgonFeature
 public sealed class RewritesFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.After<RoutingFeature>();
-
-    public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddRewrites();
+        => d.After<RoutingFeature>().Options<RewriteMiddlewareOptions>("Rewriter");
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.UseRewrites();
@@ -129,13 +133,14 @@ public sealed class AppHubFeature : IArgonFeature
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("SignalR event hub")
             .Requires<ArgonAuthorizationFeature>()
-            .After<RoutingFeature>();
+            .After<RoutingFeature>()
+            .Options<AppHubOptions>("AppHub");
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddSignalRAppHub();
 
     public void Map(ArgonEndpointContext ctx)
-        => ctx.App.MapHub<AppHub>("/w",
+        => ctx.App.MapHub<AppHub>(ctx.Options<AppHubOptions>().Path,
                 options => options.Transports = HttpTransportType.ServerSentEvents
                                               | HttpTransportType.WebSockets
                                               | HttpTransportType.LongPolling)
@@ -151,12 +156,15 @@ public sealed class SentryTunnelFeature : IArgonFeature
     public static void Describe(IFeatureDescriptor d)
         => d.Requires<SentryFeature>().Before<RoutingFeature>();
 
+    // The tunnel is configured from the same block as Sentry itself, and SentryFeature owns it.
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddSentryTunneling("sentry.argon.gl");
+        => ctx.Services.AddSentryTunneling(ctx.OptionsOf<SentryFeature, ArgonSentryOptions>().TunnelHost);
 
     public void Map(ArgonEndpointContext ctx)
     {
-        ctx.App.UseSentryTunneling("/k");
+        var options = ctx.App.Services.GetRequiredService<IOptions<ArgonSentryOptions>>().Value;
+
+        ctx.App.UseSentryTunneling(options.TunnelPath);
         ctx.App.UseSentryTracing();
     }
 }
@@ -164,7 +172,9 @@ public sealed class SentryTunnelFeature : IArgonFeature
 public sealed class DiscoveryFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("client bootstrap and CDN redirects").After<RoutingFeature>();
+        => d.Describing("client bootstrap and CDN redirects")
+            .After<RoutingFeature>()
+            .Options<DiscoveryOptions>(DiscoveryOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddDiscoveryFeature();
@@ -179,7 +189,9 @@ public sealed class DiscoveryFeature : IArgonFeature
 public sealed class TemplateEngineFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Named("templates").Describing("Fluid templates for e-mail and web pages");
+        => d.Named("templates")
+            .Describing("Fluid templates for e-mail and web pages")
+            .Options<SmtpConfig>("Smtp");
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddTemplateEngine();
@@ -188,14 +200,19 @@ public sealed class TemplateEngineFeature : IArgonFeature
 public sealed class HostHooksFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.After<RoutingFeature>();
+        => d.After<RoutingFeature>().Options<HostHooksOptions>("HostHooks");
 
     public void Map(ArgonEndpointContext ctx)
     {
-        ctx.App.MapGet("/", () => new
-        {
-            version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
-        });
-        ctx.App.UsePreStopHook();
+        var options = ctx.Options<HostHooksOptions>();
+
+        if (options.ExposeVersion)
+            ctx.App.MapGet("/", () => new
+            {
+                version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
+            });
+
+        if (options.PreStopHook)
+            ctx.App.UsePreStopHook();
     }
 }

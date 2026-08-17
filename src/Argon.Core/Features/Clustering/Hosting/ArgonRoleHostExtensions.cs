@@ -42,9 +42,34 @@ public static class ArgonRoleHostExtensions
         builder.Services.AddSingleton(catalog);
         builder.Services.AddSingleton(role);
 
-        var context = new ArgonFeatureContext(builder, role);
+        // Per-feature files first: they are configuration like any other, and everything below —
+        // the validation pass, the options registrations, the features themselves — has to see them.
+        var configuration = builder.AddFeatureConfiguration(role);
+
+        var report = FeatureConfigurationValidator.Validate(role, builder.Configuration);
+
+        foreach (var diagnostic in configuration.Concat(report.Warnings)
+                    .Where(d => d.Severity is ClusterDiagnosticSeverity.Warning))
+            Console.Error.WriteLine($"  {diagnostic}");
+
+        var fatalConfiguration = configuration.Concat(report.Errors)
+           .Where(d => d.Severity is ClusterDiagnosticSeverity.Error)
+           .ToArray();
+
+        if (fatalConfiguration.Length > 0)
+            throw new InvalidOperationException(
+                $"role '{role.Id}' is misconfigured:{Environment.NewLine}" +
+                string.Join(Environment.NewLine, fatalConfiguration.Select(d => $"  {d}")) +
+                $"{Environment.NewLine}Run --validate-config --role {role.Id} to check without starting.");
+
         foreach (var definition in role.Features.Ordered)
+        {
+            foreach (var binding in definition.Options)
+                binding.Register(builder.Services, builder.Configuration);
+
+            var context = new ArgonFeatureContext(builder, role, definition);
             ((IArgonFeature)Activator.CreateInstance(definition.FeatureType)!).Configure(context);
+        }
 
         return role;
     }
@@ -55,11 +80,11 @@ public static class ArgonRoleHostExtensions
     /// </summary>
     public static WebApplication UseArgonRole(this WebApplication app)
     {
-        var role    = app.Services.GetRequiredService<RoleDescriptor>();
-        var context = new ArgonEndpointContext(app, role);
+        var role = app.Services.GetRequiredService<RoleDescriptor>();
 
         foreach (var definition in role.Features.Ordered)
-            ((IArgonFeature)Activator.CreateInstance(definition.FeatureType)!).Map(context);
+            ((IArgonFeature)Activator.CreateInstance(definition.FeatureType)!)
+               .Map(new ArgonEndpointContext(app, role, definition));
 
         return app;
     }

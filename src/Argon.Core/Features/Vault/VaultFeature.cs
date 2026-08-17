@@ -27,51 +27,76 @@ public enum VaultAuthMode
 
 public static class VaultFeature
 {
-    public static IServiceCollection AddVaultClient(this WebApplicationBuilder builder)
+    public static IServiceCollection AddVaultClient(this WebApplicationBuilder builder, VaultOptions options)
     {
-        var mode = ResolveAuthMode();
+        var mode = ResolveAuthMode(options);
 
         if (mode == VaultAuthMode.None)
             return builder.Services;
 
-        builder.Services.AddSingleton<IVaultClient>(CreateVaultClient(mode));
+        builder.Services.AddSingleton<IVaultClient>(CreateVaultClient(mode, options));
 
         return builder.Services;
     }
 
-    private static Func<IServiceProvider, IVaultClient> CreateVaultClient(VaultAuthMode mode)
+    private static Func<IServiceProvider, IVaultClient> CreateVaultClient(VaultAuthMode mode, VaultOptions options)
     {
-        // capture nothing — resolve lazily on first use
+        // capture nothing that has to be resolved now — the auth material is read on first use
         return _ =>
         {
-            var url = Environment.GetEnvironmentVariable("VAULT_ADDR")
-                      ?? "http://localhost:8200";
-            var ns = Environment.GetEnvironmentVariable("VAULT_NAMESPACE");
-            var authMethod = ResolveAuthMethodInfo(mode);
-
-            var settings = new VaultClientSettings(url, authMethod)
+            var settings = new VaultClientSettings(options.ResolvedAddress, ResolveAuthMethodInfo(mode))
             {
                 UseVaultTokenHeaderInsteadOfAuthorizationHeader = true,
-                Namespace                                      = ns
+                Namespace                                      = options.ResolvedNamespace
             };
             return new VaultClient(settings);
         };
     }
 
-    private static VaultAuthMode ResolveAuthMode()
+    /// <summary>
+    /// The auth method in force: what was configured, else what the environment names, else what the
+    /// presence of an address implies.
+    /// </summary>
+    /// <exception cref="NotSupportedException">The name is not one of the modes.</exception>
+    public static VaultAuthMode ResolveAuthMode(VaultOptions options)
     {
-        var raw = Environment.GetEnvironmentVariable("VAULT_AUTH_METHOD");
+        var raw = options.ResolvedAuthMethod;
+
         if (string.IsNullOrEmpty(raw))
         {
-            // auto-detect: if VAULT_ADDR is set, default to Token; otherwise None
-            return Environment.GetEnvironmentVariable("VAULT_ADDR") is not null
+            // Auto-detect: an address, from either source, means token auth; nothing at all means
+            // Vault is simply not part of this deployment.
+            return options.Address is not null || Environment.GetEnvironmentVariable("VAULT_ADDR") is not null
                 ? VaultAuthMode.Token
                 : VaultAuthMode.None;
         }
 
         return Enum.TryParse<VaultAuthMode>(raw, ignoreCase: true, out var parsed)
             ? parsed
-            : throw new NotSupportedException($"Unsupported VAULT_AUTH_METHOD: {raw}");
+            : throw new NotSupportedException($"Unsupported Vault auth method: {raw}");
+    }
+
+    /// <summary>
+    /// Environment variables the chosen mode needs and does not have. Empty when the mode can
+    /// authenticate. Lets the configuration rule report a mode that cannot work before anything tries
+    /// to read a secret with it.
+    /// </summary>
+    public static IReadOnlyList<string> MissingMaterial(VaultAuthMode mode)
+    {
+        static bool Absent(params string[] names)
+            => names.All(n => string.IsNullOrEmpty(Environment.GetEnvironmentVariable(n)));
+
+        return mode switch
+        {
+            VaultAuthMode.Token when Absent("VAULT_TOKEN", "VAULT_TOKEN_FILE") => ["VAULT_TOKEN or VAULT_TOKEN_FILE"],
+            VaultAuthMode.AppRole    => Missing("VAULT_ROLE_ID", "VAULT_SECRET_ID"),
+            VaultAuthMode.Kubernetes => Missing("VAULT_K8S_ROLE"),
+            VaultAuthMode.Cert       => Missing("VAULT_CLIENT_CERT", "VAULT_CLIENT_KEY"),
+            _                        => []
+        };
+
+        static IReadOnlyList<string> Missing(params string[] names)
+            => names.Where(n => string.IsNullOrEmpty(Environment.GetEnvironmentVariable(n))).ToArray();
     }
 
     private static IAuthMethodInfo ResolveAuthMethodInfo(VaultAuthMode mode) => mode switch

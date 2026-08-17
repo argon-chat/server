@@ -1,14 +1,20 @@
 namespace Argon.Features.Jwt;
 
+using Argon.Features.Clustering;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography.X509Certificates;
 
-public record JwtOptions
+/// <summary>
+/// Token issuing. The <c>required</c> members are checked against configuration, so a section that
+/// omits one is reported by name instead of producing a token nobody can validate.
+/// </summary>
+public record JwtOptions : IValidatableFeatureOptions
 {
     public required string Issuer { get; set; }
 
     public required string Audience { get; set; }
 
+    /// <summary>Mixed into the per-device machine id. Changing it invalidates every device binding.</summary>
     public required string MachineSalt { get; set; }
 
 
@@ -21,7 +27,16 @@ public record JwtOptions
 
     public required TimeSpan AccessTokenLifetime { get; set; }
 
+    public void Validate(IFeatureConfigurationReport report)
+    {
+        report.Require(AccessTokenLifetime > TimeSpan.Zero, nameof(AccessTokenLifetime),
+            "must be positive, or every token is born expired");
 
+        // WrapperForSignKey throws on a missing pair, and it is constructed lazily — the first login
+        // after a bad deploy is where you would find out otherwise.
+        report.Require(CertificateBase64 is { privateKey.Length: > 0, publicKey.Length: > 0 },
+            nameof(CertificateBase64), "must carry both a private and a public key; nothing can be signed without them");
+    }
 }
 
 public record RsaKeyPair(string PrivateKeyBase64, string PublicKeyBase64);

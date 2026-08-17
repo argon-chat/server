@@ -40,10 +40,8 @@ public static class DatabaseFeature
     {
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
         DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-        builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection("Database"));
         builder.Services.AddSingleton<IVaultDbCredentialsProvider, VaultDbCredentialsProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IVaultDbCredentialsProvider>());
-        builder.Services.Configure<DatabaseRegionOptions>(builder.Configuration.GetSection("Database:Regions"));
 
         var providerKind = builder.Configuration.GetDatabaseProviderKind();
         builder.Services.AddSingleton(new DatabaseProvider(providerKind));
@@ -82,9 +80,17 @@ public sealed record DatabaseProvider(DatabaseProviderKind Kind)
     public bool IsCockroach => Kind is DatabaseProviderKind.CockroachDb;
 }
 
+/// <summary>
+/// Where the database's regional table placement puts data. Read once, by
+/// <c>ApplicationDbContext.OnModelCreating</c>.
+/// </summary>
+/// <remarks>
+/// Carried an <c>IsMultiregionalDisabled</c> flag that nothing ever read and no configuration ever
+/// set; validating the <c>required</c> keyword is what made that visible, so it is gone.
+/// </remarks>
 public class DatabaseRegionOptions
 {
-    public required bool IsMultiregionalDisabled { get; set; }
     public required string PrimaryRegion { get; set; }
+
     public required string[] ReplicateRegion { get; set; }
 }

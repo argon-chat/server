@@ -22,6 +22,12 @@ public sealed class FeatureDefinition
     /// <summary>Grain analysis roots contributed to the enabling role.</summary>
     public required IReadOnlyList<Action<IGrainCollectionRegistry>> GrainRoots { get; init; }
 
+    /// <summary>
+    /// Configuration sections this feature owns. Empty for a feature with nothing to configure —
+    /// which is a real answer, not an omission.
+    /// </summary>
+    public required IReadOnlyList<FeatureOptionsBinding> Options { get; init; }
+
     public override string ToString()
         => Name;
 }
@@ -32,7 +38,8 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
     private readonly List<Type>                             afterFeatures       = [];
     private readonly List<Type>                             beforeFeatures      = [];
     private readonly List<Type>                             conflictingFeatures = [];
-    private readonly List<Action<IGrainCollectionRegistry>> grainRootHooks      = [];
+    private readonly List<Action<IGrainCollectionRegistry>>       grainRootHooks  = [];
+    private readonly List<Func<string, FeatureOptionsBinding>>    optionsBindings = [];
 
     private string featureName        = DeriveName(featureType);
     private string featureDescription = string.Empty;
@@ -102,8 +109,28 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
         return this;
     }
 
+    /// <summary>
+    /// Deferred because the section defaults to the feature's name, and <see cref="Named"/> is free
+    /// to come after this call in the fluent chain.
+    /// </summary>
+    public IFeatureDescriptor Options<TOptions>(string? section = null)
+        where TOptions : class
+    {
+        optionsBindings.Add(name => FeatureOptionsBinding.Create<TOptions>(
+            name, string.IsNullOrWhiteSpace(section) ? name : section));
+        return this;
+    }
+
     public FeatureDefinition Build()
-        => new()
+    {
+        var options = optionsBindings.Select(create => create(featureName)).ToArray();
+
+        if (options.Select(o => o.Section).Distinct(StringComparer.OrdinalIgnoreCase).Count() != options.Length)
+            throw new InvalidOperationException(
+                $"Feature '{featureType.FullName}' declares the same configuration section twice: " +
+                string.Join(", ", options.Select(o => o.Section)));
+
+        return new FeatureDefinition
         {
             FeatureType = featureType,
             Name        = featureName,
@@ -112,6 +139,8 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
             After       = afterFeatures.Distinct().ToArray(),
             Before      = beforeFeatures.Distinct().ToArray(),
             Conflicts   = conflictingFeatures.Distinct().ToArray(),
-            GrainRoots  = grainRootHooks.ToArray()
+            GrainRoots  = grainRootHooks.ToArray(),
+            Options     = options
         };
+    }
 }

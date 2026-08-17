@@ -15,9 +15,6 @@ public static class PhoneProviderExtensions
     public static void AddPhoneVerification(this WebApplicationBuilder builder)
     {
         // Register configuration
-        builder.Services.Configure<PhoneVerificationOptions>(
-            builder.Configuration.GetSection("Phone"));
-
         // Register null channel (always available)
         builder.Services.AddSingleton<NullPhoneChannel>();
 
