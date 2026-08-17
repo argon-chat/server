@@ -169,6 +169,46 @@ public static class HttpContextExtensions
             throw new InvalidOperationException("MachineId is not defined");
         }
 
+        /// <summary>
+        /// The hardware signals this caller reported, or an empty vector.
+        /// </summary>
+        /// <remarks>
+        /// Only the <c>ArgonSecure</c> cookie carries it — there is no legacy header fallback,
+        /// because there is no legacy format: a client old enough to lack the field reports nothing
+        /// and is scored as an unknown device rather than refused.
+        /// </remarks>
+        public Features.Auth.DeviceFingerprint GetHardwareVector()
+        {
+            if (!ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) || string.IsNullOrWhiteSpace(argonSecure))
+                return Features.Auth.DeviceFingerprint.Empty;
+
+            var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+
+            return parsed.TryGetValue("hwv", out var hwv)
+                ? Features.Auth.DeviceFingerprint.Parse(Uri.UnescapeDataString(hwv.ToString()))
+                : Features.Auth.DeviceFingerprint.Empty;
+        }
+
+        /// <summary>
+        /// The device proof native code pushed into the cookie, or null.
+        /// </summary>
+        /// <remarks>
+        /// Cookie only, and deliberately so: this is the channel that exists for native code to carry
+        /// device identity, which is why hardware never appears in the ion contract. A client too old
+        /// to send it reports nothing and is judged on the fingerprint vector instead.
+        /// </remarks>
+        public string? GetDeviceProof()
+        {
+            if (!ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) || string.IsNullOrWhiteSpace(argonSecure))
+                return null;
+
+            var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+
+            return parsed.TryGetValue("dev", out var dev) && !string.IsNullOrWhiteSpace(dev)
+                ? Uri.UnescapeDataString(dev.ToString())
+                : null;
+        }
+
         public bool TryGetMachineId(out string machineId)
         {
             try

@@ -30,7 +30,12 @@ global using guid = System.Guid;
 global using dateonly = System.DateOnly;
 global using timeonly = System.TimeOnly;
 global using duration = System.TimeSpan;
-global using datetime = System.DateTime;
+global using datetime = System.DateTimeOffset;
+
+// `decimal` needs no alias: it is already a C# keyword for System.Decimal, and
+// `global using decimal = ...` is not even syntactically legal — an alias name must be
+// an identifier. Ion's `decimal` therefore emits as the bare keyword and binds to
+// System.Decimal, which is what Ion_decimal_Formatter is registered against.
 
 global using System.CodeDom.Compiler;
 global using System.Runtime.CompilerServices;

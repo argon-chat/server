@@ -2935,6 +2935,116 @@ public sealed class Ion_TenantActionResult_Formatter : IonFormatter<TenantAction
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DeviceSummary_Formatter : IonFormatter<DeviceSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DeviceSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __deviceid = IonFormatterStorage<guid>.Read(reader);
+        var __platform = IonFormatterStorage<i4>.Read(reader);
+        var __assurance = IonFormatterStorage<i4>.Read(reader);
+        var __clientname = IonFormatterStorage<string>.Read(reader);
+        var __enrolledat = IonFormatterStorage<datetime>.Read(reader);
+        var __lastprovenat = reader.ReadNullable<datetime>();
+        var __linkedaccounts = IonFormatterStorage<i4>.Read(reader);
+        var __isbanned = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 8);
+        return new(__deviceid, __platform, __assurance, __clientname, __enrolledat, __lastprovenat, __linkedaccounts, __isbanned);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DeviceSummary value)
+    {
+        writer.WriteStartArray(8);
+        IonFormatterStorage<guid>.Write(writer, value.deviceId);
+        IonFormatterStorage<i4>.Write(writer, value.platform);
+        IonFormatterStorage<i4>.Write(writer, value.assurance);
+        IonFormatterStorage<string>.Write(writer, value.clientName);
+        IonFormatterStorage<datetime>.Write(writer, value.enrolledAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastProvenAt);
+        IonFormatterStorage<i4>.Write(writer, value.linkedAccounts);
+        IonFormatterStorage<bool>.Write(writer, value.isBanned);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DeviceList_Formatter : IonFormatter<DeviceList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DeviceList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __devices = IonFormatterStorage<DeviceSummary>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__devices);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DeviceList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DeviceSummary>.WriteArray(writer, value.devices);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DeviceAccount_Formatter : IonFormatter<DeviceAccount>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DeviceAccount Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __firstseenat = IonFormatterStorage<datetime>.Read(reader);
+        var __lastseenat = IonFormatterStorage<datetime>.Read(reader);
+        var __logins = IonFormatterStorage<i4>.Read(reader);
+        var __isblocked = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__userid, __username, __displayname, __firstseenat, __lastseenat, __logins, __isblocked);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DeviceAccount value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<datetime>.Write(writer, value.firstSeenAt);
+        IonFormatterStorage<datetime>.Write(writer, value.lastSeenAt);
+        IonFormatterStorage<i4>.Write(writer, value.logins);
+        IonFormatterStorage<bool>.Write(writer, value.isBlocked);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DeviceAccountList_Formatter : IonFormatter<DeviceAccountList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DeviceAccountList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __accounts = IonFormatterStorage<DeviceAccount>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__accounts);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DeviceAccountList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DeviceAccount>.WriteArray(writer, value.accounts);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

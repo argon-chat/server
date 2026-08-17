@@ -310,6 +310,19 @@ public class SecurityGrain(
             user.PasswordDigest = passwordHashingService.HashPassword(newPassword);
             await db.SaveChangesAsync(ct);
 
+            // Every refresh token issued before this moment is now dead.
+            //
+            // Changing a password is the one action that means "whoever else is holding my
+            // credentials, stop": per-session tombstones cannot express it, because they only reach
+            // sessions still visible to discovery and only tokens minted since the sid claim
+            // existed. A floor reaches every token by date, including the caller's own — which is
+            // correct here and is why this does not live in RevokeAllSessions.
+            await cache.StringSetAsync(
+                SessionRevocation.FloorKey(UserId),
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+                SessionRevocation.Window,
+                ct);
+
             var emailGrain = GrainFactory.GetGrain<IEmailManager>(Guid.NewGuid());
             await emailGrain.SendNotificationResetPasswordAsync(user.Email);
 
@@ -875,6 +888,14 @@ public class SecurityGrain(
                 revoked++;
             }
 
+            // No revocation floor here, on purpose. A floor is a timestamp and cannot make an
+            // exception for the caller's own refresh token, so writing one would sign them out of
+            // the screen they are standing on — the exact thing the spare below exists to avoid.
+            // The floor belongs to ChangePassword, where being signed out yourself is the point.
+            //
+            // The cost is that this reaches only sessions discovery can still see, and only refresh
+            // tokens minted since the sid claim existed.
+            //
             // Deliberately spares the caller. The button that reaches here sits on the devices screen
             // next to the phone's own row, and a user auditing their sessions is trying to remove the
             // ones they do not recognise — signing themselves out as a side effect would cost them the
@@ -904,7 +925,13 @@ public class SecurityGrain(
     /// </remarks>
     private async Task EndSessionAsync(Guid sessionId, CancellationToken ct)
     {
-        await cache.StringSetAsync(SessionRevocation.Key(UserId, sessionId), "1", SessionRevocation.Window, ct);
+        // One set per user, not one key per revoked session: a key per session would be retained for
+        // the refresh token's whole lifetime and never reused, so the store would grow by one entry
+        // for every device anyone has ever signed out and drop none of them.
+        var revokedKey = SessionRevocation.RevokedKey(UserId);
+
+        await cache.SetAddAsync(revokedKey, sessionId.ToString(), ct);
+        await cache.KeyExpireAsync(revokedKey, SessionRevocation.Window, ct);
 
         try
         {

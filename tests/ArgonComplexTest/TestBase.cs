@@ -29,6 +29,9 @@ public abstract class TestBase
 {
     private DefaultHeaderInterceptor _interceptor = null!;
 
+    /// <summary>The device id this fixture's client sends — see <see cref="DefaultHeaderInterceptor.MachineId"/>.</summary>
+    protected string MachineId => _interceptor.MachineId;
+
     protected ArgonServerTargetHost FactoryAsp => ArgonTestEnvironment.Instance.Host;
     protected HttpClient            HttpClient => ArgonTestEnvironment.Instance.HttpClient;
     protected IonClient             IonClient  = null!;

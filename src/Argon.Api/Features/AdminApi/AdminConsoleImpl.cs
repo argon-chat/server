@@ -850,7 +850,7 @@ public class AdminConsoleImpl(
         }
     }
 
-    public async Task<UserActionResult> BlockUser(Guid userId, LockdownReason reason, DateTime? expiration, bool isAppealable,
+    public async Task<UserActionResult> BlockUser(Guid userId, LockdownReason reason, DateTimeOffset? expiration, bool isAppealable,
         CancellationToken ct = default)
     {
         try
@@ -862,7 +862,7 @@ public class AdminConsoleImpl(
                 return new UserActionResult(false, "User not found");
 
             user.LockdownReason = reason;
-            user.LockDownExpiration = expiration.HasValue ? new DateTimeOffset(expiration.Value, TimeSpan.Zero) : null;
+            user.LockDownExpiration = expiration;
             user.LockDownIsAppealable = isAppealable;
 
             await db.SaveChangesAsync(ct);
@@ -894,6 +894,134 @@ public class AdminConsoleImpl(
             await db.SaveChangesAsync(ct);
             await lockdownCache.RemoveAsync(ArgonRequestContext.LockdownCacheKey(userId), ct);
             await auditService.LogAsync("UnblockUser", "User", userId.ToString());
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    public async Task<DeviceList> GetUserDevices(Guid userId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var now = DateTimeOffset.UtcNow;
+
+        var devices = await db.DeviceObservations
+           .Where(o => o.UserId == userId)
+           .Join(db.DeviceKeys, o => o.DeviceId, k => k.DeviceId, (o, k) => k)
+           .OrderByDescending(k => k.LastProvenAt)
+           .ToListAsync(ct);
+
+        var summaries = new List<DeviceSummary>(devices.Count);
+
+        foreach (var key in devices)
+        {
+            summaries.Add(new DeviceSummary(
+                key.DeviceId,
+                (int)key.Platform,
+                (int)key.Assurance,
+                key.ClientName,
+                key.EnrolledAt,
+                key.LastProvenAt,
+                await db.DeviceObservations.CountAsync(o => o.DeviceId == key.DeviceId, ct),
+                await db.DeviceBans.AnyAsync(b => b.DeviceId == key.DeviceId && (b.ExpiresAt == null || b.ExpiresAt > now), ct)));
+        }
+
+        return new DeviceList(summaries);
+    }
+
+    /// <summary>
+    /// Everyone who has signed in from one machine.
+    /// </summary>
+    /// <remarks>
+    /// The evidence a device ban is decided on, and the collateral it will cause. A shared family
+    /// computer and an alt farm produce the same list, so this exists to be read by a person before
+    /// <see cref="BanDevice"/> is used rather than to be counted by anything automatic.
+    /// </remarks>
+    public async Task<DeviceAccountList> GetDeviceAccounts(Guid deviceId, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var accounts = await db.DeviceObservations
+           .Where(o => o.DeviceId == deviceId)
+           .Join(db.Users, o => o.UserId, u => u.Id, (o, u) => new { o, u })
+           .OrderByDescending(x => x.o.LastSeenAt)
+           .Select(x => new DeviceAccount(
+                x.u.Id,
+                x.u.Username,
+                x.u.DisplayName,
+                x.o.FirstSeenAt,
+                x.o.LastSeenAt,
+                x.o.Logins,
+                x.u.LockdownReason != LockdownReason.NONE))
+           .ToListAsync(ct);
+
+        return new DeviceAccountList(accounts);
+    }
+
+    public async Task<UserActionResult> BanDevice(Guid deviceId, string reason, DateTimeOffset? expiration, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            // Only an enrolled machine can be barred: a device the server cannot recognise on sight
+            // would shed the ban by clearing a cookie, and a ban that does nothing is worse than
+            // none, because it looks like something was done.
+            if (!await db.DeviceKeys.AnyAsync(k => k.DeviceId == deviceId, ct))
+                return new UserActionResult(false, "Device not found");
+
+            var existing = await db.DeviceBans
+               .IgnoreQueryFilters()
+               .FirstOrDefaultAsync(b => b.DeviceId == deviceId, ct);
+
+            if (existing is null)
+                db.DeviceBans.Add(new DeviceBanEntity
+                {
+                    Id        = Guid.CreateVersion7(),
+                    DeviceId  = deviceId,
+                    Reason    = reason,
+                    ExpiresAt = expiration
+                });
+            else
+            {
+                // Revived rather than inserted alongside: soft delete leaves the old row holding the
+                // unique index, so a second insert would collide with something nobody can see.
+                existing.IsDeleted = false;
+                existing.DeletedAt = null;
+                existing.Reason    = reason;
+                existing.ExpiresAt = expiration;
+            }
+
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("BanDevice", "Device", deviceId.ToString(), $"Reason={reason}, expiration={expiration}");
+
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    public async Task<UserActionResult> UnbanDevice(Guid deviceId, CancellationToken ct = default)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+            var ban = await db.DeviceBans.FirstOrDefaultAsync(b => b.DeviceId == deviceId, ct);
+
+            if (ban is null)
+                return new UserActionResult(false, "Device is not banned");
+
+            db.DeviceBans.Remove(ban);
+
+            await db.SaveChangesAsync(ct);
+            await auditService.LogAsync("UnbanDevice", "Device", deviceId.ToString());
+
             return new UserActionResult(true, null);
         }
         catch (Exception ex)
@@ -1565,8 +1693,8 @@ public class AdminConsoleImpl(
 
         var (entries, totalCount) = await auditService.QueryAsync(
             query.operatorId, query.action, query.targetId,
-            query.fromDate.HasValue ? new DateTimeOffset(query.fromDate.Value, TimeSpan.Zero) : null,
-            query.toDate.HasValue ? new DateTimeOffset(query.toDate.Value, TimeSpan.Zero) : null,
+            query.fromDate,
+            query.toDate,
             page, pageSize, ct);
 
         var mapped = entries.Select(MapAuditEntry).ToList();
@@ -2903,8 +3031,15 @@ public class AdminConsoleImpl(
         return uri.Scheme == Uri.UriSchemeHttp && uri.Host is "localhost" or "127.0.0.1";
     }
 
-    private static DateTimeOffset? ToOffset(DateTime? dt)
-        => dt.HasValue ? new DateTimeOffset(DateTime.SpecifyKind(dt.Value, DateTimeKind.Utc)) : null;
+    /// <summary>
+    /// Kept as an identity now that the contract speaks <c>DateTimeOffset</c> directly.
+    /// </summary>
+    /// <remarks>
+    /// The call sites read as "convert on the way in", which is still the right shape for them to
+    /// have — the conversion simply has nothing left to do since ion's <c>datetime</c> stopped being
+    /// a <c>DateTime</c>.
+    /// </remarks>
+    private static DateTimeOffset? ToOffset(DateTimeOffset? dt) => dt;
 
     private async Task NotifyUserAsync<T>(Guid userId, T payload) where T : IArgonEvent
     {

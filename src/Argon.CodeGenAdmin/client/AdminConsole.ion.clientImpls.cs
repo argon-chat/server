@@ -52,6 +52,14 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(RemovePhoneNumber), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ChangeEmail_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(ChangeEmail), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetUserDevices_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetUserDevices), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetDeviceAccounts_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetDeviceAccounts), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BanDevice_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(BanDevice), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnbanDevice_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(UnbanDevice), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetDiagnostics_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetDiagnostics), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetOperators_Ref = new(() =>
@@ -451,6 +459,76 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         
         IonFormatterStorage<guid>.Write(writer, __userid);
         IonFormatterStorage<string>.Write(writer, __newemail);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<DeviceList> GetUserDevices(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetUserDevices_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<DeviceList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<DeviceAccountList> GetDeviceAccounts(guid __deviceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetDeviceAccounts_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __deviceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<DeviceAccountList>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> BanDevice(guid __deviceid, string __reason, datetime? __expiration, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), BanDevice_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __deviceid);
+        IonFormatterStorage<string>.Write(writer, __reason);
+        IonFormatterStorage<datetime>.WriteNullable(writer, __expiration);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> UnbanDevice(guid __deviceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), UnbanDevice_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __deviceid);
         
         writer.WriteEndArray();
     

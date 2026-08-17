@@ -22,6 +22,9 @@ internal static class IonProjectFormatterStorageModuleInit
         
       IonFormatterStorage<ChannelEntitlementOverwrite>.Value = new Ion_ChannelEntitlementOverwrite_Formatter();
       IonFormatterStorage<Archetype>.Value = new Ion_Archetype_Formatter();
+      IonFormatterStorage<ArchetypeError>.Value = new Ion_ArchetypeError_Formatter();
+      IonFormatterStorage<IDeleteArchetypeResult>.Value = new Ion_IDeleteArchetypeResult_Formatter();
+      IonFormatterStorage<IReorderArchetypesResult>.Value = new Ion_IReorderArchetypesResult_Formatter();
       IonFormatterStorage<BotSearchResult>.Value = new Ion_BotSearchResult_Formatter();
       IonFormatterStorage<BotDetails>.Value = new Ion_BotDetails_Formatter();
       IonFormatterStorage<InstalledBotInfo>.Value = new Ion_InstalledBotInfo_Formatter();
@@ -147,6 +150,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SecurityDetails>.Value = new Ion_SecurityDetails_Formatter();
       IonFormatterStorage<Passkey>.Value = new Ion_Passkey_Formatter();
       IonFormatterStorage<AutoDeletePeriod>.Value = new Ion_AutoDeletePeriod_Formatter();
+      IonFormatterStorage<DataExportStatus>.Value = new Ion_DataExportStatus_Formatter();
       IonFormatterStorage<SessionError>.Value = new Ion_SessionError_Formatter();
       IonFormatterStorage<EmailChangeError>.Value = new Ion_EmailChangeError_Formatter();
       IonFormatterStorage<PhoneChangeError>.Value = new Ion_PhoneChangeError_Formatter();
@@ -154,6 +158,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<OTPError>.Value = new Ion_OTPError_Formatter();
       IonFormatterStorage<PasskeyError>.Value = new Ion_PasskeyError_Formatter();
       IonFormatterStorage<AutoDeleteError>.Value = new Ion_AutoDeleteError_Formatter();
+      IonFormatterStorage<DataExportStatusKind>.Value = new Ion_DataExportStatusKind_Formatter();
+      IonFormatterStorage<DataExportError>.Value = new Ion_DataExportError_Formatter();
       IonFormatterStorage<IRevokeSessionResult>.Value = new Ion_IRevokeSessionResult_Formatter();
       IonFormatterStorage<IRequestEmailChangeResult>.Value = new Ion_IRequestEmailChangeResult_Formatter();
       IonFormatterStorage<IConfirmEmailChangeResult>.Value = new Ion_IConfirmEmailChangeResult_Formatter();
@@ -169,6 +175,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IRemovePasskeyResult>.Value = new Ion_IRemovePasskeyResult_Formatter();
       IonFormatterStorage<IBeginPasskeyValidateResult>.Value = new Ion_IBeginPasskeyValidateResult_Formatter();
       IonFormatterStorage<ISetAutoDeleteResult>.Value = new Ion_ISetAutoDeleteResult_Formatter();
+      IonFormatterStorage<IRequestDataExportResult>.Value = new Ion_IRequestDataExportResult_Formatter();
+      IonFormatterStorage<SpaceDeletionState>.Value = new Ion_SpaceDeletionState_Formatter();
       IonFormatterStorage<ArgonSpaceBase>.Value = new Ion_ArgonSpaceBase_Formatter();
       IonFormatterStorage<ArgonSpace>.Value = new Ion_ArgonSpace_Formatter();
       IonFormatterStorage<ArchetypeGroup>.Value = new Ion_ArchetypeGroup_Formatter();
@@ -181,9 +189,13 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceStats>.Value = new Ion_SpaceStats_Formatter();
       IonFormatterStorage<ArgonUser>.Value = new Ion_ArgonUser_Formatter();
       IonFormatterStorage<ArgonUserProfile>.Value = new Ion_ArgonUserProfile_Formatter();
+      IonFormatterStorage<SpaceDeletionStatus>.Value = new Ion_SpaceDeletionStatus_Formatter();
+      IonFormatterStorage<SpaceDeletionError>.Value = new Ion_SpaceDeletionError_Formatter();
       IonFormatterStorage<UserStatus>.Value = new Ion_UserStatus_Formatter();
       IonFormatterStorage<ArgonEntitlement>.Value = new Ion_ArgonEntitlement_Formatter();
       IonFormatterStorage<UserFlag>.Value = new Ion_UserFlag_Formatter();
+      IonFormatterStorage<IRequestDeleteSpaceResult>.Value = new Ion_IRequestDeleteSpaceResult_Formatter();
+      IonFormatterStorage<ICancelDeleteSpaceResult>.Value = new Ion_ICancelDeleteSpaceResult_Formatter();
       IonFormatterStorage<ArgonIonTicket>.Value = new Ion_ArgonIonTicket_Formatter();
       IonFormatterStorage<ArgonAuthMode>.Value = new Ion_ArgonAuthMode_Formatter();
       IonFormatterStorage<OtpMethod>.Value = new Ion_OtpMethod_Formatter();
@@ -230,6 +242,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<RegistrationError>.Value = new Ion_RegistrationError_Formatter();
       IonFormatterStorage<LockdownReason>.Value = new Ion_LockdownReason_Formatter();
       IonFormatterStorage<LockdownSeverity>.Value = new Ion_LockdownSeverity_Formatter();
+      IonFormatterStorage<LookupError>.Value = new Ion_LookupError_Formatter();
       IonFormatterStorage<IUploadFileResult>.Value = new Ion_IUploadFileResult_Formatter();
       IonFormatterStorage<ICreateSpaceResult>.Value = new Ion_ICreateSpaceResult_Formatter();
       IonFormatterStorage<IUpdateMeResult>.Value = new Ion_IUpdateMeResult_Formatter();
@@ -237,6 +250,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IRegistrationResult>.Value = new Ion_IRegistrationResult_Formatter();
       IonFormatterStorage<IJoinToSpaceResult>.Value = new Ion_IJoinToSpaceResult_Formatter();
       IonFormatterStorage<IPreviewInviteResult>.Value = new Ion_IPreviewInviteResult_Formatter();
+      IonFormatterStorage<ILookupUserResult>.Value = new Ion_ILookupUserResult_Formatter();
+      IonFormatterStorage<ILookupProfileResult>.Value = new Ion_ILookupProfileResult_Formatter();
       IonFormatterStorage<RtcEndpoint>.Value = new Ion_RtcEndpoint_Formatter();
       IonFormatterStorage<IceEndpoint>.Value = new Ion_IceEndpoint_Formatter();
       IonFormatterStorage<ServiceUssdResult>.Value = new Ion_ServiceUssdResult_Formatter();
@@ -245,6 +260,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IBeginCallResult>.Value = new Ion_IBeginCallResult_Formatter();
       IonFormatterStorage<IPickUpCallResult>.Value = new Ion_IPickUpCallResult_Formatter();
       IonFormatterStorage<IDialCheckResult>.Value = new Ion_IDialCheckResult_Formatter();
+      IonFormatterStorage<SuccessDeleteArchetype>.Value = new Ion_SuccessDeleteArchetype_Formatter();
+      IonFormatterStorage<FailedDeleteArchetype>.Value = new Ion_FailedDeleteArchetype_Formatter();
+      IonFormatterStorage<SuccessReorderArchetypes>.Value = new Ion_SuccessReorderArchetypes_Formatter();
+      IonFormatterStorage<FailedReorderArchetypes>.Value = new Ion_FailedReorderArchetypes_Formatter();
       IonFormatterStorage<SuccessInstallBot>.Value = new Ion_SuccessInstallBot_Formatter();
       IonFormatterStorage<FailedInstallBot>.Value = new Ion_FailedInstallBot_Formatter();
       IonFormatterStorage<SuccessUninstallBot>.Value = new Ion_SuccessUninstallBot_Formatter();
@@ -359,6 +378,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<DrawingSessionStarted>.Value = new Ion_DrawingSessionStarted_Formatter();
       IonFormatterStorage<DrawingSessionEnded>.Value = new Ion_DrawingSessionEnded_Formatter();
       IonFormatterStorage<MessageDeleted>.Value = new Ion_MessageDeleted_Formatter();
+      IonFormatterStorage<ArchetypeRemoved>.Value = new Ion_ArchetypeRemoved_Formatter();
+      IonFormatterStorage<ArchetypesReordered>.Value = new Ion_ArchetypesReordered_Formatter();
+      IonFormatterStorage<SpaceDeletionScheduled>.Value = new Ion_SpaceDeletionScheduled_Formatter();
+      IonFormatterStorage<SpaceDeletionCancelled>.Value = new Ion_SpaceDeletionCancelled_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
@@ -415,6 +438,12 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedBeginValidatePasskey>.Value = new Ion_FailedBeginValidatePasskey_Formatter();
       IonFormatterStorage<SuccessSetAutoDelete>.Value = new Ion_SuccessSetAutoDelete_Formatter();
       IonFormatterStorage<FailedSetAutoDelete>.Value = new Ion_FailedSetAutoDelete_Formatter();
+      IonFormatterStorage<SuccessRequestDataExport>.Value = new Ion_SuccessRequestDataExport_Formatter();
+      IonFormatterStorage<FailedRequestDataExport>.Value = new Ion_FailedRequestDataExport_Formatter();
+      IonFormatterStorage<SuccessRequestDeleteSpace>.Value = new Ion_SuccessRequestDeleteSpace_Formatter();
+      IonFormatterStorage<FailedRequestDeleteSpace>.Value = new Ion_FailedRequestDeleteSpace_Formatter();
+      IonFormatterStorage<SuccessCancelDeleteSpace>.Value = new Ion_SuccessCancelDeleteSpace_Formatter();
+      IonFormatterStorage<FailedCancelDeleteSpace>.Value = new Ion_FailedCancelDeleteSpace_Formatter();
       IonFormatterStorage<SuccessCheckout>.Value = new Ion_SuccessCheckout_Formatter();
       IonFormatterStorage<FailedCheckout>.Value = new Ion_FailedCheckout_Formatter();
       IonFormatterStorage<SuccessApplyBoost>.Value = new Ion_SuccessApplyBoost_Formatter();
@@ -439,6 +468,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<FailedJoin>.Value = new Ion_FailedJoin_Formatter();
       IonFormatterStorage<SuccessPreview>.Value = new Ion_SuccessPreview_Formatter();
       IonFormatterStorage<FailedPreview>.Value = new Ion_FailedPreview_Formatter();
+      IonFormatterStorage<SuccessLookupUser>.Value = new Ion_SuccessLookupUser_Formatter();
+      IonFormatterStorage<FailedLookupUser>.Value = new Ion_FailedLookupUser_Formatter();
+      IonFormatterStorage<SuccessLookupProfile>.Value = new Ion_SuccessLookupProfile_Formatter();
+      IonFormatterStorage<FailedLookupProfile>.Value = new Ion_FailedLookupProfile_Formatter();
       IonFormatterStorage<SuccessDingDong>.Value = new Ion_SuccessDingDong_Formatter();
       IonFormatterStorage<FailedDingDong>.Value = new Ion_FailedDingDong_Formatter();
       IonFormatterStorage<SuccessPickUp>.Value = new Ion_SuccessPickUp_Formatter();

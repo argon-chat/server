@@ -46,14 +46,29 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         if (allowAnonymous && context.InterfaceName == typeof(IIdentityInteraction))
             await EnforceAnonymousIpRateLimitAsync(context, httpContext, ct);
 
-        Guid? user = null;
+        Guid? user   = null;
+        Guid? device = null;
+
         if (!allowAnonymous)
         {
-            user = await Authorize(httpContext);
+            var authorized = await Authorize(httpContext);
+
+            user   = authorized?.id;
+            device = authorized?.deviceId;
         }
 
         if (!allowAnonymous && user is null)
             throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
+
+        // A barred machine stops being served here, not only at the next sign-in: a session opened
+        // before the ban would otherwise keep working for the whole life of its access token, and a
+        // ban that takes effect "eventually" is not what anyone means by banning a machine.
+        //
+        // Only bound sessions carry a device id, so this costs nothing for the rest — and for them
+        // there is nothing to check, since the server cannot tell which machine is asking.
+        if (device is { } machine &&
+            await IsDeviceBannedAsync(context.ServiceProvider, machine, ct))
+            throw new IonRequestException(new IonProtocolError("DEVICE_BANNED", "Device is not allowed"));
 
         var severity = LockdownSeverity.Low;
         if (user is not null)
@@ -150,7 +165,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         }
     }
 
-    private async Task<Guid?> Authorize(HttpContext httpContext)
+    private async Task<TokenUserData?> Authorize(HttpContext httpContext)
     {
         if (!httpContext.Request.Headers.TryGetValue("Authorization", out var auth) || string.IsNullOrWhiteSpace(auth))
             throw new UnauthorizedAccessException("Authorization header missing");
@@ -163,8 +178,49 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         var authResult = await validationParameters.AuthorizeByToken(token, httpContext.GetMachineId());
 
         if (authResult.IsSuccess)
-            return authResult.Value.id;
+            return authResult.Value;
         return null;
+    }
+
+    private static readonly HybridCacheEntryOptions BannedDeviceCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(30),
+        LocalCacheExpiration = TimeSpan.FromSeconds(10),
+    };
+
+    /// <summary>
+    /// Whether this machine is barred. Cached, because the answer is "no" for everyone but a handful.
+    /// </summary>
+    /// <remarks>
+    /// Fails <em>open</em>, consistently with the other cache gates on this path: a database
+    /// incident must not lock every bound session out of the product. The blast radius is that a
+    /// banned machine keeps working until the store answers again, which is the same trade the
+    /// revocation gate above makes.
+    /// </remarks>
+    private static async Task<bool> IsDeviceBannedAsync(IServiceProvider sp, Guid deviceId, CancellationToken ct)
+    {
+        try
+        {
+            return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+                $"device:banned:{deviceId}",
+                async token =>
+                {
+                    await using var ctx = await sp
+                       .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+                       .CreateDbContextAsync(token);
+
+                    var now = DateTimeOffset.UtcNow;
+
+                    return await ctx.DeviceBans.AnyAsync(
+                        x => x.DeviceId == deviceId && (x.ExpiresAt == null || x.ExpiresAt > now), token);
+                },
+                BannedDeviceCacheOptions,
+                cancellationToken: ct);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private static readonly HybridCacheEntryOptions LockdownCacheOptions = new()
@@ -186,14 +242,30 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
     private static async Task<bool> IsSessionRevokedAsync(
         IServiceProvider sp, Guid userId, Guid sessionId, CancellationToken ct)
     {
-        var key = SessionRevocation.Key(userId, sessionId);
+        var key = SessionRevocation.RevokedKey(userId);
 
         try
         {
-            return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+            // The whole set is fetched and cached per user rather than probing one member per
+            // request: it is a handful of ids, and the alternative is a distinct cache entry for
+            // every (user, session) pair that ever asks.
+            var revoked = await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
                 key,
-                async token => await sp.GetRequiredService<IArgonCacheDatabase>().KeyExistsAsync(key, token),
+                async token => await sp.GetRequiredService<IArgonCacheDatabase>().SetMembersAsync(key, token),
                 RevokedSessionCacheOptions,
+                cancellationToken: ct);
+
+            if (revoked.Contains(sessionId.ToString()))
+                return true;
+
+            // And the pre-set key shape, for the same reason as in IdentityInteraction: a revocation
+            // written before this deploy must not be forgotten by it.
+            var legacy = SessionRevocation.LegacyRevokedKey(userId, sessionId);
+
+            return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+                legacy,
+                async token => await sp.GetRequiredService<IArgonCacheDatabase>().KeyExistsAsync(legacy, token),
+                BannedDeviceCacheOptions,
                 cancellationToken: ct);
         }
         catch (Exception)

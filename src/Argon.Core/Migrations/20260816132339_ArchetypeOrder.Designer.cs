@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Argon.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260816132339_ArchetypeOrder")]
+    partial class ArchetypeOrder
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1462,151 +1465,6 @@ namespace Argon.Core.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("ContentViolations");
-                });
-
-            modelBuilder.Entity("Argon.Entities.DeviceBanEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset?>("ExpiresAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<Guid?>("IssuedBy")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId")
-                        .IsUnique();
-
-                    b.ToTable("DeviceBans");
-                });
-
-            modelBuilder.Entity("Argon.Entities.DeviceKeyEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Assurance")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ClientName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("EnrolledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset?>("LastProvenAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Platform")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PublicKey")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Thumbprint")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId")
-                        .IsUnique();
-
-                    b.HasIndex("Thumbprint")
-                        .IsUnique();
-
-                    b.ToTable("DeviceKeys");
-                });
-
-            modelBuilder.Entity("Argon.Entities.DeviceObservationEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Components")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("FirstSeenAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset>("LastSeenAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Logins")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId");
-
-                    b.HasIndex("UserId");
-
-                    b.HasIndex("UserId", "DeviceId")
-                        .IsUnique();
-
-                    b.ToTable("DeviceObservations");
                 });
 
             modelBuilder.Entity("Argon.Entities.FileBlobEntity", b =>

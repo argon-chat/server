@@ -16,6 +16,16 @@ public class DefaultHeaderInterceptor : IIonInterceptor
 {
     private readonly Guid    _sessionId = Guid.CreateVersion7();
     private readonly Guid    _machineId = Guid.CreateVersion7();
+
+    /// <summary>
+    /// The device id this client claims, verbatim as it goes out in <c>Sec-Carry</c>.
+    /// </summary>
+    /// <remarks>
+    /// Exposed for tests that mint a token by hand: a refresh token carries a hash of the machine
+    /// id, and the refresh path refuses one that does not match the caller's. A test that minted
+    /// with some other value would be asserting that mismatch rather than whatever it meant to.
+    /// </remarks>
+    public string MachineId => _machineId.ToString();
     private volatile string? _authToken;
 
     public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)

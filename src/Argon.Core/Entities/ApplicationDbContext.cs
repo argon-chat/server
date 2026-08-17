@@ -67,6 +67,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 #region Friends
 
     public DbSet<UserBlockEntity>     UserBlocklist => Set<UserBlockEntity>();
+
+    // Which machines an account has signed in from, and which machines are barred. See
+    // DeviceIdentityService for how a login is attributed to one.
+    public DbSet<DeviceObservationEntity> DeviceObservations => Set<DeviceObservationEntity>();
+    public DbSet<DeviceBanEntity>         DeviceBans         => Set<DeviceBanEntity>();
+    public DbSet<DeviceKeyEntity>         DeviceKeys         => Set<DeviceKeyEntity>();
     public DbSet<FriendRequestEntity> FriendRequest => Set<FriendRequestEntity>();
     public DbSet<FriendshipEntity>    Friends       => Set<FriendshipEntity>();
 

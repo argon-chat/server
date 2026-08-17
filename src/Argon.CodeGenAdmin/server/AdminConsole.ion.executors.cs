@@ -315,6 +315,76 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<UserActionResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetUserDevices_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetUserDevices(__userid);
+        
+        IonFormatterStorage<DeviceList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetDeviceAccounts_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __deviceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetDeviceAccounts(__deviceid);
+        
+        IonFormatterStorage<DeviceAccountList>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BanDevice_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __deviceid = IonFormatterStorage<guid>.Read(reader);
+        var __reason = IonFormatterStorage<string>.Read(reader);
+        var __expiration = reader.ReadNullable<datetime>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BanDevice(__deviceid, __reason, __expiration);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnbanDevice_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __deviceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.UnbanDevice(__deviceid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetDiagnostics_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1261,6 +1331,14 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return RemovePhoneNumber_Execute(reader, writer, ct);
         if (methodName.Equals("ChangeEmail", StringComparison.InvariantCultureIgnoreCase))
             return ChangeEmail_Execute(reader, writer, ct);
+        if (methodName.Equals("GetUserDevices", StringComparison.InvariantCultureIgnoreCase))
+            return GetUserDevices_Execute(reader, writer, ct);
+        if (methodName.Equals("GetDeviceAccounts", StringComparison.InvariantCultureIgnoreCase))
+            return GetDeviceAccounts_Execute(reader, writer, ct);
+        if (methodName.Equals("BanDevice", StringComparison.InvariantCultureIgnoreCase))
+            return BanDevice_Execute(reader, writer, ct);
+        if (methodName.Equals("UnbanDevice", StringComparison.InvariantCultureIgnoreCase))
+            return UnbanDevice_Execute(reader, writer, ct);
         if (methodName.Equals("GetDiagnostics", StringComparison.InvariantCultureIgnoreCase))
             return GetDiagnostics_Execute(reader, writer, ct);
         if (methodName.Equals("GetOperators", StringComparison.InvariantCultureIgnoreCase))

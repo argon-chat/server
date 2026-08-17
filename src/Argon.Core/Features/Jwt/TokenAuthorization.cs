@@ -21,9 +21,9 @@ public class TokenAuthorization(IServiceProvider provider, ILogger<TokenAuthoriz
 
         try
         {
-            var (userId, _, scopes) = tokenValidation.ValidateAccessToken(token, machineId, "argon.app");
+            var (userId, deviceId) = tokenValidation.ValidateAccessTokenDevice(token, machineId, "argon.app");
 
-            return new TokenUserData(userId, machineId);
+            return new TokenUserData(userId, machineId, deviceId);
         }
         catch (SecurityTokenExpiredException)
         {

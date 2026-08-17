@@ -1,5 +1,6 @@
 namespace Argon.Features.Jwt;
 
+using Argon.Features.Auth;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -79,7 +80,26 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public string GenerateRefreshToken(Guid userId, string machineId, IEnumerable<string> scopes)
+    /// <summary>
+    /// Mints a refresh token bound to a session id of the server's choosing.
+    /// </summary>
+    /// <remarks>
+    /// <para>The <c>sid</c> is a signed claim rather than something read back off the request,
+    /// which is the whole point of it being here. The session id the rest of the request pipeline
+    /// uses comes out of the <c>ArgonSecure</c> cookie — a value the caller writes — so revocation
+    /// keyed on that can be sidestepped by simply not sending it. A claim inside the signature
+    /// cannot be, and it is what <see cref="ValidateRefreshTokenSession"/> hands the refresh path.</para>
+    ///
+    /// <para><c>iat</c> is written explicitly so a revocation floor can compare against it; see
+    /// <c>SessionRevocation.FloorKey</c>.</para>
+    /// </remarks>
+    /// <param name="deviceThumbprint">
+    /// Binds the token to a hardware key: the holder must be able to sign for it, not merely hold
+    /// the token. Null leaves the token unbound, which is what every token minted before the device
+    /// was enrolled looks like.
+    /// </param>
+    public string GenerateRefreshToken(
+        Guid userId, string machineId, IEnumerable<string> scopes, Guid sessionId, string? deviceThumbprint = null)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
 
@@ -87,8 +107,15 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
         {
             new("sub", userId.ToString()),
             new("mh", HashMachineId(machineId)),
+            new("sid", sessionId.ToString()),
+            new("iat", DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
             new("type", "refresh")
         };
+
+        // Named after the RFC 8705 confirmation claim it plays the part of: proof-of-possession, so
+        // a copied token is worthless without the key it names.
+        if (!string.IsNullOrWhiteSpace(deviceThumbprint))
+            claims.Add(new Claim("cnf", deviceThumbprint));
         claims.AddRange(scopes.Select(s => new Claim("scp", s)));
 
         var token = new JwtSecurityToken(
@@ -96,7 +123,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             audience: _options.Audience,
             claims: claims,
             notBefore: DateTime.UtcNow,
-            expires: DateTime.UtcNow.AddYears(10),
+            expires: DateTime.UtcNow + SessionRevocation.RefreshTokenLifetime,
             signingCredentials: creds
         );
 
@@ -120,7 +147,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             _options.Audience,
             claims,
             DateTime.UtcNow,
-            DateTime.UtcNow.AddYears(10),
+            DateTime.UtcNow + SessionRevocation.RefreshTokenLifetime,
             creds
         );
 
@@ -137,8 +164,53 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateAccessToken(string token, string machineId, string requiredScope)
         => ValidateToken(token, machineId, "access", requiredScope, out _);
 
+    /// <summary>
+    /// Validates an access token and hands back the device it was minted for, when it names one.
+    /// </summary>
+    /// <remarks>
+    /// The <c>did</c> claim is written only when the access token came from a refresh bound to a
+    /// hardware key, so it is present exactly when the request path can be sure which machine is
+    /// asking — which is what makes a hardware ban enforceable per request without a lookup.
+    /// </remarks>
+    public (Guid userId, Guid? deviceId) ValidateAccessTokenDevice(string token, string machineId, string requiredScope)
+    {
+        var (userId, _, _) = ValidateToken(token, machineId, "access", requiredScope, out var claims);
+
+        var deviceId = claims.FirstOrDefault(c => c.Type == "did")?.Value is { } did && Guid.TryParse(did, out var parsed)
+            ? parsed
+            : (Guid?)null;
+
+        return (userId, deviceId);
+    }
+
     public (Guid userId, string machineId, IReadOnlyList<string> scopes) ValidateRefreshToken(string token, string machineId)
         => ValidateToken(token, machineId, "refresh", null, out _);
+
+    /// <summary>
+    /// Validates a refresh token and returns what revocation has to be checked against.
+    /// </summary>
+    /// <remarks>
+    /// <paramref name="sessionId"/> is null for tokens minted before <c>sid</c> existed. Those
+    /// cannot be revoked one at a time, which is what the issued-at floor is for — it is the only
+    /// handle on a token that predates the claim, and every refresh token is dated ten years out.
+    /// </remarks>
+    public (Guid userId, IReadOnlyList<string> scopes) ValidateRefreshTokenSession(
+        string token, string machineId, out Guid? sessionId, out DateTimeOffset? issuedAt, out string? deviceThumbprint)
+    {
+        var (userId, _, scopes) = ValidateToken(token, machineId, "refresh", null, out var claims);
+
+        sessionId = claims.FirstOrDefault(c => c.Type == "sid")?.Value is { } sid && Guid.TryParse(sid, out var parsed)
+            ? parsed
+            : null;
+
+        issuedAt = claims.FirstOrDefault(c => c.Type == "iat")?.Value is { } iat && long.TryParse(iat, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
+
+        deviceThumbprint = claims.FirstOrDefault(c => c.Type == "cnf")?.Value;
+
+        return (userId, scopes);
+    }
 
     public bool TryValidateRefreshToken(string token, string machineId, out (Guid userId, string machineId, IReadOnlyList<string> scopes) data)
     {

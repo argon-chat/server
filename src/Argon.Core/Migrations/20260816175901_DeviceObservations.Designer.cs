@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using Argon.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
@@ -12,9 +13,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Argon.Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    partial class ApplicationDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260816175901_DeviceObservations")]
+    partial class DeviceObservations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1501,63 +1504,6 @@ namespace Argon.Core.Migrations
                         .IsUnique();
 
                     b.ToTable("DeviceBans");
-                });
-
-            modelBuilder.Entity("Argon.Entities.DeviceKeyEntity", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<int>("Assurance")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ClientName")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<DateTimeOffset?>("DeletedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTimeOffset>("EnrolledAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<DateTimeOffset?>("LastProvenAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<int>("Platform")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("PublicKey")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Thumbprint")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("varchar(64)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId")
-                        .IsUnique();
-
-                    b.HasIndex("Thumbprint")
-                        .IsUnique();
-
-                    b.ToTable("DeviceKeys");
                 });
 
             modelBuilder.Entity("Argon.Entities.DeviceObservationEntity", b =>

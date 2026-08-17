@@ -387,6 +387,22 @@ public sealed record TenantActionResult(bool success, guid? tenantId, string? er
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DeviceSummary(guid deviceId, i4 platform, i4 assurance, string clientName, datetime enrolledAt, datetime? lastProvenAt, i4 linkedAccounts, bool isBanned);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DeviceList(IonArray<DeviceSummary> devices);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DeviceAccount(guid userId, string username, string displayName, datetime firstSeenAt, datetime lastSeenAt, i4 logins, bool isBlocked);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DeviceAccountList(IonArray<DeviceAccount> accounts);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind
 {
     None = 0,
@@ -482,6 +498,10 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> RemoveTwoFactor(guid userId, CancellationToken ct = default);
     Task<UserActionResult> RemovePhoneNumber(guid userId, CancellationToken ct = default);
     Task<UserActionResult> ChangeEmail(guid userId, string newEmail, CancellationToken ct = default);
+    Task<DeviceList> GetUserDevices(guid userId, CancellationToken ct = default);
+    Task<DeviceAccountList> GetDeviceAccounts(guid deviceId, CancellationToken ct = default);
+    Task<UserActionResult> BanDevice(guid deviceId, string reason, datetime? expiration, CancellationToken ct = default);
+    Task<UserActionResult> UnbanDevice(guid deviceId, CancellationToken ct = default);
     Task<DiagnosticsResult> GetDiagnostics(CancellationToken ct = default);
     Task<OperatorList> GetOperators(CancellationToken ct = default);
     Task<OperatorDetails> GetOperatorDetails(guid operatorId, CancellationToken ct = default);
