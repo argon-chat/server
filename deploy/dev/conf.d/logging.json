@@ -1,0 +1,16 @@
+{
+  "Logging": {
+    "Structured": false,
+    "RequestLogging": true,
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore.Hosting.Diagnostics": "Warning",
+      "Microsoft.AspNetCore.Routing.EndpointMiddleware": "Warning",
+      "Microsoft.AspNetCore.Cors.Infrastructure.CorsService": "Warning",
+      "Microsoft.AspNetCore.Http": "Warning",
+      "Microsoft.EntityFrameworkCore.Database.Command": "Warning",
+      "Orleans": "Warning",
+      "System.Net.Http": "Warning"
+    }
+  }
+}

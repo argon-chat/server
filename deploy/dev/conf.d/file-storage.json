@@ -1,0 +1,31 @@
+{
+  "Storage": {
+    "Endpoint": "http://localhost:9321",
+    "AccessKey": "argon",
+    "SecretKey": "argon",
+    "BucketName": "argon-dev",
+    "ExportBucketName": "argon-dev-exports",
+    "Region": "auto",
+    "UseSsl": false,
+    "FlatAvatarKeys": true,
+    "Cdn": {
+      "Default": {
+        "BaseUrl": "http://localhost:9321/argon-dev",
+        "PathPrefix": ""
+      },
+      "Overrides": {}
+    },
+    "Limits": {
+      "AvatarMaxBytes": 5242880,
+      "AttachmentBaseMaxBytes": 15728640,
+      "AttachmentUltimaMaxBytes": 52428800,
+      "AttachmentBoostLevel2MaxBytes": 52428800,
+      "AttachmentBoostLevel3MaxBytes": 104857600,
+      "EmojiMaxBytes": 1048576,
+      "StickerMaxBytes": 2097152,
+      "BannerMaxBytes": 10485760,
+      "VideoMaxBytes": 104857600,
+      "BlobTtlSeconds": 600
+    }
+  }
+}

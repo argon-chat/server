@@ -163,8 +163,10 @@ public static class FeatureConfigurationSources
         List<string> keys;
         try
         {
+            // Absolute: ConfigurationBuilder resolves a relative path against its own base directory,
+            // which is the binary's, not the one the file was enumerated from.
             keys = new ConfigurationBuilder()
-               .AddJsonFile(path, optional: false, reloadOnChange: false)
+               .AddJsonFile(Path.GetFullPath(path), optional: false, reloadOnChange: false)
                .Build()
                .GetChildren()
                .Select(child => child.Key)

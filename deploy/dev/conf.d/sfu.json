@@ -1,0 +1,17 @@
+{
+  "CallKit": {
+    "Ices": [],
+    "Sfu": {
+      "Region": "local",
+      "ClientId": "devkeydevkeydevkeydevkeydevkeydevkey",
+      "PublicUrl": "ws://localhost:7880",
+      "CommandUrl": "http://localhost:7880",
+      "Secret": "secretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecret",
+      "AudioIngressUrl": "ws://localhost:12880",
+      "Geo": {
+        "ln": 0,
+        "lt": 0
+      }
+    }
+  }
+}

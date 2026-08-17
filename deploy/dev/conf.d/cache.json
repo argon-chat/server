@@ -1,0 +1,25 @@
+{
+  "Redis": {
+    "Cache": {
+      "ConnectionString": "localhost:6379",
+      "Database": 0,
+      "MaxSize": 16
+    },
+    "HybridCache": {
+      "ConnectionString": "localhost:6379",
+      "Database": 10
+    },
+    "OrleansStorage": {
+      "ConnectionString": "localhost:6379",
+      "Database": 3
+    },
+    "Orleans": {
+      "ConnectionString": "localhost:6379",
+      "Database": 1
+    },
+    "Backplane": {
+      "ConnectionString": "localhost:6379",
+      "Database": 2
+    }
+  }
+}

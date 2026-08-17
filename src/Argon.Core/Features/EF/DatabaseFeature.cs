@@ -36,12 +36,17 @@ public static class DatabaseFeature
             ? kind
             : DatabaseProviderKind.CockroachDb;
 
-    public static void AddPooledDatabase<T>(this WebApplicationBuilder builder) where T : DbContext
+    public static void AddPooledDatabase<T>(this WebApplicationBuilder builder, DatabaseOptions database)
+        where T : DbContext
     {
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
         DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
         builder.Services.AddSingleton<IVaultDbCredentialsProvider, VaultDbCredentialsProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IVaultDbCredentialsProvider>());
+
+        var connectionString = string.IsNullOrWhiteSpace(database.ConnectionString)
+            ? builder.Configuration.GetConnectionString("Default")
+            : database.ConnectionString;
 
         var providerKind = builder.Configuration.GetDatabaseProviderKind();
         builder.Services.AddSingleton(new DatabaseProvider(providerKind));
@@ -50,7 +55,7 @@ public static class DatabaseFeature
         {
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               .UseNpgsql(builder.Configuration.GetConnectionString("Default"), npgsql =>
+               .UseNpgsql(connectionString, npgsql =>
                 {
                     npgsql.UseNodaTime();
                     npgsql.EnableRetryOnFailure(

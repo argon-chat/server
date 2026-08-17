@@ -15,3 +15,15 @@ public sealed class DistributedTopology : IArgonTopology
 
     public string Description => "clients and silos scaled independently";
 }
+
+/// <summary>
+/// One process. What a developer runs, and what a small self-hosted instance can run.
+/// </summary>
+public sealed class SingleInstanceTopology : IArgonTopology
+{
+    public static string Name => "single-instance";
+
+    public static ArgonRoleId[] Roles => [ArgonRoleId.Dev];
+
+    public string Description => "everything co-hosted";
+}

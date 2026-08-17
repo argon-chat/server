@@ -62,13 +62,39 @@ public static class ArgonRoleHostExtensions
                 string.Join(Environment.NewLine, fatalConfiguration.Select(d => $"  {d}")) +
                 $"{Environment.NewLine}Run --validate-config --role {role.Id} to check without starting.");
 
+        var ionRegistrations = new List<Action<IIonTransportRegistration>>();
+
         foreach (var definition in role.Features.Ordered)
         {
             foreach (var binding in definition.Options)
                 binding.Register(builder.Services, builder.Configuration);
 
-            var context = new ArgonFeatureContext(builder, role, definition);
+            var context = new ArgonFeatureContext(builder, role, definition, ionRegistrations);
             ((IArgonFeature)Activator.CreateInstance(definition.FeatureType)!).Configure(context);
+        }
+
+        // One call, after every feature has had its say. See ArgonFeatureContext.Ion for why it
+        // cannot be several, and why UseIonPorts has to come after all of them rather than from
+        // inside the feature that maps the route.
+        if (ionRegistrations.Count > 0)
+        {
+            // Turns the silent version of this mistake into a loud one. A feature that called
+            // AddIonProtocol itself would have installed the port registry already, and the aggregate
+            // call below would build its ports against an instance the container never sees — the
+            // process starts, the route is mapped, and the extra port answers nothing.
+            if (builder.Services.Any(d => d.ServiceType == typeof(IonPortBindingRegistry)))
+                throw new InvalidOperationException(
+                    "AddIonProtocol has already been called. A feature must contribute Ion services " +
+                    "through ArgonFeatureContext.Ion instead, so the whole role registers them as one " +
+                    "call and every declared port is bound.");
+
+            builder.Services.AddIonProtocol(registration =>
+            {
+                foreach (var configure in ionRegistrations)
+                    configure(registration);
+            });
+
+            builder.UseIonPorts();
         }
 
         return role;

@@ -9,15 +9,17 @@ using ConsoleContracts;
 using global::Sentry.Infrastructure;
 
 /// <summary>
-/// The Ion transport itself: binds the extra ports services asked for and maps the RPC route.
+/// The Ion transport itself: maps the RPC route, and marks the role as one whose extra ports have to
+/// be bound.
 /// </summary>
 /// <remarks>
 /// Every feature that registers an Ion service requires this one, because registering a service is
 /// not the same as serving it — a service on a port of its own needs the Kestrel binding as well as
 /// the route, and a role that registered one without both would start clean and answer nothing.
 /// <para>
-/// Port bindings are collected into Kestrel's own options callback, which runs after every feature
-/// has configured, so this feature being ordered before the services that register them is fine.
+/// Only the route is mapped here. Binding the extra ports happens once, after every feature has
+/// configured, because <c>UseIonPorts</c> reads the port registry at the moment it is called and this
+/// feature is ordered <i>before</i> the ones that fill it — see <c>ArgonFeatureContext.Ion</c>.
 /// </para>
 /// </remarks>
 public sealed class IonEndpointsFeature : IArgonFeature
@@ -26,9 +28,6 @@ public sealed class IonEndpointsFeature : IArgonFeature
         => d.Named("ion-endpoints")
             .Describing("Ion port bindings and the RPC route")
             .After<RoutingFeature>();
-
-    public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.UseIonPorts();
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapRpcEndpoints();
@@ -45,7 +44,7 @@ public sealed class IonProtocolFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
     {
-        ctx.Services.AddIonProtocol(x =>
+        ctx.Ion(x =>
         {
             x.AddInterceptor<ArgonTransactionInterceptor>();
             x.AddInterceptor<ArgonOrleansInterceptor>();
@@ -84,7 +83,7 @@ public sealed class AdminConsoleFeature : IArgonFeature
     {
         var port = ctx.Options<AdminConsoleOptions>().Port;
 
-        ctx.Services.AddIonProtocol(x =>
+        ctx.Ion(x =>
         {
             x.AddService<IAdminConsole, AdminConsoleImpl>(port, true);
             x.AddInterceptor<OperatorAuthInterceptor>(port);
@@ -111,7 +110,7 @@ public sealed class AccountConsoleFeature : IArgonFeature
         // A port of its own, with the interceptor scoped to it. The console authenticates against the
         // OAuth provider rather than an Argon session, so its interceptor must never see a call meant
         // for the first-party surface if the two ever share a process.
-        ctx.Services.AddIonProtocol(x =>
+        ctx.Ion(x =>
         {
             x.AddService<IAccountConsole, AccountConsoleService>(options.Port, true);
             x.AddService<ITeamConsole, TeamConsoleService>(options.Port, true);

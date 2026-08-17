@@ -14,6 +14,9 @@ public readonly record struct ArgonRoleId(string Value)
     public static readonly ArgonRoleId Admin      = new("admin");
     public static readonly ArgonRoleId Account    = new("account");
 
+    /// <summary>Every other role in one process. For running the product on one machine.</summary>
+    public static readonly ArgonRoleId Dev = new("dev");
+
     public bool IsEmpty
         => string.IsNullOrWhiteSpace(Value);
 

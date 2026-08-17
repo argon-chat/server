@@ -29,6 +29,10 @@ public class ProductionTopologyTests
             string.Join(Environment.NewLine, report.Errors.Select(e => e.ToString())));
     }
 
+    /// <summary>
+    /// About the distributed decomposition specifically. <c>dev</c> hosts every grain by design — it
+    /// is every role at once — so counting it here would only say that composition works.
+    /// </summary>
     [Test]
     public void Every_grain_class_is_hosted_by_exactly_one_role()
     {
@@ -36,7 +40,10 @@ public class ProductionTopologyTests
         var catalog = ArgonClusterCatalog.Build(scope);
         var index   = GrainTypeIndex.Build(scope);
 
+        var distributed = catalog.Topologies["distributed"].Roles.ToHashSet();
+
         var hosts = catalog.Roles.Values
+           .Where(r => distributed.Contains(r.Id))
            .SelectMany(r => r.HostedGrains.Select(g => (Grain: g, Role: r.Id)))
            .GroupBy(x => x.Grain)
            .ToDictionary(g => g.Key, g => g.Select(x => x.Role).ToArray());
@@ -106,7 +113,11 @@ public class ProductionTopologyTests
     [Test]
     public void Only_the_moderation_role_enables_the_onnx_classifier()
     {
-        var owners = Catalog().Roles.Values
+        var catalog     = Catalog();
+        var distributed = catalog.Topologies["distributed"].Roles.ToHashSet();
+
+        var owners = catalog.Roles.Values
+           .Where(r => distributed.Contains(r.Id))
            .Where(r => r.Features.Ordered.Any(f => f.Name == "content-moderation"))
            .Select(r => r.Id.Value)
            .ToArray();

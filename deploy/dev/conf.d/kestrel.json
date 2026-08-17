@@ -1,0 +1,11 @@
+{
+  "Kestrel": {
+    "Argon": {
+      "Port": 5002,
+      "UseLocalhostCertificate": false,
+      "UseFileCertificate": false,
+      "LocalhostCertificatePath": "localhost.pfx",
+      "LocalhostCertificatePassword": "changeit"
+    }
+  }
+}

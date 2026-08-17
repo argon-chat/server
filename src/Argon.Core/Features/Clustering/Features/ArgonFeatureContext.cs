@@ -5,8 +5,28 @@ namespace Argon.Features.Clustering;
 /// the feature, so a feature shared by several roles can still adapt to the one it is running in
 /// without reaching for environment variables.
 /// </summary>
-public sealed class ArgonFeatureContext(WebApplicationBuilder builder, RoleDescriptor role, FeatureDefinition feature)
+public sealed class ArgonFeatureContext(
+    WebApplicationBuilder                 builder,
+    RoleDescriptor                        role,
+    FeatureDefinition                     feature,
+    ICollection<Action<IIonTransportRegistration>> ionRegistrations)
 {
+    /// <summary>
+    /// Contributes Ion services and interceptors.
+    /// </summary>
+    /// <remarks>
+    /// Not <c>Services.AddIonProtocol</c> directly, because that may only be called once per process:
+    /// the port registry it installs is a <c>TryAdd</c> singleton, so a second call builds its
+    /// registrations against an instance that never reaches the container and its ports are never
+    /// bound. Three features register Ion services here, and the symptom was the admin console
+    /// listening on nothing while the account console beside it worked.
+    /// <para>
+    /// Contributions are collected and applied as one call once every feature has configured.
+    /// </para>
+    /// </remarks>
+    public void Ion(Action<IIonTransportRegistration> configure)
+        => ionRegistrations.Add(configure);
+
     public WebApplicationBuilder Builder       => builder;
     public IServiceCollection    Services      => builder.Services;
     public IConfiguration        Configuration => builder.Configuration;

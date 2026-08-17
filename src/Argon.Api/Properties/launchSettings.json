@@ -1,13 +1,50 @@
 {
   "profiles": {
-    "https": {
+    "dev (all roles)": {
       "commandName": "Project",
-      "launchUrl": "swagger",
-      "commandLineArgs": "--role entrypoint",
+      "commandLineArgs": "--role dev --topology single-instance",
       "environmentVariables": {
         "ASPNETCORE_ENVIRONMENT": "Development",
-        "Logging__Structured": "false",
-        "Kestrel__Argon__UseLocalhostCertificate": "true"
+        "ARGON_CONFIG_DIR": "../../deploy/dev/conf.d",
+        "ARGON_CONFIG_FILE": "../../deploy/dev/dev.json"
+      },
+      "dotnetRunMessages": true
+    },
+    "dev (entrypoint only)": {
+      "commandName": "Project",
+      "commandLineArgs": "--role entrypoint --topology distributed",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ARGON_CONFIG_DIR": "../../deploy/dev/conf.d",
+        "ARGON_CONFIG_FILE": "../../deploy/dev/dev.json"
+      },
+      "dotnetRunMessages": true
+    },
+    "dev (core silo only)": {
+      "commandName": "Project",
+      "commandLineArgs": "--role core --topology distributed",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ARGON_CONFIG_DIR": "../../deploy/dev/conf.d",
+        "ARGON_CONFIG_FILE": "../../deploy/dev/dev.json"
+      },
+      "dotnetRunMessages": true
+    },
+    "validate config": {
+      "commandName": "Project",
+      "commandLineArgs": "--validate-config --role dev",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development",
+        "ARGON_CONFIG_DIR": "../../deploy/dev/conf.d",
+        "ARGON_CONFIG_FILE": "../../deploy/dev/dev.json"
+      },
+      "dotnetRunMessages": true
+    },
+    "validate topology": {
+      "commandName": "Project",
+      "commandLineArgs": "--validate",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
       },
       "dotnetRunMessages": true
     },

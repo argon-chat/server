@@ -27,8 +27,16 @@ public sealed class ArgonKestrelOptions : IValidatableFeatureOptions
         }
     }
 
+    /// <summary>
+    /// The port to bind. Unset leaves it to ASP.NET — <c>ASPNETCORE_URLS</c>,
+    /// <c>ASPNETCORE_HTTP_PORTS</c>, or the launch profile — which is what a container image wants.
+    /// Set it and this is the port, whether or not TLS is configured.
+    /// </summary>
     [Range(1, 65535)]
-    public int Port { get; set; } = 5002;
+    public int? Port { get; set; }
+
+    /// <summary>Used when a certificate is configured but no port is.</summary>
+    public const int DefaultTlsPort = 5002;
 
     /// <summary>
     /// Serve HTTPS from a local development certificate. Replaces the <c>USE_LOCALHOST_CERTS</c>

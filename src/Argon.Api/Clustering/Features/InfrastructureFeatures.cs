@@ -91,7 +91,7 @@ public sealed class DatabaseFeature : IArgonFeature
             .Options<DatabaseRegionOptions>("Database:Regions");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddPooledDatabase<ApplicationDbContext>();
+        => ctx.Builder.AddPooledDatabase<ApplicationDbContext>(ctx.Options<DatabaseOptions>());
 }
 
 public sealed class MessagePipeFeature : IArgonFeature

@@ -19,25 +19,29 @@ public sealed class KestrelFeature : IArgonFeature
         {
             kestrel.ConfigureEndpointDefaults(lo => lo.UseConnectionLogging());
 
-            if (options.UseLocalhostCertificate)
+            var tls = options.UseLocalhostCertificate ||
+                      (options.UseFileCertificate &&
+                       File.Exists(options.CertificatePath) && File.Exists(options.CertificateKeyPath));
+
+            // Nothing to say: no port and no certificate means ASPNETCORE_URLS decides, which is what
+            // the container image and the test host both rely on.
+            if (options.Port is null && !tls)
+                return;
+
+            kestrel.ListenAnyIP(options.Port ?? ArgonKestrelOptions.DefaultTlsPort, listen =>
             {
-                kestrel.ListenAnyIP(options.Port, listen =>
-                {
+                if (!tls)
+                    return;
+
+                if (options.UseLocalhostCertificate)
                     listen.UseHttps(LoadLocalhostCertificate(ctx, options));
-                    listen.Protocols = HttpProtocols.Http1AndHttp2AndHttp3;
-                });
-            }
-            else if (options.UseFileCertificate &&
-                     File.Exists(options.CertificatePath) && File.Exists(options.CertificateKeyPath))
-            {
-                kestrel.ListenAnyIP(options.Port, listen =>
-                {
+                else
                     listen.UseHttps(https => https.ServerCertificate =
                         X509Certificate2.CreateFromPemFile(options.CertificatePath, options.CertificateKeyPath));
-                    listen.DisableAltSvcHeader = false;
-                    listen.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
-                });
-            }
+
+                listen.DisableAltSvcHeader = false;
+                listen.Protocols           = HttpProtocols.Http1AndHttp2AndHttp3;
+            });
         });
     }
 
