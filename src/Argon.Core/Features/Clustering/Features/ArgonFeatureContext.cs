@@ -15,11 +15,10 @@ public sealed class ArgonFeatureContext(
     /// Contributes Ion services and interceptors.
     /// </summary>
     /// <remarks>
-    /// Not <c>Services.AddIonProtocol</c> directly, because that may only be called once per process:
-    /// the port registry it installs is a <c>TryAdd</c> singleton, so a second call builds its
-    /// registrations against an instance that never reaches the container and its ports are never
-    /// bound. Three features register Ion services here, and the symptom was the admin console
-    /// listening on nothing while the account console beside it worked.
+    /// Not <c>Services.AddIonProtocol</c> directly, because only the first such call's extra ports are
+    /// ever bound. Three features register Ion services here and two of them want a port of their own;
+    /// the symptom was the admin console listening on nothing while the account console beside it
+    /// worked, because the account console's feature happened to configure first.
     /// <para>
     /// Contributions are collected and applied as one call once every feature has configured.
     /// </para>

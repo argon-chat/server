@@ -60,6 +60,51 @@ public class RoleStartupTests
         });
     }
 
+    /// <summary>
+    /// A role that hosts a grain has to be able to build it.
+    /// </summary>
+    /// <remarks>
+    /// Hosting and constructing are different questions, and only the first was being asked. The
+    /// silo starts either way; the failure shows up on the first call that activates the grain, in
+    /// production, on whichever role happens to host it. The functional suite cannot see it either —
+    /// it co-hosts every role, so every service is present.
+    /// <para>
+    /// Orleans supplies some constructor parameters itself — persistent state, the grain context —
+    /// so those are skipped. Everything else is an application service the role was supposed to have
+    /// registered.
+    /// </para>
+    /// </remarks>
+    [Test, TestCaseSource(nameof(SiloRoles)), CancelAfter(300_000)]
+    public async Task A_silo_role_can_construct_every_grain_it_hosts(ArgonRoleId id)
+    {
+        var role = Describe(id);
+        var port = FirstSiloPort + 400 + SiloRoles().ToList().IndexOf(id) * 10;
+
+        await using var host = new RoleHost(Settings, id, port, $"argon-ctor-{id.Value}");
+
+        var services = host.Services;
+        var missing  = new List<string>();
+
+        foreach (var grain in role.HostedGrains)
+        foreach (var parameter in grain.GetConstructors().OrderByDescending(c => c.GetParameters().Length)
+                    .First().GetParameters())
+        {
+            if (IsSuppliedByOrleans(parameter))
+                continue;
+
+            if (services.GetService(parameter.ParameterType) is null)
+                missing.Add($"{grain.Name} needs {parameter.ParameterType.Name}, which role '{id}' does not register");
+        }
+
+        Assert.That(missing, Is.Empty, string.Join(Environment.NewLine, missing.Distinct()));
+    }
+
+    private static bool IsSuppliedByOrleans(System.Reflection.ParameterInfo parameter)
+        => parameter.GetCustomAttributes(inherit: false).Any(a => a.GetType().Name.StartsWith("PersistentState"))
+        || parameter.ParameterType.Namespace?.StartsWith("Orleans") is true
+        || parameter.ParameterType.IsGenericType &&
+           parameter.ParameterType.GetGenericTypeDefinition().Namespace?.StartsWith("Orleans") is true;
+
     [Test, TestCaseSource(nameof(ClientRoles)), CancelAfter(300_000)]
     public async Task A_client_role_starts_and_hosts_no_grains(ArgonRoleId id)
     {

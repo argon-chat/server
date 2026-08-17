@@ -2,6 +2,7 @@ namespace ArgonSharedLogicTest.Clustering;
 
 using ion.runtime.network;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// Why a role registers its Ion services as one call rather than one per feature.
@@ -10,37 +11,50 @@ using Microsoft.Extensions.DependencyInjection;
 /// Three features register Ion services — the first-party protocol, the admin console and the
 /// developer console — and two of them ask for a port of their own. Calling <c>AddIonProtocol</c>
 /// once per feature looks like it works: the services land in the container, the route is mapped, the
-/// process starts clean. Only the ports go missing, and only for every call after the first.
+/// process starts clean. The ports of every call after the first are simply not bound, and the
+/// symptom is a console listening on nothing.
+/// <para>
+/// Measured, not reasoned: with three separate calls the admin console's 8920 never opened, and with
+/// one aggregated call it does. These tests pin the shape of the registration that the aggregation in
+/// <c>AddArgonRole</c> — and the guard beside it — depend on.
+/// </para>
 /// </remarks>
 [TestFixture]
 public class IonRegistrationTests
 {
-    [Test]
-    public void AddIonProtocol_installs_the_port_registry_once_and_ignores_later_calls()
+    private static ServiceCollection Registered(int calls)
     {
         var services = new ServiceCollection();
 
-        services.AddIonProtocol(_ => { });
-        services.AddIonProtocol(_ => { });
+        for (var i = 0; i < calls; i++)
+            services.AddIonProtocol(_ => { });
 
-        var registries = services.Where(d => d.ServiceType == typeof(IonPortBindingRegistry)).ToArray();
+        return services;
+    }
 
-        Assert.That(registries, Has.Length.EqualTo(1),
-            "the registry is added with TryAdd; this is the premise the aggregation in AddArgonRole " +
-            "rests on, and the guard there watches for a feature that called this itself");
+    private static int TransportConfigurators(IServiceCollection services)
+        => services.Count(d => d.ServiceType == typeof(IConfigureOptions<IonTransportOptions>));
+
+    /// <summary>
+    /// The port list is carried by <see cref="IonTransportOptions"/>, configured by one descriptor per
+    /// call — which is what makes a second call visible to the guard.
+    /// </summary>
+    [Test]
+    public void Each_call_adds_its_own_transport_configurator()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(TransportConfigurators(Registered(1)), Is.EqualTo(1));
+            Assert.That(TransportConfigurators(Registered(3)), Is.EqualTo(3));
+        });
     }
 
     /// <summary>
-    /// The guard in <c>AddArgonRole</c> looks for exactly this descriptor, so if the registration
-    /// moves the guard has to move with it.
+    /// The guard in <c>AddArgonRole</c> counts these descriptors before making its own call, so if the
+    /// registration ever stops going through <see cref="IConfigureOptions{T}"/> the guard has to move
+    /// with it. This test is what would say so.
     /// </summary>
     [Test]
-    public void The_port_registry_is_registered_under_its_own_type()
-    {
-        var services = new ServiceCollection();
-
-        services.AddIonProtocol(_ => { });
-
-        Assert.That(services.Any(d => d.ServiceType == typeof(IonPortBindingRegistry)), Is.True);
-    }
+    public void A_role_with_no_ion_features_registers_no_transport_configurator()
+        => Assert.That(TransportConfigurators(new ServiceCollection()), Is.Zero);
 }

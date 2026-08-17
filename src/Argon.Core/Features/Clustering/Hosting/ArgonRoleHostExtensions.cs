@@ -78,11 +78,11 @@ public static class ArgonRoleHostExtensions
         // inside the feature that maps the route.
         if (ionRegistrations.Count > 0)
         {
-            // Turns the silent version of this mistake into a loud one. A feature that called
-            // AddIonProtocol itself would have installed the port registry already, and the aggregate
-            // call below would build its ports against an instance the container never sees — the
-            // process starts, the route is mapped, and the extra port answers nothing.
-            if (builder.Services.Any(d => d.ServiceType == typeof(IonPortBindingRegistry)))
+            // Turns the silent version of this mistake into a loud one. Only the first
+            // AddIonProtocol call's ports are ever bound, so a feature that called it itself would
+            // take the extra ports of everything after it with it — the process starts, the route is
+            // mapped, and the console listens on nothing.
+            if (builder.Services.Any(d => d.ServiceType == typeof(IConfigureOptions<IonTransportOptions>)))
                 throw new InvalidOperationException(
                     "AddIonProtocol has already been called. A feature must contribute Ion services " +
                     "through ArgonFeatureContext.Ion instead, so the whole role registers them as one " +
