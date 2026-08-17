@@ -357,6 +357,57 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         
         IonFormatterStorage<ChannelGroup>.WriteArray(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RequestDeleteSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RequestDeleteSpace(__spaceid);
+        
+        IonFormatterStorage<IRequestDeleteSpaceResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CancelDeleteSpace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CancelDeleteSpace(__spaceid);
+        
+        IonFormatterStorage<ICancelDeleteSpaceResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSpaceDeletionState_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSpaceDeletionState(__spaceid);
+        
+        IonFormatterStorage<SpaceDeletionState>.Write(writer, result);
+    }
 
     
     
@@ -404,6 +455,12 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
             return CompleteUploadInviteImage_Execute(reader, writer, ct);
         if (methodName.Equals("GetChannelGroups", StringComparison.InvariantCultureIgnoreCase))
             return GetChannelGroups_Execute(reader, writer, ct);
+        if (methodName.Equals("RequestDeleteSpace", StringComparison.InvariantCultureIgnoreCase))
+            return RequestDeleteSpace_Execute(reader, writer, ct);
+        if (methodName.Equals("CancelDeleteSpace", StringComparison.InvariantCultureIgnoreCase))
+            return CancelDeleteSpace_Execute(reader, writer, ct);
+        if (methodName.Equals("GetSpaceDeletionState", StringComparison.InvariantCultureIgnoreCase))
+            return GetSpaceDeletionState_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

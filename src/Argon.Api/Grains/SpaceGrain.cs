@@ -404,12 +404,35 @@ public class SpaceGrain(
         await Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));
     }
 
+    /// <summary>
+    /// Removes the space itself; the schema cascades the rest.
+    /// </summary>
+    /// <remarks>
+    /// <para>Channels, groups, memberships, archetypes and invites all hang off a required
+    /// <c>SpaceId</c>, and a required relationship cascades by default in EF, so deleting them here
+    /// by hand would only be a second, less reliable copy of what the database already guarantees.</para>
+    ///
+    /// <para>Not callable from the client. <see cref="ISpaceDeletionGrain"/> owns the schedule and
+    /// the permission check, and this runs only once its grace period is over.</para>
+    /// </remarks>
     public async Task DeleteSpace()
     {
         await using var ctx = await context.CreateDbContextAsync();
-        //await ctx.Servers.DeleteByKeyAsync(this.GetPrimaryKey());
+
+        var space = await ctx.Spaces.FirstOrDefaultAsync(x => x.Id == this.GetPrimaryKey());
+
+        if (space is null)
+            return;
+
+        ctx.Spaces.Remove(space);
         await ctx.SaveChangesAsync();
     }
+
+    public async Task AnnounceDeletionScheduled(SpaceDeletionState deletionState)
+        => await Fire(new SpaceDeletionScheduled(this.GetPrimaryKey(), deletionState));
+
+    public async Task AnnounceDeletionCancelled()
+        => await Fire(new SpaceDeletionCancelled(this.GetPrimaryKey()));
 
     public async Task<ChannelGroupEntity> CreateChannelGroup(string name, string? description = null)
     {

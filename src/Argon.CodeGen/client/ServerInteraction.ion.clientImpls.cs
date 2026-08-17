@@ -58,6 +58,12 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         typeof(IServerInteraction).GetMethod(nameof(CompleteUploadInviteImage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetChannelGroups_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(GetChannelGroups), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RequestDeleteSpace_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(RequestDeleteSpace), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CancelDeleteSpace_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(CancelDeleteSpace), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetSpaceDeletionState_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(GetSpaceDeletionState), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -412,6 +418,57 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
         writer.WriteEndArray();
     
         return await req.CallAsyncWithArray<ChannelGroup>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IRequestDeleteSpaceResult> RequestDeleteSpace(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), RequestDeleteSpace_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IRequestDeleteSpaceResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<ICancelDeleteSpaceResult> CancelDeleteSpace(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), CancelDeleteSpace_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<ICancelDeleteSpaceResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<SpaceDeletionState> GetSpaceDeletionState(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), GetSpaceDeletionState_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<SpaceDeletionState>(writer.Encode(), ct: ct);
     }
 
 }

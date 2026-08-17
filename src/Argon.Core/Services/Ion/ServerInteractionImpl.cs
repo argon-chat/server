@@ -65,6 +65,27 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<SpaceStats> GetSpaceStats(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).GetSpaceStats();
 
+    public async Task<IRequestDeleteSpaceResult> RequestDeleteSpace(Guid spaceId, CancellationToken ct = default)
+    {
+        var (error, deletionState) = await this.GetGrain<ISpaceDeletionGrain>(spaceId).RequestAsync(this.GetUserId());
+
+        return error is SpaceDeletionError.NONE
+            ? new SuccessRequestDeleteSpace(deletionState)
+            : new FailedRequestDeleteSpace(error);
+    }
+
+    public async Task<ICancelDeleteSpaceResult> CancelDeleteSpace(Guid spaceId, CancellationToken ct = default)
+    {
+        var error = await this.GetGrain<ISpaceDeletionGrain>(spaceId).CancelAsync(this.GetUserId());
+
+        return error is SpaceDeletionError.NONE
+            ? new SuccessCancelDeleteSpace()
+            : new FailedCancelDeleteSpace(error);
+    }
+
+    public async Task<SpaceDeletionState> GetSpaceDeletionState(Guid spaceId, CancellationToken ct = default)
+        => await this.GetGrain<ISpaceDeletionGrain>(spaceId).GetStateAsync();
+
     public async Task<ArgonUser> PrefetchUser(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchUser(userId, ct);
 

@@ -14,6 +14,33 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDeletionState_Formatter : IonFormatter<SpaceDeletionState>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDeletionState Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __status = IonFormatterStorage<SpaceDeletionStatus>.Read(reader);
+        var __scheduledat = reader.ReadNullable<datetime>();
+        var __executionat = reader.ReadNullable<datetime>();
+        var __iscommunity = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__status, __scheduledat, __executionat, __iscommunity);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDeletionState value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<SpaceDeletionStatus>.Write(writer, value.status);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.scheduledAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.executionAt);
+        IonFormatterStorage<bool>.Write(writer, value.isCommunity);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -382,6 +409,40 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
         IonFormatterStorage<i4>.WriteNullable(writer, value.accentColor);
         IonFormatterStorage<datetime>.WriteNullable(writer, value.registeredAt);
         writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDeletionStatus_Formatter : IonFormatter<SpaceDeletionStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDeletionStatus Read(CborReader reader)
+    {
+         return (SpaceDeletionStatus)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDeletionStatus value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDeletionError_Formatter : IonFormatter<SpaceDeletionError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDeletionError Read(CborReader reader)
+    {
+         return (SpaceDeletionError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDeletionError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
     }
 }
 

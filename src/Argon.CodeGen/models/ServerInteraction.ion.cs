@@ -15,6 +15,10 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceDeletionState(SpaceDeletionStatus status, datetime? scheduledAt, datetime? executionAt, bool isCommunity);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId);
 
 
@@ -60,6 +64,27 @@ public sealed record ArgonUser(guid userId, string username, string displayName,
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, i4? primaryColor, i4? accentColor, datetime? registeredAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SpaceDeletionStatus
+{
+    NONE = 0,
+    SCHEDULED = 1,
+    EXECUTING = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum SpaceDeletionError
+{
+    NONE = 0,
+    NOT_OWNER = 1,
+    ALREADY_SCHEDULED = 2,
+    NOT_SCHEDULED = 3,
+    ALREADY_EXECUTING = 4,
+    INTERNAL_ERROR = 5,
+}
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -152,6 +177,257 @@ public interface IServerInteraction : IIonService
     Task<IUploadFileResult> BeginUploadInviteImage(guid spaceId, CancellationToken ct = default);
     Task CompleteUploadInviteImage(guid spaceId, guid blobId, CancellationToken ct = default);
     Task<IonArray<ChannelGroup>> GetChannelGroups(guid spaceId, CancellationToken ct = default);
+    Task<IRequestDeleteSpaceResult> RequestDeleteSpace(guid spaceId, CancellationToken ct = default);
+    Task<ICancelDeleteSpaceResult> CancelDeleteSpace(guid spaceId, CancellationToken ct = default);
+    Task<SpaceDeletionState> GetSpaceDeletionState(guid spaceId, CancellationToken ct = default);
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IRequestDeleteSpaceResult : IIonUnion<IRequestDeleteSpaceResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessRequestDeleteSpace => this is SuccessRequestDeleteSpace;
+
+    internal bool IsFailedRequestDeleteSpace => this is FailedRequestDeleteSpace;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessRequestDeleteSpace(SpaceDeletionState state) : IRequestDeleteSpaceResult
+{
+    public string UnionKey => nameof(SuccessRequestDeleteSpace);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedRequestDeleteSpace(SpaceDeletionError error) : IRequestDeleteSpaceResult
+{
+    public string UnionKey => nameof(FailedRequestDeleteSpace);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IRequestDeleteSpaceResult_Formatter : IonFormatter<IRequestDeleteSpaceResult>
+{
+    public IRequestDeleteSpaceResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IRequestDeleteSpaceResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessRequestDeleteSpace>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedRequestDeleteSpace>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IRequestDeleteSpaceResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessRequestDeleteSpace n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessRequestDeleteSpace>.Write(writer, n_0);
+        }
+
+        else if (value is FailedRequestDeleteSpace n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedRequestDeleteSpace>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessRequestDeleteSpace_Formatter : IonFormatter<SuccessRequestDeleteSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessRequestDeleteSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __state = IonFormatterStorage<SpaceDeletionState>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__state);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessRequestDeleteSpace value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<SpaceDeletionState>.Write(writer, value.state);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedRequestDeleteSpace_Formatter : IonFormatter<FailedRequestDeleteSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedRequestDeleteSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<SpaceDeletionError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedRequestDeleteSpace value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<SpaceDeletionError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ICancelDeleteSpaceResult : IIonUnion<ICancelDeleteSpaceResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessCancelDeleteSpace => this is SuccessCancelDeleteSpace;
+
+    internal bool IsFailedCancelDeleteSpace => this is FailedCancelDeleteSpace;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessCancelDeleteSpace() : ICancelDeleteSpaceResult
+{
+    public string UnionKey => nameof(SuccessCancelDeleteSpace);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedCancelDeleteSpace(SpaceDeletionError error) : ICancelDeleteSpaceResult
+{
+    public string UnionKey => nameof(FailedCancelDeleteSpace);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ICancelDeleteSpaceResult_Formatter : IonFormatter<ICancelDeleteSpaceResult>
+{
+    public ICancelDeleteSpaceResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ICancelDeleteSpaceResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessCancelDeleteSpace>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedCancelDeleteSpace>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ICancelDeleteSpaceResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessCancelDeleteSpace n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessCancelDeleteSpace>.Write(writer, n_0);
+        }
+
+        else if (value is FailedCancelDeleteSpace n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedCancelDeleteSpace>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessCancelDeleteSpace_Formatter : IonFormatter<SuccessCancelDeleteSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessCancelDeleteSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        
+        reader.ReadEndArrayAndSkip(arraySize - 0);
+        return new();
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessCancelDeleteSpace value)
+    {
+        writer.WriteStartArray(0);
+        
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedCancelDeleteSpace_Formatter : IonFormatter<FailedCancelDeleteSpace>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedCancelDeleteSpace Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<SpaceDeletionError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedCancelDeleteSpace value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<SpaceDeletionError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
 }
 
 

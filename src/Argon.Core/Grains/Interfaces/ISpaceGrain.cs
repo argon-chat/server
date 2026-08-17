@@ -18,6 +18,12 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(DeleteSpace))]
     Task DeleteSpace();
 
+    [Alias(nameof(AnnounceDeletionScheduled))]
+    Task AnnounceDeletionScheduled(SpaceDeletionState deletionState);
+
+    [Alias(nameof(AnnounceDeletionCancelled))]
+    Task AnnounceDeletionCancelled();
+
     [Alias(nameof(GetChannelGroups))]
     Task<List<ChannelGroupEntity>> GetChannelGroups();
 
