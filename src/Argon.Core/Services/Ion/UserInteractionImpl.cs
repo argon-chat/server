@@ -100,11 +100,115 @@ public class UserInteractionImpl(
         // Explicit user action — always broadcast the clear, even if the activity key already lapsed.
         => await this.GetGrain<IUserGrain>(this.GetUserId()).RemoveBroadcastPresenceAsync(this.GetSessionId().ToString(), alwaysBroadcast: true);
 
+    /// <summary>
+    /// The caller's evaluated flag set.
+    /// </summary>
+    /// <remarks>
+    /// <para>Delegates to the same grain as <c>FeatureFlagInteractions.GetMyFeatureFlags</c> rather
+    /// than evaluating separately: two surfaces answering the same question is already one too
+    /// many, and two surfaces answering it <em>differently</em> would be a bug nobody could see
+    /// from either side. This returned an empty array before, which no caller could tell apart from
+    /// "you have no flags".</para>
+    ///
+    /// <para><c>parameters</c> is empty because evaluation does not produce any — the flag carries a
+    /// variant, not a parameter bag. Reporting an empty list is the truth; inventing entries to
+    /// fill the field would not be.</para>
+    /// </remarks>
     public async Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default)
-        => IonArray<FeatureFlag>.Empty;
+    {
+        var evaluated = await this.GetGrain<IFeatureFlagGrain>(Guid.Empty)
+           .EvaluateAllAsync(FeatureFlagEvaluationContext.ForUser(
+                this.GetUserId(), this.GetUserCountry(), this.GetClientId()));
+
+        return new IonArray<FeatureFlag>(evaluated.Values
+           .Select(x => new FeatureFlag(x.FlagId, x.IsEnabled, x.Variant, IonArray<FeatureFlagParameter>.Empty))
+           .ToArray());
+    }
 
     public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
+
+    public async Task<ILookupUserResult> LookupUser(Guid userId, CancellationToken ct = default)
+    {
+        var callerId = this.GetUserId();
+
+        if (!await CanReachAsync(callerId, userId, ct))
+            return new FailedLookupUser(LookupError.NO_ANCHOR);
+
+        var user = await this.GetGrain<IUserGrain>(userId).GetMe();
+
+        return user is null
+            ? new FailedLookupUser(LookupError.NOT_FOUND)
+            : new SuccessLookupUser(user.ToDto());
+    }
+
+    public async Task<ILookupProfileResult> LookupProfile(Guid userId, CancellationToken ct = default)
+    {
+        var callerId = this.GetUserId();
+
+        if (!await CanReachAsync(callerId, userId, ct))
+            return new FailedLookupProfile(LookupError.NO_ANCHOR);
+
+        try
+        {
+            return new SuccessLookupProfile(await this.GetGrain<IUserGrain>(userId).GetMyProfile());
+        }
+        catch (InvalidOperationException)
+        {
+            // No profile row: the id is well-formed but nobody is behind it.
+            return new FailedLookupProfile(LookupError.NOT_FOUND);
+        }
+    }
+
+    /// <summary>
+    /// Whether the caller has any standing reason to know this person.
+    /// </summary>
+    /// <remarks>
+    /// <para>The space id on <c>PrefetchUser</c> was doing two jobs: naming which space's nickname
+    /// and roles to show, and proving the caller had met the target at all. Dropping it for direct
+    /// messages drops the first, and this restores the second — otherwise a bare user id would be
+    /// enough to walk the whole directory, which is exactly what scoping prevented.</para>
+    ///
+    /// <para>Ordered cheapest-first, and each anchor is a relationship the target took part in:
+    /// sharing a space, being friends, a request in either direction, or a conversation that
+    /// exists. A pending request counts because the target has to be able to see who is asking.</para>
+    /// </remarks>
+    private async Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct)
+    {
+        if (callerId == targetId)
+            return true;
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // A block is a refusal to be reachable, and it holds whichever way round it was made:
+        // the blocker should not be lookup-able by the person they blocked either.
+        if (await ctx.UserBlocklist.AnyAsync(
+                x => (x.UserId == callerId && x.BlockedId == targetId) ||
+                     (x.UserId == targetId && x.BlockedId == callerId), ct))
+            return false;
+
+        if (await ctx.Friends.AnyAsync(
+                x => (x.UserId == callerId && x.FriendId == targetId) ||
+                     (x.UserId == targetId && x.FriendId == callerId), ct))
+            return true;
+
+        if (await ctx.FriendRequest.AnyAsync(
+                x => (x.RequesterId == callerId && x.TargetId == targetId) ||
+                     (x.RequesterId == targetId && x.TargetId == callerId), ct))
+            return true;
+
+        var conversationId = ConversationEntity.GenerateConversationId(callerId, targetId);
+
+        if (await ctx.Conversations.AnyAsync(x => x.Id == conversationId, ct))
+            return true;
+
+        var callerSpaces = ctx.UsersToServerRelations
+           .Where(x => x.UserId == callerId)
+           .Select(x => x.SpaceId);
+
+        return await ctx.UsersToServerRelations
+           .AnyAsync(x => x.UserId == targetId && callerSpaces.Contains(x.SpaceId), ct);
+    }
 
     public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)
     {

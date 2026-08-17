@@ -276,6 +276,55 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
         IonFormatterStorage<AutoDeletePeriod>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RequestDataExport_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RequestDataExport();
+        
+        IonFormatterStorage<IRequestDataExportResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetDataExportStatus_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetDataExportStatus();
+        
+        IonFormatterStorage<DataExportStatus>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CancelDataExport_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.CancelDataExport();
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetSecurityDetails_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<ISecurityInteraction>();
@@ -414,6 +463,12 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
             return SetAutoDeletePeriod_Execute(reader, writer, ct);
         if (methodName.Equals("GetAutoDeletePeriod", StringComparison.InvariantCultureIgnoreCase))
             return GetAutoDeletePeriod_Execute(reader, writer, ct);
+        if (methodName.Equals("RequestDataExport", StringComparison.InvariantCultureIgnoreCase))
+            return RequestDataExport_Execute(reader, writer, ct);
+        if (methodName.Equals("GetDataExportStatus", StringComparison.InvariantCultureIgnoreCase))
+            return GetDataExportStatus_Execute(reader, writer, ct);
+        if (methodName.Equals("CancelDataExport", StringComparison.InvariantCultureIgnoreCase))
+            return CancelDataExport_Execute(reader, writer, ct);
         if (methodName.Equals("GetSecurityDetails", StringComparison.InvariantCultureIgnoreCase))
             return GetSecurityDetails_Execute(reader, writer, ct);
         if (methodName.Equals("BeginValidatePasskey", StringComparison.InvariantCultureIgnoreCase))

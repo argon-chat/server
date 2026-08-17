@@ -165,6 +165,15 @@ public enum LockdownSeverity
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum LookupError
+{
+    NONE = 0,
+    NOT_FOUND = 1,
+    NO_ANCHOR = 2,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IUserInteraction : IIonService
 {
     Task<ArgonUser> GetMe(CancellationToken ct = default);
@@ -177,6 +186,8 @@ public interface IUserInteraction : IIonService
     Task RemoveBroadcastPresence(CancellationToken ct = default);
     Task<IonArray<FeatureFlag>> GetMyFeatures(CancellationToken ct = default);
     Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default);
+    Task<ILookupUserResult> LookupUser(guid userId, CancellationToken ct = default);
+    Task<ILookupProfileResult> LookupProfile(guid userId, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default);
     Task CompleteUploadAvatar(guid blobId, CancellationToken ct = default);
     Task<TodayStats> GetTodayStats(CancellationToken ct = default);
@@ -1073,6 +1084,254 @@ public sealed class Ion_FailedPreview_Formatter : IonFormatter<FailedPreview>
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<AcceptInviteError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ILookupUserResult : IIonUnion<ILookupUserResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessLookupUser => this is SuccessLookupUser;
+
+    internal bool IsFailedLookupUser => this is FailedLookupUser;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessLookupUser(ArgonUser user) : ILookupUserResult
+{
+    public string UnionKey => nameof(SuccessLookupUser);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedLookupUser(LookupError error) : ILookupUserResult
+{
+    public string UnionKey => nameof(FailedLookupUser);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ILookupUserResult_Formatter : IonFormatter<ILookupUserResult>
+{
+    public ILookupUserResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ILookupUserResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessLookupUser>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedLookupUser>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ILookupUserResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessLookupUser n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessLookupUser>.Write(writer, n_0);
+        }
+
+        else if (value is FailedLookupUser n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedLookupUser>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessLookupUser_Formatter : IonFormatter<SuccessLookupUser>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessLookupUser Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __user = IonFormatterStorage<ArgonUser>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__user);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessLookupUser value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<ArgonUser>.Write(writer, value.user);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedLookupUser_Formatter : IonFormatter<FailedLookupUser>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedLookupUser Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LookupError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedLookupUser value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LookupError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface ILookupProfileResult : IIonUnion<ILookupProfileResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessLookupProfile => this is SuccessLookupProfile;
+
+    internal bool IsFailedLookupProfile => this is FailedLookupProfile;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessLookupProfile(ArgonUserProfile profile) : ILookupProfileResult
+{
+    public string UnionKey => nameof(SuccessLookupProfile);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedLookupProfile(LookupError error) : ILookupProfileResult
+{
+    public string UnionKey => nameof(FailedLookupProfile);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ILookupProfileResult_Formatter : IonFormatter<ILookupProfileResult>
+{
+    public ILookupProfileResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        ILookupProfileResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessLookupProfile>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedLookupProfile>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, ILookupProfileResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessLookupProfile n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessLookupProfile>.Write(writer, n_0);
+        }
+
+        else if (value is FailedLookupProfile n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedLookupProfile>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessLookupProfile_Formatter : IonFormatter<SuccessLookupProfile>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessLookupProfile Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __profile = IonFormatterStorage<ArgonUserProfile>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__profile);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessLookupProfile value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<ArgonUserProfile>.Write(writer, value.profile);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedLookupProfile_Formatter : IonFormatter<FailedLookupProfile>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedLookupProfile Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<LookupError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedLookupProfile value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<LookupError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }

@@ -1,7 +1,11 @@
 namespace ArgonComplexTest.Tests;
 
+using Argon.Core.Entities.Data;
 using Argon.Core.Features.CoreLogic.Privacy;
+using Argon.Entities;
+using Argon.Grains.Interfaces;
 using ArgonContracts;
+using Microsoft.EntityFrameworkCore;
 using ion.runtime;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -293,9 +297,57 @@ public class SocialGraphTests : TestBase
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
         SetAuthToken(await RegisterAndGetTokenAsync(ct));
 
+        // Seeded first, so the comparison below is over something. Two empty lists match each other
+        // perfectly and would prove nothing.
+        var flagId = $"test-{Guid.NewGuid():N}"[..24];
+
+        await using (var db = await scope.ServiceProvider
+                        .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
+                        .CreateDbContextAsync(ct))
+        {
+            db.FeatureFlags.Add(new FeatureFlagEntity
+            {
+                Id             = flagId,
+                DefaultEnabled = true,
+                CreatedAt      = DateTimeOffset.UtcNow,
+                UpdatedAt      = DateTimeOffset.UtcNow
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
+        await FactoryAsp.Services.GetRequiredService<IGrainFactory>()
+           .GetGrain<IFeatureFlagGrain>(Guid.Empty)
+           .InvalidateCacheAsync();
+
         var features = await GetUserService(scope.ServiceProvider).GetMyFeatures(ct);
 
-        Assert.That(features.Size, Is.GreaterThanOrEqualTo(0));
+        Assert.That(features.Values.Select(x => x.key), Does.Contain(flagId),
+            "the flag set must actually carry the flags this account has");
+
+        // `Size >= 0` was the assertion here, which is true of every array ever returned and stayed
+        // green through an implementation that answered `IonArray.Empty` unconditionally. What can
+        // actually fail: the two flag surfaces must agree, because a client reading either one has
+        // to get the same answer.
+        var canonical = await IonClient
+           .ForService<IFeatureFlagInteractions>(scope.ServiceProvider)
+           .GetMyFeatureFlags(ct);
+
+        Assert.That(features.Size, Is.EqualTo(canonical.Size));
+
+        Assert.That(
+            features.Values.Select(x => x.key).OrderBy(x => x),
+            Is.EqualTo(canonical.Values.Select(x => x.flagId).OrderBy(x => x)).AsCollection);
+
+        Assert.Multiple(() =>
+        {
+            foreach (var flag in features.Values)
+            {
+                var mirror = canonical.Values.First(x => x.flagId == flag.key);
+
+                Assert.That(flag.enabled, Is.EqualTo(mirror.isEnabled), $"'{flag.key}' disagrees on enabled");
+                Assert.That(flag.variant, Is.EqualTo(mirror.variant), $"'{flag.key}' disagrees on variant");
+            }
+        });
     }
 
     [Test, CancelAfter(120_000)]

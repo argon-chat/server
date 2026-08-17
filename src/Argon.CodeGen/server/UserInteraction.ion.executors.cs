@@ -184,6 +184,40 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
         IonFormatterStorage<ArgonUserProfile>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task LookupUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.LookupUser(__userid);
+        
+        IonFormatterStorage<ILookupUserResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task LookupProfile_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.LookupProfile(__userid);
+        
+        IonFormatterStorage<ILookupProfileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task BeginUploadAvatar_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserInteraction>();
@@ -442,6 +476,10 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
             return GetMyFeatures_Execute(reader, writer, ct);
         if (methodName.Equals("GetMyProfile", StringComparison.InvariantCultureIgnoreCase))
             return GetMyProfile_Execute(reader, writer, ct);
+        if (methodName.Equals("LookupUser", StringComparison.InvariantCultureIgnoreCase))
+            return LookupUser_Execute(reader, writer, ct);
+        if (methodName.Equals("LookupProfile", StringComparison.InvariantCultureIgnoreCase))
+            return LookupProfile_Execute(reader, writer, ct);
         if (methodName.Equals("BeginUploadAvatar", StringComparison.InvariantCultureIgnoreCase))
             return BeginUploadAvatar_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadAvatar", StringComparison.InvariantCultureIgnoreCase))

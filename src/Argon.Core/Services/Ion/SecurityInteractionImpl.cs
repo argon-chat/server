@@ -49,6 +49,56 @@ public class SecurityInteractionImpl : ISecurityInteraction
     public async Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetAutoDeletePeriodAsync(ct);
 
+    public async Task<IRequestDataExportResult> RequestDataExport(CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IUserDataExportGrain>(this.GetUserId()).RequestExportAsync();
+
+        if (result is { Success: true, ExportId: { } exportId })
+            return new SuccessRequestDataExport(exportId);
+
+        return new FailedRequestDataExport(result.Error switch
+        {
+            ExportRequestError.AlreadyInProgress => DataExportError.ALREADY_IN_PROGRESS,
+            ExportRequestError.RateLimited       => DataExportError.RATE_LIMITED,
+            ExportRequestError.NotConfigured     => DataExportError.NOT_CONFIGURED,
+            _                                    => DataExportError.NONE
+        });
+    }
+
+    /// <summary>
+    /// Progress of the caller's export.
+    /// </summary>
+    /// <remarks>
+    /// <c>FailureReason</c> is deliberately not carried across. It is written for an operator
+    /// reading logs and can name storage paths and internal services; the client only needs to know
+    /// that it failed and that asking again is allowed.
+    /// </remarks>
+    public async Task<DataExportStatus> GetDataExportStatus(CancellationToken ct = default)
+    {
+        var status = await this.GetGrain<IUserDataExportGrain>(this.GetUserId()).GetExportStatusAsync();
+
+        return new DataExportStatus(
+            status.Status switch
+            {
+                ExportStatusKind.Queued         => DataExportStatusKind.QUEUED,
+                ExportStatusKind.CollectingData => DataExportStatusKind.COLLECTING,
+                ExportStatusKind.Assembling     => DataExportStatusKind.ASSEMBLING,
+                ExportStatusKind.Completed      => DataExportStatusKind.COMPLETED,
+                ExportStatusKind.Expired        => DataExportStatusKind.EXPIRED,
+                ExportStatusKind.Failed         => DataExportStatusKind.FAILED,
+                _                               => DataExportStatusKind.IDLE
+            },
+            status.ExportId,
+            status.StartedAt,
+            status.CompletedAt,
+            status.DownloadUrl,
+            status.ItemsProcessed,
+            status.TotalItemsEstimate);
+    }
+
+    public async Task CancelDataExport(CancellationToken ct = default)
+        => await this.GetGrain<IUserDataExportGrain>(this.GetUserId()).CancelExportAsync();
+
     public async Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default)
         => await this.GetGrain<ISecurityGrain>(this.GetUserId()).GetSecurityDetailsAsync(ct);
 

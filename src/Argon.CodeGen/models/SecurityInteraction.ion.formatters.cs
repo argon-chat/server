@@ -126,6 +126,39 @@ public sealed class Ion_AutoDeletePeriod_Formatter : IonFormatter<AutoDeletePeri
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DataExportStatus_Formatter : IonFormatter<DataExportStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DataExportStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __status = IonFormatterStorage<DataExportStatusKind>.Read(reader);
+        var __exportid = reader.ReadNullable<guid>();
+        var __startedat = reader.ReadNullable<datetime>();
+        var __completedat = reader.ReadNullable<datetime>();
+        var __downloadurl = reader.ReadNullable<string>();
+        var __itemsprocessed = IonFormatterStorage<i4>.Read(reader);
+        var __totalitemsestimate = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__status, __exportid, __startedat, __completedat, __downloadurl, __itemsprocessed, __totalitemsestimate);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DataExportStatus value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<DataExportStatusKind>.Write(writer, value.status);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.exportId);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.startedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.completedAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.downloadUrl);
+        IonFormatterStorage<i4>.Write(writer, value.itemsProcessed);
+        IonFormatterStorage<i4>.Write(writer, value.totalItemsEstimate);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SessionError_Formatter : IonFormatter<SessionError>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -241,6 +274,40 @@ public sealed class Ion_AutoDeleteError_Formatter : IonFormatter<AutoDeleteError
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DataExportStatusKind_Formatter : IonFormatter<DataExportStatusKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DataExportStatusKind Read(CborReader reader)
+    {
+         return (DataExportStatusKind)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DataExportStatusKind value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DataExportError_Formatter : IonFormatter<DataExportError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DataExportError Read(CborReader reader)
+    {
+         return (DataExportError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DataExportError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
     }
 }
 

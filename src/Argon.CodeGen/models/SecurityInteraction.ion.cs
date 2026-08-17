@@ -31,6 +31,10 @@ public sealed record AutoDeletePeriod(i4? months, bool enabled);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record DataExportStatus(DataExportStatusKind status, guid? exportId, datetime? startedAt, datetime? completedAt, string? downloadUrl, i4 itemsProcessed, i4 totalItemsEstimate);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SessionError
 {
     NONE = 0,
@@ -117,6 +121,29 @@ public enum AutoDeleteError
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum DataExportStatusKind
+{
+    IDLE = 0,
+    QUEUED = 1,
+    COLLECTING = 2,
+    ASSEMBLING = 3,
+    COMPLETED = 4,
+    EXPIRED = 5,
+    FAILED = 6,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum DataExportError
+{
+    NONE = 0,
+    ALREADY_IN_PROGRESS = 1,
+    RATE_LIMITED = 2,
+    NOT_CONFIGURED = 3,
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface ISecurityInteraction : IIonService
 {
     Task<IRequestEmailChangeResult> RequestEmailChange(string newEmail, string password, CancellationToken ct = default);
@@ -134,6 +161,9 @@ public interface ISecurityInteraction : IIonService
     Task<IRemovePasskeyResult> RemovePasskey(guid passkeyId, CancellationToken ct = default);
     Task<ISetAutoDeleteResult> SetAutoDeletePeriod(i4? months, CancellationToken ct = default);
     Task<AutoDeletePeriod> GetAutoDeletePeriod(CancellationToken ct = default);
+    Task<IRequestDataExportResult> RequestDataExport(CancellationToken ct = default);
+    Task<DataExportStatus> GetDataExportStatus(CancellationToken ct = default);
+    Task CancelDataExport(CancellationToken ct = default);
     Task<SecurityDetails> GetSecurityDetails(CancellationToken ct = default);
     Task<IBeginPasskeyValidateResult> BeginValidatePasskey(CancellationToken ct = default);
     Task<ICompletePasskeyResult> CompleteValidatePasskey(string authenticationResponse, CancellationToken ct = default);
@@ -2000,6 +2030,130 @@ public sealed class Ion_FailedSetAutoDelete_Formatter : IonFormatter<FailedSetAu
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<AutoDeleteError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IRequestDataExportResult : IIonUnion<IRequestDataExportResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessRequestDataExport => this is SuccessRequestDataExport;
+
+    internal bool IsFailedRequestDataExport => this is FailedRequestDataExport;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessRequestDataExport(guid exportId) : IRequestDataExportResult
+{
+    public string UnionKey => nameof(SuccessRequestDataExport);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedRequestDataExport(DataExportError error) : IRequestDataExportResult
+{
+    public string UnionKey => nameof(FailedRequestDataExport);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IRequestDataExportResult_Formatter : IonFormatter<IRequestDataExportResult>
+{
+    public IRequestDataExportResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var unionIndex = reader.ReadUInt32();
+        IRequestDataExportResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessRequestDataExport>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedRequestDataExport>.Read(reader);
+
+        else
+            throw new InvalidOperationException();
+        reader.ReadEndArray();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IRequestDataExportResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessRequestDataExport n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessRequestDataExport>.Write(writer, n_0);
+        }
+
+        else if (value is FailedRequestDataExport n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedRequestDataExport>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException();
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessRequestDataExport_Formatter : IonFormatter<SuccessRequestDataExport>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessRequestDataExport Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __exportid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__exportid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessRequestDataExport value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.exportId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedRequestDataExport_Formatter : IonFormatter<FailedRequestDataExport>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedRequestDataExport Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __error = IonFormatterStorage<DataExportError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedRequestDataExport value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DataExportError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }
