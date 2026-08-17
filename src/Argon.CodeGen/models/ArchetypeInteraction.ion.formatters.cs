@@ -65,14 +65,15 @@ public sealed class Ion_Archetype_Formatter : IonFormatter<Archetype>
         var __isdefault = IonFormatterStorage<bool>.Read(reader);
         var __iconfileid = reader.ReadNullable<string>();
         var __entitlement = IonFormatterStorage<ArgonEntitlement>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 12);
-        return new(__id, __spaceid, __name, __description, __ismentionable, __colour, __ishidden, __islocked, __isgroup, __isdefault, __iconfileid, __entitlement);
+        var __order = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 13);
+        return new(__id, __spaceid, __name, __description, __ismentionable, __colour, __ishidden, __islocked, __isgroup, __isdefault, __iconfileid, __entitlement, __order);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, Archetype value)
     {
-        writer.WriteStartArray(12);
+        writer.WriteStartArray(13);
         IonFormatterStorage<guid>.Write(writer, value.id);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
@@ -85,7 +86,25 @@ public sealed class Ion_Archetype_Formatter : IonFormatter<Archetype>
         IonFormatterStorage<bool>.Write(writer, value.isDefault);
         IonFormatterStorage<string>.WriteNullable(writer, value.iconFileId);
         IonFormatterStorage<ArgonEntitlement>.Write(writer, value.entitlement);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.order);
         writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ArchetypeError_Formatter : IonFormatter<ArchetypeError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ArchetypeError Read(CborReader reader)
+    {
+         return (ArchetypeError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ArchetypeError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
     }
 }
 

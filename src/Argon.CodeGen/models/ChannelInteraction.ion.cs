@@ -3190,6 +3190,14 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsMessageDeleted => this is MessageDeleted;
 
+    internal bool IsArchetypeRemoved => this is ArchetypeRemoved;
+
+    internal bool IsArchetypesReordered => this is ArchetypesReordered;
+
+    internal bool IsSpaceDeletionScheduled => this is SpaceDeletionScheduled;
+
+    internal bool IsSpaceDeletionCancelled => this is SpaceDeletionCancelled;
+
 }
 
 
@@ -3627,6 +3635,34 @@ public sealed record MessageDeleted(guid spaceId, guid channelId, i8 messageId, 
     public uint UnionIndex => 61;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ArchetypeRemoved(guid spaceId, guid archetypeId) : IArgonEvent
+{
+    public string UnionKey => nameof(ArchetypeRemoved);
+    public uint UnionIndex => 62;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ArchetypesReordered(guid spaceId, IonArray<Archetype> data) : IArgonEvent
+{
+    public string UnionKey => nameof(ArchetypesReordered);
+    public uint UnionIndex => 63;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceDeletionScheduled(guid spaceId, SpaceDeletionState state) : IArgonEvent
+{
+    public string UnionKey => nameof(SpaceDeletionScheduled);
+    public uint UnionIndex => 64;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceDeletionCancelled(guid spaceId) : IArgonEvent
+{
+    public string UnionKey => nameof(SpaceDeletionCancelled);
+    public uint UnionIndex => 65;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3824,6 +3860,18 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 61)
             result = IonFormatterStorage<MessageDeleted>.Read(reader);
+
+        else if (unionIndex == 62)
+            result = IonFormatterStorage<ArchetypeRemoved>.Read(reader);
+
+        else if (unionIndex == 63)
+            result = IonFormatterStorage<ArchetypesReordered>.Read(reader);
+
+        else if (unionIndex == 64)
+            result = IonFormatterStorage<SpaceDeletionScheduled>.Read(reader);
+
+        else if (unionIndex == 65)
+            result = IonFormatterStorage<SpaceDeletionCancelled>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -4270,6 +4318,34 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_61.UnionIndex != 61)
                 throw new InvalidOperationException();
             IonFormatterStorage<MessageDeleted>.Write(writer, n_61);
+        }
+
+        else if (value is ArchetypeRemoved n_62)
+        {
+            if (n_62.UnionIndex != 62)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ArchetypeRemoved>.Write(writer, n_62);
+        }
+
+        else if (value is ArchetypesReordered n_63)
+        {
+            if (n_63.UnionIndex != 63)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ArchetypesReordered>.Write(writer, n_63);
+        }
+
+        else if (value is SpaceDeletionScheduled n_64)
+        {
+            if (n_64.UnionIndex != 64)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SpaceDeletionScheduled>.Write(writer, n_64);
+        }
+
+        else if (value is SpaceDeletionCancelled n_65)
+        {
+            if (n_65.UnionIndex != 65)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SpaceDeletionCancelled>.Write(writer, n_65);
         }
     
         else
@@ -5783,6 +5859,96 @@ public sealed class Ion_MessageDeleted_Formatter : IonFormatter<MessageDeleted>
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<i8>.Write(writer, value.messageId);
         IonFormatterStorage<guid>.Write(writer, value.byUserId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ArchetypeRemoved_Formatter : IonFormatter<ArchetypeRemoved>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ArchetypeRemoved Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __archetypeid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __archetypeid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ArchetypeRemoved value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.archetypeId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ArchetypesReordered_Formatter : IonFormatter<ArchetypesReordered>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ArchetypesReordered Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __data = IonFormatterStorage<Archetype>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __data);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ArchetypesReordered value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<Archetype>.WriteArray(writer, value.data);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDeletionScheduled_Formatter : IonFormatter<SpaceDeletionScheduled>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDeletionScheduled Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __state = IonFormatterStorage<SpaceDeletionState>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__spaceid, __state);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDeletionScheduled value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<SpaceDeletionState>.Write(writer, value.state);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceDeletionCancelled_Formatter : IonFormatter<SpaceDeletionCancelled>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceDeletionCancelled Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__spaceid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceDeletionCancelled value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
         writer.WriteEndArray();
     }
 }

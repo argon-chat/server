@@ -34,6 +34,10 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         typeof(IArchetypeInteraction).GetMethod(nameof(GetChannelEntitlementOverwrites), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteEntitlementForChannel_Ref = new(() =>
         typeof(IArchetypeInteraction).GetMethod(nameof(DeleteEntitlementForChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteArchetype_Ref = new(() =>
+        typeof(IArchetypeInteraction).GetMethod(nameof(DeleteArchetype), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ReorderArchetypes_Ref = new(() =>
+        typeof(IArchetypeInteraction).GetMethod(nameof(ReorderArchetypes), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -184,6 +188,42 @@ public sealed class Ion_ArchetypeInteraction_ClientImpl(IonClientContext context
         writer.WriteEndArray();
     
         return await req.CallAsync<bool>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IDeleteArchetypeResult> DeleteArchetype(guid __spaceid, guid __archetypeid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IArchetypeInteraction), DeleteArchetype_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __archetypeid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IDeleteArchetypeResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IReorderArchetypesResult> ReorderArchetypes(guid __spaceid, IonArray<guid> __ordered, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IArchetypeInteraction), ReorderArchetypes_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.WriteArray(writer, __ordered);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IReorderArchetypesResult>(writer.Encode(), ct: ct);
     }
 
 }

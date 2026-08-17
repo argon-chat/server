@@ -165,6 +165,42 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
         
         IonFormatterStorage<bool>.Write(writer, result);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteArchetype_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __archetypeid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DeleteArchetype(__spaceid, __archetypeid);
+        
+        IonFormatterStorage<IDeleteArchetypeResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ReorderArchetypes_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IArchetypeInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __ordered = IonFormatterStorage<guid>.ReadArray(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ReorderArchetypes(__spaceid, __ordered);
+        
+        IonFormatterStorage<IReorderArchetypesResult>.Write(writer, result);
+    }
 
     
     
@@ -188,6 +224,10 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
             return GetChannelEntitlementOverwrites_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteEntitlementForChannel", StringComparison.InvariantCultureIgnoreCase))
             return DeleteEntitlementForChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteArchetype", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteArchetype_Execute(reader, writer, ct);
+        if (methodName.Equals("ReorderArchetypes", StringComparison.InvariantCultureIgnoreCase))
+            return ReorderArchetypes_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");

@@ -54,6 +54,11 @@ public class ArchetypeAgentHub(IArchetypeCache cache) : IArchetypeAgent
         await cache.SignalInvalidationAsync(archetype.SpaceId, archetype.Id, ct);
         return archetype.ToDto();
     }
+
+    // Takes ids rather than the entity: by the time a delete is worth announcing, the row is gone
+    // and there is nothing left to map.
+    public async Task DoDeletedAsync(Guid spaceId, Guid archetypeId, CancellationToken ct = default)
+        => await cache.SignalInvalidationAsync(spaceId, archetypeId, ct);
 }
 
 public interface IArchetypeAgent
@@ -63,6 +68,7 @@ public interface IArchetypeAgent
 
     Task<Archetype> DoCreatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
     Task<Archetype> DoUpdatedAsync(ArchetypeEntity archetype, CancellationToken ct = default);
+    Task            DoDeletedAsync(Guid spaceId, Guid archetypeId, CancellationToken ct = default);
 }
 
 public class HybridArchetypeCache(

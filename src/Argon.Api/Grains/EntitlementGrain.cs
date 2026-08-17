@@ -78,6 +78,13 @@ public class EntitlementGrain(
         if (!await entitlementChecker.HasAccessAsync(this.GetPrimaryKey(), creatorId, ArgonEntitlement.ManageArchetype))
             throw new UnauthorizedAccessException("No permission to manage archetypes");
 
+        // Below everything that already has a rank, which is where a brand new role belongs: it
+        // starts with base entitlements, so ranking it above existing roles would let it out-rank
+        // them by accident. Null when nothing in the space is ranked yet — see ArchetypeEntity.Order.
+        var lowestRank = await ctx.Archetypes
+           .Where(x => x.SpaceId == this.GetPrimaryKey() && x.Order != null)
+           .MaxAsync(x => (int?)x.Order);
+
         var arch = new ArchetypeEntity()
         {
             SpaceId       = this.GetPrimaryKey(),
@@ -94,6 +101,7 @@ public class EntitlementGrain(
             CreatorId     = creatorId,
             IsDeleted     = false,
             IsGroup       = false,
+            Order         = lowestRank is null ? null : lowestRank + 1,
         };
 
         ctx.Archetypes.Add(arch);
@@ -194,6 +202,93 @@ public class EntitlementGrain(
             await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             return result;
         }
+    }
+
+    public async Task<ArchetypeError> DeleteArchetypeAsync(Guid archetypeId)
+    {
+        var spaceId  = this.GetPrimaryKey();
+        var callerId = this.GetUserId();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        if (!await entitlementChecker.HasAccessAsync(spaceId, callerId, ArgonEntitlement.ManageArchetype))
+            return ArchetypeError.NO_PERMISSION;
+
+        var entity = await ctx.Archetypes
+           .Include(x => x.SpaceMemberRoles)
+           .FirstOrDefaultAsync(x => x.Id == archetypeId && x.SpaceId == spaceId);
+
+        if (entity is null)
+            return ArchetypeError.NOT_FOUND;
+
+        // @everyone and the owner role are what the permission system resolves against when a
+        // member has nothing else; deleting either leaves members with no answer at all.
+        if (entity.IsDefault || archetypeId == ArchetypeEntity.DefaultArchetype_Everyone || archetypeId == ArchetypeEntity.DefaultArchetype_Owner)
+            return ArchetypeError.IS_DEFAULT;
+
+        if (entity.IsLocked)
+            return ArchetypeError.IS_LOCKED;
+
+        // Deleting a role the caller does not out-rank would be a way to remove the permissions
+        // holding them back — the same check UpdateArchetypeAsync makes before an edit.
+        var invokerArchetypes = await ctx.UsersToServerRelations
+           .Where(x => x.SpaceId == spaceId && x.UserId == callerId)
+           .SelectMany(x => x.SpaceMemberArchetypes.Select(a => a.Archetype))
+           .ToListAsync();
+
+        if (!EntitlementEvaluator.IsAllowedToEdit(entity, invokerArchetypes))
+            return ArchetypeError.NO_PERMISSION;
+
+        // The grants go with it. Left behind they would be rows pointing at nothing, and the
+        // member list would keep grouping people under a role that no longer exists.
+        ctx.RemoveRange(entity.SpaceMemberRoles);
+        ctx.Archetypes.Remove(entity);
+
+        await ctx.SaveChangesAsync();
+
+        await archetypeAgent.DoDeletedAsync(spaceId, archetypeId);
+        await permissionCache.SignalSpaceInvalidationAsync(spaceId);
+        await Fire(new ArchetypeRemoved(spaceId, archetypeId));
+
+        return ArchetypeError.NONE;
+    }
+
+    public async Task<(ArchetypeError error, List<Archetype> archetypes)> ReorderArchetypesAsync(List<Guid> ordered)
+    {
+        var spaceId  = this.GetPrimaryKey();
+        var callerId = this.GetUserId();
+
+        await using var ctx = await context.CreateDbContextAsync();
+
+        if (!await entitlementChecker.HasAccessAsync(spaceId, callerId, ArgonEntitlement.ManageArchetype))
+            return (ArchetypeError.NO_PERMISSION, []);
+
+        var entities = await ctx.Archetypes
+           .Where(x => x.SpaceId == spaceId)
+           .ToListAsync();
+
+        // Every archetype exactly once, or nothing. A partial list would silently leave the
+        // unnamed ones at ranks computed against a hierarchy that no longer exists, and the caller
+        // would have no way to tell that from success.
+        if (ordered.Count != entities.Count || ordered.Distinct().Count() != ordered.Count ||
+            !ordered.All(id => entities.Any(e => e.Id == id)))
+            return (ArchetypeError.INCOMPLETE_ORDER, []);
+
+        for (var rank = 0; rank < ordered.Count; rank++)
+            entities.First(e => e.Id == ordered[rank]).Order = rank;
+
+        await ctx.SaveChangesAsync();
+
+        foreach (var entity in entities)
+            await archetypeAgent.DoUpdatedAsync(entity);
+
+        await permissionCache.SignalSpaceInvalidationAsync(spaceId);
+
+        var result = entities.OrderBy(x => x.Order).Select(x => x.ToDto()).ToList();
+
+        await Fire(new ArchetypesReordered(spaceId, result));
+
+        return (ArchetypeError.NONE, result);
     }
 
     public async Task<ChannelEntitlementOverwrite?>

@@ -31,6 +31,16 @@ public record ArchetypeEntity : ArgonEntityWithOwnership, IArchetype, IEntityTyp
     public Color   Colour     { get; set; }
     public string? IconFileId { get; init; }
 
+    /// <summary>
+    /// Rank in the space, highest first. Null means unranked.
+    /// </summary>
+    /// <remarks>
+    /// Nullable rather than defaulted to zero because every archetype that existed before ranking
+    /// genuinely has no rank, and zero would claim they were all tied for the top. Readers sort
+    /// nulls last and fall back to the order they were sent, which is what they did before.
+    /// </remarks>
+    public int? Order { get; set; }
+
     public virtual ICollection<SpaceMemberArchetypeEntity> SpaceMemberRoles { get; set; }
         = new List<SpaceMemberArchetypeEntity>();
 
@@ -53,5 +63,5 @@ public record ArchetypeEntity : ArgonEntityWithOwnership, IArchetype, IEntityTyp
 
     public static Archetype Map(scoped in ArchetypeEntity self)
         => new(self.Id, self.SpaceId, self.Name, self.Description, self.IsMentionable, self.Colour.ToArgb(), self.IsHidden, self.IsLocked,
-            self.IsGroup, self.IsDefault, self.IconFileId, self.Entitlement);
+            self.IsGroup, self.IsDefault, self.IconFileId, self.Entitlement, self.Order);
 }

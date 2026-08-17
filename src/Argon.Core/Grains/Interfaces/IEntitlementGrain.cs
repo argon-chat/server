@@ -15,6 +15,23 @@ public interface IEntitlementGrain : IGrainWithGuidKey
     [Alias(nameof(UpdateArchetypeAsync))]
     Task<Archetype?> UpdateArchetypeAsync(Archetype dto);
 
+    /// <summary>Removes an archetype and every grant of it. <see cref="ArchetypeError.NONE"/> on success.</summary>
+    [Alias(nameof(DeleteArchetypeAsync))]
+    Task<ArchetypeError> DeleteArchetypeAsync(Guid archetypeId);
+
+    /// <summary>
+    /// Rewrites the whole hierarchy from a complete list of ids, highest first, and returns the
+    /// space's archetypes in their new order.
+    /// </summary>
+    /// <remarks>
+    /// The whole list rather than one moved id: two people dragging at once would otherwise each
+    /// write a position computed against a hierarchy the other had already changed. A list that
+    /// does not name every archetype exactly once is rejected as
+    /// <see cref="ArchetypeError.INCOMPLETE_ORDER"/> rather than partially applied.
+    /// </remarks>
+    [Alias(nameof(ReorderArchetypesAsync))]
+    Task<(ArchetypeError error, List<Archetype> archetypes)> ReorderArchetypesAsync(List<Guid> ordered);
+
     [Alias(nameof(GetChannelEntitlementOverwrites))]
     Task<List<ChannelEntitlementOverwrite>> GetChannelEntitlementOverwrites(Guid channelId);
 

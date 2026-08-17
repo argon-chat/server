@@ -1,6 +1,7 @@
 namespace ArgonComplexTest.Tests;
 
 using ArgonContracts;
+using ion.runtime;
 using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
@@ -193,5 +194,203 @@ public class ArchetypeTests : TestBase
            .DeleteEntitlementForChannel(spaceId, channelId, Guid.NewGuid(), ct);
 
         Assert.That(deleted, Is.False);
+    }
+
+    // ── Deleting a role ──────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task DeleteArchetype_RemovesItFromTheSpace(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId   = await NewSpaceAsync(ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "temps", ct);
+
+        var result = await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, archetype.id, ct);
+        Assert.That(result, Is.InstanceOf<SuccessDeleteArchetype>());
+
+        var all = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        Assert.That(all.Values.Select(a => a.id), Does.Not.Contain(archetype.id));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task DeleteArchetype_TakesItsGrantsWithIt(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId   = await NewSpaceAsync(ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "doomed", ct);
+
+        var detailed = await Archetypes(scope.ServiceProvider).GetDetailedServerArchetypes(spaceId, ct);
+        var me       = detailed.Values.SelectMany(g => g.members.Values).FirstOrDefault();
+
+        if (me != Guid.Empty)
+            await Archetypes(scope.ServiceProvider).SetArchetypeToMember(spaceId, me, archetype.id, true, ct);
+
+        await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, archetype.id, ct);
+
+        // A grant outliving its role is a row pointing at nothing, and the member list would keep
+        // grouping people under a role that is gone.
+        var after = await Archetypes(scope.ServiceProvider).GetDetailedServerArchetypes(spaceId, ct);
+        Assert.That(after.Values.Select(g => g.archetype.id), Does.Not.Contain(archetype.id));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task DeleteArchetype_RefusesTheDefaults(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+
+        var all = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+
+        Assert.Multiple(async () =>
+        {
+            foreach (var seeded in all.Values.Where(a => a.isDefault))
+            {
+                var result = await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, seeded.id, ct);
+
+                // These are what the permission system falls back to when a member holds nothing
+                // else. Removing one leaves those members with no answer at all.
+                Assert.That(result, Is.InstanceOf<FailedDeleteArchetype>(), $"'{seeded.name}' must not be deletable");
+                Assert.That(((FailedDeleteArchetype)result).error, Is.EqualTo(ArchetypeError.IS_DEFAULT));
+            }
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task DeleteArchetype_WithUnknownId_ReturnsNotFound(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+
+        var result = await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, Guid.NewGuid(), ct);
+
+        Assert.That(result, Is.InstanceOf<FailedDeleteArchetype>());
+        Assert.That(((FailedDeleteArchetype)result).error, Is.EqualTo(ArchetypeError.NOT_FOUND));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task DeleteArchetype_FromAStranger_IsRefused(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId   = await NewSpaceAsync(ct);
+        var archetype = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "notyours", ct);
+
+        // Someone who is not in the space at all. Anything but a refusal here is a way to dismantle
+        // a stranger's permission model with nothing but a space id.
+        SetAuthToken(await RegisterAndGetTokenAsync(ct));
+
+        var result = await Archetypes(scope.ServiceProvider).DeleteArchetype(spaceId, archetype.id, ct);
+
+        Assert.That(result, Is.InstanceOf<FailedDeleteArchetype>());
+        Assert.That(((FailedDeleteArchetype)result).error, Is.EqualTo(ArchetypeError.NO_PERMISSION));
+    }
+
+    // ── Ranking ──────────────────────────────────────────────────────────────
+
+    [Test, CancelAfter(120_000)]
+    public async Task ReorderArchetypes_WritesTheRankItWasGiven(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "mods", ct);
+
+        var all     = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        var ordered = all.Values.Select(a => a.id).Reverse().ToArray();
+
+        var result = await Archetypes(scope.ServiceProvider)
+           .ReorderArchetypes(spaceId, new IonArray<Guid>(ordered), ct);
+
+        Assert.That(result, Is.InstanceOf<SuccessReorderArchetypes>());
+
+        var ranked = ((SuccessReorderArchetypes)result).archetypes.Values.ToList();
+
+        Assert.Multiple(() =>
+        {
+            // Highest first, and dense: a gap or a repeat means two roles claim the same rank and
+            // the member list has to break the tie by guessing again.
+            Assert.That(ranked.Select(a => a.id), Is.EqualTo(ordered).AsCollection);
+            Assert.That(ranked.Select(a => a.order), Is.EqualTo(Enumerable.Range(0, ordered.Length).Cast<int?>()).AsCollection);
+        });
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task ReorderArchetypes_SurvivesAReadBack(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "keepers", ct);
+
+        var all     = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        var ordered = all.Values.Select(a => a.id).Reverse().ToArray();
+
+        await Archetypes(scope.ServiceProvider).ReorderArchetypes(spaceId, new IonArray<Guid>(ordered), ct);
+
+        // The returned list is easy to get right by accident; the next read is what clients see.
+        var reread = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+
+        Assert.That(
+            reread.Values.OrderBy(a => a.order).Select(a => a.id),
+            Is.EqualTo(ordered).AsCollection);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task ReorderArchetypes_WithAPartialList_ChangesNothing(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "partials", ct);
+
+        var all   = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        var short_ = all.Values.Select(a => a.id).Take(all.Size - 1).ToArray();
+
+        var result = await Archetypes(scope.ServiceProvider)
+           .ReorderArchetypes(spaceId, new IonArray<Guid>(short_), ct);
+
+        Assert.That(result, Is.InstanceOf<FailedReorderArchetypes>());
+        Assert.That(((FailedReorderArchetypes)result).error, Is.EqualTo(ArchetypeError.INCOMPLETE_ORDER));
+
+        // Rejected, not half-applied: the roles it did name must not have been ranked.
+        var after = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        Assert.That(after.Values.Select(a => a.order), Is.All.Null);
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task ReorderArchetypes_WithARepeatedId_IsRefused(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+        await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "dupes", ct);
+
+        var all = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+
+        // Right length, wrong contents — the check that counts alone would let through.
+        var ids = all.Values.Select(a => a.id).ToArray();
+        ids[^1] = ids[0];
+
+        var result = await Archetypes(scope.ServiceProvider)
+           .ReorderArchetypes(spaceId, new IonArray<Guid>(ids), ct);
+
+        Assert.That(result, Is.InstanceOf<FailedReorderArchetypes>());
+        Assert.That(((FailedReorderArchetypes)result).error, Is.EqualTo(ArchetypeError.INCOMPLETE_ORDER));
+    }
+
+    [Test, CancelAfter(120_000)]
+    public async Task CreateArchetype_LandsBelowTheRankedOnes(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var spaceId = await NewSpaceAsync(ct);
+
+        var all = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        await Archetypes(scope.ServiceProvider)
+           .ReorderArchetypes(spaceId, new IonArray<Guid>(all.Values.Select(a => a.id).ToArray()), ct);
+
+        var fresh = await Archetypes(scope.ServiceProvider).CreateArchetype(spaceId, "newcomer", ct);
+
+        // A new role carries base entitlements, so ranking it above the existing ones would let it
+        // out-rank roles that were deliberately placed.
+        var after   = await Archetypes(scope.ServiceProvider).GetServerArchetypes(spaceId, ct);
+        var lowest  = after.Values.Where(a => a.id != fresh.id).Max(a => a.order);
+
+        Assert.That(fresh.order, Is.Not.Null);
+        Assert.That(fresh.order, Is.GreaterThan(lowest));
     }
 }
