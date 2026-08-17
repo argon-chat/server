@@ -34,9 +34,9 @@ public class DerivedRootsTests
     [Test]
     public void The_walk_follows_the_product_s_own_extension_methods()
     {
-        // AppHubFeature.Configure is one line — ctx.Builder.AddSignalRAppHub() — and the hub is
-        // registered inside that method, in another assembly.
-        Assert.That(RootsOf<AppHubFeature>(), Does.Contain(typeof(Argon.Core.Features.Transport.AppHubServer)));
+        // RealtimeBusFeature.Configure is one line — ctx.Builder.AddRealtimeBus() — and AppHubServer
+        // is registered inside that method, in another assembly.
+        Assert.That(RootsOf<RealtimeBusFeature>(), Does.Contain(typeof(Argon.Core.Features.Transport.AppHubServer)));
     }
 
     [Test]

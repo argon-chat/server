@@ -132,16 +132,36 @@ public sealed class RewritesFeature : IArgonFeature
         => ctx.App.UseRewrites();
 }
 
+/// <summary>
+/// The realtime bus every role publishes events onto.
+/// </summary>
+/// <remarks>
+/// A silo needs this and does not need <see cref="AppHubFeature"/>: six grain classes take
+/// <c>AppHubServer</c>, and publishing goes through the Redis backplane to whichever node holds the
+/// client's connection. Accepting connections is the endpoint's job, not the bus's.
+/// </remarks>
+public sealed class RealtimeBusFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("realtime-bus")
+            .Describing("SignalR over the Redis backplane, and the replay log behind it")
+            .Requires<CacheFeature>();
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Builder.AddRealtimeBus();
+}
+
 public sealed class AppHubFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("SignalR event hub")
+        => d.Describing("the client-facing end of the realtime bus")
+            .Requires<RealtimeBusFeature>()
             .Requires<ArgonAuthorizationFeature>()
             .After<RoutingFeature>()
             .Options<AppHubOptions>("AppHub");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddSignalRAppHub();
+        => ctx.Builder.AddAppHubEndpoint();
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapHub<AppHub>(ctx.Options<AppHubOptions>().Path,

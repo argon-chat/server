@@ -92,8 +92,20 @@ public class RoleStartupTests
             if (IsSuppliedByOrleans(parameter))
                 continue;
 
-            if (services.GetService(parameter.ParameterType) is null)
-                missing.Add($"{grain.Name} needs {parameter.ParameterType.Name}, which role '{id}' does not register");
+            // Resolving, not just looking up: a service can be registered and still be impossible to
+            // build because something it depends on is not. KlipyService is registered on core and
+            // needs IS3StorageService, which lives on media — the grain that takes it fails to
+            // activate all the same.
+            try
+            {
+                if (services.GetService(parameter.ParameterType) is null)
+                    missing.Add($"{grain.Name} needs {parameter.ParameterType.Name}, which role '{id}' does not register");
+            }
+            catch (Exception e)
+            {
+                missing.Add($"{grain.Name} needs {parameter.ParameterType.Name}, which role '{id}' cannot build: " +
+                            e.Message.Split(" while attempting")[0]);
+            }
         }
 
         Assert.That(missing, Is.Empty, string.Join(Environment.NewLine, missing.Distinct()));

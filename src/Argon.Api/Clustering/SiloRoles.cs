@@ -32,6 +32,18 @@ public sealed class CoreRole : IArgonRole
         features.Add<GeoIpFeature>();
         features.Add<SfuFeature>();
         features.Add<KlipyFeature>();
+
+        // Every grain that raises an event needs the bus. Publishing goes through the backplane, so
+        // this brings no listening socket with it — the client endpoint is entrypoint's business.
+        features.Add<RealtimeBusFeature>();
+
+        // SecurityGrain and AuthorizationGrain do the password and device work themselves.
+        features.Add<ArgonAuthorizationFeature>();
+
+        // ChannelGrain and SavedGifsGrain take IS3StorageService directly rather than going through
+        // IFileStorageGrain, so the S3 client lands here whatever role owns the storage grain. That
+        // is a leak worth closing at the call sites, not a decision about where media belongs.
+        features.Add<FileStorageFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -54,6 +66,13 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<SecurityGrain>();
         registry.AddToRef<UserTrustGrain>();
         registry.AddToRef<FeatureFlagGrain>();
+
+        // Space RBAC — archetypes, channel permission overwrites, member assignment — keyed by
+        // spaceId. "Entitlement" here is the permission bitmask, not anything paid, and it was on
+        // commerce for no better reason than the word. Beside SpaceGrain it shares the key, and the
+        // client's login burst stops crossing a role boundary for it.
+        registry.AddToRef<EntitlementGrain>();
+
         registry.AddToRef<OperatorAuthChallengeGrain>();
         registry.AddToRef<AppsManagementGrain>();
         registry.AddToRef<DevTeamsGrain>();
@@ -82,6 +101,11 @@ public sealed class VoiceRole : IArgonRole
         features.Add<RepositoriesFeature>();
         features.Add<PermissionsFeature>();
         features.Add<SfuFeature>();
+
+        // CallGrain and SipGrain find and notify the sessions in a call, and post the "call started"
+        // system message.
+        features.Add<PresenceFeature>();
+        features.Add<MessagesFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -146,10 +170,15 @@ public sealed class CommerceRole : IArgonRole
     {
         features.Add<TelemetryFeature>();
         features.Add<SentryFeature>();
-        features.Add<CacheFeature>(); 
+        features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
         features.Add<PermissionsFeature>();
         features.Add<XsollaFeature>();
+
+        // A purchase tells the buyer and their space about itself.
+        features.Add<RealtimeBusFeature>();
+        features.Add<PresenceFeature>();
+        features.Add<NotificationsFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -158,7 +187,6 @@ public sealed class CommerceRole : IArgonRole
         registry.AddToRef<SpaceBoostGrain>();
         registry.AddToRef<InventoryGrain>();
         registry.AddToRef<UserLevelGrain>();
-        registry.AddToRef<EntitlementGrain>();
 
         registry.AcceptRemote<IUserGrain>("single call site in UltimaGrain");
     }
@@ -182,6 +210,13 @@ public sealed class JobsRole : IArgonRole
         features.Add<AccountDeletionFeature>();
         features.Add<ReportSystemFeature>();
         features.Add<NotificationsFeature>();
+
+        // Deleting an account verifies the password and closes the sessions; exporting one writes an
+        // archive to the export bucket.
+        features.Add<ArgonAuthorizationFeature>();
+        features.Add<PresenceFeature>();
+        features.Add<FileStorageFeature>();
+        features.Add<OtpFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)
@@ -197,5 +232,8 @@ public sealed class JobsRole : IArgonRole
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
         registry.AcceptRemote<IUserTrustGrain>("single call site in ReportGrain");
+        registry.AcceptRemote<IUserGrain>(
+            "reached through the authorization stack the deletion path needs; co-hosting it would " +
+            "put a second copy of core's busiest worker on a role that runs batch work");
     }
 }

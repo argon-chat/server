@@ -236,21 +236,19 @@ public static class SignalRHubExtensions
         => serviceProvider.GetRequiredService<IHubContext<AppHub>>();
 
     // No role check here any more: only the role that enables AppHubFeature calls this.
-    public static void AddSignalRAppHub(this WebApplicationBuilder builder)
+    /// <summary>
+    /// The publishing half: SignalR over the Redis backplane, plus <see cref="AppHubServer"/> and the
+    /// replay log it writes to.
+    /// </summary>
+    /// <remarks>
+    /// Everything that raises an event needs this, silos included — six grain classes take
+    /// <see cref="AppHubServer"/> — and none of them needs the client endpoint. Publishing goes
+    /// through <c>IHubContext</c>, which hands the message to the backplane; the node holding the
+    /// client's connection is the one that delivers it. Mapping the hub is what accepts connections,
+    /// and that is a separate concern with its own feature.
+    /// </remarks>
+    public static void AddRealtimeBus(this WebApplicationBuilder builder)
     {
-        builder.Services.AddAuthentication()
-           .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
-
-        builder.Services.AddAuthorization(o =>
-        {
-            o.AddPolicy("ticket", policy =>
-            {
-                policy.AddAuthenticationSchemes("Ticket");
-                policy.RequireAuthenticatedUser();
-                policy.RequireClaim("typ", "ticket");
-            });
-        });
-
         builder.AddBotRuntimeServices();
 
         builder.Services
@@ -265,6 +263,26 @@ public static class SignalRHubExtensions
                 x.Configuration              = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Backplane);
                 x.Configuration.ChannelPrefix = new RedisChannel("argon-bus", RedisChannel.PatternMode.Literal);
             });
+    }
+
+    /// <summary>
+    /// The receiving half: the ticket scheme a client authenticates the socket with, and the policy
+    /// the mapped hub requires. Only a role that clients connect to needs it.
+    /// </summary>
+    public static void AddAppHubEndpoint(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddAuthentication()
+           .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
+
+        builder.Services.AddAuthorization(o =>
+        {
+            o.AddPolicy("ticket", policy =>
+            {
+                policy.AddAuthenticationSchemes("Ticket");
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("typ", "ticket");
+            });
+        });
     }
 }
 
