@@ -1,8 +1,11 @@
 namespace ArgonComplexTest;
 
 using Argon.Api.Clustering;
+using Argon.Api.Features.AccountConsole;
+using Argon.Entities;
 using Argon.Features.Clustering;
 using ArgonComplexTest.Infrastructure;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans;
@@ -24,7 +27,7 @@ public class RoleStartupTests
         ];
 
     private static IEnumerable<ArgonRoleId> ClientRoles()
-        => [ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin];
+        => [ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin, ArgonRoleId.Account];
 
     private static RoleDescriptor Describe(ArgonRoleId id)
         => ArgonClusterCatalog.Build().Require(id);
@@ -96,6 +99,37 @@ public class RoleStartupTests
 
             Assert.That(role.Features.Ordered.Select(f => f.Name),
                 Does.Contain("jwt").And.Contain("cache").And.Contain("vault"));
+        });
+    }
+
+    /// <summary>
+    /// The account console reaches its data through <c>IDevTeamsGrain</c>, which is what lets the role
+    /// run without a database connection at all. A <c>DatabaseFeature</c> creeping back on would not
+    /// break anything visibly — it would just quietly hand the role a connection pool it has no use
+    /// for, and the next person would write a query against it.
+    /// </summary>
+    [Test, CancelAfter(300_000)]
+    public async Task The_account_console_serves_its_ion_services_without_a_database()
+    {
+        await using var host = new RoleHost(Settings, ArgonRoleId.Account, siloPort: 0,
+            ArgonClusterEndpoints.DefaultClusterId);
+
+        var services = host.Services;
+        var role     = services.GetRequiredService<RoleDescriptor>();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(role.Features.Ordered.Select(f => f.Name),
+                Does.Contain("account-console").And.Contain("ion-endpoints"));
+            Assert.That(role.Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"));
+
+            Assert.That(services.GetService<AccountContracts.IAccountConsole>(), Is.Not.Null);
+            Assert.That(services.GetService<AccountContracts.ITeamConsole>(), Is.Not.Null);
+            Assert.That(services.GetService<AccountContracts.IAppManagement>(), Is.Not.Null);
+            Assert.That(services.GetService<ITeamAccessChecker>(), Is.Not.Null);
+
+            Assert.That(services.GetService<IDbContextFactory<ApplicationDbContext>>(), Is.Null,
+                "the console talks to grains, not to Postgres");
         });
     }
 

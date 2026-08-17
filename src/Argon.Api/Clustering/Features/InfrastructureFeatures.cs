@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.AccountConsole;
 using global::Sentry.Infrastructure;
 
 public sealed class LoggingFeature : IArgonFeature
@@ -124,6 +125,17 @@ public sealed class OperatorAuthFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddOperatorAuth();
+}
+
+public sealed class AccountConsoleAuthFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("account-console-auth")
+            .Describing("developer authentication for the account console");
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.Configure<AccountConsoleAuthOptions>(
+            ctx.Configuration.GetSection(AccountConsoleAuthOptions.SectionName));
 }
 
 public sealed class CaptchaFeature : IArgonFeature

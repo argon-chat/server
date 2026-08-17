@@ -81,7 +81,8 @@ public class ProductionTopologyTests
                          (ArgonRoleId.BotApi, "bot-api"),
                          (ArgonRoleId.EntryPoint, "ion"),
                          (ArgonRoleId.EntryPoint, "app-hub"),
-                         (ArgonRoleId.Admin, "admin-console")
+                         (ArgonRoleId.Admin, "admin-console"),
+                         (ArgonRoleId.Account, "account-console")
                      })
             {
                 var order = catalog.Require(role).Features.Ordered.Select(f => f.Name).ToList();

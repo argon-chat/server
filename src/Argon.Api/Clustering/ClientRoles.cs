@@ -61,6 +61,29 @@ public sealed class BotApiRole : IArgonRole
     }
 }
 
+public sealed class AccountConsoleRole : IArgonRole
+{
+    public static ArgonRoleId Id => ArgonRoleId.Account;
+
+    public string Description => "developer account console — accounts, dev teams and their apps";
+    public bool   IsClient    => true;
+
+    // No DatabaseFeature: everything this role reads or writes goes through IDevTeamsGrain, so it
+    // never opens a connection of its own. That is the whole reason the console's repository became
+    // a grain rather than being carried over as a service.
+    public void OnFeatures(IArgonFeatureRegistry features)
+    {
+        features.Add<TelemetryFeature>();
+        features.Add<SentryFeature>();
+
+        features.Add<KestrelFeature>();
+        features.Add<RoutingFeature>();
+        features.Add<HostHooksFeature>();
+
+        features.Add<AccountConsoleFeature>();
+    }
+}
+
 public sealed class AdminRole : IArgonRole
 {
     public static ArgonRoleId Id => ArgonRoleId.Admin;

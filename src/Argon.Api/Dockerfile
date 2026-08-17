@@ -18,9 +18,13 @@ WORKDIR /src
 
 COPY Directory.Build.props .
 
+# Every project Argon.Api reaches transitively has to be here, or the restore layer fails on a
+# ProjectReference it cannot resolve.
 COPY src/Argon.Api/Argon.Api.csproj src/Argon.Api/
 COPY src/Argon.Core/Argon.Core.csproj src/Argon.Core/
 COPY src/Argon.CodeGen/Argon.Ion.CodeGen.csproj src/Argon.CodeGen/
+COPY src/Argon.CodeGenAdmin/Argon.Ion.CodeGenAdmin.csproj src/Argon.CodeGenAdmin/
+COPY src/Argon.CodeGenAccount/Argon.Ion.CodeGenAccount.csproj src/Argon.CodeGenAccount/
 
 RUN dotnet restore src/Argon.Api/Argon.Api.csproj
 
@@ -45,5 +49,9 @@ ENV DOTNET_ENABLE_HTTP3="true"
 EXPOSE 5002 5002/udp
 EXPOSE 5001 5001/udp
 EXPOSE 5000 5000/udp
+
+# Consoles listen on ports of their own, one role each: admin, then the developer account console.
+EXPOSE 8920
+EXPOSE 8930
 
 ENTRYPOINT ["dotnet", "Argon.Api.dll"]

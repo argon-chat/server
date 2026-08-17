@@ -11,7 +11,7 @@ public sealed class CoreRole : IArgonRole
 {
     public static ArgonRoleId Id => ArgonRoleId.Core;
 
-    public string Description   => "space, channel, identity, session, bot runtime";
+    public string Description   => "space, channel, identity, session, bot runtime, dev teams";
     public bool   IsClient      => false;
     public bool   UsesReminders => true;
 
@@ -56,6 +56,7 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<FeatureFlagGrain>();
         registry.AddToRef<OperatorAuthChallengeGrain>();
         registry.AddToRef<AppsManagementGrain>();
+        registry.AddToRef<DevTeamsGrain>();
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();
 

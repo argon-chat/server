@@ -79,6 +79,7 @@
     </ItemGroup>
 
     <ItemGroup>
+        <ProjectReference Include="..\Argon.CodeGenAccount\Argon.Ion.CodeGenAccount.csproj" />
         <ProjectReference Include="..\Argon.CodeGenAdmin\Argon.Ion.CodeGenAdmin.csproj" />
         <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj" />
     </ItemGroup>

@@ -12,6 +12,7 @@ public readonly record struct ArgonRoleId(string Value)
     public static readonly ArgonRoleId EntryPoint = new("entrypoint");
     public static readonly ArgonRoleId BotApi     = new("botapi");
     public static readonly ArgonRoleId Admin      = new("admin");
+    public static readonly ArgonRoleId Account    = new("account");
 
     public bool IsEmpty
         => string.IsNullOrWhiteSpace(Value);

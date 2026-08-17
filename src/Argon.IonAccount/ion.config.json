@@ -1,0 +1,21 @@
+{
+    "name": "AccountContracts",
+    "features": [
+        "orleans",
+        "std"
+    ],
+    "generators": {
+        "dotnet": {
+            "features": [
+                "server",
+                "client",
+                "models"
+            ],
+            "outputs": "./../Argon.CodeGenAccount/"
+        },
+        "browser": {
+            "outputFile": "./../src/lib/glue/accountConsole.ts",
+            "singleFileOutput": true
+        }
+    }
+}

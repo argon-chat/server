@@ -8,7 +8,7 @@ public sealed class DistributedTopology : IArgonTopology
 
     public static ArgonRoleId[] Roles =>
     [
-        ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin,
+        ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin, ArgonRoleId.Account,
         ArgonRoleId.Core, ArgonRoleId.Voice, ArgonRoleId.Media, ArgonRoleId.Moderation,
         ArgonRoleId.Commerce, ArgonRoleId.Jobs
     ];

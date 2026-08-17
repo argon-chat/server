@@ -24,5 +24,6 @@ public sealed class IntegrationTestRole : IArgonRole
         registry.Include<EntryPointRole>();
         registry.Include<BotApiRole>();
         registry.Include<AdminRole>();
+        registry.Include<AccountConsoleRole>();
     }
 }

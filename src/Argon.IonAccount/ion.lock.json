@@ -1,0 +1,1023 @@
+{
+  "version": 1,
+  "module": "AccountContracts",
+  "definitions": {
+    "DeleteAccountResult": {
+      "kind": "Msg",
+      "nextIndex": 4,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "error",
+          "type": "DeleteAccountError"
+        },
+        {
+          "index": 2,
+          "name": "scheduledAt",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 3,
+          "name": "executionAt",
+          "type": "Maybe\u003Cdatetime\u003E"
+        }
+      ]
+    },
+    "CancelDeleteResult": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "success",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "error",
+          "type": "CancelDeleteError"
+        }
+      ]
+    },
+    "MeDetails": {
+      "kind": "Msg",
+      "nextIndex": 7,
+      "fields": [
+        {
+          "index": 0,
+          "name": "gdrpExportInProgress",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "deletionStatus",
+          "type": "DeletionStatusKind"
+        },
+        {
+          "index": 2,
+          "name": "deletionScheduledAt",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 3,
+          "name": "deletionExecutionAt",
+          "type": "Maybe\u003Cdatetime\u003E"
+        },
+        {
+          "index": 4,
+          "name": "avatarFileId",
+          "type": "string"
+        },
+        {
+          "index": 5,
+          "name": "userId",
+          "type": "guid"
+        },
+        {
+          "index": 6,
+          "name": "displayName",
+          "type": "string"
+        }
+      ]
+    },
+    "DeleteAccountError": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "InvalidPassword": "1",
+        "AlreadyScheduled": "2",
+        "HasActiveSubscription": "3",
+        "OwnsSpaces": "4",
+        "AccountLocked": "5",
+        "InternalError": "6"
+      },
+      "baseType": "u4"
+    },
+    "CancelDeleteError": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "NotScheduled": "1",
+        "AlreadyExecuting": "2",
+        "AlreadyCompleted": "3",
+        "InternalError": "4"
+      },
+      "baseType": "u4"
+    },
+    "RequestExportGDRPStatus": {
+      "kind": "Enum",
+      "members": {
+        "Unknown": "0",
+        "Ok": "1",
+        "Already": "2",
+        "RateLimit": "3"
+      },
+      "baseType": "u4"
+    },
+    "DeletionStatusKind": {
+      "kind": "Enum",
+      "members": {
+        "None": "0",
+        "Scheduled": "1",
+        "Executing": "2",
+        "Completed": "3",
+        "Failed": "4"
+      },
+      "baseType": "u4"
+    },
+    "AccountConsole": {
+      "kind": "Service",
+      "methods": {
+        "GetMe": {
+          "args": [],
+          "returns": "MeDetails",
+          "modifiers": []
+        },
+        "RequestDeleteAccount": {
+          "args": [
+            {
+              "index": 0,
+              "name": "password",
+              "type": "string"
+            }
+          ],
+          "returns": "DeleteAccountResult",
+          "modifiers": []
+        },
+        "CancelDeleteAccount": {
+          "args": [],
+          "returns": "CancelDeleteResult",
+          "modifiers": []
+        },
+        "RequestExportGDRP": {
+          "args": [],
+          "returns": "RequestExportGDRPStatus",
+          "modifiers": []
+        }
+      }
+    },
+    "AddRedirectResult": {
+      "kind": "Msg",
+      "nextIndex": 2,
+      "fields": [
+        {
+          "index": 0,
+          "name": "ok",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "error",
+          "type": "Maybe\u003Cstring\u003E"
+        }
+      ]
+    },
+    "MyInvitesInfo": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "from",
+          "type": "ShortUserDetails"
+        },
+        {
+          "index": 1,
+          "name": "date",
+          "type": "datetime"
+        },
+        {
+          "index": 2,
+          "name": "team",
+          "type": "TeamShortDetails"
+        }
+      ]
+    },
+    "TeamInviteInfo": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "from",
+          "type": "ShortUserDetails"
+        },
+        {
+          "index": 1,
+          "name": "to",
+          "type": "ShortUserDetails"
+        },
+        {
+          "index": 2,
+          "name": "date",
+          "type": "datetime"
+        }
+      ]
+    },
+    "AppDetails": {
+      "kind": "Msg",
+      "nextIndex": 13,
+      "fields": [
+        {
+          "index": 0,
+          "name": "appId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "teamId",
+          "type": "guid"
+        },
+        {
+          "index": 2,
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "desc",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 4,
+          "name": "botDetails",
+          "type": "Maybe\u003CBotDetails\u003E"
+        },
+        {
+          "index": 5,
+          "name": "clientAppDetails",
+          "type": "Maybe\u003CClientAppDetails\u003E"
+        },
+        {
+          "index": 6,
+          "name": "kind",
+          "type": "AppKind"
+        },
+        {
+          "index": 7,
+          "name": "clientId",
+          "type": "string"
+        },
+        {
+          "index": 8,
+          "name": "clientSecret",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 9,
+          "name": "verificationKey",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 10,
+          "name": "createdAt",
+          "type": "datetime"
+        },
+        {
+          "index": 11,
+          "name": "requiredScopes",
+          "type": "Array\u003CScopeKeyValue\u003E"
+        },
+        {
+          "index": 12,
+          "name": "allowedRedirects",
+          "type": "Array\u003Cstring\u003E"
+        }
+      ]
+    },
+    "ScopeKeyValue": {
+      "kind": "Msg",
+      "nextIndex": 3,
+      "fields": [
+        {
+          "index": 0,
+          "name": "isRequired",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "key",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "isLocked",
+          "type": "bool"
+        }
+      ]
+    },
+    "BotDetails": {
+      "kind": "Msg",
+      "nextIndex": 9,
+      "fields": [
+        {
+          "index": 0,
+          "name": "requiresOAuth2",
+          "type": "bool"
+        },
+        {
+          "index": 1,
+          "name": "requiresArgxAuth",
+          "type": "bool"
+        },
+        {
+          "index": 2,
+          "name": "allowDMs",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isVerfied",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "maxSpaces",
+          "type": "i4"
+        },
+        {
+          "index": 5,
+          "name": "avatarFileId",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 6,
+          "name": "botToken",
+          "type": "string"
+        },
+        {
+          "index": 7,
+          "name": "lifecycleState",
+          "type": "BotLifecycleState"
+        },
+        {
+          "index": 8,
+          "name": "requiredEntitlements",
+          "type": "u8"
+        }
+      ]
+    },
+    "ClientAppDetails": {
+      "kind": "Msg",
+      "nextIndex": 8,
+      "fields": [
+        {
+          "index": 0,
+          "name": "platform",
+          "type": "ClientAppPlatform"
+        },
+        {
+          "index": 1,
+          "name": "allowedDevelopmentRegenerateCoockies",
+          "type": "bool"
+        },
+        {
+          "index": 2,
+          "name": "isPublic",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isVerfied",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "repositoryUrl",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 5,
+          "name": "rateLimitPerMinute",
+          "type": "i4"
+        },
+        {
+          "index": 6,
+          "name": "websiteUrl",
+          "type": "Maybe\u003Cstring\u003E"
+        },
+        {
+          "index": 7,
+          "name": "isInternalApp",
+          "type": "bool"
+        }
+      ]
+    },
+    "TeamShortDetails": {
+      "kind": "Msg",
+      "nextIndex": 4,
+      "fields": [
+        {
+          "index": 0,
+          "name": "teamId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "avatarFileId",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "appsCount",
+          "type": "i4"
+        }
+      ]
+    },
+    "TeamDetails": {
+      "kind": "Msg",
+      "nextIndex": 6,
+      "fields": [
+        {
+          "index": 0,
+          "name": "teamId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "ownerId",
+          "type": "guid"
+        },
+        {
+          "index": 2,
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "avatarFileId",
+          "type": "string"
+        },
+        {
+          "index": 4,
+          "name": "members",
+          "type": "Array\u003CTeamMemberDetails\u003E"
+        },
+        {
+          "index": 5,
+          "name": "apps",
+          "type": "Array\u003CAppDetails\u003E"
+        }
+      ]
+    },
+    "TeamMemberDetails": {
+      "kind": "Msg",
+      "nextIndex": 6,
+      "fields": [
+        {
+          "index": 0,
+          "name": "user",
+          "type": "ShortUserDetails"
+        },
+        {
+          "index": 1,
+          "name": "teamId",
+          "type": "guid"
+        },
+        {
+          "index": 2,
+          "name": "isPending",
+          "type": "bool"
+        },
+        {
+          "index": 3,
+          "name": "isOwner",
+          "type": "bool"
+        },
+        {
+          "index": 4,
+          "name": "claims",
+          "type": "Array\u003Cstring\u003E"
+        },
+        {
+          "index": 5,
+          "name": "joinedAt",
+          "type": "datetime"
+        }
+      ]
+    },
+    "ShortUserDetails": {
+      "kind": "Msg",
+      "nextIndex": 4,
+      "fields": [
+        {
+          "index": 0,
+          "name": "userId",
+          "type": "guid"
+        },
+        {
+          "index": 1,
+          "name": "avatarFileId",
+          "type": "string"
+        },
+        {
+          "index": 2,
+          "name": "displayName",
+          "type": "string"
+        },
+        {
+          "index": 3,
+          "name": "username",
+          "type": "string"
+        }
+      ]
+    },
+    "UploadFileError": {
+      "kind": "Enum",
+      "members": {
+        "NONE": "0",
+        "NOT_AUTHORIZED": "1",
+        "INTERNAL_ERROR": "2"
+      },
+      "baseType": "u4"
+    },
+    "InviteUserError": {
+      "kind": "Enum",
+      "members": {
+        "OK": "0",
+        "USER_NOT_FOUND": "1",
+        "ALREADY_INVITED": "2",
+        "ALREADY_IN_TEAM": "3",
+        "INTERNAL_ERROR": "4"
+      },
+      "baseType": "u4"
+    },
+    "ClientAppPlatform": {
+      "kind": "Enum",
+      "members": {
+        "WindowsDesktop": "0",
+        "MacOSDesktop": "1",
+        "LinuxDesktop": "2",
+        "WebBased": "3",
+        "iOS": "4",
+        "Android": "5"
+      },
+      "baseType": "u4"
+    },
+    "CheckBotUsernameValid": {
+      "kind": "Enum",
+      "members": {
+        "OK": "0",
+        "ALREADY_CLAIMED": "1",
+        "POSTFIX_BOT_REQUIRED": "2"
+      },
+      "baseType": "u4"
+    },
+    "BotLifecycleState": {
+      "kind": "Enum",
+      "members": {
+        "Development": "0",
+        "Published": "1",
+        "Suspended": "2"
+      },
+      "baseType": "u4"
+    },
+    "AppKind": {
+      "kind": "Enum",
+      "members": {
+        "ClientApp": "0",
+        "BotApp": "1",
+        "WebApp": "2"
+      },
+      "baseType": "u4"
+    },
+    "UploadAvatarResult": {
+      "kind": "Union",
+      "nextIndex": 2,
+      "cases": [
+        {
+          "index": 0,
+          "name": "SuccessUploadAvatarFile"
+        },
+        {
+          "index": 1,
+          "name": "FailedUploadAvatarFile"
+        }
+      ]
+    },
+    "TeamConsole": {
+      "kind": "Service",
+      "methods": {
+        "GetMyTeams": {
+          "args": [],
+          "returns": "Array\u003CTeamShortDetails\u003E",
+          "modifiers": []
+        },
+        "GetTeamDetails": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            }
+          ],
+          "returns": "TeamDetails",
+          "modifiers": []
+        },
+        "GetTeamInvites": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            }
+          ],
+          "returns": "Array\u003CTeamInviteInfo\u003E",
+          "modifiers": []
+        },
+        "CreateTeam": {
+          "args": [
+            {
+              "index": 0,
+              "name": "name",
+              "type": "string"
+            }
+          ],
+          "returns": "TeamDetails",
+          "modifiers": []
+        },
+        "InviteUserToTeam": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "username",
+              "type": "string"
+            }
+          ],
+          "returns": "InviteUserError",
+          "modifiers": []
+        },
+        "BeginUploadTeamAvatar": {
+          "args": [],
+          "returns": "UploadAvatarResult",
+          "modifiers": []
+        },
+        "CompleteUploadTeamAvatar": {
+          "args": [
+            {
+              "index": 0,
+              "name": "blobId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "GetMyInvites": {
+          "args": [],
+          "returns": "Array\u003CMyInvitesInfo\u003E",
+          "modifiers": []
+        },
+        "AcceptTeamInvite": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "DeclineTeamInvite": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        }
+      }
+    },
+    "AppManagement": {
+      "kind": "Service",
+      "methods": {
+        "CreateBotApp": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "index": 2,
+              "name": "username",
+              "type": "string"
+            }
+          ],
+          "returns": "AppDetails",
+          "modifiers": []
+        },
+        "CreateClientApp": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "name",
+              "type": "string"
+            },
+            {
+              "index": 2,
+              "name": "platform",
+              "type": "ClientAppPlatform"
+            }
+          ],
+          "returns": "AppDetails",
+          "modifiers": []
+        },
+        "EnsureCoockiesForApp": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "GetAppDetails": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "AppDetails",
+          "modifiers": []
+        },
+        "RegenerateBotToken": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "string",
+          "modifiers": []
+        },
+        "CheckUsernameForBot": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "username",
+              "type": "string"
+            }
+          ],
+          "returns": "CheckBotUsernameValid",
+          "modifiers": []
+        },
+        "BeginUploadAppAvatar": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            }
+          ],
+          "returns": "UploadAvatarResult",
+          "modifiers": []
+        },
+        "CompleteUploadAppAvatar": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "blobId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "UpdateScope": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "scope",
+              "type": "ScopeKeyValue"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "UpdateRedirects": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "redirects",
+              "type": "Array\u003Cstring\u003E"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "AddRedirect": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "redirect",
+              "type": "string"
+            }
+          ],
+          "returns": "AddRedirectResult",
+          "modifiers": []
+        },
+        "RemoveRedirect": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "redirect",
+              "type": "string"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "PublishBot": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "UnpublishBot": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "SuspendBot": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "UpdateBotEntitlements": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "entitlements",
+              "type": "u8"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        },
+        "SetBotOAuth": {
+          "args": [
+            {
+              "index": 0,
+              "name": "teamId",
+              "type": "guid"
+            },
+            {
+              "index": 1,
+              "name": "appId",
+              "type": "guid"
+            },
+            {
+              "index": 2,
+              "name": "enabled",
+              "type": "bool"
+            }
+          ],
+          "returns": "void",
+          "modifiers": []
+        }
+      }
+    }
+  }
+}

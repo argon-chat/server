@@ -1,0 +1,1 @@
+ionc compile -o Browser
