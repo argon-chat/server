@@ -1,17 +1,9 @@
 namespace Argon.Features.k8s;
 
-using Env;
-
 public static class PreStopHookExtensions
 {
     public static void UsePreStopHook(this WebApplication app)
-        => app.MapWhen(
-            _ => app.Environment.IsWorker() || app.Environment.IsGateway(),
-            @internal =>
-            {
-                @internal.Use(Middleware);
-            }
-        );
+        => app.Use(Middleware);
 
     private async static Task Middleware(HttpContext context, RequestDelegate next)
     {

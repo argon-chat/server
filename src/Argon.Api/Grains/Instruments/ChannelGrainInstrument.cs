@@ -41,14 +41,6 @@ public static class ChannelGrainInstrument
         InstrumentNames.ChannelRecordingsStopped,
         description: "Total number of channel recordings stopped");
 
-    public static readonly Counter<long> LinkedMeetingsCreated = Meter.CreateCounter<long>(
-        InstrumentNames.ChannelLinkedMeetingsCreated,
-        description: "Total number of linked meetings created");
-
-    public static readonly Counter<long> LinkedMeetingsEnded = Meter.CreateCounter<long>(
-        InstrumentNames.ChannelLinkedMeetingsEnded,
-        description: "Total number of linked meetings ended");
-
     public static readonly Counter<long> TypingEvents = Meter.CreateCounter<long>(
         InstrumentNames.ChannelTypingEvents,
         description: "Total number of typing events emitted");

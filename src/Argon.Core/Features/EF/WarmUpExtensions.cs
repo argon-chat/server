@@ -1,7 +1,7 @@
 namespace Argon.Core.Features.EF;
 
 using Argon.Features.EF;
-using Argon.Features.Env;
+using Argon.Features.Clustering;
 using Argon.Features.Vault;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -15,7 +15,7 @@ public static class WarmUpExtension
     {
         public async Task<WebApplication> WarmUp<T>(bool isMigrate = true) where T : DbContext
         {
-            if (app.Environment.IsEntryPoint())
+            if (app.Services.GetRequiredService<RoleDescriptor>().IsClient)
                 return app;
 
             using var scope = app.Services.CreateScope();
@@ -34,7 +34,7 @@ public static class WarmUpExtension
 
         public async Task<WebApplication> WarmUpRotations()
         {
-            if (app.Environment.IsEntryPoint())
+            if (app.Services.GetRequiredService<RoleDescriptor>().IsClient)
                 return app;
 
             using var scope = app.Services.CreateScope();

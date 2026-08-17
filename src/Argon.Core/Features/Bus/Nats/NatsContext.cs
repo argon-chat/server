@@ -2,7 +2,7 @@ namespace Argon.Features.NatsStreaming;
 
 using Api.Features.Bus;
 using Bus;
-using Env;
+using Clustering;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -248,7 +248,7 @@ public static class NatsExtensions
 
         builder.Services.AddSingleton<INatsClient>(q =>
         {
-            var client = q.GetRequiredService<IHostEnvironment>().DetermineClientSpace();
+            var client = q.GetRequiredService<RoleDescriptor>().Id.Value;
 
             return new NatsConnection(new NatsOpts
             {

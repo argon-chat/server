@@ -1,0 +1,165 @@
+namespace Argon.Features.Clustering;
+
+using Argon.Api.Features.Utils;
+using Argon.Grains.Interfaces;
+using Argon.Services;
+using Drains;
+using HealthChecks;
+using NatsStreaming;
+using Orleans.Configuration;
+using Orleans.Dashboard;
+using Orleans.Serialization;
+using Services.Ion;
+
+#pragma warning disable ORLEANSEXP002
+#pragma warning disable ORLEANSEXP001
+#pragma warning disable ORLEANSEXP003
+
+/// <summary>
+/// Orleans hosting driven by the resolved role: a silo restricted to the grains the role hosts, or
+/// a client that hosts none.
+/// </summary>
+/// <remarks>
+/// Replaces <c>AddWorkerOrleans</c> / <c>AddGatewayOrleans</c> / <c>AddSingleOrleansClient</c> /
+/// <c>AddShimsForHybridRole</c>, which branched on <c>ArgonRoleKind</c> and carried three
+/// byte-identical copies of the serializer configuration between them.
+/// </remarks>
+public static class ArgonOrleansHosting
+{
+    /// <summary>
+    /// Storage providers are core configuration, identical on every silo rather than declared per
+    /// role: a role never has to register a provider on another role's behalf.
+    /// </summary>
+    private static readonly List<string> StorageProviders =
+    [
+        IUserSessionGrain.StorageId,
+        IServerInvitesGrain.StorageId,
+        "Default",
+        "meets"
+    ];
+
+    public static IReadOnlySet<string> KnownStorageProviders { get; } = StorageProviders.ToHashSet(StringComparer.Ordinal);
+
+    public static WebApplicationBuilder AddArgonOrleans(this WebApplicationBuilder builder, RoleDescriptor role)
+        => role.IsClient ? builder.AddArgonOrleansClient() : builder.AddArgonSilo(role);
+
+    // ── shared ───────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The one serializer configuration. It used to exist three times, and a converter added to one
+    /// copy was a converter missing from the other two.
+    /// </summary>
+    private static WebApplicationBuilder AddArgonSerializer(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddSerializer(x => x.AddNewtonsoftJsonSerializer(_ => true, options =>
+            options.Configure(z =>
+            {
+                z.SerializerSettings                       ??= new JsonSerializerSettings();
+                z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
+                z.SerializerSettings.Converters.Add(new MessageEntityConverter());
+                z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
+                z.SerializerSettings.Converters.Add(new IonMaybeConverter());
+                z.SerializerSettings.Converters.Add(new IonArrayConverter());
+                z.SerializerSettings.Converters.Add(new StringEnumConverter());
+            })));
+
+        return builder;
+    }
+
+    private static string DatacenterOf(WebApplicationBuilder builder)
+        => ArgonDatacenter.Current;
+
+    // ── client ───────────────────────────────────────────────────────────────────────────────
+
+    private static WebApplicationBuilder AddArgonOrleansClient(this WebApplicationBuilder builder)
+    {
+        builder.AddArgonDatacenter();
+        builder.AddArgonSerializer();
+        builder.AddNatsCtx();
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+        builder.Services.AddOrleansClient(q =>
+            OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, DatacenterOf(builder)));
+
+        return builder;
+    }
+
+    // ── silo ─────────────────────────────────────────────────────────────────────────────────
+
+    private static WebApplicationBuilder AddArgonSilo(this WebApplicationBuilder builder, RoleDescriptor role)
+    {
+        var datacenter = DatacenterOf(builder);
+        var endpoints  = ArgonClusterEndpoints.Resolve(builder.Configuration, datacenter);
+
+        builder.AddArgonDatacenter();
+        builder.AddArgonSerializer();
+        builder.AddNatsCtx();
+        builder.Services.AddSingleton<ArgonRebalancerBackoffProvider>();
+        builder.Services.AddSingleton<ArgonImbalanceToleranceRule>();
+        builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+
+        builder.Host.UseOrleans(silo =>
+        {
+            // A role that exposes the client gateway also serves the dashboard; the rest keep the
+            // gateway port closed so nothing can connect to them directly.
+            if (role.ExposesClusterGateway)
+                silo.ConfigureEndpoints(endpoints.SiloPort, endpoints.GatewayPort).AddDashboard();
+            else
+                silo.ConfigureEndpoints(endpoints.SiloPort, 0);
+
+            silo.UseArgonGrainTypes(role);
+
+            silo.Configure<ClusterOptions>(q =>
+            {
+                q.ClusterId = endpoints.ClusterId;
+                q.ServiceId = endpoints.ServiceId;
+            });
+
+            silo.AddStreaming()
+               .AddActivityPropagation()
+               .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
+               .UseStorages(StorageProviders, "Npgsql", "DefaultConnection")
+               .Configure<ClusterMembershipOptions>(options =>
+                {
+                    options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
+                    options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
+                    options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
+                    options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
+                })
+               .Configure<ExceptionSerializationOptions>(x => x.SupportedNamespacePrefixes.Add("Argon"))
+               .Configure<GrainCollectionOptions>(options =>
+                {
+                    options.CollectionAge     = TimeSpan.FromMinutes(4);
+                    options.CollectionQuantum = TimeSpan.FromMinutes(2);
+                })
+               .Configure<SchedulingOptions>(options =>
+                {
+                    options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
+                    options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
+                });
+
+            // Reminders are per-role: a silo that hosts no IRemindable grain has no reason to poll
+            // the reminder table. Validation rule E3 keeps the flag honest.
+            if (role.UsesReminders)
+                silo.AddReminders()
+                   .UseRedisReminderService(x => x.ConfigurationOptions =
+                        new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
+
+            // The declaration in the role drives validation (E5); the action itself still has to name
+            // the grain and the method, so it stays explicit and gated on the declaration.
+            if (role.StartupCalls.Contains(typeof(IAutoDeleteSchedulerGrain)))
+                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
+                   .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
+                   .EnsureSchedulerActiveAsync());
+
+            silo.AddDistributedGrainDirectory()
+               .UseRedisClustering(x => x.ConfigurationOptions =
+                    new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
+        });
+
+        builder.Services.AddSingleton<ISiloDrainService, SiloDrainService>();
+        builder.Services.AddSiloHealthChecks();
+        builder.Services.AddDrainAwarePlacementFilter();
+
+        return builder;
+    }
+}

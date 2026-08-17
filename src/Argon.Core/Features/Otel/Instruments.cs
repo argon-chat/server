@@ -747,36 +747,6 @@ public static class InstrumentNames
     public const string ChannelRecordingsStopped = "argon-channel-recordings-stopped";
 
     /// <summary>
-    /// Total number of linked meetings created (Counter).
-    /// Tags: result (success, already_exists, no_permission, error)
-    /// </summary>
-    /// <remarks>
-    /// <para><strong>VictoriaMetrics:</strong></para>
-    /// <code>sum(rate(argon_channel_linked_meetings_created[5m])) by (result)</code>
-    /// <para><strong>Grafana:</strong></para>
-    /// <list type="bullet">
-    ///   <item>Rate by result: <c>sum by (result) (rate(argon_channel_linked_meetings_created[$__rate_interval]))</c></item>
-    ///   <item>Success rate %: <c>sum(rate(argon_channel_linked_meetings_created{result="success"}[$__rate_interval])) / sum(rate(argon_channel_linked_meetings_created[$__rate_interval])) * 100</c></item>
-    /// </list>
-    /// </remarks>
-    public const string ChannelLinkedMeetingsCreated = "argon-channel-linked-meetings-created";
-
-    /// <summary>
-    /// Total number of linked meetings ended (Counter).
-    /// Tags: result (success, not_found, no_permission)
-    /// </summary>
-    /// <remarks>
-    /// <para><strong>VictoriaMetrics:</strong></para>
-    /// <code>sum(rate(argon_channel_linked_meetings_ended[5m])) by (result)</code>
-    /// <para><strong>Grafana:</strong></para>
-    /// <list type="bullet">
-    ///   <item>Rate by result: <c>sum by (result) (rate(argon_channel_linked_meetings_ended[$__rate_interval]))</c></item>
-    ///   <item>Total: <c>sum(increase(argon_channel_linked_meetings_ended[$__range]))</c></item>
-    /// </list>
-    /// </remarks>
-    public const string ChannelLinkedMeetingsEnded = "argon-channel-linked-meetings-ended";
-
-    /// <summary>
     /// Total number of typing events emitted (Counter).
     /// Tags: event_type (typing, stop_typing)
     /// </summary>

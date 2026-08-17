@@ -39,7 +39,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IApproveBotEntitlementsResult>.Value = new Ion_IApproveBotEntitlementsResult_Formatter();
       IonFormatterStorage<CreateChannelRequest>.Value = new Ion_CreateChannelRequest_Formatter();
       IonFormatterStorage<RealtimeChannel>.Value = new Ion_RealtimeChannel_Formatter();
-      IonFormatterStorage<LinkedMeetingInfo>.Value = new Ion_LinkedMeetingInfo_Formatter();
       IonFormatterStorage<ArgonChannel>.Value = new Ion_ArgonChannel_Formatter();
       IonFormatterStorage<ReactionInfo>.Value = new Ion_ReactionInfo_Formatter();
       IonFormatterStorage<ArgonMessage>.Value = new Ion_ArgonMessage_Formatter();
@@ -363,8 +362,6 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<BatchMentionOccurred>.Value = new Ion_BatchMentionOccurred_Formatter();
       IonFormatterStorage<UserSecurityDetailsUpdated>.Value = new Ion_UserSecurityDetailsUpdated_Formatter();
       IonFormatterStorage<SpaceDetailsUpdated>.Value = new Ion_SpaceDetailsUpdated_Formatter();
-      IonFormatterStorage<MeetingCreatedFor>.Value = new Ion_MeetingCreatedFor_Formatter();
-      IonFormatterStorage<MeetingDeletedFor>.Value = new Ion_MeetingDeletedFor_Formatter();
       IonFormatterStorage<LeavedFromServerUser>.Value = new Ion_LeavedFromServerUser_Formatter();
       IonFormatterStorage<InteractionAcked>.Value = new Ion_InteractionAcked_Formatter();
       IonFormatterStorage<InteractionDeferred>.Value = new Ion_InteractionDeferred_Formatter();

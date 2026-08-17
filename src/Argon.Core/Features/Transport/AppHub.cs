@@ -235,33 +235,27 @@ public static class SignalRHubExtensions
     public static IHubContext<AppHub> GetAppHubContext(this IServiceProvider serviceProvider)
         => serviceProvider.GetRequiredService<IHubContext<AppHub>>();
 
+    // No role check here any more: only the role that enables AppHubFeature calls this.
     public static void AddSignalRAppHub(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsEntryPoint() || builder.Environment.IsHybrid())
-        {
-            builder.Services.AddAuthentication()
-               .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
+        builder.Services.AddAuthentication()
+           .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
 
-            builder.Services.AddAuthorization(o =>
+        builder.Services.AddAuthorization(o =>
+        {
+            o.AddPolicy("ticket", policy =>
             {
-                o.AddPolicy("ticket", policy =>
-                {
-                    policy.AddAuthenticationSchemes("Ticket");
-                    policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("typ", "ticket");
-                });
+                policy.AddAuthenticationSchemes("Ticket");
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("typ", "ticket");
             });
-        }
+        });
+
+        builder.AddBotRuntimeServices();
 
         builder.Services
            .AddSingleton<IRealtimeReplayBuffer, RedisRealtimeReplayBuffer>()
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
-           .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
-           .AddSingleton<Argon.Features.BotApi.BotUserCache>()
-           .AddSingleton<Argon.Features.BotApi.UserLocaleRegistry>()
-           .AddSingleton<Argon.Features.BotApi.InteractionContextStore>()
-           .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
-           .AddScoped<Argon.Features.BotApi.InteractionResponsePusher>()
            .AddScoped<AppHubServer>()
            .AddSignalR()
            //.AddMessagePackProtocol()

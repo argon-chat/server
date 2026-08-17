@@ -8,8 +8,6 @@ public static class LoggingFeature
 {
     public static WebApplicationBuilder AddLogging(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsSingleInstance()) 
-            return builder;
         if (Environment.GetEnvironmentVariable("NO_STRUCTURED_LOGS") is not null)
             return builder;
         Log.Logger = new LoggerConfiguration()

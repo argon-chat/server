@@ -94,43 +94,6 @@ public interface IChannelGrain : IGrainWithGuidKey
     [Alias("StopRecord")]
     Task<bool> StopRecord(CancellationToken ct = default);
 
-    /// <summary>
-    /// Creates a linked meeting for this voice channel.
-    /// </summary>
-    [Alias("CreateLinkedMeetingAsync")]
-    Task<ChannelMeetingResult?> CreateLinkedMeetingAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Gets the invite link for the linked meeting, if exists.
-    /// </summary>
-    [Alias("GetMeetingLinkAsync")]
-    Task<string?> GetMeetingLinkAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Gets full linked meeting info, if exists.
-    /// </summary>
-    [Alias("GetLinkedMeetingInfoAsync")]
-    Task<LinkedMeetingInfo?> GetLinkedMeetingInfoAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Ends the linked meeting.
-    /// </summary>
-    [Alias("EndLinkedMeetingAsync")]
-    Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default);
-
-    /// <summary>
-    /// Join channel voice from a linked meeting.
-    /// For guests, userId should start with FAFCCCCC prefix.
-    /// </summary>
-    [Alias("JoinFromMeetingAsync")]
-    Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default);
-
-    /// <summary>
-    /// Leave channel voice from a linked meeting.
-    /// </summary>
-    [Alias("LeaveFromMeetingAsync")]
-    Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default);
-
     [Alias(nameof(BeginUploadAttachment))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachment(CancellationToken ct = default);
 
@@ -162,28 +125,16 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<Dictionary<long, List<ReactionInfo>>> BatchGetReactions(List<long> messageIds);
 }
 
-/// <summary>
-/// Combined realtime state for a channel - members and meeting info.
-/// </summary>
+/// <summary>Realtime state for a channel.</summary>
 [GenerateSerializer, Immutable]
 public sealed record ChannelRealtimeState(
-    [property: Id(0)] List<RealtimeChannelUser> Members,
-    [property: Id(1)] LinkedMeetingInfo? MeetingInfo);
+    [property: Id(0)] List<RealtimeChannelUser> Members);
 
 
 public sealed record ChannelInput(
     string Name,
     string? Description,
     ChannelType ChannelType);
-
-/// <summary>
-/// Result of creating a linked meeting from a channel.
-/// </summary>
-[GenerateSerializer, Immutable]
-public sealed record ChannelMeetingResult(
-    [property: Id(0)] Guid MeetId,
-    [property: Id(1)] string InviteCode,
-    [property: Id(2)] string InviteLink);
 
 public sealed record ParticipantInfo(
     string UserId,

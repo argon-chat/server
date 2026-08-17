@@ -1,7 +1,7 @@
 namespace Argon.Features;
 
 using Api.Features.Orleans.Client;
-using Env;
+using Clustering;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
 using Orleans.Configuration;
@@ -54,20 +54,23 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
 
     public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
     {
+        // Must agree with the silos: same knobs, same defaults.
+        var endpoints = ArgonClusterEndpoints.Resolve(config, region);
+
         x.Configure<ClusterOptions>(q =>
         {
-            q.ClusterId = "argon-cluster";
-            q.ServiceId = $"argon-region-{region}";
+            q.ClusterId = endpoints.ClusterId;
+            q.ServiceId = endpoints.ServiceId;
         });
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
         x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
         x.Configure<ExceptionSerializationOptions>(q => q.SupportedNamespacePrefixes.Add("Argon"));
-        if (env.IsMultiRegion())
-            x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
-        if (!env.IsSingleInstance())
-            x.UseRedisClustering(z
-            => z.ConfigurationOptions = new RedisProfileRegistry(config).BuildOptions(RedisProfiles.Orleans));
-        else
+        // Redis clustering everywhere; USE_LOCALHOST_CLUSTERING is the local-dev escape for running
+        // without a Redis container. Multi-region and its connection observer are not implemented.
+        if (Environment.GetEnvironmentVariable("USE_LOCALHOST_CLUSTERING") is not null)
             x.UseLocalhostClustering();
+        else
+            x.UseRedisClustering(z
+                => z.ConfigurationOptions = new RedisProfileRegistry(config).BuildOptions(RedisProfiles.Orleans));
     }
 }

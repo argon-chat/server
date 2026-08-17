@@ -430,40 +430,6 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         IonFormatterStorage<bool>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task CreateLinkedMeeting_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
-    
-        const int argumentSize = 2;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __spaceid = IonFormatterStorage<guid>.Read(reader);
-        var __channelid = IonFormatterStorage<guid>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        var result = await service.CreateLinkedMeeting(__spaceid, __channelid);
-        
-        IonFormatterStorage<LinkedMeetingInfo>.Write(writer, result);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task EndLinkedMeeting_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
-    {
-        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
-    
-        const int argumentSize = 2;
-    
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-    
-        var __spaceid = IonFormatterStorage<guid>.Read(reader);
-        var __channelid = IonFormatterStorage<guid>.Read(reader);
-    
-        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
-    
-        await service.EndLinkedMeeting(__spaceid, __channelid);
-    }
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task BeginUploadAttachment_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
@@ -691,10 +657,6 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return BeginRecord_Execute(reader, writer, ct);
         if (methodName.Equals("StopRecord", StringComparison.InvariantCultureIgnoreCase))
             return StopRecord_Execute(reader, writer, ct);
-        if (methodName.Equals("CreateLinkedMeeting", StringComparison.InvariantCultureIgnoreCase))
-            return CreateLinkedMeeting_Execute(reader, writer, ct);
-        if (methodName.Equals("EndLinkedMeeting", StringComparison.InvariantCultureIgnoreCase))
-            return EndLinkedMeeting_Execute(reader, writer, ct);
         if (methodName.Equals("BeginUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
             return BeginUploadAttachment_Execute(reader, writer, ct);
         if (methodName.Equals("CompleteUploadAttachment", StringComparison.InvariantCultureIgnoreCase))

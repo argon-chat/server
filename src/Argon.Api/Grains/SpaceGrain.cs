@@ -204,7 +204,7 @@ public class SpaceGrain(
            .Select(x => grainFactory.GetGrain<IChannelGrain>(x.Id).GetRealtimeStateAsync()));
 
         var results = channelsFiltered
-           .Zip(states, (ch, s) => new RealtimeChannel(ch.ToDto(), new(s.Members), s.MeetingInfo))
+           .Zip(states, (ch, s) => new RealtimeChannel(ch.ToDto(), new(s.Members)))
            .ToList();
 
         return results;

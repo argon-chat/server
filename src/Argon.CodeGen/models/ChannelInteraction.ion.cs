@@ -19,11 +19,7 @@ public sealed record CreateChannelRequest(guid spaceId, string name, ChannelType
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChannelUser> users, LinkedMeetingInfo? meetInfo);
-
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record LinkedMeetingInfo(guid meetingId, string meetingUrl, string meetingCode, datetime startDate);
+public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChannelUser> users);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -416,8 +412,6 @@ public interface IChannelInteraction : IIonService
     Task<bool> KickMemberFromChannel(guid spaceId, guid channelId, guid memberId, CancellationToken ct = default);
     Task<bool> BeginRecord(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<bool> StopRecord(guid spaceId, guid channelId, CancellationToken ct = default);
-    Task<LinkedMeetingInfo> CreateLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
-    Task EndLinkedMeeting(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IUploadFileResult> BeginUploadAttachment(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<AttachmentInfo> CompleteUploadAttachment(guid spaceId, guid channelId, guid blobId, CancellationToken ct = default);
     Task<IInvokeSlashCommandResult> InvokeSlashCommand(guid spaceId, guid channelId, guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default);
@@ -3160,10 +3154,6 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsSpaceDetailsUpdated => this is SpaceDetailsUpdated;
 
-    internal bool IsMeetingCreatedFor => this is MeetingCreatedFor;
-
-    internal bool IsMeetingDeletedFor => this is MeetingDeletedFor;
-
     internal bool IsLeavedFromServerUser => this is LeavedFromServerUser;
 
     internal bool IsInteractionAcked => this is InteractionAcked;
@@ -3531,136 +3521,122 @@ public sealed record SpaceDetailsUpdated(guid spaceId, ArgonSpaceBase details) :
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record MeetingCreatedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
-{
-    public string UnionKey => nameof(MeetingCreatedFor);
-    public uint UnionIndex => 47;
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record MeetingDeletedFor(guid spaceId, guid channelId, LinkedMeetingInfo meetInfo) : IArgonEvent
-{
-    public string UnionKey => nameof(MeetingDeletedFor);
-    public uint UnionIndex => 48;
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record LeavedFromServerUser(guid spaceId, guid userId) : IArgonEvent
 {
     public string UnionKey => nameof(LeavedFromServerUser);
-    public uint UnionIndex => 49;
+    public uint UnionIndex => 47;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record InteractionAcked(guid interactionId) : IArgonEvent
 {
     public string UnionKey => nameof(InteractionAcked);
-    public uint UnionIndex => 50;
+    public uint UnionIndex => 48;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record InteractionDeferred(guid interactionId) : IArgonEvent
 {
     public string UnionKey => nameof(InteractionDeferred);
-    public uint UnionIndex => 51;
+    public uint UnionIndex => 49;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ShowModal(guid interactionId, IonModalDefinition modal) : IArgonEvent
 {
     public string UnionKey => nameof(ShowModal);
-    public uint UnionIndex => 52;
+    public uint UnionIndex => 50;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ReactionAdded(guid spaceId, guid channelId, i8 messageId, guid userId, string emoji, guid? customEmojiId) : IArgonEvent
 {
     public string UnionKey => nameof(ReactionAdded);
-    public uint UnionIndex => 53;
+    public uint UnionIndex => 51;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ReactionRemoved(guid spaceId, guid channelId, i8 messageId, guid userId, string emoji) : IArgonEvent
 {
     public string UnionKey => nameof(ReactionRemoved);
-    public uint UnionIndex => 54;
+    public uint UnionIndex => 52;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SpaceBoostUpdated(guid spaceId, i4 boostCount, i4 boostLevel) : IArgonEvent
 {
     public string UnionKey => nameof(SpaceBoostUpdated);
-    public uint UnionIndex => 55;
+    public uint UnionIndex => 53;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UltimaGiftReceived(guid userId, guid itemId, string senderName, string? message) : IArgonEvent
 {
     public string UnionKey => nameof(UltimaGiftReceived);
-    public uint UnionIndex => 56;
+    public uint UnionIndex => 54;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserProfileUpdated(guid spaceId, guid userId, ArgonUserProfile profile) : IArgonEvent
 {
     public string UnionKey => nameof(UserProfileUpdated);
-    public uint UnionIndex => 57;
+    public uint UnionIndex => 55;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record FeatureFlagActivated(guid userId, string flagId, bool isEnabled, string? variant) : IArgonEvent
 {
     public string UnionKey => nameof(FeatureFlagActivated);
-    public uint UnionIndex => 58;
+    public uint UnionIndex => 56;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record DrawingSessionStarted(guid spaceId, guid channelId, string sessionId, guid ownerId, IonArray<guid> allowedDrawers, i4 defaultTtlMs) : IArgonEvent
 {
     public string UnionKey => nameof(DrawingSessionStarted);
-    public uint UnionIndex => 59;
+    public uint UnionIndex => 57;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record DrawingSessionEnded(guid spaceId, guid channelId, string sessionId) : IArgonEvent
 {
     public string UnionKey => nameof(DrawingSessionEnded);
-    public uint UnionIndex => 60;
+    public uint UnionIndex => 58;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record MessageDeleted(guid spaceId, guid channelId, i8 messageId, guid byUserId) : IArgonEvent
 {
     public string UnionKey => nameof(MessageDeleted);
-    public uint UnionIndex => 61;
+    public uint UnionIndex => 59;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ArchetypeRemoved(guid spaceId, guid archetypeId) : IArgonEvent
 {
     public string UnionKey => nameof(ArchetypeRemoved);
-    public uint UnionIndex => 62;
+    public uint UnionIndex => 60;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ArchetypesReordered(guid spaceId, IonArray<Archetype> data) : IArgonEvent
 {
     public string UnionKey => nameof(ArchetypesReordered);
-    public uint UnionIndex => 63;
+    public uint UnionIndex => 61;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SpaceDeletionScheduled(guid spaceId, SpaceDeletionState state) : IArgonEvent
 {
     public string UnionKey => nameof(SpaceDeletionScheduled);
-    public uint UnionIndex => 64;
+    public uint UnionIndex => 62;
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record SpaceDeletionCancelled(guid spaceId) : IArgonEvent
 {
     public string UnionKey => nameof(SpaceDeletionCancelled);
-    public uint UnionIndex => 65;
+    public uint UnionIndex => 63;
 }
 
 
@@ -3817,60 +3793,54 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             result = IonFormatterStorage<SpaceDetailsUpdated>.Read(reader);
 
         else if (unionIndex == 47)
-            result = IonFormatterStorage<MeetingCreatedFor>.Read(reader);
-
-        else if (unionIndex == 48)
-            result = IonFormatterStorage<MeetingDeletedFor>.Read(reader);
-
-        else if (unionIndex == 49)
             result = IonFormatterStorage<LeavedFromServerUser>.Read(reader);
 
-        else if (unionIndex == 50)
+        else if (unionIndex == 48)
             result = IonFormatterStorage<InteractionAcked>.Read(reader);
 
-        else if (unionIndex == 51)
+        else if (unionIndex == 49)
             result = IonFormatterStorage<InteractionDeferred>.Read(reader);
 
-        else if (unionIndex == 52)
+        else if (unionIndex == 50)
             result = IonFormatterStorage<ShowModal>.Read(reader);
 
-        else if (unionIndex == 53)
+        else if (unionIndex == 51)
             result = IonFormatterStorage<ReactionAdded>.Read(reader);
 
-        else if (unionIndex == 54)
+        else if (unionIndex == 52)
             result = IonFormatterStorage<ReactionRemoved>.Read(reader);
 
-        else if (unionIndex == 55)
+        else if (unionIndex == 53)
             result = IonFormatterStorage<SpaceBoostUpdated>.Read(reader);
 
-        else if (unionIndex == 56)
+        else if (unionIndex == 54)
             result = IonFormatterStorage<UltimaGiftReceived>.Read(reader);
 
-        else if (unionIndex == 57)
+        else if (unionIndex == 55)
             result = IonFormatterStorage<UserProfileUpdated>.Read(reader);
 
-        else if (unionIndex == 58)
+        else if (unionIndex == 56)
             result = IonFormatterStorage<FeatureFlagActivated>.Read(reader);
 
-        else if (unionIndex == 59)
+        else if (unionIndex == 57)
             result = IonFormatterStorage<DrawingSessionStarted>.Read(reader);
 
-        else if (unionIndex == 60)
+        else if (unionIndex == 58)
             result = IonFormatterStorage<DrawingSessionEnded>.Read(reader);
 
-        else if (unionIndex == 61)
+        else if (unionIndex == 59)
             result = IonFormatterStorage<MessageDeleted>.Read(reader);
 
-        else if (unionIndex == 62)
+        else if (unionIndex == 60)
             result = IonFormatterStorage<ArchetypeRemoved>.Read(reader);
 
-        else if (unionIndex == 63)
+        else if (unionIndex == 61)
             result = IonFormatterStorage<ArchetypesReordered>.Read(reader);
 
-        else if (unionIndex == 64)
+        else if (unionIndex == 62)
             result = IonFormatterStorage<SpaceDeletionScheduled>.Read(reader);
 
-        else if (unionIndex == 65)
+        else if (unionIndex == 63)
             result = IonFormatterStorage<SpaceDeletionCancelled>.Read(reader);
 
         else
@@ -4215,137 +4185,123 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             IonFormatterStorage<SpaceDetailsUpdated>.Write(writer, n_46);
         }
 
-        else if (value is MeetingCreatedFor n_47)
+        else if (value is LeavedFromServerUser n_47)
         {
             if (n_47.UnionIndex != 47)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingCreatedFor>.Write(writer, n_47);
+            IonFormatterStorage<LeavedFromServerUser>.Write(writer, n_47);
         }
 
-        else if (value is MeetingDeletedFor n_48)
+        else if (value is InteractionAcked n_48)
         {
             if (n_48.UnionIndex != 48)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MeetingDeletedFor>.Write(writer, n_48);
+            IonFormatterStorage<InteractionAcked>.Write(writer, n_48);
         }
 
-        else if (value is LeavedFromServerUser n_49)
+        else if (value is InteractionDeferred n_49)
         {
             if (n_49.UnionIndex != 49)
                 throw new InvalidOperationException();
-            IonFormatterStorage<LeavedFromServerUser>.Write(writer, n_49);
+            IonFormatterStorage<InteractionDeferred>.Write(writer, n_49);
         }
 
-        else if (value is InteractionAcked n_50)
+        else if (value is ShowModal n_50)
         {
             if (n_50.UnionIndex != 50)
                 throw new InvalidOperationException();
-            IonFormatterStorage<InteractionAcked>.Write(writer, n_50);
+            IonFormatterStorage<ShowModal>.Write(writer, n_50);
         }
 
-        else if (value is InteractionDeferred n_51)
+        else if (value is ReactionAdded n_51)
         {
             if (n_51.UnionIndex != 51)
                 throw new InvalidOperationException();
-            IonFormatterStorage<InteractionDeferred>.Write(writer, n_51);
+            IonFormatterStorage<ReactionAdded>.Write(writer, n_51);
         }
 
-        else if (value is ShowModal n_52)
+        else if (value is ReactionRemoved n_52)
         {
             if (n_52.UnionIndex != 52)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ShowModal>.Write(writer, n_52);
+            IonFormatterStorage<ReactionRemoved>.Write(writer, n_52);
         }
 
-        else if (value is ReactionAdded n_53)
+        else if (value is SpaceBoostUpdated n_53)
         {
             if (n_53.UnionIndex != 53)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ReactionAdded>.Write(writer, n_53);
+            IonFormatterStorage<SpaceBoostUpdated>.Write(writer, n_53);
         }
 
-        else if (value is ReactionRemoved n_54)
+        else if (value is UltimaGiftReceived n_54)
         {
             if (n_54.UnionIndex != 54)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ReactionRemoved>.Write(writer, n_54);
+            IonFormatterStorage<UltimaGiftReceived>.Write(writer, n_54);
         }
 
-        else if (value is SpaceBoostUpdated n_55)
+        else if (value is UserProfileUpdated n_55)
         {
             if (n_55.UnionIndex != 55)
                 throw new InvalidOperationException();
-            IonFormatterStorage<SpaceBoostUpdated>.Write(writer, n_55);
+            IonFormatterStorage<UserProfileUpdated>.Write(writer, n_55);
         }
 
-        else if (value is UltimaGiftReceived n_56)
+        else if (value is FeatureFlagActivated n_56)
         {
             if (n_56.UnionIndex != 56)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UltimaGiftReceived>.Write(writer, n_56);
+            IonFormatterStorage<FeatureFlagActivated>.Write(writer, n_56);
         }
 
-        else if (value is UserProfileUpdated n_57)
+        else if (value is DrawingSessionStarted n_57)
         {
             if (n_57.UnionIndex != 57)
                 throw new InvalidOperationException();
-            IonFormatterStorage<UserProfileUpdated>.Write(writer, n_57);
+            IonFormatterStorage<DrawingSessionStarted>.Write(writer, n_57);
         }
 
-        else if (value is FeatureFlagActivated n_58)
+        else if (value is DrawingSessionEnded n_58)
         {
             if (n_58.UnionIndex != 58)
                 throw new InvalidOperationException();
-            IonFormatterStorage<FeatureFlagActivated>.Write(writer, n_58);
+            IonFormatterStorage<DrawingSessionEnded>.Write(writer, n_58);
         }
 
-        else if (value is DrawingSessionStarted n_59)
+        else if (value is MessageDeleted n_59)
         {
             if (n_59.UnionIndex != 59)
                 throw new InvalidOperationException();
-            IonFormatterStorage<DrawingSessionStarted>.Write(writer, n_59);
+            IonFormatterStorage<MessageDeleted>.Write(writer, n_59);
         }
 
-        else if (value is DrawingSessionEnded n_60)
+        else if (value is ArchetypeRemoved n_60)
         {
             if (n_60.UnionIndex != 60)
                 throw new InvalidOperationException();
-            IonFormatterStorage<DrawingSessionEnded>.Write(writer, n_60);
+            IonFormatterStorage<ArchetypeRemoved>.Write(writer, n_60);
         }
 
-        else if (value is MessageDeleted n_61)
+        else if (value is ArchetypesReordered n_61)
         {
             if (n_61.UnionIndex != 61)
                 throw new InvalidOperationException();
-            IonFormatterStorage<MessageDeleted>.Write(writer, n_61);
+            IonFormatterStorage<ArchetypesReordered>.Write(writer, n_61);
         }
 
-        else if (value is ArchetypeRemoved n_62)
+        else if (value is SpaceDeletionScheduled n_62)
         {
             if (n_62.UnionIndex != 62)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ArchetypeRemoved>.Write(writer, n_62);
+            IonFormatterStorage<SpaceDeletionScheduled>.Write(writer, n_62);
         }
 
-        else if (value is ArchetypesReordered n_63)
+        else if (value is SpaceDeletionCancelled n_63)
         {
             if (n_63.UnionIndex != 63)
                 throw new InvalidOperationException();
-            IonFormatterStorage<ArchetypesReordered>.Write(writer, n_63);
-        }
-
-        else if (value is SpaceDeletionScheduled n_64)
-        {
-            if (n_64.UnionIndex != 64)
-                throw new InvalidOperationException();
-            IonFormatterStorage<SpaceDeletionScheduled>.Write(writer, n_64);
-        }
-
-        else if (value is SpaceDeletionCancelled n_65)
-        {
-            if (n_65.UnionIndex != 65)
-                throw new InvalidOperationException();
-            IonFormatterStorage<SpaceDeletionCancelled>.Write(writer, n_65);
+            IonFormatterStorage<SpaceDeletionCancelled>.Write(writer, n_63);
         }
     
         else
@@ -5474,56 +5430,6 @@ public sealed class Ion_SpaceDetailsUpdated_Formatter : IonFormatter<SpaceDetail
         writer.WriteStartArray(2);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<ArgonSpaceBase>.Write(writer, value.details);
-        writer.WriteEndArray();
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_MeetingCreatedFor_Formatter : IonFormatter<MeetingCreatedFor>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public MeetingCreatedFor Read(CborReader reader)
-    {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __spaceid = IonFormatterStorage<guid>.Read(reader);
-        var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __meetinfo = IonFormatterStorage<LinkedMeetingInfo>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 3);
-        return new(__spaceid, __channelid, __meetinfo);
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, MeetingCreatedFor value)
-    {
-        writer.WriteStartArray(3);
-        IonFormatterStorage<guid>.Write(writer, value.spaceId);
-        IonFormatterStorage<guid>.Write(writer, value.channelId);
-        IonFormatterStorage<LinkedMeetingInfo>.Write(writer, value.meetInfo);
-        writer.WriteEndArray();
-    }
-}
-
-[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed class Ion_MeetingDeletedFor_Formatter : IonFormatter<MeetingDeletedFor>
-{
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public MeetingDeletedFor Read(CborReader reader)
-    {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
-        var __spaceid = IonFormatterStorage<guid>.Read(reader);
-        var __channelid = IonFormatterStorage<guid>.Read(reader);
-        var __meetinfo = IonFormatterStorage<LinkedMeetingInfo>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 3);
-        return new(__spaceid, __channelid, __meetinfo);
-    }
-    
-    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public void Write(CborWriter writer, MeetingDeletedFor value)
-    {
-        writer.WriteStartArray(3);
-        IonFormatterStorage<guid>.Write(writer, value.spaceId);
-        IonFormatterStorage<guid>.Write(writer, value.channelId);
-        IonFormatterStorage<LinkedMeetingInfo>.Write(writer, value.meetInfo);
         writer.WriteEndArray();
     }
 }
