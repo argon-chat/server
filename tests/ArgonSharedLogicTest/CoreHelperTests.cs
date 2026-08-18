@@ -1,10 +1,13 @@
 namespace ArgonSharedLogicTest;
 
+using Argon.Features.Auth;
+
 using Argon.Entities;
 using Argon.Shared;
 using Argon.Services;
 using ArgonContracts;
 using Microsoft.Extensions.Logging.Abstractions;
+using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 
 /// <summary>
@@ -14,15 +17,26 @@ using Newtonsoft.Json;
 [TestFixture]
 public class PasswordHashingServiceTests
 {
-    private static PasswordHashingService NewService() => new(NullLogger<IPasswordHashingService>.Instance);
+    private static PasswordHashingService NewService()
+        => new(Options.Create(new PasswordHashingOptions { Iterations = 10_000 }),
+            NullLogger<IPasswordHashingService>.Instance);
 
+    /// <summary>
+    /// Hashing the same password twice must <em>not</em> agree.
+    /// </summary>
+    /// <remarks>
+    /// This assertion used to be the other way round, because the digest used to be a bare SHA-256 of
+    /// the password and nothing else. That is precisely what made the store worth attacking: equal
+    /// digests told you which accounts shared a password, and one table covered all of them. The salt
+    /// is what removed that, and its whole visible effect is this inequality.
+    /// </remarks>
     [Test]
-    public void HashPassword_IsDeterministic()
+    public void HashPassword_OfTheSamePassword_DiffersEachTime()
     {
         var service = NewService();
 
         Assert.That(service.HashPassword("correct horse battery staple"),
-            Is.EqualTo(service.HashPassword("correct horse battery staple")));
+            Is.Not.EqualTo(service.HashPassword("correct horse battery staple")));
     }
 
     [Test]
@@ -34,11 +48,11 @@ public class PasswordHashingServiceTests
     }
 
     [Test]
-    public void HashPassword_IsCaseSensitive()
+    public void ValidatePassword_IsCaseSensitive()
     {
         var service = NewService();
 
-        Assert.That(service.HashPassword("Secret"), Is.Not.EqualTo(service.HashPassword("secret")));
+        Assert.That(service.ValidatePassword("secret", service.HashPassword("Secret")), Is.False);
     }
 
     [Test]
@@ -55,7 +69,9 @@ public class PasswordHashingServiceTests
         {
             Assert.That(cyrillic, Is.Not.Null.And.Not.Empty);
             Assert.That(emoji, Is.Not.Null.And.Not.Empty);
-            Assert.That(cyrillic, Is.Not.EqualTo(emoji));
+            Assert.That(service.ValidatePassword("пароль-пароль", cyrillic), Is.True);
+            Assert.That(service.ValidatePassword("🔐🔐🔐", emoji), Is.True);
+            Assert.That(service.ValidatePassword("🔐🔐🔐", cyrillic), Is.False);
         });
     }
 

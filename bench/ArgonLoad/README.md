@@ -298,3 +298,25 @@ and joins one user per client before the barrier releases. Registration is itsel
 done ahead of the measured window and at limited concurrency.
 
 A run leaves its users and its space behind. Point it at a throwaway database.
+
+## Scenario C — signup rush
+
+N clients create an account at the same moment. Registration is the one request that spends real CPU
+rather than waiting on something: it hashes a password, and a password hash is expensive on purpose.
+
+```
+dotnet run --project bench/ArgonLoad -- --scenario signup --clients 400
+```
+
+| hashing | registrations/s | p50 |
+|---|---:|---:|
+| unsalted SHA-256, one pass | 450 | 306 ms |
+| PBKDF2-HMAC-SHA-512, 210k iterations | 156 | 1808 ms |
+
+Three times fewer, and that is the change working rather than failing — the old scheme was fast
+because it did nothing. What the number is for is choosing `auth:passwordHashing:Iterations`: it is
+the one setting that trades login capacity for the cost of guessing a stolen digest, and it should be
+revisited on new hardware rather than left where it was set.
+
+Ignore the first run after a restart, as everywhere else in this file: 100 clients measured 36/s cold
+against 156/s warm.

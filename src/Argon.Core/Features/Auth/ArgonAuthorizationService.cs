@@ -128,6 +128,8 @@ public class ArgonAuthorizationService(
             return AuthorizationError.BAD_CREDENTIALS;
         }
 
+        await UpgradeDigestIfStaleAsync(user, input.password);
+
 
         if (requiredMachineId)
         {
@@ -136,6 +138,33 @@ public class ArgonAuthorizationService(
         }
 
         return await GenerateJwt(user);
+    }
+
+    /// <summary>
+    /// Moves a verified password onto the current hashing scheme.
+    /// </summary>
+    /// <remarks>
+    /// This runs on the sign-in path, so it must never be the reason a sign-in fails: the user has
+    /// already proven who they are, and a database that will not take the new digest is a problem for
+    /// the next login to retry, not a reason to refuse this one.
+    /// </remarks>
+    private async Task UpgradeDigestIfStaleAsync(UserEntity user, string? password)
+    {
+        if (!passwordHashingService.NeedsRehash(user.PasswordDigest))
+            return;
+
+        if (passwordHashingService.HashPassword(password) is not { } upgraded)
+            return;
+
+        try
+        {
+            await grainFactory.GetGrain<IUserGrain>(user.Id).UpgradePasswordDigest(upgraded);
+            user.PasswordDigest = upgraded;
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not upgrade the password digest for '{email}'; the sign-in stands", user.Email);
+        }
     }
 
     private async Task<Either<SuccessAuthorize, AuthorizationError>> AuthorizeWithOtp(UserEntity user, UserCredentialsInput input,
@@ -148,6 +177,8 @@ public class ArgonAuthorizationService(
                 logger.LogWarning("Invalid password for '{email}'", user.Email);
                 return AuthorizationError.BAD_CREDENTIALS;
             }
+
+            await UpgradeDigestIfStaleAsync(user, input.password);
         }
         var method    = user.PreferredOtpMethod;
 

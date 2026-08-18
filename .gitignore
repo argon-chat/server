@@ -33,3 +33,5 @@ certs/jwt-keys/
 src/Argon.Api/appsettings.Production.json
 
 artifacts/
+
+*.trx

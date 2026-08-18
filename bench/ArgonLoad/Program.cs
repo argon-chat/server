@@ -36,6 +36,10 @@ if (args.Contains("--help") || args.Contains("-h"))
                         'returning' is the one to watch. It answers whether telling a client that
                         nothing moved is cheaper than telling it what it already knows.
 
+          signup        N clients create an account at the same moment. Registration is the one
+                        path that spends real CPU — it hashes a password — so this is the number
+                        that moves when the hashing algorithm does.
+
           fanout        N clients hold a live hub connection to one space and some of them send.
                         Measures send-to-arrival for every (message, recipient) pair — the steady
                         state, where the client barely calls the server and lives off the stream.
@@ -83,6 +87,10 @@ try
                     channels: int.Parse(Argument("--channels", "10")),
                     listeners: int.Parse(Argument("--listeners", clients.ToString())))
                .RunAsync(cancellation.Token);
+            return 0;
+
+        case "signup":
+            await new SignupRush(new Uri(target), clients).RunAsync(cancellation.Token);
             return 0;
 
         default:

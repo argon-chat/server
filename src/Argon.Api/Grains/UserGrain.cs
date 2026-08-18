@@ -292,6 +292,21 @@ public class UserGrain(
     //}
 
     //[OneWay]
+    public async ValueTask UpgradePasswordDigest(string digest)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstOrDefaultAsync(x => x.Id == this.GetPrimaryKey());
+
+        if (user is null)
+            return;
+
+        user.PasswordDigest = digest;
+        await ctx.SaveChangesAsync();
+
+        logger.LogInformation("Upgraded the password digest for {UserId}", this.GetPrimaryKey());
+    }
+
     public async ValueTask UpdateUserDeviceHistory()
     {
         await using var ctx = await context.CreateDbContextAsync();
