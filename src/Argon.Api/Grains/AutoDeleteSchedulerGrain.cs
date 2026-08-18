@@ -16,7 +16,7 @@ public class AutoDeleteSchedulerGrain(
     private const int BatchSize = 100;
     private const int DefaultAutoDeleteMonths = 12;
 
-    public override async Task OnActivateAsync(CancellationToken cancellationToken)
+    public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
         if (!options.Value.AutoDeleteEnabled)
         {

@@ -91,9 +91,35 @@ public sealed class WrapperForEncryptionKey
     }
 }
 
-public sealed class WrapperForSignKey
+/// <summary>
+/// The key tokens are signed with, and one instance of it per thread that does the signing.
+/// </summary>
+/// <remarks>
+/// A single shared key cannot be signed with concurrently. <c>ECDsaCng</c> and <c>RSACng</c> wrap a
+/// Windows CNG handle, and <c>SignHash</c> on the same instance from several threads is not merely
+/// unsynchronised — it takes the process down inside <c>NCryptSignHash</c>, with no exception to
+/// catch and no stack in managed code. Four hundred simultaneous registrations was enough, and every
+/// path that issues a token — sign-in, refresh, QR approval — reaches the same key.
+/// <para>
+/// One instance per thread rather than a lock, because signing is the expensive part of issuing a
+/// token and serialising it would put the whole node behind one core. Thread-pool threads are
+/// reused and bounded, so the number of live keys is bounded with them. The material is imported
+/// once and kept, so a new thread's key costs an import rather than a key generation.
+/// </para>
+/// </remarks>
+public sealed class WrapperForSignKey : IDisposable
 {
-    public SecurityKey PrivateKey { get; }
+    private readonly ThreadLocal<SecurityKey> signingKeys;
+
+    /// <summary>
+    /// A key for signing, private to the calling thread.
+    /// </summary>
+    /// <remarks>
+    /// Never hold this beyond the signing call, and never hand it to another thread: what makes it
+    /// safe is that only one thread ever touches it.
+    /// </remarks>
+    public SecurityKey PrivateKey => signingKeys.Value!;
+
     public SecurityKey PublicKey { get; }
     public string Algorithm { get; }
     public string Kid { get; }
@@ -105,15 +131,46 @@ public sealed class WrapperForSignKey
         if (jwt is null || string.IsNullOrWhiteSpace(jwt.privateKey) || string.IsNullOrWhiteSpace(jwt.publicKey))
             throw new InvalidOperationException("JwtOptions: both PrivateKey and PublicKey must be specified.");
 
-        PrivateKey = LoadKey(jwt.privateKey, jwt.password, isPrivate: true);
+        // Once, so that a bad key fails at startup rather than on the first login, and so the
+        // algorithm and kid below are derived from the same material every thread will import.
+        var probe = LoadKey(jwt.privateKey, jwt.password, isPrivate: true);
+
         PublicKey = LoadKey(jwt.publicKey, jwt.password, isPrivate: false);
 
-        Algorithm = GetDefaultAlgorithm(PrivateKey);
+        Algorithm = GetDefaultAlgorithm(probe);
+        Kid       = ComputeKid(PublicKey);
 
-        Kid = ComputeKid(PublicKey);
+        PublicKey.KeyId = Kid;
 
-        PublicKey.KeyId  = Kid;
-        PrivateKey.KeyId = Kid;
+        // Every thread's key carries the same kid, so the token header names the key whatever thread
+        // signed it and JWKS validation still finds it.
+        signingKeys = new ThreadLocal<SecurityKey>(() =>
+        {
+            var key = LoadKey(jwt.privateKey, jwt.password, isPrivate: true);
+            key.KeyId = Kid;
+            return key;
+        }, trackAllValues: true);
+    }
+
+    public void Dispose()
+    {
+        foreach (var key in signingKeys.Values)
+            Release(key);
+
+        signingKeys.Dispose();
+    }
+
+    private static void Release(SecurityKey key)
+    {
+        switch (key)
+        {
+            case ECDsaSecurityKey ec:
+                ec.ECDsa.Dispose();
+                break;
+            case RsaSecurityKey rsa:
+                rsa.Rsa.Dispose();
+                break;
+        }
     }
 
     private static string ComputeKid(SecurityKey key)

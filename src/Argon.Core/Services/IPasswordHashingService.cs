@@ -234,9 +234,9 @@ public class PasswordHashingService(
         if (!TryNext(ref rest, out var moniker))
             return false;
 
-        if (moniker.SequenceEqual("pbkdf2-sha256"))
+        if (moniker is "pbkdf2-sha256")
             algorithm = PasswordHashAlgorithm.Pbkdf2HmacSha256;
-        else if (moniker.SequenceEqual("pbkdf2-sha512"))
+        else if (moniker is "pbkdf2-sha512")
             algorithm = PasswordHashAlgorithm.Pbkdf2HmacSha512;
         else
             return false;

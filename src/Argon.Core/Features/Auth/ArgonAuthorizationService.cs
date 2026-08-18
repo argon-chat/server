@@ -2,6 +2,7 @@ namespace Argon.Features.Auth;
 
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Core.Features.CoreLogic.Passkeys;
+using Microsoft.Extensions.Caching.Hybrid;
 using Services;
 using System.Diagnostics.Metrics;
 using Fido2NetLib;
@@ -16,15 +17,38 @@ public class ArgonAuthorizationService(
     IOtpService otpService,
     IFido2 fido2,
     IPendingPasskeyStore pendingPasskeyStore,
-    IArgonCacheDatabase cacheDatabase
+    IArgonCacheDatabase cacheDatabase,
+    HybridCache cache
 ) : IArgonAuthorizationService
 {
+    /// <summary>
+    /// Every reserved username, as one cached set.
+    /// </summary>
+    /// <remarks>
+    /// Keyed on the whole table rather than on a name, because a name is the one thing that is never
+    /// repeated: every registration asks about a username nobody has asked about before, so a
+    /// per-name cache misses every single time on the path that matters. Measured at 18-23 ms per
+    /// registration under load — a cache that was, in effect, an uncached query with extra steps.
+    /// <para>
+    /// The set is small: it only grows when a deleted account's username is held back. It is
+    /// short-lived anyway, and <c>AccountDeletionGrain</c> drops it when it writes one, because that
+    /// is the window that matters — a name freed a moment ago is exactly what someone might be racing
+    /// to take.
+    /// </para>
+    /// </remarks>
+    public const string ReservationKey = "username:reserved:all";
+
+    private static readonly HybridCacheEntryOptions ReservationOptions = new()
+    {
+        Expiration           = TimeSpan.FromMinutes(1),
+        LocalCacheExpiration = TimeSpan.FromMinutes(1)
+    };
     public async Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input, string userIp, string machineId)
     {
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == input.email.ToLowerInvariant());
 
         if (user is null)
         {
@@ -81,7 +105,7 @@ public class ArgonAuthorizationService(
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == input.email.ToLowerInvariant());
 
         if (user is null)
         {
@@ -221,8 +245,30 @@ public class ArgonAuthorizationService(
         var             sw  = Stopwatch.StartNew();
         await using var ctx = await dbFactory.CreateDbContextAsync();
 
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
-        if (user is not null)
+        var normalizedUserName = input.username.ToLowerInvariant();
+        var normalizedEmail    = input.email.ToLowerInvariant();
+
+        // One round trip for all three answers. These used to be three sequential queries — email
+        // taken, username taken, username reserved — and each one is a distributed read, so a
+        // registration paid three of them before it had done anything. Only their booleans are
+        // needed, never the rows.
+        //
+        // Matched on the normalized columns, which is where the unique indexes are. Comparing the
+        // raw Email meant the check was case-sensitive while the constraint behind it is not, so
+        // signing up as Bob@x.com over an existing bob@x.com passed here and then failed on the
+        // index — an internal error instead of "that email is taken" — and the query could not use
+        // the index either.
+        var taken = await ctx.Users
+           .AsNoTracking()
+           .Where(u => u.NormalizedEmail == normalizedEmail || u.NormalizedUsername == normalizedUserName)
+           .Select(u => new
+            {
+                ByEmail    = u.NormalizedEmail == normalizedEmail,
+                ByUsername = u.NormalizedUsername == normalizedUserName
+            })
+           .ToListAsync();
+
+        if (taken.Any(x => x.ByEmail))
         {
             sw.Stop();
 
@@ -236,10 +282,7 @@ public class ArgonAuthorizationService(
             return RegistrationErrorConstants.EmailAlreadyRegistered();
         }
 
-        var normalizedUserName = input.username.ToLowerInvariant();
-
-        user = await ctx.Users.FirstOrDefaultAsync(u => u.NormalizedUsername == normalizedUserName);
-        if (user is not null)
+        if (taken.Any(x => x.ByUsername))
         {
             sw.Stop();
 
@@ -253,9 +296,19 @@ public class ArgonAuthorizationService(
             return RegistrationErrorConstants.UsernameAlreadyTaken();
         }
 
-        var reserved = await ctx.Reservation.FirstOrDefaultAsync(x => x.NormalizedUserName == normalizedUserName);
+        var reservations = await cache.GetOrCreateAsync(ReservationKey, dbFactory,
+            static async (factory, token) =>
+            {
+                await using var db = await factory.CreateDbContextAsync(token);
 
-        if (reserved is not null)
+                return await db.Reservation
+                   .AsNoTracking()
+                   .Select(x => new ReservedUsername(x.NormalizedUserName, x.IsBanned))
+                   .ToListAsync(token);
+            },
+            ReservationOptions);
+
+        if (reservations.FirstOrDefault(x => x.NormalizedUserName == normalizedUserName) is { } reserved)
         {
             sw.Stop();
 
@@ -273,7 +326,8 @@ public class ArgonAuthorizationService(
             return RegistrationErrorConstants.UsernameReserved();
         }
 
-        var strategy = ctx.Database.CreateExecutionStrategy();
+        UserEntity? user     = null;
+        var         strategy = ctx.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
             var userId = Guid.NewGuid();
@@ -331,7 +385,7 @@ public class ArgonAuthorizationService(
         var             sw  = Stopwatch.StartNew();
         await using var ctx = await dbFactory.CreateDbContextAsync();
 
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Email == input.email);
+        var user = await ctx.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == input.email.ToLowerInvariant());
         if (user is not null)
         {
             sw.Stop();
@@ -427,7 +481,7 @@ public class ArgonAuthorizationService(
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == email.ToLowerInvariant());
         if (user is null)
         {
             sw.Stop();
@@ -470,7 +524,7 @@ public class ArgonAuthorizationService(
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.Email == email);
+        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == email.ToLowerInvariant());
         if (user is null)
         {
             sw.Stop();
@@ -525,7 +579,7 @@ public class ArgonAuthorizationService(
     {
         await using var db              = await dbFactory.CreateDbContextAsync(ct);
         var             normalizedEmail = data.email?.ToLowerInvariant();
-        var             user            = await db.Users.FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
+        var             user            = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
 
         if (user is null)
             return "";
@@ -543,7 +597,7 @@ public class ArgonAuthorizationService(
             {
                 await using var db = await dbFactory.CreateDbContextAsync(ct);
                 var normalizedEmail = email.ToLowerInvariant();
-                var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Email == normalizedEmail, ct);
+                var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail, ct);
                 if (user is null)
                     return new BeginPasskeyLoginResult(null, PasskeyLoginError.USER_NOT_FOUND);
 
@@ -787,3 +841,6 @@ public static class AuthorizationGrainInstrument
         InstrumentNames.AuthorizationOtpSent,
         description: "Total number of OTP sends during authorization flow");
 }
+
+/// <summary>A username that cannot be taken, and why.</summary>
+public sealed record ReservedUsername(string NormalizedUserName, bool IsBanned);

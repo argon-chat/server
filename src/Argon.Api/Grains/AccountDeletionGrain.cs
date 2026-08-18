@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Microsoft.Extensions.Caching.Hybrid;
 using System.Diagnostics;
 using Argon.Api.Grains.Interfaces;
 using Argon.Core.Entities.Data;
@@ -20,6 +21,7 @@ public class AccountDeletionGrain(
     IUserPresenceService presenceService,
     IOptions<AccountDeletionOptions> options,
     IGrainFactory grainFactory,
+    HybridCache cache,
     ILogger<AccountDeletionGrain> logger) : Grain, IAccountDeletionGrain
 {
     private IDisposable? _checkTimer;
@@ -523,6 +525,11 @@ public class AccountDeletionGrain(
 
             ctx.Add(reserved);
             await ctx.SaveChangesAsync();
+
+            // Registration caches the answer to "is this reserved", misses included, so the cached
+            // "no" for this exact name has to go now rather than in a minute — that minute is when
+            // someone would be racing to take the name that was just freed.
+            await cache.RemoveAsync(ArgonAuthorizationService.ReservationKey);
 
             logger.LogInformation("Reserved username '{Username}' for deleted user {UserId}",
                 state.State.OriginalUsername, UserId);
