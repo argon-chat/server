@@ -182,6 +182,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceMemberArchetype>.Value = new Ion_SpaceMemberArchetype_Formatter();
       IonFormatterStorage<SpaceMember>.Value = new Ion_SpaceMember_Formatter();
       IonFormatterStorage<RealtimeServerMember>.Value = new Ion_RealtimeServerMember_Formatter();
+      IonFormatterStorage<SpaceVersions>.Value = new Ion_SpaceVersions_Formatter();
+      IonFormatterStorage<SpaceSnapshot>.Value = new Ion_SpaceSnapshot_Formatter();
+      IonFormatterStorage<MemberPresence>.Value = new Ion_MemberPresence_Formatter();
       IonFormatterStorage<InviteCodeEntity>.Value = new Ion_InviteCodeEntity_Formatter();
       IonFormatterStorage<ServerInvites>.Value = new Ion_ServerInvites_Formatter();
       IonFormatterStorage<InviteCode>.Value = new Ion_InviteCode_Formatter();

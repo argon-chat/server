@@ -21,6 +21,7 @@ using Argon.Features.Integrations.Klipy;
 using Argon.Core.Features.CoreLogic.Privacy;
 using Core.Entities.Data;
 using ion.runtime;
+using Services.L1L2;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
@@ -33,6 +34,8 @@ public class ChannelGrain(
     BotUserCache botUserCache,
     IS3StorageService s3,
     IKlipyService klipy,
+    ISpaceReadCache readCache,
+    IOptions<MessagesOptions> messageOptions,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -54,8 +57,76 @@ public class ChannelGrain(
 
     private readonly Dictionary<Guid, DateTimeOffset> _lastSentBySender = new();
 
+    /// <summary>
+    /// Ids handed out for the randomIds seen since this activation started, so a retry can be
+    /// answered without asking Redis.
+    /// </summary>
+    /// <remarks>
+    /// This activation is the only writer for its channel, so what it remembers is the whole truth
+    /// about what it accepted. The cache entry behind it exists for the case this does not cover — an
+    /// activation that moved or restarted — and <see cref="_dedupCacheTrustedUntil"/> is when that
+    /// case stops being possible.
+    /// </remarks>
+    private readonly Dictionary<long, long> _sentByRandomId = new();
+
+    /// <summary>
+    /// Until this moment a retry might have been accepted by a previous activation, so the shared
+    /// cache still has to be consulted. After it, any entry the cache could still hold is younger
+    /// than the entry's own lifetime and therefore was written by this activation, which means it is
+    /// already in <see cref="_sentByRandomId"/> and the round trip is pure cost.
+    /// </summary>
+    private DateTimeOffset _dedupCacheTrustedUntil;
+
+    /// <summary>Start of the second the cap is currently counting, and what it has counted.</summary>
+    private DateTimeOffset _capSecond;
+    private int            _capAccepted;
+
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
+
+    /// <summary>
+    /// Hands an event to the backplane without waiting for it, and without ordering it.
+    /// </summary>
+    /// <remarks>
+    /// Publishing took a measured 3.2 ms of a turn that totalled about 8, and it is the one part of
+    /// sending a message whose result the sender does not need — the id comes from the insert.
+    /// Holding the turn for it capped a channel at roughly a hundred messages a second, because every
+    /// send to a channel goes through the one activation that orders them.
+    /// <para>
+    /// Nothing here preserves the order events reach the backplane in, and that is deliberate: a few
+    /// hundred milliseconds of drift between two messages is acceptable, the same way it is in every
+    /// other chat client. The sender knows its own sequence from the <c>randomId</c> it chose before
+    /// the call, and <c>messageId</c> is roughly time-ordered. An ordered chain was tried first and
+    /// became the next bottleneck: it moved the serialisation from the turn to the publish and cost
+    /// delivery 333 ms at saturation.
+    /// </para>
+    /// <para>
+    /// <b>The desktop client cannot absorb that drift yet.</b> Its cursor is a high-water mark — see
+    /// <c>advanceCursor</c> in <c>realtimeWorker.ts</c> — so a <c>broadcastSpace</c> whose replay
+    /// entry id is lower than one already seen is discarded rather than shown late, and the replay
+    /// will not bring it back because the cursor has moved past it. Until that becomes a dedupe by
+    /// id, drift here is occasional silent loss for that client. The window was never zero: two
+    /// channels in one space have always published concurrently from separate activations.
+    /// </para>
+    /// <para>
+    /// The cost is a weaker promise: <c>SendMessage</c> returns once the message is stored, not once
+    /// the backplane has it, and a publish that fails afterwards is logged rather than surfaced. That
+    /// is the guarantee the mention and last-message updates beside it already have.
+    /// </para>
+    /// </remarks>
+    private void FireDetached<T>(T ev) where T : IArgonEvent
+        => _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Fire(ev);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "failed to broadcast {Event} for channel {ChannelId}",
+                    typeof(T).Name, this.GetPrimaryKey());
+            }
+        });
 
     // Channel-scoped delivery for high-frequency channel content (messages, edits, reactions,
     // typing): reaches only clients currently viewing THIS channel, not all members of the space.
@@ -65,6 +136,10 @@ public class ChannelGrain(
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
+        // Matches MessageDeduplicationService's entry lifetime. Anything a previous activation wrote
+        // has expired by then, so from that moment this activation's own memory is the whole answer.
+        _dedupCacheTrustedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(2);
+
         _self = await Get();
 
         await state.ReadStateAsync(cancellationToken);
@@ -401,6 +476,10 @@ public class ChannelGrain(
 
         await ctx.SaveChangesAsync();
         _self = channel;
+
+        // The channel list is cached per space, and this just changed a row in it.
+        await readCache.SignalInvalidationAsync(SpaceId);
+
         return channel;
     }
 
@@ -475,6 +554,7 @@ public class ChannelGrain(
         // the write went through a detached context that the activation cannot see.
         _self = channel;
 
+        await readCache.SignalInvalidationAsync(SpaceId, ct: ct);
         await Fire(new ChannelModified(SpaceId, channelId, new IonArray<string>(changed)), ct);
 
         return channel;
@@ -527,6 +607,39 @@ public class ChannelGrain(
     /// point at a room, not at themselves, so anyone holding <c>ManageMessages</c> — the same
     /// entitlement that lets them clean up afterwards — passes straight through.
     /// </summary>
+    /// <summary>
+    /// Refuses more than the configured number of messages a second into this channel.
+    /// </summary>
+    /// <remarks>
+    /// Slow mode is a moderation tool, per author and chosen by whoever runs the space. This is not
+    /// that: it is a ceiling on the channel as a whole, set by whoever runs the node, and it exists
+    /// because the channel can measurably take more than anything legitimate will ever ask of it.
+    /// <para>
+    /// A whole second at a time rather than a smoothed bucket, because the point is to stop a
+    /// runaway, not to pace a crowd — and a crowd that briefly bunches inside one second is exactly
+    /// what should not be punished.
+    /// </para>
+    /// </remarks>
+    private void EnforceChannelCap()
+    {
+        var limit = messageOptions.Value.PerChannelPerSecond;
+
+        if (limit <= 0)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (now - _capSecond >= TimeSpan.FromSeconds(1))
+        {
+            _capSecond   = now;
+            _capAccepted = 0;
+        }
+
+        if (++_capAccepted > limit)
+            throw new InvalidOperationException(
+                $"this channel is accepting at most {limit} message(s) per second right now");
+    }
+
     private async Task EnforceSlowModeAsync(Guid senderId, Guid channelId)
     {
         if (_self.SlowMode is not { } window || window <= TimeSpan.Zero)
@@ -537,6 +650,36 @@ public class ChannelGrain(
 
         if (_lastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
             throw new InvalidOperationException("Slow mode is active in this channel");
+    }
+
+    /// <summary>
+    /// The id already given to this randomId, or null if it is new.
+    /// </summary>
+    /// <remarks>
+    /// The cache round trip was measured at 0.93 ms of a turn that had about 1.5 ms of work left in
+    /// it, which made it the largest single thing standing between a channel and a thousand messages
+    /// a second. Nearly every call is a miss — a new message has a new randomId — so paying for it on
+    /// every send bought almost nothing.
+    /// </remarks>
+    private async Task<long?> DeduplicateAsync(ArgonMessageEntity message, long randomId)
+    {
+        if (_sentByRandomId.TryGetValue(randomId, out var known))
+            return known;
+
+        if (DateTimeOffset.UtcNow >= _dedupCacheTrustedUntil)
+            return null;
+
+        return await messagesLayout.CheckDuplicationAsync(message, randomId);
+    }
+
+    private void RememberSend(long randomId, long messageId)
+    {
+        // Bounded rather than expiring: a retry arrives within seconds, so the last few thousand
+        // sends are far more history than the question needs.
+        if (_sentByRandomId.Count > 4096)
+            _sentByRandomId.Clear();
+
+        _sentByRandomId[randomId] = messageId;
     }
 
     private void NoteSent(Guid senderId)
@@ -600,6 +743,8 @@ public class ChannelGrain(
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
 
+        EnforceChannelCap();
+
         await EnforceSlowModeAsync(senderId, channelId);
 
         if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
@@ -610,16 +755,6 @@ public class ChannelGrain(
             var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif);
             if (attachmentCount > 10)
                 throw new InvalidOperationException("Maximum 10 attachments per message");
-        }
-        
-        logger.LogInformation(
-            "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, TextLength={TextLength}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
-            channelId, senderId, text?.Length ?? 0, entities?.Count ?? 0, randomId, replyTo);
-        
-        if (entities is { Count: > 0 })
-        {
-            logger.LogDebug("Input entities types: {EntityTypes}", 
-                string.Join(", ", entities.Select((e, i) => $"[{i}]={e.GetType().Name}")));
         }
         
         var sanitized = SanitizeEntities(entities ?? []);
@@ -638,11 +773,7 @@ public class ChannelGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        logger.LogInformation(
-            "Created ArgonMessageEntity: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}, EntitiesIsNull={EntitiesIsNull}",
-            message.SpaceId, message.ChannelId, message.Entities?.Count ?? 0, message.Entities == null);
-
-        var dup = await messagesLayout.CheckDuplicationAsync(message, randomId);
+        var dup = await DeduplicateAsync(message, randomId);
 
         if (dup is not null)
         {
@@ -653,33 +784,15 @@ public class ChannelGrain(
 
         var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
 
+        RememberSend(randomId, msgId);
+
         // Only a message that actually landed starts the next cooldown — a retry that de-duplicated
         // above returned earlier and must not push the author's window forward.
         NoteSent(senderId);
 
         message.MessageId = msgId;
 
-        logger.LogInformation(
-            "Message inserted with MessageId={MessageId}, EntitiesCount={EntitiesCount}",
-            msgId, message.Entities?.Count ?? 0);
-
         var dto = message.ToDto();
-
-        logger.LogInformation(
-            "Message DTO created: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-            dto.messageId, dto.entities.Size);
-
-        if (dto.entities.Size > 0)
-        {
-            var entityTypes = dto.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
-            logger.LogInformation("DTO entities types: {EntityTypes}", string.Join(", ", entityTypes));
-        }
-        else
-        {
-            logger.LogWarning(
-                "DTO entities are empty after ToDto() conversion! Original EntitiesCount was {OriginalCount}",
-                message.Entities?.Count ?? 0);
-        }
 
         await ResolveAttachmentUrls(message);
         dto = message.ToDto();
@@ -688,7 +801,7 @@ public class ChannelGrain(
         // are NOT currently viewing from this event. Channel-scoping it needs the space-size gate
         // (large spaces → channel-scoped + pull-based unread; small spaces → space-scoped + live
         // unread), unlike typing/reactions/edits which have no cross-channel consumer.
-        await Fire(new MessageSent(_self.SpaceId, dto));
+        FireDetached(new MessageSent(_self.SpaceId, dto));
 
         // Update channel LastMessageId
         _ = UpdateLastMessageIdAsync(msgId);

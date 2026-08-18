@@ -44,9 +44,12 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
                 m.Entities
             });
 
+        // Assigned by the application, from the snowflake generator, so that a message can be given
+        // its id without waiting for the insert. The column default stays as the safety net for
+        // anything that writes a row without going through the message layer.
         builder.Property(m => m.MessageId)
            .HasColumnType("BIGINT")
-           .ValueGeneratedOnAdd()
+           .ValueGeneratedNever()
            .HasDefaultValueSql("unique_rowid()");
 
         builder.Property(m => m.Reply)

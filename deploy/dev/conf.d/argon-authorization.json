@@ -1,0 +1,9 @@
+{
+  "auth": {
+    "anonymousRateLimits": {
+      "_comment": "A load run registers its whole crowd from one address; the shipped limit of 20 registrations per 10 minutes is right for the internet and wrong for localhost.",
+      "Registration": { "Max": 20000, "Window": "00:10:00" },
+      "Authorize": { "Max": 20000, "Window": "00:05:00" }
+    }
+  }
+}

@@ -208,19 +208,27 @@ public static class FeatureConfigurationSources
     }
 
     /// <summary>
-    /// Puts the new sources immediately before the environment variables the host already added, so
-    /// a file overrides <c>appsettings</c> while an environment variable still overrides the file.
-    /// Appending would invert that and let a stale mount beat a deliberate override.
+    /// Puts the new sources directly after the last <c>appsettings</c> file, so a per-feature file
+    /// overrides <c>appsettings</c> while an environment variable still overrides the file.
     /// </summary>
+    /// <remarks>
+    /// Anchored on the JSON files rather than on the environment variables, because the host adds
+    /// <i>three</i> environment sources and the first two come <b>before</b> <c>appsettings.json</c>:
+    /// <c>DOTNET_</c> and <c>ASPNETCORE_</c> are host configuration, read while the builder is still
+    /// deciding what environment it is in. Inserting before "the first environment source" therefore
+    /// landed the whole overlay underneath <c>appsettings.json</c>, which then won every key — the
+    /// symptom was a dev run reaching for the cache on the port <c>appsettings</c> names rather than
+    /// the one <c>conf.d</c> does.
+    /// </remarks>
     private static void Insert(IConfigurationBuilder configuration, IReadOnlyList<IConfigurationSource> sources)
     {
         var at = configuration.Sources.Count;
 
-        for (var i = 0; i < configuration.Sources.Count; i++)
+        for (var i = configuration.Sources.Count - 1; i >= 0; i--)
         {
-            if (configuration.Sources[i] is not EnvironmentVariablesConfigurationSource)
+            if (configuration.Sources[i] is not JsonConfigurationSource)
                 continue;
-            at = i;
+            at = i + 1;
             break;
         }
 

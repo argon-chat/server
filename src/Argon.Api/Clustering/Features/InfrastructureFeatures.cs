@@ -137,6 +137,7 @@ public sealed class ArgonAuthorizationFeature : IArgonFeature
             .Requires<JwtFeature>()
             .Requires<CacheFeature>()
             .Options<ArgonAuthOptions>("auth")
+            .Options<AnonymousRateLimitOptions>("auth:anonymousRateLimits")
             .Options<AndroidAttestationOptions>("attestation:android");
 
     public void Configure(ArgonFeatureContext ctx)

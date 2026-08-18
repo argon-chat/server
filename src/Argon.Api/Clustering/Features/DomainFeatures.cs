@@ -59,7 +59,8 @@ public sealed class MessagesFeature : IArgonFeature
         => d.Describing("message storage and fan-out")
             .Requires<DatabaseFeature>()
             .Requires<SnowflakeFeature>()
-            .Requires<CacheFeature>();
+            .Requires<CacheFeature>()
+            .Options<MessagesOptions>("Messages");
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddMessagesLayout();

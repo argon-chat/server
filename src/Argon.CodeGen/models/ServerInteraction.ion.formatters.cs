@@ -227,6 +227,87 @@ public sealed class Ion_RealtimeServerMember_Formatter : IonFormatter<RealtimeSe
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceVersions_Formatter : IonFormatter<SpaceVersions>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceVersions Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __members = reader.ReadNullable<string>();
+        var __channels = reader.ReadNullable<string>();
+        var __groups = reader.ReadNullable<string>();
+        var __archetypes = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__members, __channels, __groups, __archetypes);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceVersions value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<string>.WriteNullable(writer, value.members);
+        IonFormatterStorage<string>.WriteNullable(writer, value.channels);
+        IonFormatterStorage<string>.WriteNullable(writer, value.groups);
+        IonFormatterStorage<string>.WriteNullable(writer, value.archetypes);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SpaceSnapshot_Formatter : IonFormatter<SpaceSnapshot>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SpaceSnapshot Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __versions = IonFormatterStorage<SpaceVersions>.Read(reader);
+        var __members = IonFormatterStorage<SpaceMember>.ReadNullableArray(reader);
+        var __channels = IonFormatterStorage<RealtimeChannel>.ReadNullableArray(reader);
+        var __groups = IonFormatterStorage<ChannelGroup>.ReadNullableArray(reader);
+        var __archetypes = IonFormatterStorage<Archetype>.ReadNullableArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__versions, __members, __channels, __groups, __archetypes);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SpaceSnapshot value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<SpaceVersions>.Write(writer, value.versions);
+        IonFormatterStorage<SpaceMember>.WriteNullableArray(writer, value.members);
+        IonFormatterStorage<RealtimeChannel>.WriteNullableArray(writer, value.channels);
+        IonFormatterStorage<ChannelGroup>.WriteNullableArray(writer, value.groups);
+        IonFormatterStorage<Archetype>.WriteNullableArray(writer, value.archetypes);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MemberPresence_Formatter : IonFormatter<MemberPresence>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MemberPresence Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __status = IonFormatterStorage<UserStatus>.Read(reader);
+        var __activity = reader.ReadNullable<UserActivityPresence>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __status, __activity);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MemberPresence value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<UserStatus>.Write(writer, value.status);
+        IonFormatterStorage<UserActivityPresence>.WriteNullable(writer, value.activity);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_InviteCodeEntity_Formatter : IonFormatter<InviteCodeEntity>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

@@ -81,7 +81,7 @@ public sealed class BotSpaceMembershipFilter(IGrainFactory grains) : IEndpointFi
 
         try
         {
-            var members = await grains.GetGrain<ISpaceGrain>(spaceId.Value).GetMembers();
+            var members = await grains.GetGrain<ISpaceReadGrain>(spaceId.Value).GetMembers();
 
             if (members.All(m => m.member.userId != botUserId))
                 return Results.Json(

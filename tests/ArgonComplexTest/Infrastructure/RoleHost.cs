@@ -36,6 +36,7 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
         {
             configuration.AddInMemoryCollection(TestServerConfiguration.ReportSystem);
             configuration.AddInMemoryCollection(TestServerConfiguration.AccountDeletion);
+            configuration.AddInMemoryCollection(TestServerConfiguration.Messages);
         });
 
         builder.ConfigureServices((_, services) =>

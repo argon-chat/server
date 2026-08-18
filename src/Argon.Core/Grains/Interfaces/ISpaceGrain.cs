@@ -24,9 +24,6 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(AnnounceDeletionCancelled))]
     Task AnnounceDeletionCancelled();
 
-    [Alias(nameof(GetChannelGroups))]
-    Task<List<ChannelGroupEntity>> GetChannelGroups();
-
     [Alias(nameof(CreateChannelGroup))]
     Task<ChannelGroupEntity> CreateChannelGroup(string name, string? description = null);
 
@@ -57,14 +54,8 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(RemoveUserPresence))]
     Task RemoveUserPresence(Guid userId);
 
-    [Alias(nameof(GetMembers))]
-    Task<List<RealtimeServerMember>> GetMembers();
-
     [Alias(nameof(GetMember))]
     Task<RealtimeServerMember> GetMember(Guid userId);
-
-    [Alias(nameof(GetChannels))]
-    Task<List<RealtimeChannel>> GetChannels();
 
     [Alias(nameof(DoJoinUserAsync))]
     Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null);

@@ -40,8 +40,7 @@ public sealed class ChannelsV1(IGrainFactory grains) : IBotInterface
 
         group.MapGet("/List", async (Guid spaceId) =>
         {
-            var space    = grains.GetGrain<ISpaceGrain>(spaceId);
-            var channels = await space.GetChannels();
+            var channels = await grains.GetGrain<ISpaceReadGrain>(spaceId).GetChannels();
             return Results.Ok(new ChannelListResponse(
                 channels.Select(c => new BotChannel(
                     c.channel.channelId,

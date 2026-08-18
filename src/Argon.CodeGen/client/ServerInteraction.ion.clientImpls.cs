@@ -18,6 +18,10 @@ namespace ArgonContracts;
 public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) : IServerInteraction
 {
     
+    private static readonly Lazy<MethodInfo> GetSpaceSnapshot_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(GetSpaceSnapshot), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetMemberPresence_Ref = new(() =>
+        typeof(IServerInteraction).GetMethod(nameof(GetMemberPresence), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMembers_Ref = new(() =>
         typeof(IServerInteraction).GetMethod(nameof(GetMembers), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetMember_Ref = new(() =>
@@ -67,6 +71,41 @@ public sealed class Ion_ServerInteraction_ClientImpl(IonClientContext context) :
 
 
     
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<SpaceSnapshot> GetSpaceSnapshot(guid __spaceid, SpaceVersions? __known, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), GetSpaceSnapshot_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<SpaceVersions>.WriteNullable(writer, __known);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<SpaceSnapshot>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<MemberPresence>> GetMemberPresence(guid __spaceid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IServerInteraction), GetMemberPresence_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<MemberPresence>(writer.Encode(), ct: ct);
+    }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<IonArray<RealtimeServerMember>> GetMembers(guid __spaceid, CancellationToken ct = default)
     {

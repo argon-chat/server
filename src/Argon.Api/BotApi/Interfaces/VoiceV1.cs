@@ -35,7 +35,7 @@ public sealed class VoiceV1(IGrainFactory grains, IOptions<CallKitOptions> callK
 
             // Verify channel exists and is a voice channel
             var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
-            var channels = await grains.GetGrain<ISpaceGrain>(request.SpaceId).GetChannels();
+            var channels = await grains.GetGrain<ISpaceReadGrain>(request.SpaceId).GetChannels();
             var target = channels.FirstOrDefault(c => c.channel.channelId == request.ChannelId);
 
             if (target is null)

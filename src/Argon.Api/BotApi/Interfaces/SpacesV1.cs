@@ -48,8 +48,7 @@ public sealed class SpacesV1(IGrainFactory grains) : IBotInterface
 
         group.MapGet("/ListMembers", async (Guid spaceId) =>
         {
-            var space   = grains.GetGrain<ISpaceGrain>(spaceId);
-            var members = await space.GetMembers();
+            var members = await grains.GetGrain<ISpaceReadGrain>(spaceId).GetMembers();
             return Results.Ok(new MemberListResponse(
                 members.Select(m => new BotMember(
                     m.member.userId,

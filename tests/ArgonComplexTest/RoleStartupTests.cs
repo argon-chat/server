@@ -6,6 +6,7 @@ using Argon.Entities;
 using Argon.Features.Clustering;
 using ArgonComplexTest.Infrastructure;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans;
@@ -116,6 +117,47 @@ public class RoleStartupTests
         || parameter.ParameterType.Namespace?.StartsWith("Orleans") is true
         || parameter.ParameterType.IsGenericType &&
            parameter.ParameterType.GetGenericTypeDefinition().Namespace?.StartsWith("Orleans") is true;
+
+    /// <summary>
+    /// A per-feature file has to beat <c>appsettings.json</c>, in a real host.
+    /// </summary>
+    /// <remarks>
+    /// The unit test for precedence builds its own <c>ConfigurationBuilder</c> and so never sees what
+    /// the host actually does: <c>WebApplicationBuilder</c> adds three environment-variable sources
+    /// and two of them — <c>DOTNET_</c> and <c>ASPNETCORE_</c> — come <em>before</em>
+    /// <c>appsettings.json</c>. Anchoring the overlay on "the first environment source" put it
+    /// underneath <c>appsettings.json</c>, which then won every key. Nothing failed; the role simply
+    /// used the wrong values, and found out on the first cache call.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task A_conf_d_file_overrides_appsettings_in_a_real_host()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"argon-conf-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(directory);
+
+        // 'geoip' is enabled by core, appsettings.json sets its address, and the test host does not
+        // override it — so this is a genuine contest between the overlay and appsettings. Redis would
+        // not be: RoleHost points it at the container with UseSetting, which is an explicit override
+        // and rightly beats a file.
+        await File.WriteAllTextAsync(Path.Combine(directory, "geoip.json"),
+            """{ "GeoIp": { "Address": "http://overlay-wins:1234" } }""");
+
+        Environment.SetEnvironmentVariable(FeatureConfigurationSources.DirectoryVariable, directory);
+        try
+        {
+            await using var host = new RoleHost(Settings, ArgonRoleId.Core, FirstSiloPort + 500, "argon-conf-d");
+
+            var configuration = host.Services.GetRequiredService<IConfiguration>();
+
+            Assert.That(configuration["GeoIp:Address"], Is.EqualTo("http://overlay-wins:1234"),
+                "conf.d must sit above appsettings.json, and below the environment");
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable(FeatureConfigurationSources.DirectoryVariable, null);
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 
     [Test, TestCaseSource(nameof(ClientRoles)), CancelAfter(300_000)]
     public async Task A_client_role_starts_and_hosts_no_grains(ArgonRoleId id)

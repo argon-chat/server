@@ -40,6 +40,7 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
             // validators — is what the tests actually exercise.
             configuration.AddInMemoryCollection(TestServerConfiguration.ReportSystem);
             configuration.AddInMemoryCollection(TestServerConfiguration.AccountDeletion);
+            configuration.AddInMemoryCollection(TestServerConfiguration.Messages);
         });
 
         builder.ConfigureServices((_, services) =>

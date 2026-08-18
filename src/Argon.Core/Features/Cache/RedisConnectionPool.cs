@@ -122,7 +122,21 @@ public sealed class RedisConnectionPool : BackgroundService, IRedisPoolConnectio
 
         CacheInstruments.ConnectionsAllocated.Add(1, ProfileTag);
 
-        return ConnectionMultiplexer.Connect(configuration);
+        try
+        {
+            return ConnectionMultiplexer.Connect(configuration);
+        }
+        catch (RedisConnectionException e)
+        {
+            // StackExchange's own message names neither the endpoint nor which of the several pools
+            // this is, and a process holds one pool per profile. Without that, a failure here reads
+            // as "Redis is down" when it is usually one profile pointed somewhere wrong.
+            Interlocked.Decrement(ref this.allocated);
+
+            throw new RedisConnectionException(e.FailureType,
+                $"Redis profile '{profileName}' could not connect to " +
+                $"{string.Join(", ", configuration.EndPoints)} (database {configuration.DefaultDatabase}): {e.Message}", e);
+        }
     }
 
     private void PopulateInitial()

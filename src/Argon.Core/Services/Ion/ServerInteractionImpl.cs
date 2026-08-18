@@ -8,18 +8,26 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
 {
     private const string DefaultInviteDomain = "https://argon.gl/i";
 
+    [Obsolete("Superseded by GetSpaceSnapshot; remove once no shipped client calls it.")]
     public async Task<IonArray<ChannelGroup>> GetChannelGroups(Guid spaceId, CancellationToken ct = default)
     {
         var groups = await this
-           .GetGrain<ISpaceGrain>(spaceId)
+           .GetGrain<ISpaceReadGrain>(spaceId)
            .GetChannelGroups();
 
-        return new IonArray<ChannelGroup>(groups.Select(x => x.ToDto()).ToList());
+        return new IonArray<ChannelGroup>(groups);
     }
 
+    public async Task<SpaceSnapshot> GetSpaceSnapshot(Guid spaceId, SpaceVersions? known, CancellationToken ct = default)
+        => await this.GetGrain<ISpaceReadGrain>(spaceId).GetSnapshot(known);
+
+    public async Task<IonArray<MemberPresence>> GetMemberPresence(Guid spaceId, CancellationToken ct = default)
+        => new(await this.GetGrain<ISpaceReadGrain>(spaceId).GetPresence());
+
+    [Obsolete("Superseded by GetSpaceSnapshot; remove once no shipped client calls it.")]
     public async Task<IonArray<RealtimeServerMember>> GetMembers(Guid spaceId, CancellationToken ct = default)
     {
-        var result = await this.GetGrain<ISpaceGrain>(spaceId)
+        var result = await this.GetGrain<ISpaceReadGrain>(spaceId)
            .GetMembers();
         return new IonArray<RealtimeServerMember>(result);
     }
@@ -92,8 +100,9 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task<ArgonUserProfile> PrefetchProfile(Guid spaceId, Guid userId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).PrefetchProfile(userId);
 
+    [Obsolete("Superseded by GetSpaceSnapshot; remove once no shipped client calls it.")]
     public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, CancellationToken ct = default)
-        => new(await this.GetGrain<ISpaceGrain>(spaceId)
+        => new(await this.GetGrain<ISpaceReadGrain>(spaceId)
            .GetChannels());
 
     public async Task<IonArray<Archetype>> GetServerArchetypes(Guid spaceId, CancellationToken ct = default)

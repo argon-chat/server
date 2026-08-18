@@ -21,7 +21,7 @@ public static class L1L2CacheExtensions
                 LocalCacheExpiration = TimeSpan.FromHours(48),
                 Flags                = HybridCacheEntryFlags.DisableCompression
             };
-        });
+        }).AddSerializerFactory<IonHybridCacheSerializerFactory>();
     }
     public static void AddArchetypesCache(this WebApplicationBuilder builder)
     {
@@ -29,7 +29,9 @@ public static class L1L2CacheExtensions
         builder.Services.AddScoped<IArchetypeCache, HybridArchetypeCache>();
         builder.Services.AddScoped<IPermissionCache, HybridPermissionCache>();
         builder.Services.AddScoped<IEntitlementChecker, EntitlementChecker>();
+        builder.Services.AddScoped<ISpaceReadCache, HybridSpaceReadCache>();
         builder.Services.AddHostedService<HybridPermissionCacheAdapter>();
+        builder.Services.AddHostedService<HybridSpaceReadCacheAdapter>();
     }
 }
 

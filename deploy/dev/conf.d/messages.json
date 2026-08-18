@@ -1,0 +1,6 @@
+{
+  "Messages": {
+    "PerChannelPerSecond": 200,
+    "WriteConcurrency": 8
+  }
+}

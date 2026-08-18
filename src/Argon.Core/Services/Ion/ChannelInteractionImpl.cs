@@ -45,7 +45,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .DeleteChannel(channelId);
 
     public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => new(await this.GetGrain<ISpaceGrain>(spaceId)
+        => new(await this.GetGrain<ISpaceReadGrain>(spaceId)
            .GetChannels());
 
     public async Task UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description, CancellationToken ct = default)

@@ -49,6 +49,11 @@ public sealed class CoreRole : IArgonRole
     public void OnGrainReferences(IGrainCollectionRegistry registry)
     {
         registry.AddToRef<SpaceGrain>();
+
+        // The read side of a space, hosted beside the write side so a cache miss is a local call.
+        // It is a stateless worker, so this is a pool per silo rather than a single activation.
+        registry.AddToRef<SpaceReadGrain>();
+
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<UserGrain>();
         registry.AddToRef<UserSessionGrain>();

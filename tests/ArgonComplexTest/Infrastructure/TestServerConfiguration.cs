@@ -95,6 +95,16 @@ public static class TestServerConfiguration
         ["TrustScoring:AutoActionThresholds:0:LockdownDays"] = "0"
     };
 
+    /// <summary>
+    /// No per-channel rate cap. The suite sends as fast as it can on purpose, which is the one thing
+    /// the cap exists to refuse, and a test that trips it would be reporting on the cap rather than
+    /// on whatever it was written to check.
+    /// </summary>
+    public static IEnumerable<KeyValuePair<string, string?>> Messages { get; } = new Dictionary<string, string?>
+    {
+        ["Messages:PerChannelPerSecond"] = "0"
+    };
+
     /// <summary>Account deletion needs a grace period configured before it will schedule anything.</summary>
     public static IEnumerable<KeyValuePair<string, string?>> AccountDeletion { get; } = new Dictionary<string, string?>
     {

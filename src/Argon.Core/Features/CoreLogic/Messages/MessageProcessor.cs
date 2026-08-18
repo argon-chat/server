@@ -2,12 +2,19 @@ namespace Argon.Api.Features.CoreLogic.Messages;
 
 using Argon.Core.Services;
 using Services;
+using SnowflakeId.Core;
 
 public static class MessagesLayoutExtensions
 {
     public static void AddMessagesLayout(this WebApplicationBuilder builder)
     {
-        builder.Services.AddScoped<MessageDeduplicationService>();
+        // Singleton, both of them: the write buffer is one queue for the process, and it needs the
+        // dedup service from outside any request scope. Its only dependency is the cache, which is
+        // already a singleton.
+        builder.Services.AddSingleton<MessageDeduplicationService>();
+        builder.Services.AddSingleton<MessageWriteBuffer>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<MessageWriteBuffer>());
+
         builder.Services.AddScoped<IMessagesLayout, PgSqlMessagesLayout>();
         builder.Services.AddScoped<ISystemMessageService, SystemMessageService>();
         builder.Services.AddScoped<IConversationService, ConversationService>();
@@ -50,8 +57,10 @@ public class MessageDeduplicationService(IArgonCacheDatabase cache)
 }
 
 public class PgSqlMessagesLayout(
-    IDbContextFactory<ApplicationDbContext> context, 
+    IDbContextFactory<ApplicationDbContext> context,
     MessageDeduplicationService deduplication,
+    MessageWriteBuffer writes,
+    ISnowflakeService snowflake,
     ILogger<PgSqlMessagesLayout> logger) : IMessagesLayout
 {
     public async Task<List<ArgonMessageEntity>> QueryMessages(Guid spaceId, Guid channelId, long? fromMessageId = null, int limit = 50,
@@ -81,33 +90,20 @@ public class PgSqlMessagesLayout(
 
     public async Task<long> ExecuteInsertMessage(ArgonMessageEntity msg, long randomId, CancellationToken ct = default)
     {
-        logger.LogDebug(
-            "ExecuteInsertMessage: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}, RandomId={RandomId}",
-            msg.SpaceId, msg.ChannelId, msg.Entities?.Count ?? 0, randomId);
+        // Minted here rather than read back from the column default: waiting for the database to say
+        // what the id is would put the insert back in the caller's path, which is the whole cost.
+        msg.MessageId = snowflake.GenerateSnowflakeId();
 
-        if (msg.Entities is { Count: > 0 })
-        {
-            logger.LogDebug("Before DB insert - entities types: {EntityTypes}",
-                string.Join(", ", msg.Entities.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}")));
-        }
+        logger.LogDebug("queued message {MessageId} for space {SpaceId}, channel {ChannelId}",
+            msg.MessageId, msg.SpaceId, msg.ChannelId);
 
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        await ctx.Messages.AddAsync(msg, ct);
-        await ctx.SaveChangesAsync(ct);
-
-        logger.LogDebug(
-            "After DB insert: MessageId={MessageId}, EntitiesCount={EntitiesCount}",
-            msg.MessageId, msg.Entities?.Count ?? 0);
-
-        if (msg.Entities is { Count: > 0 })
-            logger.LogDebug("After DB insert - entities types: {EntityTypes}",
-                string.Join(", ", msg.Entities.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}")));
-        else
-            logger.LogWarning("After DB insert - entities are null or empty!");
-
-        await deduplication.SetDeduplicationAsync(msg, randomId, ct);
+        // Awaited, deliberately. The batching is what makes the insert cheap — a hundred senders share
+        // one round trip instead of paying one each — and that benefit survives waiting for the batch
+        // to land. What waiting buys back is the guarantee a send used to have: when this returns, the
+        // message is committed, so a silo lost a moment later has not swallowed it.
+        await writes.EnqueueAsync(msg, randomId);
 
         return msg.MessageId;
     }
+
 }
