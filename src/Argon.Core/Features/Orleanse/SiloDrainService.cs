@@ -1,5 +1,6 @@
 namespace Argon.Drains;
 
+using Orleans.Core.Internal;
 using Orleans.Runtime;
 using Lock = System.Threading.Lock;
 
@@ -74,6 +75,7 @@ public class SiloDrainService(
     IHostApplicationLifetime appLifetime,
     ISiloStatusOracle siloStatusOracle,
     IActivationWorkingSet activationWorkingSet,
+    IGrainFactory grainFactory,
     ILogger<SiloDrainService> logger) : ISiloDrainService
 {
     private volatile SiloDrainState _state = SiloDrainState.Active;
@@ -104,6 +106,9 @@ public class SiloDrainService(
             
             logger.LogInformation("Waiting for K8s to remove pod from endpoints and for in-flight requests to complete...");
             await Task.Delay(TimeSpan.FromSeconds(10), ct);
+
+            // Move what can be moved before waiting on what cannot.
+            await MigrateLocalActivationsAsync(ct);
 
             // Wait for grains to deactivate naturally (by idle timeout)
             var drainTimeout = TimeSpan.FromMinutes(5);
@@ -220,6 +225,93 @@ public class SiloDrainService(
             localSiloDetails.SiloAddress);
 
         return new DrainOperationResult(true, "Drain cancelled. Silo is accepting traffic again.");
+    }
+
+    /// <summary>
+    /// Asks every activation on this silo to move to another one.
+    /// </summary>
+    /// <remarks>
+    /// <para>Without this a drain can only wait, and waiting does not work for the activations that
+    /// matter most: a channel with a live call pins itself with <c>DelayDeactivation</c> for a day, so
+    /// it never falls out on the idle timer, the drain gives up on its stability check, and
+    /// <c>StopApplication</c> tears the call down. Migration moves the activation with the state it is
+    /// holding instead, and the grains that carry state across implement
+    /// <c>IGrainMigrationParticipant</c> to say what travels.</para>
+    ///
+    /// <para>The move is a request, not a command: it happens when the activation next goes idle, and
+    /// anything the runtime refuses to move — stateless workers, system targets — simply stays and is
+    /// handled by the wait below. Failures are counted rather than thrown, because a drain that aborts
+    /// halfway is worse than one that leaves a few activations to the shutdown path.</para>
+    ///
+    /// <para>Where each one lands is left to the placement director, which is only safe because the
+    /// silo has already marked itself draining and <c>DrainAwarePlacementFilter</c> takes it out of
+    /// its own candidate list. Without that the director would prefer the silo it is running on —
+    /// this one — and every activation would come straight back, having achieved nothing but a round
+    /// trip. Naming destinations here instead would work too, and would also override the load
+    /// balancing that resource-optimized placement exists to do, at the exact moment a whole silo is
+    /// being redistributed.</para>
+    ///
+    /// <para>Nothing is asked to move while this is the only silo left: there is nowhere for it to
+    /// go.</para>
+    /// </remarks>
+    private async Task MigrateLocalActivationsAsync(CancellationToken ct)
+    {
+        var local = localSiloDetails.SiloAddress;
+
+        var destinations = siloStatusOracle.GetApproximateSiloStatuses(onlyActive: true)
+           .Keys.Where(silo => !silo.Equals(local))
+           .ToArray();
+
+        if (destinations.Length == 0)
+        {
+            logger.LogWarning("Skipping migration during drain: {SiloAddress} is the only active silo", local);
+            return;
+        }
+
+        GrainId[] mine;
+        try
+        {
+            var statistics = await grainFactory.GetGrain<IManagementGrain>(0).GetDetailedGrainStatistics();
+
+            mine = statistics
+               .Where(statistic => statistic.SiloAddress.Equals(local))
+               .Select(statistic => statistic.GrainId)
+               .ToArray();
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Could not read grain statistics; draining without migrating");
+            return;
+        }
+
+        logger.LogWarning("Migrating {Count} activation(s) off {SiloAddress} to {Destinations} other silo(s)",
+            mine.Length, local, destinations.Length);
+
+        var moved   = 0;
+        var refused = 0;
+
+        // In batches, so a silo holding tens of thousands of activations does not put all of them on
+        // the wire at once during the seconds it has left.
+        foreach (var batch in mine.Chunk(256))
+        {
+            ct.ThrowIfCancellationRequested();
+
+            await Task.WhenAll(batch.Select(async id =>
+            {
+                try
+                {
+                    await grainFactory.GetGrain<IGrainManagementExtension>(id).MigrateOnIdle();
+                    Interlocked.Increment(ref moved);
+                }
+                catch (Exception e)
+                {
+                    Interlocked.Increment(ref refused);
+                    logger.LogDebug(e, "Activation {GrainId} would not migrate", id);
+                }
+            }));
+        }
+
+        logger.LogWarning("Migration requested for {Moved} activation(s), {Refused} refused", moved, refused);
     }
 
     /// <summary>

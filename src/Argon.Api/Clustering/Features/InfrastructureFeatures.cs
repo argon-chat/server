@@ -4,7 +4,9 @@ using Argon.Core.Features.Integrations.Xsolla;
 using Argon.Features.AccountConsole;
 using Argon.Features.Logging;
 using Argon.Features.Sentry;
+using Argon.Features.k8s;
 using Argon.Features.Vault;
+using Argon.HealthChecks;
 using Argon.Services;
 using global::Sentry.Infrastructure;
 
@@ -101,6 +103,35 @@ public sealed class MessagePipeFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Services.AddMessagePipe();
+}
+
+/// <summary>
+/// How Kubernetes starts, probes, drains and stops a silo.
+/// </summary>
+/// <remarks>
+/// <para>One feature rather than two because the probes and the pre-stop hook are one mechanism: the
+/// hook drains, the drain flips readiness, and Kubernetes takes the pod out of the service on the
+/// strength of that. Registering one without the other gives a silo that either cannot be told to
+/// drain or cannot say that it has.</para>
+///
+/// <para>Silo roles only. A client role holds no activations, so there is nothing to hand over before
+/// it stops — removing it from the service endpoints is the whole of its drain, and Kubernetes does
+/// that on its own.</para>
+///
+/// <para>Until this existed the endpoints were written and never mapped: <c>AddSiloHealthChecks</c>
+/// registered the checks, <c>MapSiloHealthChecks</c> was called from nowhere, and every probe would
+/// have answered 404.</para>
+/// </remarks>
+public sealed class SiloLifecycleFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("silo-lifecycle").Describing("Kubernetes probes and the pre-stop drain");
+
+    public void Map(ArgonEndpointContext ctx)
+    {
+        ctx.App.MapSiloHealthChecks();
+        ctx.App.UsePreStopHook();
+    }
 }
 
 public sealed class HttpClientFeature : IArgonFeature

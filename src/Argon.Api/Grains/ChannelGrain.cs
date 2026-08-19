@@ -22,10 +22,14 @@ using Argon.Core.Features.CoreLogic.Privacy;
 using Core.Entities.Data;
 using ion.runtime;
 using Services.L1L2;
+using Argon.Features.Orleanse.Storages;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
+    // Stores nothing; it is here so the runtime carries this across a migration. See VolatileGrainStorage.
+    [PersistentState("activation", VolatileGrainStorage.ProviderName)]
+    IPersistentState<ChannelActivationState> activation,
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
@@ -53,9 +57,6 @@ public class ChannelGrain(
 
     // ── Screencast drawing session (ephemeral, lives with the share) ──
     private const int DrawingDefaultTtlMs = 6000;
-    private (string SessionId, Guid StreamerId, HashSet<Guid> AllowedDrawers)? _drawingSession;
-
-    private readonly Dictionary<Guid, DateTimeOffset> _lastSentBySender = new();
 
     /// <summary>
     /// Ids handed out for the randomIds seen since this activation started, so a retry can be
@@ -64,22 +65,19 @@ public class ChannelGrain(
     /// <remarks>
     /// This activation is the only writer for its channel, so what it remembers is the whole truth
     /// about what it accepted. The cache entry behind it exists for the case this does not cover — an
-    /// activation that moved or restarted — and <see cref="_dedupCacheTrustedUntil"/> is when that
+    /// activation that moved or restarted — and <see cref="activation.State.DedupTrustedUntil"/> is when that
     /// case stops being possible.
     /// </remarks>
-    private readonly Dictionary<long, long> _sentByRandomId = new();
 
     /// <summary>
     /// Until this moment a retry might have been accepted by a previous activation, so the shared
     /// cache still has to be consulted. After it, any entry the cache could still hold is younger
     /// than the entry's own lifetime and therefore was written by this activation, which means it is
-    /// already in <see cref="_sentByRandomId"/> and the round trip is pure cost.
+    /// already in <see cref="activation.State.SentByRandomId"/> and the round trip is pure cost.
     /// </summary>
-    private DateTimeOffset _dedupCacheTrustedUntil;
 
     /// <summary>Start of the second the cap is currently counting, and what it has counted.</summary>
-    private DateTimeOffset _capSecond;
-    private int            _capAccepted;
+
 
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
@@ -138,22 +136,42 @@ public class ChannelGrain(
     {
         // Matches MessageDeduplicationService's entry lifetime. Anything a previous activation wrote
         // has expired by then, so from that moment this activation's own memory is the whole answer.
-        _dedupCacheTrustedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(2);
-
         _self = await Get();
 
-        await state.ReadStateAsync(cancellationToken);
+        // A migrated activation arrives holding everything it had on the other silo — the roster in
+        // persisted state, the rest in volatile state — because Orleans carries an IPersistentState
+        // across a move and skips the read on the far side. Reading storage back over it and clearing
+        // it is exactly what the move exists to avoid.
+        //
+        // A fresh activation still resets: voice membership is activation-scoped by design, so a silo
+        // that died takes its call with it rather than leaving ghosts behind.
+        if (!activation.State.Activated)
+        {
+            // Matches MessageDeduplicationService's entry lifetime. Anything a previous activation
+            // wrote has expired by then, so from that moment this activation's own memory is the
+            // whole answer.
+            activation.State.DedupTrustedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(2);
 
-        state.State.Users.Clear();
-        state.State.UserJoinTimes.Clear();
-        state.State.LastMembershipChange = DateTimeOffset.UtcNow;
-        state.State.EgressActive = false;
+            await state.ReadStateAsync(cancellationToken);
 
-        await state.WriteStateAsync(cancellationToken);
+            state.State.Users.Clear();
+            state.State.UserJoinTimes.Clear();
+            state.State.LastMembershipChange = DateTimeOffset.UtcNow;
+            state.State.EgressActive = false;
+
+            await state.WriteStateAsync(cancellationToken);
+        }
+
+        activation.State.Activated = true;
 
         _reactionFlushTimer = this.RegisterGrainTimer(
             async _ => await FlushReactionsAsync(),
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)));
+
+        // Timers do not travel, only the fact that these bots were typing. Empty on a fresh
+        // activation, so this is a no-op there.
+        foreach (var userId in activation.State.BotTyping.ToArray())
+            ArmBotTypingStop(userId);
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
@@ -161,8 +179,15 @@ public class ChannelGrain(
         // Flush pending reactions before shutdown
         await FlushReactionsAsync();
 
-        // Settle XP for all users still in channel
+        // Settle XP for all users still in channel. Runs on migration too: it awards the period that
+        // has actually elapsed and rebases the clock, so the accounting is continuous across the move.
         await SettleXpForAllUsersAsync();
+
+        // Migration is not a departure. Leaving everyone here would broadcast LeavedFromChannelUser to
+        // every client and tell the space the call emptied — a visible mass disconnect caused by the
+        // cluster rebalancing itself. The roster travels with the activation instead.
+        if (reason.ReasonCode == DeactivationReasonCode.Migrating)
+            return;
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
     }
@@ -216,10 +241,24 @@ public class ChannelGrain(
         await FireChannel(new UserTypingEvent(SpaceId, channelId, userId, kind));
 
         // Register auto-stop timer — fires UserStopTypingEvent after timeout
+        ArmBotTypingStop(userId);
+    }
+
+    /// <summary>Fires the stop-typing event once the bot has gone quiet for <see cref="BotTypingTimeout"/>.</summary>
+    /// <remarks>
+    /// Separate from the call that starts it because a migrated activation has to arm it again: the
+    /// timer does not travel, and without it a bot that stopped typing on the old silo would show as
+    /// typing forever on the new one.
+    /// </remarks>
+    private void ArmBotTypingStop(Guid userId)
+    {
+        activation.State.BotTyping.Add(userId);
+
         _botTypingTimers[userId] = this.RegisterGrainTimer(async _ =>
         {
             _botTypingTimers.Remove(userId);
-            await FireChannel(new UserStopTypingEvent(SpaceId, channelId, userId));
+            activation.State.BotTyping.Remove(userId);
+            await FireChannel(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, userId));
         }, new GrainTimerCreationOptions(BotTypingTimeout, Timeout.InfiniteTimeSpan));
     }
 
@@ -376,7 +415,7 @@ public class ChannelGrain(
         }
 
         var sessionId = Guid.NewGuid().ToString("N");
-        _drawingSession = (sessionId, streamerId, allowed.ToHashSet());
+        activation.State.DrawingSession = new DrawingSessionState(sessionId, streamerId, allowed.ToHashSet());
 
         await Fire(new DrawingSessionStarted(
             SpaceId, this.GetPrimaryKey(), sessionId, streamerId,
@@ -387,11 +426,11 @@ public class ChannelGrain(
 
     public async Task<bool> StopDrawingSession(string sessionId)
     {
-        if (_drawingSession is not { } session) return false;
+        if (activation.State.DrawingSession is not { } session) return false;
         if (session.SessionId != sessionId) return false;
         if (session.StreamerId != this.GetUserId()) return false; // only the streamer may close
 
-        _drawingSession = null;
+        activation.State.DrawingSession = null;
         await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
         return true;
     }
@@ -418,10 +457,10 @@ public class ChannelGrain(
         await state.WriteStateAsync();
 
         // End the streamer's drawing session if they left the channel.
-        if (_drawingSession is { } ds && ds.StreamerId == userId)
+        if (activation.State.DrawingSession is { } ds && ds.StreamerId == userId)
         {
             var sessionId = ds.SessionId;
-            _drawingSession = null;
+            activation.State.DrawingSession = null;
             await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
         }
 
@@ -629,13 +668,13 @@ public class ChannelGrain(
 
         var now = DateTimeOffset.UtcNow;
 
-        if (now - _capSecond >= TimeSpan.FromSeconds(1))
+        if (now - activation.State.CapSecond >= TimeSpan.FromSeconds(1))
         {
-            _capSecond   = now;
-            _capAccepted = 0;
+            activation.State.CapSecond   = now;
+            activation.State.CapAccepted = 0;
         }
 
-        if (++_capAccepted > limit)
+        if (++activation.State.CapAccepted > limit)
             throw new InvalidOperationException(
                 $"this channel is accepting at most {limit} message(s) per second right now");
     }
@@ -648,7 +687,7 @@ public class ChannelGrain(
         if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.ManageMessages))
             return;
 
-        if (_lastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
+        if (activation.State.LastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
             throw new InvalidOperationException("Slow mode is active in this channel");
     }
 
@@ -663,10 +702,10 @@ public class ChannelGrain(
     /// </remarks>
     private async Task<long?> DeduplicateAsync(ArgonMessageEntity message, long randomId)
     {
-        if (_sentByRandomId.TryGetValue(randomId, out var known))
+        if (activation.State.SentByRandomId.TryGetValue(randomId, out var known))
             return known;
 
-        if (DateTimeOffset.UtcNow >= _dedupCacheTrustedUntil)
+        if (DateTimeOffset.UtcNow >= activation.State.DedupTrustedUntil)
             return null;
 
         return await messagesLayout.CheckDuplicationAsync(message, randomId);
@@ -676,10 +715,10 @@ public class ChannelGrain(
     {
         // Bounded rather than expiring: a retry arrives within seconds, so the last few thousand
         // sends are far more history than the question needs.
-        if (_sentByRandomId.Count > 4096)
-            _sentByRandomId.Clear();
+        if (activation.State.SentByRandomId.Count > 4096)
+            activation.State.SentByRandomId.Clear();
 
-        _sentByRandomId[randomId] = messageId;
+        activation.State.SentByRandomId[randomId] = messageId;
     }
 
     private void NoteSent(Guid senderId)
@@ -689,14 +728,14 @@ public class ChannelGrain(
 
         // Everyone who ever posted here would otherwise stay in the dictionary for the lifetime of
         // the activation; entries older than the window can no longer block anyone, so drop them.
-        if (_lastSentBySender.Count > 512)
+        if (activation.State.LastSentBySender.Count > 512)
         {
             var cutoff = DateTimeOffset.UtcNow - window;
-            foreach (var stale in _lastSentBySender.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
-                _lastSentBySender.Remove(stale);
+            foreach (var stale in activation.State.LastSentBySender.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
+                activation.State.LastSentBySender.Remove(stale);
         }
 
-        _lastSentBySender[senderId] = DateTimeOffset.UtcNow;
+        activation.State.LastSentBySender[senderId] = DateTimeOffset.UtcNow;
     }
 
     public async Task<Either<string, VoiceInviteError>> CreateVoiceInvite(TimeSpan expiration, int maxUses, CancellationToken ct = default)
@@ -1613,3 +1652,67 @@ public class ChannelGrain(
         }
     }
 }
+
+/// <summary>
+/// What a channel activation holds that its persisted state does not.
+/// </summary>
+/// <remarks>
+/// <para>Distinct from <see cref="ChannelGrainState"/>, which is written to storage and outlives the
+/// activation. This is the opposite: memory that is meaningless once the activation ends, and worth
+/// exactly one thing — surviving a move to another silo without being rebuilt from nothing.</para>
+///
+/// <para>Held as <c>IPersistentState</c> against the storage that stores nothing, which is what makes
+/// it travel: Orleans' state bridge is itself an <c>IGrainMigrationParticipant</c>, so declaring the
+/// state is the whole of the work and nothing is packed or unpacked by hand. Adding a field later is
+/// one line here and no lines anywhere else.</para>
+/// </remarks>
+[GenerateSerializer]
+public sealed record ChannelActivationState
+{
+    /// <summary>Until when this activation's own dedup memory is the whole answer.</summary>
+    [Id(0)]
+    public DateTimeOffset DedupTrustedUntil { get; set; }
+
+    /// <summary>Client-supplied random id to the message id it produced.</summary>
+    [Id(1)]
+    public Dictionary<long, long> SentByRandomId { get; set; } = new();
+
+    /// <summary>Last accepted send per sender, for slow mode.</summary>
+    [Id(2)]
+    public Dictionary<Guid, DateTimeOffset> LastSentBySender { get; set; } = new();
+
+    /// <summary>The one-second window the channel-wide cap is currently counting in.</summary>
+    [Id(3)]
+    public DateTimeOffset CapSecond { get; set; }
+
+    [Id(4)]
+    public int CapAccepted { get; set; }
+
+    /// <summary>The screencast drawing session, if one is open.</summary>
+    [Id(5)]
+    public DrawingSessionState? DrawingSession { get; set; }
+
+    /// <summary>
+    /// Bots that are mid-typing. Kept beside the timers rather than derived from them: a timer cannot
+    /// travel, so the new activation arms fresh ones from this — the indicator can outlive a move by
+    /// up to one timeout and never longer.
+    /// </summary>
+    [Id(6)]
+    public HashSet<Guid> BotTyping { get; set; } = [];
+
+    /// <summary>
+    /// Set once an activation has run. Absent on a fresh one, present on a migrated one — which is
+    /// how the grain tells them apart, and the difference decides whether the voice roster is reset.
+    /// </summary>
+    [Id(7)]
+    public bool Activated { get; set; }
+}
+
+/// <param name="SessionId">Identifies the session to clients across the move.</param>
+/// <param name="StreamerId">Who is sharing.</param>
+/// <param name="AllowedDrawers">Who may draw on the share.</param>
+[GenerateSerializer]
+public sealed record DrawingSessionState(
+    [property: Id(0)] string SessionId,
+    [property: Id(1)] Guid StreamerId,
+    [property: Id(2)] HashSet<Guid> AllowedDrawers);

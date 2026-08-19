@@ -7,6 +7,8 @@ using Drains;
 using HealthChecks;
 using NatsStreaming;
 using Orleans.Configuration;
+using Orleans.Storage;
+using Features.Orleanse.Storages;
 using Orleans.Dashboard;
 using Orleans.Serialization;
 using Services.Ion;
@@ -38,7 +40,8 @@ public static class ArgonOrleansHosting
         "meets"
     ];
 
-    public static IReadOnlySet<string> KnownStorageProviders { get; } = StorageProviders.ToHashSet(StringComparer.Ordinal);
+    public static IReadOnlySet<string> KnownStorageProviders { get; } =
+        StorageProviders.Append(VolatileGrainStorage.ProviderName).ToHashSet(StringComparer.Ordinal);
 
     public static WebApplicationBuilder AddArgonOrleans(this WebApplicationBuilder builder, RoleDescriptor role)
         => role.IsClient ? builder.AddArgonOrleansClient() : builder.AddArgonSilo(role);
@@ -118,6 +121,10 @@ public static class ArgonOrleansHosting
                .AddActivityPropagation()
                .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
                .UseRedisStorages(StorageProviders)
+
+                // Stores nothing. It is here so a grain can declare in-memory state as
+                // IPersistentState and have the runtime carry it across a migration for free.
+               .AddVolatileStorage()
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);

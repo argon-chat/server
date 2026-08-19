@@ -6,9 +6,17 @@ using Orleans.Runtime;
 using OrleansSiloStatus = SiloStatus;
 
 /// <summary>
-/// Liveness health check - verifies the application is running.
-/// Returns unhealthy only if the app is completely broken.
+/// Is this process worth keeping? Answers Kubernetes' liveness probe, whose only remedy is a restart.
 /// </summary>
+/// <remarks>
+/// <para>Deliberately blind to the drain. A draining silo is doing exactly what it was asked to do,
+/// and reporting it as not alive would have Kubernetes restart the pod in the middle of handing its
+/// grains over — losing the calls the drain exists to preserve. "Not taking traffic" is the readiness
+/// probe's answer, not this one's.</para>
+///
+/// <para>Dead is the one state worth a restart: the cluster has written this silo off while the process
+/// is still running, so it will never serve anything again on its own.</para>
+/// </remarks>
 public class LivenessHealthCheck(
     ISiloStatusOracle siloStatusOracle,
     ILogger<LivenessHealthCheck> logger) : IHealthCheck
@@ -92,14 +100,8 @@ public class ReadinessHealthCheck(
                     data: data));
             }
 
-            // Check 3: Cluster must have at least one other active silo (optional, for HA)
-            var activeSilos = clusterSnapshot.Members.Count(m => m.Value.Status == OrleansSiloStatus.Active);
-            if (activeSilos == 0)
-            {
-                logger.LogWarning("Readiness check: No active silos in cluster");
-                // Still return healthy if this is the only silo - it should accept traffic
-            }
-
+            // A cluster of one is still a cluster: being the only active silo is a reason to take
+            // traffic, not to refuse it.
             return Task.FromResult(HealthCheckResult.Healthy(
                 "Silo is ready to accept traffic",
                 data: data));
@@ -111,6 +113,41 @@ public class ReadinessHealthCheck(
                 "Readiness check failed",
                 ex));
         }
+    }
+}
+
+/// <summary>
+/// Has this silo finished joining the cluster? Answers Kubernetes' startup probe.
+/// </summary>
+/// <remarks>
+/// <para>Separate from readiness even though it asks a subset of the same question, because the two
+/// are used differently: Kubernetes calls this one until it passes once and then never again, and it
+/// holds the liveness probe off until then. Without it, a silo that takes longer than the liveness
+/// threshold to find the membership table gets restarted for being slow, and restarts into the same
+/// race.</para>
+///
+/// <para>Joining is the whole of it — a silo that is Active is in the membership table, reachable by
+/// the others, and can be given grains. Whether it should be given traffic is readiness' question,
+/// and it answers differently the moment a drain starts.</para>
+/// </remarks>
+public class StartupHealthCheck(
+    ISiloStatusOracle siloStatusOracle,
+    ILogger<StartupHealthCheck> logger) : IHealthCheck
+{
+    public Task<HealthCheckResult> CheckHealthAsync(
+        HealthCheckContext context,
+        CancellationToken ct = default)
+    {
+        var siloStatus = siloStatusOracle.CurrentStatus;
+        var data       = new Dictionary<string, object> { ["siloStatus"] = siloStatus.ToString() };
+
+        if (siloStatus is OrleansSiloStatus.Active)
+            return Task.FromResult(HealthCheckResult.Healthy("Silo joined the cluster", data: data));
+
+        logger.LogInformation("Startup check: silo status is {Status}, still joining", siloStatus);
+
+        return Task.FromResult(HealthCheckResult.Unhealthy(
+            $"Silo status is {siloStatus}; it has not joined the cluster yet", data: data));
     }
 }
 
@@ -186,6 +223,10 @@ public static class HealthCheckExtensions
     public static IServiceCollection AddSiloHealthChecks(this IServiceCollection services)
     {
         services.AddHealthChecks()
+            .AddCheck<StartupHealthCheck>(
+                "startup",
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["startup"])
             .AddCheck<LivenessHealthCheck>(
                 "liveness",
                 failureStatus: HealthStatus.Unhealthy,
@@ -204,6 +245,14 @@ public static class HealthCheckExtensions
 
     public static IEndpointRouteBuilder MapSiloHealthChecks(this IEndpointRouteBuilder app)
     {
+        // Kubernetes startup probe - has the silo joined the cluster? Holds the other two off until
+        // it passes, so a slow join is not mistaken for a wedged process.
+        app.MapHealthChecks("/health/startup", new()
+        {
+            Predicate      = check => check.Tags.Contains("startup"),
+            ResponseWriter = WriteHealthResponse
+        });
+
         // Kubernetes liveness probe - is the app alive?
         app.MapHealthChecks("/health/live", new()
         {

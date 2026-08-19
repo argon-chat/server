@@ -18,6 +18,7 @@ public sealed class CoreRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<MessagePipeFeature>();
@@ -106,6 +107,7 @@ public sealed class VoiceRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
@@ -138,6 +140,7 @@ public sealed class MediaRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
@@ -159,6 +162,7 @@ public sealed class ModerationRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
@@ -179,6 +183,7 @@ public sealed class CommerceRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
@@ -213,6 +218,7 @@ public sealed class JobsRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
