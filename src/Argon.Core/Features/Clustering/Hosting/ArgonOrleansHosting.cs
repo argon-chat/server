@@ -117,12 +117,12 @@ public static class ArgonOrleansHosting
             silo.AddStreaming()
                .AddActivityPropagation()
                .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
-               .UseStorages(StorageProviders, "Npgsql", "DefaultConnection")
+               .UseRedisStorages(StorageProviders)
                .Configure<ClusterMembershipOptions>(options =>
                 {
                     options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
                     options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
-                    options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
+                    options.MaxJoinAttemptTime          = TimeSpan.FromMinutes(2);
                     options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
                 })
                .Configure<ExceptionSerializationOptions>(x => x.SupportedNamespacePrefixes.Add("Argon"))

@@ -14,10 +14,18 @@ using Orleans.Hosting;
 /// </remarks>
 public static class OrleansExtension
 {
-    public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
+    /// <summary>
+    /// Registers one Redis-backed grain storage provider per name.
+    /// </summary>
+    /// <remarks>
+    /// It used to take an ADO.NET invariant and a connection string name, and the call site passed
+    /// <c>"Npgsql"</c> and <c>"DefaultConnection"</c> — neither was ever read. Grain state has always
+    /// gone to Redis, and the signature said Postgres.
+    /// </remarks>
+    public static ISiloBuilder UseRedisStorages(this ISiloBuilder builder, IEnumerable<string> providerNames)
     {
-        foreach (var key in keys)
-            builder.AddRedisStorage(key);
+        foreach (var name in providerNames)
+            builder.AddRedisStorage(name);
 
         return builder;
     }
