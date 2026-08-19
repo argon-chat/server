@@ -231,6 +231,45 @@ public class RegionOptionsRulesTests
         Assert.That(errors, Has.Some.Contains("share index"));
     }
 
+    /// <summary>
+    /// A mistyped cutover stops the process instead of quietly disabling itself.
+    /// </summary>
+    /// <remarks>
+    /// Returning null for an unreadable value means "tagging has not begun", which reads every
+    /// identifier as belonging to the original region. That is the right answer for a deployment that
+    /// set nothing and the worst possible one for a deployment that set the epoch and fat-fingered it.
+    /// </remarks>
+    [Test]
+    public void A_cutover_that_is_not_a_timestamp_is_refused()
+    {
+        var configuration = new ConfigurationBuilder()
+           .AddInMemoryCollection([new KeyValuePair<string, string?>($"{Section}:IdEpoch", "yesterday")])
+           .Build();
+
+        Assert.That(() => ArgonRegionOptions.EpochOf(configuration),
+            Throws.TypeOf<InvalidOperationException>());
+    }
+
+    /// <summary>
+    /// And a cutover without a zone is read as UTC rather than as the pod's local time.
+    /// </summary>
+    /// <remarks>
+    /// The first version used the ambient culture and no styles. Two regions in different time zones
+    /// would then disagree about the cutover by hours, and each would read a band of the other's
+    /// identifiers as pre-epoch — that is, as belonging to the original region.
+    /// </remarks>
+    [Test]
+    public void A_cutover_without_a_zone_is_utc()
+        => Assert.That(
+            ArgonRegionOptions.EpochOf(new ConfigurationBuilder()
+               .AddInMemoryCollection([new KeyValuePair<string, string?>($"{Section}:IdEpoch", "2026-01-01T00:00:00")])
+               .Build()),
+            Is.EqualTo(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)));
+
+    [Test]
+    public void No_cutover_configured_is_not_an_error()
+        => Assert.That(ArgonRegionOptions.EpochOf(new ConfigurationBuilder().Build()), Is.Null);
+
     [TestCase("host:30000", true)]
     [TestCase("10.0.0.1:1", true)]
     [TestCase("host", false)]

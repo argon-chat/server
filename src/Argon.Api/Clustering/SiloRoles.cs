@@ -30,8 +30,15 @@ public sealed class CoreRole : IArgonRole
     /// <c>ISpaceGrain</c>, <c>IUserGrain</c> and <c>ISecurityGrain</c> account for most of the call
     /// sites and all live here, so most client traffic is forwarded within this role. It is also the
     /// role that runs the most replicas, which is where gateway redundancy comes from without any
-    /// extra machinery, and a draining silo drops out of the gateway list on its own — every provider
-    /// filters on <c>Status == Active</c>.</para>
+    /// extra machinery.</para>
+    ///
+    /// <para><b>A draining silo does not leave the gateway list.</b> Gateway list providers filter on
+    /// <c>Status == Active &amp;&amp; ProxyPort != 0</c>, and draining never touches membership —
+    /// <c>SiloDrainService</c> says so in as many words ("Don't manipulate Orleans membership table
+    /// directly"), so a draining silo stays <c>Active</c> and keeps being handed out. Readiness going
+    /// false removes the pod from the Kubernetes Service, which is what stops <em>new HTTP</em>
+    /// traffic; it does nothing to Orleans clients, which dial pod addresses read from the membership
+    /// table. What actually retires a gateway is the process stopping.</para>
     ///
     /// <para>The cost is one extra hop for a call to a grain that lives elsewhere: entry point to a
     /// core gateway to the target silo. Those calls — commerce, media, jobs — are already doing
@@ -42,6 +49,7 @@ public sealed class CoreRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
@@ -131,6 +139,7 @@ public sealed class VoiceRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
@@ -164,6 +173,7 @@ public sealed class MediaRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
@@ -186,6 +196,7 @@ public sealed class ModerationRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
@@ -207,6 +218,7 @@ public sealed class CommerceRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();
@@ -242,6 +254,7 @@ public sealed class JobsRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SiloLifecycleFeature>();
         features.Add<SentryFeature>();
         features.Add<CacheFeature>();

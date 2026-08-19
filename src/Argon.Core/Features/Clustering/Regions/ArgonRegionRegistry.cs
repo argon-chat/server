@@ -1,5 +1,6 @@
 namespace Argon.Features.Clustering.Regions;
 
+using System.Collections.Frozen;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
@@ -92,8 +93,12 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
     private readonly ArgonRegionOptions                       options;
     private readonly IServiceProvider                         host;
     private readonly ILogger<ArgonRegionRegistry>             logger;
-    private readonly Dictionary<string, RemoteRegionClient>   peers;
-    private readonly Dictionary<string, string>               zones;
+    // Frozen because both are built in the constructor and read from anywhere afterwards. The
+    // mutable version was cleared by DisposeAsync while other threads were reading it — and clearing
+    // it changed the answer RegionOf gives, since the no-peers path returns Self without reading the
+    // identifier at all. Shutdown silently turned every id into a local one.
+    private readonly FrozenDictionary<string, RemoteRegionClient> peers;
+    private readonly FrozenDictionary<string, string>             zones;
 
     public ArgonRegionRegistry(
         IOptions<ArgonRegionOptions> options,
@@ -104,10 +109,10 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
         this.host    = host;
         this.logger  = logger;
 
-        zones = this.options.Nodes.ToDictionary(
+        zones = this.options.Nodes.ToFrozenDictionary(
             n => n.Key, n => n.Value.Zone ?? "", StringComparer.OrdinalIgnoreCase);
 
-        peers = this.options.Peers.ToDictionary(
+        peers = this.options.Peers.ToFrozenDictionary(
             n => n.Key,
             n => RemoteRegionClient.Create(n.Key, n.Value, this.options, host),
             StringComparer.OrdinalIgnoreCase);
@@ -217,11 +222,18 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
     public async Task StopAsync(CancellationToken cancellationToken)
         => await DisposeAsync();
 
+    /// <summary>
+    /// Disposes the peer clients. The map itself is left alone.
+    /// </summary>
+    /// <remarks>
+    /// Emptying it would change what <see cref="RegionOf"/> answers — with no peers it returns the
+    /// local region without reading the identifier — so a shutdown would quietly start claiming every
+    /// region's data as its own. Each peer is idempotent about being disposed twice.
+    /// </remarks>
     public async ValueTask DisposeAsync()
     {
         foreach (var peer in peers.Values)
             await peer.DisposeAsync();
-        peers.Clear();
     }
 }
 
@@ -386,9 +398,13 @@ public sealed class RemoteRegionClient : IAsyncDisposable
             {
                 await ((IHostedService)client).StartAsync(ct);
 
-                // Only out of Connecting. The observer may already have said Offline while this was
-                // in flight, and it is the one that is right.
-                Interlocked.CompareExchange(ref status, (int)RegionStatus.Online, (int)RegionStatus.Connecting);
+                // Unconditionally, where this used to promote only out of Connecting. The reasoning
+                // for that was wrong: an Offline the observer reported while the connection was still
+                // being made is stale the moment StartAsync returns, because StartAsync returning is
+                // exactly the statement that a gateway was reached. Refusing to overwrite it left a
+                // connected peer marked Offline with nothing to re-arm it, and TryGetClient refusing
+                // a region that was working.
+                Report(RegionStatus.Online);
                 retryFilter.Connected();
 
                 logger.LogInformation("Region '{Region}' connected", region);

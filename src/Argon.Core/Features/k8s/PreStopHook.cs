@@ -16,19 +16,28 @@ using Argon.Drains;
 /// drain its time — up to <c>terminationGracePeriodSeconds</c>, which therefore has to be longer than
 /// a drain takes or the kill arrives mid-handover.</para>
 ///
-/// <para>Loopback only. The one thing this endpoint does is end the process, and nothing outside the
-/// pod has any business asking for that.</para>
+/// <para>Loopback only, both paths. One of them ends the process and the other decides whether a silo
+/// takes traffic; neither is anyone else's business.</para>
+///
+/// <para>The second path is the way back. Every exit from a drain now leaves the silo <c>Drained</c>,
+/// including the failures — a half-drained silo must not advertise itself as ready — so without
+/// something that can say "never mind", the only way to return a silo to service is to redeploy it.
+/// <c>/internal/undrain</c> is that something, and it is what makes a cancelled maintenance window
+/// recoverable.</para>
 /// </remarks>
 public static class PreStopHookExtensions
 {
-    public const string Path = "/internal/shutdown";
+    public const string Path        = "/internal/shutdown";
+    public const string UndrainPath = "/internal/undrain";
 
     public static void UsePreStopHook(this WebApplication app)
         => app.Use(Middleware);
 
     private async static Task Middleware(HttpContext context, RequestDelegate next)
     {
-        if (context.Request.Path != Path || context.Request.Method != "GET")
+        var path = context.Request.Path;
+
+        if (context.Request.Method != "GET" || (path != Path && path != UndrainPath))
         {
             await next(context);
             return;
@@ -40,6 +49,12 @@ public static class PreStopHookExtensions
         {
             context.Response.StatusCode = 403;
             await context.Response.WriteAsync($"Forbidden, {ip} denied");
+            return;
+        }
+
+        if (path == UndrainPath)
+        {
+            await Undrain(context);
             return;
         }
 
@@ -75,5 +90,31 @@ public static class PreStopHookExtensions
 
         // After the response, so the reply is not lost to the host tearing the server down under it.
         _ = Task.Run(lifetime.StopApplication);
+    }
+
+    /// <summary>Returns a drained or draining silo to service.</summary>
+    /// <remarks>
+    /// Answers 409 when the silo is not in a state that can be cancelled — already active, or already
+    /// shutting down — rather than pretending it worked. An operator retrying a failed undrain wants
+    /// to know which of the two it is.
+    /// </remarks>
+    private async static Task Undrain(HttpContext context)
+    {
+        var logger = context.RequestServices.GetRequiredService<ILogger<IHostApplicationLifetime>>();
+        var drain  = context.RequestServices.GetService<ISiloDrainService>();
+
+        if (drain is null)
+        {
+            context.Response.StatusCode = 404;
+            await context.Response.WriteAsync("No drain service here; this role hosts no activations.");
+            return;
+        }
+
+        var result = drain.CancelDraining();
+
+        logger.LogWarning("Undrain requested from the internal endpoint. {Outcome}", result.Message);
+
+        context.Response.StatusCode = result.IsSuccess ? 200 : 409;
+        await context.Response.WriteAsync(result.Message);
     }
 }

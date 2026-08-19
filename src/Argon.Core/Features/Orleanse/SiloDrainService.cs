@@ -130,13 +130,18 @@ public class SiloDrainService(
         }
         catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            logger.LogWarning("Drain operation was cancelled by user");
+            // The caller's token, not a change of mind. The pre-stop hook passes its request's token,
+            // so this fires when the curl that triggered the drain hit its own deadline — and the pod
+            // is still on its way out. Returning to Active there would put a terminating silo back
+            // into the readiness endpoint. Deliberately un-draining is CancelDraining, which is a
+            // separate call somebody has to make on purpose.
+            logger.LogWarning("Drain was cut short by the caller; the silo stays out of rotation");
             lock (_lock)
             {
-                _state = SiloDrainState.Active;
-                _drainStartedAt = null;
+                _state = SiloDrainState.Drained;
             }
-            return new DrainOperationResult(false, "Drain operation was cancelled");
+            return new DrainOperationResult(false,
+                "Drain was cut short by the caller. The silo remains out of rotation.");
         }
         catch (OperationCanceledException)
         {
@@ -152,13 +157,15 @@ public class SiloDrainService(
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Error during drain operation");
+            // Also out of rotation, and for a sharper reason: by the time this throws the silo may
+            // already have handed some of its activations away. Marking it Active would advertise a
+            // half-drained silo as ready and route fresh work onto it.
+            logger.LogError(ex, "Drain failed; the silo stays out of rotation");
             lock (_lock)
             {
-                _state = SiloDrainState.Active;
-                _drainStartedAt = null;
+                _state = SiloDrainState.Drained;
             }
-            return new DrainOperationResult(false, $"Drain failed: {ex.Message}");
+            return new DrainOperationResult(false, $"Drain failed: {ex.Message}. The silo remains out of rotation.");
         }
     }
 
@@ -208,23 +215,41 @@ public class SiloDrainService(
         return new DrainOperationResult(true, "Graceful shutdown initiated. Orleans will handle membership correctly.");
     }
 
+    /// <summary>
+    /// Puts a drained or draining silo back into service.
+    /// </summary>
+    /// <remarks>
+    /// <para>Accepts <see cref="SiloDrainState.Drained"/> as well as <see cref="SiloDrainState.Draining"/>,
+    /// which it did not: every path out of a drain ends in <c>Drained</c>, so the only state this
+    /// used to accept was one a drain passes through rather than one it stops in. Un-draining a silo
+    /// meant redeploying it.</para>
+    ///
+    /// <para>Safe because draining never touched membership — the silo stayed <c>Active</c> to Orleans
+    /// throughout and is a valid host the moment readiness says so again. Not accepted from
+    /// <see cref="SiloDrainState.ShuttingDown"/>: the process is already going.</para>
+    /// </remarks>
     public DrainOperationResult CancelDraining()
     {
+        SiloDrainState previous;
+
         lock (_lock)
         {
-            if (_state != SiloDrainState.Draining)
+            if (_state is not (SiloDrainState.Draining or SiloDrainState.Drained))
             {
                 return new DrainOperationResult(false, $"Cannot cancel. Current state: {_state}");
             }
 
-            _state = SiloDrainState.Active;
+            previous = _state;
+            _state   = SiloDrainState.Active;
             _drainStartedAt = null;
         }
 
-        logger.LogWarning("Drain cancelled for silo {SiloAddress}. Readiness probe will now return healthy.", 
-            localSiloDetails.SiloAddress);
+        logger.LogWarning(
+            "Drain cancelled for silo {SiloAddress} from {Previous}. Readiness probe will now return healthy.",
+            localSiloDetails.SiloAddress, previous);
 
-        return new DrainOperationResult(true, "Drain cancelled. Silo is accepting traffic again.");
+        return new DrainOperationResult(true,
+            $"Drain cancelled from {previous}. Silo is accepting traffic again.");
     }
 
     /// <summary>

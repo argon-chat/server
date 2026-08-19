@@ -54,6 +54,7 @@ public sealed class BotApiRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
         features.Add<ServerTimingFeature>();
         features.Add<DatabaseFeature>();
@@ -79,6 +80,7 @@ public sealed class AccountConsoleRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
 
         features.Add<KestrelFeature>();
@@ -99,6 +101,7 @@ public sealed class AdminRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
         features.Add<DatabaseFeature>();
 
@@ -136,6 +139,7 @@ public sealed class AegisRole : IArgonRole
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();
+        features.Add<RegionRegistryFeature>();
         features.Add<SentryFeature>();
         features.Add<SentryTunnelFeature>();
         features.Add<ServerTimingFeature>();

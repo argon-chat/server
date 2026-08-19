@@ -204,6 +204,49 @@ public class GrainMigrationTests : TestBase
             "a grain activated after the drain landed on the silo that is being taken out of service");
     }
 
+    /// <summary>
+    /// A drained silo can be put back into service without redeploying it.
+    /// </summary>
+    /// <remarks>
+    /// <para>It could not. Every exit from a drain ends in <c>Drained</c> — the success path, the
+    /// timeout, and both failure paths — while <c>CancelDraining</c> accepted only <c>Draining</c>,
+    /// a state a drain passes through rather than one it stops in. So a maintenance window that was
+    /// called off left the silo out of rotation until someone rolled the deployment.</para>
+    ///
+    /// <para>Safe because draining never touched Orleans membership: the silo stayed <c>Active</c> to
+    /// the cluster throughout and is a valid host again the moment readiness says so.</para>
+    ///
+    /// <para>Ordered after the drain test because it is the drain test's silo it is putting back.</para>
+    /// </remarks>
+    [Test, Order(3)]
+    public Task A_cancelled_maintenance_window_puts_the_silo_back()
+    {
+        // Which of the two was drained depends on where the channel activated, so ask rather than
+        // assume — the first version of this assumed and failed on the premise.
+        var host = new[] { first, second }.FirstOrDefault(h =>
+            h.Services.GetRequiredService<ISiloDrainService>().GetStatus().State == SiloDrainState.Drained);
+
+        Assert.That(host, Is.Not.Null, "premise: the previous test left one of the silos drained");
+
+        var drain  = host!.Services.GetRequiredService<ISiloDrainService>();
+        var probes = host.CreateClient();
+        Assert.That(Probe(probes, "ready").Result, Is.EqualTo(HttpStatusCode.ServiceUnavailable),
+            "premise: a drained silo is not taking traffic");
+
+        var cancelled = drain.CancelDraining();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(cancelled.IsSuccess, Is.True, cancelled.Message);
+            Assert.That(drain.GetStatus().State, Is.EqualTo(SiloDrainState.Active));
+            Assert.That(Probe(probes, "ready").Result, Is.EqualTo(HttpStatusCode.OK),
+                "the silo was put back in service and still refuses traffic");
+        });
+
+        probes.Dispose();
+        return Task.CompletedTask;
+    }
+
     // A companion test for IUserSessionGrain would belong here and does not exist: the interface
     // exposes no read of its connection set, HeartBeatAsync self-heals that set by design, and adding
     // a method to the contract purely so a test can look at it is worse than the gap. What can be

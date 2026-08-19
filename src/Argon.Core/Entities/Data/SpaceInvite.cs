@@ -36,7 +36,8 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
            .HasColumnType("TIMESTAMPTZ")
            .IsRequired();
 
-        //builder.PlacementRegionalByRow();
+        // Placement is declared in ArgonTablePlacement, and this is global there: an invite link
+        // has to resolve from whichever region the person following it landed in.
 
         builder.WithTTL(x => x.ExpireAt, CronValue.Daily, 
             batchSize: 5000, rangeConcurrency: 4, deleteRateLimit: 52428800);

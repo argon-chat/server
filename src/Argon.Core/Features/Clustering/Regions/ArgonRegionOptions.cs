@@ -1,5 +1,7 @@
 namespace Argon.Features.Clustering.Regions;
 
+using System.Globalization;
+
 /// <summary>
 /// The regions this deployment knows about, and how to reach each one.
 /// </summary>
@@ -82,11 +84,35 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
     public int SelfIndex
         => Nodes.TryGetValue(Self, out var node) ? node.Index : ArgonId.OriginalRegionIndex;
 
-    /// <summary>The cutover, straight from configuration, for the same reason as the index.</summary>
+    /// <summary>
+    /// The cutover, straight from configuration, for the same reason as the index.
+    /// </summary>
+    /// <remarks>
+    /// <para>Invariant culture and an explicit offset, because the first version of this used the
+    /// ambient culture and no styles: a value written without a zone was read in each pod's own local
+    /// time, so two regions could disagree about the cutover by hours and each read the other's
+    /// identifiers as pre-epoch.</para>
+    ///
+    /// <para>An unparseable value throws rather than returning null. Null means "tagging has not
+    /// begun" and reads every identifier as belonging to the original region — which is the correct
+    /// answer for a deployment that set nothing, and a catastrophic one for a deployment that set the
+    /// epoch and mistyped it.</para>
+    /// </remarks>
     public static DateTimeOffset? EpochOf(IConfiguration configuration)
-        => DateTimeOffset.TryParse(configuration[$"{SectionName}:{nameof(IdEpoch)}"], out var epoch)
-            ? epoch
-            : null;
+    {
+        var raw = configuration[$"{SectionName}:{nameof(IdEpoch)}"];
+
+        if (string.IsNullOrWhiteSpace(raw))
+            return null;
+
+        if (!DateTimeOffset.TryParse(raw, CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind | DateTimeStyles.AssumeUniversal, out var epoch))
+            throw new InvalidOperationException(
+                $"'{SectionName}:{nameof(IdEpoch)}' is '{raw}', which is not a timestamp. It decides " +
+                "which identifiers carry a region, so an unreadable one cannot be treated as absent.");
+
+        return epoch;
+    }
 
     /// <summary>
     /// The same answer, straight from configuration.

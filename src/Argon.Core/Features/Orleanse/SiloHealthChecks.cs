@@ -235,10 +235,16 @@ public static class HealthCheckExtensions
                 "readiness", 
                 failureStatus: HealthStatus.Unhealthy,
                 tags: ["ready", "readiness"])
+            // Tagged as a diagnostic rather than as readiness, which is what it was tagged as and
+            // never behaved as: it carried "ready" while the readiness endpoint filters on
+            // "readiness", so it has never run on a probe. Left that way deliberately — its only
+            // unhealthy verdicts are "the local silo is Dead" and "reading membership threw", and
+            // ReadinessHealthCheck already covers both. Making it gate readiness would add a way to
+            // flap and no signal.
             .AddCheck<OrleansClusterHealthCheck>(
                 "orleans-cluster",
                 failureStatus: HealthStatus.Degraded,
-                tags: ["ready", "orleans", "cluster"]);
+                tags: ["diagnostic", "orleans", "cluster"]);
 
         return services;
     }

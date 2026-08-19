@@ -30,6 +30,34 @@ public class ProductionTopologyTests
     }
 
     /// <summary>
+    /// Every role validates its own region configuration.
+    /// </summary>
+    /// <remarks>
+    /// <para>Configuration validation walks the features a role declares, and the region section is
+    /// declared by exactly one feature. So a role without that feature never checks its region
+    /// settings — while <c>ArgonId.UseRegion</c> still runs on it, from raw configuration, and every
+    /// identifier it mints carries the result.</para>
+    ///
+    /// <para>That was the state: the feature sat on <c>entrypoint</c> alone, so no silo validated the
+    /// index it was stamping into channel ids. The feature is inert without a region list — it holds
+    /// no clients and starts no tasks — so the cost of giving it to every role is nothing and the cost
+    /// of forgetting one is silent.</para>
+    /// </remarks>
+    [Test]
+    public void Every_role_validates_its_region_configuration()
+    {
+        var catalog = Catalog();
+
+        var missing = catalog.Roles.Values
+           .Where(r => !r.Features.Ordered.Any(f => f.Name == "regions"))
+           .Select(r => r.Id.Value)
+           .ToArray();
+
+        Assert.That(missing, Is.Empty,
+            "these roles mint identifiers with a region they never validate: " + string.Join(", ", missing));
+    }
+
+    /// <summary>
     /// Exactly one silo role accepts client connections, and it is the one the calls go to.
     /// </summary>
     /// <remarks>
