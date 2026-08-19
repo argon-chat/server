@@ -73,7 +73,7 @@ public class SavedGifsGrain(
 
         var savedGif = new SavedGifEntity
         {
-            Id        = Guid.NewGuid(),
+            Id        = ArgonId.New(),
             UserId    = userId,
             Slug      = slug,
             FileId    = file.Id,

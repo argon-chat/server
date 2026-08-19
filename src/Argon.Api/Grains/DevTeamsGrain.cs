@@ -1,5 +1,7 @@
 namespace Argon.Grains;
 
+using Argon.Features.Clustering.Regions;
+
 using AccountContracts;
 using Argon.Core.Entities.Data;
 using Argon.Entities;
@@ -101,7 +103,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
         var team = new DevTeamEntity
         {
-            TeamId    = Guid.NewGuid(),
+            TeamId    = ArgonId.New(),
             OwnerId   = ownerId,
             Name      = name,
             CreatedAt = DateTime.UtcNow
@@ -334,7 +336,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             throw new InvalidOperationException("Username is already claimed.");
 
         var now   = DateTime.UtcNow;
-        var botId = Guid.NewGuid();
+        var botId = ArgonId.New();
 
         var botUser = new UserEntity
         {
@@ -405,7 +407,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         Guid teamId, string name, ClientAppPlatform platform, CancellationToken ct = default)
     {
         var now          = DateTime.UtcNow;
-        var appId        = Guid.NewGuid();
+        var appId        = ArgonId.New();
         var clientId     = GenerateClientId(appId);
         var clientSecret = GenerateClientSecret(clientId, appId);
 

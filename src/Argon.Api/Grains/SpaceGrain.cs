@@ -1,5 +1,7 @@
 namespace Argon.Grains;
 
+using Argon.Features.Clustering.Regions;
+
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
@@ -165,7 +167,7 @@ public class SpaceGrain(
         if (exists)
             return false;
 
-        var member = Guid.NewGuid();
+        var member = ArgonId.New();
         await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
         {
             Id                = member,
@@ -612,6 +614,12 @@ public class SpaceGrain(
 
         var channel = new ChannelEntity
         {
+            // The space's region, not this process's. Space metadata is replicated everywhere, so
+            // this activation can be anywhere — but the channel's messages live where the space
+            // lives, and the id is what says so. Explicit at all because it used to be left to EF's
+            // value generator, and because the hub's typing pair holds a channel id with no space
+            // beside it.
+            Id              = ArgonId.NewIn(spaceId),
             Name            = input.Name,
             CreatorId       = callerId,
             Description     = input.Description,
@@ -985,7 +993,7 @@ public class SpaceGrain(
         // Create a locked archetype with the bot's required entitlements
         var botArchetype = new ArchetypeEntity
         {
-            Id          = Guid.NewGuid(),
+            Id          = ArgonId.New(),
             SpaceId     = spaceId,
             CreatorId   = callerId,
             Name        = $"Bot: {bot.Name}",
@@ -1209,7 +1217,7 @@ public class SpaceGrain(
             await using var ctx = await context.CreateDbContextAsync(ct);
             ctx.ContentViolations.Add(new ContentViolationEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 UserId = userId,
                 FileId = fileId,
                 FilePurpose = purpose,

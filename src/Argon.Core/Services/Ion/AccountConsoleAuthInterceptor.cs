@@ -78,7 +78,7 @@ public sealed class AccountConsoleAuthInterceptor(
         {
             Ip         = Header("CF-Connecting-IP", "unknown"),
             Region     = Header("CF-IPCountry", "unknown"),
-            Ray        = Header("CF-Ray", Guid.NewGuid().ToString()),
+            Ray        = Header("CF-Ray", ArgonId.New().ToString()),
             ClientName = Header("User-Agent", "unknown"),
             SessionId  = default,
             MachineId  = default,

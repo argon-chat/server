@@ -89,8 +89,10 @@ public class RegionOptionsRulesTests
     {
         var (errors, _) = Validate([
             ($"{Section}:Self", "ru-a"),
+            ($"{Section}:IdEpoch", "2026-01-01T00:00:00Z"),
             .. Region("ru-a", "ru", "gw.ru-a.internal:30000", LocalCluster),
-            .. Region("ru-b", "ru", "gw.ru-b.internal:30000", "argon-ru-b")
+            .. Region("ru-b", "ru", "gw.ru-b.internal:30000", "argon-ru-b"),
+            ($"{Section}:Nodes:ru-b:Index", "1")
         ]);
 
         Assert.That(errors, Is.Empty);
@@ -193,6 +195,40 @@ public class RegionOptionsRulesTests
         ]);
 
         Assert.That(errors, Has.Some.Contains("service id"));
+    }
+
+    /// <summary>
+    /// Two regions and no cutover means every identifier reads as belonging to the first one.
+    /// </summary>
+    /// <remarks>
+    /// Including the ones the second region is minting right now, which is the part that makes it
+    /// dangerous rather than merely wrong: the second region would hand out identifiers it then
+    /// routes to the first.
+    /// </remarks>
+    [Test]
+    public void A_second_region_without_a_cutover_is_rejected()
+    {
+        var (errors, _) = Validate([
+            ($"{Section}:Self", "ru-a"),
+            .. Region("ru-a", "ru", "gw.ru-a.internal:30000", LocalCluster),
+            .. Region("ru-b", "ru", "gw.ru-b.internal:30000", "argon-ru-b"),
+            ($"{Section}:Nodes:ru-b:Index", "1")
+        ]);
+
+        Assert.That(errors, Has.Some.Contains("Epoch"));
+    }
+
+    [Test]
+    public void Two_regions_on_one_index_are_rejected()
+    {
+        var (errors, _) = Validate([
+            ($"{Section}:Self", "ru-a"),
+            ($"{Section}:IdEpoch", "2026-01-01T00:00:00Z"),
+            .. Region("ru-a", "ru", "gw.ru-a.internal:30000", LocalCluster),
+            .. Region("ru-b", "ru", "gw.ru-b.internal:30000", "argon-ru-b")
+        ]);
+
+        Assert.That(errors, Has.Some.Contains("share index"));
     }
 
     [TestCase("host:30000", true)]
@@ -346,6 +382,121 @@ public class RegionRegistryTests
         Assert.That(started.Elapsed, Is.LessThan(TimeSpan.FromSeconds(2)));
 
         await registry.StopAsync(CancellationToken.None);
+    }
+}
+
+/// <summary>
+/// Turning an identifier into the region that owns it, which is the whole reason the region is in
+/// the identifier.
+/// </summary>
+[TestFixture]
+public class RegionRoutingTests
+{
+    private static readonly DateTimeOffset Cutover = new(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
+    private static ArgonRegionOptions TwoRegions() => new()
+    {
+        Self    = "ru-a",
+        IdEpoch = Cutover,
+        Nodes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ru-a"] = new() { Zone = "ru", Gateway = "127.0.0.1:30000", ClusterId = "argon-ru-a", Index = 0 },
+            ["ru-b"] = new() { Zone = "ru", Gateway = "127.0.0.1:30010", ClusterId = "argon-ru-b", Index = 1 }
+        }
+    };
+
+    private static ArgonRegionRegistry Registry(ArgonRegionOptions options)
+        => new(Options.Create(options), new ServiceCollection().AddLogging().BuildServiceProvider(),
+            NullLogger<ArgonRegionRegistry>.Instance);
+
+    /// <summary>
+    /// With one region the identifier is never read, and that is what keeps every deployment that
+    /// has not split working without an epoch, a migration or a thought.
+    /// </summary>
+    [Test]
+    public void With_one_region_everything_is_here()
+    {
+        var registry = Registry(new ArgonRegionOptions { Self = "ru-a" });
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.RegionOf(ArgonId.Create(7)), Is.EqualTo("ru-a"));
+            Assert.That(registry.RegionOf(Guid.NewGuid()), Is.EqualTo("ru-a"));
+            Assert.That(registry.RegionOf(Guid.Empty), Is.EqualTo("ru-a"));
+        });
+    }
+
+    [Test]
+    public void An_identifier_names_the_region_that_minted_it()
+    {
+        var registry = Registry(TwoRegions());
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.RegionOf(ArgonId.Create(0)), Is.EqualTo("ru-a"));
+            Assert.That(registry.RegionOf(ArgonId.Create(1)), Is.EqualTo("ru-b"));
+        });
+    }
+
+    /// <summary>
+    /// The porting guarantee, end to end.
+    /// </summary>
+    /// <remarks>
+    /// Rows that existed before any of this was written keep resolving to the region that made them,
+    /// with nothing backfilled and no column added. The identifiers already carried the one fact
+    /// needed to decide: when they were made.
+    /// </remarks>
+    [Test]
+    public void Everything_from_before_the_cutover_stays_with_the_original_region()
+    {
+        var registry = Registry(TwoRegions());
+
+        // What production holds today: v7 spaces with a random rand_a, and v4 users and channels.
+        for (var i = 0; i < 200; i++)
+        {
+            Assert.That(registry.RegionOf(Guid.CreateVersion7(Cutover.AddDays(-1))), Is.EqualTo("ru-a"));
+            Assert.That(registry.RegionOf(Guid.NewGuid()), Is.EqualTo("ru-a"));
+        }
+    }
+
+    /// <summary>
+    /// A region that was configured once, minted identifiers, and has since been removed.
+    /// </summary>
+    /// <remarks>
+    /// A configuration mistake rather than a data one, and the only case where routing refuses. It is
+    /// deliberately not folded into the original region: those identifiers belong somewhere, and
+    /// answering "here" would have two regions both claiming them.
+    /// </remarks>
+    [Test]
+    public void An_identifier_from_a_region_that_is_gone_is_refused()
+    {
+        var registry = Registry(TwoRegions());
+
+        Assert.That(() => registry.RegionOf(ArgonId.Create(9)),
+            Throws.TypeOf<UnroutableIdException>());
+    }
+
+    /// <summary>
+    /// A process whose stamp disagrees with its own configuration does not start.
+    /// </summary>
+    /// <remarks>
+    /// Every identifier it minted would name the wrong region permanently, and nothing downstream
+    /// could tell — the identifier is well formed and names a real region, just not the one that made
+    /// it.
+    /// </remarks>
+    [Test]
+    public async Task A_process_that_would_mint_for_the_wrong_region_refuses_to_start()
+    {
+        // Self is ru-b (index 1) while the process still stamps the original region.
+        var options = TwoRegions();
+        options.Self = "ru-b";
+
+        var registry = Registry(options);
+
+        Assert.That(async () => await registry.StartAsync(CancellationToken.None),
+            Throws.TypeOf<InvalidOperationException>().And.Message.Contains("wrong region"));
+
+        await registry.DisposeAsync();
     }
 }
 

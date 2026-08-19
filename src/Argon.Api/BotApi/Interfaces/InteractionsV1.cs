@@ -109,7 +109,7 @@ public sealed class InteractionsV1(
 
             request.Modal.Validate();
 
-            var modalInteractionId = Guid.NewGuid();
+            var modalInteractionId = ArgonId.New();
             interactionStore.Register(
                 modalInteractionId,
                 interaction.UserId,

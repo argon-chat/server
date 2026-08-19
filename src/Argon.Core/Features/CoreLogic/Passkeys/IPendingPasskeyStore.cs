@@ -65,7 +65,7 @@ public class PendingPasskeyStore(IDistributedCache cache) : IPendingPasskeyStore
 
     public async Task<Guid> CreatePendingAsync(Guid userId, string name, string optionsJson, CancellationToken ct = default)
     {
-        var passkeyId = Guid.CreateVersion7();
+        var passkeyId = ArgonId.New();
         
         var data = new PendingPasskeyData(passkeyId, userId, name, optionsJson, DateTimeOffset.UtcNow);
         var json = System.Text.Json.JsonSerializer.Serialize(data);

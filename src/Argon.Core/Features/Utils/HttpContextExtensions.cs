@@ -52,7 +52,7 @@ public static class HttpContextExtensions
         public string GetRay()
             => ctx.Request.Headers.ContainsKey("CF-Ray")
                 ? ctx.Request.Headers["CF-Ray"].ToString()
-                : $"{Guid.NewGuid()}";
+                : $"{ArgonId.New()}";
 
         public string GetClientName()
             => ctx.Request.Headers.ContainsKey("User-Agent")

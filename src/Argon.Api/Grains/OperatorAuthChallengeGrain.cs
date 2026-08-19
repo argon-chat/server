@@ -28,7 +28,7 @@ public class OperatorAuthChallengeGrain(
     {
         CleanupExpired();
 
-        var challengeId    = Guid.NewGuid().ToString("N");
+        var challengeId    = ArgonId.New().ToString("N");
         var challengeBytes = RandomNumberGenerator.GetBytes(32);
         pendingChallenges[challengeId] = (challengeBytes, DateTime.UtcNow + ChallengeLifetime);
 

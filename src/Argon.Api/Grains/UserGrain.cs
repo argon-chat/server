@@ -263,7 +263,7 @@ public class UserGrain(
     //        Kind     = kind,
     //        SocialId = socialId,
     //        UserData = userData,
-    //        Id       = Guid.NewGuid(),
+    //        Id       = ArgonId.New(),
     //        UserId   = this.GetPrimaryKey()
     //    });
     //    await ctx.SaveChangesAsync();
@@ -496,7 +496,7 @@ public class UserGrain(
             await using var ctx = await context.CreateDbContextAsync(ct);
             ctx.ContentViolations.Add(new ContentViolationEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 UserId = userId,
                 FileId = fileId,
                 FilePurpose = purpose,

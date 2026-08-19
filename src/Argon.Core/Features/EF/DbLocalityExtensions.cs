@@ -48,17 +48,34 @@ public record CronValue(string value)
 
 public static class DbLocalityExtensions
 {
+    /// <summary>
+    /// Declares the database multi-region, and how much of a failure it is expected to survive.
+    /// </summary>
+    /// <remarks>
+    /// <para>The survival goal is derived rather than defaulted to a constant, because the constant
+    /// was wrong. <c>SURVIVE REGION FAILURE</c> needs three regions to place its replicas in, and a
+    /// deployment with one — which is every deployment so far — cannot be created with it at all.
+    /// That is why the clause was generated and then commented out.</para>
+    ///
+    /// <para>So: three or more regions get region survival, fewer get zone survival, and a caller who
+    /// knows better passes what it wants. Getting this wrong in the safe direction costs availability;
+    /// getting it wrong in the other direction costs the ability to create the database.</para>
+    /// </remarks>
     public static ModelBuilder UseMultiRegionDatabase(
         this ModelBuilder modelBuilder,
         string primaryRegion,
         string[]? additionalRegions = null,
-        string survive = "REGION FAILURE")
+        string? survive = null)
     {
+        var regions = new HashSet<string>(additionalRegions ?? [], StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(primaryRegion))
+            regions.Add(primaryRegion);
+
         var payload = new MultiRegionAnnotation
         {
             Primary = primaryRegion,
             Regions = additionalRegions ?? [],
-            Survive = survive
+            Survive = survive ?? (regions.Count >= 3 ? "REGION FAILURE" : "ZONE FAILURE")
         };
 
         modelBuilder.HasAnnotation("Regional:MultiRegion", JsonConvert.SerializeObject(payload));
@@ -188,7 +205,9 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
 
                 if (regions.Length > 0)
                     builder.Append($" REGIONS {regions}");
-                //builder.Append($" SURVIVE {cfg.Survive}");
+
+                if (!string.IsNullOrWhiteSpace(cfg.Survive))
+                    builder.Append($" SURVIVE {cfg.Survive}");
             }
         }
 

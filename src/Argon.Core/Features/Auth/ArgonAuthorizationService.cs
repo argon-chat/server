@@ -1,4 +1,5 @@
 namespace Argon.Features.Auth;
+using Argon.Features.Clustering.Regions;
 
 using Argon.Api.Features.CoreLogic.Otp;
 using Argon.Core.Features.CoreLogic.Passkeys;
@@ -330,7 +331,7 @@ public class ArgonAuthorizationService(
         var         strategy = ctx.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
-            var userId = Guid.NewGuid();
+            var userId = ArgonId.New();
             user = new UserEntity()
             {
                 AvatarFileId              = null,
@@ -351,7 +352,7 @@ public class ArgonAuthorizationService(
             await ctx.UserProfiles.AddAsync(new UserProfileEntity
             {
                 UserId = userId,
-                Id     = Guid.NewGuid(),
+                Id     = ArgonId.New(),
                 Badges = [],
             });
 
@@ -429,7 +430,7 @@ public class ArgonAuthorizationService(
         var strategy = ctx.Database.CreateExecutionStrategy();
         await strategy.ExecuteAsync(async () =>
         {
-            var userId = Guid.NewGuid();
+            var userId = ArgonId.New();
             user = new UserEntity()
             {
                 AvatarFileId              = null,
@@ -450,7 +451,7 @@ public class ArgonAuthorizationService(
             await ctx.UserProfiles.AddAsync(new UserProfileEntity
             {
                 UserId = userId,
-                Id     = Guid.NewGuid(),
+                Id     = ArgonId.New(),
                 Badges = [],
             });
 

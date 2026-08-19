@@ -726,27 +726,27 @@ public class AdminConsoleImpl(
             {
                 ItemScenarioKind.Box => new BoxScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     Edition = input.templateId
                 },
                 ItemScenarioKind.QualifierBox when boxContentIds?.Count == 1 => new QualifierBox
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     ReferenceItemId = boxContentIds[0]
                 },
                 ItemScenarioKind.QualifierBox when boxContentIds?.Count > 1 => new MultipleQualifierBox
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     ReferenceItemIds = boxContentIds
                 },
                 ItemScenarioKind.Premium => new PremiumScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     PlanId = ""
                 },
                 ItemScenarioKind.RedeemCode => new RedeemScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     Code = "",
                     ServiceKey = ""
                 },
@@ -755,7 +755,7 @@ public class AdminConsoleImpl(
 
             var item = new ArgonItemEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 TemplateId = input.templateId,
                 IsUsable = input.isUsable,
                 IsGiftable = input.isGiftable,
@@ -828,7 +828,7 @@ public class AdminConsoleImpl(
 
             var coupon = new ArgonCouponEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 Code = input.code,
                 Description = input.description,
                 ValidFrom = input.validFrom,
@@ -980,7 +980,7 @@ public class AdminConsoleImpl(
             if (existing is null)
                 db.DeviceBans.Add(new DeviceBanEntity
                 {
-                    Id        = Guid.CreateVersion7(),
+                    Id        = ArgonId.New(),
                     DeviceId  = deviceId,
                     Reason    = reason,
                     ExpiresAt = expiration

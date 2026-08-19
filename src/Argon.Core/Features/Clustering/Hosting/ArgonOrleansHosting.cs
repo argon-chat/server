@@ -44,7 +44,20 @@ public static class ArgonOrleansHosting
         StorageProviders.Append(VolatileGrainStorage.ProviderName).ToHashSet(StringComparer.Ordinal);
 
     public static WebApplicationBuilder AddArgonOrleans(this WebApplicationBuilder builder, RoleDescriptor role)
-        => role.IsClient ? builder.AddArgonOrleansClient() : builder.AddArgonSilo(role);
+    {
+        // Every role, not just the ones that hold cluster clients for other regions: a silo mints
+        // channel ids and an entry point mints space and user ids, and both have to stamp the region
+        // they are in. Before anything can construct an object, because an id can be minted during
+        // startup.
+        builder.Services.Configure<Regions.ArgonRegionOptions>(
+            builder.Configuration.GetSection(Regions.ArgonRegionOptions.SectionName));
+
+        Regions.ArgonId.UseRegion(
+            Regions.ArgonRegionOptions.SelfIndexOf(builder.Configuration),
+            Regions.ArgonRegionOptions.EpochOf(builder.Configuration));
+
+        return role.IsClient ? builder.AddArgonOrleansClient() : builder.AddArgonSilo(role);
+    }
 
     // ── shared ───────────────────────────────────────────────────────────────────────────────
 

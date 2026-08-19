@@ -90,7 +90,7 @@ public class EntitlementGrain(
         {
             SpaceId       = this.GetPrimaryKey(),
             Entitlement   = ArgonEntitlementKit.Base,
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             Name          = name,
             Description   = "",
             IsMentionable = false,

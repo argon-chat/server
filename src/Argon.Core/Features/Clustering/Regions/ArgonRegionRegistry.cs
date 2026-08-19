@@ -39,6 +39,34 @@ public interface IArgonRegionRegistry
 
     /// <summary><see cref="TryGetClient"/>, for a caller that has nowhere else to go.</summary>
     IClusterClient GetClient(string region);
+
+    /// <summary>
+    /// The region that owns the thing this identifier names.
+    /// </summary>
+    /// <remarks>
+    /// <para>A pure function of the key: the region is stamped into the identifier when the thing is
+    /// created, so nothing is looked up and nothing can be stale.</para>
+    ///
+    /// <para>An identifier from before the cutover resolves to the original region, which is where it
+    /// was made: there was only one then. Nothing has to be migrated for that to be true.</para>
+    /// </remarks>
+    string RegionOf(Guid id);
+
+    /// <summary>The cluster that owns the thing this identifier names, if that region is usable.</summary>
+    bool TryGetClientFor(Guid id, [NotNullWhen(true)] out IClusterClient? client);
+}
+
+/// <summary>An identifier names a region this deployment does not have.</summary>
+/// <remarks>
+/// Not the same as an identifier from before the cutover — those resolve to the original region.
+/// This is a region that was configured once, minted identifiers, and has since been removed from
+/// the region list, which is a configuration mistake rather than a data one.
+/// </remarks>
+public sealed class UnroutableIdException(Guid id, int regionIndex)
+    : Exception($"'{id}' names region index {regionIndex}, which no configured region claims.")
+{
+    public Guid Id          { get; } = id;
+    public int  RegionIndex { get; } = regionIndex;
 }
 
 /// <summary>A region is configured but not usable right now.</summary>
@@ -131,8 +159,45 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
             ? client
             : throw new RegionUnavailableException(region, StatusOf(region));
 
+    public string RegionOf(Guid id)
+    {
+        // One region, and it is here. Reading the identifier would answer the same thing more slowly
+        // and would depend on the epoch being set, which a single-region deployment has no reason to
+        // set.
+        if (peers.Count == 0)
+            return options.Self;
+
+        var index = ArgonId.RegionIndexOrOriginal(id, options.EffectiveIdEpoch);
+
+        return options.RegionOfIndex(index)
+               ?? throw new UnroutableIdException(id, index);
+    }
+
+    public bool TryGetClientFor(Guid id, [NotNullWhen(true)] out IClusterClient? client)
+    {
+        client = null;
+
+        try
+        {
+            return TryGetClient(RegionOf(id), out client);
+        }
+        catch (UnroutableIdException)
+        {
+            return false;
+        }
+    }
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
+        // The stamp is process-wide state set during hosting, and everything downstream trusts it:
+        // identifiers minted with the wrong one name the wrong region for the rest of their lives,
+        // and nothing downstream can tell. Cheap to check once, impossible to notice later.
+        if (peers.Count > 0 && ArgonId.RegionIndex != options.SelfIndex)
+            throw new InvalidOperationException(
+                $"This process mints identifiers for region index {ArgonId.RegionIndex}, but its " +
+                $"region '{options.Self}' is configured as index {options.SelfIndex}. Every identifier " +
+                "created here would name the wrong region.");
+
         if (peers.Count == 0)
         {
             logger.LogInformation("Single region '{Region}'; no peers configured", options.Self);

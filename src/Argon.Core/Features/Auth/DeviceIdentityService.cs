@@ -68,7 +68,7 @@ public class DeviceIdentityService(
             {
                 ctx.DeviceObservations.Add(new DeviceObservationEntity
                 {
-                    Id          = Guid.CreateVersion7(),
+                    Id          = ArgonId.New(),
                     UserId      = userId,
                     DeviceId    = deviceId,
                     Components  = Serialize(fingerprint),
@@ -130,8 +130,8 @@ public class DeviceIdentityService(
             {
                 key = new DeviceKeyEntity
                 {
-                    Id           = Guid.CreateVersion7(),
-                    DeviceId     = Guid.CreateVersion7(),
+                    Id           = ArgonId.New(),
+                    DeviceId     = ArgonId.New(),
                     Thumbprint   = thumbprint,
                     PublicKey    = proof.PublicKey,
                     Platform     = DevicePlatform.UNKNOWN,
@@ -155,7 +155,7 @@ public class DeviceIdentityService(
             if (observation is null)
                 ctx.DeviceObservations.Add(new DeviceObservationEntity
                 {
-                    Id          = Guid.CreateVersion7(),
+                    Id          = ArgonId.New(),
                     UserId      = userId,
                     DeviceId    = key.DeviceId,
                     Components  = string.Empty,
@@ -231,7 +231,7 @@ public class DeviceIdentityService(
             }
         }
 
-        return best == Guid.Empty ? Guid.CreateVersion7() : best;
+        return best == Guid.Empty ? ArgonId.New() : best;
     }
 
     private static async Task<bool> IsBannedAsync(ApplicationDbContext ctx, Guid deviceId, CancellationToken ct)

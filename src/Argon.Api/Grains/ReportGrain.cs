@@ -20,7 +20,7 @@ public class ReportGrain(
     public async Task<ISubmitReportResult> SubmitReportAsync(CreateReportInput input, CancellationToken ct = default)
     {
         if (!Cfg.IsEnabled)
-            return new SuccessSubmitReport(Guid.CreateVersion7());
+            return new SuccessSubmitReport(ArgonId.New());
 
         var reporterId = this.GetUserId();
 
@@ -38,18 +38,18 @@ public class ReportGrain(
                .FirstOrDefaultAsync(u => u.Id == reporterId, ct);
 
             if (reporter is null)
-                return new SuccessSubmitReport(Guid.CreateVersion7());
+                return new SuccessSubmitReport(ArgonId.New());
 
             var accountAgeDays = (int)(DateTimeOffset.UtcNow - reporter.CreatedAt).TotalDays;
             if (accountAgeDays < Cfg.MinAccountAgeDays)
-                return new SuccessSubmitReport(Guid.CreateVersion7());
+                return new SuccessSubmitReport(ArgonId.New());
 
             var oneHourAgo = DateTimeOffset.UtcNow.AddHours(-1);
             var recentCount = await ctx.Reports
                .CountAsync(x => x.ReporterId == reporterId && x.CreatedAt > oneHourAgo, ct);
 
             if (recentCount >= Cfg.MaxReportsPerHour)
-                return new SuccessSubmitReport(Guid.CreateVersion7());
+                return new SuccessSubmitReport(ArgonId.New());
 
             var oneDayAgo = DateTimeOffset.UtcNow.AddDays(-1);
             var perTargetCount = await ctx.Reports
@@ -58,7 +58,7 @@ public class ReportGrain(
                     && x.CreatedAt > oneDayAgo, ct);
 
             if (perTargetCount >= Cfg.MaxReportsPerTargetPerDay)
-                return new SuccessSubmitReport(Guid.CreateVersion7());
+                return new SuccessSubmitReport(ArgonId.New());
 
             var isDuplicate = await ctx.Reports
                .AnyAsync(x => x.ReporterId == reporterId
@@ -67,7 +67,7 @@ public class ReportGrain(
                     && x.CreatedAt > oneDayAgo, ct);
 
             if (isDuplicate)
-                return new SuccessSubmitReport(Guid.CreateVersion7());
+                return new SuccessSubmitReport(ArgonId.New());
 
             var reporterTrust = await ctx.UserTrustScores
                .AsNoTracking()
@@ -86,7 +86,7 @@ public class ReportGrain(
 
             var entity = new ReportEntity
             {
-                Id                        = Guid.CreateVersion7(),
+                Id                        = ArgonId.New(),
                 ReporterId                = reporterId,
                 TargetKind                = input.target.kind,
                 TargetId                  = input.target.targetId,

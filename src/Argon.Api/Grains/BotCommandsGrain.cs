@@ -31,7 +31,7 @@ public class BotCommandsGrain(
 
         var entity = new BotCommandEntity
         {
-            CommandId         = Guid.NewGuid(),
+            CommandId         = ArgonId.New(),
             AppId             = AppId,
             SpaceId           = spaceId,
             Name              = name.ToLowerInvariant(),

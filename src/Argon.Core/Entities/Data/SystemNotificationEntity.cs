@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 public record SystemNotificationEntity : IEntityTypeConfiguration<SystemNotificationEntity>
 {
-    public          Guid            Id          { get; set; } = Guid.CreateVersion7();
+    public          Guid            Id          { get; set; } = ArgonId.New();
     public required Guid            UserId      { get; set; }
     public required string          Type        { get; set; }
     public          Guid?           ReferenceId { get; set; }

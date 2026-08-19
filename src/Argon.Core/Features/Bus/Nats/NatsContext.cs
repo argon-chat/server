@@ -95,7 +95,7 @@ public class NatsArgonReadOnlyStream(
     ILogger<NatsArgonReadOnlyStream> logger,
     ArgonEventSerializer serializer) : IArgonStream<IArgonEvent>
 {
-    private readonly Guid _streamListenerId = Guid.NewGuid();
+    private readonly Guid _streamListenerId = ArgonId.New();
     private readonly string _consumerName = $"{streamId.ToString().Replace('/', '_')}_{Guid.NewGuid():N}";
 
     private INatsJSConsumer? _consumer;

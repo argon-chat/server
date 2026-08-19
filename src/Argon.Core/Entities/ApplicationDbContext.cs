@@ -143,6 +143,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     {
         modelBuilder.UseMultiRegionDatabase(regionOptions.Value.PrimaryRegion, regionOptions.Value.ReplicateRegion);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
+        modelBuilder.PlaceArgonTables();
         modelBuilder.UseUnsignedLongCompatibility();
         modelBuilder.UseSoftDeleteCompatibility();
 
@@ -207,5 +208,52 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             Id             = UserEntity.EchoUser,
             PasswordDigest = null,
         });
+    }
+}
+
+
+/// <summary>
+/// Which tables are replicated everywhere and which are homed in a region.
+/// </summary>
+/// <remarks>
+/// <para>In one place rather than beside each entity, because it only makes sense read together:
+/// what is global and what is regional is one decision about the product, not eleven decisions about
+/// eleven tables.</para>
+///
+/// <para><b>It only takes effect when a table is created.</b> The generator writes <c>LOCALITY</c> as
+/// part of <c>CREATE TABLE</c> and EF produces no migration operation at all when the annotation
+/// changes on an existing table — see <c>DbLocalityTests</c>, which pins that. Changing a table's
+/// locality on a live database is <c>ALTER TABLE … SET LOCALITY</c> run deliberately, because it
+/// moves every row.</para>
+///
+/// <para>Everything not named here keeps the default, which is regional by table in the primary
+/// region — today's behaviour for every table. Silence is the current arrangement, not an oversight.</para>
+/// </remarks>
+public static class ArgonTablePlacement
+{
+    public static ModelBuilder PlaceArgonTables(this ModelBuilder modelBuilder)
+    {
+        // Replicated to every region. Small, read on every bootstrap and by every permission check,
+        // written rarely — which is what a global table is fast at and what it is slow at. This is
+        // what lets a user who reconnects to another region find their spaces, roles and friends
+        // while a region is down.
+        modelBuilder.Entity<UserEntity>().PlacementGlobal();
+        modelBuilder.Entity<UserProfileEntity>().PlacementGlobal();
+        modelBuilder.Entity<SpaceEntity>().PlacementGlobal();
+        modelBuilder.Entity<ChannelEntity>().PlacementGlobal();
+        modelBuilder.Entity<ChannelGroupEntity>().PlacementGlobal();
+        modelBuilder.Entity<ArchetypeEntity>().PlacementGlobal();
+        modelBuilder.Entity<SpaceMemberEntity>().PlacementGlobal();
+        modelBuilder.Entity<SpaceMemberArchetypeEntity>().PlacementGlobal();
+        modelBuilder.Entity<ChannelEntitlementOverwriteEntity>().PlacementGlobal();
+        modelBuilder.Entity<SpaceInvite>().PlacementGlobal();
+
+        // Homed where the row was written. Nothing carries a region column for that: Cockroach
+        // defaults the hidden crdb_region to gateway_region(), and a channel's messages are only
+        // ever inserted by the activation that owns the channel, which runs in the space's home
+        // region. The pinning falls out of where the grain runs.
+        modelBuilder.Entity<ArgonMessageEntity>().PlacementRegionalByRow();
+
+        return modelBuilder;
     }
 }

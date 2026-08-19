@@ -414,7 +414,7 @@ public class ChannelGrain(
             allowed.Add(memberId);
         }
 
-        var sessionId = Guid.NewGuid().ToString("N");
+        var sessionId = ArgonId.New().ToString("N");
         activation.State.DrawingSession = new DrawingSessionState(sessionId, streamerId, allowed.ToHashSet());
 
         await Fire(new DrawingSessionStarted(
@@ -1216,7 +1216,7 @@ public class ChannelGrain(
         }
 
         // Generate correlation ID and publish CommandInteractionEvent to the bot
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
 
         await botEventPublisher.PublishCommandInteractionAsync(
             interactionId, SpaceId, channelId, commandInfo.CommandId, commandInfo.Name, user, mappedOptions,
@@ -1288,7 +1288,7 @@ public class ChannelGrain(
             return new FailedInteractWithControl(InteractWithControlError.BOT_NOT_CONNECTED);
 
         // Generate correlation ID and publish
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
         var user = await botUserCache.GetOrResolveAsync(senderId);
 
         await botEventPublisher.PublishControlInteractionAsync(
@@ -1370,7 +1370,7 @@ public class ChannelGrain(
         if (botInfo is null)
             return new FailedInteractWithSelect(InteractWithSelectError.BOT_NOT_CONNECTED);
 
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
         var user = await botUserCache.GetOrResolveAsync(senderId);
 
         await botEventPublisher.PublishSelectInteractionAsync(
@@ -1400,7 +1400,7 @@ public class ChannelGrain(
            .ToList();
 
         await botEventPublisher.PublishModalSubmitAsync(
-            Guid.NewGuid(), customId, channelId, SpaceId, user, mappedValues);
+            ArgonId.New(), customId, channelId, SpaceId, user, mappedValues);
 
         return new SuccessSubmitModal();
     }

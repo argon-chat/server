@@ -72,3 +72,4 @@ global using Microsoft.AspNetCore.Http.Connections;
 global using Microsoft.AspNetCore.WebSockets;
 global using Serilog;
 global using SnowflakeId.DependencyInjection;
+global using Argon.Features.Clustering.Regions;

@@ -516,7 +516,7 @@ public class AccountDeletionGrain(
             await using var ctx = await dbFactory.CreateDbContextAsync();
             var reserved = new UsernameReservedEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 UserName = state.State.OriginalUsername,
                 NormalizedUserName = state.State.OriginalUsername.ToLowerInvariant(),
                 IsBanned = false,

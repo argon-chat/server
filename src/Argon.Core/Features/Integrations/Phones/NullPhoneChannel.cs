@@ -20,7 +20,7 @@ public class NullPhoneChannel(ILogger<NullPhoneChannel> logger, ITestCodeStore? 
     public Task<PhoneSendResult> SendCodeAsync(PhoneSendRequest request, CancellationToken ct = default)
     {
         var code = GenerateCode(request.CodeLength);
-        var requestId = Guid.NewGuid().ToString("N");
+        var requestId = ArgonId.New().ToString("N");
 
         var stored = new StoredCode(
             Code: code,

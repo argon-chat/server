@@ -70,7 +70,7 @@ public class UserDataExportGrain(
             });
         }
 
-        var exportId = Guid.NewGuid();
+        var exportId = ArgonId.New();
         state.State.Status          = ExportStatus.Queued;
         state.State.CurrentExportId = exportId;
         state.State.StartedAt       = DateTimeOffset.UtcNow;

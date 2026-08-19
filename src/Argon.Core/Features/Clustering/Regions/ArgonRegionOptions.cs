@@ -48,6 +48,72 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
     /// <summary>Longest wait between attempts to reach a region that is not answering.</summary>
     public TimeSpan MaxReconnectBackoff { get; set; } = TimeSpan.FromSeconds(30);
 
+    /// <summary>
+    /// The instant identifiers began carrying a region.
+    /// </summary>
+    /// <remarks>
+    /// <para>This is what makes an existing deployment portable without touching a row. Identifiers
+    /// minted before the scheme have a random <c>rand_a</c> and decode to an arbitrary region, so
+    /// they cannot be read — but they carry the time they were made, and everything made before the
+    /// cutover was made when there was one region. Below this instant the bits are ignored and the
+    /// answer is the original region.</para>
+    ///
+    /// <para>Set it to any time after the tagging build is fully rolled out and before a second
+    /// region exists. Both are easy: until there is a second region nothing reads a region at all,
+    /// so the window is as wide as the gap between those two events. Once set it must never move —
+    /// moving it re-homes everything on one side of it.</para>
+    ///
+    /// <para>Unset means tagging has not begun, and every identifier reads as the original region.
+    /// That is the correct answer for a single-region deployment and is why this has no default.</para>
+    /// </remarks>
+    public DateTimeOffset? IdEpoch { get; set; }
+
+    /// <summary>The epoch as the reader wants it: unset means nothing is tagged yet.</summary>
+    public DateTimeOffset EffectiveIdEpoch => IdEpoch ?? DateTimeOffset.MaxValue;
+
+    /// <summary>
+    /// The index <see cref="Self"/> stamps into the identifiers it mints.
+    /// </summary>
+    /// <remarks>
+    /// Zero when nothing is configured, which is what a single-region deployment gets and what makes
+    /// adding a second region additive rather than a re-keying: the ids already minted keep meaning
+    /// the region that has always been index zero.
+    /// </remarks>
+    public int SelfIndex
+        => Nodes.TryGetValue(Self, out var node) ? node.Index : ArgonId.OriginalRegionIndex;
+
+    /// <summary>The cutover, straight from configuration, for the same reason as the index.</summary>
+    public static DateTimeOffset? EpochOf(IConfiguration configuration)
+        => DateTimeOffset.TryParse(configuration[$"{SectionName}:{nameof(IdEpoch)}"], out var epoch)
+            ? epoch
+            : null;
+
+    /// <summary>
+    /// The same answer, straight from configuration.
+    /// </summary>
+    /// <remarks>
+    /// Startup has to stamp the region before the container exists, because an identifier can be
+    /// minted while the container is still being built.
+    /// </remarks>
+    public static int SelfIndexOf(IConfiguration configuration)
+    {
+        var self = configuration[$"{SectionName}:{nameof(Self)}"] ?? ArgonDatacenter.Current;
+        var raw  = configuration[$"{SectionName}:{nameof(Nodes)}:{self}:{nameof(ArgonRegionNode.Index)}"];
+
+        return int.TryParse(raw, out var index) ? index : ArgonId.OriginalRegionIndex;
+    }
+
+    /// <summary>The region a given index belongs to, or null if nothing claims it.</summary>
+    public string? RegionOfIndex(int index)
+    {
+        foreach (var (name, node) in Nodes)
+            if (node.Index == index)
+                return name;
+
+        // With no region list there is one region and it is index zero, whatever it is called.
+        return Nodes.Count == 0 && index == 0 ? Self : null;
+    }
+
     /// <summary>The regions other than <see cref="Self"/>.</summary>
     public IEnumerable<KeyValuePair<string, ArgonRegionNode>> Peers
         => Nodes.Where(n => !n.Key.Equals(Self, StringComparison.OrdinalIgnoreCase));
@@ -78,7 +144,18 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
                     "cluster gateway");
 
             report.Required(node.ClusterId, $"{nameof(Nodes)}:{name}:{nameof(ArgonRegionNode.ClusterId)}");
+
+            report.RequireRange(node.Index, 0, ArgonId.MaxRegionIndex,
+                $"{nameof(Nodes)}:{name}:{nameof(ArgonRegionNode.Index)}");
         }
+
+        // Two regions on one index mint identifiers that claim each other's. Nothing detects that at
+        // runtime — the id is well formed and names a region, just the wrong one — so it has to be
+        // impossible to configure.
+        foreach (var group in Nodes.GroupBy(n => n.Value.Index).Where(g => g.Count() > 1))
+            report.Invalid($"regions {string.Join(", ", group.Select(g => g.Key))} share index " +
+                           $"{group.Key}. The index is stamped into every identifier the region mints, " +
+                           "so two regions cannot have the same one.");
 
         // The region this process claims to be in has to agree with the cluster this process is
         // actually running as. They come from different sections written by different hands, and a
@@ -114,6 +191,14 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
             report.Invalid($"regions {string.Join(", ", group.Select(g => g.Key))} share the cluster id " +
                            $"'{group.Key}'. Each region is its own cluster and needs its own id.");
 
+        // With one region nothing reads a region out of an identifier, so the epoch is not needed and
+        // asking for it would be noise. With two, an unset epoch means every identifier — including
+        // the ones the second region is minting right now — reads as belonging to the first.
+        report.Require(Nodes.Count <= 1 || IdEpoch is not null, nameof(IdEpoch),
+            "is not set, and there is more than one region. Without it every identifier reads as " +
+            "belonging to the original region, including the ones minted here. Set it to a time " +
+            "after the tagging build was rolled out everywhere and before the second region existed.");
+
         report.RequireRange(RemoteResponseTimeout, TimeSpan.FromMilliseconds(500), TimeSpan.FromMinutes(1),
             nameof(RemoteResponseTimeout));
         report.RequireRange(GatewayRefreshPeriod, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(10),
@@ -146,6 +231,19 @@ public sealed class ArgonRegionNode
     /// front of the roles that expose a gateway; every address it resolves to is a gateway.
     /// </remarks>
     public string? Gateway { get; set; }
+
+    /// <summary>
+    /// The number this region stamps into the identifiers it mints.
+    /// </summary>
+    /// <remarks>
+    /// <para>Written down rather than derived from the name, because every space, user and channel
+    /// ever created in the region carries it. A hash of the name would be one line shorter and would
+    /// silently re-home everything the day somebody renamed a region.</para>
+    ///
+    /// <para>Zero is a real index and the default, so the first region needs no configuration and the
+    /// identifiers it has already minted stay correct when a second region is added beside it.</para>
+    /// </remarks>
+    public int Index { get; set; }
 
     /// <summary>
     /// The Orleans cluster id of that region. Required, with no default.
