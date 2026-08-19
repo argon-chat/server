@@ -185,7 +185,8 @@ public static class HttpContextExtensions
             var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
 
             return parsed.TryGetValue("hwv", out var hwv)
-                ? Features.Auth.DeviceFingerprint.Parse(Uri.UnescapeDataString(hwv.ToString()))
+                ? ctx.RequestServices.GetRequiredService<Features.Auth.DeviceMatcher>()
+                     .Parse(Uri.UnescapeDataString(hwv.ToString()))
                 : Features.Auth.DeviceFingerprint.Empty;
         }
 

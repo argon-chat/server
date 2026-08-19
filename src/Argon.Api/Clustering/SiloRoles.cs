@@ -80,6 +80,11 @@ public sealed class CoreRole : IArgonRole
 
         registry.AddToRef<OperatorAuthChallengeGrain>();
         registry.AddToRef<AppsManagementGrain>();
+
+        // The read side the identity server asks about people — which account is signing in, and
+        // whether it is also an operator. Beside DevTeamsGrain, which answers the same questions
+        // about applications, so an OAuth authorization does not cross a role boundary twice.
+        registry.AddToRef<IdentityDirectoryGrain>();
         registry.AddToRef<DevTeamsGrain>();
         registry.AddToRef<BotCommandsGrain>();
         registry.AddToRef<BotDirectoryGrain>();

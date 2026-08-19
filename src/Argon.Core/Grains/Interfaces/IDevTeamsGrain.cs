@@ -43,6 +43,18 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     [Alias(nameof(GetUserEmailAsync))]
     Task<string?> GetUserEmailAsync(Guid userId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Every origin any application has registered a redirect under.
+    /// </summary>
+    /// <remarks>
+    /// The identity server answers cross-origin requests from whatever site an application is served
+    /// from, so its CORS check is a lookup rather than a list. Whole-set rather than per-origin: the
+    /// caller asks once per request and the answer is the same for all of them, so caching one set
+    /// hits where caching one origin at a time would miss on every new site.
+    /// </remarks>
+    [Alias(nameof(GetAllAllowedOriginsAsync))]
+    Task<HashSet<string>> GetAllAllowedOriginsAsync(CancellationToken ct = default);
+
     // ── invites ──────────────────────────────────────────────────────────────────────────────
 
     [Alias(nameof(GetTeamInvitesAsync))]
@@ -117,11 +129,12 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
 /// <summary>
 /// What deciding whether a user may sign into an application needs to know.
 /// </summary>
+/// <param name="AppId">The application itself, which per-app operator access is keyed by.</param>
 /// <param name="TeamId">The team that owns the app.</param>
 /// <param name="IsInternalApp">Whether this is an internal app (client apps only).</param>
 /// <param name="IsPublic">Whether the app is public.</param>
 /// <param name="IsVerified">Whether the app is verified.</param>
-public record AppLoginCheckInfo(Guid TeamId, bool IsInternalApp, bool IsPublic, bool IsVerified);
+public record AppLoginCheckInfo(Guid AppId, Guid TeamId, bool IsInternalApp, bool IsPublic, bool IsVerified);
 
 /// <summary>
 /// What the OAuth consent screen shows about an application.

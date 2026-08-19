@@ -35,3 +35,6 @@ src/Argon.Api/appsettings.Production.json
 artifacts/
 
 *.trx
+
+# Production configuration values: weights, endpoints, credentials. See deploy/pconf.d/README.md
+deploy/pconf.d/

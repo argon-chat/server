@@ -139,6 +139,7 @@ public sealed class ArgonAuthorizationFeature : IArgonFeature
             .Options<ArgonAuthOptions>("auth")
             .Options<PasswordHashingOptions>("auth:passwordHashing")
             .Options<AnonymousRateLimitOptions>("auth:anonymousRateLimits")
+            .Options<DeviceMatchingOptions>(DeviceMatchingOptions.SectionName)
             .Options<AndroidAttestationOptions>("attestation:android");
 
     public void Configure(ArgonFeatureContext ctx)

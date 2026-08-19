@@ -37,5 +37,6 @@ public sealed class DevRole : IArgonRole
         registry.Include<BotApiRole>();
         registry.Include<AdminRole>();
         registry.Include<AccountConsoleRole>();
+        registry.Include<AegisRole>();
     }
 }

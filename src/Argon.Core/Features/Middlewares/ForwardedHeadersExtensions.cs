@@ -13,12 +13,17 @@ public static class ForwardedHeadersExtensions
     /// Reads CIDRs from "ForwardedHeaders:KnownNetworks" and individual IPs from "ForwardedHeaders:KnownProxies".
     /// </summary>
     public static WebApplication UseConfiguredForwardedHeaders(this WebApplication app)
-    {
-        var cidrs = app.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>()
-                    ?? DefaultKnownNetworks;
-        var proxyIps = app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>()
-                       ?? [];
+        => app.UseConfiguredForwardedHeaders(
+            app.Configuration.GetSection("ForwardedHeaders:KnownNetworks").Get<string[]>() ?? DefaultKnownNetworks,
+            app.Configuration.GetSection("ForwardedHeaders:KnownProxies").Get<string[]>() ?? []);
 
+    /// <summary>
+    /// The same, with the trusted hops handed in rather than read back out of configuration — for a
+    /// feature that already owns the section and has had it validated.
+    /// </summary>
+    public static WebApplication UseConfiguredForwardedHeaders(
+        this WebApplication app, IReadOnlyList<string> cidrs, IReadOnlyList<string> proxyIps)
+    {
         var options = new ForwardedHeadersOptions
         {
             ForwardedHeaders = ForwardedHeaders.XForwardedFor

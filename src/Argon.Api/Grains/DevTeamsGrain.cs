@@ -524,6 +524,28 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         return botEntity is null ? null : Describe(botEntity);
     }
 
+    public async Task<HashSet<string>> GetAllAllowedOriginsAsync(CancellationToken ct = default)
+    {
+        await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        var redirects = await db.Set<DevAppEntity>()
+           .AsNoTracking()
+           .Where(a => a.AllowedRedirects.Count > 0)
+           .Select(a => a.AllowedRedirects)
+           .ToListAsync(ct);
+
+        var origins = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // A redirect is a full URL; what CORS compares against is only its scheme, host and port.
+        foreach (var redirect in redirects.SelectMany(list => list))
+        {
+            if (Uri.TryCreate(redirect, UriKind.Absolute, out var uri))
+                origins.Add(uri.GetLeftPart(UriPartial.Authority));
+        }
+
+        return origins;
+    }
+
     public async Task<AppLoginCheckInfo?> GetAppLoginCheckInfoAsync(string clientId, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
@@ -533,7 +555,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
            .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
 
         if (clientApp is not null)
-            return new AppLoginCheckInfo(clientApp.TeamId, clientApp.IsInternalApp, clientApp.IsPublic, clientApp.IsVerified);
+            return new AppLoginCheckInfo(clientApp.AppId, clientApp.TeamId, clientApp.IsInternalApp, clientApp.IsPublic, clientApp.IsVerified);
 
         var botApp = await db.BotEntities
            .AsNoTracking()
@@ -541,7 +563,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
 
         return botApp is null
             ? null
-            : new AppLoginCheckInfo(botApp.TeamId, IsInternalApp: false, botApp.IsPublic, botApp.IsVerified);
+            : new AppLoginCheckInfo(botApp.AppId, botApp.TeamId, IsInternalApp: false, botApp.IsPublic, botApp.IsVerified);
     }
 
     public async Task<BotCredentialsInfo?> GetBotCredentialsAsync(string clientId, CancellationToken ct = default)

@@ -28,7 +28,7 @@ public class RoleStartupTests
         ];
 
     private static IEnumerable<ArgonRoleId> ClientRoles()
-        => [ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin, ArgonRoleId.Account];
+        => [ArgonRoleId.EntryPoint, ArgonRoleId.BotApi, ArgonRoleId.Admin, ArgonRoleId.Account, ArgonRoleId.Aegis];
 
     private static RoleDescriptor Describe(ArgonRoleId id)
         => ArgonClusterCatalog.Build().Require(id);

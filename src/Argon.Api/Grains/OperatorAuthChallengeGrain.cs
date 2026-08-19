@@ -7,14 +7,21 @@ using Argon.Grains.Interfaces;
 
 /// <summary>
 /// Grain keyed by certificate thumbprint (hex SHA256).
-/// Manages challenge-response authentication for operator PIV certificates.
+/// Turns an operator's PIV certificate into an operator identity.
 /// </summary>
+/// <remarks>
+/// Two ways in, and they differ only in how possession of the private key was proved. The admin
+/// console signs a challenge this grain issued; the identity server takes the certificate straight
+/// out of a mutual-TLS handshake that already did the proving. Everything after that — chain of
+/// trust, the operator record behind the thumbprint, whether they are still active — is the same
+/// work, and lives in <see cref="ResolveOperator"/> so the two paths cannot drift apart.
+/// </remarks>
 public class OperatorAuthChallengeGrain(
     IServiceProvider provider,
     ILogger<OperatorAuthChallengeGrain> logger)
     : Grain, IOperatorAuthChallengeGrain
 {
-    private readonly Dictionary<string, (byte[] Challenge, DateTime ExpiresAt)> _pendingChallenges = new();
+    private readonly Dictionary<string, (byte[] Challenge, DateTime ExpiresAt)> pendingChallenges = new();
     private static readonly TimeSpan ChallengeLifetime = TimeSpan.FromMinutes(5);
 
     public Task<OperatorChallengeData> CreateChallenge()
@@ -23,7 +30,7 @@ public class OperatorAuthChallengeGrain(
 
         var challengeId    = Guid.NewGuid().ToString("N");
         var challengeBytes = RandomNumberGenerator.GetBytes(32);
-        _pendingChallenges[challengeId] = (challengeBytes, DateTime.UtcNow + ChallengeLifetime);
+        pendingChallenges[challengeId] = (challengeBytes, DateTime.UtcNow + ChallengeLifetime);
 
         return Task.FromResult(new OperatorChallengeData(challengeId, challengeBytes));
     }
@@ -34,7 +41,7 @@ public class OperatorAuthChallengeGrain(
         CleanupExpired();
 
         // 1. find and consume the challenge (one-time use)
-        if (!_pendingChallenges.Remove(challengeId, out var entry))
+        if (!pendingChallenges.Remove(challengeId, out var entry))
             return OperatorAuthError.ChallengeNotFound;
 
         if (DateTime.UtcNow > entry.ExpiresAt)
@@ -55,7 +62,35 @@ public class OperatorAuthChallengeGrain(
         if (!VerifySignature(cert, entry.Challenge, signature))
             return OperatorAuthError.InvalidSignature;
 
-        // 4. verify chain of trust against our CA
+        return await ResolveOperator(cert, expectedUserId: null);
+    }
+
+    public async Task<Either<OperatorAuthSuccess, OperatorAuthError>> VerifyMutualTlsCertificate(
+        byte[] certificateDer, Guid userId)
+    {
+        X509Certificate2 cert;
+        try
+        {
+            cert = X509CertificateLoader.LoadCertificate(certificateDer);
+        }
+        catch
+        {
+            // Not a certificate at all. There is no signature in this path, so this is the closest
+            // thing to "what you presented is not usable".
+            return OperatorAuthError.InvalidSignature;
+        }
+
+        return await ResolveOperator(cert, userId);
+    }
+
+    /// <summary>
+    /// Everything that holds whichever way the certificate arrived: it chains to our CA, an operator
+    /// holds it, they are active, and — where the caller has a session to compare against — it is
+    /// theirs.
+    /// </summary>
+    private async Task<Either<OperatorAuthSuccess, OperatorAuthError>> ResolveOperator(
+        X509Certificate2 cert, Guid? expectedUserId)
+    {
         await using var scope      = provider.CreateAsyncScope();
         var             pkiService = scope.ServiceProvider.GetRequiredService<IVaultPkiService>();
 
@@ -63,7 +98,6 @@ public class OperatorAuthChallengeGrain(
         if (!VerifyChainOfTrust(cert, caPem))
             return OperatorAuthError.CertificateNotTrusted;
 
-        // 5. check revocation
         var thumbprint = Convert.ToHexString(cert.GetCertHash(HashAlgorithmName.SHA256));
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -81,6 +115,14 @@ public class OperatorAuthChallengeGrain(
         {
             logger.LogWarning("Operator {OperatorId} is inactive (cert {CertificateId})", op.Id, certificate.Id);
             return OperatorAuthError.OperatorInactive;
+        }
+
+        // A valid operator certificate is still the wrong one if it belongs to somebody else: the
+        // handshake proves who holds the key, not who is signed in on this session.
+        if (expectedUserId is { } userId && op.UserId != userId)
+        {
+            logger.LogWarning("Certificate operator {OperatorId} does not match session user {UserId}", op.Id, userId);
+            return OperatorAuthError.CertificateUserMismatch;
         }
 
         // ⚠️ TEMPORARY WORKAROUND — Vault CRL revocation check is DISABLED.
@@ -112,13 +154,12 @@ public class OperatorAuthChallengeGrain(
                 op.Id, certificate.Id);
         }
 
-        // 6. update last auth timestamp
         op.LastAuthAt = DateTimeOffset.UtcNow;
         await db.SaveChangesAsync();
 
         logger.LogInformation("Operator {OperatorId} authenticated via PIV certificate", op.Id);
 
-        return new OperatorAuthSuccess(op.Id, op.Email, thumbprint);
+        return new OperatorAuthSuccess(op.Id, op.Email, thumbprint, op.DisplayName, op.IsSystemOperator);
     }
 
     private static bool VerifySignature(X509Certificate2 cert, byte[] data, byte[] signature)
@@ -150,12 +191,12 @@ public class OperatorAuthChallengeGrain(
     private void CleanupExpired()
     {
         var now = DateTime.UtcNow;
-        var expired = _pendingChallenges
+        var expired = pendingChallenges
             .Where(x => now > x.Value.ExpiresAt)
             .Select(x => x.Key)
             .ToList();
 
         foreach (var key in expired)
-            _pendingChallenges.Remove(key);
+            pendingChallenges.Remove(key);
     }
 }

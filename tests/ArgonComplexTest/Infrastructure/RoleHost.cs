@@ -57,6 +57,15 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
 
         builder.UseSetting(ArgonRoleHostExtensions.RoleConfigurationKey, role.Value);
 
+        // UseSetting, not ConfigureAppConfiguration, and the difference matters: a feature that reads
+        // its options through ArgonFeatureContext.Options<T>() binds them while the container is
+        // still being built, which is before WebApplicationFactory has applied its configuration
+        // callbacks. The identity server's limiter is one of those — it bakes the permit counts into
+        // the policy at registration — so an in-memory collection would be ignored and the shipped
+        // five-attempts-a-minute would 429 the fixture halfway through.
+        foreach (var (key, value) in TestServerConfiguration.Aegis)
+            builder.UseSetting(key, value);
+
         // Each role gets its own silo port and cluster, so several can be booted in one run without
         // fighting over 11111 or accidentally joining the functional suite's cluster.
         builder.UseSetting($"{ArgonClusterEndpoints.Section}:Id", clusterId);

@@ -104,3 +104,42 @@ public sealed class AdminRole : IArgonRole
         features.Add<AdminConsoleFeature>();
     }
 }
+
+/// <summary>
+/// The identity server — where anyone signing into anything Argon publishes actually signs in.
+/// </summary>
+/// <remarks>
+/// A client role, and one that opens no database connection of its own: everything it reads about
+/// applications goes through <c>IDevTeamsGrain</c> and <c>IAppsManagementGrain</c>, and everything
+/// about people through <c>IIdentityDirectoryGrain</c>. That is not tidiness — this role is the one
+/// exposed to the whole internet, and the further it sits from the data the less a mistake on it
+/// costs.
+/// <para>
+/// Separate from <c>entrypoint</c> for the same reason it was a separate service before: the product
+/// and the thing that says who you are fail differently, are attacked differently, and should not
+/// share a process. It is also the OAuth provider <c>account</c> and <c>admin</c> authenticate
+/// against, so a topology that runs those without this one has consoles nobody can sign into.
+/// </para>
+/// </remarks>
+public sealed class AegisRole : IArgonRole
+{
+    public static ArgonRoleId Id => ArgonRoleId.Aegis;
+
+    public string Description => "identity server — OAuth provider, sign-in, operator step-up";
+    public bool   IsClient    => true;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+    {
+        features.Add<TelemetryFeature>();
+        features.Add<SentryFeature>();
+        features.Add<SentryTunnelFeature>();
+        features.Add<ServerTimingFeature>();
+
+        features.Add<KestrelFeature>();
+        features.Add<RoutingFeature>();
+        features.Add<ControllersFeature>();
+        features.Add<HostHooksFeature>();
+
+        features.Add<AegisFeature>();
+    }
+}
