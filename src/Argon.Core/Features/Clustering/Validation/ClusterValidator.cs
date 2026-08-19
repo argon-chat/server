@@ -64,7 +64,8 @@ public sealed class ValidationReport
 /// E6 a client role declaring <c>AddToRef</c>;
 /// E7 an unresolvable grain call site with no matching <c>AllowUnresolved</c>;
 /// E8 a feature-graph cycle, missing dependency or conflict;
-/// E9 a duplicate role id, an include cycle, or an unknown role in a topology.
+/// E9 a duplicate role id, an include cycle, or an unknown role in a topology;
+/// E10 a topology with client roles and no silo role exposing a cluster gateway.
 /// <para>
 /// <b>Warnings.</b>
 /// W1 a role calls a <c>[StatelessWorker]</c> it does not host — the call works but loses worker
@@ -240,6 +241,21 @@ public static class ClusterValidator
                 diagnostics.Add(ClusterDiagnostic.Error("E2",
                     $"grain '{TypeName(grainClass)}' is hosted by no role in topology '{topology.Name}'",
                     target: TypeName(grainClass)));
+
+        // ── E10: somebody has to accept client connections ──────────────────────────────────
+        // An Orleans client reaches grains only through a gateway, and a silo configured with proxy
+        // port 0 is never one — every gateway list provider filters on ProxyPort != 0. A topology
+        // with client roles and no gateway therefore starts clean and answers nothing, which is how
+        // this shipped: ExposesClusterGateway defaults to false and no silo role overrode it.
+        var clientRoles = analyses.Values.Where(a => a.Role.IsClient).Select(a => a.Role.Id).ToArray();
+        var gateways    = analyses.Values.Where(a => !a.Role.IsClient && a.Role.ExposesClusterGateway)
+           .Select(a => a.Role.Id).ToArray();
+
+        if (clientRoles.Length > 0 && gateways.Length == 0)
+            diagnostics.Add(ClusterDiagnostic.Error("E10",
+                $"topology '{topology.Name}' has client role(s) {string.Join(", ", clientRoles)} and no silo " +
+                "role exposing a cluster gateway; a client has nothing to connect to. Set " +
+                "ExposesClusterGateway on the role clients should reach the cluster through."));
 
         // ── W3: single point of failure ─────────────────────────────────────────────────────
         if (options.ReportSinglePointsOfFailure)

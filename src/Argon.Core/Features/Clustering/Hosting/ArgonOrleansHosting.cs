@@ -54,7 +54,26 @@ public static class ArgonOrleansHosting
     /// </summary>
     private static WebApplicationBuilder AddArgonSerializer(this WebApplicationBuilder builder)
     {
-        builder.Services.AddSerializer(x => x.AddNewtonsoftJsonSerializer(_ => true, options =>
+        builder.Services.AddArgonSerializer();
+        return builder;
+    }
+
+    /// <summary>
+    /// The catch-all serializer every Argon process has to agree on.
+    /// </summary>
+    /// <remarks>
+    /// <para>Most types crossing a grain boundary have no <c>[GenerateSerializer]</c>, so Orleans has
+    /// no generated codec for them and falls through to this one — for the wire <em>and</em> for the
+    /// in-silo deep copy, which is why its absence shows up as "copier not found" while building a
+    /// grain reference rather than as a failed call.</para>
+    ///
+    /// <para>On a service collection rather than on the host builder because a cluster client for
+    /// another region builds a container of its own and needs exactly this registration. Two
+    /// copies of it that drift would not fail — they would disagree about the wire, in one direction,
+    /// between regions.</para>
+    /// </remarks>
+    public static IServiceCollection AddArgonSerializer(this IServiceCollection services)
+        => services.AddSerializer(x => x.AddNewtonsoftJsonSerializer(_ => true, options =>
             options.Configure(z =>
             {
                 z.SerializerSettings                       ??= new JsonSerializerSettings();
@@ -65,9 +84,6 @@ public static class ArgonOrleansHosting
                 z.SerializerSettings.Converters.Add(new IonArrayConverter());
                 z.SerializerSettings.Converters.Add(new StringEnumConverter());
             })));
-
-        return builder;
-    }
 
     private static string DatacenterOf(WebApplicationBuilder builder)
         => ArgonDatacenter.Current;
@@ -91,7 +107,7 @@ public static class ArgonOrleansHosting
     private static WebApplicationBuilder AddArgonSilo(this WebApplicationBuilder builder, RoleDescriptor role)
     {
         var datacenter = DatacenterOf(builder);
-        var endpoints  = ArgonClusterEndpoints.Resolve(builder.Configuration, datacenter);
+        var endpoints  = ArgonClusterEndpoints.Resolve(builder.Configuration);
 
         builder.AddArgonDatacenter();
         builder.AddArgonSerializer();

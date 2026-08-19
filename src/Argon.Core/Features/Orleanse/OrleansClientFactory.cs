@@ -55,7 +55,7 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
     public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
     {
         // Must agree with the silos: same knobs, same defaults.
-        var endpoints = ArgonClusterEndpoints.Resolve(config, region);
+        var endpoints = ArgonClusterEndpoints.Resolve(config);
 
         x.Configure<ClusterOptions>(q =>
         {

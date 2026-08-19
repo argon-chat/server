@@ -16,6 +16,7 @@
     <Project Path="src/Argon.Core/Argon.Core.csproj" Id="40a1b0f1-5296-477d-91aa-aa12c936a85b" />
   </Folder>
   <Folder Name="/bench/">
+    <Project Path="bench/ArgonBus/ArgonBus.csproj" />
     <Project Path="bench/ArgonLoad/ArgonLoad.csproj" />
   </Folder>
   <Folder Name="/tests/">

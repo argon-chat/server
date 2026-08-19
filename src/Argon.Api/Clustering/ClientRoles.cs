@@ -28,6 +28,11 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<IonProtocolFeature>();
         features.Add<AppHubFeature>();
         features.Add<DiscoveryFeature>();
+
+        // The routing decision — which region owns this space, this user, this channel — is taken
+        // here, before Orleans is involved, because this is where the request arrives. So this is
+        // where the clients for the other regions live. With one region configured it holds none.
+        features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();
 
         features.Add<PresenceFeature>();

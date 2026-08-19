@@ -30,6 +30,37 @@ public class ProductionTopologyTests
     }
 
     /// <summary>
+    /// Exactly one silo role accepts client connections, and it is the one the calls go to.
+    /// </summary>
+    /// <remarks>
+    /// <para>Asserted rather than left to the validator because both halves matter and E10 only
+    /// checks one of them. That there is <em>a</em> gateway is what makes the topology work at all.
+    /// That there is exactly one, and that it is <c>core</c>, is the decision: a gateway forwards
+    /// client messages to whichever silo holds the activation, so being one adds interactive work to
+    /// a role, and it is worth adding only where losing the role already means those calls are
+    /// unavailable.</para>
+    ///
+    /// <para>Core is where the traffic goes — channel, space, user and security account for most of
+    /// the call sites reached from outside — so most forwarding stays inside the role. Putting a
+    /// gateway on <c>jobs</c> or <c>media</c> would let clients keep connections to a cluster whose
+    /// channels they cannot call, which is a failure mode bought for nothing.</para>
+    /// </remarks>
+    [Test]
+    public void Core_is_the_only_gateway_in_the_distributed_topology()
+    {
+        var catalog     = Catalog();
+        var distributed = catalog.Topologies["distributed"].Roles;
+
+        var gateways = distributed
+           .Select(r => catalog.Require(r))
+           .Where(r => !r.IsClient && r.ExposesClusterGateway)
+           .Select(r => r.Id)
+           .ToArray();
+
+        Assert.That(gateways, Is.EquivalentTo(new[] { ArgonRoleId.Core }));
+    }
+
+    /// <summary>
     /// About the distributed decomposition specifically. <c>dev</c> hosts every grain by design — it
     /// is every role at once — so counting it here would only say that composition works.
     /// </summary>

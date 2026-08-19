@@ -15,6 +15,30 @@ public sealed class CoreRole : IArgonRole
     public bool   IsClient      => false;
     public bool   UsesReminders => true;
 
+    /// <summary>
+    /// The role clients connect through, and the only one.
+    /// </summary>
+    /// <remarks>
+    /// <para>A gateway is where client connections land and where a message is forwarded to whichever
+    /// silo holds the activation, so being one adds latency-sensitive forwarding work to a role. The
+    /// rule that follows is: a silo should be a gateway exactly when losing it already means the
+    /// calls it would forward are unavailable. Anything else adds a way to lose client connections
+    /// while buying nothing — a gateway on <c>jobs</c> keeps clients connected to a cluster whose
+    /// channels they cannot call.</para>
+    ///
+    /// <para>Core is where the calls go. Of the grains reached from outside, <c>IChannelGrain</c>,
+    /// <c>ISpaceGrain</c>, <c>IUserGrain</c> and <c>ISecurityGrain</c> account for most of the call
+    /// sites and all live here, so most client traffic is forwarded within this role. It is also the
+    /// role that runs the most replicas, which is where gateway redundancy comes from without any
+    /// extra machinery, and a draining silo drops out of the gateway list on its own — every provider
+    /// filters on <c>Status == Active</c>.</para>
+    ///
+    /// <para>The cost is one extra hop for a call to a grain that lives elsewhere: entry point to a
+    /// core gateway to the target silo. Those calls — commerce, media, jobs — are already doing
+    /// database or object-storage work that dwarfs a hop on the same network.</para>
+    /// </remarks>
+    public bool ExposesClusterGateway => true;
+
     public void OnFeatures(IArgonFeatureRegistry features)
     {
         features.Add<TelemetryFeature>();

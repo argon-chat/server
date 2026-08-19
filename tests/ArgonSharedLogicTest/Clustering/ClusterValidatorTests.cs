@@ -123,6 +123,44 @@ public class ClusterValidatorTests
         });
     }
 
+    // ── E10: a client needs a gateway to connect to ─────────────────────────────────────────
+
+    /// <summary>
+    /// A topology whose clients have nowhere to connect.
+    /// </summary>
+    /// <remarks>
+    /// This is not hypothetical: it is what shipped. <c>ExposesClusterGateway</c> defaults to false
+    /// and no silo role overrode it, so the distributed topology had client roles and no gateway.
+    /// Nothing fails at startup — a silo with proxy port 0 simply never appears in a gateway list,
+    /// because every provider filters on <c>ProxyPort != 0</c> — and the client retries forever
+    /// against an empty list.
+    /// </remarks>
+    [Test]
+    public void E10_fires_when_a_topology_has_clients_and_no_gateway()
+    {
+        var report = Validate(
+            Scenario.Scope(typeof(Scenario.Misconfigured), typeof(AlphaGrain), typeof(BetaGrain), typeof(GammaGrain)),
+            "misconfigured");
+
+        Assert.That(Codes(report), Does.Contain("E10"),
+            "bad-client is a client role and no silo role in the topology exposes a gateway");
+    }
+
+    /// <summary>
+    /// Silos alone need no gateway, and saying otherwise would make the rule noise.
+    /// </summary>
+    /// <remarks>
+    /// A gateway exists for clients. A topology of silos talking only to each other has nothing to
+    /// connect through and nothing missing.
+    /// </remarks>
+    [Test]
+    public void E10_stays_quiet_for_a_topology_with_no_clients()
+    {
+        var report = Validate(Scenario.Scope(typeof(Scenario.Healthy), CoreGrains), "healthy");
+
+        Assert.That(Codes(report), Does.Not.Contain("E10"));
+    }
+
     // ── E4: storage providers ───────────────────────────────────────────────────────────────
 
     [Test]

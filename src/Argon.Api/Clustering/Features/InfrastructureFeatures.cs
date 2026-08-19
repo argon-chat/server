@@ -2,6 +2,7 @@ namespace Argon.Api.Clustering;
 
 using Argon.Core.Features.Integrations.Xsolla;
 using Argon.Features.AccountConsole;
+using Argon.Features.Clustering.Regions;
 using Argon.Features.Logging;
 using Argon.Features.Sentry;
 using Argon.Features.k8s;
@@ -218,4 +219,28 @@ public sealed class XsollaFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddXsollaFeature();
+}
+
+/// <summary>
+/// One Orleans client per configured region, kept connected in the background.
+/// </summary>
+/// <remarks>
+/// Inert until <c>Argon:Regions</c> names more than one region: with no peers the registry holds no
+/// clients, starts no tasks and answers every lookup with the local cluster. That is what makes it
+/// safe to give every role — the alternative is a feature only some roles have, and a routing
+/// decision that therefore cannot be taken in the others.
+/// </remarks>
+public sealed class RegionRegistryFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("regions")
+            .Describing("cluster clients for the other regions")
+            .Options<ArgonRegionOptions>(ArgonRegionOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+    {
+        ctx.Builder.Services.AddSingleton<ArgonRegionRegistry>();
+        ctx.Builder.Services.AddSingleton<IArgonRegionRegistry>(sp => sp.GetRequiredService<ArgonRegionRegistry>());
+        ctx.Builder.Services.AddHostedService(sp => sp.GetRequiredService<ArgonRegionRegistry>());
+    }
 }
