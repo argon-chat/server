@@ -13,11 +13,18 @@ using Microsoft.Extensions.Options;
 /// <para>Ten tables were declared <c>LOCALITY GLOBAL</c> and six of them were wrong. Global buys a
 /// local read in every region and charges a commit-wait on every write — a few hundred milliseconds,
 /// set by the cluster's maximum clock offset — so it is a mode for reference data and nothing else.
-/// Six of the ten were written on a user-facing click: a join, a role grant, a permission toggle, an
-/// accepted invite, a channel rename, a drag-and-drop reorder. The reasoning per table is
+/// Six of the ten were written on a user-facing action: a join, a role grant, a permission toggle, an
+/// accepted invite, a drag-and-drop reorder, and — the worst of them — a message counter that moved
+/// once per message sent. The reasoning per table is
 /// <c>docs/architecture/table-placement-reconciler.md</c> §5b, and it is worth reading before
 /// changing a line of this fixture, because the arguments that sound most convincing for moving a
 /// table back to global are all read-side arguments and the read side was never the objection.</para>
+///
+/// <para><b>One of the six came back, and only one thing let it.</b> The counter was taken off
+/// <c>Channels</c> and given a table of its own, so the write that disqualified the table no longer
+/// happens to it. That is the shape of an argument this fixture accepts: name the write, remove it,
+/// then move the line. Everything else — how many regions read it, how small it is, how nice the
+/// bootstrap would be — is what the demotions were already told.</para>
 ///
 /// <para>The declarations were never applied to any database — the migrations predate them — which is
 /// the only reason this was a correctable mistake rather than an incident. That also means nothing
@@ -150,39 +157,52 @@ public class TablePlacementAuditTests
            .ToArray();
 
     /// <summary>
-    /// Four tables are replicated to every region, and adding a fifth has to be an argument.
+    /// Five tables are replicated to every region, and adding a sixth has to be an argument.
     /// </summary>
     /// <remarks>
-    /// These four are the shape the feature is documented for: an account, its profile, a space's
-    /// metadata, and the archetypes every permission evaluation reads. Three of them are written once
-    /// per lifecycle. The fourth, <c>Archetypes</c>, is the borderline one and survives on its read
-    /// side alone — if role editing ever becomes interactive-frequency it goes regional with
-    /// <c>MemberArchetypes</c>. Asserted as an exact set so that an eleventh global cannot arrive
-    /// unnoticed: nothing else in the build would fail, because the annotation produces no migration
-    /// and no DDL until the reconciler applies it.
+    /// <para>These are the shape the feature is documented for: an account, its profile, a space's
+    /// metadata, a channel's metadata, and the archetypes every permission evaluation reads. Four of
+    /// them are written once per lifecycle. The fifth, <c>Archetypes</c>, is the borderline one and
+    /// survives on its read side alone — if role editing ever becomes interactive-frequency it goes
+    /// regional with <c>MemberArchetypes</c>. Asserted as an exact set so that a sixth global cannot
+    /// arrive unnoticed: nothing else in the build would fail, because the annotation produces no
+    /// migration and no DDL until the reconciler applies it.</para>
+    ///
+    /// <para><b><c>Channels</c> is here, and it was not.</b> The audit demoted it for one write — the
+    /// message counter <c>LastMessageId</c>, once per message sent — and that counter now lives in
+    /// <c>ChannelLastMessages</c>, which is regional in the fixture below. What is left on the channel
+    /// row is create, rename and move: per channel lifecycle, the same shape as <c>Spaces</c>. The
+    /// argument that returned it was "the write is gone", which is the only kind that works; "the read
+    /// side is attractive" is what the demotion was already told and rejected. If a writer ever
+    /// touches <c>Channels.LastMessageId</c> again this line is wrong again — see
+    /// <c>ChannelLastMessageTests</c>, which is the fixture that notices.</para>
     /// </remarks>
     [Test]
     public void Only_the_audited_reference_tables_are_global()
         => Assert.That(TablesPlaced(Placement.Global),
-            Is.EquivalentTo(new[] { "Archetypes", "Spaces", "UserProfiles", "Users" }));
+            Is.EquivalentTo(new[] { "Archetypes", "Channels", "Spaces", "UserProfiles", "Users" }));
 
     /// <summary>
-    /// And the six the audit moved off global stay homed in one region.
+    /// And the tables written by a click, or by a message, stay homed in one region.
     /// </summary>
     /// <remarks>
-    /// Every one of these is written on something a person just clicked — join and leave
+    /// <para>Every one of these is written on something a person just did — join and leave
     /// (<c>UsersToServerRelations</c>), role grant and revoke (<c>MemberArchetypes</c>), permission
     /// toggle (<c>ChannelEntitlementOverwrites</c>), accepted invite (<c>Invites</c>, whose UsedCount
-    /// increment is a compare-and-swap that only works against one authoritative copy), channel
-    /// create/rename/move (<c>Channels</c>), and drag-and-drop reorder (<c>ChannelGroupEntity</c>).
+    /// increment is a compare-and-swap that only works against one authoritative copy), drag-and-drop
+    /// reorder (<c>ChannelGroupEntity</c>), and sending a message (<c>ChannelLastMessages</c>, which
+    /// is written once per flush per active channel and is the hottest write in the product).
     /// If one of them turns up in the global set instead, this fails naming it, and the fix is to
-    /// read §5b rather than to edit the expectation.
+    /// read §5b rather than to edit the expectation.</para>
+    ///
+    /// <para><c>Channels</c> was in this set and moved up, which is the one direction that needs an
+    /// argument rather than an edit. See the fixture above for what the argument was.</para>
     /// </remarks>
     [Test]
     public void The_interactively_written_tables_are_regional()
         => Assert.That(TablesPlaced(Placement.RegionalByTable), Is.EquivalentTo(new[]
         {
-            "ChannelEntitlementOverwrites", "ChannelGroupEntity", "Channels",
+            "ChannelEntitlementOverwrites", "ChannelGroupEntity", "ChannelLastMessages",
             "Invites", "MemberArchetypes", "UsersToServerRelations"
         }));
 

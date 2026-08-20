@@ -41,8 +41,17 @@ public class ChannelHighWaterMarkTests : TestBase
     /// the refill is what makes the two implementations answer differently.
     ///
     /// <para>The wait before it matters for the same reason: the durable write is coalesced onto a
-    /// timer, so refilling immediately would rebuild the entry from a row that still reads zero — the
-    /// old code would hash the same zero it hashed the first time and pass again.</para>
+    /// timer, so refilling immediately would rebuild the entry before anything durable had moved and
+    /// the old code would hash the same value it hashed the first time and pass again.</para>
+    ///
+    /// <para><b>What this can still catch, honestly stated.</b> It used to be the only guard on the
+    /// counter staying out of the token, and it is not any more — the cached channel now carries the
+    /// dead <c>Channels.LastMessageId</c> column, which does not move, so a build that hashed it would
+    /// still produce a stable token and still pass here. The property itself is pinned in
+    /// <c>ArgonSharedLogicTest.ChannelLastMessageTests</c>, against <c>CachedChannel.VersionOf</c>
+    /// directly and without a container. What remains here is the end-to-end statement: a send, a real
+    /// refill, and a token that did not change — which catches anything that put the <em>live</em>
+    /// mark into the cached record, and that is the version of this regression that could come back.</para>
     /// </remarks>
     [Test, CancelAfter(1000 * 60 * 5)]
     public async Task Sending_a_message_leaves_the_channels_token_alone(CancellationToken ct = default)
@@ -128,12 +137,18 @@ public class ChannelHighWaterMarkTests : TestBase
     }
 
     /// <summary>
-    /// Waits until the channel row itself carries the new id, which is what a cache refill would read.
+    /// Waits until the durable mark carries the new id, which is what a cache refill would read.
     /// </summary>
     /// <remarks>
-    /// Polls the row rather than sleeping for the flush interval: the interval is the grain's business
-    /// and a test that hard-codes it breaks the day somebody tunes it. Fails loudly on timeout instead
-    /// of continuing, because a zero row here would make the assertions below vacuous rather than red.
+    /// Polls rather than sleeping for the flush interval: the interval is the grain's business and a
+    /// test that hard-codes it breaks the day somebody tunes it. Fails loudly on timeout instead of
+    /// continuing, because a missing row here would make the assertions below vacuous rather than red.
+    /// <para>
+    /// It polls <c>ChannelLastMessages</c> and not <c>Channels.LastMessageId</c>, and it has to: the
+    /// column is dead and would never move, so a version of this that still watched it would time out
+    /// on correct code. That is the same asymmetry the placement change rests on — the channel row is
+    /// metadata now, and only metadata.
+    /// </para>
     /// </remarks>
     private async Task WaitForStoredHighWaterMarkAsync(Guid channelId, CancellationToken ct)
     {
@@ -145,10 +160,10 @@ public class ChannelHighWaterMarkTests : TestBase
                .GetRequiredService<IDbContextFactory<ApplicationDbContext>>()
                .CreateDbContextAsync(ct);
 
-            var stored = await db.Channels
+            var stored = await db.ChannelLastMessages
                .AsNoTracking()
-               .Where(c => c.Id == channelId)
-               .Select(c => c.LastMessageId)
+               .Where(m => m.ChannelId == channelId)
+               .Select(m => m.LastMessageId)
                .FirstOrDefaultAsync(ct);
 
             if (stored > 0)
@@ -157,7 +172,7 @@ public class ChannelHighWaterMarkTests : TestBase
             await Task.Delay(TimeSpan.FromMilliseconds(250), ct);
         }
 
-        Assert.Fail("the channel row never took the message id, so the refill below would prove nothing");
+        Assert.Fail("the side table never took the message id, so the refill below would prove nothing");
     }
 
 }

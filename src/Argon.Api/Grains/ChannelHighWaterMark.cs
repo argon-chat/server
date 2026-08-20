@@ -21,7 +21,7 @@ namespace Argon.Grains;
 /// Flushing is deliberately two steps. Before coalescing, a failed write healed itself: the next
 /// message rewrote the row a moment later. Now a flush carries everything since the previous one,
 /// so retiring the mark before the write lands would mean a channel that goes quiet right after a
-/// failure keeps a stale <c>LastMessageId</c> forever — and every member's unread badge for it stays
+/// failure keeps a stale stored mark forever — and every member's unread badge for it stays
 /// wrong. Only <see cref="CommitFlush"/> retires it, so a failed flush is simply retried by the next
 /// tick.
 /// </para>

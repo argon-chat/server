@@ -5,10 +5,11 @@ namespace Argon.Features.Cache;
 /// and everything that needs it fresh.
 /// </summary>
 /// <remarks>
-/// <para>The durable copy is the channel row, written once per flush rather than once per message.
-/// That is the whole point of coalescing, and it means the row lags by up to one flush interval —
-/// so anything answering "is there something newer than my cursor" reads this cell first and falls
-/// back to the row. The cell is written on every send and costs microseconds; the row is the
+/// <para>The durable copy is a row in <c>ChannelLastMessages</c> — a table that carries the mark and
+/// nothing else, so writing it touches no channel metadata — written once per flush rather than once
+/// per message. That is the whole point of coalescing, and it means the row lags by up to one flush
+/// interval, so anything answering "is there something newer than my cursor" takes the larger of this
+/// cell and that row. The cell is written on every send and costs microseconds; the row is the
 /// backstop that survives an eviction.</para>
 ///
 /// <para>The key lived in three files before this type existed — the grain that writes it, the

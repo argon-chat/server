@@ -99,16 +99,37 @@ public class SchemaTtlReconcilerTests : TestBase
     /// failure so it can be read directly.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
-    public async Task A_freshly_migrated_database_reports_no_drift(CancellationToken ct = default)
+    public async Task A_freshly_migrated_database_carries_the_ttl_the_snapshots_froze(CancellationToken ct = default)
     {
         OnlyOnCockroach();
 
         var report = await ReconcileAsync(ct);
 
+        var byTable = report.Plan.Items.ToDictionary(item => item.Table.Name);
+
         Assert.Multiple(() =>
         {
-            Assert.That(report.Plan.IsConverged, Is.True, Explain(report));
-            Assert.That(report.Verdict, Is.EqualTo(SchemaReconcileVerdict.Converged), Explain(report));
+            // The two invite tables are the proof the round trip works: the generator wrote a TTL on
+            // the CREATE TABLE path, the reader read it back, and the canonical forms met. If either of
+            // these drifts, the normalisation is the suspect and not the database.
+            Assert.That(byTable["Invites"].Status,     Is.EqualTo(SchemaTtlStatus.Converged), Explain(report));
+            Assert.That(byTable["TeamInvites"].Status, Is.EqualTo(SchemaTtlStatus.Converged), Explain(report));
+
+            // And this one drifts on purpose. FriendRequestEntity declared its TTL against RequestedAt
+            // — a column defaulted to now(), so the predicate was true for every row ever written — and
+            // that typo is frozen into 47 Designer snapshots. The clause is not a literal in any
+            // migration file; Argon's own generator emits it at apply time from the snapshot's
+            // annotation, which is why a freshly created database gets it and the long-lived production
+            // tables, created before the annotation existed, do not.
+            //
+            // The model has been repaired to ExpiredAt. Until the snapshots are regenerated the server
+            // and the model genuinely disagree, and the reconciler saying so is the correct answer, not
+            // a broken test. It lands at Approval because changing the expression re-decides which rows
+            // are already expired — exactly the judgement a tier ceiling exists to make.
+            Assert.That(byTable["user_friend_requests"].Status, Is.EqualTo(SchemaTtlStatus.Drift), Explain(report));
+            Assert.That(byTable["user_friend_requests"].Tier,   Is.EqualTo(SchemaChangeTier.Approval), Explain(report));
+
+            Assert.That(report.Plan.HasUndetermined, Is.False, Explain(report));
         });
     }
 
@@ -126,13 +147,18 @@ public class SchemaTtlReconcilerTests : TestBase
     {
         OnlyOnCockroach();
 
-        await ReconcileAsync(ct);
-
+        var first  = await ReconcileAsync(ct);
         var second = await ReconcileAsync(ct);
 
         Assert.Multiple(() =>
         {
-            Assert.That(second.Plan.IsConverged, Is.True, Explain(second));
+            // Same answer twice, rather than "no answer": the plan is not converged while the snapshots
+            // still freeze the pre-repair column, and what idempotency means here is that a second pass
+            // reports the identical item rather than accumulating or changing its mind.
+            Assert.That(second.Plan.Items.Select(item => (item.Table.Name, item.Status)),
+                Is.EquivalentTo(first.Plan.Items.Select(item => (item.Table.Name, item.Status))),
+                Explain(second));
+
             Assert.That(second.Applied, Is.Empty, "report mode must never issue a statement");
         });
     }

@@ -8,25 +8,29 @@ using System.Text.RegularExpressions;
 /// longer the one.
 /// </summary>
 /// <remarks>
-/// Written for the schema reconciler and named after it. It now also carries the PostgreSQL TTL
-/// sweeper, which takes a lease over a different row in a different table — see the remark on
-/// <see cref="DefaultLockTable"/> for why the resource is a parameter and why the two must not share.
-/// The name stayed because renaming a type that four files already reason about is a larger diff than
-/// this sentence.
+/// Written for the schema reconciler and named after it. It now carries three jobs: the reconciler, the
+/// PostgreSQL TTL sweeper, and the boot path's migrations — each over a different row in a different
+/// table. See the remark on <see cref="DefaultLockTable"/> for why the resource is a parameter and why
+/// the three must not share. The name stayed because renaming a type that half a dozen files already
+/// reason about is a larger diff than this sentence.
 /// </remarks>
 /// <remarks>
-/// <para><b>Why not the lock that already exists.</b> <c>WarmUpExtension</c>'s <c>__MigrationLock</c>
-/// serialises the boot path and the reconcile pass sits inside it, so on a pod boot this lease is
-/// uncontended by construction. It is not redundant, because <c>__MigrationLock</c> has four properties
-/// that are fine for "one pod applies migrations" and wrong for a thing that issues DDL against a live
-/// cluster: a fixed ten-minute TTL with no renewal, so a long pass lets a second worker steal it and
-/// run concurrently; a release with no owner predicate (<c>DELETE … WHERE id = 1</c>), so a holder
-/// whose lease was stolen deletes the <em>stealer's</em> row on the way out and admits a third; an
-/// <c>expires_at</c> computed from the client's <c>DateTime.UtcNow</c> and compared against the
-/// server's <c>now()</c>, so clock skew moves the TTL; and a worker id of <c>Environment.MachineName</c>,
-/// which is not unique when several roles run as processes on one host. This lease fixes all four, and
-/// it is what the out-of-band entry point — the CLI or Kubernetes Job that will run the tier the boot
-/// path refuses — holds when there is no migration lock anywhere near it.</para>
+/// <para><b>Why this replaced the lock that used to be on the boot path.</b> <c>WarmUpExtension</c>
+/// hand-rolled a lock over <c>__MigrationLock</c>, and the reconcile pass sits inside the migration
+/// lock, so on a pod boot this lease is uncontended by construction. Reusing that lock was never an
+/// option, because it had four properties that are survivable for "one pod applies migrations" and
+/// wrong for anything that issues DDL against a live cluster: a fixed ten-minute TTL with no renewal,
+/// so a long pass lets a second worker steal it and run concurrently; a release with no owner predicate
+/// (<c>DELETE … WHERE id = 1</c>), so a holder whose lease was stolen deletes the <em>stealer's</em>
+/// row on the way out and admits a third; an <c>expires_at</c> computed from the client's
+/// <c>DateTime.UtcNow</c> and compared against the server's <c>now()</c>, so clock skew moves the TTL;
+/// and a worker id of <c>Environment.MachineName</c>, which is not unique when several roles run as
+/// processes on one host. This lease fixes all four, which is why warm-up now holds one of these over
+/// <c>WarmUpExtension.MigrationLeaseTable</c> instead — a new row, because the deployed
+/// <c>__MigrationLock</c> has no <c>fence</c> column and <c>CREATE TABLE IF NOT EXISTS</c> will not add
+/// one to a table that is already there. It is also what the out-of-band entry point — the CLI or
+/// Kubernetes Job that will run the tier the boot path refuses — holds when there is no migration lease
+/// anywhere near it.</para>
 ///
 /// <para><b>Why a lease and not something better.</b> There is nothing better available.
 /// CockroachDB has no <c>LOCK TABLE</c> (which is why this repository ships
@@ -54,15 +58,17 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     public const string DefaultLockTable = "__SchemaReconcileLock";
 
     /// <summary>
-    /// Two resources, two rows, one mechanism.
+    /// Three resources, three rows, one mechanism.
     /// </summary>
     /// <remarks>
-    /// <para>The table name is a parameter rather than a constant because a second maintenance job —
-    /// <see cref="TtlSweeper"/>, which deletes expired rows on PostgreSQL — needs the same four
-    /// correctness properties this lease has and needs them about a <em>different</em> resource. One
-    /// shared row would have made an hourly delete pass able to turn a pod's boot-time reconcile into
-    /// <c>SkippedLock</c>, a verdict that claims another worker is converging the schema. Copying the
-    /// class instead would have given the copy its own bugs.</para>
+    /// <para>The table name is a parameter rather than a constant because two other maintenance jobs —
+    /// <see cref="TtlSweeper"/>, which deletes expired rows on PostgreSQL, and warm-up's migration
+    /// pass — need the same four correctness properties this lease has and need them about
+    /// <em>different</em> resources. One shared row would have made an hourly delete pass able to turn
+    /// a pod's boot-time reconcile into <c>SkippedLock</c>, a verdict that claims another worker is
+    /// converging the schema; sharing with migrations would have made a pod's own migration lock do it,
+    /// since the reconcile pass runs a few lines later inside that same lock. Copying the class instead
+    /// would have given each copy its own bugs, which is what the boot path used to have.</para>
     ///
     /// <para>It is validated rather than trusted: every caller is in this repository, but a lock table
     /// name is the one thing here that gets concatenated into DDL, and a class whose SQL is assembled
@@ -78,7 +84,7 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     private static readonly Regex PlainIdentifier = new(@"^[A-Za-z_][A-Za-z0-9_$]*$", RegexOptions.Compiled);
 
     /// <summary>
-    /// Outside migration history, like <c>__MigrationLock</c>, and with the same <c>TEXT</c> discipline.
+    /// Outside migration history, as the lock this replaced was, and with the same <c>TEXT</c> discipline.
     /// </summary>
     /// <remarks>
     /// <c>TEXT</c> rather than Cockroach's <c>STRING</c>, and no Cockroach-only syntax anywhere, because
@@ -175,7 +181,8 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     /// </remarks>
     /// <param name="lockTable">
     /// Which resource is being taken. Defaults to the schema reconciler's, so its call site did not have
-    /// to learn about this; <see cref="TtlSweeper.LockTable"/> is the other one.
+    /// to learn about this; <see cref="TtlSweeper.LockTable"/> and
+    /// <c>WarmUpExtension.MigrationLeaseTable</c> are the other two.
     /// </param>
     public async static Task<SchemaReconcileLease?> TryAcquireAsync(
         DbConnection connection,
@@ -242,7 +249,7 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     /// Gives the lease up, and only if it is still ours.
     /// </summary>
     /// <remarks>
-    /// The owner predicate is the fix for the defect <c>__MigrationLock</c> has: an unqualified delete
+    /// The owner predicate is the fix for the defect <c>__MigrationLock</c> had: an unqualified delete
     /// by a holder whose lease was already stolen removes the <em>current</em> holder's row and lets a
     /// third worker in behind it. Failing to delete anything here is not an error — it means the lease
     /// had already moved on, which the runner will have found out from a renewal.

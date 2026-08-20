@@ -63,7 +63,7 @@ public class ChannelGrain(
     // ── Channel high-water mark ──────────────────────────────
     /// <summary>
     /// The newest message id this activation has accepted, and how much of that has reached
-    /// <c>Channels.LastMessageId</c>.
+    /// <c>ChannelLastMessages</c>.
     /// </summary>
     /// <remarks>
     /// Not part of <see cref="ChannelActivationState"/> and so deliberately does not travel: the
@@ -226,7 +226,7 @@ public class ChannelGrain(
         // Unlike the roster below, this one runs on migration too, and must. The successor activation
         // starts with an empty mark — it is not carried in ChannelActivationState — so every id noted
         // since the last timer tick exists nowhere but in this object. Skipping the migrating case
-        // would leave Channels.LastMessageId up to one interval behind with nothing to correct it
+        // would leave the channel's stored mark up to one interval behind with nothing to correct it
         // until the next message happens to arrive, and every member's unread badge for the channel
         // wrong until then.
         //
@@ -667,7 +667,7 @@ public class ChannelGrain(
         }
 
         if (changed.Count == 0)
-            return channel;
+            return await WithStoredMarkAsync(ctx, channel, ct);
 
         await ctx.SaveChangesAsync(ct);
 
@@ -678,8 +678,45 @@ public class ChannelGrain(
         await readCache.SignalInvalidationAsync(SpaceId, ct: ct);
         await Fire(new ChannelModified(SpaceId, channelId, new IonArray<string>(changed)), ct);
 
-        return channel;
+        return await WithStoredMarkAsync(ctx, channel, ct);
     }
+
+    /// <summary>
+    /// The channel as the caller should get it back: metadata from its row, high-water mark from
+    /// where the high-water mark actually lives.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>ChannelEntity.LastMessageId</c> is the dead column — nothing has written it since the
+    /// counter moved to <c>ChannelLastMessages</c> — so a channel loaded straight out of
+    /// <c>Channels</c> carries a number frozen at the moment of that split, and
+    /// <c>ChannelInteractionImpl</c> maps this entity onto the wire as <c>SuccessUpdateChannel</c>
+    /// with the field on it. A client that merges the record it gets back from a rename would
+    /// overwrite its unread state for that channel with a value from before the split. Every other
+    /// path that serves an <c>ArgonChannel</c> replaces the field already; this is the one that has
+    /// to do it here.</para>
+    ///
+    /// <para><b>A copy, not an assignment onto the entity.</b> The context that loaded it is still
+    /// open and the entity is tracked, so writing the property would leave EF holding a modification
+    /// this method has no intention of saving — harmless today only because nothing saves again
+    /// afterwards, which is not a property worth depending on.</para>
+    ///
+    /// <para><b>Not the in-memory mark.</b> <see cref="lastMessage"/> starts empty on a fresh
+    /// activation, so a rename after a silo restart would answer zero for a channel with ten thousand
+    /// messages in it. The stored row is the one thing that is right regardless of activation age.
+    /// The Redis cell is not consulted either: it would be at most one flush interval fresher, on a
+    /// path that is a rename rather than a read of unread state, and the client has three better
+    /// sources for the counter.</para>
+    /// </remarks>
+    private static async Task<ChannelEntity> WithStoredMarkAsync(
+        ApplicationDbContext ctx, ChannelEntity channel, CancellationToken ct)
+        => channel with
+        {
+            LastMessageId = await ctx.ChannelLastMessages
+               .AsNoTracking()
+               .Where(m => m.ChannelId == channel.Id)
+               .Select(m => m.LastMessageId)
+               .FirstOrDefaultAsync(ct)
+        };
 
     public async Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default)
     {
@@ -925,11 +962,11 @@ public class ChannelGrain(
         FireDetached(new MessageSent(_self.SpaceId, dto));
 
         // Two copies of the channel high-water mark, kept for two different readers. The durable one
-        // in Channels.LastMessageId is only noted here and written by the flush timer: it is cold
-        // metadata read once per client bootstrap, and paying a Cockroach commit for it on every
-        // message made the busiest channel in a space the most expensive row in the cluster to
-        // maintain. The cache copy is written per send because that is the one anybody reading
-        // between two flushes will see.
+        // is only noted here and written by the flush timer, into ChannelLastMessages — a row that
+        // exists to carry this and nothing else, so that a message send touches no channel metadata.
+        // It lived on the channel row until it turned the busiest channel in a space into the most
+        // expensive row in the cluster to maintain. The cache copy is written per send because that
+        // is the one anybody reading between two flushes will see.
         if (lastMessage.Raise(msgId))
             ChannelGrainInstrument.LastMessageAbsorbed.Add(1);
 
@@ -1080,19 +1117,58 @@ public class ChannelGrain(
             new KeyValuePair<string, object?>("result", written ? "written" : "failed"));
     }
 
+    /// <summary>
+    /// Puts the mark in the one durable place it lives: its own row, in its own table.
+    /// </summary>
+    /// <remarks>
+    /// <para>This used to be an <c>ExecuteUpdateAsync</c> against <c>Channels.LastMessageId</c>, and
+    /// moving it is the whole point of <see cref="ChannelLastMessageEntity"/>: the channel row is
+    /// metadata every client reads on bootstrap and wants replicating to every region, and a counter
+    /// on it made that impossible. Nothing else about the flush changed — the coalescing, the timer,
+    /// the flush on deactivation and the per-send Redis cell are all exactly as they were. Only the
+    /// destination is different.</para>
+    ///
+    /// <para><b>An upsert, because the row need not exist.</b> Nothing creates it with the channel;
+    /// it appears the first time somebody speaks. Raw SQL because EF has no upsert, and this shape —
+    /// <c>INSERT … ON CONFLICT … DO UPDATE</c> — is what <c>ReadStateService</c> already uses and runs
+    /// unmodified on both PostgreSQL and CockroachDB.</para>
+    ///
+    /// <para><b>The guard on the update is what makes the mark monotonic across activations.</b>
+    /// Within one activation it cannot go backwards — <see cref="ChannelHighWaterMark"/> only rises —
+    /// but a migrating channel has two activations alive at once for a moment, and the old one flushes
+    /// on the way out. Without <c>WHERE … &lt; EXCLUDED</c> the loser of that race writes an older id
+    /// over a newer one and every member's unread badge for the channel is wrong until the next
+    /// message. Removing the clause makes no test fail and no log line appear.</para>
+    ///
+    /// <para><b>Rows affected is deliberately not consulted.</b> The guard makes zero rows the normal
+    /// answer for "somebody else already wrote something newer", which is a flush that is done rather
+    /// than a flush that failed. Treating it as a failure would keep the mark pending forever and
+    /// rewrite the same statement every three seconds for the life of the activation. Only an
+    /// exception means the write did not land.</para>
+    /// </remarks>
     private async Task<bool> UpdateLastMessageIdAsync(long messageId)
     {
+        var channelId = this.GetPrimaryKey();
+
         try
         {
+            var now = DateTimeOffset.UtcNow;
+
             await using var ctx = await context.CreateDbContextAsync();
-            await ctx.Channels
-                .Where(c => c.Id == this.GetPrimaryKey())
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastMessageId, messageId));
+
+            await ctx.Database.ExecuteSqlInterpolatedAsync($@"
+INSERT INTO ""ChannelLastMessages"" (""ChannelId"", ""SpaceId"", ""LastMessageId"", ""UpdatedAt"")
+VALUES ({channelId}, {SpaceId}, {messageId}, {now})
+ON CONFLICT (""ChannelId"")
+DO UPDATE SET ""LastMessageId"" = EXCLUDED.""LastMessageId"",
+              ""UpdatedAt""     = EXCLUDED.""UpdatedAt""
+WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
+
             return true;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", this.GetPrimaryKey());
+            logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", channelId);
             return false;
         }
     }

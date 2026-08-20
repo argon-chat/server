@@ -78,11 +78,17 @@ public class TablePlacementTests : TestBase
     /// take sign-in, profiles, roles or the space list with it. Those tables being global is what
     /// makes that true, and it is decided once, in <c>ArgonTablePlacement</c>.</para>
     ///
-    /// <para>Four, not ten. <c>Channels</c> used to be asserted here and is not any more: the audit
-    /// (§5b) rules that a global table is only paid for by data written per lifecycle, and six of the
-    /// ten original declarations are written on a user-facing click. These four survive because they
-    /// are the reference data the feature is documented for — an account, its profile, a space's
-    /// metadata, and the roles every permission evaluation reads.</para>
+    /// <para>Five, not ten. The audit (§5b) rules that a global table is only paid for by data
+    /// written per lifecycle, and six of the ten original declarations were written on a user-facing
+    /// action. What survives is the reference data the feature is documented for — an account, its
+    /// profile, a space's metadata, a channel's metadata, and the roles every permission evaluation
+    /// reads.</para>
+    ///
+    /// <para><c>Channels</c> was one of the six and is back, because the write that disqualified it
+    /// was removed rather than argued away: <c>LastMessageId</c> moved to <c>ChannelLastMessages</c>,
+    /// which the fixture below expects to find homed in one region. If that ever regressed — a writer
+    /// touching the channel row's counter again — this line would be asserting a commit-wait onto the
+    /// message path, which is the most expensive place in the product to put one.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task Space_and_user_tables_are_global(CancellationToken ct = default)
@@ -91,21 +97,28 @@ public class TablePlacementTests : TestBase
 
         Assert.Multiple(async () =>
         {
-            foreach (var table in new[] { "Users", "UserProfiles", "Spaces", "Archetypes" })
+            foreach (var table in new[] { "Users", "UserProfiles", "Spaces", "Archetypes", "Channels" })
                 Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain("LOCALITY GLOBAL"),
                     $"'{table}' should be replicated to every region");
         });
     }
 
     /// <summary>
-    /// And the six the audit moved off global stay in one region, because they are written by hand.
+    /// And the tables written by a click, or by a message, stay in one region.
     /// </summary>
     /// <remarks>
-    /// <para>Every table here is written on something a person just clicked — a join, a role grant, a
-    /// permission toggle, an accepted invite, a channel rename, a drag-and-drop reorder — and
-    /// <c>LOCALITY GLOBAL</c> charges each of those a commit-wait of a few hundred milliseconds. The
-    /// declarations that said otherwise were never applied to a database, which is the only reason
-    /// this was a correctable mistake rather than an incident.</para>
+    /// <para>Every table here is written on something a person just did — a join, a role grant, a
+    /// permission toggle, an accepted invite, a drag-and-drop reorder, or sending a message
+    /// (<c>ChannelLastMessages</c>) — and <c>LOCALITY GLOBAL</c> charges each of those a commit-wait
+    /// of a few hundred milliseconds. The declarations that said otherwise were never applied to a
+    /// database, which is the only reason this was a correctable mistake rather than an
+    /// incident.</para>
+    ///
+    /// <para><c>ChannelLastMessages</c> is the newest of them and the only one here that was created
+    /// after the placement annotations existed, which means it is also the only one whose declaration
+    /// really did reach the server: <c>LOCALITY</c> is emitted inside <c>CREATE TABLE</c>, and this
+    /// table had one. It reports the same clause as the tables nobody ever placed, which is the point
+    /// — the two are the same physical state.</para>
     ///
     /// <para><b>This one passes today, and that is not it being weak.</b> A table converged to
     /// <c>REGIONAL BY TABLE</c> and a table nobody ever placed report the identical clause — that
@@ -125,7 +138,7 @@ public class TablePlacementTests : TestBase
         // ChannelGroupEntity has no ToTable and no DbSet, so its table is literally the class name.
         var tables = new[]
         {
-            "Channels", "ChannelGroupEntity", "UsersToServerRelations",
+            "ChannelLastMessages", "ChannelGroupEntity", "UsersToServerRelations",
             "MemberArchetypes", "ChannelEntitlementOverwrites", "Invites"
         };
 

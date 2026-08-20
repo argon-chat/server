@@ -62,8 +62,8 @@ public sealed class SpaceReadGrain(
         //
         // Which means a caller whose token matches is not told anyone posted, because lastMessageId
         // is deliberately not part of the token (see CachedChannel.VersionOf). That is not a hole:
-        // unread state reaches the client through GetGlobalBadges, which reads the channel rows
-        // straight out of the database, and through the live MessageSent events. What used to happen
+        // unread state reaches the client through GetGlobalBadges, which reads the marks straight out
+        // of ChannelLastMessages, and through the live MessageSent events. What used to happen
         // instead was that every space with traffic re-sent its whole channel list on a two-minute
         // timer to deliver a number the client had two better sources for.
         IonArray<RealtimeChannel>? visible = null;
@@ -164,9 +164,9 @@ public sealed class SpaceReadGrain(
     /// out of the cache for the same reason presence does — it is the part that is different a second
     /// later.
     /// <para>
-    /// <c>lastMessageId</c> is filled here rather than taken from the cached channel, because the
-    /// cached one is whatever the database held when the entry was last filled, up to two minutes
-    /// ago. See <see cref="LastMessageIdsAsync"/>.
+    /// <c>lastMessageId</c> is filled here rather than taken from the cached channel, and the cached
+    /// one is not a fallback for it either — the channel row stopped carrying the counter, so what
+    /// the cache holds is a dead field. See <see cref="LastMessageIdsAsync"/>.
     /// </para>
     /// </remarks>
     private async Task<List<RealtimeChannel>> VisibleChannelsAsync(List<CachedChannel> channels, CachedMember member)
@@ -182,8 +182,8 @@ public sealed class SpaceReadGrain(
            .ToList();
 
         // Started before the fan-out and awaited after it: neither needs the other's answer, and this
-        // is already the slowest call a client makes, so the Redis round trip rides along inside it
-        // instead of being added to it.
+        // is already the slowest call a client makes, so the query and the Redis round trip ride
+        // along inside it instead of being added to it.
         var marks = LastMessageIdsAsync(visible);
 
         var states = await Task.WhenAll(visible
@@ -204,7 +204,8 @@ public sealed class SpaceReadGrain(
     /// The guid is the default ("D") form because that is what both sides get from
     /// <see cref="Guid.ToString()"/> without thinking about it. Nothing enforces that the two sides
     /// agree: change the shape on one of them and no call fails, every mark simply falls back to the
-    /// database value and quietly goes back to being up to two minutes old.
+    /// stored row and quietly goes back to being up to one flush interval old — and, for a channel
+    /// whose activation died before flushing, older than that with nothing to correct it.
     /// </remarks>
     private static string LastMessageKey(Guid channelId) => ChannelHighWaterCell.KeyFor(channelId);
 
@@ -212,29 +213,59 @@ public sealed class SpaceReadGrain(
     /// The freshest high-water mark for each of <paramref name="channels"/>, positionally.
     /// </summary>
     /// <remarks>
-    /// One multi-key GET, not a get per channel. A bootstrap already makes one grain call per visible
-    /// channel; a Redis round trip each on top of that would double the width of the request for a
-    /// number that fits in eight bytes.
-    /// <para>
-    /// A missing cell is ordinary rather than an error — a channel nobody has posted in since the
-    /// cell was last written has none, and after a Redis flush nothing does. The database row is
-    /// still maintained, one flush behind rather than per send, so it is a correct floor; taking the
-    /// larger of the two also
-    /// covers the mirror case, where the write to the database failed but the cell landed. Both
-    /// numbers only ever go up, so the maximum is always the true answer and never a guess.
-    /// </para>
-    /// <para>
-    /// Redis being unreachable degrades instead of throwing. The database values are already in hand
-    /// and are exactly what this method served before the cell existed, so failing a whole space
-    /// bootstrap over a counter would be the worse trade by a wide margin.
-    /// </para>
+    /// <para>Two sources, and the larger wins. The floor is the stored row in
+    /// <c>ChannelLastMessages</c>, written once per flush; over it goes the Redis cell the channel
+    /// grain writes on every send. Both only ever rise, so the maximum is the true answer rather than
+    /// a guess about which to trust — and each covers the other's failure. The cell is missing after
+    /// an eviction and for a channel nobody has posted in since it was last written; the row is up to
+    /// one flush interval behind, or further behind if a flush has been failing.</para>
+    ///
+    /// <para><b>A channel with no stored row reads as zero, not as absent.</b> That is the normal
+    /// state of a channel nobody has ever posted in, and of one whose first messages have not been
+    /// flushed yet. Dropping such a channel from the answer — the shape a join would have given —
+    /// would take it out of the client's channel list entirely, which is a far louder bug than a
+    /// missing badge.</para>
+    ///
+    /// <para><b>The query is by space, not by channel id.</b> One index seek over
+    /// <c>ix_channel_last_messages_space</c> returning at most one row per channel in the space, which
+    /// is why <c>ChannelLastMessageEntity</c> carries <c>SpaceId</c> at all. It reads every channel in
+    /// the space rather than only the visible ones because the predicate would otherwise be an
+    /// IN-list that changes per caller — one plan and one seek beats a plan per permission set, and
+    /// the extra rows are eight bytes each.</para>
+    ///
+    /// <para><b>It deliberately does not go through the space read cache.</b> The counter is the one
+    /// thing about a channel that is different a second later, and the whole point of keeping it out
+    /// of <c>CachedChannel.VersionOf</c>'s hash was to stop it forcing that cache to churn. Putting
+    /// it back inside the cache would serve a two-minute-old number under a token that says nothing
+    /// changed.</para>
+    ///
+    /// <para>Redis being unreachable degrades to the stored rows, which are already in hand: failing
+    /// a whole space bootstrap over a counter would be the worse trade by a wide margin. The query is
+    /// not treated the same way and must not be — an unavailable database means the row values are
+    /// not in hand at all, and serving zeros would tell every client that every channel is fully
+    /// read. That is a wrong answer delivered confidently, where a thrown one is a retry.</para>
     /// </remarks>
     private async Task<long[]> LastMessageIdsAsync(List<CachedChannel> channels)
     {
-        var marks = channels.Select(c => c.Channel.lastMessageId).ToArray();
+        if (channels.Count == 0)
+            return [];
 
-        if (marks.Length == 0)
-            return marks;
+        var spaceId = this.GetPrimaryKey();
+
+        Dictionary<Guid, long> stored;
+
+        await using (var db = await context.CreateDbContextAsync())
+        {
+            stored = await db.ChannelLastMessages
+               .AsNoTracking()
+               .Where(m => m.SpaceId == spaceId)
+               .Select(m => new { m.ChannelId, m.LastMessageId })
+               .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId);
+        }
+
+        var marks = channels
+           .Select(c => stored.GetValueOrDefault(c.Channel.channelId))
+           .ToArray();
 
         try
         {
@@ -254,7 +285,7 @@ public sealed class SpaceReadGrain(
         catch (Exception ex)
         {
             logger.LogWarning(ex,
-                "could not read channel high-water marks for {Count} channels; serving the database values instead",
+                "could not read channel high-water marks for {Count} channels; serving the stored rows instead",
                 channels.Count);
 
             return marks;
@@ -401,13 +432,15 @@ public sealed record CachedChannel(ArgonChannel Channel, List<CachedOverwrite> O
     /// someone talked in one.
     /// </summary>
     /// <remarks>
-    /// <c>lastMessageId</c> is zeroed before hashing rather than left out of the cached value,
-    /// because the cached value is where the fallback for a missing Redis cell comes from — see
-    /// <c>SpaceReadGrain.LastMessageIdsAsync</c> — and a second copy of the same number stored beside
-    /// the DTO would only be a second thing to keep in step. Zeroing a copy of the whole record also
-    /// means a field added to <see cref="CachedChannel"/> or to <see cref="ArgonChannel"/> tomorrow
-    /// is covered by the token without anyone remembering to add it here; a hand-listed projection of
-    /// the "stable" fields would silently stop detecting the new one.
+    /// <c>lastMessageId</c> is zeroed before hashing rather than stripped out of the cached value.
+    /// The number the cached DTO carries is dead — it comes off <c>ChannelEntity.LastMessageId</c>,
+    /// which nothing writes any more, and <c>SpaceReadGrain.LastMessageIdsAsync</c> replaces it from
+    /// <c>ChannelLastMessages</c> and the Redis cell before anything is served — so what is left to
+    /// decide is only how the token is computed, and zeroing a copy of the whole record is the way
+    /// that keeps working: a field added to <see cref="CachedChannel"/> or to
+    /// <see cref="ArgonChannel"/> tomorrow is covered by the token without anyone remembering to add
+    /// it here, where a hand-listed projection of the "stable" fields would silently stop detecting
+    /// the new one.
     /// <para>
     /// Why it matters: the token gates the expensive branch of <c>GetSnapshot</c>, the one that fans
     /// out a grain call per visible channel. While the counter was inside the hash, the token changed

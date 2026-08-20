@@ -11,6 +11,12 @@ using Argon.Grains;
 /// metadata. The whole saving rests on this type answering "how much is owed" correctly, so it is
 /// exercised here rather than through a grain: no silo, no database, no three-second timer to wait
 /// on, and a failure points at the rule instead of at the plumbing around it.
+/// <para>
+/// The counter has since moved off the channel row entirely, into <c>ChannelLastMessages</c>, which
+/// is what let the channel table go back to <c>LOCALITY GLOBAL</c>. That changed where the flush
+/// writes and nothing about what it owes, so every rule below reads the same as it did — this type
+/// never knew which table it was saving writes to.
+/// </para>
 /// </remarks>
 [TestFixture]
 public class ChannelHighWaterMarkTests
@@ -119,8 +125,8 @@ public class ChannelHighWaterMarkTests
     /// A flush whose write failed has to be retried, not forgotten. Before coalescing a failed write
     /// healed itself — the next message rewrote the row a moment later — but a flush now carries
     /// every message since the previous one, and a channel can fall silent immediately after one.
-    /// Retiring the mark on a failure would leave that channel's <c>LastMessageId</c> stale for as
-    /// long as nobody spoke in it.
+    /// Retiring the mark on a failure would leave that channel's stored mark stale for as long as
+    /// nobody spoke in it.
     /// </summary>
     [Test]
     public void A_flush_whose_write_failed_is_retried_by_the_next_one()

@@ -91,7 +91,11 @@ public class SchemaTtlDesiredStateTests
             Assert.That(invites.JobCron, Is.EqualTo("0 0 * * *"));
             Assert.That(invites.SelectBatchSize, Is.EqualTo(5000));
             Assert.That(invites.DeleteBatchSize, Is.EqualTo(5000));
-            Assert.That(invites.DeleteRateLimit, Is.EqualTo(52428800));
+            // Null, and that is the fix rather than an omission: the declaration used to carry
+            // 52428800 — 50 MiB, copied from an attachment size limit — in a knob documented as rows
+            // per second. Omitting it restores CockroachDB's own default of 100 rows/s instead of
+            // switching the pacing off on the table the join path deletes from.
+            Assert.That(invites.DeleteRateLimit, Is.Null);
         });
     }
 

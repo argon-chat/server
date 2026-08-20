@@ -12,6 +12,73 @@ using Npgsql;
 
 public static class WarmUpExtension
 {
+    /// <summary>
+    /// The row that serialises migrations across the fleet — and it is deliberately not the row that
+    /// used to.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why the lock that was here is gone.</b> This path hand-rolled its own lock over
+    /// <c>__MigrationLock</c>, and that lock had four defects: <c>expires_at</c> computed from the
+    /// pod's <c>DateTime.UtcNow</c> but compared against the server's <c>now()</c>, so clock skew moved
+    /// the TTL in both directions; a release of <c>DELETE … WHERE id = 1</c> with no owner predicate,
+    /// running in a <c>finally</c>, so a worker whose lease had already been stolen deleted the
+    /// <em>new</em> holder's row on its way out and admitted a third; no fence, so a holder that
+    /// stalled and resumed could not discover it no longer owned anything; and no renewal on a
+    /// ten-minute TTL, so a longer migration lost the lock mid-flight and the release defect turned
+    /// that into two workers applying migrations at once. <see cref="SchemaReconcileLease"/> already
+    /// fixes all four, and the schema reconciler and the TTL sweeper already depend on it. Two
+    /// implementations of a distributed lock in one repository is the defect, not the fix.</para>
+    ///
+    /// <para><b>Why a new table, which is the load-bearing decision here.</b> <c>__MigrationLock</c>
+    /// exists in every deployed database with columns <c>(id, locked_at, locked_by, expires_at)</c> and
+    /// no <c>fence</c>. The lease bootstraps with <c>CREATE TABLE IF NOT EXISTS</c>, which does not add
+    /// a column to a table that is already there — so pointing the lease at the old name would give
+    /// every pod, of every role, on the boot path, at the same instant, an <c>INSERT</c> naming a
+    /// column the live table does not have: <c>42703</c> before the first migration, fleet-wide. The
+    /// alternative considered was <c>ALTER TABLE … ADD COLUMN IF NOT EXISTS fence</c> ahead of the
+    /// bootstrap, which puts a schema migration for the lock <em>inside</em> the boot path the lock
+    /// exists to protect, issued concurrently by every booting pod, before any lock is held. A second
+    /// table costs one dead row in one dead table that an operator can
+    /// <c>DROP TABLE "__MigrationLock"</c> whenever they like; it buys a boot path that carries no
+    /// <c>ALTER</c>. Not no DDL — the lease's own <c>CREATE TABLE IF NOT EXISTS</c> runs there, and on
+    /// the one rollout that creates this table it really executes rather than no-opping, so every pod
+    /// races every other exactly as the old lock's bootstrap did when it was introduced. That race is
+    /// survivable and one deploy wide; an <c>ALTER</c> racing itself on the path the lock protects, on
+    /// every deploy thereafter, is the thing being refused.
+    /// </para>
+    ///
+    /// <para><b>What that costs, said out loud.</b> Across the single deploy that crosses this change,
+    /// a pod on the old build takes <c>__MigrationLock</c> while a pod on the new build takes this one,
+    /// and the two do not exclude each other. That window needs an old pod to <em>boot</em> rather than
+    /// merely still be running, it lasts one rollout, and the old build's unqualified <c>DELETE</c>
+    /// means it did not reliably exclude anything anyway. Sharing one table would not have closed the
+    /// window either: the old build releases by <c>id</c> alone, so it would delete a new build's row
+    /// whatever name the two agreed on.</para>
+    ///
+    /// <para>Public because <c>MigrationLeaseTests</c> asserts on it — that it is a plain identifier the
+    /// lease will accept, and that it is neither of the other two lease tables. Three resources, three
+    /// rows: sharing <see cref="SchemaReconcileLease.DefaultLockTable"/> would let a boot-time migration
+    /// turn the same boot's reconcile pass into <c>SkippedLock</c>, a verdict that claims another worker
+    /// is converging the schema.</para>
+    /// </remarks>
+    public const string MigrationLeaseTable = "__MigrationLease";
+
+    /// <summary>
+    /// Ten minutes, unchanged in value and changed entirely in meaning.
+    /// </summary>
+    /// <remarks>
+    /// Without renewal this was a ceiling on the <em>whole</em> migration run — anything slower lost the
+    /// lock mid-flight — which is why it had to be this large. With
+    /// <see cref="SchemaReconcileLease.TryRenewAsync"/> called before every statement it is instead a
+    /// ceiling on one statement, and simultaneously how long a pod that died holding the lease blocks
+    /// everybody else. Those two pull in opposite directions and both want this order of magnitude, so
+    /// the number stayed rather than being retuned on a fresh guess. The residual gap is one statement
+    /// running longer than this — a backfill, an index build over a large table — and what makes that
+    /// survivable rather than silent is that the next renewal fails and
+    /// <see cref="ApplyMigrationsAsync"/> stops instead of continuing under a tenure that ended.
+    /// </remarks>
+    private static readonly TimeSpan MigrationLeaseLifetime = TimeSpan.FromMinutes(10);
+
     extension(WebApplication app)
     {
         public async Task<WebApplication> WarmUp<T>(bool isMigrate = true) where T : DbContext
@@ -54,66 +121,6 @@ public static class WarmUpExtension
             await rotationManager.EnsureLoadedAsync();
             return app;
         }
-    }
-
-    private async static Task<bool> TryAcquireMigrationLockAsync(
-        DbContext db,
-        ILogger logger,
-        string workerId,
-        TimeSpan ttl)
-    {
-        var now     = DateTime.UtcNow;
-        var expires = now.Add(ttl);
-
-        await db.Database.ExecuteSqlRawAsync(
-            """
-            CREATE TABLE IF NOT EXISTS "__MigrationLock" (
-                id INT PRIMARY KEY DEFAULT 1,
-                locked_at TIMESTAMPTZ,
-                -- TEXT rather than Cockroach's STRING: both engines accept TEXT, and the same
-                -- bootstrap DDL has to run against vanilla PostgreSQL in tests/local dev.
-                locked_by TEXT,
-                expires_at TIMESTAMPTZ
-            );
-            """);
-
-        var inserted = await db.Database.ExecuteSqlRawAsync(
-            """
-            INSERT INTO "__MigrationLock" (id, locked_at, locked_by, expires_at)
-                VALUES (1, now(), {0}, {1})
-                ON CONFLICT (id) DO NOTHING;
-            """, workerId, expires);
-
-        if (inserted == 1)
-            return true;
-
-        var updated = await db.Database.ExecuteSqlRawAsync(
-            """
-            UPDATE "__MigrationLock"
-            SET locked_at = now(),
-                locked_by = {0},
-                expires_at = {1}
-            WHERE id = 1 AND expires_at < now();
-            """, workerId, expires);
-
-
-        if (updated == 1)
-        {
-            logger.LogInformation("Migration lock acquired via UPDATE by {Worker}", workerId);
-            return true;
-        }
-
-        logger.LogWarning("Migration lock busy, held by another worker.");
-        return false;
-    }
-
-    private async static Task ReleaseMigrationLockAsync(DbContext db, ILogger logger)
-    {
-        await db.Database.ExecuteSqlRawAsync(
-            """
-            DELETE FROM "__MigrationLock" WHERE id = 1;
-            """);
-        logger.LogInformation("Migration lock released");
     }
 
     /// <summary>
@@ -188,13 +195,17 @@ public static class WarmUpExtension
             await CreateDatabaseAsync(dbCtx, dbCreator, logger, providerKind);
 
         // Pin one physical CockroachDB session for the whole migration. The bootstrap tables we
-        // CREATE here (__MigrationLock, __EFMigrationsHistory) must be visible — same database,
+        // CREATE here (__MigrationLease, __EFMigrationsHistory) must be visible — same database,
         // same schema/search_path — to the very next statement that uses them. db.ExecuteSqlRawAsync
         // and command.ExecuteNonQueryAsync otherwise each open/close the ref-counted connection
         // independently and can land on different pooled sessions; on a brand-new database that
         // races a CREATE against its first use and surfaces as
         // 42P01: relation "__EFMigrationsHistory" does not exist. The connection is released when
         // the warm-up DbContext is disposed.
+        //
+        // The lease below borrows the same pinned connection for the same reason, and for a second
+        // one: a lease renewed on a different session than the statements it protects protects
+        // nothing once the pool hands that session to somebody else.
         await db.OpenConnectionAsync();
 
         // Now that there is a connection, check that the engine is the one configuration claimed. Here
@@ -208,10 +219,19 @@ public static class WarmUpExtension
         if (providerKind is DatabaseProviderKind.PostgreSql)
             await PostgresCompatibilityShims.ApplyAsync(dbCtx, logger);
 
-        var lockTtl  = TimeSpan.FromMinutes(10);
-        var workerId = Environment.MachineName;
+        // roleId rather than the Environment.MachineName this used to pass. The lease builds its holder
+        // from machine/role/pid/boot-guid, and that is what makes "am I still the owner" answerable at
+        // all: docker-compose and local dev run several roles as processes on one host, so the machine
+        // name is shared between them, and a pid is reused after a restart.
+        //
+        // `await using` rather than the `finally` this used to release from. Same coverage — the lease
+        // is given up on the throwing path too — but the release now carries the holder and fence
+        // predicates, so a worker whose tenure already ended deletes nothing instead of deleting
+        // whoever took over from it and admitting a third.
+        await using var lease = await SchemaReconcileLease.TryAcquireAsync(
+            db.GetDbConnection(), logger, roleId, MigrationLeaseLifetime, MigrationLeaseTable);
 
-        if (!await TryAcquireMigrationLockAsync(dbCtx, logger, workerId, lockTtl))
+        if (lease is null)
         {
             logger.LogWarning("Another worker is performing migration. Skipping.");
 
@@ -241,7 +261,7 @@ public static class WarmUpExtension
             if (pending.Count == 0)
                 logger.LogInformation("No pending migrations.");
             else
-                await ApplyMigrationsAsync(dbCtx, logger, pending);
+                await ApplyMigrationsAsync(dbCtx, logger, lease, pending);
 
             // Reconciled here, and the shape of this branch is the whole reason it works. What used to
             // be an early `return` on "no pending migrations" is now an `else`, because annotation-only
@@ -259,17 +279,34 @@ public static class WarmUpExtension
             //
             // The verdict still travels — a failed pass is published, counted and visible on /health,
             // which is where an operator should learn about it rather than from a crash loop.
+            //
+            // The reconciler takes its own lease over its own row while this one is still held, and
+            // that is neither redundant nor a deadlock: two rows, two resources, and the reconciler is
+            // also reached out of band by an operator with no migration lease anywhere near it.
             try
             {
                 reconcileState.Publish(await SchemaReconciler.RunAsync(
                     dbCtx,
                     db.GetDbConnection(),
                     reconcile,
-                    // The boot path may never do more than re-pace a TTL that is already running. Turning
-                    // one on schedules deletion of every already-expired row, and dozens of pods arrive on
-                    // this path at the same instant during a hard reboot; that statement belongs to an
-                    // operator with a maintenance window, not to a pod that happened to win a lease.
-                    SchemaChangeTier.Automatic,
+                    // Approval, by the owner's decision, taken after the cost was put in front of them.
+                    //
+                    // What that buys: the boot path may now change an expiration expression the model and
+                    // the server disagree about, and may turn a declared TTL on for the first time. The
+                    // second one is the expensive half — the first job run after it deletes the entire
+                    // accumulated expired backlog for that table, in one pass, on whichever pod won the
+                    // lease. For the three declaring tables that is invites, team invites and friend
+                    // requests, and the deletion is what the declaration always asked for; it simply
+                    // never ran.
+                    //
+                    // What it still does not buy, because no flag reaches it: turning a TTL off, resetting
+                    // parameters nothing declares, touching a table an operator has paused with ttl_pause,
+                    // and moving between ttl_expire_after and ttl_expiration_expression — that last one
+                    // drops the hidden column and rewrites the table. Those stay refused in every mode.
+                    //
+                    // The lease is what keeps a hard reboot from turning this into a stampede: exactly one
+                    // pod runs a pass, the rest see a held lease and boot.
+                    SchemaChangeTier.Approval,
                     roleId,
                     logger));
             }
@@ -284,22 +321,21 @@ public static class WarmUpExtension
             logger.LogCritical(e, "failed apply migrations");
             throw;
         }
-        finally
-        {
-            await ReleaseMigrationLockAsync(dbCtx, logger);
-        }
     }
 
     /// <summary>
-    /// Applies the pending migrations, one auto-committed statement at a time.
+    /// Applies the pending migrations, one auto-committed statement at a time, and keeps the lease
+    /// alive across all of them.
     /// </summary>
     /// <remarks>
-    /// Lifted out of <c>MigrateArgonDatabase</c> without a line of it changing, so that "no pending
-    /// migrations" could stop being an early <c>return</c> — see the reconcile call site for why that
-    /// return was load-bearing in the wrong direction. Still called only while the migration lock is
-    /// held; the caller owns acquiring and releasing it.
+    /// Lifted out of <c>MigrateArgonDatabase</c> so that "no pending migrations" could stop being an
+    /// early <c>return</c> — see the reconcile call site for why that return was load-bearing in the
+    /// wrong direction. The caller still owns acquiring and releasing the lease; what this owns is
+    /// renewing it, because the caller cannot: the loop below is the only thing that knows where the
+    /// safe renewal points are.
     /// </remarks>
-    private async static Task ApplyMigrationsAsync<T>(T dbCtx, ILogger<T> logger, List<string> pending)
+    private async static Task ApplyMigrationsAsync<T>(
+        T dbCtx, ILogger<T> logger, SchemaReconcileLease lease, List<string> pending)
         where T : DbContext
     {
         var db = dbCtx.Database;
@@ -311,6 +347,8 @@ public static class WarmUpExtension
         var modelInitializer   = db.GetService<IModelRuntimeInitializer>();
         var activeProvider     = db.ProviderName!;
         var productVersion     = typeof(Migration).Assembly.GetName().Version?.ToString() ?? "";
+
+        var completed = 0;
 
         foreach (var migrationId in pending)
         {
@@ -340,11 +378,74 @@ public static class WarmUpExtension
             var commands = sqlGenerator.Generate(
                 migration.UpOperations, targetModel, MigrationsSqlGenerationOptions.Default);
 
-            foreach (var command in commands)
-                await command.ExecuteNonQueryAsync(connection);
+            for (var index = 0; index < commands.Count; index++)
+            {
+                // Renewed immediately before every statement, which is the only place a renewal can go:
+                // the lease has no background heartbeat, because a heartbeat needs a second connection
+                // and Npgsql will not run two commands on one — see SchemaReconcileLease. Every
+                // statement below auto-commits, so this is also the boundary at which stopping leaves
+                // the database somewhere the next boot can carry on from.
+                //
+                // A renewal that fails means the tenure ended and somebody else holds the lease, which
+                // is to say another pod is applying these same migrations right now. Stopping is the
+                // whole point of this change: continuing is the concurrent application everything above
+                // exists to prevent. Do not soften this into a log line and a carry-on.
+                if (!await lease.TryRenewAsync())
+                    throw LeaseLost(lease, migrationId, index, commands.Count, completed);
+
+                await commands[index].ExecuteNonQueryAsync(connection);
+            }
+
+            // And once more before the history row, which is a statement like any other and the one that
+            // decides whether this migration is ever re-run. Renewing only *before* each generated
+            // statement leaves the last one uncovered: a tenure that ended while it executed would still
+            // reach this line and record the migration as applied — on behalf of a lease somebody else
+            // now holds, and possibly while that somebody is applying the same statements. The gap is
+            // one statement wide and it is the statement that makes the outcome permanent.
+            if (!await lease.TryRenewAsync())
+                throw LeaseLost(lease, migrationId, commands.Count, commands.Count, completed);
 
             await db.ExecuteSqlRawAsync(historyRepo.GetInsertScript(new HistoryRow(migrationId, productVersion)));
+
+            completed++;
             logger.LogInformation("Applied migration {Migration}", migrationId);
         }
     }
+
+    /// <summary>
+    /// The stop a lost lease turns into, worded for whoever finds the pod refusing to start.
+    /// </summary>
+    /// <remarks>
+    /// <para>Thrown rather than logged-and-continued, and thrown rather than swallowed-and-booted. It
+    /// travels up through <c>MigrateArgonDatabase</c>'s <c>LogCritical</c>, out of warm-up, and the
+    /// process does not start — which is already the contract for a migration that fails, and this is
+    /// one: the schema is part-way between two versions and this pod does not agree with it. The crash
+    /// loop resolves itself without help, because the next boot finds the lease held, skips migrating
+    /// and starts normally as soon as the other worker is done. Note what is deliberately <em>not</em>
+    /// reused here: the busy-lease path above publishes <c>SkippedLock</c> and boots, and that stays
+    /// correct only because nothing had been applied at the point it decided.</para>
+    ///
+    /// <para>No extra log line. <see cref="SchemaReconcileLease.TryRenewAsync"/> already warns with the
+    /// table, the holder and the fence at the moment it finds out, and the caller's <c>LogCritical</c>
+    /// carries this message in full; a third line would only make one event look like three.</para>
+    ///
+    /// <para>The two positions are worded differently because they need different things from the
+    /// reader. Before a migration's first statement, nothing of it was issued and the next boot resumes
+    /// cleanly. After it, some statements have auto-committed with no <c>__EFMigrationsHistory</c> row
+    /// to record them, so the next boot re-runs that migration from the top — fine for the
+    /// <c>CREATE TABLE IF NOT EXISTS</c> shapes, not fine for a bare <c>ADD COLUMN</c>, and which one it
+    /// is can only be settled by a human reading that migration.</para>
+    /// </remarks>
+    private static InvalidOperationException LeaseLost(
+        SchemaReconcileLease lease, string migrationId, int statement, int statements, int completed)
+        => new(
+            $"The migration lease on \"{MigrationLeaseTable}\" (holder {lease.Holder}, fence {lease.Fence}) " +
+            $"was lost while applying {migrationId}, so this process stopped rather than apply migrations " +
+            $"concurrently with whoever holds it now. {completed} migration(s) were applied and recorded in " +
+            $"\"__EFMigrationsHistory\" before this point, and " +
+            (statement == 0
+                ? $"no statement of {migrationId} was issued, so the next boot resumes cleanly from it."
+                : $"{statement} of {statements} statement(s) of {migrationId} auto-committed with no history " +
+                  $"row to record them, so the next boot will re-run {migrationId} from its first statement. " +
+                  $"Check that those statements tolerate a re-run before restarting this pod."));
 }

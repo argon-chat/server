@@ -17,13 +17,15 @@ public class BadgeAggregationService(
     ILogger<BadgeAggregationService> logger) : IBadgeAggregationService
 {
     /// <summary>
-    /// The freshest high-water mark per channel: the cell where there is one, the row otherwise.
+    /// The freshest high-water mark per channel: the cell where there is one, the stored row
+    /// otherwise.
     /// </summary>
     /// <remarks>
-    /// <para>The channel row is written once per flush now rather than once per message, so on its own
-    /// it is up to a flush interval behind — and if the activation dies before flushing, it stays
-    /// behind until that channel sees another message. A badge is exactly the thing that must not be
-    /// wrong for a channel that has gone quiet, so this reads the cell the send path writes.</para>
+    /// <para>The stored row lives in <c>ChannelLastMessages</c> — a table carrying nothing but the
+    /// mark — and is written once per flush rather than once per message, so on its own it is up to a
+    /// flush interval behind, and if the activation dies before flushing it stays behind until that
+    /// channel sees another message. A badge is exactly the thing that must not be wrong for a
+    /// channel that has gone quiet, so this reads the cell the send path writes.</para>
     ///
     /// <para>The larger of the two, never one or the other. The cell is missing after an eviction and
     /// for a channel nobody has posted in since it was last written; the row is behind between
@@ -96,18 +98,38 @@ public class BadgeAggregationService(
 
         if (spaceIds.Count > 0)
         {
-            // No `LastMessageId > 0` filter any more. It used to be free — the row was written on
-            // every send, so a zero really did mean an empty channel. With the write coalesced, a
-            // channel whose first messages have not been flushed yet still reads zero here, and
-            // filtering it out server-side would drop it before the cell below could correct it.
+            // Which channels exist, and which space each is in. Nothing about the counter is read
+            // here any more: Channels.LastMessageId is the dead column, and the mark comes from the
+            // side table below.
+            //
+            // No `LastMessageId > 0` filter, and there could not be one now even if it were wanted.
+            // It used to be free — the row was written on every send, so a zero really did mean an
+            // empty channel — but that stopped being true when the write was coalesced onto a flush
+            // timer, and it is doubly untrue now that the number is not on this row at all.
             var channels = await ctx.Channels
                 .AsNoTracking()
                 .Where(c => spaceIds.Contains(c.SpaceId))
-                .Select(c => new { c.Id, c.SpaceId, c.LastMessageId })
+                .Select(c => new { c.Id, c.SpaceId })
                 .ToListAsync(ct);
 
+            // One seek per space over ix_channel_last_messages_space, which is the shape this table
+            // was given a SpaceId for. A second query rather than a left join onto the one above,
+            // for two reasons: two independent index seeks beat one plan that has to walk both
+            // tables, and "no row" stays a C# lookup miss instead of a nullable column that the next
+            // person to touch this has to remember to coalesce. Neither table needs the other to
+            // answer its half.
+            var stored = await ctx.ChannelLastMessages
+                .AsNoTracking()
+                .Where(m => spaceIds.Contains(m.SpaceId))
+                .Select(m => new { m.ChannelId, m.LastMessageId })
+                .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
+
+            // A channel with no row is a channel nobody has posted in, which is the common case and
+            // reads as zero. It must not read as "not in the result" — every channel in the space has
+            // to reach the loop below, or a channel whose first messages are still only in the Redis
+            // cell would be dropped before the cell could correct it.
             var marks = await HighWaterMarksAsync(
-                channels.Select(c => (c.Id, c.LastMessageId)).ToList());
+                channels.Select(c => (c.Id, stored.GetValueOrDefault(c.Id))).ToList());
 
             var readStateMap = readStates.ToDictionary(r => r.ChannelId);
 

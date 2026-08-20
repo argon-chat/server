@@ -12,6 +12,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<UserDeviceHistoryEntity>           DeviceHistories              => Set<UserDeviceHistoryEntity>();
     public DbSet<SpaceEntity>                       Spaces                       => Set<SpaceEntity>();
     public DbSet<ChannelEntity>                     Channels                     => Set<ChannelEntity>();
+    // The channel's high-water mark, which used to be a column on Channels above. See
+    // ChannelLastMessageEntity for why it is not one any more.
+    public DbSet<ChannelLastMessageEntity>          ChannelLastMessages          => Set<ChannelLastMessageEntity>();
     public DbSet<SpaceMemberEntity>                 UsersToServerRelations       => Set<SpaceMemberEntity>();
     public DbSet<SpaceMemberArchetypeEntity>        MemberArchetypes             => Set<SpaceMemberArchetypeEntity>();
     public DbSet<ArchetypeEntity>                   Archetypes                   => Set<ArchetypeEntity>();
@@ -236,6 +239,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 /// instead. The per-table reasoning is <c>docs/architecture/table-placement-reconciler.md</c> §5b;
 /// six of the original ten global declarations failed that test and moved.</para>
 ///
+/// <para><b>One of the six came back, and how is the interesting part.</b> <c>Channels</c> failed on
+/// a single write — a message counter on a metadata row — so the counter was moved to a table of its
+/// own and the metadata went back to global. That is the shape of a correct argument for moving a
+/// table up: name the write, then remove it. Restating how attractive the read side is, which is what
+/// the demotion of every one of these tables was already told, is not one.</para>
+///
 /// <para><b>Regional here means the primary region, deliberately spelled without naming one.</b>
 /// <c>PlacementRegional()</c> renders <c>REGIONAL BY TABLE</c>, which the server reports as
 /// <c>REGIONAL BY TABLE IN PRIMARY REGION</c> — the same physical state an undeclared table has,
@@ -280,17 +289,35 @@ public static class ArgonTablePlacement
         // stops being an exception. Watch it rather than assuming it.
         modelBuilder.Entity<ArchetypeEntity>().PlacementGlobal();
 
-        // Regional: homed in the primary region, because they are written interactively.
-        // Every table below this line was declared GLOBAL and every one of them is written by
-        // something a person just clicked. Moving one back up needs the write named and argued away,
-        // not the read side restated: the read side was never the objection.
+        // Back here, and the reason is a change to the table rather than a change of mind about it.
+        // The audit demoted Channels for one write — LastMessageId, once per message sent — and that
+        // column is now a table of its own (ChannelLastMessageEntity, regional, below). Coalescing
+        // the write onto a flush timer was not enough to argue with: it made a hot write less hot, on
+        // a row that is still hot metadata. Moving it off is different in kind, and what is left is
+        // create, rename and move: per channel lifecycle, the same shape as SpaceEntity two lines
+        // above, which is global for exactly that reason. The read side — every bootstrap, every
+        // permission-adjacent path, and a member reconnecting into another region while this one is
+        // down — is what it always was, and it is finally allowed to count.
+        //
+        // The condition for keeping this line is therefore narrow and checkable: no writer touches
+        // Channels.LastMessageId. If one comes back, this declaration is wrong again, and moving it
+        // down is the fix rather than arguing that the write is small.
+        modelBuilder.Entity<ChannelEntity>().PlacementGlobal();
 
-        // Created, renamed and moved from the channel UI. It also carries LastMessageId, which was
-        // written once per message sent until ChannelGrain's flush timer started coalescing it
-        // (FlushLastMessageIdAsync); that coalescing is what stopped this being the most expensive
-        // row in the cluster to maintain, and it is not an argument for global — the interactive
-        // writes remain.
-        modelBuilder.Entity<ChannelEntity>().PlacementRegional();
+        // Regional: homed in the primary region, because they are written by something a person just
+        // did. All but the first were declared GLOBAL once and lost the argument. Moving one back up
+        // needs the write named and argued away, not the read side restated: the read side was never
+        // the objection.
+
+        // The other half of the split above, and the reverse of every argument for it. It is written
+        // constantly — once per flush per active channel, carrying every message since the last one —
+        // and every reader of it already knows which space, and therefore which region, it is asking
+        // about: the badge aggregation by the user's spaces, the space snapshot by one, the admin
+        // space card by one. There is nothing to replicate: a reader in another region is asking
+        // about channels homed here, and it makes that call whatever the placement says. Global would
+        // buy a read nobody makes and charge a commit-wait on the message path, which is the single
+        // most expensive place in the product to put one.
+        modelBuilder.Entity<ChannelLastMessageEntity>().PlacementRegional();
 
         // Reordering is drag-and-drop: MoveChannelGroup rewrites the moved group's FractionalIndex
         // and usually a sibling's, and RebalanceGroupOrder rewrites the whole sibling set in one
