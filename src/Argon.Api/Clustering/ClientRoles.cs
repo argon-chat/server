@@ -24,6 +24,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<WebSocketsFeature>();
         features.Add<RewritesFeature>();
         features.Add<HostHooksFeature>();
+        features.Add<ClientLifecycleFeature>();
 
         features.Add<IonProtocolFeature>();
         features.Add<AppHubFeature>();
@@ -62,6 +63,7 @@ public sealed class BotApiRole : IArgonRole
         features.Add<KestrelFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
+        features.Add<ClientLifecycleFeature>();
 
         features.Add<BotApiFeature>();
     }
@@ -86,6 +88,7 @@ public sealed class AccountConsoleRole : IArgonRole
         features.Add<KestrelFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
+        features.Add<ClientLifecycleFeature>();
 
         features.Add<AccountConsoleFeature>();
     }
@@ -108,6 +111,7 @@ public sealed class AdminRole : IArgonRole
         features.Add<KestrelFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
+        features.Add<ClientLifecycleFeature>();
 
         features.Add<AdminConsoleFeature>();
     }
@@ -148,6 +152,7 @@ public sealed class AegisRole : IArgonRole
         features.Add<RoutingFeature>();
         features.Add<ControllersFeature>();
         features.Add<HostHooksFeature>();
+        features.Add<ClientLifecycleFeature>();
 
         features.Add<AegisFeature>();
     }

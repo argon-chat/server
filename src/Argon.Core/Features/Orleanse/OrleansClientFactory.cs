@@ -2,7 +2,6 @@ namespace Argon.Features;
 
 using Argon.Features.Clustering.Regions;
 
-using Api.Features.Orleans.Client;
 using Clustering;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
@@ -65,11 +64,11 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
             q.ServiceId = endpoints.ServiceId;
         });
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
-        // Not ClusterClientRetryFilter. That one retries SiloUnavailableException and gives up on
-        // everything else, and OutsideRuntimeClient rethrows the moment a filter gives up — which is
-        // how an entry point booting while its own gateways are down takes the process with it. The
-        // region policy documents the same failure at length; there is no reason the local client
-        // should keep the version that has it.
+        // Not the obvious filter — retry SiloUnavailableException, give up on everything else.
+        // OutsideRuntimeClient rethrows the moment a filter gives up, which is how an entry point
+        // booting while its own gateways are down takes the process with it. The datacenter layer
+        // shipped exactly that filter and it was deleted along with the rest of that layer; the
+        // region policy documents the same failure at length and keeps retrying instead.
         // OutsideRuntimeClient resolves this from the container, so registering it is enough.
         x.Services.AddSingleton<IClientConnectionRetryFilter>(sp => new RegionConnectionRetryFilter(
             region, TimeSpan.FromSeconds(30),

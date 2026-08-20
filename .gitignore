@@ -38,3 +38,6 @@ artifacts/
 
 # Production configuration values: weights, endpoints, credentials. See deploy/pconf.d/README.md
 deploy/pconf.d/
+
+# Claude Code session artefacts, including the throwaway worktrees agents run in.
+.claude/

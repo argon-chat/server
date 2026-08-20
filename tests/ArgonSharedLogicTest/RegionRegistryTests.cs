@@ -8,6 +8,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using System.Net;
+using System.Runtime.CompilerServices;
 
 /// <summary>
 /// The rules a region list has to hold before a process will start against it.
@@ -646,4 +647,389 @@ public class RegionGatewayListProviderTests
     [Test]
     public void The_refresh_period_is_what_was_configured()
         => Assert.That(Provider("10.1.2.3", 30000).MaxStaleness, Is.EqualTo(TimeSpan.FromSeconds(30)));
+}
+
+/// <summary>
+/// The merge rule, which is the part that has to be right whatever the transport does.
+/// </summary>
+/// <remarks>
+/// Reachability is a property of the pair — can this process reach that region — and intent is a
+/// property of the region. Combining them as <c>min</c> is what makes the second signal safe to take
+/// from a bus: an announcement can only ever narrow what this process already believes, so a stale,
+/// late or lying peer cannot talk anyone into routing at a region that is not there.
+/// </remarks>
+[TestFixture]
+public class RegionAvailabilityTests
+{
+    /// <summary>
+    /// The one that matters: nothing a region says about itself raises it.
+    /// </summary>
+    /// <remarks>
+    /// Every case where the region claims to be taking work while this process cannot reach it. If
+    /// any of these answered <c>Online</c>, an announcement — a claim, delivered late, by something
+    /// that may since have died — would be enough to send calls into a hole.
+    /// </remarks>
+    [TestCase(RegionStatus.Offline,    ExpectedResult = RegionStatus.Offline)]
+    [TestCase(RegionStatus.Connecting, ExpectedResult = RegionStatus.Connecting)]
+    [TestCase(RegionStatus.Draining,   ExpectedResult = RegionStatus.Draining)]
+    public RegionStatus An_advertised_active_never_raises_a_region(RegionStatus reachability)
+        => RegionAvailability.Merge(reachability, RegionIntent.Active);
+
+    /// <summary>And the other direction is the one an announcement is allowed to move it in.</summary>
+    [TestCase(RegionStatus.Online,     ExpectedResult = RegionStatus.Draining)]
+    [TestCase(RegionStatus.Connecting, ExpectedResult = RegionStatus.Connecting)]
+    [TestCase(RegionStatus.Offline,    ExpectedResult = RegionStatus.Offline)]
+    public RegionStatus An_advertised_drain_only_ever_lowers(RegionStatus reachability)
+        => RegionAvailability.Merge(reachability, RegionIntent.Draining);
+
+    [Test]
+    public void A_reachable_region_that_says_nothing_is_online()
+        => Assert.That(RegionAvailability.Merge(RegionStatus.Online, RegionIntent.Active),
+            Is.EqualTo(RegionStatus.Online));
+
+    /// <summary>
+    /// Draining is usable and does not accept new work, and that is the entire distinction.
+    /// </summary>
+    /// <remarks>
+    /// A drain that stopped calls to the activations already living there would be the outage the
+    /// drain exists to avoid. What stops is choosing it for anything that is not there yet.
+    /// </remarks>
+    [Test]
+    public void Draining_still_serves_what_is_already_homed_there()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(RegionStatus.Draining.IsUsable(), Is.True);
+            Assert.That(RegionStatus.Draining.AcceptsNewWork(), Is.False);
+
+            Assert.That(RegionStatus.Online.IsUsable(), Is.True);
+            Assert.That(RegionStatus.Online.AcceptsNewWork(), Is.True);
+
+            Assert.That(RegionStatus.Connecting.IsUsable(), Is.False);
+            Assert.That(RegionStatus.Offline.IsUsable(), Is.False);
+        });
+    }
+
+    /// <summary>The scale <c>min</c> is taken on, written out so a renumbered enum cannot move it.</summary>
+    [Test]
+    public void Less_usable_is_ordered_the_way_routing_means_it()
+        => Assert.That(
+            new[] { RegionStatus.Online, RegionStatus.Draining, RegionStatus.Connecting, RegionStatus.Offline }
+               .Select(status => status.Rank()),
+            Is.Ordered.Descending);
+}
+
+/// <summary>A channel that keeps what was published and delivers nothing.</summary>
+internal sealed class RecordingIntentChannel : IRegionIntentChannel
+{
+    public List<RegionIntentAnnouncement> Published { get; } = [];
+
+    public ValueTask PublishAsync(RegionIntentAnnouncement announcement, CancellationToken ct = default)
+    {
+        Published.Add(announcement);
+        return ValueTask.CompletedTask;
+    }
+
+    public async IAsyncEnumerable<RegionIntentAnnouncement> ListenAsync(
+        [EnumeratorCancellation] CancellationToken ct = default)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+}
+
+/// <summary>
+/// What a region says about itself, and what a process does with what it hears.
+/// </summary>
+[TestFixture]
+public class RegionIntentTests
+{
+    private static (RegionIntents Intents, RecordingIntentChannel Channel) Intents(string self = "ru-a")
+    {
+        var channel = new RecordingIntentChannel();
+
+        return (new RegionIntents(Options.Create(new ArgonRegionOptions { Self = self }), channel,
+            NullLogger<RegionIntents>.Instance), channel);
+    }
+
+    [Test]
+    public void A_region_nobody_has_said_anything_about_is_active()
+    {
+        var (intents, _) = Intents();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(intents.Local, Is.EqualTo(RegionIntent.Active));
+            Assert.That(intents.IntentOf("eu-a"), Is.EqualTo(RegionIntent.Active));
+
+            // And it says nothing, so a process that restarted mid-drain cannot announce its region
+            // back into service on the strength of a default.
+            Assert.That(intents.Declaration, Is.Null);
+        });
+    }
+
+    [Test]
+    public async Task Declaring_takes_effect_here_before_it_is_published()
+    {
+        var (intents, channel) = Intents();
+
+        await intents.DeclareAsync(RegionIntent.Draining);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(intents.Local, Is.EqualTo(RegionIntent.Draining));
+            Assert.That(channel.Published, Has.Count.EqualTo(1));
+            Assert.That(channel.Published[0].Region, Is.EqualTo("ru-a"));
+            Assert.That(channel.Published[0].Intent, Is.EqualTo(RegionIntent.Draining));
+        });
+    }
+
+    /// <summary>
+    /// A declaration reaches the rest of its own region, not only the other ones.
+    /// </summary>
+    /// <remarks>
+    /// A drain is a property of the region. If a process ignored announcements about itself, "is
+    /// this region draining" would answer differently depending on which pod the operator happened
+    /// to reach, and the twenty that were not asked would keep repeating the old answer.
+    /// </remarks>
+    [Test]
+    public void A_process_adopts_what_its_own_region_announced()
+    {
+        var (intents, _) = Intents();
+
+        Assert.That(intents.Record(
+            new RegionIntentAnnouncement("ru-a", RegionIntent.Draining, DateTimeOffset.UtcNow)), Is.True);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(intents.Local, Is.EqualTo(RegionIntent.Draining));
+
+            // Adopted, therefore repeated: this process now carries the declaration for the ones
+            // that start after it.
+            Assert.That(intents.Declaration, Is.Not.Null);
+            Assert.That(intents.Declaration!.Intent, Is.EqualTo(RegionIntent.Draining));
+        });
+    }
+
+    /// <summary>
+    /// A repeat carries the instant of the declaration, so it cannot beat a newer decision.
+    /// </summary>
+    /// <remarks>
+    /// Every process of a region repeats its region's declaration on its own timer. If ordering were
+    /// by arrival, one process that had not yet heard the un-drain would push the region back into
+    /// maintenance on every tick.
+    /// </remarks>
+    [Test]
+    public void An_older_declaration_does_not_overrule_a_newer_one()
+    {
+        var (intents, _) = Intents();
+        var declaredAt   = DateTimeOffset.UtcNow;
+
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Draining, declaredAt));
+
+        var applied = intents.Record(
+            new RegionIntentAnnouncement("eu-a", RegionIntent.Active, declaredAt.AddSeconds(-30)));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(applied, Is.False);
+            Assert.That(intents.IntentOf("eu-a"), Is.EqualTo(RegionIntent.Draining));
+        });
+    }
+
+    [Test]
+    public void The_newer_declaration_wins_in_both_directions()
+    {
+        var (intents, _) = Intents();
+        var declaredAt   = DateTimeOffset.UtcNow;
+
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Draining, declaredAt));
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Active, declaredAt.AddSeconds(1)));
+
+        Assert.That(intents.IntentOf("eu-a"), Is.EqualTo(RegionIntent.Active));
+    }
+
+    /// <summary>Two declarations stamped the same instant is a clock, not a decision.</summary>
+    [Test]
+    public void A_tie_goes_to_the_more_restrictive_answer()
+    {
+        var (intents, _) = Intents();
+        var declaredAt   = DateTimeOffset.UtcNow;
+
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Active, declaredAt));
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Draining, declaredAt));
+
+        Assert.That(intents.IntentOf("eu-a"), Is.EqualTo(RegionIntent.Draining));
+    }
+
+    [Test]
+    public void Region_names_are_not_case_sensitive_here_either()
+    {
+        var (intents, _) = Intents();
+
+        intents.Record(new RegionIntentAnnouncement("EU-A", RegionIntent.Draining, DateTimeOffset.UtcNow));
+
+        Assert.That(intents.IntentOf("eu-a"), Is.EqualTo(RegionIntent.Draining));
+    }
+
+    /// <summary>A subject per region, and the same one however the name was spelled.</summary>
+    [Test]
+    public void Every_region_declares_on_its_own_subject()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(NatsRegionIntentChannel.SubjectFor("ru-a"), Is.EqualTo("argon.regions.ru-a.intent"));
+            Assert.That(NatsRegionIntentChannel.SubjectFor("RU-A"), Is.EqualTo("argon.regions.ru-a.intent"));
+            Assert.That(NatsRegionIntentChannel.SubjectFor("ru-b"),
+                Is.Not.EqualTo(NatsRegionIntentChannel.SubjectFor("ru-a")));
+
+            // A dot would otherwise add a level to the subject and stop matching the wildcard
+            // everyone subscribes to.
+            Assert.That(NatsRegionIntentChannel.SubjectFor("ru.a"), Is.EqualTo("argon.regions.ru_a.intent"));
+            Assert.That(NatsRegionIntentChannel.AllSubject, Is.EqualTo("argon.regions.*.intent"));
+        });
+    }
+}
+
+/// <summary>
+/// The registry's merged answer: what it can reach, narrowed by what it has been told.
+/// </summary>
+[TestFixture]
+public class RegionMergedStatusTests
+{
+    private static IServiceProvider Host()
+        => new ServiceCollection().AddLogging().BuildServiceProvider();
+
+    private static (ArgonRegionRegistry Registry, IRegionIntents Intents) Deployment(ArgonRegionOptions options)
+    {
+        var intents = new RegionIntents(Options.Create(options), new RecordingIntentChannel(),
+            NullLogger<RegionIntents>.Instance);
+
+        return (new ArgonRegionRegistry(Options.Create(options), Host(),
+            NullLogger<ArgonRegionRegistry>.Instance, intents), intents);
+    }
+
+    private static ArgonRegionOptions OneRegion() => new() { Self = "ru-a" };
+
+    private static ArgonRegionOptions TwoRegions() => new()
+    {
+        Self    = "ru-a",
+        IdEpoch = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+        Nodes = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["ru-a"] = new() { Zone = "ru", Gateway = "127.0.0.1:30000", ClusterId = "argon-ru-a", Index = 0 },
+            // Configured, never started, nothing listening: reads Connecting and stays there.
+            ["ru-b"] = new() { Zone = "ru", Gateway = "127.0.0.1:39997", ClusterId = "argon-ru-b", Index = 1 }
+        }
+    };
+
+    /// <summary>
+    /// The thing this exists to make false: that a process cannot report its own region as anything
+    /// but healthy.
+    /// </summary>
+    [Test]
+    public async Task A_region_can_say_it_is_draining_about_itself()
+    {
+        var (registry, _) = Deployment(OneRegion());
+
+        Assert.That(registry.StatusOf("ru-a"), Is.EqualTo(RegionStatus.Online), "before it says anything");
+
+        await registry.DeclareAsync(RegionIntent.Draining);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.Intent, Is.EqualTo(RegionIntent.Draining));
+            Assert.That(registry.StatusOf("ru-a"), Is.EqualTo(RegionStatus.Draining));
+
+            // Still serving what is homed here — the drain is about placement, not about calls.
+            Assert.That(registry.StatusOf("ru-a").IsUsable(), Is.True);
+            Assert.That(registry.AcceptsNewWork("ru-a"), Is.False);
+        });
+    }
+
+    [Test]
+    public async Task And_can_say_it_is_taking_work_again()
+    {
+        var (registry, _) = Deployment(OneRegion());
+
+        await registry.DeclareAsync(RegionIntent.Draining);
+        await registry.DeclareAsync(RegionIntent.Active);
+
+        Assert.That(registry.StatusOf("ru-a"), Is.EqualTo(RegionStatus.Online));
+    }
+
+    /// <summary>
+    /// An advertised healthy status does not rescue a region this process cannot reach.
+    /// </summary>
+    /// <remarks>
+    /// The peer here is configured and has never connected, so local reachability says
+    /// <c>Connecting</c>. It then announces — correctly, as far as it knows — that it is taking
+    /// work. Reachability is a property of the pair and the peer holds neither half of this one, so
+    /// the announcement changes nothing: the minimum of the two is still <c>Connecting</c>, and the
+    /// caller is still told to route somewhere else.
+    /// </remarks>
+    [Test]
+    public void An_unreachable_peer_is_not_rescued_by_announcing_that_it_is_fine()
+    {
+        var (registry, intents) = Deployment(TwoRegions());
+
+        Assert.That(registry.StatusOf("ru-b"), Is.EqualTo(RegionStatus.Connecting), "nothing is listening there");
+
+        intents.Record(new RegionIntentAnnouncement("ru-b", RegionIntent.Active, DateTimeOffset.UtcNow));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.StatusOf("ru-b"), Is.EqualTo(RegionStatus.Connecting));
+            Assert.That(registry.TryGetClient("ru-b", out _), Is.False);
+            Assert.That(registry.AcceptsNewWork("ru-b"), Is.False);
+        });
+    }
+
+    /// <summary>The same, for a region no configuration claims.</summary>
+    [Test]
+    public void An_unknown_region_stays_offline_however_loudly_it_advertises()
+    {
+        var (registry, intents) = Deployment(OneRegion());
+
+        intents.Record(new RegionIntentAnnouncement("eu-a", RegionIntent.Active, DateTimeOffset.UtcNow));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.StatusOf("eu-a"), Is.EqualTo(RegionStatus.Offline));
+            Assert.That(registry.TryGetClient("eu-a", out _), Is.False);
+            Assert.That(() => registry.GetClient("eu-a"), Throws.TypeOf<RegionUnavailableException>());
+        });
+    }
+
+    /// <summary>
+    /// A drain announced about an unreachable region does not upgrade it to "reachable but busy".
+    /// </summary>
+    /// <remarks>
+    /// The same rule in the other direction: draining outranks connecting, and taking the minimum is
+    /// what keeps a region that is not answering from being described as one that is.
+    /// </remarks>
+    [Test]
+    public void A_drain_announced_about_an_unreachable_region_does_not_raise_it_either()
+    {
+        var (registry, intents) = Deployment(TwoRegions());
+
+        intents.Record(new RegionIntentAnnouncement("ru-b", RegionIntent.Draining, DateTimeOffset.UtcNow));
+
+        Assert.That(registry.StatusOf("ru-b"), Is.EqualTo(RegionStatus.Connecting));
+    }
+
+    /// <summary>A registry with nothing to listen to behaves as it did before there was a channel.</summary>
+    [Test]
+    public void Without_anything_to_listen_to_every_region_is_taken_to_be_active()
+    {
+        var registry = new ArgonRegionRegistry(Options.Create(OneRegion()), Host(),
+            NullLogger<ArgonRegionRegistry>.Instance);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.Intent, Is.EqualTo(RegionIntent.Active));
+            Assert.That(registry.StatusOf("ru-a"), Is.EqualTo(RegionStatus.Online));
+            Assert.That(registry.StatusOf("eu-a"), Is.EqualTo(RegionStatus.Offline));
+        });
+    }
 }

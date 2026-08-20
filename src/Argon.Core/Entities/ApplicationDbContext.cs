@@ -208,6 +208,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             Id             = UserEntity.EchoUser,
             PasswordDigest = null,
         });
+
+        // Last, and it has to be last: this one reads the model instead of adding to it, so it only
+        // covers the entity types, keys and column defaults that everything above has finished
+        // declaring. It produces no DDL — see ArgonIdGeneration.
+        modelBuilder.UseRegionTaggedIds();
     }
 }
 

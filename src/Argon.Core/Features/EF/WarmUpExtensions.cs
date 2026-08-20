@@ -8,6 +8,7 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.DependencyInjection;
+using Npgsql;
 
 public static class WarmUpExtension
 {
@@ -105,6 +106,62 @@ public static class WarmUpExtension
         logger.LogInformation("Migration lock released");
     }
 
+    /// <summary>
+    /// Creates the database, and turns the one failure an operator cannot read into one they can.
+    /// </summary>
+    /// <remarks>
+    /// <para>This is not a bare <c>CREATE DATABASE</c>. <c>OnModelCreating</c> annotates the model with
+    /// <c>Regional:MultiRegion</c> unconditionally, so on CockroachDB the multiregional generator turns
+    /// it into <c>CREATE DATABASE … PRIMARY REGION … REGIONS … SURVIVE …</c>. CockroachDB only has
+    /// region names because some node was started with <c>--locality=region=…</c>; against a cluster
+    /// provisioned without them, the first statement of the first boot is rejected, not one migration
+    /// applies, and the pod restarts into the same failure forever. Deployments that provision the
+    /// database themselves never take this branch at all, which is why it went unnoticed.</para>
+    ///
+    /// <para>Cockroach's own message for that names the region, which points the operator at the
+    /// database and not at the node flags that are actually wrong. Naming the requirement — and the
+    /// regions this process is configured with — is the difference between a five-minute fix and an
+    /// outage spent reading EF Core source. The server error is kept as the inner exception, so nothing
+    /// is hidden; the wrapper only decides what the first line says.</para>
+    ///
+    /// <para>Deliberately not narrowed by SQLSTATE. A wrong code would silently restore the unreadable
+    /// message, and there is no second common reason for this particular statement to be refused, so
+    /// the text is worded to stay honest when the cause turns out to be something else.</para>
+    /// </remarks>
+    private async static Task CreateDatabaseAsync(
+        DbContext dbCtx,
+        IRelationalDatabaseCreator creator,
+        ILogger logger,
+        DatabaseProviderKind providerKind)
+    {
+        try
+        {
+            await creator.CreateAsync();
+            logger.LogInformation("Database created");
+        }
+        catch (PostgresException e) when (providerKind is DatabaseProviderKind.CockroachDb &&
+                                          ReadMultiRegion(dbCtx) is { Primary.Length: > 0 } multiRegion)
+        {
+            var declared = string.Join(", ", new[] { multiRegion.Primary }
+               .Concat(multiRegion.Regions)
+               .Distinct(StringComparer.OrdinalIgnoreCase));
+
+            throw new InvalidOperationException(
+                $"CockroachDB refused CREATE DATABASE … PRIMARY REGION \"{multiRegion.Primary}\" " +
+                $"SURVIVE {multiRegion.Survive}. A cluster only has regions if its nodes were started with " +
+                $"--locality=region=<name>, and every region named in Database:Regions ({declared}) has to " +
+                $"appear in SHOW REGIONS FROM CLUSTER before a database can be created with it. Either give " +
+                $"the nodes matching localities, or set Database:Regions:PrimaryRegion to an empty value to " +
+                $"create an ordinary single-region database. Server said: {e.MessageText}", e);
+        }
+    }
+
+    /// <summary>The multi-region declaration the model carries, or <c>null</c> if it carries none.</summary>
+    private static MultiRegionAnnotation? ReadMultiRegion(DbContext dbCtx)
+        => dbCtx.Model.FindAnnotation("Regional:MultiRegion")?.Value is string payload
+            ? JsonConvert.DeserializeObject<MultiRegionAnnotation>(payload)
+            : null;
+
     private async static Task MigrateArgonDatabase<T>(this T dbCtx, ILogger<T> logger, DatabaseProviderKind providerKind)
         where T : DbContext
     {
@@ -112,10 +169,7 @@ public static class WarmUpExtension
 
         var dbCreator = db.GetService<IRelationalDatabaseCreator>();
         if (!await dbCreator.ExistsAsync())
-        {
-            await dbCreator.CreateAsync();
-            logger.LogInformation("Database created");
-        }
+            await CreateDatabaseAsync(dbCtx, dbCreator, logger, providerKind);
 
         // Pin one physical CockroachDB session for the whole migration. The bootstrap tables we
         // CREATE here (__MigrationLock, __EFMigrationsHistory) must be visible — same database,

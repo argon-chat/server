@@ -3,6 +3,7 @@ namespace Argon.Core.Services;
 using Entities.Data;
 using Argon.Entities;
 using Microsoft.EntityFrameworkCore;
+using SnowflakeId.Core;
 
 public interface ISystemMessageService
 {
@@ -15,6 +16,7 @@ public interface ISystemMessageService
 public class SystemMessageService(
     IDbContextFactory<ApplicationDbContext> contextFactory,
     IConversationService conversationService,
+    ISnowflakeService snowflake,
     ILogger<SystemMessageService> logger) : ISystemMessageService
 {
     public async Task<long> SendCallStartedMessageAsync(Guid senderId, Guid receiverId, Guid callId, CancellationToken ct = default)
@@ -186,6 +188,18 @@ public class SystemMessageService(
         var inviterText = inviterId.HasValue ? $" (invited by {inviterId})" : "";
         var message = new ArgonMessageEntity
         {
+            // Minted here, from the same generator PgSqlMessagesLayout mints send ids with, because
+            // ArgonMessageEntity.MessageId is ValueGeneratedNever: EF sends whatever the CLR property
+            // holds on every insert, so an unassigned id is written as 0 rather than letting the
+            // column's unique_rowid() default fire. Zero is not a spare slot — MessageId is the third
+            // column of the (SpaceId, ChannelId, MessageId) primary key, so the first join into a
+            // space took it and every later join died on the duplicate key, unobserved, because
+            // SpaceGrain fires this off detached. It also sorted the join notice ahead of every real
+            // message in the channel forever, real ids being snowflakes.
+            //
+            // Do not "simplify" this to letting the database assign it: that means reading the id back
+            // out of the INSERT, which is the round trip the whole message layer is built to avoid.
+            MessageId = snowflake.GenerateSnowflakeId(),
             SpaceId   = spaceId,
             ChannelId = space.DefaultChannelId.Value,
             CreatorId = UserEntity.SystemUser,

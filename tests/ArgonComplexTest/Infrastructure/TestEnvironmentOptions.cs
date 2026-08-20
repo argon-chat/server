@@ -64,6 +64,22 @@ public static class TestEnvironmentOptions
             _                          => "postgres:17-alpine"
         };
 
+    /// <summary>
+    /// The region name the CockroachDB node advertises, and the primary region its database is given.
+    /// </summary>
+    /// <remarks>
+    /// <para>It has to be the same string the server is configured with —
+    /// <c>Database:Regions:PrimaryRegion</c> in <c>appsettings.json</c> — because CockroachDB matches a
+    /// database's primary region against the region names its nodes declared, by name and nothing else.
+    /// A mismatch is not a degradation: every statement carrying a <c>LOCALITY</c> clause is rejected
+    /// outright, and the placement fixture then reports on this file instead of on the migrations.</para>
+    ///
+    /// <para>A constant rather than something read out of the server's configuration, because the
+    /// container has to start before any host exists to read configuration from. If the shipped primary
+    /// region is ever renamed, this moves with it.</para>
+    /// </remarks>
+    public const string DatabaseRegion = "ru-central";
+
     public static string RedisImage => Read(RedisImageVariable) ?? "redis:7-alpine";
 
     public static string NatsImage => Read(NatsImageVariable) ?? "nats:2.10-alpine";

@@ -2,6 +2,7 @@ namespace Argon.Features.Clustering.Regions;
 
 using System.Collections.Frozen;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using Orleans.Configuration;
 using Orleans.Messaging;
@@ -26,15 +27,48 @@ public interface IArgonRegionRegistry
     /// <summary>The other regions in a zone — the only ones work may be re-homed to.</summary>
     IReadOnlyCollection<string> PeersInZone(string zone);
 
+    /// <summary>
+    /// The merged view: what this process can reach, narrowed by what the region says about itself.
+    /// </summary>
+    /// <remarks>
+    /// <c>min(local reachability, advertised intent)</c> — see <see cref="RegionAvailability.Merge"/>
+    /// for why it can only ever be a minimum. Includes <see cref="Self"/>, which is the point: a
+    /// process that could only ever describe its own region as healthy could not put it into
+    /// maintenance.
+    /// </remarks>
     RegionStatus StatusOf(string region);
+
+    /// <summary>
+    /// Whether a region may be chosen for work that is not homed anywhere yet.
+    /// </summary>
+    /// <remarks>
+    /// The question placement asks, and the one <see cref="TryGetClient"/> deliberately does not
+    /// answer: a draining region hands out a client, because it still serves what it already holds,
+    /// and answers false here, because nothing new should be sent to it.
+    /// </remarks>
+    bool AcceptsNewWork(string region);
+
+    /// <summary>What this region is currently saying about itself.</summary>
+    RegionIntent Intent { get; }
+
+    /// <summary>Declares the local region's intent, and announces it as far as the bus reaches.</summary>
+    /// <remarks>
+    /// The region's own voice. Takes effect here immediately and reaches the others over the
+    /// announcement channel; nothing about reachability is published, ever.
+    /// </remarks>
+    ValueTask DeclareAsync(RegionIntent intent, CancellationToken ct = default);
 
     /// <summary>
     /// The client for a region, if it is usable right now.
     /// </summary>
     /// <remarks>
-    /// False for a region that is configured but not connected, which is the point: an Orleans client
-    /// that has not connected does not refuse a call, it accepts it and lets it time out. Failing
-    /// here costs a caller nothing and lets it route somewhere else.
+    /// <para>False for a region that is configured but not connected, which is the point: an Orleans
+    /// client that has not connected does not refuse a call, it accepts it and lets it time out.
+    /// Failing here costs a caller nothing and lets it route somewhere else.</para>
+    ///
+    /// <para>True for a draining region. Its activations are still there and still answering, and a
+    /// drain that cut them off would be the outage it exists to avoid — see
+    /// <see cref="AcceptsNewWork"/> for the question that does refuse it.</para>
     /// </remarks>
     bool TryGetClient(string region, [NotNullWhen(true)] out IClusterClient? client);
 
@@ -93,6 +127,7 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
     private readonly ArgonRegionOptions                       options;
     private readonly IServiceProvider                         host;
     private readonly ILogger<ArgonRegionRegistry>             logger;
+    private readonly IRegionIntents                           intents;
     // Frozen because both are built in the constructor and read from anywhere afterwards. The
     // mutable version was cleared by DisposeAsync while other threads were reading it — and clearing
     // it changed the answer RegionOf gives, since the no-peers path returns Self without reading the
@@ -100,14 +135,22 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
     private readonly FrozenDictionary<string, RemoteRegionClient> peers;
     private readonly FrozenDictionary<string, string>             zones;
 
+    /// <param name="intents">
+    /// What each region says about itself. Optional, and absent means every region is taken to be
+    /// <see cref="RegionIntent.Active"/> — which is what a deployment with no announcement channel
+    /// is, and which the merge rule cannot turn into an unreachable region looking usable.
+    /// </param>
     public ArgonRegionRegistry(
         IOptions<ArgonRegionOptions> options,
         IServiceProvider host,
-        ILogger<ArgonRegionRegistry> logger)
+        ILogger<ArgonRegionRegistry> logger,
+        IRegionIntents? intents = null)
     {
         this.options = options.Value;
         this.host    = host;
         this.logger  = logger;
+        this.intents = intents ?? new RegionIntents(options, NullRegionIntentChannel.Instance,
+            host.GetService<ILogger<RegionIntents>>() ?? NullLogger<RegionIntents>.Instance);
 
         zones = this.options.Nodes.ToFrozenDictionary(
             n => n.Key, n => n.Value.Zone ?? "", StringComparer.OrdinalIgnoreCase);
@@ -135,24 +178,52 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
            .Where(r => !IsLocal(r))
            .ToArray();
 
+    public RegionIntent Intent => intents.Local;
+
+    public ValueTask DeclareAsync(RegionIntent intent, CancellationToken ct = default)
+        => intents.DeclareAsync(intent, ct);
+
     public RegionStatus StatusOf(string region)
+        => RegionAvailability.Merge(ReachabilityOf(region), intents.IntentOf(region));
+
+    public bool AcceptsNewWork(string region)
+        => StatusOf(region).AcceptsNewWork();
+
+    /// <summary>
+    /// What this process can observe, and only that.
+    /// </summary>
+    /// <remarks>
+    /// The local region is reachable by definition — this code is running in it, so there is no
+    /// connection between here and there to fail. That is a statement about reachability alone, and
+    /// it used to be the whole of <c>StatusOf(self)</c>, which is why a region could not report
+    /// itself as anything but healthy. What it is willing to do is a separate signal and is merged
+    /// on top.
+    /// </remarks>
+    private RegionStatus ReachabilityOf(string region)
     {
         if (IsLocal(region))
             return RegionStatus.Online;
+
         return peers.TryGetValue(region, out var peer) ? peer.Status : RegionStatus.Offline;
     }
 
     public bool TryGetClient(string region, [NotNullWhen(true)] out IClusterClient? client)
     {
+        client = null;
+
+        // Asked of the merged status rather than of the peer's reachability, so that this gate and
+        // every routing decision above it read the same value. A draining region passes — it still
+        // answers for what it already holds — and is refused by AcceptsNewWork instead.
+        if (!StatusOf(region).IsUsable())
+            return false;
+
         if (IsLocal(region))
         {
             client = host.GetRequiredService<IClusterClient>();
             return true;
         }
 
-        client = null;
-
-        if (!peers.TryGetValue(region, out var peer) || peer.Status != RegionStatus.Online)
+        if (!peers.TryGetValue(region, out var peer))
             return false;
 
         client = peer.Client;

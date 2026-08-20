@@ -98,7 +98,7 @@ public sealed class AppHubOptions
 }
 
 /// <summary>Endpoints the platform around the process talks to, rather than any user.</summary>
-public sealed class HostHooksOptions
+public sealed class HostHooksOptions : IValidatableFeatureOptions
 {
     /// <summary>Serve the build version at <c>/</c>. Useful; also tells anyone who asks what is deployed.</summary>
     public bool ExposeVersion { get; set; } = true;
@@ -108,4 +108,30 @@ public sealed class HostHooksOptions
     /// Kubernetes preStop hook calls; without it a pod is stopped by signal instead.
     /// </summary>
     public bool PreStopHook { get; set; } = true;
+
+    /// <summary>
+    /// How long a client role stays up, already reporting not-ready, before it stops.
+    /// </summary>
+    /// <remarks>
+    /// <para>Kubernetes removes a pod from its Service by noticing the readiness probe fail and then
+    /// reprogramming every node, and none of that is instant: the probe's own period, then the
+    /// EndpointSlice update, then kube-proxy or the ingress catching up. Stopping before that lands
+    /// means connections are still being routed to a process on its way out — which is the failure
+    /// this wait exists to remove, so it has to be longer than that whole chain rather than longer
+    /// than any one link.</para>
+    ///
+    /// <para>Twenty seconds covers a five-second probe period with room for propagation. It is spent
+    /// on every deployment of every client pod, so it is also a floor on how long a rollout takes,
+    /// and <c>terminationGracePeriodSeconds</c> has to exceed it plus the host's own shutdown
+    /// timeout. Zero disables the wait, which is what a single-instance deployment with no Service
+    /// in front of it wants.</para>
+    ///
+    /// <para>Nothing on a silo reads it — a silo's pre-stop hook blocks on the drain instead, and the
+    /// drain flipping readiness is what starts the same clock there.</para>
+    /// </remarks>
+    public TimeSpan PreStopLeadTime { get; set; } = TimeSpan.FromSeconds(20);
+
+    public void Validate(IFeatureConfigurationReport report)
+        => report.RequireRange(PreStopLeadTime, TimeSpan.Zero, TimeSpan.FromMinutes(2),
+            nameof(PreStopLeadTime));
 }

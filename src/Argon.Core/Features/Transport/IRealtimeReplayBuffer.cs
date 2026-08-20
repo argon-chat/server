@@ -81,6 +81,42 @@ public sealed class RedisRealtimeReplayBuffer(
         return (string)result!;
     }
 
+    /// <summary>
+    /// Everything strictly after <paramref name="sinceId"/>, or a gap when continuity cannot be promised.
+    /// </summary>
+    /// <remarks>
+    /// <para>The cursor is checked for membership of <em>this</em> stream, not merely for
+    /// plausibility. An entry id is <c>&lt;unixMs&gt;-&lt;seq&gt;</c> taken off the wall clock, so a
+    /// cursor minted by another region's Redis is indistinguishable from one of ours by shape and by
+    /// age. Without the anchor probe below such a cursor took the happy path: the range read started
+    /// from an id this stream had never issued and returned whatever sorted after it — nothing at
+    /// all, when the foreign cursor happened to sort past the local tail — and the client was told
+    /// it was caught up while it had in fact missed every event in between. Failing a client over to
+    /// another region is exactly when that happens, and it happens silently.</para>
+    ///
+    /// <para>Finding the cursor entry is also what proves the tail behind it is intact. Trimming is
+    /// <c>XADD … MINID ~ &lt;cutoff&gt;</c> (see <see cref="AppendAsync"/>): it drops a prefix by id,
+    /// and the approximate form only ever keeps <em>more</em> than the cutoff, never less. So if the
+    /// cursor entry itself survived, every entry minted after it — all of them with higher ids —
+    /// survived too, and the range read below is complete rather than merely non-empty.</para>
+    ///
+    /// <para>It costs no resync that would not have happened anyway. The only way a genuine,
+    /// in-window cursor goes missing is the whole key expiring, and it cannot: <see cref="KeyTtl"/>
+    /// is twice <see cref="Retention"/> and is refreshed on every append, so a cursor young enough to
+    /// pass <see cref="IsCursorTooOld"/> was minted by an append that left at least another
+    /// <see cref="Retention"/> of life on the key.</para>
+    ///
+    /// <para>What it cannot do is make a foreign cursor impossible to mistake: two regions that both
+    /// append in the same millisecond with the same sequence mint the same id, and nothing here tells
+    /// those apart. That narrows the failure from "every cross-region resume is silently wrong" to a
+    /// collision, which is as far as a shared id space goes without changing what a cursor is — and
+    /// a cursor is a client contract.</para>
+    ///
+    /// <para>The probe stays its own round trip instead of folding into a single inclusive range
+    /// read. The case it exists for is the case where the range read is worst: a foreign cursor that
+    /// sorts <em>before</em> the local entries would drag the entire stream back over the wire only
+    /// for it to be thrown away.</para>
+    /// </remarks>
     private async Task<ReplayReadResult> ReadSinceAsync(string key, string? sinceId)
     {
         // No cursor → first connect of this client; it already has fresh state, nothing to replay.
@@ -88,12 +124,22 @@ public sealed class RedisRealtimeReplayBuffer(
             return new ReplayReadResult([], Gap: false);
 
         // Cursor older than what we could possibly have retained → entries may have been
-        // trimmed, so we can't guarantee continuity. Tell the client to resync fully.
+        // trimmed, so we can't guarantee continuity. Tell the client to resync fully. Kept ahead of
+        // the anchor probe deliberately: it answers without a round trip, and it is the more
+        // conservative of the two — how much '~' over-retains past the cutoff is a Redis macro-node
+        // detail, not a promise replay should be built on.
         if (IsCursorTooOld(sinceId))
             return new ReplayReadResult([], Gap: true);
 
         await using var scope = pool.Rent();
         var             db    = scope.GetDatabase();
+
+        // Anchor: XRANGE over the single id — was this cursor issued by this stream at all?
+        // Matched exactly, because an id handed to us without its sequence half spans a whole
+        // millisecond and would anchor on a neighbour we never issued; we only ever mint the full form.
+        var anchor = await db.StreamRangeAsync(key, minId: sinceId, maxId: sinceId, count: 1);
+        if (anchor.Length == 0 || anchor[0].Id != sinceId)
+            return new ReplayReadResult([], Gap: true);
 
         // Exclusive lower bound: '(' prefix returns entries strictly after sinceId (Redis 6.2+).
         var entries = await db.StreamRangeAsync(

@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Argon.Features.Cache;
 using Argon.Entities;
 using Grains.Interfaces;
 using ion.runtime;
@@ -7,6 +8,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 using Services;
 using Services.L1L2;
+using StackExchange.Redis;
 
 /// <summary>
 /// Queries about a space, answered by a pool of activations over a shared cache rather than by the
@@ -18,7 +20,9 @@ public sealed class SpaceReadGrain(
     IGrainFactory grainFactory,
     IUserPresenceService userPresence,
     IArchetypeAgent archetypes,
-    HybridCache cache) : Grain, ISpaceReadGrain
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redis,
+    HybridCache cache,
+    ILogger<SpaceReadGrain> logger) : Grain, ISpaceReadGrain
 {
     /// <summary>
     /// Short rather than long. Tag invalidation from the write side is the primary mechanism and this
@@ -55,6 +59,13 @@ public sealed class SpaceReadGrain(
         // Guarded rather than folded into the call below, because this is the branch that costs
         // something: it fans out to every visible channel for its live occupancy. A caller who is up
         // to date makes no grain calls at all.
+        //
+        // Which means a caller whose token matches is not told anyone posted, because lastMessageId
+        // is deliberately not part of the token (see CachedChannel.VersionOf). That is not a hole:
+        // unread state reaches the client through GetGlobalBadges, which reads the channel rows
+        // straight out of the database, and through the live MessageSent events. What used to happen
+        // instead was that every space with traffic re-sent its whole channel list on a two-minute
+        // timer to deliver a number the client had two better sources for.
         IonArray<RealtimeChannel>? visible = null;
 
         if (known?.channels != versions.channels)
@@ -146,12 +157,17 @@ public sealed class SpaceReadGrain(
         => (await CachedGroupsAsync(this.GetPrimaryKey())).Value;
 
     /// <summary>
-    /// The channels this member may see, each with its live occupancy.
+    /// The channels this member may see, each with its live occupancy and its current high-water mark.
     /// </summary>
     /// <remarks>
     /// The fan-out is the expensive half and it is per caller, because the visible set is. It stays
     /// out of the cache for the same reason presence does — it is the part that is different a second
     /// later.
+    /// <para>
+    /// <c>lastMessageId</c> is filled here rather than taken from the cached channel, because the
+    /// cached one is whatever the database held when the entry was last filled, up to two minutes
+    /// ago. See <see cref="LastMessageIdsAsync"/>.
+    /// </para>
     /// </remarks>
     private async Task<List<RealtimeChannel>> VisibleChannelsAsync(List<CachedChannel> channels, CachedMember member)
     {
@@ -165,10 +181,84 @@ public sealed class SpaceReadGrain(
                 ArgonEntitlement.ViewChannel))
            .ToList();
 
+        // Started before the fan-out and awaited after it: neither needs the other's answer, and this
+        // is already the slowest call a client makes, so the Redis round trip rides along inside it
+        // instead of being added to it.
+        var marks = LastMessageIdsAsync(visible);
+
         var states = await Task.WhenAll(visible
            .Select(x => grainFactory.GetGrain<IChannelGrain>(x.Channel.channelId).GetRealtimeStateAsync()));
 
-        return visible.Zip(states, (channel, state) => new RealtimeChannel(channel.Channel, new(state.Members))).ToList();
+        var lastMessageIds = await marks;
+
+        return visible.Select((channel, index) => new RealtimeChannel(
+            channel.Channel with { lastMessageId = lastMessageIds[index] },
+            new(states[index].Members))).ToList();
+    }
+
+    /// <summary>
+    /// Where a channel's high-water mark lives between the activation that writes it and everyone who
+    /// reads it. <c>IChannelGrain</c> writes this cell on every send.
+    /// </summary>
+    /// <remarks>
+    /// The guid is the default ("D") form because that is what both sides get from
+    /// <see cref="Guid.ToString()"/> without thinking about it. Nothing enforces that the two sides
+    /// agree: change the shape on one of them and no call fails, every mark simply falls back to the
+    /// database value and quietly goes back to being up to two minutes old.
+    /// </remarks>
+    private static string LastMessageKey(Guid channelId) => ChannelHighWaterCell.KeyFor(channelId);
+
+    /// <summary>
+    /// The freshest high-water mark for each of <paramref name="channels"/>, positionally.
+    /// </summary>
+    /// <remarks>
+    /// One multi-key GET, not a get per channel. A bootstrap already makes one grain call per visible
+    /// channel; a Redis round trip each on top of that would double the width of the request for a
+    /// number that fits in eight bytes.
+    /// <para>
+    /// A missing cell is ordinary rather than an error — a channel nobody has posted in since the
+    /// cell was last written has none, and after a Redis flush nothing does. The database row is
+    /// still maintained, one flush behind rather than per send, so it is a correct floor; taking the
+    /// larger of the two also
+    /// covers the mirror case, where the write to the database failed but the cell landed. Both
+    /// numbers only ever go up, so the maximum is always the true answer and never a guess.
+    /// </para>
+    /// <para>
+    /// Redis being unreachable degrades instead of throwing. The database values are already in hand
+    /// and are exactly what this method served before the cell existed, so failing a whole space
+    /// bootstrap over a counter would be the worse trade by a wide margin.
+    /// </para>
+    /// </remarks>
+    private async Task<long[]> LastMessageIdsAsync(List<CachedChannel> channels)
+    {
+        var marks = channels.Select(c => c.Channel.lastMessageId).ToArray();
+
+        if (marks.Length == 0)
+            return marks;
+
+        try
+        {
+            await using var scope = redis.Rent();
+
+            var cells = await scope.GetDatabase()
+               .StringGetAsync(channels.Select(c => (RedisKey)LastMessageKey(c.Channel.channelId)).ToArray());
+
+            for (var i = 0; i < cells.Length; i++)
+            {
+                if (cells[i].TryParse(out long mark) && mark > marks[i])
+                    marks[i] = mark;
+            }
+
+            return marks;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "could not read channel high-water marks for {Count} channels; serving the database values instead",
+                channels.Count);
+
+            return marks;
+        }
     }
 
     /// <summary>
@@ -224,9 +314,13 @@ public sealed class SpaceReadGrain(
                    .ThenBy(c => c.FractionalIndex)
                    .ToListAsync(ct);
 
-                return Version(rows.Select(c => new CachedChannel(c.ToDto(), c.EntitlementOverwrites
+                var channels = rows.Select(c => new CachedChannel(c.ToDto(), c.EntitlementOverwrites
                    .Select(o => new CachedOverwrite(o.Scope, o.ArchetypeId, o.SpaceMemberId, o.Allow, o.Deny))
-                   .ToList())).ToList());
+                   .ToList())).ToList();
+
+                // Not Version(): the token for channels deliberately does not cover lastMessageId.
+                // See CachedChannel.VersionOf.
+                return new Versioned<List<CachedChannel>>(CachedChannel.VersionOf(channels), channels);
             },
             CacheOptions, [ISpaceReadCache.SpaceTag(spaceId)]);
 
@@ -302,6 +396,37 @@ public sealed record CachedOverwrite(
 
 public sealed record CachedChannel(ArgonChannel Channel, List<CachedOverwrite> Overwrites)
 {
+    /// <summary>
+    /// The token for a space's channel list: everything about its channels except how recently
+    /// someone talked in one.
+    /// </summary>
+    /// <remarks>
+    /// <c>lastMessageId</c> is zeroed before hashing rather than left out of the cached value,
+    /// because the cached value is where the fallback for a missing Redis cell comes from — see
+    /// <c>SpaceReadGrain.LastMessageIdsAsync</c> — and a second copy of the same number stored beside
+    /// the DTO would only be a second thing to keep in step. Zeroing a copy of the whole record also
+    /// means a field added to <see cref="CachedChannel"/> or to <see cref="ArgonChannel"/> tomorrow
+    /// is covered by the token without anyone remembering to add it here; a hand-listed projection of
+    /// the "stable" fields would silently stop detecting the new one.
+    /// <para>
+    /// Why it matters: the token gates the expensive branch of <c>GetSnapshot</c>, the one that fans
+    /// out a grain call per visible channel. While the counter was inside the hash, the token changed
+    /// every time the two-minute cache entry refilled in any space with traffic, so every reconnect
+    /// took that branch and the versioned bootstrap saved nothing at all. Put the counter back in and
+    /// the dedupe silently stops working again — it will not fail a test that only checks the answer
+    /// is correct, because it still is, just expensively.
+    /// </para>
+    /// <para>
+    /// Shipping this changes every space's channels token exactly once: the tokens clients hold were
+    /// computed with the counter, so the first reconnect after the deploy re-fetches. That is one
+    /// re-fetch per client in exchange for never re-fetching on a timer again.
+    /// </para>
+    /// </remarks>
+    public static string VersionOf(List<CachedChannel> channels)
+        => SpaceReadVersion.Of(channels
+           .Select(c => c with { Channel = c.Channel with { lastMessageId = 0 } })
+           .ToList());
+
     public ChannelEntity AsEntity()
         => new()
         {

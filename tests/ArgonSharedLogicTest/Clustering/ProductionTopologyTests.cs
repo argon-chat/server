@@ -58,6 +58,39 @@ public class ProductionTopologyTests
     }
 
     /// <summary>
+    /// Every role tells Kubernetes when to stop sending it work.
+    /// </summary>
+    /// <remarks>
+    /// <para>Two features, one requirement. A silo has <c>silo-lifecycle</c>, whose probes read the
+    /// membership table and whose pre-stop hook drains; a client role has <c>client-lifecycle</c>,
+    /// whose probes read its own cluster connection and whose pre-stop hook reports not-ready and
+    /// waits. A role with neither has no readiness probe at all, which is not "no drain needed" but
+    /// "Kubernetes is never told" — it was the state of every client role, and it meant a deployment
+    /// severed live websockets from a pod that was still in the Service.</para>
+    ///
+    /// <para>Asserted by role rather than by feature because the failure is silent: nothing about a
+    /// role without probes fails to start, and the endpoints simply answer 404 to a probe that was
+    /// never configured to call them.</para>
+    /// </remarks>
+    [Test]
+    public void Every_role_has_a_lifecycle_feature_for_its_kind()
+    {
+        var catalog = Catalog();
+
+        Assert.Multiple(() =>
+        {
+            foreach (var role in catalog.Roles.Values)
+            {
+                var features = role.Features.Ordered.Select(f => f.Name).ToArray();
+                var expected = role.IsClient ? "client-lifecycle" : "silo-lifecycle";
+
+                Assert.That(features, Does.Contain(expected),
+                    $"role '{role.Id}' has no probes and no graceful stop");
+            }
+        });
+    }
+
+    /// <summary>
     /// Exactly one silo role accepts client connections, and it is the one the calls go to.
     /// </summary>
     /// <remarks>

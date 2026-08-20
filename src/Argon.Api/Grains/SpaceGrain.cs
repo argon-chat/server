@@ -181,7 +181,27 @@ public class SpaceGrain(
         await Invalidate();
         await UserJoined(userId);
 
-        _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
+        // Detached and best-effort, and it has to stay that way: the membership is committed above and
+        // the caller has already been told the join worked, so a system message that cannot be written
+        // must not take the join down with it. Same policy as ChannelGrain.FireDetached — Task.Run so
+        // the work leaves this activation's turn queue rather than making the next join wait behind a
+        // database write nobody is waiting on, one catch, one log line.
+        //
+        // The log line is the whole point of the wrapper. This used to be a bare `_ =`, which parked
+        // every failure in an unobserved task: the join message wrote MessageId 0, the second join
+        // into a space hit the duplicate key, and nothing anywhere said so.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "failed to write the join message for user {UserId} in space {SpaceId}",
+                    userId, spaceId);
+            }
+        });
         return true;
     }
 

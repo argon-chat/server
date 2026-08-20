@@ -250,27 +250,39 @@ public static class HealthCheckExtensions
     }
 
     public static IEndpointRouteBuilder MapSiloHealthChecks(this IEndpointRouteBuilder app)
+        => app.MapProbeEndpoints();
+
+    /// <summary>
+    /// The four endpoints, and the tags each one filters on.
+    /// </summary>
+    /// <remarks>
+    /// Shared with the client roles' checks rather than written twice: the paths and the tag names
+    /// are the contract a Kubernetes manifest is written against, and a role that answered the same
+    /// questions somewhere else would need a manifest of its own for no reason. What differs between
+    /// a silo and a client is which checks carry the tags, not where they are served.
+    /// </remarks>
+    internal static IEndpointRouteBuilder MapProbeEndpoints(this IEndpointRouteBuilder app)
     {
-        // Kubernetes startup probe - has the silo joined the cluster? Holds the other two off until
-        // it passes, so a slow join is not mistaken for a wedged process.
+        // Kubernetes startup probe - has this process reached the cluster? Holds the other two off
+        // until it passes, so a slow join is not mistaken for a wedged process.
         app.MapHealthChecks("/health/startup", new()
         {
             Predicate      = check => check.Tags.Contains("startup"),
-            ResponseWriter = WriteHealthResponse
+            ResponseWriter = WriteProbeResponse
         });
 
         // Kubernetes liveness probe - is the app alive?
         app.MapHealthChecks("/health/live", new()
         {
-            Predicate = check => check.Tags.Contains("liveness"),
-            ResponseWriter = WriteHealthResponse
+            Predicate      = check => check.Tags.Contains("liveness"),
+            ResponseWriter = WriteProbeResponse
         });
 
         // Kubernetes readiness probe - can the app accept traffic?
         app.MapHealthChecks("/health/ready", new()
         {
-            Predicate = check => check.Tags.Contains("readiness"),
-            ResponseWriter = WriteHealthResponse
+            Predicate      = check => check.Tags.Contains("readiness"),
+            ResponseWriter = WriteProbeResponse
         });
 
         // Detailed health status for monitoring
@@ -282,8 +294,46 @@ public static class HealthCheckExtensions
         return app;
     }
 
-    private static async Task WriteHealthResponse(HttpContext context, HealthReport report)
+    /// <summary>
+    /// What a probe gets: the status code, and one word so a human curling it sees something.
+    /// </summary>
+    /// <remarks>
+    /// Kubernetes reads the status code and throws the body away, so there is nothing to lose here and
+    /// something to gain: on a silo these endpoints sit on an internal port, but on a client role they
+    /// are served by the same Kestrel listener as api.argon.gl. The detailed body names every check and
+    /// dumps its whole data dictionary — for a client that is the region's gateway count, whether this
+    /// pod is mid-shutdown, and any exception message a failing check produced.
+    /// </remarks>
+    public static Task WriteProbeResponse(HttpContext context, HealthReport report)
     {
+        context.Response.ContentType = "text/plain";
+        return context.Response.WriteAsync(report.Status.ToString());
+    }
+
+    /// <summary>
+    /// The detailed report, for a person or a dashboard — and only for one that is on the box.
+    /// </summary>
+    /// <remarks>
+    /// <para>Same reasoning and same guard as the pre-stop hook. Anything scraping this either runs
+    /// beside the pod or arrives through something that terminates the request and re-originates it,
+    /// which is exactly the traffic a loopback check keeps out. An anonymous caller from the internet
+    /// gets what a probe gets.</para>
+    ///
+    /// <para>Guarded in the writer rather than with an endpoint filter on purpose: filters run inside
+    /// the route-handler pipeline, and <c>MapHealthChecks</c> does not build one — an
+    /// <c>AddEndpointFilter</c> here would attach metadata nothing ever reads and silently do
+    /// nothing.</para>
+    /// </remarks>
+    public static async Task WriteHealthResponse(HttpContext context, HealthReport report)
+    {
+        var ip = context.Connection.RemoteIpAddress;
+
+        if (ip is null || !IPAddress.IsLoopback(ip))
+        {
+            await WriteProbeResponse(context, report);
+            return;
+        }
+
         context.Response.ContentType = "application/json";
 
         var response = new

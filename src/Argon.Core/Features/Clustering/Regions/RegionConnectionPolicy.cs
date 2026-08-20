@@ -1,16 +1,40 @@
 namespace Argon.Features.Clustering.Regions;
 
-/// <summary>Where a region is, as far as this process can tell.</summary>
+/// <summary>
+/// Where a region is: what this process can observe about it, narrowed by what it says about itself.
+/// </summary>
+/// <remarks>
+/// <para>Three of these describe reachability, which only the observer can know, and
+/// <see cref="Draining"/> describes intent, which only the region can know. They meet in
+/// <see cref="RegionAvailability.Merge"/> and nowhere else.</para>
+///
+/// <para>Declaration order carries no meaning — a new member goes on the end, and
+/// <see cref="RegionAvailability.Rank"/> is where "less usable than" is written down. Comparing
+/// these values with <c>&lt;</c> would be reading a routing decision off the order somebody typed
+/// them in.</para>
+/// </remarks>
 public enum RegionStatus
 {
     /// <summary>Configured, not connected yet, and not known to be broken.</summary>
     Connecting,
 
-    /// <summary>Connected to at least one gateway. Calls may be routed here.</summary>
+    /// <summary>Connected to at least one gateway, and willing. Anything may be routed here.</summary>
     Online,
 
     /// <summary>Not reachable. Calls must not be routed here, and something is still trying.</summary>
-    Offline
+    Offline,
+
+    /// <summary>
+    /// Reachable, and asking not to be chosen for new work.
+    /// </summary>
+    /// <remarks>
+    /// A region under planned maintenance. It still holds everything already homed there and still
+    /// answers for it, so calls that name those things must keep going — what stops is placing
+    /// anything <em>new</em> there. This is the state that separates draining from dying: without
+    /// it, a region on its way out is indistinguishable from one that has crashed, and the only
+    /// signal arrives after its last gateway is already gone.
+    /// </remarks>
+    Draining
 }
 
 /// <summary>
@@ -106,9 +130,12 @@ public sealed class RegionConnectionObserver(string region, Action<RegionStatus>
 {
     public void NotifyGatewayCountChanged(int currentNumberOfGateways, int previousNumberOfGateways, bool connectionRecovered)
     {
-        // Gateways going to zero is not the same event as the connection being lost, and it arrives
-        // first. Treating it as offline is what stops calls being routed into a region during the
-        // window between the last gateway leaving and Orleans noticing.
+        // Gateways going to zero is not the same event as the connection being lost, and neither one
+        // reliably arrives first: on Orleans 10.2.2 a region that goes away announces the lost
+        // connection before the count reaches zero, and a region whose last gateway is drained cleanly
+        // announces the count without ever losing the connection. Either alone has to be enough to
+        // stop routing, so both handlers report Offline independently rather than one waiting on the
+        // other.
         var status = currentNumberOfGateways > 0 ? RegionStatus.Online : RegionStatus.Offline;
 
         logger.LogInformation(

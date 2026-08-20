@@ -135,6 +135,44 @@ public sealed class SiloLifecycleFeature : IArgonFeature
     }
 }
 
+/// <summary>
+/// How Kubernetes starts, probes and stops a client role.
+/// </summary>
+/// <remarks>
+/// <para>The counterpart to <see cref="SiloLifecycleFeature"/>, and it exists because the reason for
+/// not having one was wrong. A client role holds no activations — true — but it holds every client
+/// websocket, and an entry point attaches an <c>IUserSessionGrain</c> to each connection. "Removing
+/// it from the service endpoints is the whole of its drain" is only true if something tells
+/// Kubernetes to remove it, and nothing did: <c>AddHealthChecks</c> was reached from the silo path
+/// alone, so a client role had no readiness probe to fail, no liveness probe to pass, and a pre-stop
+/// hook that found no drain service and stopped the process on the spot.</para>
+///
+/// <para>Same three probes, same paths, answered from the only thing a client knows about the
+/// cluster — its own connection — plus the pre-stop wait that turns readiness off before it goes.</para>
+///
+/// <para><c>HostHooksFeature</c> is required rather than assumed. It is what maps the pre-stop
+/// endpoint on a client role and it owns the wait's length, so probes without it would advertise a
+/// graceful stop that nothing can trigger.</para>
+/// </remarks>
+public sealed class ClientLifecycleFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("client-lifecycle")
+           .Describing("Kubernetes probes and the pre-stop wait for a client role")
+           .Requires<HostHooksFeature>();
+
+    public void Map(ArgonEndpointContext ctx)
+    {
+        // dev is every role in one process and is a silo, so it comes by this feature through the
+        // client roles it includes. Its probes are the silo's, which answer the same questions with
+        // the membership table behind them; mapping these as well would put two endpoints on one path.
+        if (ctx.IsSilo)
+            return;
+
+        ctx.App.MapClientHealthChecks();
+    }
+}
+
 public sealed class HttpClientFeature : IArgonFeature
 {
     public void Configure(ArgonFeatureContext ctx)
@@ -222,23 +260,34 @@ public sealed class XsollaFeature : IArgonFeature
 }
 
 /// <summary>
-/// One Orleans client per configured region, kept connected in the background.
+/// One Orleans client per configured region, kept connected in the background, and the channel a
+/// region says things about itself on.
 /// </summary>
 /// <remarks>
-/// Inert until <c>Argon:Regions</c> names more than one region: with no peers the registry holds no
-/// clients, starts no tasks and answers every lookup with the local cluster. That is what makes it
-/// safe to give every role — the alternative is a feature only some roles have, and a routing
-/// decision that therefore cannot be taken in the others.
+/// <para>Inert until <c>Argon:Regions</c> names more than one region: with no peers the registry
+/// holds no clients, starts no tasks and answers every lookup with the local cluster. That is what
+/// makes it safe to give every role — the alternative is a feature only some roles have, and a
+/// routing decision that therefore cannot be taken in the others.</para>
+///
+/// <para>The announcement half is not inert, and should not be: a drain is a property of the region,
+/// so every process of it has to hear the declaration whether or not there is a second region to
+/// route to. Otherwise "is this region draining" would answer differently depending on which pod was
+/// asked. It costs one core-NATS subscription per process, on a bus every role is already connected
+/// to.</para>
 /// </remarks>
 public sealed class RegionRegistryFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
         => d.Named("regions")
-            .Describing("cluster clients for the other regions")
+            .Describing("cluster clients for the other regions, and the region's own voice")
             .Options<ArgonRegionOptions>(ArgonRegionOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
     {
+        ctx.Builder.Services.AddSingleton<IRegionIntentChannel, NatsRegionIntentChannel>();
+        ctx.Builder.Services.AddSingleton<IRegionIntents, RegionIntents>();
+        ctx.Builder.Services.AddHostedService<RegionIntentAnnouncer>();
+
         ctx.Builder.Services.AddSingleton<ArgonRegionRegistry>();
         ctx.Builder.Services.AddSingleton<IArgonRegionRegistry>(sp => sp.GetRequiredService<ArgonRegionRegistry>());
         ctx.Builder.Services.AddHostedService(sp => sp.GetRequiredService<ArgonRegionRegistry>());

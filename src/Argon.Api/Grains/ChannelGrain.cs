@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Argon.Features.Cache;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
 using Argon.Api.Grains.Interfaces;
@@ -39,6 +40,10 @@ public class ChannelGrain(
     IS3StorageService s3,
     IKlipyService klipy,
     ISpaceReadCache readCache,
+    // Same pool the read-state and replay-buffer caches use. The channel's high-water mark is a
+    // cache value, not a second source of truth: it is written here and read by anyone who needs it
+    // fresher than the flush interval below.
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redisPool,
     IOptions<MessagesOptions> messageOptions,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
@@ -54,6 +59,36 @@ public class ChannelGrain(
     private readonly LinkedList<long> _reactionLru = new();
     private const int MaxCachedReactionMessages = 100;
     private IGrainTimer? _reactionFlushTimer;
+
+    // ── Channel high-water mark ──────────────────────────────
+    /// <summary>
+    /// The newest message id this activation has accepted, and how much of that has reached
+    /// <c>Channels.LastMessageId</c>.
+    /// </summary>
+    /// <remarks>
+    /// Not part of <see cref="ChannelActivationState"/> and so deliberately does not travel: the
+    /// successor of a migrated activation starts empty, which is exactly why the deactivation path
+    /// flushes on migration as well. Putting it in the travelling state instead would work, but it
+    /// would put a value the database is the real home of into the migration payload of every
+    /// channel in the cluster during a rebalance.
+    /// </remarks>
+    private readonly ChannelHighWaterMark lastMessage = new();
+
+    /// <summary>
+    /// The tail of the per-send cache publishes, so they land in the order they were issued.
+    /// </summary>
+    /// <remarks>
+    /// Each publish rents its own pooled connection, and two connections to the same Redis give no
+    /// ordering relative to each other — so two sends a microsecond apart can arrive reversed and
+    /// leave the cell holding the older id until something else writes it. "Last write wins" is only
+    /// safe when the last write is also the newest one, and chaining is what makes that true.
+    /// <para>
+    /// Awaiting the write inside the turn would order it too, and would put a Redis round trip back
+    /// on the exact path <see cref="DeduplicateAsync"/> was rewritten to get one off — measured at
+    /// 0.93 ms against a turn with about 1.5 ms of work left in it.
+    /// </para>
+    /// </remarks>
+    private Task lastMessagePublishTail = Task.CompletedTask;
 
     // ── Screencast drawing session (ephemeral, lives with the share) ──
     private const int DrawingDefaultTtlMs = 6000;
@@ -164,8 +199,20 @@ public class ChannelGrain(
 
         activation.State.Activated = true;
 
+        // One timer carries both flushes rather than two on their own schedules. They are the same
+        // kind of debt — a durable copy of something this activation already holds authoritatively —
+        // and both are correct while at most one interval behind, so a second timer would only
+        // double the wakeups every channel activation in the cluster costs. Three seconds is well
+        // inside what an unread badge or a reaction count may lag by without anyone noticing.
         _reactionFlushTimer = this.RegisterGrainTimer(
-            async _ => await FlushReactionsAsync(),
+            // The mark goes first because it is the one that cannot throw: a reaction flush that
+            // fails on a bad row would otherwise take the high-water mark down with it every tick,
+            // and that debt only grows.
+            async _ =>
+            {
+                await FlushLastMessageIdAsync();
+                await FlushReactionsAsync();
+            },
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)));
 
         // Timers do not travel, only the fact that these bots were typing. Empty on a fresh
@@ -176,6 +223,41 @@ public class ChannelGrain(
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        // Unlike the roster below, this one runs on migration too, and must. The successor activation
+        // starts with an empty mark — it is not carried in ChannelActivationState — so every id noted
+        // since the last timer tick exists nowhere but in this object. Skipping the migrating case
+        // would leave Channels.LastMessageId up to one interval behind with nothing to correct it
+        // until the next message happens to arrive, and every member's unread badge for the channel
+        // wrong until then.
+        //
+        // Ahead of the reaction flush for the same reason the timer orders them this way: this one
+        // swallows its own failures, that one can throw and end the shutdown path early.
+        await FlushLastMessageIdAsync();
+
+        // Drain the cache publishes as well. Orleans starts the successor activation only once this
+        // returns, so a write still in flight here is the one case where an older id could land after
+        // a newer one from a different activation — and nothing would rewrite the cell until the
+        // channel saw another message.
+        //
+        // Bounded, because the tail is one serialized chain of Redis writes and a Redis that times out
+        // rather than refuses makes it arbitrarily long: a channel that took a hundred messages in the
+        // seconds before this would hold the shutdown for minutes, ahead of the reaction flush, the XP
+        // settle and the successor's first turn. That is the drain path k8s gives a fixed grace period,
+        // so an unbounded wait here turns an orderly stop into a kill.
+        //
+        // Giving up costs the ordering guarantee above for a channel whose Redis is already broken,
+        // and the successor's first send rewrites the cell anyway. The durable row is already flushed.
+        try
+        {
+            await lastMessagePublishTail.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning(
+                "Channel {ChannelId} left a last-message publish in flight; the cell is repaired by the next send",
+                this.GetPrimaryKey());
+        }
+
         // Flush pending reactions before shutdown
         await FlushReactionsAsync();
 
@@ -842,8 +924,16 @@ public class ChannelGrain(
         // unread), unlike typing/reactions/edits which have no cross-channel consumer.
         FireDetached(new MessageSent(_self.SpaceId, dto));
 
-        // Update channel LastMessageId
-        _ = UpdateLastMessageIdAsync(msgId);
+        // Two copies of the channel high-water mark, kept for two different readers. The durable one
+        // in Channels.LastMessageId is only noted here and written by the flush timer: it is cold
+        // metadata read once per client bootstrap, and paying a Cockroach commit for it on every
+        // message made the busiest channel in a space the most expensive row in the cluster to
+        // maintain. The cache copy is written per send because that is the one anybody reading
+        // between two flushes will see.
+        if (lastMessage.Raise(msgId))
+            ChannelGrainInstrument.LastMessageAbsorbed.Add(1);
+
+        PublishLastMessageId(msgId);
 
         // Process mentions asynchronously (don't block message delivery)
         _ = ProcessMentionsAsync(entities, msgId, senderId, replyTo);
@@ -924,7 +1014,73 @@ public class ChannelGrain(
         }
     }
 
-    private async Task UpdateLastMessageIdAsync(long messageId)
+    /// <summary>The cache cell holding a channel's newest message id, fresher than the durable copy.</summary>
+    /// <remarks>
+    /// The channel id goes in as the default <c>Guid.ToString()</c> ("D") form. That is the shape
+    /// every reader of this cell was written against, so changing it here silently turns every read
+    /// into a miss rather than breaking anything loudly.
+    /// </remarks>
+    private static string LastMessageCacheKey(Guid channelId) => ChannelHighWaterCell.KeyFor(channelId);
+
+    /// <summary>
+    /// Puts <paramref name="messageId"/> in the cache cell without holding the send turn for it.
+    /// </summary>
+    /// <remarks>
+    /// Detached rather than awaited for the reason on <see cref="lastMessagePublishTail"/>, which is
+    /// also why the write goes on the end of a chain instead of straight into the pool. A failure is
+    /// logged and dropped: the cell is a freshness hint over the durable copy, so the worst a lost
+    /// publish costs is a reader falling back to a value up to one flush interval old — the same
+    /// answer they get for a channel that has not been written to since the key was evicted.
+    /// </remarks>
+    private void PublishLastMessageId(long messageId)
+    {
+        var channelId = this.GetPrimaryKey();
+        var previous  = lastMessagePublishTail;
+
+        lastMessagePublishTail = Task.Run(async () =>
+        {
+            // Never faults — the body below swallows everything — so this needs no guard of its own.
+            await previous;
+
+            try
+            {
+                await using var scope = redisPool.Rent();
+                await scope.GetDatabase().StringSetAsync(LastMessageCacheKey(channelId), messageId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to publish LastMessageId for channel {ChannelId}", channelId);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Writes everything the mark has absorbed since the previous flush, as a single row update.
+    /// </summary>
+    /// <remarks>
+    /// Called from the shared flush timer and from deactivation, never from the send path. Doing
+    /// nothing when nothing is owed is the common case for a quiet channel — an activation lives far
+    /// longer than the conversation in it.
+    /// </remarks>
+    private async Task FlushLastMessageIdAsync()
+    {
+        if (!lastMessage.TryBeginFlush(out var messageId))
+            return;
+
+        var written = await UpdateLastMessageIdAsync(messageId);
+
+        // Only a write that landed retires the mark, so a failed flush is retried on the next tick
+        // rather than lost. This matters more than it did before: a per-message write that failed was
+        // rewritten by the next message a moment later, whereas a flush carries every message since
+        // the last one and a channel can fall silent immediately after it.
+        if (written)
+            lastMessage.CommitFlush(messageId);
+
+        ChannelGrainInstrument.LastMessageFlushes.Add(1,
+            new KeyValuePair<string, object?>("result", written ? "written" : "failed"));
+    }
+
+    private async Task<bool> UpdateLastMessageIdAsync(long messageId)
     {
         try
         {
@@ -932,10 +1088,12 @@ public class ChannelGrain(
             await ctx.Channels
                 .Where(c => c.Id == this.GetPrimaryKey())
                 .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastMessageId, messageId));
+            return true;
         }
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", this.GetPrimaryKey());
+            return false;
         }
     }
 

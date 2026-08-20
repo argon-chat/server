@@ -45,8 +45,24 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
             });
 
         // Assigned by the application, from the snowflake generator, so that a message can be given
-        // its id without waiting for the insert. The column default stays as the safety net for
-        // anything that writes a row without going through the message layer.
+        // its id without waiting for the insert — see PgSqlMessagesLayout.ExecuteInsertMessage and
+        // SystemMessageService.SendUserJoinedMessageAsync. ValueGeneratedNever is what buys that: EF
+        // sends the CLR value on every insert instead of omitting the column and reading the id back
+        // out of a RETURNING clause.
+        //
+        // Which makes unique_rowid() below inert on every path that goes through EF, this entity's
+        // own writers included. This comment used to call it "the safety net for anything that writes
+        // a row without going through the message layer", and that was wrong in exactly the direction
+        // that hurt: it never covered application code, which is where rows actually get written
+        // without an id, and an ArgonMessageEntity constructed without a MessageId inserts 0 and
+        // collides with the previous such row on the composite key. New writers must mint the id.
+        //
+        // It stays anyway, for two reasons. It is the default the deployed Messages table carries, so
+        // dropping it here buys nothing at runtime and costs an AlterColumn migration against the
+        // largest table in the schema. And it is not inert for writers that bypass EF altogether and
+        // leave the column out — restores, backfills, hand-run SQL — which is the only place a column
+        // default can help. Compare DirectMessageV2Entity, which is ValueGeneratedOnAdd over the same
+        // default and really does let the database mint the id, paying the round trip DMs can afford.
         builder.Property(m => m.MessageId)
            .HasColumnType("BIGINT")
            .ValueGeneratedNever()

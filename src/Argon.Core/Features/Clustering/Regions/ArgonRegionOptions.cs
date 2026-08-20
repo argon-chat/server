@@ -51,6 +51,18 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
     public TimeSpan MaxReconnectBackoff { get; set; } = TimeSpan.FromSeconds(30);
 
     /// <summary>
+    /// How often a region repeats what it has declared about itself.
+    /// </summary>
+    /// <remarks>
+    /// An announcement is a statement about right now with no retention behind it: it reaches
+    /// whoever is subscribed at that instant and nobody else. A region that began draining before a
+    /// peer's processes started would look active to that peer indefinitely, so the declaration is
+    /// repeated rather than said once. Also the window in which a region that has come back into
+    /// service is still being treated as draining.
+    /// </remarks>
+    public TimeSpan IntentHeartbeat { get; set; } = TimeSpan.FromSeconds(15);
+
+    /// <summary>
     /// The instant identifiers began carrying a region.
     /// </summary>
     /// <remarks>
@@ -229,6 +241,8 @@ public sealed class ArgonRegionOptions : IValidatableFeatureOptions
             nameof(RemoteResponseTimeout));
         report.RequireRange(GatewayRefreshPeriod, TimeSpan.FromSeconds(5), TimeSpan.FromMinutes(10),
             nameof(GatewayRefreshPeriod));
+        report.RequireRange(IntentHeartbeat, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(5),
+            nameof(IntentHeartbeat));
     }
 }
 

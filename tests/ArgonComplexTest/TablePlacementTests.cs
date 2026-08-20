@@ -25,8 +25,19 @@ using Microsoft.Extensions.DependencyInjection;
 /// migration files, and those were generated before any entity declared a placement — the snapshot
 /// carries <c>Regional:MultiRegion</c> and not one <c>Regional:Locality</c>. So the declarations in
 /// <c>ArgonTablePlacement</c> are inert until the migrations are rebuilt, and no amount of correct
-/// model configuration changes that. Marked explicit so they do not sit red; run them the day the
-/// migrations are squashed and they should go green without any other change.</para>
+/// model configuration changes that. Run them the day the migrations are squashed and they should go
+/// green without any other change.</para>
+///
+/// <para><b>Read the failure, not just the colour.</b> Right-reason red is an assertion diff: the
+/// statement came back, and it carries <c>LOCALITY REGIONAL BY TABLE IN PRIMARY REGION</c> — what a
+/// multi-region database gives a table nobody placed. Wrong-reason red is anything that never got
+/// that far: a rejected <c>LOCALITY</c> clause, or a complaint that the database is not multi-region,
+/// means <see cref="CockroachTestDatabase"/> lost its node locality or its primary region and the
+/// fixture is reporting on itself. Both of these carried <c>[Explicit]</c> and a comment promising
+/// they would pass after the squash; they could not have, because the container they ran against was
+/// started without <c>--locality</c> and the DDL under test could not be issued at all. Do not put the
+/// attribute back — the squash is a one-way operation against production, and this fixture is the only
+/// instrument that can tell a good one from a broken one.</para>
 /// </remarks>
 [TestFixture, NonParallelizable]
 public class TablePlacementTests : TestBase
@@ -61,7 +72,7 @@ public class TablePlacementTests : TestBase
     /// sign-in, profiles, roles or the space list with it. Those tables being global is what makes
     /// that true, and it is decided once, in <c>ArgonTablePlacement</c>.
     /// </remarks>
-    [Test, CancelAfter(120_000), Explicit("Passes once the migrations are regenerated; see the fixture remarks.")]
+    [Test, CancelAfter(120_000)]
     public async Task Space_and_user_tables_are_global(CancellationToken ct = default)
     {
         OnlyOnCockroach();
@@ -82,7 +93,7 @@ public class TablePlacementTests : TestBase
     /// <c>gateway_region()</c>, and a channel's rows are only ever inserted by the activation that
     /// owns the channel.
     /// </remarks>
-    [Test, CancelAfter(120_000), Explicit("Passes once the migrations are regenerated; see the fixture remarks.")]
+    [Test, CancelAfter(120_000)]
     public async Task Messages_are_regional_by_row(CancellationToken ct = default)
     {
         OnlyOnCockroach();

@@ -1,6 +1,7 @@
 namespace Argon.Features.Clustering;
 
 using Argon.Api.Features.Utils;
+using Argon.Features.k8s;
 using Argon.Grains.Interfaces;
 using Argon.Services;
 using Drains;
@@ -109,8 +110,25 @@ public static class ArgonOrleansHosting
         builder.AddArgonSerializer();
         builder.AddNatsCtx();
         builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
+
+        // Registered before the client is built, into this same container: an in-host client has no
+        // container of its own, so Orleans resolves the observer from here. This is the whole of what
+        // a client role knows about the cluster — there is no membership table on this side — and
+        // both probes and the pre-stop wait are answered from it.
+        builder.Services.AddSingleton<ClusterClientStatus>();
+        builder.Services.AddSingleton<IClusterConnectionStatusObserver>(
+            sp => sp.GetRequiredService<ClusterClientStatus>());
+
         builder.Services.AddOrleansClient(q =>
             OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, DatacenterOf(builder)));
+
+        // After the client's own hosted service, deliberately: that one connects during StartAsync
+        // and blocks until it succeeds, so this one running is proof a gateway answered. It is the
+        // floor under the observer, for a runtime that raises no notification at all.
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<ClusterClientStatus>());
+
+        builder.Services.AddSingleton<ClientStopSignal>();
+        builder.Services.AddClientHealthChecks();
 
         return builder;
     }
