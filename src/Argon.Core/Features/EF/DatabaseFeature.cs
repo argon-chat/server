@@ -57,6 +57,13 @@ public static class DatabaseFeature
         // the pass itself runs either way.
         builder.Services.AddSchemaReconcileDiagnostics();
 
+        // The other half of the same declaration. The reconciler makes CockroachDB honour Job:Expiration;
+        // TtlSweepGrain makes PostgreSQL honour it, since row-level TTL is syntax that engine does not
+        // have. Registered here rather than behind an engine check for the same reason as above — and
+        // because this is also what gives the grain the TtlSweepState it takes in its constructor, on
+        // exactly the roles that have an IDbContextFactory to sweep with.
+        builder.Services.AddTtlSweepDiagnostics();
+
         builder.Services.AddPooledDbContextFactory<T>((_, options) =>
         {
             options.EnableDetailedErrors()

@@ -247,7 +247,7 @@ public sealed class JobsRole : IArgonRole
 {
     public static ArgonRoleId Id => ArgonRoleId.Jobs;
 
-    public string Description   => "account deletion, exports, e-mail, reports";
+    public string Description   => "account deletion, exports, e-mail, reports, expired-row sweep";
     public bool   IsClient      => false;
     public bool   UsesReminders => true;
 
@@ -276,12 +276,19 @@ public sealed class JobsRole : IArgonRole
     {
         registry.AddToRef<AccountDeletionGrain>();
         registry.AddToRef<AutoDeleteSchedulerGrain>();
+
+        // The PostgreSQL half of Job:Expiration. It belongs on the role that already runs batch work on
+        // a reminder rather than on one serving traffic: a sweep is a scan and a series of deletes, and
+        // the whole point of putting it behind a single well-known key is that it happens in one place
+        // that is not the hot path.
+        registry.AddToRef<TtlSweepGrain>();
         registry.AddToRef<ExportPumpGrain>();
         registry.AddToRef<UserDataExportGrain>();
         registry.AddToRef<EmailManager>();
         registry.AddToRef<ReportGrain>();
 
         registry.AddStartupCall<IAutoDeleteSchedulerGrain>();
+        registry.AddStartupCall<ITtlSweepGrain>();
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
         registry.AcceptRemote<IUserTrustGrain>("single call site in ReportGrain");

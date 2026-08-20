@@ -212,8 +212,10 @@ public static class SchemaReconciler
                         $"{inFlight} schema change job(s) are in flight", plan, applied, DateTimeOffset.UtcNow);
                 }
 
+                // ct by name: the lease now takes the resource it protects between the lifetime and the
+                // token, so that TtlSweeper can hold one against its own row rather than this one.
                 lease ??= await SchemaReconcileLease.TryAcquireAsync(
-                    connection, logger, roleId, options.LeaseLifetime, ct);
+                    connection, logger, roleId, options.LeaseLifetime, ct: ct);
 
                 if (lease is null)
                     return new SchemaReconcileReport(SchemaReconcileVerdict.SkippedLock,

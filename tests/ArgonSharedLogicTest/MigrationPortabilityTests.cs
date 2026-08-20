@@ -45,11 +45,22 @@ public class MigrationPortabilityTests
     /// There is no shimming a syntax error. These are generated from annotations, conditionally, by a
     /// generator PostgreSQL never sees — writing one into a migration by hand makes that migration
     /// un-appliable on PostgreSQL forever.
+    ///
+    /// <para>The list covers the whole TTL vocabulary rather than the two parameters that happened to
+    /// be here first, and the reason is the reconciler. It now issues these clauses itself, at runtime,
+    /// behind an engine check — which makes them exactly the strings somebody will have in front of
+    /// them while writing SQL, and the pull towards pasting one into a migration is strongest when a
+    /// working statement is already on screen. <c>SET LOCALITY</c> is listed even though the two
+    /// <c>LOCALITY</c> entries already catch every form of it: an explicit entry is what a reader
+    /// greps for when they want to know whether this is allowed.</para>
     /// </remarks>
     private static readonly string[] CockroachClauses =
     [
-        "LOCALITY GLOBAL", "LOCALITY REGIONAL", "PRIMARY REGION", "SURVIVE REGION", "SURVIVE ZONE",
-        "AS OF SYSTEM TIME", "INVERTED INDEX", "SPLIT AT", "ttl_expiration_expression", "ttl_job_cron"
+        "LOCALITY GLOBAL", "LOCALITY REGIONAL", "SET LOCALITY", "PRIMARY REGION", "SURVIVE REGION",
+        "SURVIVE ZONE", "AS OF SYSTEM TIME", "INVERTED INDEX", "SPLIT AT",
+        "ttl_expiration_expression", "ttl_job_cron", "ttl_expire_after", "ttl_automatic_column",
+        "ttl_select_batch_size", "ttl_delete_batch_size", "ttl_delete_rate_limit", "ttl_pause",
+        "ttl = 'on'", "RESET (ttl"
     ];
 
     private static DirectoryInfo RepositoryDirectory(params string[] parts)

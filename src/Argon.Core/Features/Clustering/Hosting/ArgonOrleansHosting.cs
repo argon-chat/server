@@ -205,6 +205,11 @@ public static class ArgonOrleansHosting
                    .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
                    .EnsureSchedulerActiveAsync());
 
+            if (role.StartupCalls.Contains(typeof(ITtlSweepGrain)))
+                silo.AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
+                   .GetGrain<ITtlSweepGrain>(ITtlSweepGrain.SingletonId)
+                   .EnsureSweeperActiveAsync());
+
             silo.AddDistributedGrainDirectory()
                .UseRedisClustering(x => x.ConfigurationOptions =
                     new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));

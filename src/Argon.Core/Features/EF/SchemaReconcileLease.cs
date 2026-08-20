@@ -1,10 +1,19 @@
 namespace Argon.Features.EF;
 
 using System.Data.Common;
+using System.Text.RegularExpressions;
 
 /// <summary>
-/// Exactly one process converging the schema at a time, and a way to find out it is no longer the one.
+/// Exactly one process doing a piece of database maintenance at a time, and a way to find out it is no
+/// longer the one.
 /// </summary>
+/// <remarks>
+/// Written for the schema reconciler and named after it. It now also carries the PostgreSQL TTL
+/// sweeper, which takes a lease over a different row in a different table — see the remark on
+/// <see cref="DefaultLockTable"/> for why the resource is a parameter and why the two must not share.
+/// The name stayed because renaming a type that four files already reason about is a larger diff than
+/// this sentence.
+/// </remarks>
 /// <remarks>
 /// <para><b>Why not the lock that already exists.</b> <c>WarmUpExtension</c>'s <c>__MigrationLock</c>
 /// serialises the boot path and the reconcile pass sits inside it, so on a pod boot this lease is
@@ -41,6 +50,33 @@ using System.Data.Common;
 /// </remarks>
 public sealed class SchemaReconcileLease : IAsyncDisposable
 {
+    /// <summary>The lease table the schema reconciler takes, and the default for callers that say nothing.</summary>
+    public const string DefaultLockTable = "__SchemaReconcileLock";
+
+    /// <summary>
+    /// Two resources, two rows, one mechanism.
+    /// </summary>
+    /// <remarks>
+    /// <para>The table name is a parameter rather than a constant because a second maintenance job —
+    /// <see cref="TtlSweeper"/>, which deletes expired rows on PostgreSQL — needs the same four
+    /// correctness properties this lease has and needs them about a <em>different</em> resource. One
+    /// shared row would have made an hourly delete pass able to turn a pod's boot-time reconcile into
+    /// <c>SkippedLock</c>, a verdict that claims another worker is converging the schema. Copying the
+    /// class instead would have given the copy its own bugs.</para>
+    ///
+    /// <para>It is validated rather than trusted: every caller is in this repository, but a lock table
+    /// name is the one thing here that gets concatenated into DDL, and a class whose SQL is assembled
+    /// from a string should say out loud what that string is allowed to be.</para>
+    /// </remarks>
+    private static string Delimit(string lockTable)
+        => PlainIdentifier.IsMatch(lockTable)
+            ? $"\"{lockTable}\""
+            : throw new ArgumentException(
+                $"'{lockTable}' is not a plain identifier and will not be used as a lease table name.",
+                nameof(lockTable));
+
+    private static readonly Regex PlainIdentifier = new(@"^[A-Za-z_][A-Za-z0-9_$]*$", RegexOptions.Compiled);
+
     /// <summary>
     /// Outside migration history, like <c>__MigrationLock</c>, and with the same <c>TEXT</c> discipline.
     /// </summary>
@@ -48,18 +84,19 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     /// <c>TEXT</c> rather than Cockroach's <c>STRING</c>, and no Cockroach-only syntax anywhere, because
     /// this DDL has to replay unchanged on vanilla PostgreSQL — the integration suite's default and
     /// local dev both run there. The reconciler itself no-ops on PostgreSQL, but the bootstrap must not
-    /// be the thing that discovers that.
+    /// be the thing that discovers that; the sweeper that shares this lease runs <em>only</em> on
+    /// PostgreSQL, so it is now the common case rather than the awkward one.
     /// </remarks>
-    private const string BootstrapSql =
-        """
-        CREATE TABLE IF NOT EXISTS "__SchemaReconcileLock" (
-            id         INT PRIMARY KEY DEFAULT 1,
-            fence      BIGINT      NOT NULL DEFAULT 0,
-            locked_by  TEXT        NOT NULL,
-            locked_at  TIMESTAMPTZ NOT NULL,
-            expires_at TIMESTAMPTZ NOT NULL
-        );
-        """;
+    private static string BootstrapSql(string table)
+        => $"""
+            CREATE TABLE IF NOT EXISTS {Delimit(table)} (
+                id         INT PRIMARY KEY DEFAULT 1,
+                fence      BIGINT      NOT NULL DEFAULT 0,
+                locked_by  TEXT        NOT NULL,
+                locked_at  TIMESTAMPTZ NOT NULL,
+                expires_at TIMESTAMPTZ NOT NULL
+            );
+            """;
 
     /// <summary>
     /// Acquire or steal, in one compare-and-swap, with the server's clock on both sides of the
@@ -71,30 +108,30 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     /// a client clock deciding when somebody else's lease expired. The <c>WHERE</c> on the conflict
     /// branch is what makes a live lease unstealable; the <c>RETURNING</c> is empty when it fired.
     /// </remarks>
-    private const string AcquireSql =
-        """
-        INSERT INTO "__SchemaReconcileLock" (id, fence, locked_by, locked_at, expires_at)
-        VALUES (1, 1, @holder, now(), now() + @ttl::INTERVAL)
-        ON CONFLICT (id) DO UPDATE
-           SET fence      = "__SchemaReconcileLock".fence + 1,
-               locked_by  = excluded.locked_by,
-               locked_at  = now(),
-               expires_at = now() + @ttl::INTERVAL
-         WHERE "__SchemaReconcileLock".expires_at < now()
-        RETURNING fence;
-        """;
+    private static string AcquireSql(string table)
+        => $"""
+            INSERT INTO {Delimit(table)} (id, fence, locked_by, locked_at, expires_at)
+            VALUES (1, 1, @holder, now(), now() + @ttl::INTERVAL)
+            ON CONFLICT (id) DO UPDATE
+               SET fence      = {Delimit(table)}.fence + 1,
+                   locked_by  = excluded.locked_by,
+                   locked_at  = now(),
+                   expires_at = now() + @ttl::INTERVAL
+             WHERE {Delimit(table)}.expires_at < now()
+            RETURNING fence;
+            """;
 
-    private const string RenewSql =
-        """
-        UPDATE "__SchemaReconcileLock"
-           SET expires_at = now() + @ttl::INTERVAL
-         WHERE id = 1 AND locked_by = @holder AND fence = @fence;
-        """;
+    private static string RenewSql(string table)
+        => $"""
+            UPDATE {Delimit(table)}
+               SET expires_at = now() + @ttl::INTERVAL
+             WHERE id = 1 AND locked_by = @holder AND fence = @fence;
+            """;
 
-    private const string ReleaseSql =
-        """
-        DELETE FROM "__SchemaReconcileLock" WHERE id = 1 AND locked_by = @holder AND fence = @fence;
-        """;
+    private static string ReleaseSql(string table)
+        => $"""
+            DELETE FROM {Delimit(table)} WHERE id = 1 AND locked_by = @holder AND fence = @fence;
+            """;
 
     /// <summary>
     /// Distinguishes two runs of the same role on the same host, which <c>MachineName</c> alone does not.
@@ -109,6 +146,7 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     private readonly DbConnection connection;
     private readonly ILogger      logger;
     private readonly string       ttl;
+    private readonly string       lockTable;
 
     private bool released;
 
@@ -117,11 +155,13 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     /// <summary>Monotonic, incremented on every acquire. Identifies <em>this</em> tenure, not this holder.</summary>
     public long Fence { get; }
 
-    private SchemaReconcileLease(DbConnection connection, ILogger logger, string holder, long fence, string ttl)
+    private SchemaReconcileLease(
+        DbConnection connection, ILogger logger, string holder, long fence, string ttl, string lockTable)
     {
         this.connection = connection;
         this.logger     = logger;
         this.ttl        = ttl;
+        this.lockTable  = lockTable;
 
         Holder = holder;
         Fence  = fence;
@@ -129,20 +169,30 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
 
     /// <summary>The lease, or <c>null</c> when somebody else holds a live one.</summary>
     /// <remarks>
-    /// Null is a correct outcome and the caller must treat it as one: another worker is reconciling, so
-    /// this one has nothing to do and — crucially — has not established that anything is converged.
+    /// Null is a correct outcome and the caller must treat it as one: another worker holds this
+    /// resource, so this one has nothing to do and — crucially — has not established anything about the
+    /// state of what the lease protects.
     /// </remarks>
+    /// <param name="lockTable">
+    /// Which resource is being taken. Defaults to the schema reconciler's, so its call site did not have
+    /// to learn about this; <see cref="TtlSweeper.LockTable"/> is the other one.
+    /// </param>
     public async static Task<SchemaReconcileLease?> TryAcquireAsync(
-        DbConnection connection, ILogger logger, string roleId, TimeSpan lifetime, CancellationToken ct = default)
+        DbConnection connection,
+        ILogger logger,
+        string roleId,
+        TimeSpan lifetime,
+        string lockTable = DefaultLockTable,
+        CancellationToken ct = default)
     {
-        await ExecuteAsync(connection, BootstrapSql, ct);
+        await ExecuteAsync(connection, BootstrapSql(lockTable), ct);
 
         var holder = $"{Environment.MachineName}/{roleId}/{Environment.ProcessId}/{BootId:N}";
         var ttl    = $"{(long)lifetime.TotalSeconds} seconds";
 
         await using var command = connection.CreateCommand();
 
-        command.CommandText = AcquireSql;
+        command.CommandText = AcquireSql(lockTable);
         AddParameter(command, "holder", holder);
         AddParameter(command, "ttl", ttl);
 
@@ -150,11 +200,11 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
         // way this says "somebody else holds a live lease".
         if (await command.ExecuteScalarAsync(ct) is long fence)
         {
-            logger.LogInformation("Schema reconcile lease acquired by {Holder} at fence {Fence}", holder, fence);
-            return new SchemaReconcileLease(connection, logger, holder, fence, ttl);
+            logger.LogInformation("Lease on {LockTable} acquired by {Holder} at fence {Fence}", lockTable, holder, fence);
+            return new SchemaReconcileLease(connection, logger, holder, fence, ttl, lockTable);
         }
 
-        logger.LogInformation("Schema reconcile lease is held by another worker; skipping this pass");
+        logger.LogInformation("Lease on {LockTable} is held by another worker; skipping this pass", lockTable);
 
         return null;
     }
@@ -173,7 +223,7 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
     {
         await using var command = connection.CreateCommand();
 
-        command.CommandText = RenewSql;
+        command.CommandText = RenewSql(lockTable);
         AddParameter(command, "holder", Holder);
         AddParameter(command, "ttl", ttl);
         AddParameter(command, "fence", Fence);
@@ -182,8 +232,8 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
             return true;
 
         logger.LogWarning(
-            "Schema reconcile lease at fence {Fence} is no longer held by {Holder}; stopping this pass",
-            Fence, Holder);
+            "Lease on {LockTable} at fence {Fence} is no longer held by {Holder}; stopping this pass",
+            lockTable, Fence, Holder);
 
         return false;
     }
@@ -208,7 +258,7 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
         {
             await using var command = connection.CreateCommand();
 
-            command.CommandText = ReleaseSql;
+            command.CommandText = ReleaseSql(lockTable);
             AddParameter(command, "holder", Holder);
             AddParameter(command, "fence", Fence);
 
@@ -218,8 +268,9 @@ public sealed class SchemaReconcileLease : IAsyncDisposable
         {
             // Never allowed to escape: this runs on the boot path, and a process that refused to start
             // because it could not tidy up a lease that expires on its own would be trading a
-            // self-healing condition for an outage.
-            logger.LogWarning(e, "Could not release the schema reconcile lease at fence {Fence}", Fence);
+            // self-healing condition for an outage. The sweeper's reminder tick has the same shape —
+            // a failed release costs one skipped pass, and the lease expires on its own regardless.
+            logger.LogWarning(e, "Could not release the lease on {LockTable} at fence {Fence}", lockTable, Fence);
         }
     }
 

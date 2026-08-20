@@ -114,7 +114,7 @@ public class SchemaTtlDesiredStateTests
 
         Assert.Multiple(() =>
         {
-            Assert.That(friendRequests.ExpirationExpression, Is.EqualTo("RequestedAt"));
+            Assert.That(friendRequests.ExpirationExpression, Is.EqualTo("ExpiredAt"));
             Assert.That(friendRequests.SelectBatchSize, Is.Null);
             Assert.That(friendRequests.DeleteBatchSize, Is.Null);
             Assert.That(friendRequests.DeleteRateLimit, Is.Null);
