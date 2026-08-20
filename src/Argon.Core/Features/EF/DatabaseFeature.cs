@@ -51,6 +51,12 @@ public static class DatabaseFeature
         var providerKind = builder.Configuration.GetDatabaseProviderKind();
         builder.Services.AddSingleton(new DatabaseProvider(providerKind));
 
+        // Unconditionally, not inside a Cockroach branch: the reconciler's most useful answer on
+        // PostgreSQL is "not applicable, and here is why", and a diagnostic that only exists on the
+        // engine it applies to cannot report that. Registration is what puts the verdict on /health;
+        // the pass itself runs either way.
+        builder.Services.AddSchemaReconcileDiagnostics();
+
         builder.Services.AddPooledDbContextFactory<T>((_, options) =>
         {
             options.EnableDetailedErrors()

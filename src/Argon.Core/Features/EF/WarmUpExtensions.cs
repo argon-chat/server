@@ -16,7 +16,9 @@ public static class WarmUpExtension
     {
         public async Task<WebApplication> WarmUp<T>(bool isMigrate = true) where T : DbContext
         {
-            if (app.Services.GetRequiredService<RoleDescriptor>().IsClient)
+            var role = app.Services.GetRequiredService<RoleDescriptor>();
+
+            if (role.IsClient)
                 return app;
 
             using var scope = app.Services.CreateScope();
@@ -27,7 +29,15 @@ public static class WarmUpExtension
             if (isMigrate)
                 await db.MigrateArgonDatabase(
                     scope.ServiceProvider.GetRequiredService<ILogger<T>>(),
-                    scope.ServiceProvider.GetService<DatabaseProvider>()?.Kind ?? DatabaseProviderKind.CockroachDb);
+                    scope.ServiceProvider.GetService<DatabaseProvider>()?.Kind ?? DatabaseProviderKind.CockroachDb,
+                    SchemaReconcileOptions.FromConfiguration(app.Configuration),
+                    // Resolved rather than required, and it degrades rather than throws: the singleton
+                    // arrives with AddSchemaReconcileDiagnostics, and a host that has not registered it
+                    // should still get the pass and its log lines — only the /health surface goes
+                    // missing. A required service here would turn "the diagnostic is not wired" into
+                    // "the process will not boot".
+                    scope.ServiceProvider.GetService<SchemaReconcileState>() ?? new SchemaReconcileState(),
+                    role.Id.Value);
             else
                 await db.Database.EnsureCreatedAsync();
             return app;
@@ -162,7 +172,13 @@ public static class WarmUpExtension
             ? JsonConvert.DeserializeObject<MultiRegionAnnotation>(payload)
             : null;
 
-    private async static Task MigrateArgonDatabase<T>(this T dbCtx, ILogger<T> logger, DatabaseProviderKind providerKind)
+    private async static Task MigrateArgonDatabase<T>(
+        this T dbCtx,
+        ILogger<T> logger,
+        DatabaseProviderKind providerKind,
+        SchemaReconcileOptions reconcile,
+        SchemaReconcileState reconcileState,
+        string roleId)
         where T : DbContext
     {
         var db = dbCtx.Database;
@@ -198,6 +214,16 @@ public static class WarmUpExtension
         if (!await TryAcquireMigrationLockAsync(dbCtx, logger, workerId, lockTtl))
         {
             logger.LogWarning("Another worker is performing migration. Skipping.");
+
+            // Recorded rather than left at NotRun, because those two say different things. This pod
+            // did not look, which is not evidence that anything is converged — and a health surface
+            // that cannot tell "nobody checked" from "everything matches" is the failure this whole
+            // design refuses to allow.
+            reconcileState.Publish(new SchemaReconcileReport(
+                SchemaReconcileVerdict.SkippedLock,
+                "another worker holds the migration lock; the schema was not read",
+                SchemaTtlPlan.Empty, [], DateTimeOffset.UtcNow));
+
             return;
         }
 
@@ -213,51 +239,44 @@ public static class WarmUpExtension
 
             var pending = (await db.GetPendingMigrationsAsync()).ToList();
             if (pending.Count == 0)
-            {
                 logger.LogInformation("No pending migrations.");
-                return;
-            }
+            else
+                await ApplyMigrationsAsync(dbCtx, logger, pending);
 
-            var migrationsAssembly = db.GetService<IMigrationsAssembly>();
-            var sqlGenerator       = db.GetService<IMigrationsSqlGenerator>();
-            var connection         = db.GetService<IRelationalConnection>();
-            var modelInitializer   = db.GetService<IModelRuntimeInitializer>();
-            var activeProvider     = db.ProviderName!;
-            var productVersion     = typeof(Migration).Assembly.GetName().Version?.ToString() ?? "";
-
-            foreach (var migrationId in pending)
+            // Reconciled here, and the shape of this branch is the whole reason it works. What used to
+            // be an early `return` on "no pending migrations" is now an `else`, because annotation-only
+            // model changes emit no migration operations at all — which means a deployed database has
+            // `pending.Count == 0` on every boot, forever. A reconciler behind that return would run on
+            // fresh databases, where CREATE TABLE already carries the TTL clause and there is nothing
+            // to fix, and never on the one database it exists for. Green in tests, green on every fresh
+            // deployment, silent no-op in production. Do not put the return back.
+            // Guarded separately from the migrations above, and never rethrowing. Migrations failing
+            // must stop the pod — it would serve against a schema it does not agree with. This is a
+            // diagnostic that mostly reads, and until now nothing after the pending-migrations check
+            // could fail a boot at all: the steady state returned early. Letting a schema catalog read,
+            // a payload that no longer parses, or a dropped connection take down every silo in the
+            // fleet would make an observability feature the least reliable thing in the process.
+            //
+            // The verdict still travels — a failed pass is published, counted and visible on /health,
+            // which is where an operator should learn about it rather than from a crash loop.
+            try
             {
-                var migration = migrationsAssembly.CreateMigration(
-                    migrationsAssembly.Migrations[migrationId], activeProvider);
-
-                // CockroachDB forbids mixing DDL with DML, and multiple schema changes,
-                // inside a single transaction. The old approach generated one SQL script
-                // per migration and ran it through a single ExecuteSqlRaw — i.e. one
-                // implicit transaction — so a scaffolded "ADD COLUMN; ADD COLUMN; UPDATE"
-                // aborted halfway and left the table in a state the non-idempotent re-run
-                // couldn't recover from. Instead we execute each statement on its own, so
-                // every statement auto-commits independently (the only Cockroach-safe way:
-                // ADD COLUMN commits, then a later UPDATE sees the now-public column), and
-                // we write the history row only after all of a migration's commands apply.
-                // The SQL generator needs a FINALIZED model. Seed-data operations
-                // (UpdateData / InsertData / DeleteData) call IModel.GetRelationalModel(), which
-                // only works once the model's runtime dependencies are initialized.
-                // migration.TargetModel is the design-time snapshot, so finalize it first — exactly
-                // as EF's own Migrator.FinalizeModel does — otherwise any migration carrying HasData
-                // changes throws "The model must be finalized and its runtime dependencies must be
-                // initialized before 'GetRelationalModel' can be used."
-                var targetModel = migration.TargetModel is null
-                    ? null
-                    : modelInitializer.Initialize(migration.TargetModel);
-
-                var commands = sqlGenerator.Generate(
-                    migration.UpOperations, targetModel, MigrationsSqlGenerationOptions.Default);
-
-                foreach (var command in commands)
-                    await command.ExecuteNonQueryAsync(connection);
-
-                await db.ExecuteSqlRawAsync(historyRepo.GetInsertScript(new HistoryRow(migrationId, productVersion)));
-                logger.LogInformation("Applied migration {Migration}", migrationId);
+                reconcileState.Publish(await SchemaReconciler.RunAsync(
+                    dbCtx,
+                    db.GetDbConnection(),
+                    reconcile,
+                    // The boot path may never do more than re-pace a TTL that is already running. Turning
+                    // one on schedules deletion of every already-expired row, and dozens of pods arrive on
+                    // this path at the same instant during a hard reboot; that statement belongs to an
+                    // operator with a maintenance window, not to a pod that happened to win a lease.
+                    SchemaChangeTier.Automatic,
+                    roleId,
+                    logger));
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "Schema reconcile failed; the database is unchanged and the pod continues");
+                reconcileState.Publish(SchemaReconcileReport.Faulted(e));
             }
         }
         catch (Exception e)
@@ -268,6 +287,64 @@ public static class WarmUpExtension
         finally
         {
             await ReleaseMigrationLockAsync(dbCtx, logger);
+        }
+    }
+
+    /// <summary>
+    /// Applies the pending migrations, one auto-committed statement at a time.
+    /// </summary>
+    /// <remarks>
+    /// Lifted out of <c>MigrateArgonDatabase</c> without a line of it changing, so that "no pending
+    /// migrations" could stop being an early <c>return</c> — see the reconcile call site for why that
+    /// return was load-bearing in the wrong direction. Still called only while the migration lock is
+    /// held; the caller owns acquiring and releasing it.
+    /// </remarks>
+    private async static Task ApplyMigrationsAsync<T>(T dbCtx, ILogger<T> logger, List<string> pending)
+        where T : DbContext
+    {
+        var db = dbCtx.Database;
+
+        var historyRepo        = db.GetService<IHistoryRepository>();
+        var migrationsAssembly = db.GetService<IMigrationsAssembly>();
+        var sqlGenerator       = db.GetService<IMigrationsSqlGenerator>();
+        var connection         = db.GetService<IRelationalConnection>();
+        var modelInitializer   = db.GetService<IModelRuntimeInitializer>();
+        var activeProvider     = db.ProviderName!;
+        var productVersion     = typeof(Migration).Assembly.GetName().Version?.ToString() ?? "";
+
+        foreach (var migrationId in pending)
+        {
+            var migration = migrationsAssembly.CreateMigration(
+                migrationsAssembly.Migrations[migrationId], activeProvider);
+
+            // CockroachDB forbids mixing DDL with DML, and multiple schema changes,
+            // inside a single transaction. The old approach generated one SQL script
+            // per migration and ran it through a single ExecuteSqlRaw — i.e. one
+            // implicit transaction — so a scaffolded "ADD COLUMN; ADD COLUMN; UPDATE"
+            // aborted halfway and left the table in a state the non-idempotent re-run
+            // couldn't recover from. Instead we execute each statement on its own, so
+            // every statement auto-commits independently (the only Cockroach-safe way:
+            // ADD COLUMN commits, then a later UPDATE sees the now-public column), and
+            // we write the history row only after all of a migration's commands apply.
+            // The SQL generator needs a FINALIZED model. Seed-data operations
+            // (UpdateData / InsertData / DeleteData) call IModel.GetRelationalModel(), which
+            // only works once the model's runtime dependencies are initialized.
+            // migration.TargetModel is the design-time snapshot, so finalize it first — exactly
+            // as EF's own Migrator.FinalizeModel does — otherwise any migration carrying HasData
+            // changes throws "The model must be finalized and its runtime dependencies must be
+            // initialized before 'GetRelationalModel' can be used."
+            var targetModel = migration.TargetModel is null
+                ? null
+                : modelInitializer.Initialize(migration.TargetModel);
+
+            var commands = sqlGenerator.Generate(
+                migration.UpOperations, targetModel, MigrationsSqlGenerationOptions.Default);
+
+            foreach (var command in commands)
+                await command.ExecuteNonQueryAsync(connection);
+
+            await db.ExecuteSqlRawAsync(historyRepo.GetInsertScript(new HistoryRow(migrationId, productVersion)));
+            logger.LogInformation("Applied migration {Migration}", migrationId);
         }
     }
 }

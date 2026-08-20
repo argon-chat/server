@@ -225,38 +225,118 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 /// what is global and what is regional is one decision about the product, not eleven decisions about
 /// eleven tables.</para>
 ///
-/// <para><b>It only takes effect when a table is created.</b> The generator writes <c>LOCALITY</c> as
-/// part of <c>CREATE TABLE</c> and EF produces no migration operation at all when the annotation
-/// changes on an existing table — see <c>DbLocalityTests</c>, which pins that. Changing a table's
-/// locality on a live database is <c>ALTER TABLE … SET LOCALITY</c> run deliberately, because it
-/// moves every row.</para>
+/// <para><b>The test is the write side, not the read side.</b> <c>LOCALITY GLOBAL</c> buys a local
+/// read in every region and charges a commit-wait on <em>every</em> write: the commit timestamp is
+/// pushed past the cluster's maximum clock offset — 500ms by default — and the writer waits for the
+/// wall clock to reach it. It is a wait rather than a lock, so throughput survives and per-operation
+/// latency does not, which is why Cockroach documents GLOBAL for read-mostly reference data and
+/// nothing else. So the question each line below answers is not "is this table small" or "is it read
+/// everywhere" — it is <b>is it written on a user-facing action</b>. If it is, global is wrong however
+/// attractive the read side looks, and the read side gets paid for by replicating a view over NATS
+/// instead. The per-table reasoning is <c>docs/architecture/table-placement-reconciler.md</c> §5b;
+/// six of the original ten global declarations failed that test and moved.</para>
+///
+/// <para><b>Regional here means the primary region, deliberately spelled without naming one.</b>
+/// <c>PlacementRegional()</c> renders <c>REGIONAL BY TABLE</c>, which the server reports as
+/// <c>REGIONAL BY TABLE IN PRIMARY REGION</c> — the same physical state an undeclared table has,
+/// which is what lets the reconciler compare the two and emit nothing. Naming a region literal
+/// instead (<c>PlacementRegional("ru-central")</c>) would break that normalisation and pin the table
+/// to a name that a change of primary region would then have to chase. The audit's ideal is stronger
+/// still — each of these homed in <em>its own space's</em> region — and a table-level clause cannot
+/// express that while one table holds every space. That is row-level placement, and §6 is why it is a
+/// staged operation rather than a line here.</para>
+///
+/// <para><b>These annotations do not reach a database by themselves.</b> The generator writes
+/// <c>LOCALITY</c> only as part of <c>CREATE TABLE</c>, and EF produces no migration operation at all
+/// when the annotation changes on a table that already exists — see <c>DbLocalityTests</c>, which
+/// pins that. Argon's migrations predate this block, so nothing here has ever been applied to the
+/// production database and editing a line changes nothing on its own. Convergence is the runtime
+/// reconciler's job: it reads this model, reads the server, and issues
+/// <c>ALTER TABLE … SET LOCALITY</c>. Which means a wrong line here is not inert forever — it is a
+/// cluster-wide data move waiting for the reconciler to be allowed to apply it.</para>
 ///
 /// <para>Everything not named here keeps the default, which is regional by table in the primary
-/// region — today's behaviour for every table. Silence is the current arrangement, not an oversight.</para>
+/// region — today's behaviour for every table. Silence is the current arrangement, not an oversight,
+/// and the reconciler never touches a table this block does not name.</para>
 /// </remarks>
 public static class ArgonTablePlacement
 {
     public static ModelBuilder PlaceArgonTables(this ModelBuilder modelBuilder)
     {
-        // Replicated to every region. Small, read on every bootstrap and by every permission check,
-        // written rarely — which is what a global table is fast at and what it is slow at. This is
-        // what lets a user who reconnects to another region find their spaces, roles and friends
-        // while a region is down.
+        // Global: reference data, written per lifecycle, read on every request.
+        // Small, read on every bootstrap and by every permission check, written once when an account
+        // or a space is created and rarely after — the read-mostly shape the feature exists for. This
+        // is what lets a user who reconnects to another region find their identity and their space
+        // list while a region is down.
         modelBuilder.Entity<UserEntity>().PlacementGlobal();
         modelBuilder.Entity<UserProfileEntity>().PlacementGlobal();
         modelBuilder.Entity<SpaceEntity>().PlacementGlobal();
-        modelBuilder.Entity<ChannelEntity>().PlacementGlobal();
-        modelBuilder.Entity<ChannelGroupEntity>().PlacementGlobal();
+
+        // Borderline, and global on the strength of its read side alone: every permission evaluation
+        // reads it, and role create/edit/delete is a moderation action measured in a handful per
+        // space per month. It is the one table here whose verdict is a judgement rather than a
+        // measurement. If role editing ever becomes interactive-frequency — an editor that saves per
+        // keystroke, bulk role tooling, anything automated — this moves down to MemberArchetypes and
+        // stops being an exception. Watch it rather than assuming it.
         modelBuilder.Entity<ArchetypeEntity>().PlacementGlobal();
-        modelBuilder.Entity<SpaceMemberEntity>().PlacementGlobal();
-        modelBuilder.Entity<SpaceMemberArchetypeEntity>().PlacementGlobal();
-        modelBuilder.Entity<ChannelEntitlementOverwriteEntity>().PlacementGlobal();
-        modelBuilder.Entity<SpaceInvite>().PlacementGlobal();
+
+        // Regional: homed in the primary region, because they are written interactively.
+        // Every table below this line was declared GLOBAL and every one of them is written by
+        // something a person just clicked. Moving one back up needs the write named and argued away,
+        // not the read side restated: the read side was never the objection.
+
+        // Created, renamed and moved from the channel UI. It also carries LastMessageId, which was
+        // written once per message sent until ChannelGrain's flush timer started coalescing it
+        // (FlushLastMessageIdAsync); that coalescing is what stopped this being the most expensive
+        // row in the cluster to maintain, and it is not an argument for global — the interactive
+        // writes remain.
+        modelBuilder.Entity<ChannelEntity>().PlacementRegional();
+
+        // Reordering is drag-and-drop: MoveChannelGroup rewrites the moved group's FractionalIndex
+        // and usually a sibling's, and RebalanceGroupOrder rewrites the whole sibling set in one
+        // burst. A burst of commit-waits is precisely the interaction that feels broken to the person
+        // holding the mouse button down.
+        modelBuilder.Entity<ChannelGroupEntity>().PlacementRegional();
+
+        // One insert per join, one soft-delete per leave (SpaceGrain.AddMemberAsync) — a user-facing
+        // action, and at scale the most common one in the product. The hard part is the read: a
+        // user's space list spans regions. That is answered by replicating a per-user (userId ->
+        // spaceId, region) index over NATS, which is small, derived, and tolerant of being 200ms
+        // stale because the bootstrap then fetches each space from its own region anyway. Authority
+        // for "is this user a member" stays with the space's region.
+        modelBuilder.Entity<SpaceMemberEntity>().PlacementRegional();
+
+        // One row per role grant, one delete per revoke, bursty and interactive (EntitlementGrain's
+        // archetype assignment, SpaceGrain's member-archetype writes). The read side is replicated
+        // for rendering only: a revoked role still honoured for 200ms in another region is a security
+        // bug rather than a latency bug, so the permission gate reads the authoritative row and a
+        // replica is never allowed to admit an action. InvalidateMemberPermissions already publishes
+        // the invalidation this needs.
+        modelBuilder.Entity<SpaceMemberArchetypeEntity>().PlacementRegional();
+
+        // One write per toggle in the permissions UI — EntitlementGrain.UpsertArchetypeEntitlement-
+        // ForChannel and its member and delete siblings. Same read-side rule as the archetypes above:
+        // cache it for rendering, read the authority for the gate.
+        modelBuilder.Entity<ChannelEntitlementOverwriteEntity>().PlacementRegional();
+
+        // UsedCount is incremented on every accepted invite by a guarded conditional update in
+        // InviteGrain — WHERE MaxUses = 0 OR UsedCount < MaxUses — which is a compare-and-swap and is
+        // only correct against ONE authoritative copy. So this row is not a trade at all: regional
+        // keeps the CAS working and drops the commit-wait from the join path. It is also the only
+        // declaration of this table's placement; the note beside SpaceInvite.Configure argued global
+        // for invite-link resolution and lost, because resolution is a read and reads are the cheap
+        // side to fix.
+        modelBuilder.Entity<SpaceInvite>().PlacementRegional();
 
         // Homed where the row was written. Nothing carries a region column for that: Cockroach
         // defaults the hidden crdb_region to gateway_region(), and a channel's messages are only
         // ever inserted by the activation that owns the channel, which runs in the space's home
         // region. The pinning falls out of where the grain runs.
+        //
+        // Untouched by the audit, and the most expensive line in the file to act on: converting a
+        // populated Messages table is an ALTER PRIMARY KEY that rewrites every index, and the plain
+        // ALTER stamps every historical row with the primary region rather than the region it was
+        // actually written in. §6 covers the staged version; do not shorten it to an edit here.
         modelBuilder.Entity<ArgonMessageEntity>().PlacementRegionalByRow();
 
         return modelBuilder;

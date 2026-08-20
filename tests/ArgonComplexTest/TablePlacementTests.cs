@@ -20,13 +20,15 @@ using Microsoft.Extensions.DependencyInjection;
 /// generator is not installed at all — <c>DatabaseFeature</c> only replaces the generator for
 /// Cockroach — so there is nothing to look for. Run with <c>ARGON_TEST_DB=Cockroach</c>.</para>
 ///
-/// <para><b>Two of these fail today, on purpose.</b> They are the acceptance criteria for
-/// regenerating the migrations, not a claim about the current state. Schema creation runs from the
-/// migration files, and those were generated before any entity declared a placement — the snapshot
-/// carries <c>Regional:MultiRegion</c> and not one <c>Regional:Locality</c>. So the declarations in
-/// <c>ArgonTablePlacement</c> are inert until the migrations are rebuilt, and no amount of correct
-/// model configuration changes that. Run them the day the migrations are squashed and they should go
-/// green without any other change.</para>
+/// <para><b>Two of these fail today, on purpose:</b> <see cref="Space_and_user_tables_are_global"/>
+/// and <see cref="Messages_are_regional_by_row"/>. They are the acceptance criteria for the runtime
+/// placement reconciler, not a claim about the current state. Schema creation runs from the migration
+/// files, and those were generated before any entity declared a placement — the snapshot carries
+/// <c>Regional:MultiRegion</c> and not one <c>Regional:Locality</c>. So the declarations in
+/// <c>ArgonTablePlacement</c> have never reached any database and no amount of correct model
+/// configuration changes that; only <c>ALTER TABLE … SET LOCALITY</c>, issued at runtime against the
+/// live catalogue, does. Run these the day the reconciler is allowed to apply and they should go
+/// green without any other change. See <c>docs/architecture/table-placement-reconciler.md</c>.</para>
 ///
 /// <para><b>Read the failure, not just the colour.</b> Right-reason red is an assertion diff: the
 /// statement came back, and it carries <c>LOCALITY REGIONAL BY TABLE IN PRIMARY REGION</c> — what a
@@ -34,14 +36,18 @@ using Microsoft.Extensions.DependencyInjection;
 /// that far: a rejected <c>LOCALITY</c> clause, or a complaint that the database is not multi-region,
 /// means <see cref="CockroachTestDatabase"/> lost its node locality or its primary region and the
 /// fixture is reporting on itself. Both of these carried <c>[Explicit]</c> and a comment promising
-/// they would pass after the squash; they could not have, because the container they ran against was
-/// started without <c>--locality</c> and the DDL under test could not be issued at all. Do not put the
-/// attribute back — the squash is a one-way operation against production, and this fixture is the only
-/// instrument that can tell a good one from a broken one.</para>
+/// they would pass after a migration squash; they could not have, because the container they ran
+/// against was started without <c>--locality</c> and the DDL under test could not be issued at all.
+/// Do not put the attribute back — the reconciler applies to production, and this fixture is the only
+/// instrument that can tell a good convergence from a broken one.</para>
 /// </remarks>
 [TestFixture, NonParallelizable]
 public class TablePlacementTests : TestBase
 {
+    /// <summary>What the server reports for a table that was never placed, and for one placed in the
+    /// primary region — the two are the same physical state and the same text.</summary>
+    private const string DefaultLocality = "LOCALITY REGIONAL BY TABLE IN PRIMARY REGION";
+
     private async Task<string> CreateTableSqlAsync(string table, CancellationToken ct)
     {
         await using var db = await FactoryAsp.Services
@@ -68,9 +74,15 @@ public class TablePlacementTests : TestBase
     /// The tables a user needs to sign in and see their world, readable from every region.
     /// </summary>
     /// <remarks>
-    /// This is the property the whole decomposition rests on: a region falling over must not take
-    /// sign-in, profiles, roles or the space list with it. Those tables being global is what makes
-    /// that true, and it is decided once, in <c>ArgonTablePlacement</c>.
+    /// <para>This is the property the whole decomposition rests on: a region falling over must not
+    /// take sign-in, profiles, roles or the space list with it. Those tables being global is what
+    /// makes that true, and it is decided once, in <c>ArgonTablePlacement</c>.</para>
+    ///
+    /// <para>Four, not ten. <c>Channels</c> used to be asserted here and is not any more: the audit
+    /// (§5b) rules that a global table is only paid for by data written per lifecycle, and six of the
+    /// ten original declarations are written on a user-facing click. These four survive because they
+    /// are the reference data the feature is documented for — an account, its profile, a space's
+    /// metadata, and the roles every permission evaluation reads.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task Space_and_user_tables_are_global(CancellationToken ct = default)
@@ -79,9 +91,49 @@ public class TablePlacementTests : TestBase
 
         Assert.Multiple(async () =>
         {
-            foreach (var table in new[] { "Users", "Spaces", "Channels", "Archetypes" })
+            foreach (var table in new[] { "Users", "UserProfiles", "Spaces", "Archetypes" })
                 Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain("LOCALITY GLOBAL"),
                     $"'{table}' should be replicated to every region");
+        });
+    }
+
+    /// <summary>
+    /// And the six the audit moved off global stay in one region, because they are written by hand.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every table here is written on something a person just clicked — a join, a role grant, a
+    /// permission toggle, an accepted invite, a channel rename, a drag-and-drop reorder — and
+    /// <c>LOCALITY GLOBAL</c> charges each of those a commit-wait of a few hundred milliseconds. The
+    /// declarations that said otherwise were never applied to a database, which is the only reason
+    /// this was a correctable mistake rather than an incident.</para>
+    ///
+    /// <para><b>This one passes today, and that is not it being weak.</b> A table converged to
+    /// <c>REGIONAL BY TABLE</c> and a table nobody ever placed report the identical clause — that
+    /// equivalence is exactly why the reconciler emits no statement for these six and why the run
+    /// after it is empty. What this test catches is the day somebody moves one of them back into the
+    /// global block and the reconciler applies it: the assertion then reads
+    /// <c>LOCALITY GLOBAL</c> where it wanted the default, and names the table. It is also the
+    /// fixture's tripwire for a container that came up without a primary region — then the statement
+    /// carries no <c>LOCALITY</c> at all and every line here fails at once, which is the
+    /// wrong-reason red described above.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Interactively_written_tables_are_homed_in_one_region(CancellationToken ct = default)
+    {
+        OnlyOnCockroach();
+
+        // ChannelGroupEntity has no ToTable and no DbSet, so its table is literally the class name.
+        var tables = new[]
+        {
+            "Channels", "ChannelGroupEntity", "UsersToServerRelations",
+            "MemberArchetypes", "ChannelEntitlementOverwrites", "Invites"
+        };
+
+        Assert.Multiple(async () =>
+        {
+            foreach (var table in tables)
+                Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain(DefaultLocality),
+                    $"'{table}' is written interactively and must not pay a commit-wait for it");
         });
     }
 
@@ -89,9 +141,16 @@ public class TablePlacementTests : TestBase
     /// Messages are homed where they were written, which is the space's region.
     /// </summary>
     /// <remarks>
-    /// Nothing carries a region column for that: Cockroach defaults the hidden <c>crdb_region</c> to
-    /// <c>gateway_region()</c>, and a channel's rows are only ever inserted by the activation that
-    /// owns the channel.
+    /// <para>Nothing carries a region column for that: Cockroach defaults the hidden
+    /// <c>crdb_region</c> to <c>gateway_region()</c>, and a channel's rows are only ever inserted by
+    /// the activation that owns the channel.</para>
+    ///
+    /// <para>This is the last of these to go green, and deliberately so. The conversion is not a
+    /// metadata change — <c>SET LOCALITY REGIONAL BY ROW</c> is implemented as an
+    /// <c>ALTER PRIMARY KEY</c> and rewrites every index on the largest table in the product — so it
+    /// is an operator-run migration rather than something the boot path is ever allowed to do. Red
+    /// here is not a reason to delete the declaration; it is the reminder that §6 has not been
+    /// executed yet.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task Messages_are_regional_by_row(CancellationToken ct = default)

@@ -20,7 +20,18 @@ public class MultiRegionAnnotation
 
 public class ExpirationJobAnnotation
 {
-    // ttl_expiration_expression 
+    /// <summary>
+    /// The model annotation this payload is stored under.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="SchemaTtlModel"/> rather than written out twice. The generator writes the
+    /// declaration into <c>CREATE TABLE</c> and the reconciler reads the same declaration back out of
+    /// the live model to compare it against the server; a typo in either copy of the key would make the
+    /// reconciler quietly see no TTL anywhere and report a converged database.
+    /// </remarks>
+    public const string AnnotationKey = "Job:Expiration";
+
+    // ttl_expiration_expression
     public required string TimestampKey { get; init; }
 
     // ttl_job_cron 
@@ -143,7 +154,7 @@ public static class DbLocalityExtensions
 
     private static EntityTypeBuilder AddExpirationJob(this EntityTypeBuilder builder, ExpirationJobAnnotation jobDetails)
     {
-        builder.HasAnnotation("Job:Expiration", JsonConvert.SerializeObject(jobDetails));
+        builder.HasAnnotation(ExpirationJobAnnotation.AnnotationKey, JsonConvert.SerializeObject(jobDetails));
         return builder;
     }
 
@@ -223,7 +234,8 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
     {
         base.Generate(operation, model, builder, false);
 
-        if (HasAnnotation<string>(model ?? Dependencies.CurrentContext.Context.Model, operation, "Job:Expiration", out var expirationJobAnnotation))
+        if (HasAnnotation<string>(model ?? Dependencies.CurrentContext.Context.Model, operation,
+                ExpirationJobAnnotation.AnnotationKey, out var expirationJobAnnotation))
         {
             var cfg = JsonConvert.DeserializeObject<ExpirationJobAnnotation>(expirationJobAnnotation)!;
             builder.AppendLine()

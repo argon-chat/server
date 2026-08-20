@@ -36,8 +36,15 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
            .HasColumnType("TIMESTAMPTZ")
            .IsRequired();
 
-        // Placement is declared in ArgonTablePlacement, and this is global there: an invite link
-        // has to resolve from whichever region the person following it landed in.
+        // Placement is declared once, in ArgonTablePlacement, and it is REGIONAL there — not global,
+        // which is what this note used to claim. The claim was that an invite link has to resolve
+        // from whichever region the person following it landed in; that is a read, and reads are the
+        // cheap side to fix. What decided it is the write: UsedCount is incremented per accepted
+        // invite by a guarded conditional update (InviteGrain, WHERE MaxUses = 0 OR UsedCount <
+        // MaxUses), a compare-and-swap that is only correct against one authoritative copy — so a
+        // globally replicated invite table would have paid a commit-wait on the join path for a row
+        // that cannot be replicated anyway. Do not add a placement call here: two declarations is
+        // how a table ends up with a locality nobody chose.
 
         builder.WithTTL(x => x.ExpireAt, CronValue.Daily, 
             batchSize: 5000, rangeConcurrency: 4, deleteRateLimit: 52428800);
