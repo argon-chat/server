@@ -181,6 +181,11 @@ public static class WarmUpExtension
         // the warm-up DbContext is disposed.
         await db.OpenConnectionAsync();
 
+        // Now that there is a connection, check that the engine is the one configuration claimed. Here
+        // rather than earlier because this is the first point where a connection exists and is pinned,
+        // and before the shims and the migration loop because both of them branch on the declared kind.
+        await DatabaseEngineProbe.VerifyAsync(db.GetDbConnection(), providerKind, logger);
+
         // Migrations scaffolded against CockroachDB reference its built-ins (unique_rowid) in column
         // defaults. Define equivalents before the first migration runs so vanilla PostgreSQL can
         // replay exactly the same history.

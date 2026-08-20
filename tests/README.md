@@ -42,9 +42,15 @@ Production runs CockroachDB. Tests default to PostgreSQL because it starts in a 
 rather than tens of them, and because every Argon migration is portable once the Cockroach-only
 pieces are switched off:
 
-- `Database:Provider` (`Postgres` / `CockroachDb`) decides whether `MultiregionalMigrationsSqlGenerator`
+- `Database:Provider` (`PostgreSql` / `CockroachDb`) decides whether `MultiregionalMigrationsSqlGenerator`
   is installed. On PostgreSQL the stock Npgsql generator runs instead and the `LOCALITY` /
   `WITH (ttl = 'on')` clauses are simply not emitted.
+
+  Spell it exactly — these are `DatabaseProviderKind` members. This line used to read `Postgres`, which
+  parses to no member, and an unparsable value resolves to `CockroachDb` rather than failing. So a
+  PostgreSQL deployment configured from this file announced itself as CockroachDB. The boot path now
+  probes the server with `version()` and refuses to start on a mismatch, but the spelling is still the
+  thing to get right.
 - `PostgresCompatibilityShims` defines `unique_rowid()`, the one CockroachDB built-in the migration
   history bakes into column defaults.
 

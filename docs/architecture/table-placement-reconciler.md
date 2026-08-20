@@ -16,6 +16,30 @@ This design replaces it with a reconciler. **Yes, it removes the need for the sq
 
 It also says no to something the brief did not ask about but that the audit in §5b forces: **the current contents of `ArgonTablePlacement` are not a desired state worth reconciling towards.** Four or five of the ten `GLOBAL` declarations are wrong on the write path, and a reconciler that faithfully applies a wrong desired state is worse than no reconciler. The audit lands in the model first; the apply path is enabled second.
 
+### Resolved since this was written: the connection-string question
+
+An earlier plan treated "one connection string or per-region connection strings" as a decision that
+blocked the migration work, on the reasoning that `crdb_region` defaulting to `gateway_region()` is only
+correct if each region's pods enter through their own Cockroach gateway.
+
+That precondition holds already, and it needs no configuration axis. There is **one logical Cockroach
+cluster spanning the regions** — `deploy/docker-compose.local.yml` joins three nodes with
+`--join=cockroach1,cockroach2,cockroach3` under `--locality=region=ru-central,zone=ru-3`,
+`region=eu-central,zone=eu-1` and `region=us-east,zone=us-1` — and each Kubernetes cluster resolves the
+same service name to its own local nodes. Same connection string in every region, different gateway per
+region, by DNS rather than by config. Nothing to decide and nothing to add.
+
+Two things this does **not** change. The backfill still homes every existing row to the primary region
+(§6b), so the computed-column path remains the right conversion for `Messages` rather than an
+optimisation. And the placement audit in §5b is still a prerequisite for enabling apply — it is about
+which tables should be `GLOBAL` at all, which has nothing to do with how the connection is made.
+
+One consequence worth stating because it is now a live property rather than a hypothetical: a network
+partition between the Kubernetes clusters partitions the Cockroach cluster too. Under
+`SURVIVE ZONE FAILURE` every regional range homed in the minority side loses quorum. With three regions
+configured, `SURVIVE REGION FAILURE` becomes available and is the goal that matches this topology — see
+§4 for why the reconciler will report that gap rather than close it on its own.
+
 ---
 
 ## 1. Desired state — the EF model annotations, read at runtime
