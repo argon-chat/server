@@ -327,9 +327,9 @@ public class TtlSweepTests
     /// <remarks>
     /// The column name is the one thing in this file that is concatenated into a <c>DELETE</c>. Every
     /// caller today is in this repository and every name is a plain identifier, which is exactly the
-    /// condition under which such a check gets deleted as pointless. It is not pointless: the same
-    /// <see cref="TtlSettings"/> type also carries expressions read back off a live server, and a
-    /// future caller handing one of those to the sweeper has to fail closed.
+    /// condition under which such a check gets deleted as pointless. It is not pointless: the column
+    /// name comes off an entity's <c>HasColumnName</c>, which accepts anything at all, and a name that
+    /// is not an identifier has to fail closed rather than become half a predicate.
     /// </remarks>
     [Test]
     public void An_expiration_column_that_is_not_a_plain_identifier_is_refused()

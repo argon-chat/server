@@ -10,27 +10,29 @@ using Microsoft.Extensions.Options;
 /// The placement audit itself: which tables are global, and — more to the point — which are not.
 /// </summary>
 /// <remarks>
-/// <para>Ten tables were declared <c>LOCALITY GLOBAL</c> and six of them were wrong. Global buys a
-/// local read in every region and charges a commit-wait on every write — a few hundred milliseconds,
-/// set by the cluster's maximum clock offset — so it is a mode for reference data and nothing else.
-/// Six of the ten were written on a user-facing action: a join, a role grant, a permission toggle, an
-/// accepted invite, a drag-and-drop reorder, and — the worst of them — a message counter that moved
-/// once per message sent. The reasoning per table is
-/// <c>docs/architecture/table-placement-reconciler.md</c> §5b, and it is worth reading before
-/// changing a line of this fixture, because the arguments that sound most convincing for moving a
-/// table back to global are all read-side arguments and the read side was never the objection.</para>
+/// <para><b>The criterion this fixture pins is frequency.</b> <c>LOCALITY GLOBAL</c> buys a local read
+/// in every region and charges a commit-wait on every write — a few hundred milliseconds, set by the
+/// cluster's maximum clock offset — so the question for each table is how many times one row is
+/// written over its whole life against how often that row is read. A membership row inserted on join
+/// and read by every permission check afterwards is the global shape. A row carrying a counter, or one
+/// a background job rewrites, is not. The per-table counts live in <c>ArgonTablePlacement</c>, beside
+/// each declaration, and it is worth reading them before changing a line here.</para>
 ///
-/// <para><b>One of the six came back, and only one thing let it.</b> The counter was taken off
-/// <c>Channels</c> and given a table of its own, so the write that disqualified the table no longer
-/// happens to it. That is the shape of an argument this fixture accepts: name the write, remove it,
-/// then move the line. Everything else — how many regions read it, how small it is, how nice the
-/// bootstrap would be — is what the demotions were already told.</para>
+/// <para><b>An earlier criterion asked "is it written by something a person just clicked", and this
+/// fixture used to encode it.</b> That rule demoted six tables at once and separated nothing: creating
+/// a space and editing a profile are clicks too, and both stayed global. It got <c>Channels</c>
+/// outright wrong — a metadata row demoted for one column, <c>LastMessageId</c>, written once per
+/// message — and the fix was to move the column out and put the table back. Four more came back on the
+/// same reasoning applied properly: <c>UsersToServerRelations</c>, <c>MemberArchetypes</c>,
+/// <c>ChannelEntitlementOverwrites</c> and <c>ChannelGroupEntity</c> hold rows written once or twice
+/// ever and read by every permission evaluation in the product. Do not restore the old wording; it is
+/// what produced the mistake.</para>
 ///
 /// <para>The declarations were never applied to any database — the migrations predate them — which is
 /// the only reason this was a correctable mistake rather than an incident. That also means nothing
-/// downstream would have noticed an eleventh <c>PlacementGlobal()</c> appearing: no migration, no
-/// DDL, no test, right up until the reconciler is allowed to apply and moves the table's replicas.
-/// So the audit is pinned here, as a set, by table name.</para>
+/// downstream would notice a tenth <c>PlacementGlobal()</c> appearing: no migration, no DDL, no test,
+/// right up until the reconciler is allowed to apply and moves the table's replicas. So the audit is
+/// pinned here, as exact sets, by table name.</para>
 ///
 /// <para>Model-only, like <c>DbLocalityTests</c>: a context is built over a connection string nothing
 /// dials and its annotations are read. The complex suite's <c>TablePlacementTests</c> asks the other
@@ -157,54 +159,51 @@ public class TablePlacementAuditTests
            .ToArray();
 
     /// <summary>
-    /// Five tables are replicated to every region, and adding a sixth has to be an argument.
+    /// Nine tables are replicated to every region, and adding a tenth has to be an argument with a
+    /// number in it.
     /// </summary>
     /// <remarks>
-    /// <para>These are the shape the feature is documented for: an account, its profile, a space's
-    /// metadata, a channel's metadata, and the archetypes every permission evaluation reads. Four of
-    /// them are written once per lifecycle. The fifth, <c>Archetypes</c>, is the borderline one and
-    /// survives on its read side alone — if role editing ever becomes interactive-frequency it goes
-    /// regional with <c>MemberArchetypes</c>. Asserted as an exact set so that a sixth global cannot
-    /// arrive unnoticed: nothing else in the build would fail, because the annotation produces no
-    /// migration and no DDL until the reconciler applies it.</para>
+    /// <para>All nine are the shape the feature is documented for: a row written a handful of times
+    /// over its whole life and read on every request that renders or authorises anything. An account
+    /// and its profile, written per lifecycle. A space and a channel's metadata, written per
+    /// lifecycle. The four rows a permission decision is made of — the membership, the roles it
+    /// holds, the role definitions, and the per-channel overwrites — inserted on a join or by a
+    /// moderator and then read by every evaluation. And the channel groups, created and reordered by
+    /// a moderator and read by every bootstrap.</para>
     ///
-    /// <para><b><c>Channels</c> is here, and it was not.</b> The audit demoted it for one write — the
-    /// message counter <c>LastMessageId</c>, once per message sent — and that counter now lives in
-    /// <c>ChannelLastMessages</c>, which is regional in the fixture below. What is left on the channel
-    /// row is create, rename and move: per channel lifecycle, the same shape as <c>Spaces</c>. The
-    /// argument that returned it was "the write is gone", which is the only kind that works; "the read
-    /// side is attractive" is what the demotion was already told and rejected. If a writer ever
-    /// touches <c>Channels.LastMessageId</c> again this line is wrong again — see
-    /// <c>ChannelLastMessageTests</c>, which is the fixture that notices.</para>
+    /// <para>Asserted as an exact set so that a tenth global cannot arrive unnoticed: nothing else in
+    /// the build would fail, because the annotation produces no migration and no DDL until the
+    /// reconciler applies it. The argument for adding one is the same as the argument that moved
+    /// these — writes to one row over its life, reads of that row per day — and "the read side is
+    /// attractive" on its own is what the first audit was already told.</para>
     /// </remarks>
     [Test]
     public void Only_the_audited_reference_tables_are_global()
-        => Assert.That(TablesPlaced(Placement.Global),
-            Is.EquivalentTo(new[] { "Archetypes", "Channels", "Spaces", "UserProfiles", "Users" }));
+        => Assert.That(TablesPlaced(Placement.Global), Is.EquivalentTo(new[]
+        {
+            "Archetypes", "ChannelEntitlementOverwrites", "ChannelGroupEntity", "Channels",
+            "MemberArchetypes", "Spaces", "UserProfiles", "Users", "UsersToServerRelations"
+        }));
 
     /// <summary>
-    /// And the tables written by a click, or by a message, stay homed in one region.
+    /// And the two tables with a hot column on an otherwise cold row stay homed in one region.
     /// </summary>
     /// <remarks>
-    /// <para>Every one of these is written on something a person just did — join and leave
-    /// (<c>UsersToServerRelations</c>), role grant and revoke (<c>MemberArchetypes</c>), permission
-    /// toggle (<c>ChannelEntitlementOverwrites</c>), accepted invite (<c>Invites</c>, whose UsedCount
-    /// increment is a compare-and-swap that only works against one authoritative copy), drag-and-drop
-    /// reorder (<c>ChannelGroupEntity</c>), and sending a message (<c>ChannelLastMessages</c>, which
-    /// is written once per flush per active channel and is the hottest write in the product).
-    /// If one of them turns up in the global set instead, this fails naming it, and the fix is to
-    /// read §5b rather than to edit the expectation.</para>
+    /// <para><c>ChannelLastMessages</c> exists because the column was moved rather than argued away:
+    /// it is written once per flush per active channel, carrying every message since the last one,
+    /// and it is the hottest write in the product after <c>Messages</c>. <c>Invites</c> is the same
+    /// shape one step earlier — the row is minted once and never edited, except <c>UsedCount</c>,
+    /// which is incremented per accepted join and is unbounded when <c>MaxUses</c> is zero. It also
+    /// carries a row-level TTL, so a background job deletes from it in batches nobody asked for.</para>
     ///
-    /// <para><c>Channels</c> was in this set and moved up, which is the one direction that needs an
-    /// argument rather than an edit. See the fixture above for what the argument was.</para>
+    /// <para>The fix for <c>Invites</c> is the fix that already worked for <c>Channels</c>: move the
+    /// counter to its own row and this table goes up. Changing this line without moving the counter
+    /// is the mistake the first audit made in the other direction.</para>
     /// </remarks>
     [Test]
-    public void The_interactively_written_tables_are_regional()
-        => Assert.That(TablesPlaced(Placement.RegionalByTable), Is.EquivalentTo(new[]
-        {
-            "ChannelEntitlementOverwrites", "ChannelGroupEntity", "ChannelLastMessages",
-            "Invites", "MemberArchetypes", "UsersToServerRelations"
-        }));
+    public void The_tables_with_a_hot_column_stay_regional()
+        => Assert.That(TablesPlaced(Placement.RegionalByTable),
+            Is.EquivalentTo(new[] { "ChannelLastMessages", "Invites" }));
 
     /// <summary>
     /// Messages, and only Messages, are placed a row at a time.
@@ -218,4 +217,37 @@ public class TablePlacementAuditTests
     [Test]
     public void Only_messages_are_placed_row_by_row()
         => Assert.That(TablesPlaced(Placement.RegionalByRow), Is.EquivalentTo(new[] { "Messages" }));
+
+    /// <summary>
+    /// The three tables a permission decision is read from share one placement, whatever it is.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every base-permission read is a single join across all three —
+    /// <c>HybridPermissionCache.GetBasePermissionsAsync</c> walks <c>UsersToServerRelations</c> into
+    /// <c>MemberArchetypes</c> into <c>Archetypes</c> to reach the entitlement mask, and
+    /// <c>ArgonPermissionProvider.CanAccess</c> does the same with <c>Include</c>. A join is as far
+    /// away as its furthest table, so splitting the three across two localities buys no local read
+    /// for the global ones and pays the commit-wait anyway. That is precisely the arrangement the
+    /// first audit left behind: <c>Archetypes</c> global, the other two regional, replication paid
+    /// for and never usable.</para>
+    ///
+    /// <para>Stated as an invariant rather than as three assertions on one value, because the point
+    /// survives a future decision to move all three down together. If someone demotes one of them
+    /// this fails, and the fix is to move all three or none — not to relax this test.</para>
+    /// </remarks>
+    [Test]
+    public void The_permission_join_is_not_split_across_localities()
+    {
+        var declarations = Declarations();
+
+        var permissionTables = new[] { "UsersToServerRelations", "MemberArchetypes", "Archetypes" };
+
+        foreach (var table in permissionTables)
+            Assert.That(declarations.ContainsKey(table), Is.True,
+                $"'{table}' declares no placement, and every base-permission read joins it");
+
+        Assert.That(permissionTables.Select(table => declarations[table]).Distinct().Count(), Is.EqualTo(1),
+            "the three tables a permission decision is read from must share one placement: "
+          + string.Join(", ", permissionTables.Select(table => $"{table}={declarations[table]}")));
+    }
 }

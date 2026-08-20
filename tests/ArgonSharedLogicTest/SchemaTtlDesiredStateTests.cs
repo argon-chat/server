@@ -8,16 +8,17 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// What the reconciler believes the database should look like, read out of the real model.
+/// What the model says each table's rows expire on, read out of the real model.
 /// </summary>
 /// <remarks>
 /// <para>The declaration this reads has never reached any database. <c>MultiregionalMigrationsSqlGenerator</c>
 /// writes the row-level TTL clause from exactly one place — its <c>CreateTableOperation</c> override —
 /// and EF produces no operation when an annotation changes on a table that already exists, which
 /// <c>DbLocalityTests.Changing_a_locality_after_the_table_exists_produces_nothing</c> pins on purpose.
-/// So the model is the only place the desired state exists, and reading it correctly is the whole
-/// foundation the reconciler stands on: read it wrong and everything downstream converges a live
-/// database towards a fiction.</para>
+/// So the model is the only place the declaration exists, and reading it correctly is the whole
+/// foundation both consumers stand on: <c>SchemaDeclarations</c> turns it into CockroachDB's
+/// <c>ALTER</c>, <c>TtlSweepTargets</c> turns it into PostgreSQL's <c>DELETE</c>, and reading it wrong
+/// points one or both of them at the wrong rows.</para>
 ///
 /// <para>No database anywhere. The model is built against a connection string nothing dials — the same
 /// technique <see cref="RegionTaggedIdTests"/> uses — because building a model opens nothing.</para>
@@ -54,14 +55,15 @@ public class SchemaTtlDesiredStateTests
     /// <remarks>
     /// <para>Spelled out rather than derived, so that adding a fourth <c>WithTTL</c> — or deleting one
     /// — goes red with the table name in the message instead of quietly widening what a boot-time
-    /// process is willing to issue <c>ALTER</c> against.</para>
+    /// process is willing to issue <c>ALTER</c> against, and what an hourly sweep is willing to
+    /// <c>DELETE</c> from.</para>
     ///
-    /// <para>Two of these three names are the reason the reconciler keys on
+    /// <para>Two of these three names are the reason the reader keys on
     /// <c>IEntityType.GetTableName()</c>: neither <c>SpaceInvite</c> nor <c>DevTeamMemberInvite</c>
     /// calls <c>ToTable</c>, so their tables are the <c>DbSet</c> property names <c>Invites</c> and
-    /// <c>TeamInvites</c> and match neither the CLR type nor anything a human would guess. A reconciler
-    /// keyed on the type name would emit <c>ALTER TABLE "SpaceInvite"</c>, get "relation does not
-    /// exist", and report it as a table that has not been created yet — which reads like good news.</para>
+    /// <c>TeamInvites</c> and match neither the CLR type nor anything a human would guess. A reader
+    /// keyed on the type name would emit <c>ALTER TABLE "SpaceInvite"</c> and get "relation does not
+    /// exist", which reads like a table that simply has not been created yet.</para>
     /// </remarks>
     [Test]
     public void The_three_tables_that_expire_rows_are_named_as_the_database_names_them()
@@ -106,10 +108,9 @@ public class SchemaTtlDesiredStateTests
     /// This is the single normalisation most likely to be broken by someone tidying up, and the
     /// consequence is invisible until it is expensive. <c>WithTTL</c>'s defaults are <c>0</c>, and the
     /// generator skips a parameter whose value is zero — so a zero has never been written to a database
-    /// and never will be. Carrying it into the comparison as the number zero would make
-    /// <c>user_friend_requests</c> report drift on every boot forever, against a server doing exactly
-    /// what was asked, and the only statement that could ever close it is a <c>RESET</c> of a value
-    /// nobody set.
+    /// and never should be. Emitting it as the number zero would tell CockroachDB to select nothing and
+    /// delete nothing per batch: a working TTL switched off by a statement that looks like it switched
+    /// one on.
     /// </remarks>
     [Test]
     public void A_batch_size_of_zero_is_no_opinion_rather_than_a_batch_size_of_zero()

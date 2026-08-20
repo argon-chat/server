@@ -5,10 +5,10 @@ using System.Text.RegularExpressions;
 
 /// <summary>How much the sweeper is allowed to do.</summary>
 /// <remarks>
-/// Deliberately the same three-way shape as <see cref="SchemaReconcileMode"/>, and for the same
-/// reason: the interesting question is never "is it on" but "is it allowed to change anything". The
-/// difference is that the reconciler's worst statement re-paces a delete job, while this one's deletes
-/// rows outright and no <c>ALTER</c> puts them back.
+/// Three-way rather than a boolean because the interesting question is never "is it on" but "is it
+/// allowed to change anything". <c>Report</c> is what makes the count knowable before the first
+/// deletion is authorised, and there is no cheaper way to learn what a predicate would take: this
+/// deletes rows outright and no <c>ALTER</c> puts them back.
 /// </remarks>
 public enum TtlSweepMode
 {
@@ -20,10 +20,9 @@ public enum TtlSweepMode
     /// </summary>
     /// <remarks>
     /// The default is report and it must stay report. These three tables have never been swept by
-    /// anything, on either engine, so the first pass on a long-lived database is a backlog pass —
-    /// exactly the act <see cref="SchemaChangeTier.Approval"/> exists to keep off the boot path over on
-    /// the reconciler side. A number in a log line costs a scan; a wrong predicate applied
-    /// automatically costs the table.
+    /// anything, on either engine, so the first pass on a long-lived database is a backlog pass — it
+    /// deletes everything that has accumulated since the declaration was written, in one go. A number
+    /// in a log line costs a scan; a wrong predicate applied automatically costs the table.
     /// </remarks>
     Report,
 
@@ -98,9 +97,10 @@ public sealed record TtlSweepOptions(
     /// Reads configuration, defaulting to <see cref="TtlSweepMode.Report"/>.
     /// </summary>
     /// <remarks>
-    /// Unset and unparsable both land on <c>Report</c>, the same direction
-    /// <see cref="SchemaReconcileOptions.FromConfiguration"/> chose and for a stronger reason: a typo
-    /// in a config map must never be the thing that starts deleting rows.
+    /// Unset and unparsable both land on <c>Report</c>, which is the opposite direction from
+    /// <c>Database:Provider</c> and from <see cref="SchemaDeclarations.DryRunKey"/> on purpose: those
+    /// two decide which SQL gets written, this one decides whether rows are deleted. A typo in a config
+    /// map must never be the thing that starts deleting rows.
     /// </remarks>
     public static TtlSweepOptions FromConfiguration(IConfiguration configuration)
         => Default with
@@ -249,9 +249,8 @@ public static class TtlSweepTargets
     /// input — and it is checked anyway, because the alternative is a file that builds <c>DELETE</c>
     /// statements by string concatenation with no stated invariant about what goes into them. The
     /// check is also load-bearing for a second reason: <see cref="TtlSettings.ExpirationExpression"/>
-    /// can hold arbitrary SQL when it was read off a server, and a future caller handing this an
-    /// observed value rather than a declared one must fail closed rather than build a predicate out of
-    /// somebody's expression.
+    /// is whatever <c>HasColumnName</c> put on the property, which is unconstrained, so a name that is
+    /// not an identifier must fail closed rather than become half a predicate.
     /// </remarks>
     private static readonly Regex PlainIdentifier = new(@"^[A-Za-z_][A-Za-z0-9_$]*$", RegexOptions.Compiled);
 

@@ -41,15 +41,14 @@ using System.Data.Common;
 public static class TtlSweeper
 {
     /// <summary>
-    /// The lease table this takes, which is deliberately not the reconciler's.
+    /// The lease table this takes, which is deliberately neither of the other two.
     /// </summary>
     /// <remarks>
-    /// Two different resources: the reconciler serialises DDL against the schema, this serialises
-    /// deletion of rows, and there is no reason one should ever block the other. Sharing
-    /// <c>__SchemaReconcileLock</c> would have made an hourly sweep able to turn a pod's boot-time
-    /// reconcile pass into <c>SkippedLock</c> — a verdict that means "somebody else is converging", so
-    /// the pod would report knowing nothing about the schema because a delete job happened to be
-    /// running. The mechanism is shared; the row is not.
+    /// Two different resources: the boot path serialises DDL against the schema, this serialises
+    /// deletion of rows, and there is no reason one should ever block the other. Sharing a row would
+    /// have made an hourly sweep able to stop a pod migrating, and a slow migration able to stop the
+    /// sweep — in both directions a job locked out of something it does not touch. The mechanism is
+    /// shared; the row is not.
     /// </remarks>
     public const string LockTable = "__TtlSweepLock";
 
@@ -289,9 +288,8 @@ public static class TtlSweeper
     /// One line per pass, and one line per table that needs a human.
     /// </summary>
     /// <remarks>
-    /// Quiet when there is nothing to say — the same rule the reconciler follows, and this one runs
-    /// every hour rather than once per boot, so a pass that logged its verdict unconditionally would
-    /// produce a log that is almost entirely itself. Loud, with the statement, for a refusal or a
+    /// Quiet when there is nothing to say. This runs every hour, so a pass that logged its verdict
+    /// unconditionally would produce a log that is almost entirely itself. Loud, with the statement, for a refusal or a
     /// failure: those are the two states somebody has to act on.
     /// </remarks>
     private static void Describe(TtlSweepReport report, TtlSweepMode mode, ILogger logger)

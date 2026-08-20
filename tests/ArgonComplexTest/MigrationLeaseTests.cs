@@ -16,8 +16,8 @@ using Microsoft.Extensions.Logging;
 /// owner predicate, in a <c>finally</c> — so a worker whose lease had expired and been stolen deleted
 /// the <em>new</em> holder's row on the way out, and the next arrival then acquired an empty table
 /// freely. Two workers applying migrations at once, on a path every pod of every role takes on every
-/// boot. It now takes <see cref="SchemaReconcileLease"/>, the same lease the schema reconciler and the
-/// TTL sweeper hold.</para>
+/// boot. It now takes <see cref="SchemaReconcileLease"/>, the same lease the TTL sweeper holds over a
+/// row of its own.</para>
 ///
 /// <para>Two halves, and they prove different things. <c>#region the lease's promises</c> drives the
 /// lease directly over a table of its own and asserts the three properties the boot path is now relying
@@ -30,11 +30,11 @@ using Microsoft.Extensions.Logging;
 /// (the TTL sweeper that shares it refuses to run there by design). <c>ARGON_TEST_DB=Cockroach</c>
 /// makes this the coverage for the engine production actually runs.</para>
 ///
-/// <para><b>Non-parallelizable</b>, for the same reason <see cref="TtlSweepTests"/> is: the setup drops
-/// a table, which on CockroachDB is a schema-change job, and
-/// <c>SchemaReconciler.CountInFlightSchemaChangesAsync</c> counts those and reports
-/// <c>SkippedLock</c> when it finds one. A fixture asserting a reconcile verdict while this one is
-/// creating and dropping tables would go red for a reason that has nothing to do with it.</para>
+/// <para><b>Non-parallelizable</b>, for the same reason <see cref="TtlSweepTests"/> is: the setup
+/// creates and drops a table, which on CockroachDB is a schema-change job, and
+/// <see cref="SchemaDeclarationTests"/> issues its own schema changes against the same database.
+/// CockroachDB's own guidance is not to run more than one at a time, and two overlapping would make
+/// either fixture red for a reason that has nothing to do with it.</para>
 /// </remarks>
 [TestFixture, NonParallelizable]
 public class MigrationLeaseTests : TestBase

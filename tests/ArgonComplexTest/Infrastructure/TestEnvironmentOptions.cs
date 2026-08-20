@@ -80,16 +80,35 @@ public static class TestEnvironmentOptions
     /// </remarks>
     public const string DatabaseRegion = "ru-central";
 
+    /// <summary>Every region the Cockroach fixture stands up, primary first.</summary>
+    /// <remarks>
+    /// The same three names, in the same order, as the three nodes in
+    /// <c>deploy/docker-compose.local.yml</c>. Placement only means anything above one region, so a
+    /// fixture that means to exercise it needs more than the one a single node can have — and matching
+    /// the compose file means a developer who has run the local cluster recognises what the tests see.
+    /// </remarks>
+    public static readonly string[] DatabaseRegions = [DatabaseRegion, "eu-central", "us-east"];
+
     public static string RedisImage => Read(RedisImageVariable) ?? "redis:7-alpine";
 
     public static string NatsImage => Read(NatsImageVariable) ?? "nats:2.10-alpine";
 
     public static bool ReuseContainers => IsTruthy(Read(ReuseContainersVariable));
 
+    /// <summary>
+    /// How long the whole infrastructure stack has to come up.
+    /// </summary>
+    /// <remarks>
+    /// Longer for CockroachDB, because that fixture is three nodes that have to find each other, be
+    /// initialised as one cluster, and then have three regions added to a database — where PostgreSQL
+    /// is one container that is ready when its port answers. Five minutes was enough for the
+    /// single-node fixture and is not enough for this one; a run that ran out of budget failed in
+    /// global setup with a bare TaskCanceledException, which says nothing about the cause.
+    /// </remarks>
     public static TimeSpan StartupTimeout
         => int.TryParse(Read(StartupTimeoutVariable), out var seconds) && seconds > 0
             ? TimeSpan.FromSeconds(seconds)
-            : TimeSpan.FromMinutes(5);
+            : TimeSpan.FromMinutes(DatabaseKind is TestDatabaseKind.Cockroach ? 15 : 5);
 
     public static bool ServerLogsEnabled => IsTruthy(Read(ServerLogsVariable));
 

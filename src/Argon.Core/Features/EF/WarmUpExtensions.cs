@@ -26,8 +26,8 @@ public static class WarmUpExtension
     /// stalled and resumed could not discover it no longer owned anything; and no renewal on a
     /// ten-minute TTL, so a longer migration lost the lock mid-flight and the release defect turned
     /// that into two workers applying migrations at once. <see cref="SchemaReconcileLease"/> already
-    /// fixes all four, and the schema reconciler and the TTL sweeper already depend on it. Two
-    /// implementations of a distributed lock in one repository is the defect, not the fix.</para>
+    /// fixes all four, and the TTL sweeper already depends on it. Two implementations of a distributed
+    /// lock in one repository is the defect, not the fix.</para>
     ///
     /// <para><b>Why a new table, which is the load-bearing decision here.</b> <c>__MigrationLock</c>
     /// exists in every deployed database with columns <c>(id, locked_at, locked_by, expires_at)</c> and
@@ -57,9 +57,9 @@ public static class WarmUpExtension
     ///
     /// <para>Public because <c>MigrationLeaseTests</c> asserts on it — that it is a plain identifier the
     /// lease will accept, and that it is neither of the other two lease tables. Three resources, three
-    /// rows: sharing <see cref="SchemaReconcileLease.DefaultLockTable"/> would let a boot-time migration
-    /// turn the same boot's reconcile pass into <c>SkippedLock</c>, a verdict that claims another worker
-    /// is converging the schema.</para>
+    /// rows: a job that takes somebody else's row locks them out of something it does not touch, which
+    /// is a wrong answer rather than a stronger lock. The TTL sweeper's hourly delete pass and a pod
+    /// trying to migrate are the pair that makes that concrete.</para>
     /// </remarks>
     public const string MigrationLeaseTable = "__MigrationLease";
 
@@ -97,13 +97,7 @@ public static class WarmUpExtension
                 await db.MigrateArgonDatabase(
                     scope.ServiceProvider.GetRequiredService<ILogger<T>>(),
                     scope.ServiceProvider.GetService<DatabaseProvider>()?.Kind ?? DatabaseProviderKind.CockroachDb,
-                    SchemaReconcileOptions.FromConfiguration(app.Configuration),
-                    // Resolved rather than required, and it degrades rather than throws: the singleton
-                    // arrives with AddSchemaReconcileDiagnostics, and a host that has not registered it
-                    // should still get the pass and its log lines — only the /health surface goes
-                    // missing. A required service here would turn "the diagnostic is not wired" into
-                    // "the process will not boot".
-                    scope.ServiceProvider.GetService<SchemaReconcileState>() ?? new SchemaReconcileState(),
+                    SchemaDeclarations.IsDryRun(app.Configuration),
                     role.Id.Value);
             else
                 await db.Database.EnsureCreatedAsync();
@@ -183,8 +177,7 @@ public static class WarmUpExtension
         this T dbCtx,
         ILogger<T> logger,
         DatabaseProviderKind providerKind,
-        SchemaReconcileOptions reconcile,
-        SchemaReconcileState reconcileState,
+        bool dryRunDeclarations,
         string roleId)
         where T : DbContext
     {
@@ -233,16 +226,10 @@ public static class WarmUpExtension
 
         if (lease is null)
         {
+            // And the declaration step below is skipped with it, deliberately. Whoever holds the lease
+            // is running the same statements from the same model a few lines later; a second pod
+            // issuing them concurrently would stack schema changes on one table for no gain.
             logger.LogWarning("Another worker is performing migration. Skipping.");
-
-            // Recorded rather than left at NotRun, because those two say different things. This pod
-            // did not look, which is not evidence that anything is converged — and a health surface
-            // that cannot tell "nobody checked" from "everything matches" is the failure this whole
-            // design refuses to allow.
-            reconcileState.Publish(new SchemaReconcileReport(
-                SchemaReconcileVerdict.SkippedLock,
-                "another worker holds the migration lock; the schema was not read",
-                SchemaTtlPlan.Empty, [], DateTimeOffset.UtcNow));
 
             return;
         }
@@ -263,57 +250,34 @@ public static class WarmUpExtension
             else
                 await ApplyMigrationsAsync(dbCtx, logger, lease, pending);
 
-            // Reconciled here, and the shape of this branch is the whole reason it works. What used to
-            // be an early `return` on "no pending migrations" is now an `else`, because annotation-only
-            // model changes emit no migration operations at all — which means a deployed database has
-            // `pending.Count == 0` on every boot, forever. A reconciler behind that return would run on
-            // fresh databases, where CREATE TABLE already carries the TTL clause and there is nothing
-            // to fix, and never on the one database it exists for. Green in tests, green on every fresh
-            // deployment, silent no-op in production. Do not put the return back.
+            // The declarations are issued here, and the shape of the branch above is the whole reason
+            // this works. What used to be an early `return` on "no pending migrations" is an `else`,
+            // because an annotation-only model change emits no migration operation at all — so a
+            // deployed database has `pending.Count == 0` on every boot, forever. A step behind that
+            // return would run on fresh databases, where CREATE TABLE already carries both clauses and
+            // there is nothing to fix, and never on the one database it exists for: green in tests,
+            // green on every fresh deployment, silent no-op in production. Do not put the return back.
+            //
             // Guarded separately from the migrations above, and never rethrowing. Migrations failing
-            // must stop the pod — it would serve against a schema it does not agree with. This is a
-            // diagnostic that mostly reads, and until now nothing after the pending-migrations check
-            // could fail a boot at all: the steady state returned early. Letting a schema catalog read,
-            // a payload that no longer parses, or a dropped connection take down every silo in the
-            // fleet would make an observability feature the least reliable thing in the process.
+            // must stop the pod — it would serve against a schema it does not agree with. This must
+            // not: it changes where rows live and when they expire, and neither answer makes the
+            // process unable to serve. Letting a rejected ALTER take down every silo in the fleet would
+            // make table placement the least reliable thing in the process.
             //
-            // The verdict still travels — a failed pass is published, counted and visible on /health,
-            // which is where an operator should learn about it rather than from a crash loop.
-            //
-            // The reconciler takes its own lease over its own row while this one is still held, and
-            // that is neither redundant nor a deadlock: two rows, two resources, and the reconciler is
-            // also reached out of band by an operator with no migration lease anywhere near it.
+            // The migration lease is still held, which is what keeps a hard reboot from turning this
+            // into every pod issuing the same schema changes at once. It is deliberately not threaded
+            // into the step: renewing per statement would tie a plain model-to-SQL routine to the lease
+            // type and make it untestable without one, and the window it would close is the handful of
+            // seconds between the last renewal above and the last ALTER below.
             try
             {
-                reconcileState.Publish(await SchemaReconciler.RunAsync(
-                    dbCtx,
-                    db.GetDbConnection(),
-                    reconcile,
-                    // Approval, by the owner's decision, taken after the cost was put in front of them.
-                    //
-                    // What that buys: the boot path may now change an expiration expression the model and
-                    // the server disagree about, and may turn a declared TTL on for the first time. The
-                    // second one is the expensive half — the first job run after it deletes the entire
-                    // accumulated expired backlog for that table, in one pass, on whichever pod won the
-                    // lease. For the three declaring tables that is invites, team invites and friend
-                    // requests, and the deletion is what the declaration always asked for; it simply
-                    // never ran.
-                    //
-                    // What it still does not buy, because no flag reaches it: turning a TTL off, resetting
-                    // parameters nothing declares, touching a table an operator has paused with ttl_pause,
-                    // and moving between ttl_expire_after and ttl_expiration_expression — that last one
-                    // drops the hidden column and rewrites the table. Those stay refused in every mode.
-                    //
-                    // The lease is what keeps a hard reboot from turning this into a stampede: exactly one
-                    // pod runs a pass, the rest see a held lease and boot.
-                    SchemaChangeTier.Approval,
-                    roleId,
-                    logger));
+                await SchemaDeclarations.ApplyAsync(dbCtx, db.GetDbConnection(), dryRunDeclarations, logger);
             }
             catch (Exception e)
             {
-                logger.LogError(e, "Schema reconcile failed; the database is unchanged and the pod continues");
-                reconcileState.Publish(SchemaReconcileReport.Faulted(e));
+                logger.LogError(e,
+                    "Applying the model's table declarations failed; the pod continues and the next boot " +
+                    "will try again");
             }
         }
         catch (Exception e)
@@ -329,8 +293,8 @@ public static class WarmUpExtension
     /// </summary>
     /// <remarks>
     /// Lifted out of <c>MigrateArgonDatabase</c> so that "no pending migrations" could stop being an
-    /// early <c>return</c> — see the reconcile call site for why that return was load-bearing in the
-    /// wrong direction. The caller still owns acquiring and releasing the lease; what this owns is
+    /// early <c>return</c> — see the <see cref="SchemaDeclarations.ApplyAsync"/> call site for why that
+    /// return was load-bearing in the wrong direction. The caller still owns acquiring and releasing the lease; what this owns is
     /// renewing it, because the caller cannot: the loop below is the only thing that knows where the
     /// safe renewal points are.
     /// </remarks>

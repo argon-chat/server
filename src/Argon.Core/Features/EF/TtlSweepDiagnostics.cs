@@ -21,8 +21,8 @@ public enum TtlSweepStatus
     /// </summary>
     /// <remarks>
     /// Reported on every pass rather than logged once and forgotten. A refusal nobody can see is
-    /// indistinguishable from a sweeper that did not notice the table — which is the same reasoning
-    /// <see cref="SchemaChangeTier.Refused"/> is written down with, and the same failure mode.
+    /// indistinguishable from a sweeper that did not notice the table, and the two want opposite
+    /// responses from whoever reads the report.
     /// </remarks>
     Refused,
 
@@ -136,10 +136,9 @@ public sealed record TtlSweepReport(
     /// A pass that threw instead of returning a verdict.
     /// </summary>
     /// <remarks>
-    /// <c>Failed</c> rather than a quieter verdict, and the opposite of the choice
-    /// <see cref="SchemaReconcileReport.Faulted"/> makes. There the escaping exception is almost always
-    /// a read; here the pass issues <c>DELETE</c>, so an exception can have left rows removed and the
-    /// accounting incomplete, and that must not present as anything softer than a failure.
+    /// <c>Failed</c> rather than a quieter "could not look" verdict. The pass issues <c>DELETE</c>, so an
+    /// exception escaping it can have left rows removed and the accounting incomplete, and that must not
+    /// present as anything softer than a failure.
     /// </remarks>
     public static TtlSweepReport Faulted(Exception e)
         => new(TtlSweepVerdict.Failed, $"the sweep threw before reaching a verdict: {e.Message}", [], DateTimeOffset.UtcNow);
@@ -149,10 +148,9 @@ public sealed record TtlSweepReport(
 /// The last verdict, held for whoever asks — and nobody asks the database.
 /// </summary>
 /// <remarks>
-/// Same shape and same reasoning as <see cref="SchemaReconcileState"/>: cached because the caller is an
-/// HTTP endpoint and a check that queried would turn a loopback scrape into a table scan; static
-/// because meter instruments are created once per process and cannot reach a container-resolved
-/// object, and there is exactly one sweeper per process anyway.
+/// Cached because the caller is an HTTP endpoint and a check that queried would turn a loopback scrape
+/// into a table scan; static because meter instruments are created once per process and cannot reach a
+/// container-resolved object, and there is exactly one sweeper per process anyway.
 /// </remarks>
 public sealed class TtlSweepState
 {
@@ -223,8 +221,7 @@ internal static class TtlSweepInstruments
 /// What the TTL sweeper last did, for a person or a dashboard.
 /// </summary>
 /// <remarks>
-/// <para><b>Tagged <c>diagnostic</c>, and it must stay that way</b> — the same rule
-/// <see cref="SchemaReconcileHealthCheck"/> is written down with. <c>MapProbeEndpoints</c> filters the
+/// <para><b>Tagged <c>diagnostic</c>, and it must stay that way.</b> <c>MapProbeEndpoints</c> filters the
 /// Kubernetes endpoints on <c>startup</c> / <c>liveness</c> / <c>readiness</c>, and a sweeper that
 /// found something it will not delete says nothing at all about whether this pod should take traffic.
 /// Silo readiness runs at <c>failureThreshold: 1</c>, and every pod would reach the same verdict at the
@@ -281,10 +278,9 @@ public static class TtlSweepDiagnostics
     /// Registers the verdict cache and the diagnostic health check.
     /// </summary>
     /// <remarks>
-    /// For every engine, not only PostgreSQL, for the same reason
-    /// <c>AddSchemaReconcileDiagnostics</c> is: the most useful thing this can say on CockroachDB is
-    /// "not applicable, the database is doing it itself", and a diagnostic that only exists where it
-    /// applies cannot say that.
+    /// For every engine, not only PostgreSQL: the most useful thing this can say on CockroachDB is "not
+    /// applicable, the database is doing it itself", and a diagnostic that only exists where it applies
+    /// cannot say that.
     /// </remarks>
     public static IServiceCollection AddTtlSweepDiagnostics(this IServiceCollection services)
     {

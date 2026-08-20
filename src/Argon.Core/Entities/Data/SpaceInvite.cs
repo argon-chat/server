@@ -55,9 +55,9 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
         // pacing Cockroach ships by default, on the table that is deleted from on the join path.
         // Omitting the parameter restores that default rather than inventing a policy nobody chose.
         //
-        // ttl_range_concurrency does not appear in current CockroachDB documentation at all, and the
-        // reconciler already refuses to compare it for that reason. Emitting a storage parameter the
-        // server may no longer accept, to get behaviour nobody can describe, is not worth the DDL.
+        // ttl_range_concurrency does not appear in current CockroachDB documentation at all, and
+        // TtlSettings deliberately does not carry it. Emitting a storage parameter the server may no
+        // longer accept, to get behaviour nobody can describe, is not worth the DDL.
         builder.WithTTL(x => x.ExpireAt, CronValue.Daily, batchSize: 5000);
     }
 

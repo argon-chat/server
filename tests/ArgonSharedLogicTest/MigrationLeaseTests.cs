@@ -63,12 +63,11 @@ public class MigrationLeaseTests
     /// Three resources, three rows.
     /// </summary>
     /// <remarks>
-    /// Sharing one row between two jobs is not a stronger lock, it is a wrong answer. If migrations and
-    /// the schema reconciler took the same row, the reconcile pass that runs a few lines after the
-    /// migrations — inside the same boot, while the migration lease is still held — would find it busy
-    /// and publish <c>SkippedLock</c>, a verdict that means "another worker is converging the schema"
-    /// and would be reported because this pod was holding its own lock. Sharing with the TTL sweeper
-    /// has the mirror-image failure: an hourly delete pass could stop a pod migrating.
+    /// Sharing one row between two jobs is not a stronger lock, it is a wrong answer. The concrete
+    /// pair is migrations and the TTL sweeper: on one row, an hourly delete pass could stop a pod
+    /// migrating, and a slow migration could stop the sweep — in both directions a job locked out of a
+    /// resource it does not touch. The third is <c>SchemaReconcileLease</c>'s own default, which no
+    /// caller passes today and which must not collide with either the day one does.
     /// </remarks>
     [Test]
     public void Three_lease_tables_and_no_two_of_them_are_the_same()
@@ -76,7 +75,7 @@ public class MigrationLeaseTests
         string[] tables = [BootLease, SchemaReconcileLease.DefaultLockTable, TtlSweeper.LockTable];
 
         Assert.That(tables, Is.Unique,
-            $"migrations, the schema reconciler and the TTL sweeper take {string.Join(", ", tables)} — "
+            $"the boot path, the lease's default and the TTL sweeper take {string.Join(", ", tables)} — "
           + "two of those are the same row, so one job can lock the other out of a resource it does "
           + "not touch");
     }

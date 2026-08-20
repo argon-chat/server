@@ -47,12 +47,14 @@ public class MigrationPortabilityTests
     /// un-appliable on PostgreSQL forever.
     ///
     /// <para>The list covers the whole TTL vocabulary rather than the two parameters that happened to
-    /// be here first, and the reason is the reconciler. It now issues these clauses itself, at runtime,
-    /// behind an engine check — which makes them exactly the strings somebody will have in front of
-    /// them while writing SQL, and the pull towards pasting one into a migration is strongest when a
-    /// working statement is already on screen. <c>SET LOCALITY</c> is listed even though the two
-    /// <c>LOCALITY</c> entries already catch every form of it: an explicit entry is what a reader
-    /// greps for when they want to know whether this is allowed.</para>
+    /// be here first, and the reason is <c>SchemaDeclarations</c>. It issues these clauses itself, on
+    /// the boot path, behind an engine check — which makes them exactly the strings somebody will have
+    /// in front of them while writing SQL, and the pull towards pasting one into a migration is
+    /// strongest when a working statement is already on screen. This scan reads only
+    /// <c>src/Argon.Core/Migrations/</c>, so it does not and must not bind that file.
+    /// <c>SET LOCALITY</c> is listed even though the two <c>LOCALITY</c> entries already catch every
+    /// form of it: an explicit entry is what a reader greps for when they want to know whether this is
+    /// allowed.</para>
     /// </remarks>
     private static readonly string[] CockroachClauses =
     [

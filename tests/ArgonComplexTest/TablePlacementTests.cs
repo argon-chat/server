@@ -24,11 +24,12 @@ using Microsoft.Extensions.DependencyInjection;
 /// and <see cref="Messages_are_regional_by_row"/>. They are the acceptance criteria for the runtime
 /// placement reconciler, not a claim about the current state. Schema creation runs from the migration
 /// files, and those were generated before any entity declared a placement — the snapshot carries
-/// <c>Regional:MultiRegion</c> and not one <c>Regional:Locality</c>. So the declarations in
-/// <c>ArgonTablePlacement</c> have never reached any database and no amount of correct model
-/// configuration changes that; only <c>ALTER TABLE … SET LOCALITY</c>, issued at runtime against the
-/// live catalogue, does. Run these the day the reconciler is allowed to apply and they should go
-/// green without any other change. See <c>docs/architecture/table-placement-reconciler.md</c>.</para>
+/// <c>Regional:MultiRegion</c> and not one <c>Regional:Locality</c> for any table that already
+/// existed. So the declarations in <c>ArgonTablePlacement</c> have never reached any database and no
+/// amount of correct model configuration changes that; only <c>ALTER TABLE … SET LOCALITY</c>, issued
+/// at runtime against the live catalogue, does. Run these the day the reconciler is allowed to apply
+/// and they should go green without any other change. See
+/// <c>docs/architecture/table-placement-reconciler.md</c>.</para>
 ///
 /// <para><b>Read the failure, not just the colour.</b> Right-reason red is an assertion diff: the
 /// statement came back, and it carries <c>LOCALITY REGIONAL BY TABLE IN PRIMARY REGION</c> — what a
@@ -71,82 +72,89 @@ public class TablePlacementTests : TestBase
             "table placement is CockroachDB syntax; the generator is not even installed on PostgreSQL");
 
     /// <summary>
-    /// The tables a user needs to sign in and see their world, readable from every region.
+    /// The tables a user needs to sign in, see their world and be told what they may do in it,
+    /// readable from every region.
     /// </summary>
     /// <remarks>
     /// <para>This is the property the whole decomposition rests on: a region falling over must not
-    /// take sign-in, profiles, roles or the space list with it. Those tables being global is what
-    /// makes that true, and it is decided once, in <c>ArgonTablePlacement</c>.</para>
+    /// take sign-in, profiles, the space list or the permission decision with it. Those tables being
+    /// global is what makes that true, and it is decided once, in <c>ArgonTablePlacement</c>.</para>
     ///
-    /// <para>Five, not ten. The audit (§5b) rules that a global table is only paid for by data
-    /// written per lifecycle, and six of the ten original declarations were written on a user-facing
-    /// action. What survives is the reference data the feature is documented for — an account, its
-    /// profile, a space's metadata, a channel's metadata, and the roles every permission evaluation
-    /// reads.</para>
+    /// <para>Nine, and the count moved twice. The first audit cut ten to four on the rule "is it
+    /// written by something a person just clicked", which does not separate anything — creating a
+    /// space is a click too, and it stayed. The rule in force now is frequency: how many times one
+    /// row is written over its life against how often it is read. <c>Channels</c> came back when the
+    /// counter that disqualified it was moved off the row, and four more came back on the same
+    /// reasoning read properly — a membership row and its role rows are inserted once on a join and
+    /// then read by every permission evaluation, a channel overwrite is written by a moderator and
+    /// read by every access check, and a channel group is written by a moderator and read by every
+    /// bootstrap.</para>
     ///
-    /// <para><c>Channels</c> was one of the six and is back, because the write that disqualified it
-    /// was removed rather than argued away: <c>LastMessageId</c> moved to <c>ChannelLastMessages</c>,
-    /// which the fixture below expects to find homed in one region. If that ever regressed — a writer
-    /// touching the channel row's counter again — this line would be asserting a commit-wait onto the
-    /// message path, which is the most expensive place in the product to put one.</para>
+    /// <para>The last four are also why this list is worth asserting as a whole rather than table by
+    /// table: every base-permission read joins <c>UsersToServerRelations</c>, <c>MemberArchetypes</c>
+    /// and <c>Archetypes</c> in one query, and a join is as far away as its furthest table. Two of
+    /// the three being global bought nothing while the third was not.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task Space_and_user_tables_are_global(CancellationToken ct = default)
     {
         OnlyOnCockroach();
 
+        // ChannelGroupEntity has no ToTable and no DbSet, so its table is literally the class name.
+        var tables = new[]
+        {
+            "Users", "UserProfiles", "Spaces", "Archetypes", "Channels",
+            "UsersToServerRelations", "MemberArchetypes", "ChannelEntitlementOverwrites",
+            "ChannelGroupEntity"
+        };
+
         Assert.Multiple(async () =>
         {
-            foreach (var table in new[] { "Users", "UserProfiles", "Spaces", "Archetypes", "Channels" })
+            foreach (var table in tables)
                 Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain("LOCALITY GLOBAL"),
                     $"'{table}' should be replicated to every region");
         });
     }
 
     /// <summary>
-    /// And the tables written by a click, or by a message, stay in one region.
+    /// And the two tables with a hot column on an otherwise cold row stay in one region.
     /// </summary>
     /// <remarks>
-    /// <para>Every table here is written on something a person just did — a join, a role grant, a
-    /// permission toggle, an accepted invite, a drag-and-drop reorder, or sending a message
-    /// (<c>ChannelLastMessages</c>) — and <c>LOCALITY GLOBAL</c> charges each of those a commit-wait
-    /// of a few hundred milliseconds. The declarations that said otherwise were never applied to a
-    /// database, which is the only reason this was a correctable mistake rather than an
-    /// incident.</para>
+    /// <para><c>ChannelLastMessages</c> is written once per flush per active channel and carries
+    /// every message since the last flush — the hottest write in the product after <c>Messages</c>
+    /// itself, and the reason <c>Channels</c> could go global: the column was moved here rather than
+    /// argued away. <c>Invites</c> is the same shape one step earlier. The row is minted once and
+    /// never edited, except <c>UsedCount</c>, which is incremented per accepted join and has no
+    /// ceiling at all when <c>MaxUses</c> is zero, and the table carries a row-level TTL on top of
+    /// that. <c>LOCALITY GLOBAL</c> would charge each of those writes a commit-wait of a few hundred
+    /// milliseconds.</para>
     ///
-    /// <para><c>ChannelLastMessages</c> is the newest of them and the only one here that was created
-    /// after the placement annotations existed, which means it is also the only one whose declaration
-    /// really did reach the server: <c>LOCALITY</c> is emitted inside <c>CREATE TABLE</c>, and this
-    /// table had one. It reports the same clause as the tables nobody ever placed, which is the point
-    /// — the two are the same physical state.</para>
+    /// <para><c>ChannelLastMessages</c> is the newest of them and the only table in this fixture
+    /// whose declaration really did reach the server: <c>LOCALITY</c> is emitted inside
+    /// <c>CREATE TABLE</c>, and this table was created after the placement annotations existed. It
+    /// reports the same clause as the tables nobody ever placed, which is the point — the two are the
+    /// same physical state.</para>
     ///
     /// <para><b>This one passes today, and that is not it being weak.</b> A table converged to
     /// <c>REGIONAL BY TABLE</c> and a table nobody ever placed report the identical clause — that
-    /// equivalence is exactly why the reconciler emits no statement for these six and why the run
-    /// after it is empty. What this test catches is the day somebody moves one of them back into the
-    /// global block and the reconciler applies it: the assertion then reads
-    /// <c>LOCALITY GLOBAL</c> where it wanted the default, and names the table. It is also the
-    /// fixture's tripwire for a container that came up without a primary region — then the statement
-    /// carries no <c>LOCALITY</c> at all and every line here fails at once, which is the
-    /// wrong-reason red described above.</para>
+    /// equivalence is exactly why the reconciler emits no statement for these two and why the run
+    /// after it is empty. What this test catches is the day somebody moves one of them into the
+    /// global block and the reconciler applies it: the assertion then reads <c>LOCALITY GLOBAL</c>
+    /// where it wanted the default, and names the table. It is also the fixture's tripwire for a
+    /// container that came up without a primary region — then the statement carries no
+    /// <c>LOCALITY</c> at all and both lines here fail at once, which is the wrong-reason red
+    /// described above.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
-    public async Task Interactively_written_tables_are_homed_in_one_region(CancellationToken ct = default)
+    public async Task The_tables_with_a_hot_column_are_homed_in_one_region(CancellationToken ct = default)
     {
         OnlyOnCockroach();
 
-        // ChannelGroupEntity has no ToTable and no DbSet, so its table is literally the class name.
-        var tables = new[]
-        {
-            "ChannelLastMessages", "ChannelGroupEntity", "UsersToServerRelations",
-            "MemberArchetypes", "ChannelEntitlementOverwrites", "Invites"
-        };
-
         Assert.Multiple(async () =>
         {
-            foreach (var table in tables)
+            foreach (var table in new[] { "ChannelLastMessages", "Invites" })
                 Assert.That(await CreateTableSqlAsync(table, ct), Does.Contain(DefaultLocality),
-                    $"'{table}' is written interactively and must not pay a commit-wait for it");
+                    $"'{table}' carries a hot column and must not pay a commit-wait for it");
         });
     }
 
@@ -177,7 +185,7 @@ public class TablePlacementTests : TestBase
     /// And a table nobody placed keeps the default rather than acquiring one by accident.
     /// </summary>
     /// <remarks>
-    /// Most of the fifty-odd tables are unplaced on purpose — the decomposition decided eleven of
+    /// Most of the fifty-odd tables are unplaced on purpose — the decomposition decided twelve of
     /// them and left the rest where they were. If a table started showing up as global without
     /// anyone asking, the placement block would have grown a wildcard.
     /// </remarks>

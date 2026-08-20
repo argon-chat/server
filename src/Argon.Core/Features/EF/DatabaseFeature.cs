@@ -51,17 +51,12 @@ public static class DatabaseFeature
         var providerKind = builder.Configuration.GetDatabaseProviderKind();
         builder.Services.AddSingleton(new DatabaseProvider(providerKind));
 
-        // Unconditionally, not inside a Cockroach branch: the reconciler's most useful answer on
-        // PostgreSQL is "not applicable, and here is why", and a diagnostic that only exists on the
-        // engine it applies to cannot report that. Registration is what puts the verdict on /health;
-        // the pass itself runs either way.
-        builder.Services.AddSchemaReconcileDiagnostics();
-
-        // The other half of the same declaration. The reconciler makes CockroachDB honour Job:Expiration;
-        // TtlSweepGrain makes PostgreSQL honour it, since row-level TTL is syntax that engine does not
-        // have. Registered here rather than behind an engine check for the same reason as above — and
-        // because this is also what gives the grain the TtlSweepState it takes in its constructor, on
-        // exactly the roles that have an IDbContextFactory to sweep with.
+        // The other half of Job:Expiration. SchemaDeclarations makes CockroachDB honour it on the boot
+        // path; TtlSweepGrain makes PostgreSQL honour it, since row-level TTL is syntax that engine
+        // does not have. Registered unconditionally rather than behind an engine check, because the
+        // most useful thing this can say on CockroachDB is "not applicable, the database is doing it
+        // itself" — and because this is also what gives the grain the TtlSweepState it takes in its
+        // constructor, on exactly the roles that have an IDbContextFactory to sweep with.
         builder.Services.AddTtlSweepDiagnostics();
 
         builder.Services.AddPooledDbContextFactory<T>((_, options) =>

@@ -25,9 +25,9 @@ public class ExpirationJobAnnotation
     /// </summary>
     /// <remarks>
     /// Shared with <see cref="SchemaTtlModel"/> rather than written out twice. The generator writes the
-    /// declaration into <c>CREATE TABLE</c> and the reconciler reads the same declaration back out of
-    /// the live model to compare it against the server; a typo in either copy of the key would make the
-    /// reconciler quietly see no TTL anywhere and report a converged database.
+    /// declaration into <c>CREATE TABLE</c>, and <see cref="SchemaDeclarations"/> reads the same
+    /// declaration back out of the live model to issue it against tables that already existed; a typo
+    /// in either copy of the key would make that step quietly see no TTL anywhere and do nothing.
     /// </remarks>
     public const string AnnotationKey = "Job:Expiration";
 
@@ -93,6 +93,17 @@ public static class DbLocalityExtensions
         return modelBuilder;
     }
 
+    /// <summary>
+    /// The annotation the three <c>Placement*</c> helpers write.
+    /// </summary>
+    /// <remarks>
+    /// One spelling, for the same reason <see cref="ExpirationJobAnnotation.AnnotationKey"/> is one
+    /// spelling: it is written here, read by the <c>CREATE TABLE</c> generator below and read again by
+    /// <see cref="SchemaDeclarations.ReadLocalities"/>, and a typo in any copy would look exactly like
+    /// a model that declares no placement at all.
+    /// </remarks>
+    public const string LocalityAnnotationKey = "Regional:Locality";
+
     public static EntityTypeBuilder PlacementGlobal(this EntityTypeBuilder builder)
         => builder.AddLocalityAnnotation("GLOBAL");
 
@@ -106,7 +117,7 @@ public static class DbLocalityExtensions
 
     private static EntityTypeBuilder AddLocalityAnnotation(this EntityTypeBuilder builder, string locality)
     {
-        builder.HasAnnotation("Regional:Locality", locality);
+        builder.HasAnnotation(LocalityAnnotationKey, locality);
         return builder;
     }
 
@@ -255,7 +266,7 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
             builder.Append(")");
         }
 
-        if (HasAnnotation<string>(model, operation, "Regional:Locality", out var locality))
+        if (HasAnnotation<string>(model, operation, DbLocalityExtensions.LocalityAnnotationKey, out var locality))
             builder.AppendLine().Append("LOCALITY ").Append(locality);
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);

@@ -2,6 +2,38 @@
 
 **Automatic detection of the cluster's regional state, and convergence of an existing database towards the placement the model declares — without a migration squash.**
 
+> ## Retired, 2026-08-20 — read this before implementing anything below
+>
+> **Most of this document describes machinery that was built, then deleted.** It is kept because the
+> analysis of *what CockroachDB does* — §6b on the `REGIONAL BY ROW` conversion above all — is still
+> correct and still the reason `Messages` is not converted automatically. The *design* is not.
+>
+> **Retired:** the observed-state read (`SHOW CREATE TABLE` parsing, §2), the normalisation of the
+> server's rendering against the model's (§3), the plan/diff objects, the `Automatic` / `Approval` /
+> `Refused` tier ladder (§4), the `SchemaReconcileMode` setting `Database:Reconcile:Mode` (§9), the
+> verdict enum, the `argon-schema-*` metrics and the `schema-ttl` health check (§10). In code:
+> `SchemaTtlCatalog.cs`, `SchemaTtlPlan.cs`, `SchemaReconciler.cs`, `SchemaReconcileDiagnostics.cs` and
+> their tests.
+>
+> **Why:** every one of those existed to gate a single decision — whether turning a TTL on for the
+> first time, which deletes the whole accumulated expired backlog on the first job run, could happen
+> unattended. The repository owner decided it can. With that gone, reading the server back only ever
+> answered "do I need to issue this statement", and the answer is now always yes.
+>
+> **What replaced it:** `src/Argon.Core/Features/EF/SchemaDeclarations.cs`, one step on the boot path
+> in `WarmUpExtensions.MigrateArgonDatabase`, under the migration lease, after migrations are applied
+> on both the pending and the no-pending path. It reads `Regional:Locality` and `Job:Expiration` off
+> the live `DbContext.Model`, checks the engine with `DatabaseEngineProbe`, and issues
+> `ALTER TABLE … SET LOCALITY …` and `ALTER TABLE … SET (ttl_…)`. It refuses `REGIONAL BY ROW`
+> permanently — §6 is still the plan for that — does nothing on PostgreSQL and says so, and cannot fail
+> a boot. `Database:Declarations:DryRun` logs the statements instead of running them; it defaults to
+> false, because a step that defaults to reporting leaves the declarations exactly where they were.
+>
+> **Still true and still load-bearing below:** §1 (desired state comes from the live model and from no
+> snapshot), §5b (the placement audit, now pinned by `TablePlacementAuditTests`), §6/§6b (why
+> `Messages` needs a staged computed-column conversion), and `SchemaReconcileLease`, which survived the
+> deletion and is now the lease the migration boot path itself runs under.
+
 Status: design. Nothing in this document has been implemented. Every behavioural claim is tagged with the CockroachDB version it was checked against and with whether it was **verified** (fetched from official v25.3 documentation or read in `cockroachdb/cockroach` at `release-25.3`), **read from this repository**, or **inferred**.
 
 ---

@@ -27,9 +27,8 @@ public static class SchemaTtlModel
     /// <para>Keyed by <see cref="IReadOnlyEntityType.GetTableName"/> rather than by the <c>DbSet</c>
     /// property or the CLR type, and the difference is not theoretical in this model: two of the three
     /// TTL entities have no <c>ToTable</c> at all, so <c>SpaceInvite</c> lands in <c>Invites</c> and
-    /// <c>DevTeamMemberInvite</c> in <c>TeamInvites</c>. A reconciler keyed on anything else would
-    /// issue <c>ALTER TABLE "SpaceInvite"</c> against a table that does not exist — and a missing table
-    /// is reported as "not created yet", which reads like good news.</para>
+    /// <c>DevTeamMemberInvite</c> in <c>TeamInvites</c>. A reader keyed on anything else would issue
+    /// <c>ALTER TABLE "SpaceInvite"</c> against a table that does not exist.</para>
     ///
     /// <para>Two entity types on one table declaring two different TTLs throws rather than picking one.
     /// The model has TPH inheritance, so several entity types genuinely do map to one table, and
