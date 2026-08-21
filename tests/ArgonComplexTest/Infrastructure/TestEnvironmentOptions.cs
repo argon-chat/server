@@ -80,14 +80,60 @@ public static class TestEnvironmentOptions
     /// </remarks>
     public const string DatabaseRegion = "ru-central";
 
-    /// <summary>Every region the Cockroach fixture stands up, primary first.</summary>
+    /// <summary>Chooses the shape of the Cockroach cluster: <c>&lt;regions&gt;x&lt;nodes per region&gt;</c>.</summary>
+    public const string DatabaseTopologyVariable = "ARGON_TEST_CRDB_TOPOLOGY";
+
+    /// <summary>Region names the fixture can draw on, primary first.</summary>
     /// <remarks>
-    /// The same three names, in the same order, as the three nodes in
-    /// <c>deploy/docker-compose.local.yml</c>. Placement only means anything above one region, so a
-    /// fixture that means to exercise it needs more than the one a single node can have — and matching
-    /// the compose file means a developer who has run the local cluster recognises what the tests see.
+    /// The same names, in the same order, as the nodes in <c>deploy/docker-compose.local.yml</c>, so a
+    /// developer who has run the local cluster recognises what the tests see.
     /// </remarks>
-    public static readonly string[] DatabaseRegions = [DatabaseRegion, "eu-central", "us-east"];
+    private static readonly string[] KnownRegions = [DatabaseRegion, "eu-central", "us-east"];
+
+    /// <summary>
+    /// How many regions, and how many nodes in each.
+    /// </summary>
+    /// <remarks>
+    /// <para>Default <c>3x1</c>: three regions of one node. That is the cheapest cluster placement can
+    /// be asserted against at all — below two regions the server's apply step leaves placement alone on
+    /// purpose — and it starts in seconds, which is what the placement, TTL, lease and declaration
+    /// fixtures need and all they need.</para>
+    ///
+    /// <para><c>2x3</c> is the other shape worth having, and it is what a two-region deployment really
+    /// looks like: <c>UseMultiRegionDatabase</c> derives <c>SURVIVE ZONE FAILURE</c> below three
+    /// regions, and zone survival means nothing unless a region has more than one zone in it. Six nodes
+    /// take minutes rather than seconds, so it is asked for rather than paid for by every run.</para>
+    /// </remarks>
+    public static (int Regions, int NodesPerRegion) DatabaseTopology
+    {
+        get
+        {
+            var value = Read(DatabaseTopologyVariable);
+
+            if (string.IsNullOrWhiteSpace(value))
+                return (3, 1);
+
+            var parts = value.Split('x', 'X');
+
+            if (parts.Length is not 2
+             || !int.TryParse(parts[0], out var regions)
+             || !int.TryParse(parts[1], out var nodes)
+             || regions < 1 || nodes < 1)
+                throw new InvalidOperationException(
+                    $"{DatabaseTopologyVariable} is '{value}'; it wants <regions>x<nodes per region>, "
+                  + "for example 3x1 or 2x3");
+
+            if (regions > KnownRegions.Length)
+                throw new InvalidOperationException(
+                    $"{DatabaseTopologyVariable} asks for {regions} regions and only {KnownRegions.Length} "
+                  + $"are named: {string.Join(", ", KnownRegions)}");
+
+            return (regions, nodes);
+        }
+    }
+
+    /// <summary>Every region the Cockroach fixture stands up, primary first.</summary>
+    public static string[] DatabaseRegions => KnownRegions[..DatabaseTopology.Regions];
 
     public static string RedisImage => Read(RedisImageVariable) ?? "redis:7-alpine";
 

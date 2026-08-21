@@ -146,12 +146,61 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     public async Task GoOffline()
         => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).GoOfflineAsync();
 
+    /// <summary>
+    /// Typing, addressed by the space the channel belongs to as well as the channel.
+    /// </summary>
+    /// <remarks>
+    /// <para>The space id is here for routing and is deliberately unused today. Once there is a second
+    /// region, a call arriving in one region for a channel homed in another has to be sent there, and
+    /// the decision needs to know which region owns the thing being addressed. Every other channel
+    /// operation already carries the space — <c>ChannelInteraction</c> is declared
+    /// <c>service ChannelInteraction(spaceId, channelId)</c> — and these two were the only client-to-
+    /// server calls in the product that named a channel and nothing else.</para>
+    ///
+    /// <para>Deriving the region from the channel id instead would have worked, because
+    /// <c>ArgonId.NewIn(spaceId)</c> makes a channel inherit its space's region. It was rejected: that
+    /// is correct only while every space-scoped id is minted through <c>NewIn</c>, some are minted with
+    /// <c>ArgonId.New()</c> — which stamps the region of whichever process happened to run — and a
+    /// routing decision resting on mint discipline fails silently and in production. The space is the
+    /// authority, so the space travels.</para>
+    ///
+    /// <para>Added beside the old ones rather than replacing them, and that ordering is the point: the
+    /// client can start sending the space while the server still ignores it, so the routing seam lands
+    /// later without a second coordinated release.</para>
+    ///
+    /// <para>A new NAME rather than an overload, because SignalR refuses one: hub method discovery
+    /// throws <c>Duplicate definitions of 'IAmTyping'. Overloading is not supported.</c> at startup, so
+    /// the obvious shape takes the whole process down rather than failing at the call.</para>
+    /// </remarks>
+    public async Task IAmTypingIn(Guid spaceId, Guid channelId)
+    {
+        EnsureBeforeCall(true);
+        await factory.GetGrain<IChannelGrain>(channelId).OnTypingEmit();
+    }
+
+    /// <inheritdoc cref="IAmTypingIn"/>
+    public async Task IAmStopTypingIn(Guid spaceId, Guid channelId)
+    {
+        EnsureBeforeCall(true);
+        await factory.GetGrain<IChannelGrain>(channelId).OnTypingStopEmit();
+    }
+
+    /// <summary>Deprecated: names a channel with no space, so it cannot be routed.</summary>
+    /// <remarks>
+    /// Kept working for every client that has not moved to the overload above. It is the one shape a
+    /// second region cannot serve correctly — the call would be handled wherever it landed rather than
+    /// where the channel lives — so it should be removed once the desktop client has shipped the
+    /// change, and not before.
+    /// </remarks>
+    [Obsolete("Send the space id: IAmTypingIn(spaceId, channelId). It cannot be routed across regions.")]
     public async Task IAmTyping(Guid channelId)
     {
         EnsureBeforeCall(true);
         await factory.GetGrain<IChannelGrain>(channelId).OnTypingEmit();
     }
 
+    /// <inheritdoc cref="IAmTyping"/>
+    [Obsolete("Send the space id: IAmStopTypingIn(spaceId, channelId). It cannot be routed across regions.")]
     public async Task IAmStopTyping(Guid channelId)
     {
         EnsureBeforeCall(true);

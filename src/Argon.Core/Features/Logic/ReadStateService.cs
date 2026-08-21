@@ -14,12 +14,35 @@ public class ReadStateService(
     private static readonly TimeSpan CacheExpiration = TimeSpan.FromHours(2);
 
     private static string GetCacheKey(Guid userId) => $"read_state:{userId}";
-    private static string EncodeCacheValue(long msgId, int mentions) => $"{msgId}:{mentions}";
+    /// <summary>
+    /// One read state, as it sits in the hash: <c>messageId:mentions[:spaceId]</c>.
+    /// </summary>
+    /// <remarks>
+    /// The space is here because leaving it out was a bug the client could see. A cache miss read the
+    /// row and carried its <c>SpaceId</c> onto the wire; a hit rebuilt the entry with <c>null</c>,
+    /// because the value had no room for it. So the field appeared on the first badge fetch after a
+    /// cold cache and vanished for the two hours that entry lived — the same user, the same channel,
+    /// two different answers.
+    /// </remarks>
+    private static string EncodeCacheValue(long msgId, int mentions, Guid? spaceId)
+        => spaceId is null ? $"{msgId}:{mentions}" : $"{msgId}:{mentions}:{spaceId}";
 
-    private static (long msgId, int mentions) DecodeCacheValue(string value)
+    /// <summary>
+    /// Reads a value back, in either shape.
+    /// </summary>
+    /// <remarks>
+    /// Two fields is the old encoding and still turns up: entries written before this change live out
+    /// their TTL, and a deploy does not clear the cache. Treating a short value as an error would make
+    /// every user's badges fail for up to two hours after the rollout, which is a worse bug than the
+    /// one being fixed. A missing space reads as unknown, which is what it was.
+    /// </remarks>
+    private static (long msgId, int mentions, Guid? spaceId) DecodeCacheValue(string value)
     {
-        var sep = value.IndexOf(':');
-        return (long.Parse(value.AsSpan(0, sep)), int.Parse(value.AsSpan(sep + 1)));
+        var parts = value.Split(':');
+
+        return (long.Parse(parts[0]),
+                int.Parse(parts[1]),
+                parts.Length > 2 && Guid.TryParse(parts[2], out var spaceId) ? spaceId : null);
     }
 
     public async Task AckAsync(Guid userId, Guid channelId, Guid? spaceId, long messageId, CancellationToken ct = default)
@@ -63,7 +86,7 @@ public class ReadStateService(
         }
 
         await ctx.SaveChangesAsync(ct);
-        await UpdateCacheEntryAsync(userId, channelId, messageId, 0);
+        await UpdateCacheEntryAsync(userId, channelId, messageId, 0, spaceId);
     }
 
     public async Task IncrementMentionsAsync(Guid userId, Guid channelId, Guid? spaceId, int delta = 1, CancellationToken ct = default)
@@ -219,8 +242,8 @@ DO UPDATE SET ""MentionCount"" = ""ChannelReadStates"".""MentionCount"" + 1,
         {
             return cached.Select(x =>
             {
-                var (msgId, mentions) = DecodeCacheValue(x.Value!);
-                return new ReadStateEntry(Guid.Parse(x.Name.ToString()), null, msgId, mentions);
+                var (msgId, mentions, spaceId) = DecodeCacheValue(x.Value!);
+                return new ReadStateEntry(Guid.Parse(x.Name.ToString()), spaceId, msgId, mentions);
             }).ToList();
         }
 
@@ -235,7 +258,7 @@ DO UPDATE SET ""MentionCount"" = ""ChannelReadStates"".""MentionCount"" + 1,
         if (states.Count > 0)
         {
             var entries = states.Select(s =>
-                new HashEntry(s.ChannelId.ToString(), EncodeCacheValue(s.LastReadMessageId, s.MentionCount))
+                new HashEntry(s.ChannelId.ToString(), EncodeCacheValue(s.LastReadMessageId, s.MentionCount, s.SpaceId))
             ).ToArray();
 
             await cache.HashSetAsync(cacheKey, entries);
@@ -245,14 +268,14 @@ DO UPDATE SET ""MentionCount"" = ""ChannelReadStates"".""MentionCount"" + 1,
         return states;
     }
 
-    private async Task UpdateCacheEntryAsync(Guid userId, Guid channelId, long messageId, int mentionCount)
+    private async Task UpdateCacheEntryAsync(Guid userId, Guid channelId, long messageId, int mentionCount, Guid? spaceId)
     {
         try
         {
             await using var conn = redis.Rent();
             var cache = conn.GetDatabase(CacheDbId);
             var cacheKey = GetCacheKey(userId);
-            await cache.HashSetAsync(cacheKey, channelId.ToString(), EncodeCacheValue(messageId, mentionCount));
+            await cache.HashSetAsync(cacheKey, channelId.ToString(), EncodeCacheValue(messageId, mentionCount, spaceId));
             await cache.KeyExpireAsync(cacheKey, CacheExpiration);
         }
         catch (Exception ex)

@@ -64,17 +64,23 @@ public sealed class PostgresTestDatabase : ITestDatabase
 }
 
 /// <summary>
-/// A three-node CockroachDB cluster, one node per region, talking to a database that has been told
-/// all three names.
+/// A CockroachDB cluster of as many regions and zones as the run asked for, talking to a database that
+/// has been told every region name.
 /// </summary>
 /// <remarks>
-/// <para>Three nodes rather than one, and the reason is that a single node cannot answer the question
-/// this fixture exists for. CockroachDB derives the set of valid region names from the
-/// <c>--locality</c> its nodes were started with, so a one-node cluster has exactly one region — and
-/// the server's apply step deliberately leaves table placement alone below two, because
-/// <c>LOCALITY GLOBAL</c> charges a commit-wait on every write and repays it only in cross-region
-/// reads. On a one-node cluster the correct number of <c>LOCALITY</c> statements is zero, which makes
-/// the placement assertions unanswerable rather than merely red.</para>
+/// <para>More than one node, and the reason is that a single one cannot answer the question this
+/// fixture exists for. CockroachDB derives the set of valid region names from the <c>--locality</c> its
+/// nodes were started with, so a one-node cluster has exactly one region — and the server's apply step
+/// deliberately leaves table placement alone below two, because <c>LOCALITY GLOBAL</c> charges a
+/// commit-wait on every write and repays it only in cross-region reads. On a one-node cluster the
+/// correct number of <c>LOCALITY</c> statements is zero, which makes the placement assertions
+/// unanswerable rather than merely red.</para>
+///
+/// <para>The shape comes from <see cref="TestEnvironmentOptions.DatabaseTopology"/>. Three regions of
+/// one node is the default and is all the placement, TTL, lease and declaration fixtures need. Two
+/// regions of three is what a two-region deployment actually looks like, and it is the only shape in
+/// which <c>SURVIVE ZONE FAILURE</c> — the goal our model derives below three regions — describes
+/// something the cluster can do.</para>
 ///
 /// <para>The topology is the one <c>deploy/docker-compose.local.yml</c> already describes — the same
 /// three region names, the same join list — so a developer reading either recognises the other. The
@@ -127,13 +133,17 @@ public sealed class CockroachTestDatabase : ITestDatabase
     /// </remarks>
     private IContainer BuildNode(int index)
     {
-        var alias = $"cockroach{index + 1}";
-        var join  = string.Join(",", Enumerable
-           .Range(1, TestEnvironmentOptions.DatabaseRegions.Length)
+        var (regions, perRegion) = TestEnvironmentOptions.DatabaseTopology;
+
+        var alias  = $"cockroach{index + 1}";
+        var region = TestEnvironmentOptions.DatabaseRegions[index / perRegion];
+        var zone   = $"{region}-{index % perRegion + 1}";
+
+        var join = string.Join(",", Enumerable
+           .Range(1, regions * perRegion)
            .Select(n => $"cockroach{n}:{Port}"));
 
-        var builder = new ContainerBuilder()
-           .WithImage(TestEnvironmentOptions.DatabaseImage)
+        var builder = new ContainerBuilder(TestEnvironmentOptions.DatabaseImage)
            .WithNetwork(network)
            .WithNetworkAliases(alias)
            .WithCommand(
@@ -141,7 +151,11 @@ public sealed class CockroachTestDatabase : ITestDatabase
                 $"--listen-addr={alias}:{Port}",
                 $"--advertise-addr={alias}:{Port}",
                 $"--join={join}",
-                $"--locality=region={TestEnvironmentOptions.DatabaseRegions[index]}")
+                // Zone as well as region, because the survival goal our own model derives below three
+                // regions is SURVIVE ZONE FAILURE, and that is a promise about nothing unless a region
+                // is made of more than one zone. With one node per region the zone is still declared —
+                // it costs nothing and it keeps the two topologies describing themselves the same way.
+                $"--locality=region={region},zone={zone}")
             // The port, not the HTTP health endpoint the module waits on: a node that has joined but
             // whose cluster has not been initialised answers neither SQL nor /health, and init is the
             // very next thing this class does. A listening socket is the most that can be true before
@@ -156,7 +170,9 @@ public sealed class CockroachTestDatabase : ITestDatabase
     {
         await network.CreateAsync(ct);
 
-        for (var index = 0; index < TestEnvironmentOptions.DatabaseRegions.Length; index++)
+        var (regions, perRegion) = TestEnvironmentOptions.DatabaseTopology;
+
+        for (var index = 0; index < regions * perRegion; index++)
             nodes.Add(BuildNode(index));
 
         // Concurrently, because each node blocks until it can reach its peers: starting them one at a
