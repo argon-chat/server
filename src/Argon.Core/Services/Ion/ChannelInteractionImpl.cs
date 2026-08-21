@@ -1,0 +1,264 @@
+namespace Argon.Services.Ion;
+
+using Argon.Api.Features.Utils;
+using Argon.Core.Grains.Interfaces;
+using Argon.Sfu;
+using ion.runtime;
+using Livekit.Server.Sdk.Dotnet;
+using Microsoft.Extensions.Configuration;
+
+public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfiguration configuration, ILogger<IChannelInteraction> logger)
+    : IChannelInteraction
+{
+    // Voice links get their own path so a plain space invite and a room invite stay tellable apart
+    // by eye — "argon.gl/v/..." is the shape the design hands out.
+    private const string DefaultVoiceInviteDomain = "https://argon.gl/v";
+
+    public async Task CreateChannelGroup(Guid spaceId, Guid channelId, string name, string? description, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .CreateChannelGroup(name, description);
+        
+    public async Task MoveChannelGroup(Guid spaceId, Guid groupId, Guid? afterGroupId, Guid? beforeGroupId, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .MoveChannelGroup(groupId, afterGroupId, beforeGroupId);
+
+    public async Task DeleteChannelGroup(Guid spaceId, Guid channelId, Guid groupId, bool deleteChannels, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .DeleteChannelGroup(groupId, deleteChannels);
+
+    public async Task CreateChannel(Guid spaceId, Guid channelId, CreateChannelRequest request, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(request.spaceId)
+           .CreateChannel(new ChannelInput(request.name, request.desc, request.kind), request.groupId);
+
+    public async Task MoveChannel(Guid spaceId, Guid channelId, Guid? targetGroupId, Guid? afterChannelId, Guid? beforeChannelId, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .MoveChannel(channelId, targetGroupId, afterChannelId, beforeChannelId);
+
+    public async Task DeleteChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .DeleteChannel(channelId);
+
+    public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => new(await this.GetGrain<ISpaceGrain>(spaceId)
+           .GetChannels());
+
+    public async Task UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description, CancellationToken ct = default)
+        => await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .UpdateChannelGroup(groupId, name, description, null, ct);
+
+    public async Task<IUpdateChannelResult> UpdateChannel(Guid spaceId, Guid channelId, string? name, string? description, int? slowModeSeconds,
+        CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .UpdateChannelSettings(name, description, slowModeSeconds, ct);
+
+        return result.IsSuccess
+            ? new SuccessUpdateChannel(result.Value.ToDto())
+            : new FailedUpdateChannel(result.Error);
+    }
+
+    public async Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(Guid spaceId, Guid channelId, int expireMinutes, int maxUses,
+        CancellationToken ct = default)
+    {
+        // Same "0 means never" convention as ServerInteraction.CreateInviteCode: a far-future
+        // timestamp instead of a null column, so the TTL sweeper needs no special case.
+        var expiration = expireMinutes <= 0
+            ? TimeSpan.FromDays(365 * 100)
+            : TimeSpan.FromMinutes(expireMinutes);
+
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .CreateVoiceInvite(expiration, maxUses, ct);
+
+        if (!result.IsSuccess)
+            return new FailedCreateVoiceInvite(result.Error);
+
+        var domain = configuration["Invites:VoiceDomain"] ?? DefaultVoiceInviteDomain;
+        return new SuccessCreateVoiceInvite(new ArgonContracts.InviteCode(result.Value), $"{domain}/{result.Value}");
+    }
+
+    public async Task<IDeleteMessageResult> DeleteMessage(Guid spaceId, Guid channelId, long messageId, CancellationToken ct = default)
+    {
+        var error = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .DeleteMessage(messageId, ct);
+
+        return error is DeleteMessageError.NONE
+            ? new SuccessDeleteMessage()
+            : new FailedDeleteMessage(error);
+    }
+
+    public async Task<IonArray<ArgonMessage>> QueryMessages(Guid spaceId, Guid channelId, long? from, int limit, CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .QueryMessages(from, limit);
+
+        return result.Select(x => x.ToDto()).ToList();
+    }
+
+    public async Task<long> SendMessage(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities, long randomId,
+        long? replyTo, CancellationToken ct = default)
+    {
+        this.EnforceLockdown(LockdownSeverity.Critical);
+        return await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
+    }
+
+    public async Task<SendMessageReadback> SendMessageWithReadback(Guid spaceId, Guid channelId, string text, IonArray<IMessageEntity> entities,
+        long randomId, long? replyTo,
+        CancellationToken ct = default)
+    {
+        this.EnforceLockdown(LockdownSeverity.Critical);
+        var msgId = await this
+           .GetGrain<IChannelGrain>(channelId)
+           .SendMessage(text, entities.Values.ToList(), randomId, replyTo);
+        return new SendMessageReadback(msgId, channelId, spaceId, randomId);
+    }
+
+    public async Task DisconnectFromVoiceChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this
+           .GetGrain<IChannelGrain>(channelId)
+           .Leave(this.GetUserId());
+
+    public async Task<IInterlinkResult> Interlink(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        this.EnforceLockdown(LockdownSeverity.Middle);
+        var result = await this.GetGrain<IChannelGrain>(channelId).Join();
+
+        if (!result.IsSuccess) 
+            return new FailedJoinVoice(result.Error);
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
+        return new SuccessJoinVoice(rtc, result.Value);
+    }
+
+    public async Task<IInterlinkStreamResult> InterlinkStream(Guid spaceId, Guid channelId, int density, CancellationToken ct = default)
+    {
+        // TODO check scoping
+        var ingressUrl = "";
+        var ingressKey = "";
+        try
+        {
+            var ingressResult = await ingressService.CreateIngress(new CreateIngressRequest()
+            {
+                Name                = $"Streaming.{spaceId}.{channelId}.{density}.{this.GetUserId()}",
+                Enabled             = true,
+                InputType           = IngressInput.WhipInput,
+                RoomName            = ArgonRoomId.FromArgonChannel(spaceId, channelId).ToRawRoomId(),
+                ParticipantName     = this.GetUserId().ToString(),
+                ParticipantIdentity = this.GetUserId().ToString()
+            });
+
+            if (ingressResult is null)
+            {
+                return new FailedStartStream(StartStreamError.BAD_PARAMS);
+            }
+
+            ingressUrl = ingressResult.Url;
+            ingressKey = ingressResult.StreamKey;
+            // TODO enqueue to gc ingress
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "failed create ingress");
+            return new FailedStartStream(StartStreamError.INTERNAL_ERROR);
+        }
+
+        var rtc = await this.GetGrain<IVoiceControlGrain>(Guid.Empty).GetRtcEndpointAsync(ct);
+        return new SuccessStartStream(rtc, ingressKey, ingressUrl);
+    }
+
+    public async Task<bool> KickMemberFromChannel(Guid spaceId, Guid channelId, Guid memberId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).KickMemberFromChannel(memberId);
+
+    public async Task<IStartDrawingResult> StartDrawingSession(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).StartDrawingSession();
+        if (!result.IsSuccess)
+            return new DrawingDenied(MapDrawingDeny(result.Error));
+
+        var d = result.Value;
+        return new DrawingStarted(new DrawingSession(
+            d.SessionId, d.StreamerId, new IonArray<Guid>(d.AllowedDrawers), d.DefaultTtlMs));
+    }
+
+    public Task<bool> StopDrawingSession(Guid spaceId, Guid channelId, string sessionId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).StopDrawingSession(sessionId);
+
+    private static DrawingDenyReason MapDrawingDeny(DrawingDenyKind kind) => kind switch
+    {
+        DrawingDenyKind.FeatureDisabled => DrawingDenyReason.FEATURE_DISABLED,
+        DrawingDenyKind.NotStreaming    => DrawingDenyReason.NOT_STREAMING,
+        DrawingDenyKind.NoPermission    => DrawingDenyReason.NO_PERMISSION,
+        DrawingDenyKind.InternalError   => DrawingDenyReason.INTERNAL_ERROR,
+        _                               => DrawingDenyReason.NONE,
+    };
+
+    public Task<bool> BeginRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).BeginRecord(ct);
+
+    public Task<bool> StopRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => this.GetGrain<IChannelGrain>(channelId).StopRecord(ct);
+
+    public async Task<LinkedMeetingInfo> CreateLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).CreateLinkedMeetingAsync(ct);
+
+        if (result is null)
+            throw new InvalidOperationException("");
+
+        return new LinkedMeetingInfo(result.MeetId, result.InviteLink, result.InviteCode, DateTime.UtcNow);
+    }
+
+    public async Task EndLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).EndLinkedMeetingAsync(ct);
+
+    public async Task<IUploadFileResult> BeginUploadAttachment(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this.GetGrain<IChannelGrain>(channelId).BeginUploadAttachment(ct);
+
+        if (result.IsSuccess)
+        {
+            var t = result.Value;
+            return new SuccessUploadFile(t.BlobId, t.Url, UploadHelpers.ToFormFields(t.Fields), t.TtlSeconds);
+        }
+        return new FailedUploadFile(result.Error);
+    }
+
+    public async Task<AttachmentInfo> CompleteUploadAttachment(Guid spaceId, Guid channelId, Guid blobId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).CompleteUploadAttachment(blobId, ct);
+
+    public async Task<IInvokeSlashCommandResult> InvokeSlashCommand(Guid spaceId, Guid channelId, Guid commandId, IonArray<SlashCommandOption> options, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InvokeSlashCommand(commandId, options.Values.ToList());
+
+    public async Task<IInteractWithControlResult> InteractWithControl(Guid spaceId, Guid channelId, long messageId, string controlId, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InteractWithControl(messageId, controlId);
+
+    public async Task<IInteractWithSelectResult> InteractWithSelect(Guid spaceId, Guid channelId, long messageId, string customId, IonArray<string> values, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).InteractWithSelect(messageId, customId, values.Values.ToList());
+
+    public async Task<ISubmitModalResult> SubmitModal(Guid spaceId, Guid channelId, Guid interactionId, IonArray<ModalSubmitValue> values, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).SubmitModal(interactionId, values.Values.ToList());
+
+    public async Task<IAddReactionResult> AddReaction(Guid spaceId, Guid channelId, long messageId, string emoji, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).AddReaction(messageId, emoji);
+
+    public async Task<IRemoveReactionResult> RemoveReaction(Guid spaceId, Guid channelId, long messageId, string emoji, CancellationToken ct = default)
+        => await this.GetGrain<IChannelGrain>(channelId).RemoveReaction(messageId, emoji);
+
+    public async Task<IonArray<MessageReactionsEntry>> BatchGetReactions(Guid spaceId, Guid channelId, IonArray<long> messageIds, CancellationToken ct = default)
+    {
+        var dict = await this.GetGrain<IChannelGrain>(channelId).BatchGetReactions(messageIds.Values.ToList());
+        return new IonArray<MessageReactionsEntry>(
+            dict.Select(kv => new MessageReactionsEntry(kv.Key, kv.Value)).ToList());
+    }
+}

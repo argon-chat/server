@@ -1,0 +1,73 @@
+namespace Argon.Grains.Interfaces;
+
+
+[Alias("Argon.Grains.Interfaces.IUserGrain")]
+public interface IUserGrain : IGrainWithGuidKey
+{
+    [Alias(nameof(UpdateProfileAsync))]
+    Task<Either<UpdateProfileResult, UpdateMeError>> UpdateProfileAsync(UserEditInput input, CancellationToken ct = default);
+
+    [Alias(nameof(GetMe))]
+    Task<UserEntity> GetMe();
+
+    [Alias(nameof(GetAsArgonUser))]
+    Task<ArgonUser> GetAsArgonUser();
+
+    [Alias(nameof(GetMyProfile))]
+    Task<ArgonUserProfile> GetMyProfile();
+
+    [Alias(nameof(GetMyServers))]
+    Task<List<ArgonSpaceBase>> GetMyServers();
+
+    [Alias(nameof(GetMyServersIds))]
+    Task<List<Guid>> GetMyServersIds(CancellationToken ct = default);
+
+    [Alias(nameof(BroadcastPresenceAsync))]
+    ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId);
+
+    // alwaysBroadcast=true: the user explicitly cleared their activity (client RemoveBroadcastPresence)
+    // — fan out the removal/representative even if this session's activity key already lapsed (TTL), so
+    // already-connected observers don't keep a stale activity forever. alwaysBroadcast=false: a session
+    // just ended — only fan out if it actually had an activity, to avoid spamming removals on every
+    // disconnect of activity-less users.
+    [Alias(nameof(RemoveBroadcastPresenceAsync))]
+    ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast);
+
+    [Alias(nameof(UpdateUserDeviceHistory))]
+    ValueTask UpdateUserDeviceHistory();
+
+    [Alias(nameof(BeginUploadUserFile))]
+    ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteUploadUserFile))]
+    ValueTask CompleteUploadUserFile(Guid blobId, UserFileKind kind, CancellationToken ct = default);
+
+    [Alias(nameof(GetLimitationForUser))]
+    ValueTask<LockedAuthStatus> GetLimitationForUser();
+
+    /// <summary>
+    /// Aggregates status from all active sessions and broadcasts the result to all servers.
+    /// Called by UserSessionGrain when session status changes.
+    /// </summary>
+    [Alias(nameof(AggregateAndBroadcastStatusAsync))]
+    ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
+
+    [Alias(nameof(ResetPremiumProfileAsync))]
+    ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
+
+    [Alias(nameof(GetLegalState))]
+    Task<LegalState> GetLegalState();
+
+    [Alias(nameof(AcceptLegal))]
+    Task<LegalState> AcceptLegal(string tosVersion, string privacyVersion);
+}
+
+
+public record UploadTicket(Guid BlobId, string Url, Dictionary<string, string> Fields, int TtlSeconds);
+
+public record UpdateProfileResult(ArgonUser User, ArgonUserProfile Profile);
+
+public enum UserFileKind
+{
+    Avatar
+}

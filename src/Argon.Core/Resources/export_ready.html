@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Data Export is Ready</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            margin: 0;
+            padding: 0;
+            color: #333333;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #ffffff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .header {
+            font-size: 24px;
+            font-weight: bold;
+            text-align: center;
+            color: #4caf50;
+            margin-bottom: 20px;
+        }
+
+        .message {
+            font-size: 16px;
+            line-height: 1.6;
+            color: #444444;
+            margin-bottom: 20px;
+        }
+
+        .button-container {
+            text-align: center;
+            margin: 30px 0;
+        }
+
+        .download-button {
+            display: inline-block;
+            background: linear-gradient(135deg, #4caf50, #81c784);
+            color: #ffffff;
+            padding: 16px 48px;
+            text-decoration: none;
+            border-radius: 10px;
+            font-size: 18px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        .warning-box {
+            font-size: 14px;
+            background-color: #fff8e1;
+            border-left: 4px solid #ffc107;
+            padding: 16px;
+            border-radius: 4px;
+            margin: 20px 0;
+            color: #555555;
+        }
+
+        .link-fallback {
+            font-size: 13px;
+            color: #888888;
+            word-break: break-all;
+            margin-bottom: 24px;
+        }
+
+        .footer {
+            font-size: 14px;
+            color: #888888;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .legal {
+            font-size: 13px;
+            color: #bbbbbb;
+            text-align: center;
+            margin-top: 40px;
+            line-height: 1.5;
+        }
+
+        .legal a {
+            color: #bbbbbb;
+            text-decoration: underline;
+            margin: 0 8px;
+        }
+
+        .legal a:hover {
+            color: #3ed3d3;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">Your Data Export is Ready</div>
+    <div class="message">
+        Hi {{ displayName }},
+    </div>
+    <div class="message">
+        Your account data export has been completed. You can download your archive using the button below.
+    </div>
+    <div class="button-container">
+        <a href="{{ downloadUrl }}" class="download-button">Download Archive</a>
+    </div>
+    <div class="warning-box">
+        ⚠️ <strong>Important:</strong> This download link will expire in <strong>48 hours</strong>.
+        After that, the archive will be permanently deleted and you'll need to request a new export.
+    </div>
+    <div class="link-fallback">
+        If the button above doesn't work, copy and paste this URL into your browser:<br>
+        {{ downloadUrl }}
+    </div>
+    <div class="message">
+        The archive contains your data in JSON format. Media files are referenced as links to our CDN.
+    </div>
+    <div class="footer">
+        Thank you,<br>
+        The Argon Team
+    </div>
+    <div class="legal">
+        © 2026 Argon Inc. LLC<br>
+        2 Sasna Tsrer str., Yerevan, 0054<br>
+        <a href="https://argon.gl">argon.gl</a><br /><br />
+        You are receiving this service email with important information regarding your account.
+    </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,156 @@
+networks:
+  argon:
+    name: argon
+    driver: bridge
+
+services:
+  nats:
+    image: nats
+    container_name: argon-nats
+    ports:
+      - "4222:4222"
+    command: "--http_port 8222 --server_name nats-server-1 --jetstream"
+    networks:
+      - argon
+
+  cockroach1:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach1
+    hostname: cockroach1
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach1:26257
+      - --http-addr=cockroach1:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=ru-central,zone=ru-3
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - cockroach1:/cockroach/cockroach-data
+    networks:
+      - argon
+
+  cockroach2:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach2
+    hostname: cockroach2
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach2:26257
+      - --http-addr=cockroach2:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=eu-central,zone=eu-1
+    volumes:
+      - cockroach2:/cockroach/cockroach-data
+    networks:
+      - argon
+
+  cockroach3:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach3
+    hostname: cockroach3
+    command:
+      - start
+      - --insecure
+      - --store=/cockroach/cockroach-data
+      - --listen-addr=cockroach3:26257
+      - --http-addr=cockroach3:8080
+      - --join=cockroach1:26257,cockroach2:26257,cockroach3:26257
+      - --locality=region=us-east,zone=us-1
+    volumes:
+      - cockroach3:/cockroach/cockroach-data
+    networks:
+      - argon
+
+  init:
+    image: cockroachdb/cockroach:v25.3.3
+    container_name: cockroach-init
+    depends_on:
+      - cockroach1
+      - cockroach2
+      - cockroach3
+    networks:
+      - argon
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "sleep 10 && /cockroach/cockroach init --insecure --host=cockroach1:26257"
+
+  argon-s3:
+    image: chrislusf/seaweedfs
+    container_name: argon-storage-s3
+    command: "server -s3 -dir /data"
+    ports:
+      - "8333:8333"
+      - "9321:9321"
+    volumes:
+      - argon-s3:/data
+    environment:
+      S3_ACCESS_KEY: argon
+      S3_SECRET_KEY: argon
+    networks:
+      - argon
+
+  kineticafs:
+    image: argonchat/kineticafs:latest
+    ports:
+      - "3000:3000"
+    depends_on:
+      scylla:
+        condition: service_healthy
+    environment:
+      - KINETICAFS_DATABASE=postgres
+      - KINETICAFS_POSTGRES=postgres://root@cockroach1:26257/kin?sslmode=disable
+    restart: unless-stopped
+    networks:
+      - argon
+
+  dragonfly:
+    image: docker.dragonflydb.io/dragonflydb/dragonfly:latest
+    container_name: argon-dragonfly
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - argon-cache-data:/data
+    ulimits:
+      memlock: -1
+    networks:
+      - argon
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: livekit
+    restart: unless-stopped
+    ports:
+      - "7880:7880"
+      - "60000-60010:60000-60010/udp"
+    depends_on:
+      - livekit-caddy
+    command: >
+      --dev
+      --bind 0.0.0.0
+      --config /config/livekit.yaml
+    volumes:
+      - ./livekit.yaml:/config/livekit.yaml:ro
+  livekit-caddy:
+    image: caddy:latest
+    container_name: caddy
+    ports:
+      - "9443:9443"
+
+    restart: unless-stopped
+    volumes:
+      - ./certs:/certs:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+
+volumes:
+  cockroach1:
+  cockroach2:
+  cockroach3:
+  argon-s3:
+  argon-cache-data:

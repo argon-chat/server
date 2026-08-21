@@ -1,0 +1,112 @@
+name: Production
+
+on:
+  push:
+    branches: ["master"]
+  workflow_dispatch:
+
+jobs:
+  # test:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         submodules: recursive
+
+  #     - name: Setup .NET
+  #       uses: actions/setup-dotnet@v4
+  #       with:
+  #         dotnet-version: 10.0.x
+
+  #     - name: Cache NuGet packages
+  #       uses: actions/cache@v4
+  #       with:
+  #         path: ~/.nuget/packages
+  #         key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+
+  #     - name: Restore
+  #       run: dotnet restore
+
+  #     - name: Build
+  #       run: dotnet build --no-restore --verbosity normal
+
+  #     - name: Test
+  #       run: dotnet test --no-build --verbosity normal
+
+  build-ghcr:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Docker login GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.ARGON_GHCR_PAT }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push image to GHCR
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./src/Argon.Api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/argon-chat/orleans:${{ github.run_number }}
+            ghcr.io/argon-chat/orleans:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ github.run_number }}
+            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+
+  # build-dockerhub:
+  #   if: startsWith(github.ref, 'refs/tags/v')
+  #   runs-on: ubuntu-latest
+  #   #needs: test
+  #   permissions:
+  #     id-token: write
+  #     contents: read
+  #     packages: write
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         submodules: recursive
+
+  #     - name: Docker login Docker Hub
+  #       uses: docker/login-action@v3
+  #       with:
+  #         username: ${{ secrets.DOCKER_HUB_USERNAME }}
+  #         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+  #     - name: Setup Docker Buildx
+  #       uses: docker/setup-buildx-action@v3
+
+  #     - name: Build and push image to Docker Hub
+  #       uses: docker/build-push-action@v6
+  #       with:
+  #         context: .
+  #         file: ./src/Argon.Api/Dockerfile
+  #         push: true
+  #         tags: |
+  #           argonchat/argon-server:${{ github.run_number }}
+  #           argonchat/argon-server:latest
+  #         cache-from: type=gha
+  #         cache-to: type=gha,mode=max
+  #         build-args: |
+  #           GIT_COMMIT=${{ github.sha }}
+  #           VERSION=${{ github.run_number }}
+  #           BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}

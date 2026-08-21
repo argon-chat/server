@@ -1,0 +1,58 @@
+name: Canary
+
+on:
+  push:
+    branches: [ "dev" ]
+    paths:
+      - 'src/**/**'
+  workflow_dispatch:
+
+jobs:
+  test:
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: postgres
+      coverage: true
+      threshold: 50
+
+  # The same suite against the engine production actually runs. Slower to start, and the only
+  # place the CockroachDB-specific migration DDL (LOCALITY, row TTL) is exercised at all.
+  test-cockroach:
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: cockroach
+      coverage: false
+      threshold: 0
+
+  build-ghcr:
+    if: github.ref == 'refs/heads/dev'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.ARGON_GHCR_PAT }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push nightly image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: ./src/Argon.Api/Dockerfile
+          push: true
+          tags: ghcr.io/argon-chat/orleans-nightly:${{ github.run_number }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=nightly-${{ github.run_number }}
+            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}

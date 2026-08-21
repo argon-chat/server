@@ -1,0 +1,126 @@
+namespace Argon.Entities;
+
+using Core.Entities.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
+
+public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityTypeConfiguration<UserEntity>
+{
+    public static readonly Guid SystemUser
+        = Guid.Parse("11111111-2222-1111-2222-111111111111");
+    public static readonly Guid EchoUser
+        = Guid.Parse("44444444-2222-1111-2222-444444444444");
+
+    public required string  Email          { get; set; }
+    public required string  Username       { get; set; }
+    public required string  DisplayName    { get; set; }
+    public          string? PhoneNumber    { get; set; } = null;
+    public          string? PasswordDigest { get; set; } = null;
+    public          string? AvatarFileId   { get; set; } = null;
+
+    public         ICollection<SpaceMemberEntity>   ServerMembers   { get; set; } = new List<SpaceMemberEntity>();
+    public virtual ICollection<DevTeamMemberEntity> TeamMemberships { get; set; } = new List<DevTeamMemberEntity>();
+    public virtual OperatorEntity? Operator { get; set; }
+
+    public DateOnly? DateOfBirth { get; set; }
+
+    [MaxLength(512)]
+    public string? TotpSecret { get; set; }
+
+    public ArgonAuthMode PreferredAuthMode  { get; set; }
+    public OtpMethod     PreferredOtpMethod { get; set; }
+
+    public virtual UserProfileEntity Profile { get; set; }
+
+
+    public string NormalizedEmail    { get; private set; } = null!;
+    public string NormalizedUsername { get; private set; } = null!;
+
+    public bool AllowedSendOptionalEmails { get; set; }
+    public bool AgreeTOS                  { get; set; }
+
+    // Date-string (DD.MM.YYYY) of the TOS / Privacy version the user last accepted.
+    // Null for accounts created before legal versioning — the client shows the
+    // update gate until they accept. Deliberately NOT exposed on the public
+    // ArgonUser DTO; surfaced only via GetMyLegalState for the current user.
+    public string? AgreeTosVersion     { get; set; }
+    public string? AgreePrivacyVersion { get; set; }
+
+    public         Guid?     BotEntityId { get; set; }
+    public virtual BotEntity BotEntity   { get; set; }
+
+
+    public LockdownReason  LockdownReason       { get; set; }
+    public DateTimeOffset? LockDownExpiration   { get; set; }
+    public bool            LockDownIsAppealable { get; set; }
+
+    public bool HasActiveUltima { get; set; }
+
+    public DateTimeOffset? DisplayNameChangedAt { get; set; }
+
+    public static ArgonUser Map(scoped in UserEntity self)
+        => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self));
+
+    public static UserFlag GetFlags(scoped in UserEntity self)
+    {
+        var flags = UserFlag.NONE;
+
+        if (self.BotEntityId is not null)
+            flags |= UserFlag.BOT;
+        if (self.LockdownReason != LockdownReason.NONE)
+            flags |= UserFlag.BANNED;
+        if (self.IsDeleted)
+            flags |= UserFlag.DELETED;
+        if (self.Id == SystemUser)
+            flags |= UserFlag.SYSTEM;
+        if (self.BotEntityId is not null && self.BotEntity is { IsVerified: true })
+            flags |= UserFlag.VERIFIED;
+        if (self.HasActiveUltima)
+            flags |= UserFlag.PREMIUM;
+        return flags;
+    }
+
+    public static UserFlag GetFlags(scoped in UserEntity self, bool isVerified)
+    {
+        var flags = UserFlag.NONE;
+
+        if (self.BotEntityId is not null)
+            flags |= UserFlag.BOT;
+        if (self.LockdownReason != LockdownReason.NONE)
+            flags |= UserFlag.BANNED;
+        if (self.IsDeleted)
+            flags |= UserFlag.DELETED;
+        if (self.Id == SystemUser)
+            flags |= UserFlag.SYSTEM;
+        if (self.BotEntityId is not null && isVerified)
+            flags |= UserFlag.VERIFIED;
+        if (self.HasActiveUltima)
+            flags |= UserFlag.PREMIUM;
+        return flags;
+    }
+
+    public void Configure(EntityTypeBuilder<UserEntity> builder)
+    {
+        builder.HasKey(x => x.Id);
+        builder.Property(x => x.Email)
+           .IsRequired()
+           .HasMaxLength(255);
+
+        builder.Property(x => x.Username)
+           .IsRequired()
+           .HasMaxLength(64);
+
+        builder.Property(x => x.NormalizedEmail)
+           .HasColumnType("varchar(255)")
+           .HasComputedColumnSql("lower(\"Email\")", true)
+           .ValueGeneratedOnAddOrUpdate();
+
+        builder.Property(x => x.NormalizedUsername)
+           .HasColumnType("varchar(64)")
+           .HasComputedColumnSql("lower(\"Username\")", true)
+           .ValueGeneratedOnAddOrUpdate();
+
+        builder.HasIndex(x => x.NormalizedEmail).IsUnique();
+        builder.HasIndex(x => x.NormalizedUsername).IsUnique();
+    }
+}

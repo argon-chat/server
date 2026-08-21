@@ -1,0 +1,277 @@
+namespace Argon.Features;
+
+using System.Security.Claims;
+
+public static class HttpContextExtensions
+{
+    extension(HttpContext ctx)
+    {
+        public string GetIpAddress()
+        {
+            // Priority 1: CloudFlare proxy header
+            if (ctx.Request.Headers.TryGetValue("CF-Connecting-IP", out var cfIp) && !string.IsNullOrWhiteSpace(cfIp))
+                return cfIp.ToString();
+
+            // Priority 2: MaxMind GeoIP2 (nginx/ingress module)
+            if (ctx.Request.Headers.TryGetValue("x-geoip2-ipaddress", out var geoIp) && !string.IsNullOrWhiteSpace(geoIp))
+                return geoIp.ToString();
+
+            // Priority 3: Standard proxy headers (X-Forwarded-For, X-Real-IP)
+            if (ctx.Request.Headers.TryGetValue("X-Forwarded-For", out var forwardedFor) && !string.IsNullOrWhiteSpace(forwardedFor))
+            {
+                // X-Forwarded-For can contain multiple IPs: "client, proxy1, proxy2"
+                var ips = forwardedFor.ToString().Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                if (ips.Length > 0 && !string.IsNullOrWhiteSpace(ips[0]))
+                    return ips[0];
+            }
+
+            if (ctx.Request.Headers.TryGetValue("X-Real-IP", out var realIp) && !string.IsNullOrWhiteSpace(realIp))
+                return realIp.ToString();
+
+            // Priority 4: Direct connection IP
+            var remoteIp = ctx.Connection.RemoteIpAddress?.ToString();
+            if (!string.IsNullOrWhiteSpace(remoteIp))
+                return remoteIp;
+
+            // Fallback
+            return "unknown";
+        }
+
+        public string GetRegion()
+        {
+            if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso) && !string.IsNullOrWhiteSpace(cfIso))
+                return cfIso.ToString();
+            if (ctx.Request.Headers.TryGetValue("x-geoip2-country", out var geoCountry) && !string.IsNullOrWhiteSpace(geoCountry))
+                return geoCountry.ToString();
+            if (ctx.Request.Headers.TryGetValue("X-Country", out var dIso) && !string.IsNullOrWhiteSpace(dIso))
+                return dIso.ToString();
+
+            return "00";
+        }
+
+        public string GetRay()
+            => ctx.Request.Headers.ContainsKey("CF-Ray")
+                ? ctx.Request.Headers["CF-Ray"].ToString()
+                : $"{Guid.NewGuid()}";
+
+        public string GetClientName()
+            => ctx.Request.Headers.ContainsKey("User-Agent")
+                ? ctx.Request.Headers["User-Agent"].ToString()
+                : "unknown";
+
+        // The client's current app locale (raw app code, e.g. "ru", "jp", "ru_pt").
+        // Normalized to BCP-47 at the Bot API boundary via LocaleNormalizer.
+        public string? GetClientLocale()
+            => ctx.Request.Headers.TryGetValue("x-argon-locale", out var locale) && !string.IsNullOrWhiteSpace(locale)
+                ? locale.ToString()
+                : null;
+
+        public Guid GetSessionId()
+        {
+            if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
+            {
+                var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+                if (parsed.TryGetValue("scid", out var scidValue) && Guid.TryParse(scidValue, out var sid))
+                    return sid;
+            }
+
+            var env = ctx.RequestServices.GetRequiredService<IHostEnvironment>();
+
+            if (env.IsDevelopment())
+            {
+                if (ctx.Request.Headers.TryGetValue("X-Ctt", out var xCtt) && !string.IsNullOrWhiteSpace(xCtt)
+                    && Guid.TryParse(xCtt.ToString(), out var devSid))
+                    return devSid;
+                return Guid.AllBitsSet;
+            }
+
+            // Priority 2: Legacy headers (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("Sec-Ref", out var secRef) && !string.IsNullOrWhiteSpace(secRef))
+            {
+                if (Guid.TryParse(secRef.ToString(), out var legacySid))
+                    return legacySid;
+                throw new InvalidOperationException("SessionId invalid");
+            }
+
+            if (ctx.Request.Headers.TryGetValue("X-Sec-Ref", out var xSecRef) && !string.IsNullOrWhiteSpace(xSecRef))
+            {
+                if (Guid.TryParse(xSecRef.ToString(), out var legacySid))
+                    return legacySid;
+                throw new InvalidOperationException("SessionId invalid");
+            }
+
+            throw new InvalidOperationException("SessionId is not defined");
+        }
+
+        public bool TryGetSessionId(out Guid sessionId)
+        {
+            try
+            {
+                sessionId = ctx.GetSessionId();
+                return true;
+            }
+            catch
+            {
+                sessionId = Guid.Empty;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Which machine this request came from.
+        /// </summary>
+        /// <remarks>
+        /// <para>The development constant below used to be checked <em>first</em>, which made every
+        /// caller on a development host the same machine. That is not a test-only inconvenience:
+        /// the machine identity is what binds a QR sign-in code to the browser that asked for it,
+        /// and what the <c>mh</c> claim on every access token is checked against. Collapsing it to a
+        /// constant turns both of those into no-ops on any deployment running in Development.</para>
+        ///
+        /// <para>So it is a fallback now rather than an override: a caller that presents a machine
+        /// identity gets its own, and the constant only stands in for callers that present none —
+        /// which is the case the constant existed for, since a local host has no
+        /// <c>ArgonSecure</c> cookie to read.</para>
+        /// </remarks>
+        public string GetMachineId()
+        {
+            // Priority 1: ArgonSecure cookie
+            if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
+            {
+                var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+                if (parsed.TryGetValue("colt", out var coltValue) && !string.IsNullOrWhiteSpace(coltValue))
+                    return coltValue.ToString();
+            }
+
+            // Priority 2: Legacy header (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("Sec-Carry", out var secCarry) && !string.IsNullOrWhiteSpace(secCarry))
+            {
+                var machineId = secCarry.ToString();
+                if (!string.IsNullOrWhiteSpace(machineId))
+                    return machineId;
+                throw new InvalidOperationException("MachineId invalid");
+            }
+
+            // Priority 3: Alternate legacy header (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("X-Sec-Carry", out var xSecCarry) && !string.IsNullOrWhiteSpace(xSecCarry))
+            {
+                var machineId = xSecCarry.ToString();
+                if (!string.IsNullOrWhiteSpace(machineId))
+                    return machineId;
+                throw new InvalidOperationException("MachineId invalid");
+            }
+
+            // Nothing identified the caller. Locally that is ordinary — there is no ArgonSecure
+            // cookie on a dev host — so stand one in rather than failing every request. Anywhere
+            // else an unidentified caller is a caller we cannot bind a token to.
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return "1234";
+
+            throw new InvalidOperationException("MachineId is not defined");
+        }
+
+        /// <summary>
+        /// The hardware signals this caller reported, or an empty vector.
+        /// </summary>
+        /// <remarks>
+        /// Only the <c>ArgonSecure</c> cookie carries it — there is no legacy header fallback,
+        /// because there is no legacy format: a client old enough to lack the field reports nothing
+        /// and is scored as an unknown device rather than refused.
+        /// </remarks>
+        public Features.Auth.DeviceFingerprint GetHardwareVector()
+        {
+            if (!ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) || string.IsNullOrWhiteSpace(argonSecure))
+                return Features.Auth.DeviceFingerprint.Empty;
+
+            var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+
+            return parsed.TryGetValue("hwv", out var hwv)
+                ? Features.Auth.DeviceFingerprint.Parse(Uri.UnescapeDataString(hwv.ToString()))
+                : Features.Auth.DeviceFingerprint.Empty;
+        }
+
+        /// <summary>
+        /// The device proof native code pushed into the cookie, or null.
+        /// </summary>
+        /// <remarks>
+        /// Cookie only, and deliberately so: this is the channel that exists for native code to carry
+        /// device identity, which is why hardware never appears in the ion contract. A client too old
+        /// to send it reports nothing and is judged on the fingerprint vector instead.
+        /// </remarks>
+        public string? GetDeviceProof()
+        {
+            if (!ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) || string.IsNullOrWhiteSpace(argonSecure))
+                return null;
+
+            var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+
+            return parsed.TryGetValue("dev", out var dev) && !string.IsNullOrWhiteSpace(dev)
+                ? Uri.UnescapeDataString(dev.ToString())
+                : null;
+        }
+
+        public bool TryGetMachineId(out string machineId)
+        {
+            try
+            {
+                machineId = ctx.GetMachineId();
+                return true;
+            }
+            catch
+            {
+                machineId = string.Empty;
+                return false;
+            }
+        }
+
+        public Guid GetUserId()
+        {
+            var userId = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier);
+
+            userId ??= ctx.User.FindFirstValue("id");
+
+            if (Guid.TryParse(userId, out var result))
+                return result;
+            throw new FormatException($"UserId by '{ClaimTypes.NameIdentifier} claim has value: '{userId}' - incorrect guid");
+        }
+
+
+        public string GetAppId()
+        {
+            if (ctx.RequestServices.GetRequiredService<IHostEnvironment>().IsDevelopment())
+                return "1234";
+            // Priority 1: ArgonSecure cookie
+            if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
+            {
+                var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
+                if (parsed.TryGetValue("ner", out var nerValue) && !string.IsNullOrWhiteSpace(nerValue))
+                    return nerValue.ToString();
+            }
+
+            // Priority 2: Legacy header (fallback for compatibility)
+            if (ctx.Request.Headers.TryGetValue("Sec-Ner", out var secNer) ||
+                ctx.Request.Headers.TryGetValue("X-Sec-Ner", out secNer))
+            {
+                var appId = secNer.ToString();
+                if (!string.IsNullOrWhiteSpace(appId))
+                    return appId;
+                throw new InvalidOperationException("AppId invalid");
+            }
+
+            throw new InvalidOperationException("AppId is not defined");
+        }
+
+        public bool TryGetAppId(out string appId)
+        {
+            try
+            {
+                appId = ctx.GetAppId();
+                return true;
+            }
+            catch
+            {
+                appId = string.Empty;
+                return false;
+            }
+        }
+    }
+}

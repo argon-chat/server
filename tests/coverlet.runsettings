@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Shared coverage configuration for every Argon test project.
+
+  Use it with:  dotnet test  (settings) tests/coverlet.runsettings  (collect) "XPlat Code Coverage"
+  or, more simply, via scipts/run-tests.ps1 -Coverage
+
+  The exclusions below are all machine-authored code. Left in, EF's migration snapshots alone are
+  ~120k lines the tests can never execute line-by-line, which would put the reported number an order
+  of magnitude below what the hand-written code actually achieves.
+-->
+<RunSettings>
+  <RunConfiguration>
+    <!-- Fixture-level parallelism is configured by the test framework (see AssemblyInfo.cs);
+         this governs how many test *assemblies* vstest hosts at once. -->
+    <MaxCpuCount>0</MaxCpuCount>
+    <ResultsDirectory>./TestResults</ResultsDirectory>
+  </RunConfiguration>
+
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat code coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+
+          <!-- Only Argon's own assemblies are interesting; third-party code inflates the denominator. -->
+          <Include>[Argon.Core]*,[Argon.Api]*</Include>
+
+          <Exclude>
+            [*]Argon.Migrations.*,
+            [*]*.Migrations.*,
+            [*]ArgonComplexTest*,
+            [*]ArgonSharedLogicTest*,
+            [*]Orleans.CodeGenerator*,
+            [*]OrleansCodeGen.*
+          </Exclude>
+
+          <ExcludeByAttribute>Obsolete,GeneratedCodeAttribute,CompilerGeneratedAttribute,ExcludeFromCodeCoverageAttribute</ExcludeByAttribute>
+
+          <ExcludeByFile>
+            **/Migrations/**/*.cs,
+            **/Generated/**/*.cs,
+            **/obj/**/*.cs,
+            **/*.g.cs,
+            **/*.Designer.cs
+          </ExcludeByFile>
+
+          <SingleHit>false</SingleHit>
+          <UseSourceLink>false</UseSourceLink>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <SkipAutoProps>true</SkipAutoProps>
+          <DeterministicReport>false</DeterministicReport>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+
+  <NUnit>
+    <!-- Per-machine worker count is overridable on the command line via NUnit.NumberOfTestWorkers. -->
+    <DefaultTimeout>600000</DefaultTimeout>
+  </NUnit>
+</RunSettings>
