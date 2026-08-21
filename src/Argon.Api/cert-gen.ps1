@@ -1,1 +1,0 @@
-mkcert -pkcs12 -p12-file localhost.pfx localhost

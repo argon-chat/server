@@ -1,8 +1,0 @@
-port: 7880
-
-rtc:
-  port_range_start: 60000
-  port_range_end: 60010
-
-keys:
-  devkeydevkey: secretsecretsecretsecret

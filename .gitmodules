@@ -1,9 +1,0 @@
-[submodule "src/Argon.Ion"]
-	path = src/Argon.Ion
-	url = https://github.com/argon-chat/Argon.Ion.git
-[submodule "docs/bot-api-docs"]
-	path = docs/bot-api-docs
-	url = https://github.com/argon-chat/bot-api-docs.git
-[submodule "src/Argon.IonAdmin"]
-	path = src/Argon.IonAdmin
-	url = https://github.com/argon-chat/Argon.IonAdmin.git

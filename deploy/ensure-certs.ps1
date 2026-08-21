@@ -1,2 +1,0 @@
-cd certs
-mkcert localhost
