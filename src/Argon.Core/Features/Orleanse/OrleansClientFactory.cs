@@ -1,7 +1,8 @@
 namespace Argon.Features;
 
-using Api.Features.Orleans.Client;
-using Env;
+using Argon.Features.Clustering.Regions;
+
+using Clustering;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using NatsStreaming;
 using Orleans.Configuration;
@@ -54,20 +55,31 @@ public class OrleansClientFactory(IConfiguration configuration, IHostEnvironment
 
     public static void Builder(IClientBuilder x, IHostEnvironment env, IConfiguration config, string region)
     {
+        // Must agree with the silos: same knobs, same defaults.
+        var endpoints = ArgonClusterEndpoints.Resolve(config);
+
         x.Configure<ClusterOptions>(q =>
         {
-            q.ClusterId = "argon-cluster";
-            q.ServiceId = $"argon-region-{region}";
+            q.ClusterId = endpoints.ClusterId;
+            q.ServiceId = endpoints.ServiceId;
         });
         x.Configure<GatewayOptions>(options => { options.GatewayListRefreshPeriod = TimeSpan.FromSeconds(10); });
-        x.UseConnectionRetryFilter<ClusterClientRetryFilter>();
+        // Not the obvious filter — retry SiloUnavailableException, give up on everything else.
+        // OutsideRuntimeClient rethrows the moment a filter gives up, which is how an entry point
+        // booting while its own gateways are down takes the process with it. The datacenter layer
+        // shipped exactly that filter and it was deleted along with the rest of that layer; the
+        // region policy documents the same failure at length and keeps retrying instead.
+        // OutsideRuntimeClient resolves this from the container, so registering it is enough.
+        x.Services.AddSingleton<IClientConnectionRetryFilter>(sp => new RegionConnectionRetryFilter(
+            region, TimeSpan.FromSeconds(30),
+            sp.GetRequiredService<ILoggerFactory>().CreateLogger("Argon.ClusterClient")));
         x.Configure<ExceptionSerializationOptions>(q => q.SupportedNamespacePrefixes.Add("Argon"));
-        if (env.IsMultiRegion())
-            x.AddClusterConnectionStatusObserver<DcClusterConnectionListener>();
-        if (!env.IsSingleInstance())
-            x.UseRedisClustering(z
-            => z.ConfigurationOptions = new RedisProfileRegistry(config).BuildOptions(RedisProfiles.Orleans));
-        else
+        // Redis clustering everywhere; USE_LOCALHOST_CLUSTERING is the local-dev escape for running
+        // without a Redis container. Multi-region and its connection observer are not implemented.
+        if (Environment.GetEnvironmentVariable("USE_LOCALHOST_CLUSTERING") is not null)
             x.UseLocalhostClustering();
+        else
+            x.UseRedisClustering(z
+                => z.ConfigurationOptions = new RedisProfileRegistry(config).BuildOptions(RedisProfiles.Orleans));
     }
 }

@@ -56,7 +56,7 @@ public class InventoryGrain(
         var item = referenceItem with
         {
             IsReference = false,
-            Id = Guid.NewGuid(),
+            Id = ArgonId.New(),
             OwnerId = userId,
             ReceivedFrom = null,
             CreatedAt = DateTimeOffset.Now
@@ -85,7 +85,7 @@ public class InventoryGrain(
         var item = new ArgonItemEntity()
         {
             IsReference   = true,
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             OwnerId       = UserEntity.SystemUser,
             ReceivedFrom  = null,
             CreatedAt     = DateTimeOffset.Now,
@@ -114,7 +114,7 @@ public class InventoryGrain(
         var @case = new ArgonItemEntity()
         {
             IsReference   = true,
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             OwnerId       = UserEntity.SystemUser,
             ReceivedFrom  = null,
             CreatedAt     = DateTimeOffset.Now,
@@ -125,7 +125,7 @@ public class InventoryGrain(
             UseVector     = ItemUseVector.QualifierBox,
             Scenario = new QualifierBox
             {
-                Key             = Guid.NewGuid(),
+                Key             = ArgonId.New(),
                 ReferenceItemId = referenceItem.Id
             }
         };
@@ -143,7 +143,7 @@ public class InventoryGrain(
 
         var coin = new ArgonItemEntity
         {
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             OwnerId       = userId,
             TemplateId    = coinTemplateId,
             IsReference   = false,
@@ -348,7 +348,7 @@ public class InventoryGrain(
 
         var granted = proto with
         {
-            Id = Guid.NewGuid(),
+            Id = ArgonId.New(),
             OwnerId = userId,
             IsReference = false,
             CreatedAt = DateTimeOffset.UtcNow,
@@ -388,7 +388,7 @@ public class InventoryGrain(
         {
             var granted = proto with
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 OwnerId = userId,
                 IsReference = false,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -435,7 +435,7 @@ public class InventoryGrain(
 
         var redemption = new ArgonCouponRedemptionEntity
         {
-            Id         = Guid.NewGuid(),
+            Id         = ArgonId.New(),
             CouponId   = coupon.Id,
             Coupon     = coupon,
             UserId     = userId,
@@ -451,7 +451,7 @@ public class InventoryGrain(
             var item = referenceItem with
             {
                 IsReference = false,
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 OwnerId = userId,
                 RedemptionId = redemption.Id,
                 ReceivedFrom = null,
@@ -509,7 +509,7 @@ public class InventoryGrain(
 
         var scenario = new PremiumScenario
         {
-            Key          = Guid.NewGuid(),
+            Key          = ArgonId.New(),
             PlanId       = planId,
             DurationDays = durationDays,
             GiftMessage  = giftMessage
@@ -517,7 +517,7 @@ public class InventoryGrain(
 
         var item = new ArgonItemEntity
         {
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             OwnerId       = recipientId,
             TemplateId    = planId == "ultima_annual" ? "gift_ultima_annual" : "gift_ultima_monthly",
             IsReference   = false,
@@ -560,7 +560,7 @@ public class InventoryGrain(
 
         for (var i = 0; i < count; i++)
         {
-            var id = Guid.NewGuid();
+            var id = ArgonId.New();
             itemIds.Add(id);
 
             var item = new ArgonItemEntity

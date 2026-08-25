@@ -228,7 +228,7 @@ public class UltimaGrain(
         {
             var sub = new UltimaSubscriptionEntity
             {
-                Id                   = Guid.NewGuid(),
+                Id                   = ArgonId.New(),
                 UserId               = UserId,
                 Tier                 = tier,
                 Status               = UltimaStatus.Active,
@@ -249,7 +249,7 @@ public class UltimaGrain(
             {
                 ctx.SpaceBoosts.Add(new SpaceBoostEntity
                 {
-                    Id             = Guid.NewGuid(),
+                    Id             = ArgonId.New(),
                     UserId         = UserId,
                     SpaceId        = null,
                     SubscriptionId = sub.Id,
@@ -378,7 +378,7 @@ public class UltimaGrain(
         {
             ctx.SpaceBoosts.Add(new SpaceBoostEntity
             {
-                Id                  = Guid.NewGuid(),
+                Id                  = ArgonId.New(),
                 UserId              = UserId,
                 SpaceId             = null,
                 SubscriptionId      = null,
@@ -405,7 +405,7 @@ public class UltimaGrain(
 
         ctx.PaymentTransactions.Add(new PaymentTransactionEntity
         {
-            Id               = Guid.NewGuid(),
+            Id               = ArgonId.New(),
             UserId           = UserId,
             XsollaTxId       = txId,
             TransactionType  = transactionType,

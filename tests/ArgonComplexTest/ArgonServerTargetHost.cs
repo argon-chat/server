@@ -1,6 +1,7 @@
 namespace ArgonComplexTest;
 
 using Argon.Core.Features.Integrations.Xsolla;
+using Argon.Features.Clustering;
 using Argon.Features.EF;
 using ArgonComplexTest.Infrastructure;
 using Microsoft.AspNetCore.Hosting;
@@ -39,6 +40,7 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
             // validators — is what the tests actually exercise.
             configuration.AddInMemoryCollection(TestServerConfiguration.ReportSystem);
             configuration.AddInMemoryCollection(TestServerConfiguration.AccountDeletion);
+            configuration.AddInMemoryCollection(TestServerConfiguration.Messages);
         });
 
         builder.ConfigureServices((_, services) =>
@@ -59,6 +61,10 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
                 logging.SetMinimumLevel(TestEnvironmentOptions.ServerLogLevel);
             });
         }
+
+        // WebApplicationFactory invokes the entry point with no arguments, so the role is named
+        // through configuration rather than --role.
+        builder.UseSetting(ArgonRoleHostExtensions.RoleConfigurationKey, IntegrationTestRole.Id.Value);
 
         builder.UseSetting("ConnectionStrings:cache", settings.RedisConnectionString);
         builder.UseSetting("ConnectionStrings:nats", settings.NatsConnectionString);

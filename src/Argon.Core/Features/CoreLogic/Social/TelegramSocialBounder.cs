@@ -12,7 +12,7 @@
 //{
 //    public async Task<string> CreateBoundTokenAsync(Guid userId, TimeSpan validity)
 //    {
-//        var keyId = Guid.NewGuid();
+//        var keyId = ArgonId.New();
 //        await cache.StringSetAsync($"bound_tg_{keyId:N}", userId.ToString(), validity);
 //        return keyId.ToString("N");
 //    }

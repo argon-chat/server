@@ -19,7 +19,7 @@ namespace Argon.Core.Migrations
 #pragma warning disable 612, 618
             modelBuilder
                 .HasAnnotation("ProductVersion", "10.0.11")
-                .HasAnnotation("Regional:MultiRegion", "{\"Primary\":\"ru-central\",\"Regions\":[\"ru-central\"],\"Survive\":\"REGION FAILURE\"}")
+                .HasAnnotation("Regional:MultiRegion", "{\"Primary\":\"ru-central\",\"Regions\":[\"ru-central\"],\"Survive\":\"ZONE FAILURE\"}")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -273,6 +273,30 @@ namespace Argon.Core.Migrations
                     b.ToTable("BotCommands", (string)null);
                 });
 
+            modelBuilder.Entity("Argon.Core.Entities.Data.ChannelLastMessageEntity", b =>
+                {
+                    b.Property<Guid>("ChannelId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("LastMessageId")
+                        .HasColumnType("bigint");
+
+                    b.Property<Guid>("SpaceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ChannelId");
+
+                    b.HasIndex("SpaceId")
+                        .HasDatabaseName("ix_channel_last_messages_space");
+
+                    b.ToTable("ChannelLastMessages", (string)null);
+
+                    b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
+                });
+
             modelBuilder.Entity("Argon.Core.Entities.Data.ChannelReadStateEntity", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -315,9 +339,6 @@ namespace Argon.Core.Migrations
 
                     b.Property<DateTimeOffset?>("LastMessageAt")
                         .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("LastMessageId")
-                        .HasColumnType("bigint");
 
                     b.Property<Guid?>("LastMessageSenderId")
                         .HasColumnType("uuid");
@@ -509,7 +530,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("TeamInvites");
 
-                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpireAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":5000,\"DeleteBatchSize\":5000,\"RangeConcurrency\":4,\"DeleteRateLimit\":52428800}");
+                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpireAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":5000,\"DeleteBatchSize\":5000,\"RangeConcurrency\":0,\"DeleteRateLimit\":0}");
                 });
 
             modelBuilder.Entity("Argon.Core.Entities.Data.DirectMessageV2Entity", b =>
@@ -697,7 +718,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("user_friend_requests", (string)null);
 
-                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"RequestedAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":0,\"DeleteBatchSize\":0,\"RangeConcurrency\":0,\"DeleteRateLimit\":0}");
+                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpiredAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":0,\"DeleteBatchSize\":0,\"RangeConcurrency\":0,\"DeleteRateLimit\":0}");
                 });
 
             modelBuilder.Entity("Argon.Core.Entities.Data.FriendshipEntity", b =>
@@ -1157,6 +1178,8 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("Archetypes");
 
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+
                     b.HasData(
                         new
                         {
@@ -1205,7 +1228,6 @@ namespace Argon.Core.Migrations
                         .HasColumnType("uuid");
 
                     b.Property<long>("MessageId")
-                        .ValueGeneratedOnAdd()
                         .HasColumnType("BIGINT")
                         .HasDefaultValueSql("unique_rowid()");
 
@@ -1250,6 +1272,8 @@ namespace Argon.Core.Migrations
                     NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SpaceId", "ChannelId", "CreatedAt"), new[] { "Text", "Entities" });
 
                     b.ToTable("Messages");
+
+                    b.HasAnnotation("Regional:Locality", "REGIONAL BY ROW");
                 });
 
             modelBuilder.Entity("Argon.Entities.ChannelEntitlementOverwriteEntity", b =>
@@ -1302,6 +1326,8 @@ namespace Argon.Core.Migrations
                     b.HasIndex("SpaceMemberId");
 
                     b.ToTable("ChannelEntitlementOverwrites");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
@@ -1366,6 +1392,8 @@ namespace Argon.Core.Migrations
                     b.HasIndex("SpaceId", "ChannelGroupId", "FractionalIndex");
 
                     b.ToTable("Channels");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.ChannelGroupEntity", b =>
@@ -1416,6 +1444,8 @@ namespace Argon.Core.Migrations
                     b.HasIndex("SpaceId", "FractionalIndex");
 
                     b.ToTable("ChannelGroupEntity");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.ContentViolationEntity", b =>
@@ -2409,6 +2439,8 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("Spaces");
 
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+
                     b.HasData(
                         new
                         {
@@ -2472,7 +2504,9 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("Invites");
 
-                    b.HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpireAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":5000,\"DeleteBatchSize\":5000,\"RangeConcurrency\":4,\"DeleteRateLimit\":52428800}");
+                    b
+                        .HasAnnotation("Job:Expiration", "{\"TimestampKey\":\"ExpireAt\",\"CronValue\":{\"value\":\"0 0 * * *\"},\"SelectBatchSize\":5000,\"DeleteBatchSize\":5000,\"RangeConcurrency\":0,\"DeleteRateLimit\":0}")
+                        .HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceMemberArchetypeEntity", b =>
@@ -2488,6 +2522,8 @@ namespace Argon.Core.Migrations
                     b.HasIndex("ArchetypeId");
 
                     b.ToTable("MemberArchetypes");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
@@ -2538,6 +2574,8 @@ namespace Argon.Core.Migrations
                         .HasAnnotation("Npgsql:CreatedConcurrently", true);
 
                     b.ToTable("UsersToServerRelations");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.TenantDirectoryEntity", b =>
@@ -2828,6 +2866,8 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("Users");
 
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
+
                     b.HasData(
                         new
                         {
@@ -2984,6 +3024,8 @@ namespace Argon.Core.Migrations
                         .IsUnique();
 
                     b.ToTable("UserProfiles");
+
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.UsernameReservedEntity", b =>

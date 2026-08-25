@@ -36,23 +36,34 @@ public static class DatabaseFeature
             ? kind
             : DatabaseProviderKind.CockroachDb;
 
-    public static void AddPooledDatabase<T>(this WebApplicationBuilder builder) where T : DbContext
+    public static void AddPooledDatabase<T>(this WebApplicationBuilder builder, DatabaseOptions database)
+        where T : DbContext
     {
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
         DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-        builder.Services.Configure<DatabaseOptions>(builder.Configuration.GetSection("Database"));
         builder.Services.AddSingleton<IVaultDbCredentialsProvider, VaultDbCredentialsProvider>();
         builder.Services.AddHostedService(sp => sp.GetRequiredService<IVaultDbCredentialsProvider>());
-        builder.Services.Configure<DatabaseRegionOptions>(builder.Configuration.GetSection("Database:Regions"));
+
+        var connectionString = string.IsNullOrWhiteSpace(database.ConnectionString)
+            ? builder.Configuration.GetConnectionString("Default")
+            : database.ConnectionString;
 
         var providerKind = builder.Configuration.GetDatabaseProviderKind();
         builder.Services.AddSingleton(new DatabaseProvider(providerKind));
+
+        // The other half of Job:Expiration. SchemaDeclarations makes CockroachDB honour it on the boot
+        // path; TtlSweepGrain makes PostgreSQL honour it, since row-level TTL is syntax that engine
+        // does not have. Registered unconditionally rather than behind an engine check, because the
+        // most useful thing this can say on CockroachDB is "not applicable, the database is doing it
+        // itself" — and because this is also what gives the grain the TtlSweepState it takes in its
+        // constructor, on exactly the roles that have an IDbContextFactory to sweep with.
+        builder.Services.AddTtlSweepDiagnostics();
 
         builder.Services.AddPooledDbContextFactory<T>((_, options) =>
         {
             options.EnableDetailedErrors()
                .EnableSensitiveDataLogging()
-               .UseNpgsql(builder.Configuration.GetConnectionString("Default"), npgsql =>
+               .UseNpgsql(connectionString, npgsql =>
                 {
                     npgsql.UseNodaTime();
                     npgsql.EnableRetryOnFailure(
@@ -82,9 +93,17 @@ public sealed record DatabaseProvider(DatabaseProviderKind Kind)
     public bool IsCockroach => Kind is DatabaseProviderKind.CockroachDb;
 }
 
+/// <summary>
+/// Where the database's regional table placement puts data. Read once, by
+/// <c>ApplicationDbContext.OnModelCreating</c>.
+/// </summary>
+/// <remarks>
+/// Carried an <c>IsMultiregionalDisabled</c> flag that nothing ever read and no configuration ever
+/// set; validating the <c>required</c> keyword is what made that visible, so it is gone.
+/// </remarks>
 public class DatabaseRegionOptions
 {
-    public required bool IsMultiregionalDisabled { get; set; }
     public required string PrimaryRegion { get; set; }
+
     public required string[] ReplicateRegion { get; set; }
 }

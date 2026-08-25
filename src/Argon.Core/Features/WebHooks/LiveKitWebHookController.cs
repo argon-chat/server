@@ -67,16 +67,27 @@ public class LiveKitWebHookController(ILogger<LiveKitWebHookController> logger, 
         }
         else if (webhookEvent.Event.Equals("room_finished"))
         {
-            var channelId = string.Join("", webhookEvent.Room.Name.Skip(37).Take(36));
-            if (Guid.TryParse(channelId, out var chId))
-                await client.GetGrain<IChannelGrain>(chId).ClearChannel();
+            var (_, channelId, _) = ParseRoomParticipant(webhookEvent);
+            if (channelId.HasValue)
+                await client.GetGrain<IChannelGrain>(channelId.Value).ClearChannel();
             else
-                logger.LogInformation("Received room_finished, but channelId not valid format: {ChannelId}", channelId);
+                logger.LogInformation("Received room_finished, but channelId not valid format: {RoomName}",
+                    webhookEvent.Room?.Name);
         }
 
         return Ok();
     }
 
+    /// <summary>
+    /// Pulls the space, the channel and the user out of a LiveKit room name and participant identity.
+    /// </summary>
+    /// <remarks>
+    /// A room is named <c>{spaceId}_{channelId}</c>, two guids and a separator: 73 characters. The
+    /// <c>room_finished</c> branch used to slice the channel out with <c>Skip(37).Take(36)</c>
+    /// instead, which on a shorter name returns a truncated string rather than nothing — the same
+    /// malformed room was then reported as an unparseable guid there and skipped outright here. One
+    /// reader for every branch, so a room name is malformed in exactly one way.
+    /// </remarks>
     private static (Guid? SpaceId, Guid? ChannelId, Guid? UserId) ParseRoomParticipant(WebhookEvent ev)
     {
         var roomName  = ev.Room?.Name ?? "";

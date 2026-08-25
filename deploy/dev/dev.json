@@ -1,0 +1,35 @@
+{
+  "ConnectionStrings": {
+    "nats": "nats://localhost:4222",
+    "Sentry": ""
+  },
+
+  "TicketJwt": {
+    "Key": "3ca8a191a61bc0fef3d3f07ef56308fd7ec6baa37a72f787de54bf694f739ba3"
+  },
+
+  "Transport": {
+    "Exchange": {
+      "HashKey": "9c9c24ca5d9ed069eaeaec7f6bb67370a4e5f8d2a81417a607de16936f281b7a",
+      "DbId": 228
+    },
+    "Upgrade": "localhost"
+  },
+
+  "Totp": {
+    "ProtectorId": "dev",
+    "SecretPart": "9c66abf534aae05b1810d16a864b98c7",
+    "HashMode": "Sha1",
+    "Duration": 15,
+    "RotationRadians": 3.9793506945470716
+  },
+
+  "Argon": {
+    "Cluster": {
+      "Id": "argon-dev",
+      "ServiceId": "argon-dev",
+      "SiloPort": 11111,
+      "GatewayPort": 30000
+    }
+  }
+}

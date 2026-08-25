@@ -1,6 +1,7 @@
 namespace Argon.Core.Features.Transport;
 
 using Argon.Features.BotApi;
+using Argon.Features.Clustering;
 using Argon.Features.Env;
 using Argon.Services;
 using ion.runtime;
@@ -145,12 +146,61 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     public async Task GoOffline()
         => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).GoOfflineAsync();
 
+    /// <summary>
+    /// Typing, addressed by the space the channel belongs to as well as the channel.
+    /// </summary>
+    /// <remarks>
+    /// <para>The space id is here for routing and is deliberately unused today. Once there is a second
+    /// region, a call arriving in one region for a channel homed in another has to be sent there, and
+    /// the decision needs to know which region owns the thing being addressed. Every other channel
+    /// operation already carries the space — <c>ChannelInteraction</c> is declared
+    /// <c>service ChannelInteraction(spaceId, channelId)</c> — and these two were the only client-to-
+    /// server calls in the product that named a channel and nothing else.</para>
+    ///
+    /// <para>Deriving the region from the channel id instead would have worked, because
+    /// <c>ArgonId.NewIn(spaceId)</c> makes a channel inherit its space's region. It was rejected: that
+    /// is correct only while every space-scoped id is minted through <c>NewIn</c>, some are minted with
+    /// <c>ArgonId.New()</c> — which stamps the region of whichever process happened to run — and a
+    /// routing decision resting on mint discipline fails silently and in production. The space is the
+    /// authority, so the space travels.</para>
+    ///
+    /// <para>Added beside the old ones rather than replacing them, and that ordering is the point: the
+    /// client can start sending the space while the server still ignores it, so the routing seam lands
+    /// later without a second coordinated release.</para>
+    ///
+    /// <para>A new NAME rather than an overload, because SignalR refuses one: hub method discovery
+    /// throws <c>Duplicate definitions of 'IAmTyping'. Overloading is not supported.</c> at startup, so
+    /// the obvious shape takes the whole process down rather than failing at the call.</para>
+    /// </remarks>
+    public async Task IAmTypingIn(Guid spaceId, Guid channelId)
+    {
+        EnsureBeforeCall(true);
+        await factory.GetGrain<IChannelGrain>(channelId).OnTypingEmit();
+    }
+
+    /// <inheritdoc cref="IAmTypingIn"/>
+    public async Task IAmStopTypingIn(Guid spaceId, Guid channelId)
+    {
+        EnsureBeforeCall(true);
+        await factory.GetGrain<IChannelGrain>(channelId).OnTypingStopEmit();
+    }
+
+    /// <summary>Deprecated: names a channel with no space, so it cannot be routed.</summary>
+    /// <remarks>
+    /// Kept working for every client that has not moved to the overload above. It is the one shape a
+    /// second region cannot serve correctly — the call would be handled wherever it landed rather than
+    /// where the channel lives — so it should be removed once the desktop client has shipped the
+    /// change, and not before.
+    /// </remarks>
+    [Obsolete("Send the space id: IAmTypingIn(spaceId, channelId). It cannot be routed across regions.")]
     public async Task IAmTyping(Guid channelId)
     {
         EnsureBeforeCall(true);
         await factory.GetGrain<IChannelGrain>(channelId).OnTypingEmit();
     }
 
+    /// <inheritdoc cref="IAmTyping"/>
+    [Obsolete("Send the space id: IAmStopTypingIn(spaceId, channelId). It cannot be routed across regions.")]
     public async Task IAmStopTyping(Guid channelId)
     {
         EnsureBeforeCall(true);
@@ -235,42 +285,98 @@ public static class SignalRHubExtensions
     public static IHubContext<AppHub> GetAppHubContext(this IServiceProvider serviceProvider)
         => serviceProvider.GetRequiredService<IHubContext<AppHub>>();
 
-    public static void AddSignalRAppHub(this WebApplicationBuilder builder)
+    // No role check here any more: only the role that enables AppHubFeature calls this.
+    /// <summary>
+    /// The publishing half: SignalR over the Redis backplane, plus <see cref="AppHubServer"/> and the
+    /// replay log it writes to.
+    /// </summary>
+    /// <remarks>
+    /// Everything that raises an event needs this, silos included — six grain classes take
+    /// <see cref="AppHubServer"/> — and none of them needs the client endpoint. Publishing goes
+    /// through <c>IHubContext</c>, which hands the message to the backplane; the node holding the
+    /// client's connection is the one that delivers it. Mapping the hub is what accepts connections,
+    /// and that is a separate concern with its own feature.
+    /// </remarks>
+    public static void AddRealtimeBus(this WebApplicationBuilder builder)
     {
-        if (builder.Environment.IsEntryPoint() || builder.Environment.IsHybrid())
-        {
-            builder.Services.AddAuthentication()
-               .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
-
-            builder.Services.AddAuthorization(o =>
-            {
-                o.AddPolicy("ticket", policy =>
-                {
-                    policy.AddAuthenticationSchemes("Ticket");
-                    policy.RequireAuthenticatedUser();
-                    policy.RequireClaim("typ", "ticket");
-                });
-            });
-        }
+        builder.AddBotRuntimeServices();
 
         builder.Services
            .AddSingleton<IRealtimeReplayBuffer, RedisRealtimeReplayBuffer>()
            .AddSingleton<IUserIdProvider, GuidUserIdProvider>()
-           .AddSingleton<Argon.Features.BotApi.BotSseEventSerializer>()
-           .AddSingleton<Argon.Features.BotApi.BotUserCache>()
-           .AddSingleton<Argon.Features.BotApi.UserLocaleRegistry>()
-           .AddSingleton<Argon.Features.BotApi.InteractionContextStore>()
-           .AddSingleton<Argon.Features.BotApi.BotEventPublisher>()
-           .AddScoped<Argon.Features.BotApi.InteractionResponsePusher>()
            .AddScoped<AppHubServer>()
            .AddSignalR()
            //.AddMessagePackProtocol()
            .AddHubOptions<AppHub>(options => options.EnableDetailedErrors = true)
            .AddStackExchangeRedis(x =>
             {
-                x.Configuration              = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Backplane);
-                x.Configuration.ChannelPrefix = new RedisChannel("argon-bus", RedisChannel.PatternMode.Literal);
+                x.Configuration               = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Backplane);
+                x.Configuration.ChannelPrefix = new RedisChannel(
+                    BackplaneChannelPrefix(builder.Configuration), RedisChannel.PatternMode.Literal);
             });
+    }
+
+    /// <summary>
+    /// The Redis pub/sub namespace this region's SignalR backplane fans out on.
+    /// </summary>
+    /// <remarks>
+    /// <para>The region is in the name because nothing else keeps one region's backplane out of
+    /// another's. A Redis profile is a connection string plus a default database, and the database
+    /// buys nothing here — pub/sub is not database-scoped, so two regions whose
+    /// <see cref="RedisProfiles.Backplane"/> profiles resolve to the same server are one fan-out
+    /// domain however different their database indexes are. That failure looks like success:
+    /// cross-region delivery works, data residency is being violated the whole time it does, and
+    /// whatever came to rely on it breaks the day the two Redis instances are properly separated.</para>
+    ///
+    /// <para>Read straight out of <see cref="IConfiguration"/> rather than from bound options,
+    /// because this runs while the host is still being built and the options container does not exist
+    /// yet. It is the same key <see cref="ArgonRegionOptions"/> binds, so a deployment names its
+    /// region once and this follows. With no region section at all the answer is the datacenter the
+    /// process already declares, which is what a single-region deployment gets — and it is why
+    /// adding the section later, naming the region it was already in, is a no-op here rather than a
+    /// rename.</para>
+    ///
+    /// <para>Changing this value is a breaking deployment change, and there is no compatibility
+    /// window to be had: the prefix <em>is</em> the channel namespace, so pods on the old one and
+    /// pods on the new one cannot see each other's broadcasts at all. Through a rolling deploy,
+    /// clients held by an old pod stop receiving anything raised on a new pod and vice versa —
+    /// presence, typing, every space broadcast — until the last old pod is gone. Nothing is lost
+    /// from the database and nothing needs draining, but the split is visible to users for the length
+    /// of the rollout, so roll it through quickly and not at peak.</para>
+    /// </remarks>
+    public static string BackplaneChannelPrefix(IConfiguration configuration)
+    {
+        var region = configuration[$"{ArgonRegionOptions.SectionName}:{nameof(ArgonRegionOptions.Self)}"];
+
+        // Blank is unset. Taken literally it would leave an empty segment in the prefix, which hands
+        // every region that got its configuration wrong the same fan-out domain again — the exact
+        // thing this is here to prevent.
+        if (string.IsNullOrWhiteSpace(region))
+            region = ArgonDatacenter.Current;
+
+        // Trailing separator so the region stays its own segment instead of running into the hub name
+        // the backplane appends after it.
+        return $"argon-bus:{region.Trim()}:";
+    }
+
+    /// <summary>
+    /// The receiving half: the ticket scheme a client authenticates the socket with, and the policy
+    /// the mapped hub requires. Only a role that clients connect to needs it.
+    /// </summary>
+    public static void AddAppHubEndpoint(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddAuthentication()
+           .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
+
+        builder.Services.AddAuthorization(o =>
+        {
+            o.AddPolicy("ticket", policy =>
+            {
+                policy.AddAuthenticationSchemes("Ticket");
+                policy.RequireAuthenticatedUser();
+                policy.RequireClaim("typ", "ticket");
+            });
+        });
     }
 }
 

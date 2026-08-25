@@ -23,7 +23,7 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
         var writer = new CborWriter();
         IonFormatterStorage<ArgonIonTicket>.Write(writer, ticket);
 
-        var ticketId = Guid.CreateVersion7();
+        var ticketId = ArgonId.New();
 
         using var mem = MemoryPool<byte>.Shared.Rent(writer.BytesWritten);
 

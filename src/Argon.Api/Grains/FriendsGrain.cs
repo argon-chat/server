@@ -290,7 +290,7 @@ public class FriendsGrain(
         await NotifyAsync(fromUserId,
             new FriendRequestAcceptedEvent(me, ts));
 
-        var chatId = Guid.CreateVersion7();
+        var chatId = ArgonId.New();
 
         var chatGrain = this.GrainFactory.GetGrain<IUserChatGrain>(chatId);
 

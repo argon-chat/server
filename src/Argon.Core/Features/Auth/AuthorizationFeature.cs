@@ -7,7 +7,6 @@ public static class AuthorizationFeature
 {
     public static void AddArgonAuthorization(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<ArgonAuthOptions>(builder.Configuration.GetSection("auth"));
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
@@ -18,7 +17,9 @@ public static class AuthorizationFeature
         // Device identity. The fingerprint half is a heuristic and the key half is a proof; both are
         // registered because they answer for different clients — see DeviceFingerprint for what the
         // vector can and cannot settle.
-        builder.Services.Configure<AndroidAttestationOptions>(builder.Configuration.GetSection("attestation:android"));
+        // Singleton: it holds the frozen weight table, and rebuilding that per request would be the
+        // most expensive part of reading a cookie.
+        builder.Services.AddSingleton<DeviceMatcher>();
         builder.Services.AddScoped<DeviceIdentityService>();
         builder.Services.AddScoped<DeviceProofVerifier>();
 

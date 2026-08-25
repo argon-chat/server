@@ -112,7 +112,7 @@ public sealed class PrivacyPolicyGrain(
         {
             ctx.Add(new PrivacyRuleEntity
             {
-                Id              = Guid.NewGuid(),
+                Id              = ArgonId.New(),
                 UserId          = OwnerId,
                 Key             = input.Key,
                 Mode            = input.Mode,

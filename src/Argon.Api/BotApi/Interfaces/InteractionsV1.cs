@@ -2,6 +2,7 @@ namespace Argon.Api.BotApi.Interfaces;
 
 using Argon.Features.BotApi;
 using Argon.Features.BotApi.Contracts;
+using Microsoft.AspNetCore.Mvc;
 
 [BotInterface("IInteractions", 1)]
 [BotDescription("Respond to slash-command, control, and select interactions. Supports ack, defer, modal, reply, and edit.")]
@@ -17,10 +18,13 @@ using Argon.Features.BotApi.Contracts;
 [BotError("/Defer",       404, "interaction_not_found", "Interaction does not exist or has expired.")]
 [BotError("/Modal",       404, "interaction_not_found", "Interaction does not exist or has expired.")]
 [BotError("/Modal",       400, "validation_error", "Modal definition is invalid.")]
+// InteractionResponsePusher is not a constructor dependency, unlike everything else here. Bot
+// interfaces are constructed once while routes are being mapped, and the closures the handlers make
+// out of the constructor parameters outlive every request — so a scoped service taken that way would
+// be one request's AppHubServer serving all of them. It arrives per request instead.
 public sealed class InteractionsV1(
-    IGrainFactory              grains,
-    InteractionContextStore    interactionStore,
-    InteractionResponsePusher  pusher) : IBotInterface
+    IGrainFactory           grains,
+    InteractionContextStore interactionStore) : IBotInterface
 {
     public sealed record ReplyRequest(
         Guid                  ChannelId,
@@ -74,7 +78,8 @@ public sealed class InteractionsV1(
             return Results.Ok();
         });
 
-        group.MapPost("/Ack", async (HttpContext ctx, AckRequest request) =>
+        group.MapPost("/Ack", async (HttpContext ctx, AckRequest request,
+            [FromServices] InteractionResponsePusher pusher) =>
         {
             var interaction = interactionStore.TryPeek(request.InteractionId);
             if (interaction is null)
@@ -84,7 +89,8 @@ public sealed class InteractionsV1(
             return Results.Ok();
         });
 
-        group.MapPost("/Defer", async (HttpContext ctx, DeferRequest request) =>
+        group.MapPost("/Defer", async (HttpContext ctx, DeferRequest request,
+            [FromServices] InteractionResponsePusher pusher) =>
         {
             var interaction = interactionStore.TryPeek(request.InteractionId);
             if (interaction is null)
@@ -94,7 +100,8 @@ public sealed class InteractionsV1(
             return Results.Ok();
         });
 
-        group.MapPost("/Modal", async (HttpContext ctx, ModalRequest request) =>
+        group.MapPost("/Modal", async (HttpContext ctx, ModalRequest request,
+            [FromServices] InteractionResponsePusher pusher) =>
         {
             var interaction = interactionStore.TryConsume(request.InteractionId);
             if (interaction is null)
@@ -102,7 +109,7 @@ public sealed class InteractionsV1(
 
             request.Modal.Validate();
 
-            var modalInteractionId = Guid.NewGuid();
+            var modalInteractionId = ArgonId.New();
             interactionStore.Register(
                 modalInteractionId,
                 interaction.UserId,

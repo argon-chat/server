@@ -132,12 +132,8 @@ public class ArgonDcRegistry : IArgonDcRegistry, IDisposable
 
     public IClusterClient? GetNearestClusterClient()
     {
-        if (!_env.IsMultiRegion())
-            return _serviceProvider.GetRequiredService<IClusterClient>();
-
-        var nearest = GetNearestDc();
-
-        return nearest?.serviceProvider.GetRequiredService<IClusterClient>();
+        // Multi-region is not implemented; there is one cluster and it is the local one.
+        return _serviceProvider.GetRequiredService<IClusterClient>();
     }
 
     public int GetDcCount()

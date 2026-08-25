@@ -1,0 +1,191 @@
+
+service TeamConsole() {
+    GetMyTeams(): TeamShortDetails[];
+    GetTeamDetails(teamId: guid): TeamDetails;
+    GetTeamInvites(teamId: guid): TeamInviteInfo[];
+
+    CreateTeam(name: string): TeamDetails;
+    InviteUserToTeam(teamId: guid, username: string): InviteUserError;
+
+
+    BeginUploadTeamAvatar(): UploadAvatarResult;
+    CompleteUploadTeamAvatar(blobId: guid);
+
+    GetMyInvites(): MyInvitesInfo[];
+    AcceptTeamInvite(teamId: guid);
+    DeclineTeamInvite(teamId: guid);
+
+
+
+}
+
+union UploadAvatarResult {
+    SuccessUploadAvatarFile(blobId: guid),
+    FailedUploadAvatarFile(error: UploadFileError)
+}
+
+enum UploadFileError {
+    NONE,
+    NOT_AUTHORIZED,
+    INTERNAL_ERROR
+}
+
+enum InviteUserError {
+    OK,
+    USER_NOT_FOUND,
+    ALREADY_INVITED,
+    ALREADY_IN_TEAM,
+    INTERNAL_ERROR
+}
+
+msg AddRedirectResult {
+    ok: bool;
+    error: string?;
+}
+
+enum ClientAppPlatform {
+    WindowsDesktop,
+    MacOSDesktop,
+    LinuxDesktop,
+    WebBased,
+    iOS,
+    Android
+}
+
+service AppManagement(teamId: guid) {
+    CreateBotApp(name: string, username: string): AppDetails;
+    CreateClientApp(name: string, platform: ClientAppPlatform): AppDetails;
+
+    EnsureCoockiesForApp(appId: guid);
+
+    GetAppDetails(appId: guid): AppDetails;
+
+    RegenerateBotToken(appId: guid): string;
+
+    CheckUsernameForBot(username: string): CheckBotUsernameValid;
+
+    BeginUploadAppAvatar(): UploadAvatarResult;
+    CompleteUploadAppAvatar(blobId: guid);
+
+    UpdateScope(appId: guid, scope: ScopeKeyValue);
+    UpdateRedirects(appId: guid, redirects: string[]);
+
+    AddRedirect(appId: guid, redirect: string): AddRedirectResult;
+    RemoveRedirect(appId: guid, redirect: string);
+
+    PublishBot(appId: guid);
+    UnpublishBot(appId: guid);
+    SuspendBot(appId: guid);
+    UpdateBotEntitlements(appId: guid, entitlements: u8);
+    SetBotOAuth(appId: guid, enabled: bool);
+}
+
+enum CheckBotUsernameValid {
+    OK,
+    ALREADY_CLAIMED,
+    POSTFIX_BOT_REQUIRED
+}
+
+msg MyInvitesInfo {
+    from: ShortUserDetails;
+    date: datetime;
+    team: TeamShortDetails;
+}
+
+
+msg TeamInviteInfo {
+    from: ShortUserDetails;
+    to: ShortUserDetails;
+    date: datetime;
+}
+
+msg AppDetails {
+    appId: guid;
+    teamId: guid;
+    name: string;
+    desc: string?;
+    botDetails: BotDetails?;
+    clientAppDetails: ClientAppDetails?;
+    kind: AppKind;
+
+    clientId: string;
+    clientSecret: string?;
+    verificationKey: string?;
+    createdAt: datetime;
+    requiredScopes: ScopeKeyValue[];
+    allowedRedirects: string[];
+}
+
+msg ScopeKeyValue {
+    isRequired: bool;
+    key: string;
+    isLocked: bool;
+}
+
+enum BotLifecycleState {
+    Development,
+    Published,
+    Suspended
+}
+
+msg BotDetails {
+    requiresOAuth2: bool;
+    requiresArgxAuth: bool;
+    allowDMs: bool;
+    isVerfied: bool;
+    maxSpaces: i4;
+    avatarFileId: string?;
+    botToken: string;
+    lifecycleState: BotLifecycleState;
+    requiredEntitlements: u8;
+}
+
+msg ClientAppDetails {
+    platform: ClientAppPlatform;
+    allowedDevelopmentRegenerateCoockies: bool;
+    isPublic: bool;
+    isVerfied: bool;
+    repositoryUrl: string?;
+    rateLimitPerMinute: i4;
+    websiteUrl: string?;
+    isInternalApp: bool;
+}
+
+enum AppKind {
+    ClientApp,
+    BotApp,
+    WebApp
+}
+
+
+msg TeamShortDetails {
+    teamId: guid;
+    name: string;
+    avatarFileId: string;
+    appsCount: i4;
+}
+
+msg TeamDetails {
+    teamId: guid;
+    ownerId: guid;
+    name: string;
+    avatarFileId: string;
+    members: TeamMemberDetails[];
+    apps: AppDetails[];
+}
+
+msg TeamMemberDetails {
+    user: ShortUserDetails;
+    teamId: guid;
+    isPending: bool;
+    isOwner: bool;
+    claims: string[];
+    joinedAt: datetime;
+}
+
+msg ShortUserDetails {
+    userId: guid;
+    avatarFileId: string;
+    displayName: string;
+    username: string;
+}

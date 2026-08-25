@@ -7,8 +7,6 @@ public static class XsollaFeature
 {
     public static IServiceCollection AddXsollaFeature(this WebApplicationBuilder builder)
     {
-        var cfg = builder.Configuration.GetSection("Xsolla");
-        builder.Services.Configure<XsollaOptions>(cfg);
         builder.Services.AddHttpClient<IXsollaService, XsollaService>()
            .AddStandardResilienceHandler(o =>
             {

@@ -41,14 +41,6 @@ public static class ChannelGrainInstrument
         InstrumentNames.ChannelRecordingsStopped,
         description: "Total number of channel recordings stopped");
 
-    public static readonly Counter<long> LinkedMeetingsCreated = Meter.CreateCounter<long>(
-        InstrumentNames.ChannelLinkedMeetingsCreated,
-        description: "Total number of linked meetings created");
-
-    public static readonly Counter<long> LinkedMeetingsEnded = Meter.CreateCounter<long>(
-        InstrumentNames.ChannelLinkedMeetingsEnded,
-        description: "Total number of linked meetings ended");
-
     public static readonly Counter<long> TypingEvents = Meter.CreateCounter<long>(
         InstrumentNames.ChannelTypingEvents,
         description: "Total number of typing events emitted");
@@ -64,4 +56,45 @@ public static class ChannelGrainInstrument
     public static readonly Counter<long> ReactionsRemoved = Meter.CreateCounter<long>(
         InstrumentNames.ChannelReactionsRemoved,
         description: "Total number of reactions removed");
+
+    // The two below are only ever read as a ratio against MessagesSent, so the queries that make
+    // sense of them are documented here beside all three rather than split across InstrumentNames.
+    private const string LastMessageFlushesName  = "argon-channel-last-message-flushes";
+    private const string LastMessageAbsorbedName = "argon-channel-last-message-absorbed";
+
+    /// <summary>
+    /// Durable writes of a channel's high-water mark — one per flush interval that had traffic, not
+    /// one per message.
+    /// Tags: result (written, failed)
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Grafana — coalescing ratio:</strong>
+    /// <c>sum(rate(argon_channel_last_message_flushes[$__rate_interval])) / sum(rate(argon_channel_messages_sent[$__rate_interval]))</c></para>
+    /// <para>
+    /// Near 1 means every message is still costing a write: the flush timer is not firing and
+    /// activations have fallen back to per-message behaviour. A healthy busy channel sits far below
+    /// it, because a whole flush interval of sends collapses into one write.
+    /// </para>
+    /// <para><strong>Grafana — failed flushes:</strong>
+    /// <c>sum(rate(argon_channel_last_message_flushes{result="failed"}[$__rate_interval]))</c>.
+    /// Worth an alert: a failed flush no longer heals itself the way a failed per-message write did,
+    /// it is only retried while the activation lives.
+    /// </para>
+    /// </remarks>
+    public static readonly Counter<long> LastMessageFlushes = Meter.CreateCounter<long>(
+        LastMessageFlushesName,
+        description: "Coalesced writes of the channel last-message high-water mark");
+
+    /// <summary>
+    /// Messages that raised the high-water mark without buying a write of their own, because one was
+    /// already owed.
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Grafana — writes avoided:</strong>
+    /// <c>sum(increase(argon_channel_last_message_absorbed[$__range]))</c>, which is exactly the
+    /// number of database writes this coalescing removed over the range.</para>
+    /// </remarks>
+    public static readonly Counter<long> LastMessageAbsorbed = Meter.CreateCounter<long>(
+        LastMessageAbsorbedName,
+        description: "Messages folded into an already-pending channel high-water mark write");
 }

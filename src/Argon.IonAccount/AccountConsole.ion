@@ -1,0 +1,64 @@
+
+service AccountConsole() {
+    GetMe(): MeDetails;
+    RequestDeleteAccount(password: string): DeleteAccountResult;
+    CancelDeleteAccount(): CancelDeleteResult;
+    RequestExportGDRP(): RequestExportGDRPStatus;
+}
+
+enum DeleteAccountError {
+    None,
+    InvalidPassword,
+    AlreadyScheduled,
+    HasActiveSubscription,
+    OwnsSpaces,
+    AccountLocked,
+    InternalError
+}
+
+msg DeleteAccountResult {
+    success: bool;
+    error: DeleteAccountError;
+    scheduledAt: datetime?;
+    executionAt: datetime?;
+}
+
+enum CancelDeleteError {
+    None,
+    NotScheduled,
+    AlreadyExecuting,
+    AlreadyCompleted,
+    InternalError
+}
+
+msg CancelDeleteResult {
+    success: bool;
+    error: CancelDeleteError;
+}
+
+enum RequestExportGDRPStatus {
+    Unknown,
+    Ok,
+    Already,
+    RateLimit
+}
+
+enum DeletionStatusKind {
+    None,
+    Scheduled,
+    Executing,
+    Completed,
+    Failed
+}
+
+msg MeDetails {
+    gdrpExportInProgress: bool;
+    deletionStatus: DeletionStatusKind;
+    deletionScheduledAt: datetime?;
+    deletionExecutionAt: datetime?;
+    avatarFileId: string;
+    userId: guid;
+    displayName: string;
+}
+
+

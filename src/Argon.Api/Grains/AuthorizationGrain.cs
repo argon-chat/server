@@ -28,4 +28,13 @@ public class AuthorizationGrain(
 
     public async Task<string> GetAuthorizationScenarioFor(UserLoginInput data, CancellationToken ct)
         => await authorizationService.GetAuthorizationScenarioFor(data, ct);
+
+    public async Task<BeginPasskeyLoginResult> BeginPasskeyLogin(string? email, CancellationToken ct)
+        => await authorizationService.BeginPasskeyLogin(email, ct);
+
+    public async Task<PasskeyLoginResult> CompletePasskeyLogin(string assertionResponseJson, CancellationToken ct)
+        => await authorizationService.CompletePasskeyLogin(assertionResponseJson, ct);
+
+    public async Task<PasskeyLoginResult> ConfirmPasskeyOtp(string passkeyNonce, string otpCode, CancellationToken ct)
+        => await authorizationService.ConfirmPasskeyOtp(passkeyNonce, otpCode, ct);
 }

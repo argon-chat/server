@@ -1,5 +1,7 @@
 namespace Argon.Grains;
 
+using Argon.Features.Clustering.Regions;
+
 using Argon.Api.Features.Bus;
 using Argon.Api.Features.Utils;
 using Argon.Api.Grains.Interfaces;
@@ -29,11 +31,20 @@ public class SpaceGrain(
     ISystemMessageService systemMessageService,
     AppHubServer appHubServer,
     BotEventPublisher botEventPublisher,
+    ISpaceReadCache readCache,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
 
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, this.GetPrimaryKey(), ct);
+
+    /// <summary>
+    /// Tells <see cref="ISpaceReadGrain"/> that what it has cached about this space is out of date.
+    /// Every mutation below that changes the roster, the channels or the groups has to call it —
+    /// those answers are served from a different activation, on a different silo more often than not.
+    /// </summary>
+    private Task Invalidate(CancellationToken ct = default)
+        => readCache.SignalInvalidationAsync(this.GetPrimaryKey(), ct);
 
     public async override Task OnActivateAsync(CancellationToken ct)
     {
@@ -141,75 +152,6 @@ public class SpaceGrain(
         => await Fire(new OnUserPresenceActivityRemoved(this.GetPrimaryKey(), userId));
 
 
-    public async Task<List<RealtimeServerMember>> GetMembers()
-    {
-        await using var ctx = await context.CreateDbContextAsync();
-
-        var members = await ctx
-           .UsersToServerRelations
-           .AsNoTracking()
-           .AsSplitQuery()
-           .Include(x => x.User)
-           .Where(x => x.SpaceId == this.GetPrimaryKey())
-           .Include(x => x.SpaceMemberArchetypes)
-           .ToListAsync();
-
-        var ids        = members.Select(x => x.UserId).Distinct().ToList();
-        var statuses   = await userPresence.BatchGetAggregatedStatusAsync(ids);
-        var activities = await userPresence.BatchGetUsersActivityPresence(ids);
-
-        return members.Select(x => new RealtimeServerMember(
-            x.ToDto(),
-            statuses.TryGetValue(x.UserId, out var s) ? s : UserStatus.Offline,
-            activities.TryGetValue(x.UserId, out var presence) ? presence : null)).ToList();
-    }
-
-    public async Task<List<RealtimeChannel>> GetChannels()
-    {
-        var             callerId = this.GetUserId();
-        await using var ctx      = await context.CreateDbContextAsync();
-
-        var serverMember   = await ctx.UsersToServerRelations.FirstAsync(x => x.UserId == callerId && x.SpaceId == this.GetPrimaryKey());
-        var serverMemberId = serverMember.Id;
-        var spaceId        = this.GetPrimaryKey();
-
-        var member = await ctx.UsersToServerRelations
-           .AsNoTracking()
-           .AsSplitQuery()
-           .Include(m => m.SpaceMemberArchetypes)
-           .ThenInclude(sma => sma.Archetype)
-           .FirstAsync(m => m.Id == serverMemberId && m.SpaceId == spaceId);
-
-        var basePermissions = EntitlementEvaluator.GetBasePermissions(member);
-
-        var channels = await ctx.Channels
-           .AsNoTracking()
-           .AsSplitQuery()
-           .Where(c => c.SpaceId == spaceId)
-           .Include(c => c.EntitlementOverwrites)
-           .OrderBy(c => c.ChannelGroupId)
-           .ThenBy(c => c.FractionalIndex)
-           .ToListAsync();
-
-        var channelsFiltered = channels
-           .Where(c =>
-            {
-                var finalPerms = EntitlementEvaluator.ApplyPermissionOverwrites(basePermissions, member, c);
-                return EntitlementAnalyzer.IsEntitlementSatisfied(finalPerms, ArgonEntitlement.ViewChannel);
-            })
-           .ToList();
-
-        // Batch fetch realtime state for all channels in parallel
-        var states = await Task.WhenAll(channelsFiltered
-           .Select(x => grainFactory.GetGrain<IChannelGrain>(x.Id).GetRealtimeStateAsync()));
-
-        var results = channelsFiltered
-           .Zip(states, (ch, s) => new RealtimeChannel(ch.ToDto(), new(s.Members), s.MeetingInfo))
-           .ToList();
-
-        return results;
-    }
-
     public Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null)
         => AddMemberAsync(this.GetUserId(), joinedViaInviteId);
 
@@ -225,7 +167,7 @@ public class SpaceGrain(
         if (exists)
             return false;
 
-        var member = Guid.NewGuid();
+        var member = ArgonId.New();
         await ctx.UsersToServerRelations.AddAsync(new SpaceMemberEntity
         {
             Id                = member,
@@ -236,9 +178,30 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync();
 
         await serverRepository.GrantDefaultArchetypeTo(ctx, spaceId, member);
+        await Invalidate();
         await UserJoined(userId);
 
-        _ = systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
+        // Detached and best-effort, and it has to stay that way: the membership is committed above and
+        // the caller has already been told the join worked, so a system message that cannot be written
+        // must not take the join down with it. Same policy as ChannelGrain.FireDetached — Task.Run so
+        // the work leaves this activation's turn queue rather than making the next join wait behind a
+        // database write nobody is waiting on, one catch, one log line.
+        //
+        // The log line is the whole point of the wrapper. This used to be a bare `_ =`, which parked
+        // every failure in an unobserved task: the join message wrote MessageId 0, the second join
+        // into a space hit the duplicate key, and nothing anywhere said so.
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await systemMessageService.SendUserJoinedMessageAsync(spaceId, userId);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "failed to write the join message for user {UserId} in space {SpaceId}",
+                    userId, spaceId);
+            }
+        });
         return true;
     }
 
@@ -426,6 +389,7 @@ public class SpaceGrain(
 
         ctx.Spaces.Remove(space);
         await ctx.SaveChangesAsync();
+        await Invalidate();
     }
 
     public async Task AnnounceDeletionScheduled(SpaceDeletionState deletionState)
@@ -472,6 +436,7 @@ public class SpaceGrain(
         await ctx.Set<ChannelGroupEntity>().AddAsync(group);
         await ctx.SaveChangesAsync();
 
+        await Invalidate();
         await Fire(new ChannelGroupCreated(spaceId, group.ToDto()));
 
         return group;
@@ -507,6 +472,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync(ct);
 
+        await Invalidate(ct);
         await Fire(new ChannelGroupModified(spaceId, group.Id, group.ToDto()), ct);
 
         return group;
@@ -594,6 +560,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync();
 
+        await Invalidate();
         await Fire(new ChannelGroupReordered(spaceId, groupId, group.FractionalIndex));
     }
 
@@ -635,6 +602,7 @@ public class SpaceGrain(
         ctx.Set<ChannelGroupEntity>().Remove(group);
         await ctx.SaveChangesAsync();
 
+        await Invalidate();
         await Fire(new ChannelGroupRemoved(spaceId, groupId));
     }
 
@@ -666,6 +634,12 @@ public class SpaceGrain(
 
         var channel = new ChannelEntity
         {
+            // The space's region, not this process's. Space metadata is replicated everywhere, so
+            // this activation can be anywhere — but the channel's messages live where the space
+            // lives, and the id is what says so. Explicit at all because it used to be left to EF's
+            // value generator, and because the hub's typing pair holds a channel id with no space
+            // beside it.
+            Id              = ArgonId.NewIn(spaceId),
             Name            = input.Name,
             CreatorId       = callerId,
             Description     = input.Description,
@@ -677,6 +651,7 @@ public class SpaceGrain(
 
         await ctx.Set<ChannelEntity>().AddAsync(channel);
         await ctx.SaveChangesAsync();
+        await Invalidate();
         await Fire(new ChannelCreated(spaceId, channel.ToDto()));
         return channel;
     }
@@ -763,6 +738,7 @@ public class SpaceGrain(
 
         await ctx.SaveChangesAsync();
 
+        await Invalidate();
         await Fire(new ChannelReordered(spaceId, channelId, targetGroupId, channel.FractionalIndex));
     }
 
@@ -789,18 +765,8 @@ public class SpaceGrain(
 
         ctx.Set<ChannelEntity>().Remove(channel);
         await ctx.SaveChangesAsync();
+        await Invalidate();
         await Fire(new ChannelRemoved(spaceId, channelId));
-    }
-
-    public async Task<List<ChannelGroupEntity>> GetChannelGroups()
-    {
-        await using var ctx = await context.CreateDbContextAsync();
-
-        return await ctx.Set<ChannelGroupEntity>()
-           .AsNoTracking()
-           .Where(g => g.SpaceId == this.GetPrimaryKey())
-           .OrderBy(g => g.FractionalIndex)
-           .ToListAsync();
     }
 
     private static FilePurpose MapPurpose(SpaceFileKind kind)
@@ -1047,7 +1013,7 @@ public class SpaceGrain(
         // Create a locked archetype with the bot's required entitlements
         var botArchetype = new ArchetypeEntity
         {
-            Id          = Guid.NewGuid(),
+            Id          = ArgonId.New(),
             SpaceId     = spaceId,
             CreatorId   = callerId,
             Name        = $"Bot: {bot.Name}",
@@ -1072,6 +1038,7 @@ public class SpaceGrain(
             ArchetypeId   = botArchetype.Id,
         });
         await ctx.SaveChangesAsync();
+        await Invalidate();
 
         // Notify bot gateway about new space subscription
         var gateway = grainFactory.GetGrain<IBotGatewayGrain>(bot.BotAsUserId);
@@ -1154,6 +1121,8 @@ public class SpaceGrain(
         await ctx.UsersToServerRelations
            .Where(x => x.Id == botMember.Id)
            .ExecuteDeleteAsync();
+
+        await Invalidate();
 
         // Publish lifecycle event to the bot
         await botEventPublisher.PublishBotLifecycleAsync(bot.BotAsUserId,
@@ -1268,7 +1237,7 @@ public class SpaceGrain(
             await using var ctx = await context.CreateDbContextAsync(ct);
             ctx.ContentViolations.Add(new ContentViolationEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 UserId = userId,
                 FileId = fileId,
                 FilePurpose = purpose,

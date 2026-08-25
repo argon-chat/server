@@ -263,7 +263,7 @@ public class UserGrain(
     //        Kind     = kind,
     //        SocialId = socialId,
     //        UserData = userData,
-    //        Id       = Guid.NewGuid(),
+    //        Id       = ArgonId.New(),
     //        UserId   = this.GetPrimaryKey()
     //    });
     //    await ctx.SaveChangesAsync();
@@ -292,6 +292,21 @@ public class UserGrain(
     //}
 
     //[OneWay]
+    public async ValueTask UpgradePasswordDigest(string digest)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var user = await ctx.Users.FirstOrDefaultAsync(x => x.Id == this.GetPrimaryKey());
+
+        if (user is null)
+            return;
+
+        user.PasswordDigest = digest;
+        await ctx.SaveChangesAsync();
+
+        logger.LogInformation("Upgraded the password digest for {UserId}", this.GetPrimaryKey());
+    }
+
     public async ValueTask UpdateUserDeviceHistory()
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -481,7 +496,7 @@ public class UserGrain(
             await using var ctx = await context.CreateDbContextAsync(ct);
             ctx.ContentViolations.Add(new ContentViolationEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 UserId = userId,
                 FileId = fileId,
                 FilePurpose = purpose,

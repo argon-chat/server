@@ -698,7 +698,7 @@ public class UserStatsAndLevelTests : TestBase
         try
         {
             var spaceGrain = FactoryAsp.Services.GetRequiredService<IGrainFactory>()
-                .GetGrain<ISpaceGrain>(spaceId);
+                .GetGrain<ISpaceReadGrain>(spaceId);
             
             var channels = await spaceGrain.GetChannels();
             var createdChannel = channels.FirstOrDefault(c => c.channel.name == channelName);

@@ -1,0 +1,13 @@
+{
+  "Database": {
+    "ConnectionString": "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=argon;Include Error Detail=true;ConnectionIdleLifetime=15;ConnectionPruningInterval=10",
+    "Provider": "PostgreSql",
+    "UseRotationHolder": false,
+    "Regions": {
+      "PrimaryRegion": "ru-central",
+      "ReplicateRegion": [
+        "ru-central"
+      ]
+    }
+  }
+}

@@ -37,7 +37,7 @@ public class ServerRepository(
 
                 var sm = new SpaceMemberEntity
                 {
-                    Id        = Guid.NewGuid(),
+                    Id        = ArgonId.New(),
                     SpaceId   = spaceId,
                     UserId    = initiator,
                     CreatorId = initiator,
@@ -85,13 +85,13 @@ public class ServerRepository(
         var everyone = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == ArchetypeEntity.DefaultArchetype_Everyone);
         var owner    = await ctx.Archetypes.AsNoTracking().FirstAsync(x => x.Id == ArchetypeEntity.DefaultArchetype_Owner);
 
-        owner!.Id              = Guid.NewGuid();
+        owner!.Id              = ArgonId.New();
         owner.CreatorId        = userId;
         owner.Space            = null!;
         owner.SpaceId          = spaceId;
         owner.SpaceMemberRoles = new List<SpaceMemberArchetypeEntity>();
 
-        everyone!.Id              = Guid.NewGuid();
+        everyone!.Id              = ArgonId.New();
         everyone.CreatorId        = userId;
         everyone.SpaceId          = spaceId;
         everyone.Space            = null!;

@@ -69,11 +69,9 @@ public sealed class ArgonTestEnvironment : IAsyncDisposable
         var stopwatch = Stopwatch.StartNew();
         using var cts = new CancellationTokenSource(TestEnvironmentOptions.StartupTimeout);
 
-        // The server reads these before configuration binding, so they have to be in place before
-        // the host is built — and because the host is a process-wide singleton now, setting them
-        // once here is both sufficient and free of the races the old per-fixture setup had.
-        Environment.SetEnvironmentVariable("ARGON_MODE", nameof(ArgonEnvironmentKind.SingleInstance));
-        Environment.SetEnvironmentVariable("ARGON_ROLE", nameof(ArgonRoleKind.Hybrid));
+        // The role is named through configuration rather than the command line: WebApplicationFactory
+        // invokes the entry point with no arguments. See IntegrationTestRole for why the suite gets
+        // its own composed role instead of a product one.
 
         // Independent containers, so pull and boot them together rather than in sequence.
         await Task.WhenAll(

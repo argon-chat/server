@@ -36,10 +36,29 @@ public record SpaceInvite : ArgonEntityWithOwnership<ulong>, IEntityTypeConfigur
            .HasColumnType("TIMESTAMPTZ")
            .IsRequired();
 
-        //builder.PlacementRegionalByRow();
+        // Placement is declared once, in ArgonTablePlacement, and it is REGIONAL there — not global,
+        // which is what this note used to claim. The claim was that an invite link has to resolve
+        // from whichever region the person following it landed in; that is a read, and reads are the
+        // cheap side to fix. What decided it is the write: UsedCount is incremented per accepted
+        // invite by a guarded conditional update (InviteGrain, WHERE MaxUses = 0 OR UsedCount <
+        // MaxUses), a compare-and-swap that is only correct against one authoritative copy — so a
+        // globally replicated invite table would have paid a commit-wait on the join path for a row
+        // that cannot be replicated anyway. Do not add a placement call here: two declarations is
+        // how a table ends up with a locality nobody chose.
 
-        builder.WithTTL(x => x.ExpireAt, CronValue.Daily, 
-            batchSize: 5000, rangeConcurrency: 4, deleteRateLimit: 52428800);
+        // No deleteRateLimit and no rangeConcurrency, deliberately.
+        //
+        // ttl_delete_rate_limit is documented as "maximum number of rows to be deleted per second",
+        // default 100, zero meaning unlimited. This carried 52428800 — which is 50 MiB, the same
+        // number as AttachmentUltimaMaxBytes in appsettings, so a byte count was pasted into a
+        // rows-per-second knob. Fifty million rows a second is not a rate limit; it switched off the
+        // pacing Cockroach ships by default, on the table that is deleted from on the join path.
+        // Omitting the parameter restores that default rather than inventing a policy nobody chose.
+        //
+        // ttl_range_concurrency does not appear in current CockroachDB documentation at all, and
+        // TtlSettings deliberately does not carry it. Emitting a storage parameter the server may no
+        // longer accept, to get behaviour nobody can describe, is not worth the DDL.
+        builder.WithTTL(x => x.ExpireAt, CronValue.Daily, batchSize: 5000);
     }
 
     public static InviteCodeEntity Map(scoped in SpaceInvite self)

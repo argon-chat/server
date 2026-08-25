@@ -5,10 +5,28 @@ using OpenTelemetry.Logs;
 using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
-public class MetricsBasicAuthOptions
+public class MetricsBasicAuthOptions : Argon.Features.Clustering.IValidatableFeatureOptions
 {
     public string? Username { get; init; }
     public string? Password { get; init; }
+
+    /// <summary>
+    /// The metrics endpoint is scraped over the network. Half a credential is worse than none,
+    /// because it reads like the endpoint is protected when it is not — so a pair is required once
+    /// either half appears, and neither half is a warning rather than a failure. A scrape target on
+    /// a private network is a real deployment; refusing to start for it was never right.
+    /// </summary>
+    public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
+    {
+        if (string.IsNullOrWhiteSpace(Username) && string.IsNullOrWhiteSpace(Password))
+        {
+            report.Prefer(false, nameof(Username), "no credentials, so /metrics is served unauthenticated");
+            return;
+        }
+
+        report.Required(Username, nameof(Username));
+        report.Required(Password, nameof(Password));
+    }
 }
 
 public static class OtelFeature
@@ -18,12 +36,10 @@ public static class OtelFeature
 
     public static void AddOtel(this WebApplicationBuilder builder)
     {
-        builder.Services
-            .AddOptions<MetricsBasicAuthOptions>()
-            .Bind(builder.Configuration.GetSection("Metrics:BasicAuth"))
-            .Validate(o => !string.IsNullOrWhiteSpace(o.Username) && !string.IsNullOrWhiteSpace(o.Password),
-                "Metrics basic auth is not configured.");
-
+        // MetricsBasicAuthOptions is bound and validated by the feature that declares it. Note the
+        // rule there is softer than the one that used to live here: no credentials at all is a
+        // warning rather than a startup failure, because a scrape target on a private network is a
+        // real deployment and refusing to start was never the right answer for it.
         static Uri NormalizeOtlpEndpoint(string endpoint, string signalPath)
         {
             var uri = new Uri(endpoint, UriKind.Absolute);

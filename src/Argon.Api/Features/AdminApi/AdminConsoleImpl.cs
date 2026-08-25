@@ -726,27 +726,27 @@ public class AdminConsoleImpl(
             {
                 ItemScenarioKind.Box => new BoxScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     Edition = input.templateId
                 },
                 ItemScenarioKind.QualifierBox when boxContentIds?.Count == 1 => new QualifierBox
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     ReferenceItemId = boxContentIds[0]
                 },
                 ItemScenarioKind.QualifierBox when boxContentIds?.Count > 1 => new MultipleQualifierBox
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     ReferenceItemIds = boxContentIds
                 },
                 ItemScenarioKind.Premium => new PremiumScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     PlanId = ""
                 },
                 ItemScenarioKind.RedeemCode => new RedeemScenario
                 {
-                    Key = Guid.NewGuid(),
+                    Key = ArgonId.New(),
                     Code = "",
                     ServiceKey = ""
                 },
@@ -755,7 +755,7 @@ public class AdminConsoleImpl(
 
             var item = new ArgonItemEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 TemplateId = input.templateId,
                 IsUsable = input.isUsable,
                 IsGiftable = input.isGiftable,
@@ -828,7 +828,7 @@ public class AdminConsoleImpl(
 
             var coupon = new ArgonCouponEntity
             {
-                Id = Guid.NewGuid(),
+                Id = ArgonId.New(),
                 Code = input.code,
                 Description = input.description,
                 ValidFrom = input.validFrom,
@@ -980,7 +980,7 @@ public class AdminConsoleImpl(
             if (existing is null)
                 db.DeviceBans.Add(new DeviceBanEntity
                 {
-                    Id        = Guid.CreateVersion7(),
+                    Id        = ArgonId.New(),
                     DeviceId  = deviceId,
                     Reason    = reason,
                     ExpiresAt = expiration
@@ -2029,6 +2029,19 @@ public class AdminConsoleImpl(
 
         var memberCount = await db.UsersToServerRelations.CountAsync(x => x.SpaceId == spaceId && !x.IsDeleted, ct);
 
+        // The channel's last-message id is no longer on the channel row — ChannelEntity.LastMessageId
+        // is a column nothing writes any more — so it comes from ChannelLastMessages, one seek by
+        // space. The Redis cell would be up to a flush interval fresher and is not consulted: an
+        // operator looking at a space card is not reading unread state, and a support answer that
+        // disagrees with the database by three seconds is worse than one that is the database.
+        // A channel with no row has had nothing posted in it, and shows zero, which is what the
+        // column said for such a channel too.
+        var storedMarks = await db.ChannelLastMessages
+           .AsNoTracking()
+           .Where(m => m.SpaceId == spaceId)
+           .Select(m => new { m.ChannelId, m.LastMessageId })
+           .ToDictionaryAsync(m => m.ChannelId, m => m.LastMessageId, ct);
+
         var channels = space.Channels.Select(c => new AdminChannelInfo(
             c.Id,
             c.Name,
@@ -2037,7 +2050,7 @@ public class AdminConsoleImpl(
             c.ChannelGroupId,
             c.SlowMode.HasValue ? (int)c.SlowMode.Value.TotalSeconds : null,
             c.DoNotRestrictBoosters,
-            c.LastMessageId
+            storedMarks.GetValueOrDefault(c.Id)
         )).ToList();
 
         var channelGroups = space.ChannelGroups.Select(g => new AdminChannelGroupInfo(

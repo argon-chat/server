@@ -1,0 +1,93 @@
+name: Installer tests
+
+# The self-hosted installer's own suite: the bootstrapper (TypeScript, run by Bun) and the two shell
+# scripts an operator executes on their machine.
+#
+# Separate from `tests.yml` because it shares nothing with it — no .NET, no database, no containers —
+# and because it finishes in seconds. Anything that has to wait on the .NET suite to learn that a shell
+# script has a syntax error is a suite people learn to ignore.
+#
+# Reusable, so that the publish workflows can gate an image on it: the bootstrapper image *is* this
+# code, and pushing one that fails its own tests is pushing a broken installer to everybody who runs
+# the install script that day.
+
+on:
+  workflow_call:
+  pull_request:
+    paths:
+      - 'deploy/selfhosted/**'
+      - '.github/workflows/installer-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  bootstrapper:
+    name: bootstrapper
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/selfhosted/bootstrapper
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+
+      # `--frozen-lockfile`, because a suite that resolves a different dependency tree than the image
+      # does is a suite that passes for a build nobody shipped.
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      # The suite drives the setup page in a real browser — see src/ui.test.ts for why a browser earns
+      # its place here. Chromium only: the page is served to one operator on one machine, and the
+      # arrangement under test (relative URLs surviving a stripped path prefix) is not engine-specific.
+      - name: Install Chromium
+        run: bunx playwright install --with-deps chromium
+
+      # The page is a Vue application and the suite serves what the build emitted — `server.ts` reads
+      # `ui/dist`. Without this the browser tests fetch a directory that does not exist and every one of
+      # them fails on a blank page, which reads as the UI being broken rather than as never built.
+      - name: Build the page
+        run: bun run build
+
+      # Two checkers, not one, and two configurations. The server half has no DOM in its `lib` — that is
+      # what stops a module living beside the docker socket from reaching for `document` — and the
+      # browser half needs one; widening the first would hand every server module a `document`.
+      #
+      # `vue-tsc` for the browser half rather than `tsc`, because `tsc` does not read `.vue` at all: it
+      # would leave every expression inside a `<template>` unchecked, and every prop passed between two
+      # components unchecked with it. That is also why this package is held at TypeScript 6 — see
+      # deploy/selfhosted/bootstrapper/TOOLING.md before moving it.
+      - name: Types
+        run: |
+          bunx tsc --noEmit
+          bunx vue-tsc --noEmit -p ui/tsconfig.json
+
+      - name: Test
+        run: bun test
+
+  scripts:
+    name: install scripts
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: deploy/selfhosted
+    steps:
+      - uses: actions/checkout@v7
+
+      # Preinstalled on the runner, and at every severity rather than filtered down to warnings: all
+      # three scripts are clean of style notes as well as faults today, so a filter would only be
+      # there to hide something that has not happened yet. Loosen it when there is a finding worth
+      # disagreeing with, not before.
+      - name: Shellcheck
+        run: shellcheck bootstrap.sh preflight.sh bootstrap.test.sh
+
+      # These parse on any shell; running them is what catches an unbound variable in a branch nobody
+      # takes locally.
+      - name: Syntax
+        run: bash -n bootstrap.sh && bash -n preflight.sh && bash -n bootstrap.test.sh
+
+      # The bits that can be exercised without a machine to install onto: the bootstrap code generator,
+      # the domain question, and what the script hands to the image. See the file's own header.
+      - name: Test
+        run: bash bootstrap.test.sh

@@ -1,0 +1,87 @@
+name: Publish
+
+# Both images an instance needs, built from one commit and tagged with one tag.
+#
+# The self-hosted panel derives its own image reference from the server's version — `compose.ts`'s
+# `panelImageFor`, which turns version `42` into `ghcr.io/argon-chat/bootstrapper:42`. So the two
+# repositories are not independent: a server tag with no bootstrapper of the same tag beside it
+# produces a generated compose file naming an image that does not exist, and the operator finds out
+# during `compose up`, after they have answered every question.
+#
+# Building them as one matrix off one `github.run_number` is what makes that impossible rather than
+# merely unlikely. Two workflows would be two run numbers.
+#
+# Master only. The development branch runs the tests and publishes nothing, so there is one channel and
+# `:latest` means what it says.
+
+on:
+  workflow_call:
+
+permissions:
+  id-token: write
+  contents: read
+  packages: write
+
+jobs:
+  images:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      # Neither image should be skipped because the other failed: a server that builds and a panel that
+      # does not is worth knowing about in one run rather than two.
+      fail-fast: false
+      matrix:
+        include:
+          - name: orleans
+            repository: ghcr.io/argon-chat/orleans
+            context: .
+            dockerfile: ./src/Argon.Api/Dockerfile
+
+          # The installer and the panel, which are one image run two ways. Its context is its own
+          # directory: the Dockerfile copies `package.json` and `bun.lock` from the root of the build
+          # context, and handing it the repository root would send the whole tree to the daemon.
+          - name: bootstrapper
+            repository: ghcr.io/argon-chat/bootstrapper
+            context: ./deploy/selfhosted/bootstrapper
+            dockerfile: ./deploy/selfhosted/bootstrapper/Dockerfile
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Docker login GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.ARGON_GHCR_PAT }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: |
+            ${{ matrix.repository }}:${{ github.run_number }}
+            ${{ matrix.repository }}:latest
+          cache-from: type=gha,scope=${{ matrix.name }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+          build-args: |
+            GIT_COMMIT=${{ github.sha }}
+            VERSION=${{ github.run_number }}
+            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+
+      - name: Summary
+        run: |
+          {
+              echo "### ${{ matrix.name }}"
+              echo ''
+              echo '`${{ matrix.repository }}:${{ github.run_number }}` and `:latest`'
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -44,7 +44,7 @@ public class FileStorageGrain(
             throw new InvalidOperationException($"File size {request.FileSize} exceeds limit {effectiveLimit} for purpose {request.Purpose}");
         }
 
-        var fileId = Guid.NewGuid();
+        var fileId = ArgonId.New();
         var s3Key  = BuildS3Key(request.Purpose, fileId, userId, request.SpaceId, request.ChannelId);
 
         var contentTypePrefix = GetContentTypePrefix(request.Purpose);
@@ -75,7 +75,7 @@ public class FileStorageGrain(
 
         var blob = new FileBlobEntity
         {
-            Id        = Guid.NewGuid(),
+            Id        = ArgonId.New(),
             FileId    = fileId,
             OwnerId   = userId,
             Purpose   = request.Purpose,

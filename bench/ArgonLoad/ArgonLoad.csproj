@@ -1,0 +1,31 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <OutputType>Exe</OutputType>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <RootNamespace>Argon.Load</RootNamespace>
+        <AssemblyName>argon-load</AssemblyName>
+        <EnablePreviewFeatures>true</EnablePreviewFeatures>
+
+        <!-- Deliberately not a test project: it is a tool pointed at a running server, and nothing
+             about it should be collected by `dotnet test` or gated in CI. -->
+        <IsPackable>false</IsPackable>
+        <IsTestProject>false</IsTestProject>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- The hub side of the client. Scenario B is about fan-out, and fan-out only exists over a
+             real connection: an RPC round trip would measure a different thing entirely. -->
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- The contracts and the generated Ion client come with Argon.Core. Driving the real wire
+             format by hand, or reimplementing it in a JS load-testing tool, would be a second
+             implementation of the protocol to keep in sync. -->
+        <ProjectReference Include="..\..\src\Argon.Core\Argon.Core.csproj" />
+    </ItemGroup>
+
+</Project>

@@ -95,6 +95,33 @@ public static class TestServerConfiguration
         ["TrustScoring:AutoActionThresholds:0:LockdownDays"] = "0"
     };
 
+    /// <summary>
+    /// No per-channel rate cap. The suite sends as fast as it can on purpose, which is the one thing
+    /// the cap exists to refuse, and a test that trips it would be reporting on the cap rather than
+    /// on whatever it was written to check.
+    /// </summary>
+    public static IEnumerable<KeyValuePair<string, string?>> Messages { get; } = new Dictionary<string, string?>
+    {
+        ["Messages:PerChannelPerSecond"] = "0"
+    };
+
+    /// <summary>
+    /// No meaningful rate limit on the identity server.
+    /// </summary>
+    /// <remarks>
+    /// Shipped, one address gets five credential attempts a minute — which is the point of the
+    /// limiter and exactly what a fixture exercising sign-in does in its first few seconds. Every
+    /// request in a test run also comes from the same (absent) address, so the global partition is
+    /// shared by the whole suite. Raised rather than slept around; the limiter's own configuration is
+    /// covered by its unit tests.
+    /// </remarks>
+    public static IEnumerable<KeyValuePair<string, string?>> Aegis { get; } = new Dictionary<string, string?>
+    {
+        ["AegisRateLimits:Auth:Permits"]   = "100000",
+        ["AegisRateLimits:Token:Permits"]  = "100000",
+        ["AegisRateLimits:Global:Permits"] = "100000"
+    };
+
     /// <summary>Account deletion needs a grace period configured before it will schedule anything.</summary>
     public static IEnumerable<KeyValuePair<string, string?>> AccountDeletion { get; } = new Dictionary<string, string?>
     {

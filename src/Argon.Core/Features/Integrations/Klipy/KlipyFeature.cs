@@ -7,8 +7,6 @@ public static class KlipyFeature
 {
     public static IServiceCollection AddKlipyFeature(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<KlipyOptions>(
-            builder.Configuration.GetSection(KlipyOptions.SectionName));
         builder.Services.AddHttpClient<IKlipyService, KlipyService>()
            .AddStandardResilienceHandler(o =>
             {

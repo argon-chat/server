@@ -44,7 +44,7 @@ public sealed class VoiceEgressDraft(IGrainFactory grains, IOptions<CallKitOptio
 
             var userId = ctx.GetBotAsUserId();
 
-            var channels = await grains.GetGrain<ISpaceGrain>(request.SpaceId).GetChannels();
+            var channels = await grains.GetGrain<ISpaceReadGrain>(request.SpaceId).GetChannels();
             var target = channels.FirstOrDefault(c => c.channel.channelId == request.ChannelId);
 
             if (target is null)

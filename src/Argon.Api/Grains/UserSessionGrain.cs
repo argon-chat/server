@@ -2,6 +2,7 @@ namespace Argon.Grains;
 
 using Argon.Api.Features.Bus;
 using Features.Logic;
+using Argon.Features.Orleanse.Storages;
 using Instruments;
 using Orleans;
 using Orleans.Concurrency;
@@ -14,6 +15,9 @@ using static DeactivationReasonCode;
 // fresh grain, and the last connection dropping arms a durable grace reminder rather than going offline
 // outright — together that stops multi-device presence from flapping while keeping offline reliable.
 public class UserSessionGrain(
+    // Stores nothing; it is here so the runtime carries this across a migration. See VolatileGrainStorage.
+    [PersistentState("activation", VolatileGrainStorage.ProviderName)]
+    IPersistentState<UserSessionActivationState> activation,
     IGrainFactory grainFactory,
     IClusterClient clusterClient,
     ILogger<IUserSessionGrain> logger,
@@ -25,13 +29,8 @@ public class UserSessionGrain(
     private Guid   _userId;
     private string _sessionId = "";  // the stable per-launch sid (parsed from the grain key)
 
-    private bool          _sessionStarted; // presence/status keys set up + counted for THIS activation
-    private readonly HashSet<string> _connections = new();
 
     private IGrainTimer? refreshTimer;
-    private UserStatus?  _preferredStatus;
-    private DateTime?    _lastDebouncedHeartbeatTime;
-    private DateTime?    _sessionStartTime;
 
     // Token bucket throttling status-change broadcasts: a single connection can otherwise flap its
     // status arbitrarily fast, and each change fans out to every server the user is in. Normal use
@@ -41,22 +40,21 @@ public class UserSessionGrain(
     // so the final state still propagates without letting a burst amplify into a broadcast storm.
     private const double StatusBucketCapacity   = 5;
     private const double StatusRefillPerSecond  = 0.5; // 1 token every 2s sustained
-    private double       _statusTokens          = StatusBucketCapacity;
-    private DateTime     _statusTokensUpdatedAt = DateTime.UtcNow;
+
 
     private string SessionId => _sessionId;
 
     private bool TryConsumeStatusToken()
     {
         var now = DateTime.UtcNow;
-        _statusTokens = Math.Min(StatusBucketCapacity,
-            _statusTokens + (now - _statusTokensUpdatedAt).TotalSeconds * StatusRefillPerSecond);
-        _statusTokensUpdatedAt = now;
+        activation.State.StatusTokens = Math.Min(StatusBucketCapacity,
+            activation.State.StatusTokens + (now - activation.State.StatusTokensUpdatedAt).TotalSeconds * StatusRefillPerSecond);
+        activation.State.StatusTokensUpdatedAt = now;
 
-        if (_statusTokens < 1.0)
+        if (activation.State.StatusTokens < 1.0)
             return false;
 
-        _statusTokens -= 1.0;
+        activation.State.StatusTokens -= 1.0;
         return true;
     }
 
@@ -76,6 +74,23 @@ public class UserSessionGrain(
             _sessionId = key;
         }
 
+        // A fresh activation gets a full status budget; a migrated one keeps whatever it had left,
+        // because the limit exists to stop status flapping and a move must not be a way around it.
+        if (!activation.State.Activated)
+        {
+            activation.State.StatusTokens          = StatusBucketCapacity;
+            activation.State.StatusTokensUpdatedAt = DateTime.UtcNow;
+        }
+
+        activation.State.Activated = true;
+
+        // A migrated session did not restart, so nothing will call EnsureSessionStartedAsync again to
+        // arm the refresh timer. Without this it stops renewing its presence keys and quietly goes
+        // offline on the TTL, some minutes after a deployment nobody would connect it to.
+        if (activation.State.SessionStarted)
+            refreshTimer ??= this.RegisterGrainTimer(UserSessionTickAsync,
+                TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+
         return Task.CompletedTask;
     }
 
@@ -90,13 +105,20 @@ public class UserSessionGrain(
         refreshTimer?.Dispose();
         refreshTimer = null;
 
+        // Migration is not the end of a session, it is the same session on another silo. Recording a
+        // duration and decrementing the active-session gauge here would close a session that is still
+        // open, and the target immediately counts it again — every rebalance would show up as churn
+        // in the numbers that are supposed to measure real sign-outs.
+        if (reason.ReasonCode == Migrating)
+            return Task.CompletedTask;
+
         // Only this activation's accounting is settled here. Crucially we do NOT remove Redis session
         // keys on arbitrary deactivation — their lifecycle is owned by GoOffline/finalize and the
         // presence TTL. Removing them here would defeat the disconnect grace.
-        if (_sessionStarted)
+        if (activation.State.SessionStarted)
         {
-            if (_sessionStartTime.HasValue)
-                UserSessionGrainInstrument.SessionDuration.Record((DateTime.UtcNow - _sessionStartTime.Value).TotalSeconds);
+            if (activation.State.SessionStartTime.HasValue)
+                UserSessionGrainInstrument.SessionDuration.Record((DateTime.UtcNow - activation.State.SessionStartTime.Value).TotalSeconds);
 
             var isGraceful = reason.ReasonCode == ApplicationRequested;
             if (!isGraceful)
@@ -114,17 +136,17 @@ public class UserSessionGrain(
     // Start the session on its first connection (or after a fresh (re)activation). Idempotent.
     private async Task EnsureSessionStartedAsync(UserStatus? preferred)
     {
-        if (_sessionStarted)
+        if (activation.State.SessionStarted)
             return;
 
-        _sessionStarted   = true;
-        _preferredStatus  = preferred ?? UserStatus.Online;
-        _sessionStartTime = DateTime.UtcNow;
+        activation.State.SessionStarted   = true;
+        activation.State.PreferredStatus  = preferred ?? UserStatus.Online;
+        activation.State.SessionStartTime = DateTime.UtcNow;
 
         refreshTimer ??= this.RegisterGrainTimer(UserSessionTickAsync, TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
 
         await presenceService.SetSessionOnlineAsync(_userId, SessionId);
-        await presenceService.SetSessionStatusAsync(_userId, SessionId, _preferredStatus.Value);
+        await presenceService.SetSessionStatusAsync(_userId, SessionId, activation.State.PreferredStatus.Value);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
 
@@ -138,7 +160,7 @@ public class UserSessionGrain(
     {
         await EnsureSessionStartedAsync(preferredStatus);
 
-        _connections.Add(connectionId);
+        activation.State.Connections.Add(connectionId);
         // A connection is back — cancel any pending grace and (re)assert the presence key so a brief
         // lapse self-heals. Status is NOT reset here, so a reconnect within grace keeps its real status
         // (no Online flash, no flap).
@@ -154,12 +176,12 @@ public class UserSessionGrain(
 
         // Self-heal the live-connection set from heartbeats — covers a reactivation that never saw the
         // attach, so a heartbeating client is never mistaken for a drained session.
-        if (_connections.Add(connectionId))
+        if (activation.State.Connections.Add(connectionId))
             await CancelGraceAsync();
 
-        if (DateTime.UtcNow - (_lastDebouncedHeartbeatTime ?? DateTime.MinValue) > TimeSpan.FromSeconds(30))
+        if (DateTime.UtcNow - (activation.State.LastDebouncedHeartbeatTime ?? DateTime.MinValue) > TimeSpan.FromSeconds(30))
         {
-            _lastDebouncedHeartbeatTime = DateTime.UtcNow;
+            activation.State.LastDebouncedHeartbeatTime = DateTime.UtcNow;
             await presenceService.HeartbeatAsync(_userId, SessionId);
         }
 
@@ -169,9 +191,9 @@ public class UserSessionGrain(
         var statusTag = Tag(status);
         UserSessionGrainInstrument.Heartbeats.Add(1, new KeyValuePair<string, object?>("status", statusTag));
 
-        if (_preferredStatus != status)
+        if (activation.State.PreferredStatus != status)
         {
-            // Rate-limit status churn. On throttle, drop the change WITHOUT touching _preferredStatus or
+            // Rate-limit status churn. On throttle, drop the change WITHOUT touching activation.State.PreferredStatus or
             // Redis, so the next heartbeat re-detects the mismatch and propagates the final state once
             // the bucket refills — a burst can't amplify into a broadcast storm.
             if (!TryConsumeStatusToken())
@@ -181,10 +203,10 @@ public class UserSessionGrain(
             else
             {
                 UserSessionGrainInstrument.StatusChanges.Add(1,
-                    new KeyValuePair<string, object?>("from_status", Tag(_preferredStatus ?? UserStatus.Online)),
+                    new KeyValuePair<string, object?>("from_status", Tag(activation.State.PreferredStatus ?? UserStatus.Online)),
                     new KeyValuePair<string, object?>("to_status", statusTag));
 
-                _preferredStatus = status;
+                activation.State.PreferredStatus = status;
                 await presenceService.SetSessionStatusAsync(_userId, SessionId, status);
                 await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
                 await presenceService.HeartbeatAsync(_userId, SessionId);
@@ -197,8 +219,8 @@ public class UserSessionGrain(
 
     public async ValueTask DetachConnectionAsync(string connectionId)
     {
-        _connections.Remove(connectionId);
-        if (_connections.Count > 0)
+        activation.State.Connections.Remove(connectionId);
+        if (activation.State.Connections.Count > 0)
             return; // other connections of this session are still live — no status change
 
         // Last connection dropped. Don't broadcast offline now: a transient drop (OS sleep/
@@ -213,7 +235,7 @@ public class UserSessionGrain(
     public async ValueTask GoOfflineAsync()
     {
         // Deliberate offline — skip the grace entirely.
-        _connections.Clear();
+        activation.State.Connections.Clear();
         await FinalizeOfflineAsync(CancellationToken.None);
     }
 
@@ -223,7 +245,7 @@ public class UserSessionGrain(
             return;
 
         // Reconnected (or a heartbeat self-healed the set) — drop the grace.
-        if (_connections.Count > 0)
+        if (activation.State.Connections.Count > 0)
         {
             await CancelGraceAsync();
             return;
@@ -278,7 +300,7 @@ public class UserSessionGrain(
     {
         // While the session has no live connections it is draining: let the presence TTL lapse so the
         // grace reminder can finalize it. Refreshing here would keep a gone session "online" forever.
-        if (_connections.Count == 0)
+        if (activation.State.Connections.Count == 0)
             return;
 
         this.DelayDeactivation(TimeSpan.FromMinutes(2));
@@ -301,4 +323,55 @@ public class UserSessionGrain(
         UserStatus.DoNotDisturb => "dnd",
         _                       => "online"
     };
+}
+
+/// <summary>
+/// What a user session activation holds that Redis does not.
+/// </summary>
+/// <remarks>
+/// <para>The connection set is the reason this type exists. Presence keys in Redis survive a move on
+/// their own TTL, but the list of live transports lives nowhere else — losing it leaves a session
+/// that believes nobody is attached, arms the grace reminder and takes the user offline while their
+/// client is still sitting there connected.</para>
+///
+/// <para>Held as <c>IPersistentState</c> against the storage that stores nothing, which is what
+/// carries it across a migration without a line of code in this grain. See
+/// <see cref="VolatileGrainStorage"/>.</para>
+/// </remarks>
+[GenerateSerializer]
+public sealed record UserSessionActivationState
+{
+    /// <summary>Transport connection ids currently attached to this session.</summary>
+    [Id(0)]
+    public HashSet<string> Connections { get; set; } = [];
+
+    /// <summary>Presence keys are set up and this session is counted as active.</summary>
+    [Id(1)]
+    public bool SessionStarted { get; set; }
+
+    [Id(2)]
+    public UserStatus? PreferredStatus { get; set; }
+
+    [Id(3)]
+    public DateTime? SessionStartTime { get; set; }
+
+    [Id(4)]
+    public DateTime? LastDebouncedHeartbeatTime { get; set; }
+
+    /// <summary>
+    /// The status-change budget, carried so a move does not hand the client a fresh one. The limit
+    /// exists to stop status flapping, and refilling it on every rebalance is a way around it.
+    /// </summary>
+    [Id(5)]
+    public double StatusTokens { get; set; }
+
+    [Id(6)]
+    public DateTime StatusTokensUpdatedAt { get; set; }
+
+    /// <summary>
+    /// Set once an activation has run. Absent on a fresh one, present on a migrated one — which is
+    /// how the session tells a move from a restart.
+    /// </summary>
+    [Id(7)]
+    public bool Activated { get; set; }
 }

@@ -18,6 +18,41 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
 {
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetSpaceSnapshot_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __known = reader.ReadNullable<SpaceVersions>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetSpaceSnapshot(__spaceid, __known);
+        
+        IonFormatterStorage<SpaceSnapshot>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetMemberPresence_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetMemberPresence(__spaceid);
+        
+        IonFormatterStorage<MemberPresence>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetMembers_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IServerInteraction>();
@@ -415,6 +450,10 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
         public Task RouteExecuteAsync(string methodName, CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         
+        if (methodName.Equals("GetSpaceSnapshot", StringComparison.InvariantCultureIgnoreCase))
+            return GetSpaceSnapshot_Execute(reader, writer, ct);
+        if (methodName.Equals("GetMemberPresence", StringComparison.InvariantCultureIgnoreCase))
+            return GetMemberPresence_Execute(reader, writer, ct);
         if (methodName.Equals("GetMembers", StringComparison.InvariantCultureIgnoreCase))
             return GetMembers_Execute(reader, writer, ct);
         if (methodName.Equals("GetMember", StringComparison.InvariantCultureIgnoreCase))

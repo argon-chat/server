@@ -1,0 +1,34 @@
+{
+  "//": [
+    "The browser half, checked separately from the server half on purpose.",
+    "",
+    "The package's root tsconfig has `lib: [\"ESNext\"]` and no DOM, which is what stops a module in",
+    "src/ from reaching for `document` — that code runs in a container and holds the docker socket.",
+    "Widening it to give this directory its globals would hand every server module a `document` it must",
+    "never touch, so this is a second configuration rather than a looser one.",
+    "",
+    "`include` is this directory only. `src/` is compiled by the root config; nothing here should ever",
+    "import from it, because those modules pull in node's filesystem and the socket. The API is the seam",
+    "and `ui/src/api.ts` declares the shapes on this side of it."
+  ],
+
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "types": ["vite/client"],
+    "jsx": "preserve",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "allowImportingTsExtensions": true
+  },
+
+  "include": ["src", "vite.config.ts"]
+}

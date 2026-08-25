@@ -2,9 +2,21 @@ namespace Argon.Features.Moderation;
 
 using ArgonContracts;
 
-public class ReportSystemOptions
+public class ReportSystemOptions : Argon.Features.Clustering.IValidatableFeatureOptions
 {
     public const string SectionName = "ReportSystem";
+
+    /// <summary>
+    /// Delegates to the validator that already phrases these findings, so the rules live in one place
+    /// and <c>--validate-config</c> sees exactly what startup would refuse on.
+    /// </summary>
+    public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
+    {
+        var result = new ReportSystemOptionsValidator().Validate(null, this);
+
+        foreach (var failure in result.Failures ?? [])
+            report.Invalid(failure);
+    }
 
     public bool IsEnabled { get; set; }
 
@@ -32,9 +44,22 @@ public class ReportSystemOptions
     public HashSet<ReportCategory> SeriousCategories { get; set; } = [];
 }
 
-public class TrustScoringOptions
+public class TrustScoringOptions : Argon.Features.Clustering.IValidatableFeatureOptions
 {
     public const string SectionName = "TrustScoring";
+
+    /// <summary>
+    /// Only meaningful while the report system is on, which is the one thing this section cannot see
+    /// for itself.
+    /// </summary>
+    public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
+    {
+        var reports = report.Read<ReportSystemOptions>(ReportSystemOptions.SectionName);
+        var result  = new TrustScoringOptionsValidator(Options.Create(reports)).Validate(null, this);
+
+        foreach (var failure in result.Failures ?? [])
+            report.Invalid(failure);
+    }
 
     public int DefaultTrustScore { get; set; }
     public int MinTrustScore { get; set; }

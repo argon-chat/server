@@ -2,14 +2,21 @@ namespace Argon.Features;
 
 using Drains;
 using Microsoft.Extensions.DependencyInjection;
+using Orleans.Metadata;
 using Orleans.Placement;
 using Orleans.Runtime;
 using Orleans.Runtime.Placement;
 
 /// <summary>
 /// Placement filter strategy that excludes draining silos from placement decisions.
-/// Applied globally to all grains to support blue-green deployments.
 /// </summary>
+/// <remarks>
+/// Applied to every grain type by <see cref="DrainAwarePlacementFilterProvider"/> rather than by an
+/// attribute. Registering a filter is not enough on its own: Orleans resolves filters per grain type
+/// from the <c>PlacementFilter</c> grain property, which the attribute exists to populate, and a
+/// resolver that finds no such property returns none. This filter was registered and attached to
+/// nothing for exactly that reason.
+/// </remarks>
 [Serializable, GenerateSerializer, Immutable]
 public sealed class DrainAwarePlacementFilterStrategy() : PlacementFilterStrategy(-100);
 
@@ -60,6 +67,24 @@ public class DrainAwarePlacementFilterDirector(
 }
 
 /// <summary>
+/// Puts the drain-aware filter on every grain type, without annotating a single one.
+/// </summary>
+/// <remarks>
+/// <para>The documented way to apply a placement filter is an attribute on the grain class. That does
+/// not scale to "all of them": forty-odd classes to annotate, and the one added next week is the one
+/// that keeps activating on a silo being taken out of service.</para>
+///
+/// <para>The attribute is only a way of writing a grain property, and grain properties have another
+/// author — <see cref="IGrainPropertiesProvider"/>, which the manifest asks about every grain type it
+/// builds. Writing the property here reaches every grain, including ones that do not exist yet.</para>
+/// </remarks>
+public sealed class DrainAwarePlacementFilterProvider(IServiceProvider services) : IGrainPropertiesProvider
+{
+    public void Populate(Type grainClass, GrainType grainType, Dictionary<string, string> properties)
+        => new DrainAwarePlacementFilterStrategy().PopulateGrainProperties(services, grainClass, grainType, properties);
+}
+
+/// <summary>
 /// Extension methods for registering drain-aware placement filter.
 /// </summary>
 public static class DrainAwarePlacementExtensions
@@ -72,6 +97,10 @@ public static class DrainAwarePlacementExtensions
     {
         services.AddPlacementFilter<DrainAwarePlacementFilterStrategy, DrainAwarePlacementFilterDirector>(
             ServiceLifetime.Singleton);
+
+        // Registering the filter only makes it resolvable. This is what makes it apply.
+        services.AddSingleton<IGrainPropertiesProvider, DrainAwarePlacementFilterProvider>();
+
         return services;
     }
 }

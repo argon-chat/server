@@ -41,7 +41,17 @@ public record FriendRequestEntity : IEntityTypeConfiguration<FriendRequestEntity
         builder.Property(x => x.ExpiredAt)
            .AsTTlField();
 
-        builder.WithTTL(x => x.RequestedAt, CronValue.Daily);
+        // ExpiredAt, not RequestedAt. A row is expired once the named column is in the past, and
+        // RequestedAt defaults to now() on insert — so naming it declared every friend request expired
+        // the instant it was written, and asked whatever applies the TTL to delete the entire table on
+        // its first run. Nothing had happened only because the clause was emitted from CreateTable and
+        // this table already existed — and that is no longer the protection it was: SchemaDeclarations
+        // issues the TTL against the live table on every boot, so a wrong column here empties the table
+        // on the next deploy rather than eventually.
+        //
+        // ExpiredAt is what AsTTlField exists for — it converts the DateOnly to timestamptz precisely
+        // so a TTL can read it — and FriendsGrain sets it six months out when the request is made.
+        builder.WithTTL(x => x.ExpiredAt, CronValue.Daily);
     }
 
     public static FriendRequest Map(scoped in FriendRequestEntity self)

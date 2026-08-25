@@ -20,7 +20,18 @@ public class MultiRegionAnnotation
 
 public class ExpirationJobAnnotation
 {
-    // ttl_expiration_expression 
+    /// <summary>
+    /// The model annotation this payload is stored under.
+    /// </summary>
+    /// <remarks>
+    /// Shared with <see cref="SchemaTtlModel"/> rather than written out twice. The generator writes the
+    /// declaration into <c>CREATE TABLE</c>, and <see cref="SchemaDeclarations"/> reads the same
+    /// declaration back out of the live model to issue it against tables that already existed; a typo
+    /// in either copy of the key would make that step quietly see no TTL anywhere and do nothing.
+    /// </remarks>
+    public const string AnnotationKey = "Job:Expiration";
+
+    // ttl_expiration_expression
     public required string TimestampKey { get; init; }
 
     // ttl_job_cron 
@@ -48,22 +59,50 @@ public record CronValue(string value)
 
 public static class DbLocalityExtensions
 {
+    /// <summary>
+    /// Declares the database multi-region, and how much of a failure it is expected to survive.
+    /// </summary>
+    /// <remarks>
+    /// <para>The survival goal is derived rather than defaulted to a constant, because the constant
+    /// was wrong. <c>SURVIVE REGION FAILURE</c> needs three regions to place its replicas in, and a
+    /// deployment with one — which is every deployment so far — cannot be created with it at all.
+    /// That is why the clause was generated and then commented out.</para>
+    ///
+    /// <para>So: three or more regions get region survival, fewer get zone survival, and a caller who
+    /// knows better passes what it wants. Getting this wrong in the safe direction costs availability;
+    /// getting it wrong in the other direction costs the ability to create the database.</para>
+    /// </remarks>
     public static ModelBuilder UseMultiRegionDatabase(
         this ModelBuilder modelBuilder,
         string primaryRegion,
         string[]? additionalRegions = null,
-        string survive = "REGION FAILURE")
+        string? survive = null)
     {
+        var regions = new HashSet<string>(additionalRegions ?? [], StringComparer.OrdinalIgnoreCase);
+        if (!string.IsNullOrWhiteSpace(primaryRegion))
+            regions.Add(primaryRegion);
+
         var payload = new MultiRegionAnnotation
         {
             Primary = primaryRegion,
             Regions = additionalRegions ?? [],
-            Survive = survive
+            Survive = survive ?? (regions.Count >= 3 ? "REGION FAILURE" : "ZONE FAILURE")
         };
 
         modelBuilder.HasAnnotation("Regional:MultiRegion", JsonConvert.SerializeObject(payload));
         return modelBuilder;
     }
+
+    /// <summary>
+    /// The annotation the three <c>Placement*</c> helpers write.
+    /// </summary>
+    /// <remarks>
+    /// One spelling, for the same reason <see cref="ExpirationJobAnnotation.AnnotationKey"/> is one
+    /// spelling: it is written here, read by the <c>CREATE TABLE</c> generator below and read again by
+    /// <see cref="SchemaDeclarations.ReadLocalities"/>, and a typo in any copy would look exactly like
+    /// a model that declares no placement at all.
+    /// </remarks>
+    public const string LocalityAnnotationKey = "Regional:Locality";
 
     public static EntityTypeBuilder PlacementGlobal(this EntityTypeBuilder builder)
         => builder.AddLocalityAnnotation("GLOBAL");
@@ -78,7 +117,7 @@ public static class DbLocalityExtensions
 
     private static EntityTypeBuilder AddLocalityAnnotation(this EntityTypeBuilder builder, string locality)
     {
-        builder.HasAnnotation("Regional:Locality", locality);
+        builder.HasAnnotation(LocalityAnnotationKey, locality);
         return builder;
     }
 
@@ -126,7 +165,7 @@ public static class DbLocalityExtensions
 
     private static EntityTypeBuilder AddExpirationJob(this EntityTypeBuilder builder, ExpirationJobAnnotation jobDetails)
     {
-        builder.HasAnnotation("Job:Expiration", JsonConvert.SerializeObject(jobDetails));
+        builder.HasAnnotation(ExpirationJobAnnotation.AnnotationKey, JsonConvert.SerializeObject(jobDetails));
         return builder;
     }
 
@@ -188,7 +227,9 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
 
                 if (regions.Length > 0)
                     builder.Append($" REGIONS {regions}");
-                //builder.Append($" SURVIVE {cfg.Survive}");
+
+                if (!string.IsNullOrWhiteSpace(cfg.Survive))
+                    builder.Append($" SURVIVE {cfg.Survive}");
             }
         }
 
@@ -204,7 +245,8 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
     {
         base.Generate(operation, model, builder, false);
 
-        if (HasAnnotation<string>(model ?? Dependencies.CurrentContext.Context.Model, operation, "Job:Expiration", out var expirationJobAnnotation))
+        if (HasAnnotation<string>(model ?? Dependencies.CurrentContext.Context.Model, operation,
+                ExpirationJobAnnotation.AnnotationKey, out var expirationJobAnnotation))
         {
             var cfg = JsonConvert.DeserializeObject<ExpirationJobAnnotation>(expirationJobAnnotation)!;
             builder.AppendLine()
@@ -224,7 +266,7 @@ public class MultiregionalMigrationsSqlGenerator(MigrationsSqlGeneratorDependenc
             builder.Append(")");
         }
 
-        if (HasAnnotation<string>(model, operation, "Regional:Locality", out var locality))
+        if (HasAnnotation<string>(model, operation, DbLocalityExtensions.LocalityAnnotationKey, out var locality))
             builder.AppendLine().Append("LOCALITY ").Append(locality);
 
         builder.AppendLine(Dependencies.SqlGenerationHelper.StatementTerminator);

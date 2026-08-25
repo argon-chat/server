@@ -2,7 +2,7 @@ namespace Argon.Features.NatsStreaming;
 
 using Api.Features.Bus;
 using Bus;
-using Env;
+using Clustering;
 using NATS.Client.Core;
 using NATS.Client.JetStream;
 using NATS.Client.JetStream.Models;
@@ -95,7 +95,7 @@ public class NatsArgonReadOnlyStream(
     ILogger<NatsArgonReadOnlyStream> logger,
     ArgonEventSerializer serializer) : IArgonStream<IArgonEvent>
 {
-    private readonly Guid _streamListenerId = Guid.NewGuid();
+    private readonly Guid _streamListenerId = ArgonId.New();
     private readonly string _consumerName = $"{streamId.ToString().Replace('/', '_')}_{Guid.NewGuid():N}";
 
     private INatsJSConsumer? _consumer;
@@ -248,7 +248,7 @@ public static class NatsExtensions
 
         builder.Services.AddSingleton<INatsClient>(q =>
         {
-            var client = q.GetRequiredService<IHostEnvironment>().DetermineClientSpace();
+            var client = q.GetRequiredService<RoleDescriptor>().Id.Value;
 
             return new NatsConnection(new NatsOpts
             {

@@ -1,0 +1,14 @@
+node_modules
+
+# `**` matters: .dockerignore follows Go's filepath.Match, where `*` does not cross a `/`. Written as
+# `*.test.ts` this excluded nothing at all — every suite in src/ was being copied into the published
+# image, where it is dead weight that also imports a browser driver the runtime image does not have.
+**/*.test.ts
+
+# The build's output, not its input. The image builds the page itself in its own stage; copying a dist/
+# from the developer's machine would ship whatever they last happened to build.
+ui/dist
+
+# The screenshot harness. Not copied by any COPY either, but stated here so that adding a `COPY . .`
+# one day does not quietly publish a page that renders fixtures instead of the machine's real state.
+preview

@@ -1,239 +1,31 @@
 namespace Argon.Features;
 
-using Api.Features;
-using Argon.Api.Features.Utils;
-using Drains;
-using Env;
-using HealthChecks;
-using NatsStreaming;
-using Orleans.Configuration;
-using Orleans.Dashboard;
 using Orleans.Hosting;
-using Orleans.Serialization;
-using Services.Ion;
-using Argon.Grains.Interfaces;
-using Argon.Services;
-using StackExchange.Redis;
 
-#pragma warning disable ORLEANSEXP002
-#pragma warning disable ORLEANSEXP001
-#pragma warning disable ORLEANSEXP003
+/// <summary>
+/// What is left of the old Orleans hosting layer once the role system took it over.
+/// </summary>
+/// <remarks>
+/// <c>AddWorkerOrleans</c>, <c>AddGatewayOrleans</c>, <c>AddSingleOrleansClient</c>,
+/// <c>AddMultiOrleansClient</c> and <c>AddShimsForHybridRole</c> lived here. They branched on
+/// <c>ArgonRoleKind</c> and carried three byte-identical copies of the serializer configuration.
+/// Their replacement is <see cref="Clustering.ArgonOrleansHosting"/>, which takes the resolved role
+/// and configures a silo or a client from it.
+/// </remarks>
 public static class OrleansExtension
 {
-    extension(WebApplicationBuilder builder)
+    /// <summary>
+    /// Registers one Redis-backed grain storage provider per name.
+    /// </summary>
+    /// <remarks>
+    /// It used to take an ADO.NET invariant and a connection string name, and the call site passed
+    /// <c>"Npgsql"</c> and <c>"DefaultConnection"</c> — neither was ever read. Grain state has always
+    /// gone to Redis, and the signature said Postgres.
+    /// </remarks>
+    public static ISiloBuilder UseRedisStorages(this ISiloBuilder builder, IEnumerable<string> providerNames)
     {
-        public WebApplicationBuilder AddMultiOrleansClient()
-        {
-            builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-            builder.Services.AddHostedService<DcWatcherService>();
-            builder.Services.AddSingleton<IClusterClientFactory, OrleansClientFactory>();
-            //builder.Services.AddHostedService<EntryPointWatcher>();
-            return builder;
-        }
-
-        public WebApplicationBuilder AddShimsForHybridRole()
-        {
-            builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonHybridDcRegistry>();
-            return builder;
-        }
-
-
-        public WebApplicationBuilder AddSingleOrleansClient()
-        {
-            //builder.AddMultiOrleansClient();
-            //return builder;
-            builder.Services.AddSerializer(x =>
-            {
-                x.AddNewtonsoftJsonSerializer(q => true,
-                    optionsBuilder =>
-                    {
-                        optionsBuilder.Configure(z =>
-                        {
-                            z.SerializerSettings                       ??= new JsonSerializerSettings();
-                            z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
-                            z.SerializerSettings.Converters.Add(new MessageEntityConverter());
-                            z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
-                            z.SerializerSettings.Converters.Add(new IonMaybeConverter());
-                            z.SerializerSettings.Converters.Add(new IonArrayConverter());
-                            z.SerializerSettings.Converters.Add(new StringEnumConverter());
-                        });
-                    });
-            });
-            builder.AddNatsCtx();
-            builder.Services.AddSingleton<IArgonDcRegistry, ArgonDcRegistry>();
-            //builder.Services.AddHostedService<EntryPointWatcher>();
-            builder.Services.AddOrleansClient(q
-                => OrleansClientFactory.Builder(q, builder.Environment, builder.Configuration, builder.GetDatacenter()));
-            return builder;
-        }
-
-        public WebApplicationBuilder AddGatewayOrleans()
-        {
-            builder.Services.AddSerializer(x =>
-            {
-                x.AddNewtonsoftJsonSerializer(q => true, optionsBuilder =>
-                {
-                    optionsBuilder.Configure(z =>
-                    {
-                        z.SerializerSettings                       ??= new JsonSerializerSettings();
-                        z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
-                        z.SerializerSettings.Converters.Add(new MessageEntityConverter());
-                        z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
-                        z.SerializerSettings.Converters.Add(new IonMaybeConverter());
-                        z.SerializerSettings.Converters.Add(new IonArrayConverter());
-                        z.SerializerSettings.Converters.Add(new StringEnumConverter());
-                    });
-                });
-            });
-
-            builder.Host.UseOrleans(siloBuilder =>
-            {
-                siloBuilder.ConfigureEndpoints(11111, 30000).AddDashboard();
-
-                siloBuilder.Configure<ClusterOptions>(q =>
-                {
-                    q.ClusterId = "argon-cluster";
-                    q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
-                });
-                siloBuilder
-                   .UseStorages([
-                        IUserSessionGrain.StorageId,
-                        IServerInvitesGrain.StorageId,
-                        "Default"
-                    ], "Npgsql", "DefaultConnection")
-                   .Configure<ClusterMembershipOptions>(options =>
-                    {
-                        options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                        options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
-                        options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
-                        options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
-                    })
-                   .Configure<ExceptionSerializationOptions>(x =>
-                    {
-                        x.SupportedNamespacePrefixes.Add("Argon");
-                        x.SupportedExceptionTypeFilter = type =>
-                            type == typeof(UnauthorizedAccessException)
-                            
-                            ;
-                    })
-                   .Configure<GrainCollectionOptions>(options =>
-                    {
-                        options.CollectionAge     = TimeSpan.FromMinutes(4);
-                        options.CollectionQuantum = TimeSpan.FromMinutes(2);
-                    })
-                   .Configure<SchedulingOptions>(options =>
-                    {
-                        options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
-                        options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
-                    });
-
-
-                siloBuilder
-                   .AddDistributedGrainDirectory()
-                   .UseRedisClustering(x
-                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
-            });
-
-            return builder;
-        }
-
-        public WebApplicationBuilder AddWorkerOrleans()
-        {
-            builder.AddNatsCtx();
-
-            // Register Orleans rebalancing providers explicitly
-            builder.Services.AddSingleton<ArgonRebalancerBackoffProvider>();
-            builder.Services.AddSingleton<ArgonImbalanceToleranceRule>();
-
-            builder.Services.AddSerializer(x =>
-            {
-                x.AddNewtonsoftJsonSerializer(q => true, optionsBuilder =>
-                {
-                    optionsBuilder.Configure(z =>
-                    {
-                        z.SerializerSettings                       ??= new JsonSerializerSettings();
-                        z.SerializerSettings.ReferenceLoopHandling =   ReferenceLoopHandling.Ignore;
-                        z.SerializerSettings.Converters.Add(new MessageEntityConverter());
-                        z.SerializerSettings.Converters.Add(new UlongEnumConverter<ArgonEntitlement>());
-                        z.SerializerSettings.Converters.Add(new IonMaybeConverter());
-                        z.SerializerSettings.Converters.Add(new IonArrayConverter());
-                        z.SerializerSettings.Converters.Add(new StringEnumConverter());
-                    });
-                });
-            });
-            builder.Host.UseOrleans(siloBuilder =>
-            {
-                if (builder.IsGatewayRole() || builder.IsHybridRole())
-                    siloBuilder.ConfigureEndpoints(11111, 30000).AddDashboard();
-                else if (builder.IsWorkerRole())
-                    siloBuilder.ConfigureEndpoints(11111, 0);
-                else
-                    throw new InvalidOperationException("Cannot determine configuration for worker silo");
-
-                siloBuilder.Configure<ClusterOptions>(q =>
-                {
-                    q.ClusterId = "argon-cluster";
-                    q.ServiceId = $"argon-region-{builder.GetDatacenter()}";
-                });
-                siloBuilder
-                   .AddStreaming()
-                   .AddActivityPropagation()
-                   .AddReminders()
-                    //.AddActivationRebalancer<ArgonRebalancerBackoffProvider>()
-                   .AddActivationRepartitioner<ArgonImbalanceToleranceRule>()
-                   .UseStorages([
-                        IUserSessionGrain.StorageId,
-                        IServerInvitesGrain.StorageId,
-                        "Default",
-                        "meets"
-                    ], "Npgsql", "DefaultConnection")
-                   .UseRedisReminderService(x
-                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans))
-                   .AddStartupTask(async (sp, _) => await sp.GetRequiredService<IGrainFactory>()
-                       .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-                       .EnsureSchedulerActiveAsync())
-                   .Configure<ClusterMembershipOptions>(options =>
-                    {
-                        options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                        options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
-                        options.MaxJoinAttemptTime          = TimeSpan.FromSeconds(10);
-                        options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
-                        //options.LivenessEnabled             = false; // TODO
-                    })
-                   .Configure<ExceptionSerializationOptions>(x => { x.SupportedNamespacePrefixes.Add("Argon"); })
-                   .Configure<GrainCollectionOptions>(options =>
-                    {
-                        options.CollectionAge     = TimeSpan.FromMinutes(4);
-                        options.CollectionQuantum = TimeSpan.FromMinutes(2);
-                    })
-                   .Configure<SchedulingOptions>(options =>
-                    {
-                        options.StoppedActivationWarningInterval = TimeSpan.FromHours(1);
-                        options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
-                    });
-                siloBuilder
-                   .AddDistributedGrainDirectory()
-                   .UseRedisClustering(x
-                        => x.ConfigurationOptions = new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
-            });
-
-            if (builder.Environment.IsWorker() || builder.Environment.IsHybrid())
-            {
-                builder.Services.AddSingleton<ISiloDrainService, SiloDrainService>();
-                builder.Services.AddSiloHealthChecks();
-                builder.Services.AddDrainAwarePlacementFilter();
-            }
-
-            return builder;
-        }
-    }
-
-    public static ISiloBuilder UseStorages(this ISiloBuilder builder, List<string> keys, string invariant, string connString)
-    {
-        foreach (var key in keys)
-            builder.AddRedisStorage(key);
+        foreach (var name in providerNames)
+            builder.AddRedisStorage(name);
 
         return builder;
     }

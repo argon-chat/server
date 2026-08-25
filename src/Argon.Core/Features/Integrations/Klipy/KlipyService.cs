@@ -176,7 +176,7 @@ public class KlipyService(
             if (!await s3.PutObjectAsync(cdnKey, stream, "image/webp", ct))
                 return null;
 
-            var fileId = Guid.NewGuid();
+            var fileId = ArgonId.New();
             db.Files.Add(new FileEntity
             {
                 Id          = fileId,

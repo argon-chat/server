@@ -1,5 +1,6 @@
 namespace Argon.Grains;
 
+using Argon.Features.Cache;
 using Api.Features.CoreLogic.Messages;
 using Argon.Api.Features.Bus;
 using Argon.Api.Grains.Interfaces;
@@ -21,10 +22,15 @@ using Argon.Features.Integrations.Klipy;
 using Argon.Core.Features.CoreLogic.Privacy;
 using Core.Entities.Data;
 using ion.runtime;
+using Services.L1L2;
+using Argon.Features.Orleanse.Storages;
 
 public class ChannelGrain(
     [PersistentState("channel-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
     IPersistentState<ChannelGrainState> state,
+    // Stores nothing; it is here so the runtime carries this across a migration. See VolatileGrainStorage.
+    [PersistentState("activation", VolatileGrainStorage.ProviderName)]
+    IPersistentState<ChannelActivationState> activation,
     IDbContextFactory<ApplicationDbContext> context,
     IMessagesLayout messagesLayout,
     IEntitlementChecker entitlementChecker,
@@ -33,6 +39,12 @@ public class ChannelGrain(
     BotUserCache botUserCache,
     IS3StorageService s3,
     IKlipyService klipy,
+    ISpaceReadCache readCache,
+    // Same pool the read-state and replay-buffer caches use. The channel's high-water mark is a
+    // cache value, not a second source of truth: it is written here and read by anyone who needs it
+    // fresher than the flush interval below.
+    [FromKeyedServices(RedisProfiles.Cache)] IRedisPoolConnections redisPool,
+    IOptions<MessagesOptions> messageOptions,
     ILogger<ChannelGrain> logger) : Grain, IChannelGrain
 {
     private ChannelEntity _self     { get; set; }
@@ -48,14 +60,106 @@ public class ChannelGrain(
     private const int MaxCachedReactionMessages = 100;
     private IGrainTimer? _reactionFlushTimer;
 
+    // ── Channel high-water mark ──────────────────────────────
+    /// <summary>
+    /// The newest message id this activation has accepted, and how much of that has reached
+    /// <c>ChannelLastMessages</c>.
+    /// </summary>
+    /// <remarks>
+    /// Not part of <see cref="ChannelActivationState"/> and so deliberately does not travel: the
+    /// successor of a migrated activation starts empty, which is exactly why the deactivation path
+    /// flushes on migration as well. Putting it in the travelling state instead would work, but it
+    /// would put a value the database is the real home of into the migration payload of every
+    /// channel in the cluster during a rebalance.
+    /// </remarks>
+    private readonly ChannelHighWaterMark lastMessage = new();
+
+    /// <summary>
+    /// The tail of the per-send cache publishes, so they land in the order they were issued.
+    /// </summary>
+    /// <remarks>
+    /// Each publish rents its own pooled connection, and two connections to the same Redis give no
+    /// ordering relative to each other — so two sends a microsecond apart can arrive reversed and
+    /// leave the cell holding the older id until something else writes it. "Last write wins" is only
+    /// safe when the last write is also the newest one, and chaining is what makes that true.
+    /// <para>
+    /// Awaiting the write inside the turn would order it too, and would put a Redis round trip back
+    /// on the exact path <see cref="DeduplicateAsync"/> was rewritten to get one off — measured at
+    /// 0.93 ms against a turn with about 1.5 ms of work left in it.
+    /// </para>
+    /// </remarks>
+    private Task lastMessagePublishTail = Task.CompletedTask;
+
     // ── Screencast drawing session (ephemeral, lives with the share) ──
     private const int DrawingDefaultTtlMs = 6000;
-    private (string SessionId, Guid StreamerId, HashSet<Guid> AllowedDrawers)? _drawingSession;
 
-    private readonly Dictionary<Guid, DateTimeOffset> _lastSentBySender = new();
+    /// <summary>
+    /// Ids handed out for the randomIds seen since this activation started, so a retry can be
+    /// answered without asking Redis.
+    /// </summary>
+    /// <remarks>
+    /// This activation is the only writer for its channel, so what it remembers is the whole truth
+    /// about what it accepted. The cache entry behind it exists for the case this does not cover — an
+    /// activation that moved or restarted — and <see cref="activation.State.DedupTrustedUntil"/> is when that
+    /// case stops being possible.
+    /// </remarks>
+
+    /// <summary>
+    /// Until this moment a retry might have been accepted by a previous activation, so the shared
+    /// cache still has to be consulted. After it, any entry the cache could still hold is younger
+    /// than the entry's own lifetime and therefore was written by this activation, which means it is
+    /// already in <see cref="activation.State.SentByRandomId"/> and the round trip is pure cost.
+    /// </summary>
+
+    /// <summary>Start of the second the cap is currently counting, and what it has counted.</summary>
+
 
     private Task Fire<T>(T ev, CancellationToken ct = default) where T : IArgonEvent
         => appHubServer.BroadcastSpace(ev, SpaceId, ct);
+
+    /// <summary>
+    /// Hands an event to the backplane without waiting for it, and without ordering it.
+    /// </summary>
+    /// <remarks>
+    /// Publishing took a measured 3.2 ms of a turn that totalled about 8, and it is the one part of
+    /// sending a message whose result the sender does not need — the id comes from the insert.
+    /// Holding the turn for it capped a channel at roughly a hundred messages a second, because every
+    /// send to a channel goes through the one activation that orders them.
+    /// <para>
+    /// Nothing here preserves the order events reach the backplane in, and that is deliberate: a few
+    /// hundred milliseconds of drift between two messages is acceptable, the same way it is in every
+    /// other chat client. The sender knows its own sequence from the <c>randomId</c> it chose before
+    /// the call, and <c>messageId</c> is roughly time-ordered. An ordered chain was tried first and
+    /// became the next bottleneck: it moved the serialisation from the turn to the publish and cost
+    /// delivery 333 ms at saturation.
+    /// </para>
+    /// <para>
+    /// <b>The desktop client cannot absorb that drift yet.</b> Its cursor is a high-water mark — see
+    /// <c>advanceCursor</c> in <c>realtimeWorker.ts</c> — so a <c>broadcastSpace</c> whose replay
+    /// entry id is lower than one already seen is discarded rather than shown late, and the replay
+    /// will not bring it back because the cursor has moved past it. Until that becomes a dedupe by
+    /// id, drift here is occasional silent loss for that client. The window was never zero: two
+    /// channels in one space have always published concurrently from separate activations.
+    /// </para>
+    /// <para>
+    /// The cost is a weaker promise: <c>SendMessage</c> returns once the message is stored, not once
+    /// the backplane has it, and a publish that fails afterwards is logged rather than surfaced. That
+    /// is the guarantee the mention and last-message updates beside it already have.
+    /// </para>
+    /// </remarks>
+    private void FireDetached<T>(T ev) where T : IArgonEvent
+        => _ = Task.Run(async () =>
+        {
+            try
+            {
+                await Fire(ev);
+            }
+            catch (Exception e)
+            {
+                logger.LogError(e, "failed to broadcast {Event} for channel {ChannelId}",
+                    typeof(T).Name, this.GetPrimaryKey());
+            }
+        });
 
     // Channel-scoped delivery for high-frequency channel content (messages, edits, reactions,
     // typing): reaches only clients currently viewing THIS channel, not all members of the space.
@@ -65,29 +169,107 @@ public class ChannelGrain(
 
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
+        // Matches MessageDeduplicationService's entry lifetime. Anything a previous activation wrote
+        // has expired by then, so from that moment this activation's own memory is the whole answer.
         _self = await Get();
 
-        await state.ReadStateAsync(cancellationToken);
+        // A migrated activation arrives holding everything it had on the other silo — the roster in
+        // persisted state, the rest in volatile state — because Orleans carries an IPersistentState
+        // across a move and skips the read on the far side. Reading storage back over it and clearing
+        // it is exactly what the move exists to avoid.
+        //
+        // A fresh activation still resets: voice membership is activation-scoped by design, so a silo
+        // that died takes its call with it rather than leaving ghosts behind.
+        if (!activation.State.Activated)
+        {
+            // Matches MessageDeduplicationService's entry lifetime. Anything a previous activation
+            // wrote has expired by then, so from that moment this activation's own memory is the
+            // whole answer.
+            activation.State.DedupTrustedUntil = DateTimeOffset.UtcNow + TimeSpan.FromMinutes(2);
 
-        state.State.Users.Clear();
-        state.State.UserJoinTimes.Clear();
-        state.State.LastMembershipChange = DateTimeOffset.UtcNow;
-        state.State.EgressActive = false;
+            await state.ReadStateAsync(cancellationToken);
 
-        await state.WriteStateAsync(cancellationToken);
+            state.State.Users.Clear();
+            state.State.UserJoinTimes.Clear();
+            state.State.LastMembershipChange = DateTimeOffset.UtcNow;
+            state.State.EgressActive = false;
 
+            await state.WriteStateAsync(cancellationToken);
+        }
+
+        activation.State.Activated = true;
+
+        // One timer carries both flushes rather than two on their own schedules. They are the same
+        // kind of debt — a durable copy of something this activation already holds authoritatively —
+        // and both are correct while at most one interval behind, so a second timer would only
+        // double the wakeups every channel activation in the cluster costs. Three seconds is well
+        // inside what an unread badge or a reaction count may lag by without anyone noticing.
         _reactionFlushTimer = this.RegisterGrainTimer(
-            async _ => await FlushReactionsAsync(),
+            // The mark goes first because it is the one that cannot throw: a reaction flush that
+            // fails on a bad row would otherwise take the high-water mark down with it every tick,
+            // and that debt only grows.
+            async _ =>
+            {
+                await FlushLastMessageIdAsync();
+                await FlushReactionsAsync();
+            },
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3)));
+
+        // Timers do not travel, only the fact that these bots were typing. Empty on a fresh
+        // activation, so this is a no-op there.
+        foreach (var userId in activation.State.BotTyping.ToArray())
+            ArmBotTypingStop(userId);
     }
 
     public async override Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        // Unlike the roster below, this one runs on migration too, and must. The successor activation
+        // starts with an empty mark — it is not carried in ChannelActivationState — so every id noted
+        // since the last timer tick exists nowhere but in this object. Skipping the migrating case
+        // would leave the channel's stored mark up to one interval behind with nothing to correct it
+        // until the next message happens to arrive, and every member's unread badge for the channel
+        // wrong until then.
+        //
+        // Ahead of the reaction flush for the same reason the timer orders them this way: this one
+        // swallows its own failures, that one can throw and end the shutdown path early.
+        await FlushLastMessageIdAsync();
+
+        // Drain the cache publishes as well. Orleans starts the successor activation only once this
+        // returns, so a write still in flight here is the one case where an older id could land after
+        // a newer one from a different activation — and nothing would rewrite the cell until the
+        // channel saw another message.
+        //
+        // Bounded, because the tail is one serialized chain of Redis writes and a Redis that times out
+        // rather than refuses makes it arbitrarily long: a channel that took a hundred messages in the
+        // seconds before this would hold the shutdown for minutes, ahead of the reaction flush, the XP
+        // settle and the successor's first turn. That is the drain path k8s gives a fixed grace period,
+        // so an unbounded wait here turns an orderly stop into a kill.
+        //
+        // Giving up costs the ordering guarantee above for a channel whose Redis is already broken,
+        // and the successor's first send rewrites the cell anyway. The durable row is already flushed.
+        try
+        {
+            await lastMessagePublishTail.WaitAsync(TimeSpan.FromSeconds(2));
+        }
+        catch (TimeoutException)
+        {
+            logger.LogWarning(
+                "Channel {ChannelId} left a last-message publish in flight; the cell is repaired by the next send",
+                this.GetPrimaryKey());
+        }
+
         // Flush pending reactions before shutdown
         await FlushReactionsAsync();
 
-        // Settle XP for all users still in channel
+        // Settle XP for all users still in channel. Runs on migration too: it awards the period that
+        // has actually elapsed and rebases the clock, so the accounting is continuous across the move.
         await SettleXpForAllUsersAsync();
+
+        // Migration is not a departure. Leaving everyone here would broadcast LeavedFromChannelUser to
+        // every client and tell the space the call emptied — a visible mass disconnect caused by the
+        // cluster rebalancing itself. The roster travels with the activation instead.
+        if (reason.ReasonCode == DeactivationReasonCode.Migrating)
+            return;
 
         await Task.WhenAll(state.State.Users.Select(x => Leave(x.Key)));
     }
@@ -95,38 +277,8 @@ public class ChannelGrain(
     public Task<List<RealtimeChannelUser>> GetMembers()
         => Task.FromResult(state.State.Users.Select(x => x.Value).ToList());
 
-    public async Task<ChannelRealtimeState> GetRealtimeStateAsync(CancellationToken ct = default)
-    {
-        var members = state.State.Users.Select(x => x.Value).ToList();
-        
-        LinkedMeetingInfo? meetInfo = null;
-        if (state.State.LinkedMeetId.HasValue && !string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
-        {
-            var meetId = state.State.LinkedMeetId.Value;
-            var inviteCode = state.State.LinkedMeetInviteCode;
-            
-            var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
-            var meetState = await meetGrain.GetStateAsync(ct);
-            
-            if (meetState is not null && !meetState.IsEnded)
-            {
-                meetInfo = new LinkedMeetingInfo(
-                    meetId,
-                    $"https://meet.argon.gl/i/{inviteCode}",
-                    inviteCode,
-                    meetState.CreatedAt.UtcDateTime);
-            }
-            else
-            {
-                // Meeting ended, clear the link
-                state.State.LinkedMeetId = null;
-                state.State.LinkedMeetInviteCode = null;
-                await state.WriteStateAsync(ct);
-            }
-        }
-        
-        return new ChannelRealtimeState(members, meetInfo);
-    }
+    public Task<ChannelRealtimeState> GetRealtimeStateAsync(CancellationToken ct = default)
+        => Task.FromResult(new ChannelRealtimeState(state.State.Users.Select(x => x.Value).ToList()));
 
     [OneWay]
     public Task ClearChannel()
@@ -171,10 +323,24 @@ public class ChannelGrain(
         await FireChannel(new UserTypingEvent(SpaceId, channelId, userId, kind));
 
         // Register auto-stop timer — fires UserStopTypingEvent after timeout
+        ArmBotTypingStop(userId);
+    }
+
+    /// <summary>Fires the stop-typing event once the bot has gone quiet for <see cref="BotTypingTimeout"/>.</summary>
+    /// <remarks>
+    /// Separate from the call that starts it because a migrated activation has to arm it again: the
+    /// timer does not travel, and without it a bot that stopped typing on the old silo would show as
+    /// typing forever on the new one.
+    /// </remarks>
+    private void ArmBotTypingStop(Guid userId)
+    {
+        activation.State.BotTyping.Add(userId);
+
         _botTypingTimers[userId] = this.RegisterGrainTimer(async _ =>
         {
             _botTypingTimers.Remove(userId);
-            await FireChannel(new UserStopTypingEvent(SpaceId, channelId, userId));
+            activation.State.BotTyping.Remove(userId);
+            await FireChannel(new UserStopTypingEvent(SpaceId, ChannelId.ShardId, userId));
         }, new GrainTimerCreationOptions(BotTypingTimeout, Timeout.InfiniteTimeSpan));
     }
 
@@ -254,316 +420,6 @@ public class ChannelGrain(
         return result;
     }
 
-    public async Task<ChannelMeetingResult?> CreateLinkedMeetingAsync(CancellationToken ct = default)
-    {
-        var channelId = this.GetPrimaryKey();
-        
-        if (_self.ChannelType != ChannelType.Voice)
-        {
-            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
-                new KeyValuePair<string, object?>("result", "error"));
-            
-            logger.LogWarning("Cannot create linked meeting for non-voice channel {ChannelId}", channelId);
-            return null;
-        }
-
-        var userId = this.GetUserId();
-
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        // Check if user has permission to create meetings
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, userId, ArgonEntitlement.ManageChannels, ct))
-        {
-            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
-                new KeyValuePair<string, object?>("result", "no_permission"));
-            
-            logger.LogWarning("User {UserId} lacks permission to create linked meeting for channel {ChannelId}", 
-                userId, channelId);
-            return null;
-        }
-
-        // If there's already a linked meeting, return its info
-        if (state.State.LinkedMeetId.HasValue && !string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
-        {
-            var existingMeetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(state.State.LinkedMeetId.Value.ToString());
-            var existingState = await existingMeetGrain.GetStateAsync(ct);
-            
-            // If meeting is still active, return it
-            if (existingState is { IsEnded: false })
-            {
-                ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
-                    new KeyValuePair<string, object?>("result", "already_exists"));
-                
-                logger.LogInformation("Returning existing linked meeting {MeetId} for channel {ChannelId}", 
-                    state.State.LinkedMeetId.Value, channelId);
-                return new ChannelMeetingResult(
-                    state.State.LinkedMeetId.Value,
-                    state.State.LinkedMeetInviteCode,
-                    $"https://meet.argon.gl/i/{state.State.LinkedMeetInviteCode}");
-            }
-            
-            // Meeting ended, clear the link
-            logger.LogInformation("Previous linked meeting {MeetId} has ended, clearing link for channel {ChannelId}", 
-                state.State.LinkedMeetId.Value, channelId);
-            state.State.LinkedMeetId = null;
-            state.State.LinkedMeetInviteCode = null;
-        }
-
-        // Get user info for host
-        var user = await ctx.Users.FirstOrDefaultAsync(u => u.Id == userId, ct);
-        if (user is null)
-        {
-            ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
-                new KeyValuePair<string, object?>("result", "error"));
-            
-            logger.LogWarning("User {UserId} not found when creating linked meeting for channel {ChannelId}", 
-                userId, channelId);
-            return null;
-        }
-
-        var meetId = Guid.CreateVersion7();
-        logger.LogInformation("Creating linked meeting {MeetId} for channel {ChannelId} in space {SpaceId} with host {HostId}", 
-            meetId, channelId, SpaceId, userId);
-
-        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
-
-        var result = await meetGrain.CreateLinkedAsync(
-            SpaceId,
-            channelId,
-            userId,
-            user.DisplayName ?? user.Username,
-            user.AvatarFileId,
-            ct);
-
-        // Add host to channel voice (done here to avoid deadlock - MeetingGrain can't call back to ChannelGrain)
-        await JoinFromMeetingInternalAsync(userId, user.DisplayName ?? user.Username, isGuest: false, ct);
-
-        // Register invite code mapping - normalize by removing dashes and uppercasing
-        var normalizedCode = result.InviteCode.Replace("-", "").Replace(" ", "").ToUpperInvariant();
-        logger.LogDebug("Registering invite code {InviteCode} (normalized: {NormalizedCode}) for meeting {MeetId}", 
-            result.InviteCode, normalizedCode, meetId);
-        var inviteGrain = this.GrainFactory.GetGrain<IInviteCodeGrain>(normalizedCode);
-        await inviteGrain.RegisterAsync(meetId, ct);
-
-        // Store the link
-        state.State.LinkedMeetId = meetId;
-        state.State.LinkedMeetInviteCode = result.InviteCode;
-        await state.WriteStateAsync(ct);
-
-        var meetUrl = $"https://meet.argon.gl/i/{result.InviteCode}";
-        var meetInfo = new LinkedMeetingInfo(meetId, meetUrl, result.InviteCode, DateTime.UtcNow);
-
-        // Fire event to notify all subscribers
-        await Fire(new MeetingCreatedFor(SpaceId, channelId, meetInfo), ct);
-
-        ChannelGrainInstrument.LinkedMeetingsCreated.Add(1,
-            new KeyValuePair<string, object?>("result", "success"));
-
-        logger.LogInformation("Created linked meeting {MeetId} with invite code {InviteCode} for channel {ChannelId} in space {SpaceId} by user {UserId}",
-            meetId, result.InviteCode, channelId, SpaceId, userId);
-
-        return new ChannelMeetingResult(meetId, result.InviteCode, meetUrl);
-    }
-
-    public Task<string?> GetMeetingLinkAsync(CancellationToken ct = default)
-    {
-        if (!state.State.LinkedMeetId.HasValue || string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
-            return Task.FromResult<string?>(null);
-
-        return Task.FromResult<string?>($"https://meet.argon.gl/i/{state.State.LinkedMeetInviteCode}");
-    }
-
-    public async Task<LinkedMeetingInfo?> GetLinkedMeetingInfoAsync(CancellationToken ct = default)
-    {
-        if (!state.State.LinkedMeetId.HasValue || string.IsNullOrEmpty(state.State.LinkedMeetInviteCode))
-            return null;
-
-        var meetId = state.State.LinkedMeetId.Value;
-        var inviteCode = state.State.LinkedMeetInviteCode;
-
-        // Check if meeting is still active
-        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
-        var meetState = await meetGrain.GetStateAsync(ct);
-
-        if (meetState is null || meetState.IsEnded)
-        {
-            // Meeting ended, clear the link
-            state.State.LinkedMeetId = null;
-            state.State.LinkedMeetInviteCode = null;
-            await state.WriteStateAsync(ct);
-            return null;
-        }
-
-        return new LinkedMeetingInfo(
-            meetId,
-            $"https://meet.argon.gl/i/{inviteCode}",
-            inviteCode,
-            meetState.CreatedAt.UtcDateTime);
-    }
-
-    public async Task<bool> EndLinkedMeetingAsync(CancellationToken ct = default)
-    {
-        if (!state.State.LinkedMeetId.HasValue)
-        {
-            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
-                new KeyValuePair<string, object?>("result", "not_found"));
-            return false;
-        }
-
-        var userId = this.GetUserId();
-        var meetId = state.State.LinkedMeetId.Value;
-        var inviteCode = state.State.LinkedMeetInviteCode!;
-
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        // Check if user has permission
-        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, this.GetPrimaryKey(), userId, ArgonEntitlement.ManageChannels, ct))
-        {
-            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
-                new KeyValuePair<string, object?>("result", "no_permission"));
-            return false;
-        }
-
-        var meetGrain = this.GrainFactory.GetGrain<IMeetingGrain>(meetId.ToString());
-        var meetState = await meetGrain.GetStateAsync(ct);
-        var ended = await meetGrain.EndMeetingAsync(userId, ct);
-
-        if (ended)
-        {
-            state.State.LinkedMeetId = null;
-            state.State.LinkedMeetInviteCode = null;
-            await state.WriteStateAsync(ct);
-
-            var meetUrl = $"https://meet.argon.gl/i/{inviteCode}";
-            var meetInfo = new LinkedMeetingInfo(
-                meetId, 
-                meetUrl, 
-                inviteCode, 
-                meetState?.CreatedAt.UtcDateTime ?? DateTime.UtcNow);
-
-            // Fire event to notify all subscribers
-            await Fire(new MeetingDeletedFor(SpaceId, this.GetPrimaryKey(), meetInfo), ct);
-
-            ChannelGrainInstrument.LinkedMeetingsEnded.Add(1,
-                new KeyValuePair<string, object?>("result", "success"));
-
-            logger.LogInformation("Ended linked meeting for channel {ChannelId} in space {SpaceId}",
-                this.GetPrimaryKey(), SpaceId);
-        }
-
-        return ended;
-    }
-
-    /// <summary>
-    /// Prefix for ephemeral guest user IDs from meetings.
-    /// </summary>
-    private static readonly byte[] GuestIdPrefix = [0xFA, 0xFC, 0xCC, 0xCC];
-
-    private static bool IsGuestUserId(Guid userId)
-    {
-        Span<byte> bytes = stackalloc byte[16];
-        userId.TryWriteBytes(bytes);
-        return bytes[..4].SequenceEqual(GuestIdPrefix);
-    }
-
-    public Task JoinFromMeetingAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
-        => JoinFromMeetingInternalAsync(oderId, displayName, isGuest, ct);
-
-    private async Task JoinFromMeetingInternalAsync(Guid oderId, string displayName, bool isGuest, CancellationToken ct = default)
-    {
-        if (_self.ChannelType != ChannelType.Voice)
-        {
-            logger.LogWarning("Cannot join from meeting to non-voice channel {ChannelId}", this.GetPrimaryKey());
-            return;
-        }
-
-        var channelId = this.GetPrimaryKey();
-
-        // If user already in channel, handle rejoin
-        if (state.State.Users.ContainsKey(oderId))
-        {
-            logger.LogDebug("User {UserId} already in channel {ChannelId}, skipping join from meeting", oderId, channelId);
-            return;
-        }
-
-        // For non-guests, check if they have existing join time and handle it
-        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out _))
-        {
-            await SettleXpForAllUsersAsync();
-            state.State.UserJoinTimes.Remove(oderId);
-            state.State.Users.Remove(oderId);
-            await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
-            await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
-        }
-
-        // Settle XP for existing users before adding new one
-        await SettleXpForAllUsersAsync();
-
-        // Add user to channel
-        state.State.Users[oderId] = new RealtimeChannelUser(oderId, ChannelMemberState.NONE);
-
-        // Only track join times for non-guests (for stats)
-        if (!isGuest)
-        {
-            state.State.UserJoinTimes[oderId] = DateTimeOffset.UtcNow;
-            _ = TrackCallJoinedAsync(oderId);
-        }
-
-        await state.WriteStateAsync(ct);
-        await Fire(new JoinedToChannelUser(SpaceId, channelId, oderId), ct);
-        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserJoinedVoiceAsync(oderId, channelId, DateTimeOffset.UtcNow);
-
-        if (state.State.Users.Count > 0)
-            this.DelayDeactivation(TimeSpan.FromDays(1));
-
-        ChannelGrainInstrument.VoiceJoins.Add(1,
-            new KeyValuePair<string, object?>("source", "meeting"));
-        
-        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
-
-        logger.LogInformation("User {UserId} ({DisplayName}) joined channel {ChannelId} from meeting (guest: {IsGuest})",
-            oderId, displayName, channelId, isGuest);
-    }
-
-    public async Task LeaveFromMeetingAsync(Guid oderId, CancellationToken ct = default)
-    {
-        var channelId = this.GetPrimaryKey();
-        var isGuest = IsGuestUserId(oderId);
-
-        if (!state.State.Users.ContainsKey(oderId))
-        {
-            logger.LogDebug("User {UserId} not in channel {ChannelId}, skipping leave from meeting", oderId, channelId);
-            return;
-        }
-
-        // Settle XP for ALL users (including the one leaving) before removing
-        await SettleXpForAllUsersAsync();
-        
-        // Only record total session duration for metrics (not for XP, that's handled by settle)
-        if (!isGuest && state.State.UserJoinTimes.TryGetValue(oderId, out var joinTime))
-        {
-            var duration = DateTimeOffset.UtcNow - joinTime;
-            ChannelGrainInstrument.VoiceSessionDuration.Record(duration.TotalSeconds);
-            state.State.UserJoinTimes.Remove(oderId);
-        }
-
-        state.State.Users.Remove(oderId);
-        await Fire(new LeavedFromChannelUser(SpaceId, channelId, oderId), ct);
-        await this.GrainFactory.GetGrain<ISpaceGrain>(SpaceId).OnUserLeftVoiceAsync(oderId);
-        await state.WriteStateAsync(ct);
-
-        if (state.State.Users.Count == 0)
-            this.DelayDeactivation(TimeSpan.MinValue);
-
-        ChannelGrainInstrument.VoiceLeaves.Add(1,
-            new KeyValuePair<string, object?>("source", "meeting"));
-        
-        ChannelGrainInstrument.VoiceActiveUsers.Record(state.State.Users.Count);
-
-        logger.LogInformation("User {UserId} left channel {ChannelId} from meeting (guest: {IsGuest})",
-            oderId, channelId, isGuest);
-    }
-
     public async Task<Either<string, JoinToChannelError>> Join()
     {
         if (_self.ChannelType != ChannelType.Voice)
@@ -640,8 +496,8 @@ public class ChannelGrain(
             allowed.Add(memberId);
         }
 
-        var sessionId = Guid.NewGuid().ToString("N");
-        _drawingSession = (sessionId, streamerId, allowed.ToHashSet());
+        var sessionId = ArgonId.New().ToString("N");
+        activation.State.DrawingSession = new DrawingSessionState(sessionId, streamerId, allowed.ToHashSet());
 
         await Fire(new DrawingSessionStarted(
             SpaceId, this.GetPrimaryKey(), sessionId, streamerId,
@@ -652,11 +508,11 @@ public class ChannelGrain(
 
     public async Task<bool> StopDrawingSession(string sessionId)
     {
-        if (_drawingSession is not { } session) return false;
+        if (activation.State.DrawingSession is not { } session) return false;
         if (session.SessionId != sessionId) return false;
         if (session.StreamerId != this.GetUserId()) return false; // only the streamer may close
 
-        _drawingSession = null;
+        activation.State.DrawingSession = null;
         await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
         return true;
     }
@@ -683,10 +539,10 @@ public class ChannelGrain(
         await state.WriteStateAsync();
 
         // End the streamer's drawing session if they left the channel.
-        if (_drawingSession is { } ds && ds.StreamerId == userId)
+        if (activation.State.DrawingSession is { } ds && ds.StreamerId == userId)
         {
             var sessionId = ds.SessionId;
-            _drawingSession = null;
+            activation.State.DrawingSession = null;
             await Fire(new DrawingSessionEnded(SpaceId, this.GetPrimaryKey(), sessionId));
         }
 
@@ -741,6 +597,10 @@ public class ChannelGrain(
 
         await ctx.SaveChangesAsync();
         _self = channel;
+
+        // The channel list is cached per space, and this just changed a row in it.
+        await readCache.SignalInvalidationAsync(SpaceId);
+
         return channel;
     }
 
@@ -807,7 +667,7 @@ public class ChannelGrain(
         }
 
         if (changed.Count == 0)
-            return channel;
+            return await WithStoredMarkAsync(ctx, channel, ct);
 
         await ctx.SaveChangesAsync(ct);
 
@@ -815,10 +675,48 @@ public class ChannelGrain(
         // the write went through a detached context that the activation cannot see.
         _self = channel;
 
+        await readCache.SignalInvalidationAsync(SpaceId, ct: ct);
         await Fire(new ChannelModified(SpaceId, channelId, new IonArray<string>(changed)), ct);
 
-        return channel;
+        return await WithStoredMarkAsync(ctx, channel, ct);
     }
+
+    /// <summary>
+    /// The channel as the caller should get it back: metadata from its row, high-water mark from
+    /// where the high-water mark actually lives.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>ChannelEntity.LastMessageId</c> is the dead column — nothing has written it since the
+    /// counter moved to <c>ChannelLastMessages</c> — so a channel loaded straight out of
+    /// <c>Channels</c> carries a number frozen at the moment of that split, and
+    /// <c>ChannelInteractionImpl</c> maps this entity onto the wire as <c>SuccessUpdateChannel</c>
+    /// with the field on it. A client that merges the record it gets back from a rename would
+    /// overwrite its unread state for that channel with a value from before the split. Every other
+    /// path that serves an <c>ArgonChannel</c> replaces the field already; this is the one that has
+    /// to do it here.</para>
+    ///
+    /// <para><b>A copy, not an assignment onto the entity.</b> The context that loaded it is still
+    /// open and the entity is tracked, so writing the property would leave EF holding a modification
+    /// this method has no intention of saving — harmless today only because nothing saves again
+    /// afterwards, which is not a property worth depending on.</para>
+    ///
+    /// <para><b>Not the in-memory mark.</b> <see cref="lastMessage"/> starts empty on a fresh
+    /// activation, so a rename after a silo restart would answer zero for a channel with ten thousand
+    /// messages in it. The stored row is the one thing that is right regardless of activation age.
+    /// The Redis cell is not consulted either: it would be at most one flush interval fresher, on a
+    /// path that is a rename rather than a read of unread state, and the client has three better
+    /// sources for the counter.</para>
+    /// </remarks>
+    private static async Task<ChannelEntity> WithStoredMarkAsync(
+        ApplicationDbContext ctx, ChannelEntity channel, CancellationToken ct)
+        => channel with
+        {
+            LastMessageId = await ctx.ChannelLastMessages
+               .AsNoTracking()
+               .Where(m => m.ChannelId == channel.Id)
+               .Select(m => m.LastMessageId)
+               .FirstOrDefaultAsync(ct)
+        };
 
     public async Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default)
     {
@@ -867,6 +765,39 @@ public class ChannelGrain(
     /// point at a room, not at themselves, so anyone holding <c>ManageMessages</c> — the same
     /// entitlement that lets them clean up afterwards — passes straight through.
     /// </summary>
+    /// <summary>
+    /// Refuses more than the configured number of messages a second into this channel.
+    /// </summary>
+    /// <remarks>
+    /// Slow mode is a moderation tool, per author and chosen by whoever runs the space. This is not
+    /// that: it is a ceiling on the channel as a whole, set by whoever runs the node, and it exists
+    /// because the channel can measurably take more than anything legitimate will ever ask of it.
+    /// <para>
+    /// A whole second at a time rather than a smoothed bucket, because the point is to stop a
+    /// runaway, not to pace a crowd — and a crowd that briefly bunches inside one second is exactly
+    /// what should not be punished.
+    /// </para>
+    /// </remarks>
+    private void EnforceChannelCap()
+    {
+        var limit = messageOptions.Value.PerChannelPerSecond;
+
+        if (limit <= 0)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+
+        if (now - activation.State.CapSecond >= TimeSpan.FromSeconds(1))
+        {
+            activation.State.CapSecond   = now;
+            activation.State.CapAccepted = 0;
+        }
+
+        if (++activation.State.CapAccepted > limit)
+            throw new InvalidOperationException(
+                $"this channel is accepting at most {limit} message(s) per second right now");
+    }
+
     private async Task EnforceSlowModeAsync(Guid senderId, Guid channelId)
     {
         if (_self.SlowMode is not { } window || window <= TimeSpan.Zero)
@@ -875,8 +806,38 @@ public class ChannelGrain(
         if (await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.ManageMessages))
             return;
 
-        if (_lastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
+        if (activation.State.LastSentBySender.TryGetValue(senderId, out var lastSentAt) && DateTimeOffset.UtcNow - lastSentAt < window)
             throw new InvalidOperationException("Slow mode is active in this channel");
+    }
+
+    /// <summary>
+    /// The id already given to this randomId, or null if it is new.
+    /// </summary>
+    /// <remarks>
+    /// The cache round trip was measured at 0.93 ms of a turn that had about 1.5 ms of work left in
+    /// it, which made it the largest single thing standing between a channel and a thousand messages
+    /// a second. Nearly every call is a miss — a new message has a new randomId — so paying for it on
+    /// every send bought almost nothing.
+    /// </remarks>
+    private async Task<long?> DeduplicateAsync(ArgonMessageEntity message, long randomId)
+    {
+        if (activation.State.SentByRandomId.TryGetValue(randomId, out var known))
+            return known;
+
+        if (DateTimeOffset.UtcNow >= activation.State.DedupTrustedUntil)
+            return null;
+
+        return await messagesLayout.CheckDuplicationAsync(message, randomId);
+    }
+
+    private void RememberSend(long randomId, long messageId)
+    {
+        // Bounded rather than expiring: a retry arrives within seconds, so the last few thousand
+        // sends are far more history than the question needs.
+        if (activation.State.SentByRandomId.Count > 4096)
+            activation.State.SentByRandomId.Clear();
+
+        activation.State.SentByRandomId[randomId] = messageId;
     }
 
     private void NoteSent(Guid senderId)
@@ -886,14 +847,14 @@ public class ChannelGrain(
 
         // Everyone who ever posted here would otherwise stay in the dictionary for the lifetime of
         // the activation; entries older than the window can no longer block anyone, so drop them.
-        if (_lastSentBySender.Count > 512)
+        if (activation.State.LastSentBySender.Count > 512)
         {
             var cutoff = DateTimeOffset.UtcNow - window;
-            foreach (var stale in _lastSentBySender.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
-                _lastSentBySender.Remove(stale);
+            foreach (var stale in activation.State.LastSentBySender.Where(x => x.Value < cutoff).Select(x => x.Key).ToList())
+                activation.State.LastSentBySender.Remove(stale);
         }
 
-        _lastSentBySender[senderId] = DateTimeOffset.UtcNow;
+        activation.State.LastSentBySender[senderId] = DateTimeOffset.UtcNow;
     }
 
     public async Task<Either<string, VoiceInviteError>> CreateVoiceInvite(TimeSpan expiration, int maxUses, CancellationToken ct = default)
@@ -940,6 +901,8 @@ public class ChannelGrain(
         var senderId = this.GetUserId();
         var channelId = this.GetPrimaryKey();
 
+        EnforceChannelCap();
+
         await EnforceSlowModeAsync(senderId, channelId);
 
         if (entities is { Count: > 0 } && entities.Any(e => e is MessageEntityAttachment or MessageEntityGif))
@@ -950,16 +913,6 @@ public class ChannelGrain(
             var attachmentCount = entities.Count(e => e is MessageEntityAttachment or MessageEntityGif);
             if (attachmentCount > 10)
                 throw new InvalidOperationException("Maximum 10 attachments per message");
-        }
-        
-        logger.LogInformation(
-            "SendMessage called: ChannelId={ChannelId}, SenderId={SenderId}, TextLength={TextLength}, EntitiesCount={EntitiesCount}, RandomId={RandomId}, ReplyTo={ReplyTo}",
-            channelId, senderId, text?.Length ?? 0, entities?.Count ?? 0, randomId, replyTo);
-        
-        if (entities is { Count: > 0 })
-        {
-            logger.LogDebug("Input entities types: {EntityTypes}", 
-                string.Join(", ", entities.Select((e, i) => $"[{i}]={e.GetType().Name}")));
         }
         
         var sanitized = SanitizeEntities(entities ?? []);
@@ -978,11 +931,7 @@ public class ChannelGrain(
             UpdatedAt = DateTimeOffset.UtcNow
         };
 
-        logger.LogInformation(
-            "Created ArgonMessageEntity: SpaceId={SpaceId}, ChannelId={ChannelId}, EntitiesCount={EntitiesCount}, EntitiesIsNull={EntitiesIsNull}",
-            message.SpaceId, message.ChannelId, message.Entities?.Count ?? 0, message.Entities == null);
-
-        var dup = await messagesLayout.CheckDuplicationAsync(message, randomId);
+        var dup = await DeduplicateAsync(message, randomId);
 
         if (dup is not null)
         {
@@ -993,33 +942,15 @@ public class ChannelGrain(
 
         var msgId = await messagesLayout.ExecuteInsertMessage(message, randomId);
 
+        RememberSend(randomId, msgId);
+
         // Only a message that actually landed starts the next cooldown — a retry that de-duplicated
         // above returned earlier and must not push the author's window forward.
         NoteSent(senderId);
 
         message.MessageId = msgId;
 
-        logger.LogInformation(
-            "Message inserted with MessageId={MessageId}, EntitiesCount={EntitiesCount}",
-            msgId, message.Entities?.Count ?? 0);
-
         var dto = message.ToDto();
-
-        logger.LogInformation(
-            "Message DTO created: MessageId={MessageId}, EntitiesSize={EntitiesSize}",
-            dto.messageId, dto.entities.Size);
-
-        if (dto.entities.Size > 0)
-        {
-            var entityTypes = dto.entities.Values.Select((e, i) => $"[{i}]={e?.GetType().Name ?? "null"}");
-            logger.LogInformation("DTO entities types: {EntityTypes}", string.Join(", ", entityTypes));
-        }
-        else
-        {
-            logger.LogWarning(
-                "DTO entities are empty after ToDto() conversion! Original EntitiesCount was {OriginalCount}",
-                message.Entities?.Count ?? 0);
-        }
 
         await ResolveAttachmentUrls(message);
         dto = message.ToDto();
@@ -1028,10 +959,18 @@ public class ChannelGrain(
         // are NOT currently viewing from this event. Channel-scoping it needs the space-size gate
         // (large spaces → channel-scoped + pull-based unread; small spaces → space-scoped + live
         // unread), unlike typing/reactions/edits which have no cross-channel consumer.
-        await Fire(new MessageSent(_self.SpaceId, dto));
+        FireDetached(new MessageSent(_self.SpaceId, dto));
 
-        // Update channel LastMessageId
-        _ = UpdateLastMessageIdAsync(msgId);
+        // Two copies of the channel high-water mark, kept for two different readers. The durable one
+        // is only noted here and written by the flush timer, into ChannelLastMessages — a row that
+        // exists to carry this and nothing else, so that a message send touches no channel metadata.
+        // It lived on the channel row until it turned the busiest channel in a space into the most
+        // expensive row in the cluster to maintain. The cache copy is written per send because that
+        // is the one anybody reading between two flushes will see.
+        if (lastMessage.Raise(msgId))
+            ChannelGrainInstrument.LastMessageAbsorbed.Add(1);
+
+        PublishLastMessageId(msgId);
 
         // Process mentions asynchronously (don't block message delivery)
         _ = ProcessMentionsAsync(entities, msgId, senderId, replyTo);
@@ -1112,18 +1051,125 @@ public class ChannelGrain(
         }
     }
 
-    private async Task UpdateLastMessageIdAsync(long messageId)
+    /// <summary>The cache cell holding a channel's newest message id, fresher than the durable copy.</summary>
+    /// <remarks>
+    /// The channel id goes in as the default <c>Guid.ToString()</c> ("D") form. That is the shape
+    /// every reader of this cell was written against, so changing it here silently turns every read
+    /// into a miss rather than breaking anything loudly.
+    /// </remarks>
+    private static string LastMessageCacheKey(Guid channelId) => ChannelHighWaterCell.KeyFor(channelId);
+
+    /// <summary>
+    /// Puts <paramref name="messageId"/> in the cache cell without holding the send turn for it.
+    /// </summary>
+    /// <remarks>
+    /// Detached rather than awaited for the reason on <see cref="lastMessagePublishTail"/>, which is
+    /// also why the write goes on the end of a chain instead of straight into the pool. A failure is
+    /// logged and dropped: the cell is a freshness hint over the durable copy, so the worst a lost
+    /// publish costs is a reader falling back to a value up to one flush interval old — the same
+    /// answer they get for a channel that has not been written to since the key was evicted.
+    /// </remarks>
+    private void PublishLastMessageId(long messageId)
     {
+        var channelId = this.GetPrimaryKey();
+        var previous  = lastMessagePublishTail;
+
+        lastMessagePublishTail = Task.Run(async () =>
+        {
+            // Never faults — the body below swallows everything — so this needs no guard of its own.
+            await previous;
+
+            try
+            {
+                await using var scope = redisPool.Rent();
+                await scope.GetDatabase().StringSetAsync(LastMessageCacheKey(channelId), messageId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to publish LastMessageId for channel {ChannelId}", channelId);
+            }
+        });
+    }
+
+    /// <summary>
+    /// Writes everything the mark has absorbed since the previous flush, as a single row update.
+    /// </summary>
+    /// <remarks>
+    /// Called from the shared flush timer and from deactivation, never from the send path. Doing
+    /// nothing when nothing is owed is the common case for a quiet channel — an activation lives far
+    /// longer than the conversation in it.
+    /// </remarks>
+    private async Task FlushLastMessageIdAsync()
+    {
+        if (!lastMessage.TryBeginFlush(out var messageId))
+            return;
+
+        var written = await UpdateLastMessageIdAsync(messageId);
+
+        // Only a write that landed retires the mark, so a failed flush is retried on the next tick
+        // rather than lost. This matters more than it did before: a per-message write that failed was
+        // rewritten by the next message a moment later, whereas a flush carries every message since
+        // the last one and a channel can fall silent immediately after it.
+        if (written)
+            lastMessage.CommitFlush(messageId);
+
+        ChannelGrainInstrument.LastMessageFlushes.Add(1,
+            new KeyValuePair<string, object?>("result", written ? "written" : "failed"));
+    }
+
+    /// <summary>
+    /// Puts the mark in the one durable place it lives: its own row, in its own table.
+    /// </summary>
+    /// <remarks>
+    /// <para>This used to be an <c>ExecuteUpdateAsync</c> against <c>Channels.LastMessageId</c>, and
+    /// moving it is the whole point of <see cref="ChannelLastMessageEntity"/>: the channel row is
+    /// metadata every client reads on bootstrap and wants replicating to every region, and a counter
+    /// on it made that impossible. Nothing else about the flush changed — the coalescing, the timer,
+    /// the flush on deactivation and the per-send Redis cell are all exactly as they were. Only the
+    /// destination is different.</para>
+    ///
+    /// <para><b>An upsert, because the row need not exist.</b> Nothing creates it with the channel;
+    /// it appears the first time somebody speaks. Raw SQL because EF has no upsert, and this shape —
+    /// <c>INSERT … ON CONFLICT … DO UPDATE</c> — is what <c>ReadStateService</c> already uses and runs
+    /// unmodified on both PostgreSQL and CockroachDB.</para>
+    ///
+    /// <para><b>The guard on the update is what makes the mark monotonic across activations.</b>
+    /// Within one activation it cannot go backwards — <see cref="ChannelHighWaterMark"/> only rises —
+    /// but a migrating channel has two activations alive at once for a moment, and the old one flushes
+    /// on the way out. Without <c>WHERE … &lt; EXCLUDED</c> the loser of that race writes an older id
+    /// over a newer one and every member's unread badge for the channel is wrong until the next
+    /// message. Removing the clause makes no test fail and no log line appear.</para>
+    ///
+    /// <para><b>Rows affected is deliberately not consulted.</b> The guard makes zero rows the normal
+    /// answer for "somebody else already wrote something newer", which is a flush that is done rather
+    /// than a flush that failed. Treating it as a failure would keep the mark pending forever and
+    /// rewrite the same statement every three seconds for the life of the activation. Only an
+    /// exception means the write did not land.</para>
+    /// </remarks>
+    private async Task<bool> UpdateLastMessageIdAsync(long messageId)
+    {
+        var channelId = this.GetPrimaryKey();
+
         try
         {
+            var now = DateTimeOffset.UtcNow;
+
             await using var ctx = await context.CreateDbContextAsync();
-            await ctx.Channels
-                .Where(c => c.Id == this.GetPrimaryKey())
-                .ExecuteUpdateAsync(s => s.SetProperty(c => c.LastMessageId, messageId));
+
+            await ctx.Database.ExecuteSqlInterpolatedAsync($@"
+INSERT INTO ""ChannelLastMessages"" (""ChannelId"", ""SpaceId"", ""LastMessageId"", ""UpdatedAt"")
+VALUES ({channelId}, {SpaceId}, {messageId}, {now})
+ON CONFLICT (""ChannelId"")
+DO UPDATE SET ""LastMessageId"" = EXCLUDED.""LastMessageId"",
+              ""UpdatedAt""     = EXCLUDED.""UpdatedAt""
+WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
+
+            return true;
         }
         catch (Exception ex)
         {
-            logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", this.GetPrimaryKey());
+            logger.LogWarning(ex, "Failed to update LastMessageId for channel {ChannelId}", channelId);
+            return false;
         }
     }
 
@@ -1404,7 +1450,7 @@ public class ChannelGrain(
         }
 
         // Generate correlation ID and publish CommandInteractionEvent to the bot
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
 
         await botEventPublisher.PublishCommandInteractionAsync(
             interactionId, SpaceId, channelId, commandInfo.CommandId, commandInfo.Name, user, mappedOptions,
@@ -1476,7 +1522,7 @@ public class ChannelGrain(
             return new FailedInteractWithControl(InteractWithControlError.BOT_NOT_CONNECTED);
 
         // Generate correlation ID and publish
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
         var user = await botUserCache.GetOrResolveAsync(senderId);
 
         await botEventPublisher.PublishControlInteractionAsync(
@@ -1558,7 +1604,7 @@ public class ChannelGrain(
         if (botInfo is null)
             return new FailedInteractWithSelect(InteractWithSelectError.BOT_NOT_CONNECTED);
 
-        var interactionId = Guid.NewGuid();
+        var interactionId = ArgonId.New();
         var user = await botUserCache.GetOrResolveAsync(senderId);
 
         await botEventPublisher.PublishSelectInteractionAsync(
@@ -1588,7 +1634,7 @@ public class ChannelGrain(
            .ToList();
 
         await botEventPublisher.PublishModalSubmitAsync(
-            Guid.NewGuid(), customId, channelId, SpaceId, user, mappedValues);
+            ArgonId.New(), customId, channelId, SpaceId, user, mappedValues);
 
         return new SuccessSubmitModal();
     }
@@ -1840,3 +1886,67 @@ public class ChannelGrain(
         }
     }
 }
+
+/// <summary>
+/// What a channel activation holds that its persisted state does not.
+/// </summary>
+/// <remarks>
+/// <para>Distinct from <see cref="ChannelGrainState"/>, which is written to storage and outlives the
+/// activation. This is the opposite: memory that is meaningless once the activation ends, and worth
+/// exactly one thing — surviving a move to another silo without being rebuilt from nothing.</para>
+///
+/// <para>Held as <c>IPersistentState</c> against the storage that stores nothing, which is what makes
+/// it travel: Orleans' state bridge is itself an <c>IGrainMigrationParticipant</c>, so declaring the
+/// state is the whole of the work and nothing is packed or unpacked by hand. Adding a field later is
+/// one line here and no lines anywhere else.</para>
+/// </remarks>
+[GenerateSerializer]
+public sealed record ChannelActivationState
+{
+    /// <summary>Until when this activation's own dedup memory is the whole answer.</summary>
+    [Id(0)]
+    public DateTimeOffset DedupTrustedUntil { get; set; }
+
+    /// <summary>Client-supplied random id to the message id it produced.</summary>
+    [Id(1)]
+    public Dictionary<long, long> SentByRandomId { get; set; } = new();
+
+    /// <summary>Last accepted send per sender, for slow mode.</summary>
+    [Id(2)]
+    public Dictionary<Guid, DateTimeOffset> LastSentBySender { get; set; } = new();
+
+    /// <summary>The one-second window the channel-wide cap is currently counting in.</summary>
+    [Id(3)]
+    public DateTimeOffset CapSecond { get; set; }
+
+    [Id(4)]
+    public int CapAccepted { get; set; }
+
+    /// <summary>The screencast drawing session, if one is open.</summary>
+    [Id(5)]
+    public DrawingSessionState? DrawingSession { get; set; }
+
+    /// <summary>
+    /// Bots that are mid-typing. Kept beside the timers rather than derived from them: a timer cannot
+    /// travel, so the new activation arms fresh ones from this — the indicator can outlive a move by
+    /// up to one timeout and never longer.
+    /// </summary>
+    [Id(6)]
+    public HashSet<Guid> BotTyping { get; set; } = [];
+
+    /// <summary>
+    /// Set once an activation has run. Absent on a fresh one, present on a migrated one — which is
+    /// how the grain tells them apart, and the difference decides whether the voice roster is reset.
+    /// </summary>
+    [Id(7)]
+    public bool Activated { get; set; }
+}
+
+/// <param name="SessionId">Identifies the session to clients across the move.</param>
+/// <param name="StreamerId">Who is sharing.</param>
+/// <param name="AllowedDrawers">Who may draw on the share.</param>
+[GenerateSerializer]
+public sealed record DrawingSessionState(
+    [property: Id(0)] string SessionId,
+    [property: Id(1)] Guid StreamerId,
+    [property: Id(2)] HashSet<Guid> AllowedDrawers);

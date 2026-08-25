@@ -45,7 +45,7 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .DeleteChannel(channelId);
 
     public async Task<IonArray<RealtimeChannel>> GetChannels(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => new(await this.GetGrain<ISpaceGrain>(spaceId)
+        => new(await this.GetGrain<ISpaceReadGrain>(spaceId)
            .GetChannels());
 
     public async Task UpdateChannelGroup(Guid spaceId, Guid channelId, Guid groupId, string? name, string? description, CancellationToken ct = default)
@@ -208,19 +208,6 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
 
     public Task<bool> StopRecord(Guid spaceId, Guid channelId, CancellationToken ct = default)
         => this.GetGrain<IChannelGrain>(channelId).StopRecord(ct);
-
-    public async Task<LinkedMeetingInfo> CreateLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
-    {
-        var result = await this.GetGrain<IChannelGrain>(channelId).CreateLinkedMeetingAsync(ct);
-
-        if (result is null)
-            throw new InvalidOperationException("");
-
-        return new LinkedMeetingInfo(result.MeetId, result.InviteLink, result.InviteCode, DateTime.UtcNow);
-    }
-
-    public async Task EndLinkedMeeting(Guid spaceId, Guid channelId, CancellationToken ct = default)
-        => await this.GetGrain<IChannelGrain>(channelId).EndLinkedMeetingAsync(ct);
 
     public async Task<IUploadFileResult> BeginUploadAttachment(Guid spaceId, Guid channelId, CancellationToken ct = default)
     {

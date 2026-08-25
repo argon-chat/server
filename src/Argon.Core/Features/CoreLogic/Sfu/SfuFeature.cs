@@ -8,7 +8,6 @@ public static class SfuFeature
 {
     public static IHostApplicationBuilder AddSelectiveForwardingUnit(this IHostApplicationBuilder builder)
     {
-        builder.Services.Configure<CallKitOptions>(builder.Configuration.GetSection("CallKit"));
         builder.Services.TryAddScoped<RoomServiceClient>(x =>
         {
             var options = x.GetRequiredService<IOptions<CallKitOptions>>();

@@ -1,4 +1,5 @@
 namespace Argon.Services.Ion;
+using Argon.Features.Clustering.Regions;
 
 using Features.Logic;
 using ArgonContracts;
@@ -39,7 +40,9 @@ public class UserInteractionImpl(
 
         try
         {
-            var result = await this.GetGrain<ISpaceGrain>(Guid.CreateVersion7())
+            // The space's home region for the rest of its life, and the reason a call about it can be
+            // routed without asking anything: it is in the key.
+            var result = await this.GetGrain<ISpaceGrain>(ArgonId.New())
                .CreateSpace(new ServerInput(request.name, request.description, request.avatarFieldId));
             return new SuccessCreateSpace(result.Value);
         }

@@ -19,17 +19,9 @@ public sealed partial record ChannelGrainState
     [DataMember(Order = 4), Id(4)]
     public Dictionary<Guid, DateTimeOffset> UserJoinTimes { get; set; } = new();
 
-    /// <summary>
-    /// ID of the linked meeting, if any.
-    /// </summary>
-    [DataMember(Order = 5), Id(5)]
-    public Guid? LinkedMeetId { get; set; }
-
-    /// <summary>
-    /// Invite code for the linked meeting.
-    /// </summary>
-    [DataMember(Order = 6), Id(6)]
-    public string? LinkedMeetInviteCode { get; set; }
+    // Orders 5 and 6 held LinkedMeetId / LinkedMeetInviteCode. Left unused rather than reassigned:
+    // persisted channel state still carries them, and reusing the ids would deserialise a meeting
+    // guid into whatever took their place.
 
     /// <summary>
     /// Last time channel composition changed (user joined/left).

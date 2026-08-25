@@ -32,7 +32,8 @@ public readonly record struct DeviceIdentity(
 /// </remarks>
 public class DeviceIdentityService(
     IDbContextFactory<ApplicationDbContext> context,
-    ILogger<DeviceIdentityService> logger)
+    DeviceMatcher                           matcher,
+    ILogger<DeviceIdentityService>          logger)
 {
     /// <summary>
     /// Attributes a login to a machine, creating the record if this is a new one.
@@ -41,10 +42,14 @@ public class DeviceIdentityService(
     /// An empty fingerprint is not attributed at all. A client that reported nothing must not be
     /// merged with every other client that reported nothing — that would build one enormous device
     /// shared by every old build in the wild, and then ban it.
+    /// <para>
+    /// A deployment that configured no weight table reports nothing by construction, so the same
+    /// guard covers it: no fingerprint is stored, and the key half below carries on regardless.
+    /// </para>
     /// </remarks>
     public async Task<DeviceIdentity?> ObserveAsync(Guid userId, DeviceFingerprint fingerprint, CancellationToken ct = default)
     {
-        if (fingerprint.IsEmpty)
+        if (!matcher.Enabled || fingerprint.IsEmpty)
             return null;
 
         try
@@ -63,7 +68,7 @@ public class DeviceIdentityService(
             {
                 ctx.DeviceObservations.Add(new DeviceObservationEntity
                 {
-                    Id          = Guid.CreateVersion7(),
+                    Id          = ArgonId.New(),
                     UserId      = userId,
                     DeviceId    = deviceId,
                     Components  = Serialize(fingerprint),
@@ -125,8 +130,8 @@ public class DeviceIdentityService(
             {
                 key = new DeviceKeyEntity
                 {
-                    Id           = Guid.CreateVersion7(),
-                    DeviceId     = Guid.CreateVersion7(),
+                    Id           = ArgonId.New(),
+                    DeviceId     = ArgonId.New(),
                     Thumbprint   = thumbprint,
                     PublicKey    = proof.PublicKey,
                     Platform     = DevicePlatform.UNKNOWN,
@@ -150,7 +155,7 @@ public class DeviceIdentityService(
             if (observation is null)
                 ctx.DeviceObservations.Add(new DeviceObservationEntity
                 {
-                    Id          = Guid.CreateVersion7(),
+                    Id          = ArgonId.New(),
                     UserId      = userId,
                     DeviceId    = key.DeviceId,
                     Components  = string.Empty,
@@ -201,7 +206,7 @@ public class DeviceIdentityService(
     /// hardware change and again after leaves two records that both score above the threshold, and
     /// the closer one is the right home for a third login.</para>
     /// </remarks>
-    private static async Task<Guid> ResolveAsync(
+    private async Task<Guid> ResolveAsync(
         ApplicationDbContext ctx, Guid userId, DeviceFingerprint fingerprint, CancellationToken ct)
     {
         // Narrowed by a component the fingerprint actually reported, so this is an index probe
@@ -217,16 +222,16 @@ public class DeviceIdentityService(
 
         foreach (var candidate in candidates)
         {
-            var score = fingerprint.ScoreAgainst(DeviceFingerprint.Parse(candidate.Components));
+            var score = matcher.Score(fingerprint, matcher.Parse(candidate.Components));
 
-            if (score >= DeviceFingerprint.SameMachineThreshold && score > bestScore)
+            if (score >= matcher.SameMachineThreshold && score > bestScore)
             {
                 best      = candidate.DeviceId;
                 bestScore = score;
             }
         }
 
-        return best == Guid.Empty ? Guid.CreateVersion7() : best;
+        return best == Guid.Empty ? ArgonId.New() : best;
     }
 
     private static async Task<bool> IsBannedAsync(ApplicationDbContext ctx, Guid deviceId, CancellationToken ct)
@@ -236,7 +241,6 @@ public class DeviceIdentityService(
         return ban is not null && (ban.ExpiresAt is null || ban.ExpiresAt > DateTimeOffset.UtcNow);
     }
 
-    private static string Serialize(DeviceFingerprint fingerprint)
-        => $"{DeviceFingerprint.CurrentVersion};" +
-           string.Join(",", fingerprint.Components.OrderBy(c => c.Key).Select(c => $"{c.Key}:{c.Value}"));
+    private string Serialize(DeviceFingerprint fingerprint)
+        => matcher.Serialize(fingerprint);
 }

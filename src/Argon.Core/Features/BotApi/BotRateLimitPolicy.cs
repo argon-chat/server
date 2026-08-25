@@ -37,15 +37,14 @@ public static class BotRateLimitExtensions
 {
     private const int SegmentsPerWindow = 6;
 
-    public static IServiceCollection AddBotRateLimiting(this IServiceCollection services, IConfiguration configuration)
+    /// <summary>
+    /// The limits are passed in rather than read here: the feature that declares the
+    /// <c>BotApi:RateLimits</c> section is what binds and validates them.
+    /// </summary>
+    public static IServiceCollection AddBotRateLimiting(this IServiceCollection services, BotRateLimitOptions cfg)
     {
-        services.Configure<BotRateLimitOptions>(configuration.GetSection(BotRateLimitOptions.SectionName));
-
         services.AddRateLimiter(options =>
         {
-            var cfg = new BotRateLimitOptions();
-            configuration.GetSection(BotRateLimitOptions.SectionName).Bind(cfg);
-
             options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 
             options.OnRejected = async (context, ct) =>

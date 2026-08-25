@@ -21,7 +21,7 @@ public static class L1L2CacheExtensions
                 LocalCacheExpiration = TimeSpan.FromHours(48),
                 Flags                = HybridCacheEntryFlags.DisableCompression
             };
-        });
+        }).AddSerializerFactory<IonHybridCacheSerializerFactory>();
     }
     public static void AddArchetypesCache(this WebApplicationBuilder builder)
     {
@@ -29,7 +29,9 @@ public static class L1L2CacheExtensions
         builder.Services.AddScoped<IArchetypeCache, HybridArchetypeCache>();
         builder.Services.AddScoped<IPermissionCache, HybridPermissionCache>();
         builder.Services.AddScoped<IEntitlementChecker, EntitlementChecker>();
+        builder.Services.AddScoped<ISpaceReadCache, HybridSpaceReadCache>();
         builder.Services.AddHostedService<HybridPermissionCacheAdapter>();
+        builder.Services.AddHostedService<HybridSpaceReadCacheAdapter>();
     }
 }
 
@@ -90,6 +92,13 @@ public class HybridArchetypeCache(
             tags: [$"server:{spaceId}", "archetypes"]
         );
 
+    /// <summary>Drops everything cached about a space's archetypes.</summary>
+    /// <remarks>
+    /// <paramref name="archetypeId"/> is deliberately unused: entries are tagged by space, not by
+    /// archetype, so there is nothing finer to remove. Coarser than asked for and never narrower,
+    /// which is the safe direction — the parameter stays because the invalidation event carries it
+    /// and a reader of the log wants to know which archetype caused the sweep.
+    /// </remarks>
     public async Task InvalidateAsync(Guid spaceId, Guid archetypeId)
         => await cache.RemoveByTagAsync($"server:{spaceId}");
 

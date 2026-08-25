@@ -36,6 +36,19 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(UpdateUserDeviceHistory))]
     ValueTask UpdateUserDeviceHistory();
 
+    /// <summary>
+    /// Replaces this user's stored password digest with one made the way the node hashes today.
+    /// </summary>
+    /// <remarks>
+    /// Called after a successful sign-in, which is the only moment the plaintext exists to hash
+    /// again — so this is how an account leaves an old scheme behind, one login at a time, and there
+    /// is no batch job that could do it instead. The caller has already verified the password; this
+    /// takes the digest it produced rather than the password itself, so the plaintext never crosses
+    /// a grain boundary.
+    /// </remarks>
+    [Alias(nameof(UpgradePasswordDigest))]
+    ValueTask UpgradePasswordDigest(string digest);
+
     [Alias(nameof(BeginUploadUserFile))]
     ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadUserFile(UserFileKind kind, CancellationToken ct = default);
 

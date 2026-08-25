@@ -12,13 +12,43 @@ public interface IVaultDbCredentialsProvider : IHostedService
     bool                IsEnabled { get; }
 }
 
-public record DatabaseOptions
+public record DatabaseOptions : Argon.Features.Clustering.IValidatableFeatureOptions
 {
-    public string ConnectionString  { get; set; }
-    public bool   UseRotationHolder { get; set; }
+    /// <summary>
+    /// Where the database is. Falls back to <c>ConnectionStrings:Default</c>, which is where this
+    /// lived before the section owned it — so an existing deployment keeps working, and a
+    /// <c>conf.d/database.json</c> can now say it without reaching into someone else's section.
+    /// </summary>
+    public string? ConnectionString  { get; set; }
+
+    public bool UseRotationHolder { get; set; }
 
     public string? RotationHolderSecretEngine { get; set; }
     public string? RotationHolderRoleName     { get; set; }
+
+    /// <summary>Which flavour of the PostgreSQL wire protocol. Unset means CockroachDB.</summary>
+    public string? Provider { get; set; }
+
+    public void Validate(Argon.Features.Clustering.IFeatureConfigurationReport report)
+    {
+        report.Require(
+            !string.IsNullOrWhiteSpace(ConnectionString) ||
+            !string.IsNullOrWhiteSpace(report.Read<ConnectionStringsSection>("ConnectionStrings").Default),
+            nameof(ConnectionString),
+            "is not set and neither is ConnectionStrings:Default; there is no database to reach");
+
+        if (UseRotationHolder)
+        {
+            report.Required(RotationHolderSecretEngine, nameof(RotationHolderSecretEngine));
+            report.Required(RotationHolderRoleName, nameof(RotationHolderRoleName));
+        }
+    }
+}
+
+/// <summary>The shape of the framework's own <c>ConnectionStrings</c> block, for the one rule that reads it.</summary>
+public sealed class ConnectionStringsSection
+{
+    public string? Default { get; set; }
 }
 
 public class VaultDbCredentialsProvider(

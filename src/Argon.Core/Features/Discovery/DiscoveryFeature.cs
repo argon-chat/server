@@ -19,7 +19,6 @@ public static class DiscoveryFeature
 
     public static WebApplicationBuilder AddDiscoveryFeature(this WebApplicationBuilder builder)
     {
-        builder.Services.Configure<DiscoveryOptions>(builder.Configuration.GetSection(DiscoveryOptions.SectionName));
         builder.Services.AddCors(o => o.AddPolicy(OpenPublicPolicy, p =>
             p.AllowAnyOrigin()
              .AllowAnyHeader()

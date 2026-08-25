@@ -7,7 +7,6 @@ public static class ContentModerationFeature
     public static void AddContentModeration(this WebApplicationBuilder builder)
     {
         var section = builder.Configuration.GetSection(ModeratorConfig.SectionName);
-        builder.Services.Configure<ModeratorConfig>(section);
 
         var config = section.Get<ModeratorConfig>();
 

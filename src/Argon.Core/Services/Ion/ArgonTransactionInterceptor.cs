@@ -25,7 +25,10 @@ public sealed class ArgonOrleansInterceptor : IIonInterceptor
     }
 }
 
-public sealed class ArgonTransactionInterceptor(TokenAuthorization validationParameters, ILogger<ArgonTransactionInterceptor> logger)
+public sealed class ArgonTransactionInterceptor(
+    TokenAuthorization                  validationParameters,
+    IOptions<AnonymousRateLimitOptions> anonymousLimits,
+    ILogger<ArgonTransactionInterceptor> logger)
     : IIonInterceptor
 {
     public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
@@ -306,25 +309,17 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
         };
     }
 
-    // Per-IP windows for the anonymous identity surface. Deliberately generous + short-windowed so
-    // shared/CGNAT IPs and honest retypes are never locked out; the per-email limits (inside
-    // IdentityInteraction) are the tighter, credential-specific guard. Tune freely / move to config.
-    private static (int max, TimeSpan window)? AnonymousIpLimitFor(string methodName) => methodName switch
-    {
-        nameof(IIdentityInteraction.Authorize)                   => (100, TimeSpan.FromMinutes(5)),
-        nameof(IIdentityInteraction.Registration)                => (20, TimeSpan.FromMinutes(10)),
-        nameof(IIdentityInteraction.BeginResetPassword)          => (15, TimeSpan.FromMinutes(15)),
-        nameof(IIdentityInteraction.ResetPassword)               => (30, TimeSpan.FromMinutes(10)),
-        nameof(IIdentityInteraction.GetAuthorizationScenarioFor) => (60, TimeSpan.FromMinutes(5)),
-        // GetAuthorizationScenario / GetMyAuthorization are not credential-bearing; leave unthrottled.
-        _                                                        => null
-    };
 
     private async Task EnforceAnonymousIpRateLimitAsync(IIonCallContext context, HttpContext httpContext, CancellationToken ct)
     {
-        var limit = AnonymousIpLimitFor(context.MethodName.Name);
-        if (limit is null)
+        var options = anonymousLimits.Value;
+
+        if (!options.Enabled)
             return;
+
+        var limit = options.For(context.MethodName.Name);
+        if (limit is null)
+            return;   // not credential-bearing; left open on purpose
 
         var ip = httpContext.GetIpAddress();
         if (string.IsNullOrEmpty(ip) || ip == "unknown")
@@ -337,7 +332,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
             var key   = $"rl:auth:ip:{ip}:{context.MethodName.Name}";
             count = await cache.StringIncrementAsync(key, ct);
             if (count == 1)
-                await cache.KeyExpireAsync(key, limit.Value.window, ct);
+                await cache.KeyExpireAsync(key, limit.Window, ct);
         }
         catch (Exception e)
         {
@@ -348,7 +343,7 @@ public sealed class ArgonTransactionInterceptor(TokenAuthorization validationPar
             return;
         }
 
-        if (count > limit.Value.max)
+        if (count > limit.Max)
         {
             logger.LogWarning("Anonymous auth rate limit hit: method={Method} ip={Ip} count={Count}",
                 context.MethodName.Name, ip, count);

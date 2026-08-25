@@ -73,8 +73,7 @@ public sealed class ArchetypesV1(IGrainFactory grains) : IBotInterface
                     new BotApiError("not_found", "Archetype not found."),
                     statusCode: StatusCodes.Status404NotFound);
 
-            var space   = grains.GetGrain<ISpaceGrain>(spaceId);
-            var members = await space.GetMembers();
+            var members = await grains.GetGrain<ISpaceReadGrain>(spaceId).GetMembers();
 
             var memberIds = group2.members.Values.ToHashSet();
             var matched = members

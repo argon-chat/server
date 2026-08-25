@@ -43,6 +43,18 @@ public sealed record RealtimeServerMember(SpaceMember member, UserStatus status,
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceVersions(string? members, string? channels, string? groups, string? archetypes);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SpaceSnapshot(SpaceVersions versions, IonArray<SpaceMember>? members, IonArray<RealtimeChannel>? channels, IonArray<ChannelGroup>? groups, IonArray<Archetype>? archetypes);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MemberPresence(guid userId, UserStatus status, UserActivityPresence? activity);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record InviteCodeEntity(InviteCode code, guid spaceId, guid issuerId, datetime expireTime, u8 used, i4 maxUses, datetime createdAt);
 
 
@@ -157,6 +169,8 @@ public enum UserFlag : i4
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IServerInteraction : IIonService
 {
+    Task<SpaceSnapshot> GetSpaceSnapshot(guid spaceId, SpaceVersions? known, CancellationToken ct = default);
+    Task<IonArray<MemberPresence>> GetMemberPresence(guid spaceId, CancellationToken ct = default);
     Task<IonArray<RealtimeServerMember>> GetMembers(guid spaceId, CancellationToken ct = default);
     Task<RealtimeServerMember> GetMember(guid spaceId, guid userId, CancellationToken ct = default);
     Task<ServerInvites> GetInviteCodes(guid spaceId, CancellationToken ct = default);

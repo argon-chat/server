@@ -1,13 +1,31 @@
 namespace Argon.Features;
 
 using System.Security.Claims;
+using Argon.Features.Middlewares;
 
 public static class HttpContextExtensions
 {
     extension(HttpContext ctx)
     {
+        /// <summary>
+        /// Which machine this request came from, as far as it can be established.
+        /// </summary>
+        /// <remarks>
+        /// <para>The header ladder below is only consulted when the hop that delivered the request is a
+        /// proxy this process trusts. Every rung of it is a header, so a caller connecting directly can
+        /// set any of them and be recorded as any address it likes — and this value is what the
+        /// anonymous rate limits count, what the captcha is verified against, and what lands in the
+        /// session record a user later reads as "where was I signed in from". Reading them
+        /// unconditionally made all three of those the caller's choice.</para>
+        ///
+        /// <para>Untrusted hop means the peer is the caller, so the peer address is the answer — which
+        /// is also what a direct connection has always returned, by falling through the ladder.</para>
+        /// </remarks>
         public string GetIpAddress()
         {
+            if (!ctx.ArrivedThroughTrustedProxy())
+                return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+
             // Priority 1: CloudFlare proxy header
             if (ctx.Request.Headers.TryGetValue("CF-Connecting-IP", out var cfIp) && !string.IsNullOrWhiteSpace(cfIp))
                 return cfIp.ToString();
@@ -37,8 +55,19 @@ public static class HttpContextExtensions
             return "unknown";
         }
 
+        /// <summary>
+        /// The country the edge placed this caller in, or <c>"00"</c> when nothing did.
+        /// </summary>
+        /// <remarks>
+        /// Gated on the same trust as <see cref="GetIpAddress"/>, and for the same reason: these are
+        /// headers only an edge is supposed to write. Unknown is the honest answer for a request that
+        /// did not come through one, and it is the answer such a request already got.
+        /// </remarks>
         public string GetRegion()
         {
+            if (!ctx.ArrivedThroughTrustedProxy())
+                return "00";
+
             if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso) && !string.IsNullOrWhiteSpace(cfIso))
                 return cfIso.ToString();
             if (ctx.Request.Headers.TryGetValue("x-geoip2-country", out var geoCountry) && !string.IsNullOrWhiteSpace(geoCountry))
@@ -52,7 +81,7 @@ public static class HttpContextExtensions
         public string GetRay()
             => ctx.Request.Headers.ContainsKey("CF-Ray")
                 ? ctx.Request.Headers["CF-Ray"].ToString()
-                : $"{Guid.NewGuid()}";
+                : $"{ArgonId.New()}";
 
         public string GetClientName()
             => ctx.Request.Headers.ContainsKey("User-Agent")
@@ -185,7 +214,8 @@ public static class HttpContextExtensions
             var parsed = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(argonSecure);
 
             return parsed.TryGetValue("hwv", out var hwv)
-                ? Features.Auth.DeviceFingerprint.Parse(Uri.UnescapeDataString(hwv.ToString()))
+                ? ctx.RequestServices.GetRequiredService<Features.Auth.DeviceMatcher>()
+                     .Parse(Uri.UnescapeDataString(hwv.ToString()))
                 : Features.Auth.DeviceFingerprint.Empty;
         }
 

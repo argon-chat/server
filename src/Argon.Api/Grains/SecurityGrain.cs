@@ -69,7 +69,7 @@ public class SecurityGrain(
 
             var pending = new PendingEmailChangeEntity
             {
-                Id = Guid.CreateVersion7(),
+                Id = ArgonId.New(),
                 UserId = UserId,
                 NewEmail = newEmail,
                 CodeHash = Convert.ToBase64String(hash),
@@ -184,7 +184,7 @@ public class SecurityGrain(
 
             var pending = new PendingPhoneChangeEntity
             {
-                Id = Guid.CreateVersion7(),
+                Id = ArgonId.New(),
                 UserId = UserId,
                 NewPhone = normalizedPhone,
                 CodeHash = string.Empty, // Code is managed by phone provider
@@ -539,7 +539,7 @@ public class SecurityGrain(
 
             var passkey = new UserPasskeyEntity
             {
-                Id = Guid.CreateVersion7(),
+                Id = ArgonId.New(),
                 UserId = UserId,
                 Name = registration.Name,
                 CredentialId = credential.Id,
@@ -624,7 +624,7 @@ public class SecurityGrain(
             {
                 setting = new UserAutoDeleteSettingEntity
                 {
-                    Id = Guid.CreateVersion7(),
+                    Id = ArgonId.New(),
                     UserId = UserId,
                     Months = months.Value,
                     Enabled = true,

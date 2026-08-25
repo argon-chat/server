@@ -15,6 +15,7 @@ public class EntitlementGrain(
     IArchetypeAgent archetypeAgent,
     IEntitlementChecker entitlementChecker,
     IPermissionCache permissionCache,
+    ISpaceReadCache readCache,
     AppHubServer appHubServer,
     ILogger<IEntitlementGrain> logger) : Grain, IEntitlementGrain
 {
@@ -89,7 +90,7 @@ public class EntitlementGrain(
         {
             SpaceId       = this.GetPrimaryKey(),
             Entitlement   = ArgonEntitlementKit.Base,
-            Id            = Guid.NewGuid(),
+            Id            = ArgonId.New(),
             Name          = name,
             Description   = "",
             IsMentionable = false,
@@ -199,6 +200,7 @@ public class EntitlementGrain(
             var result = value.ToDto();
             await archetypeAgent.DoUpdatedAsync(value);
             await permissionCache.SignalSpaceInvalidationAsync(this.GetPrimaryKey());
+            await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
             await Fire(new ArchetypeChanged(this.GetPrimaryKey(), result));
             return result;
         }
@@ -248,6 +250,7 @@ public class EntitlementGrain(
 
         await archetypeAgent.DoDeletedAsync(spaceId, archetypeId);
         await permissionCache.SignalSpaceInvalidationAsync(spaceId);
+        await readCache.SignalInvalidationAsync(spaceId);
         await Fire(new ArchetypeRemoved(spaceId, archetypeId));
 
         return ArchetypeError.NONE;
@@ -283,6 +286,7 @@ public class EntitlementGrain(
             await archetypeAgent.DoUpdatedAsync(entity);
 
         await permissionCache.SignalSpaceInvalidationAsync(spaceId);
+        await readCache.SignalInvalidationAsync(spaceId);
 
         var result = entities.OrderBy(x => x.Order).Select(x => x.ToDto()).ToList();
 
@@ -327,7 +331,8 @@ public class EntitlementGrain(
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
-            
+        await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
+
         return overwrite.ToDto();
     }
 
@@ -349,6 +354,9 @@ public class EntitlementGrain(
 
         ctx.ChannelEntitlementOverwrites.Remove(overwrite);
         Ensure.That(await ctx.SaveChangesAsync() == 1);
+
+        await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
+
         return true;
     }
 
@@ -388,6 +396,7 @@ public class EntitlementGrain(
 
         Ensure.That(await ctx.SaveChangesAsync() == 1);
 
+        await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
 
         return overwrite.ToDto();
     }
@@ -470,8 +479,14 @@ public class EntitlementGrain(
            .Where(x => x.Id == memberId)
            .Select(x => x.UserId)
            .FirstOrDefaultAsync();
-        if (member != default)
-            await permissionCache.SignalMemberInvalidationAsync(this.GetPrimaryKey(), member);
+        if (member == default)
+            return;
+
+        await permissionCache.SignalMemberInvalidationAsync(this.GetPrimaryKey(), member);
+
+        // The whole space, not just this member: the read cache keeps who-holds-what in the roster,
+        // which is one entry shared by everybody.
+        await readCache.SignalInvalidationAsync(this.GetPrimaryKey());
     }
 
 }

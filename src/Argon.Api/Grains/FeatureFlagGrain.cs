@@ -107,7 +107,7 @@ public sealed class FeatureFlagGrain(
         {
             ctx.FeatureFlagOverrides.Add(new FeatureFlagOverrideEntity
             {
-                Id            = Guid.CreateVersion7(),
+                Id            = ArgonId.New(),
                 FeatureFlagId = flagId,
                 Scope         = FeatureFlagScope.User,
                 TargetId      = targetId,
@@ -279,7 +279,7 @@ public sealed class FeatureFlagGrain(
         {
             ctx.FeatureFlagOverrides.Add(new FeatureFlagOverrideEntity
             {
-                Id                = Guid.CreateVersion7(),
+                Id                = ArgonId.New(),
                 FeatureFlagId     = input.FlagId,
                 Scope             = input.Scope,
                 TargetId          = input.TargetId,
