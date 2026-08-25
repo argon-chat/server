@@ -41,3 +41,9 @@ deploy/pconf.d/
 
 # Claude Code session artefacts, including the throwaway worktrees agents run in.
 .claude/
+
+deploy/selfhosted/bootstrapper/node_modules/
+
+# Built by the image, and by `bun run build` locally. What ships is what the Dockerfile's build
+# stage emitted, never a dist/ somebody happened to have on disk.
+deploy/selfhosted/bootstrapper/ui/dist/

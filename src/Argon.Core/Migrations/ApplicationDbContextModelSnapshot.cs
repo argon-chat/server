@@ -340,9 +340,6 @@ namespace Argon.Core.Migrations
                     b.Property<DateTimeOffset?>("LastMessageAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<long>("LastMessageId")
-                        .HasColumnType("bigint");
-
                     b.Property<Guid?>("LastMessageSenderId")
                         .HasColumnType("uuid");
 
@@ -1330,7 +1327,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("ChannelEntitlementOverwrites");
 
-                    b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.ChannelEntity", b =>
@@ -1448,7 +1445,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("ChannelGroupEntity");
 
-                    b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.ContentViolationEntity", b =>
@@ -2526,7 +2523,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("MemberArchetypes");
 
-                    b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.SpaceMemberEntity", b =>
@@ -2578,7 +2575,7 @@ namespace Argon.Core.Migrations
 
                     b.ToTable("UsersToServerRelations");
 
-                    b.HasAnnotation("Regional:Locality", "REGIONAL BY TABLE");
+                    b.HasAnnotation("Regional:Locality", "GLOBAL");
                 });
 
             modelBuilder.Entity("Argon.Entities.TenantDirectoryEntity", b =>

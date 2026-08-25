@@ -1,0 +1,266 @@
+<!doctype html>
+<!--
+  Every screen the panel can show, without a machine to install onto.
+
+  `ui/app.js` renders from one object — whatever `GET /api/state` returned — so the whole surface can be
+  driven by handing it a different object. This page stubs `fetch` before the module loads and answers
+  with a fixture chosen by `?screen=`.
+
+  It is a harness, not a route: `server.ts` serves three files by name and this is not one of them, so
+  nothing here reaches an operator. Its worth is that the screens nobody wants to reach — a refused
+  configuration, containers up and the instance down — can be looked at without arranging for them.
+
+  Serve the parent directory over http and open /preview/?screen=<name>. `file://` will not do: the
+  bundle is a module.
+
+  It loads what the build emitted — `ui/dist/app.js` and `ui/dist/app.css` — rather than sources, so
+  `bunx vite build` has to have run. That is deliberate: a harness that rendered from sources would be
+  depicting a page nobody ships, and the point of it is to show the screens as an operator gets them.
+-->
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Argon — setup screens</title>
+<!-- The same opt-out the real page carries, so a screenshot taken under a light preference shows what
+     an operator with that preference would actually get. -->
+<script>
+  if (window.matchMedia?.("(prefers-color-scheme: light)").matches)
+      document.documentElement.classList.remove("dark");
+</script>
+
+<link rel="stylesheet" href="../ui/dist/app.css" />
+</head>
+<body class="min-h-screen bg-oled-bg text-text-primary font-sans antialiased">
+
+<script>
+/* Fixtures. Prose is copied from the server rather than shortened: the length of a warning is the
+   thing most likely to break a layout, so a fixture that trims it tests nothing. */
+
+const ROLES = [
+    { id: "entrypoint", kind: "client", grains: 0, features: 33, description: "Ion protocol, SignalR hub, auth, webhooks" },
+    { id: "aegis", kind: "client", grains: 0, features: 21, description: "identity server — OAuth provider, sign-in, operator step-up" },
+    { id: "core", kind: "silo", grains: 26, features: 26, description: "space, channel, identity, session, bot runtime, dev teams" },
+    { id: "media", kind: "silo", grains: 1, features: 11, description: "file storage and blob GC" },
+    { id: "jobs", kind: "silo", grains: 7, features: 18, description: "account deletion, exports, e-mail, reports, expired-row sweep" },
+    { id: "voice", kind: "silo", grains: 3, features: 14, description: "voice control, calls, SIP" },
+    { id: "botapi", kind: "client", grains: 0, features: 19, description: "bot HTTP API and gateway events" },
+    { id: "admin", kind: "client", grains: 0, features: 17, description: "operator console" },
+    { id: "account", kind: "client", grains: 0, features: 16, description: "developer account console — accounts, dev teams and their apps" },
+];
+
+const POLICY = {
+    required: ["entrypoint", "aegis", "core", "media", "jobs"],
+    optional: ["voice", "botapi", "admin", "account"],
+    refused: ["commerce", "moderation", "dev"],
+};
+
+const WARNINGS = [
+    "whoever follows a file link has to be able to read that bucket, and this installer cannot make it so. A private bucket produces an instance where everything works except that every avatar and attachment is a broken image.",
+    "renewing that certificate is yours. An instance that stops answering in ninety days with no warning is the worst way for this path to end.",
+];
+
+const SERVICES = [
+    { service: "argon-edge", state: "running" },
+
+    // The panel itself is a service in this project, and it has to be in this list: a fixture without it
+    // makes "the panel offers no way to switch itself off" pass by having no row to look at.
+    { service: "argon-panel", state: "running" },
+    { service: "argon-postgres", state: "running", health: "healthy" },
+    { service: "argon-cache", state: "running", health: "healthy" },
+    { service: "argon-nats", state: "running" },
+    { service: "argon-storage-init", state: "exited", exitCode: 0 },
+    { service: "argon-entrypoint", state: "running" },
+    { service: "argon-core", state: "restarting" },
+];
+
+const PROGRESS = [
+    " argon-postgres Pulling ",
+    " argon-postgres Pulled ",
+    " argon-core Pulling ",
+    " 2ff5f0f0e0f1 Downloading [==============>  ]  184MB/247MB",
+    " argon-core Pulled ",
+    " Network argon_argon  Creating",
+    " Network argon_argon  Created",
+    " Container argon-postgres  Creating",
+    " Container argon-postgres  Started",
+];
+
+const BASE = {
+    stage: "awaiting-configuration",
+    answers: {},
+    missing: ["domain", "serverVersion", "traffic", "roles", "voice", "storage"],
+    policy: POLICY,
+    credentials: [],
+    warnings: [],
+    restarted: false,
+    retired: false,
+};
+
+const ANSWERED = {
+    ...BASE,
+    stage: "ready",
+    missing: [],
+    answers: {
+        domain: "chat.example.org",
+        serverVersion: "1.4.0",
+        roles: ["entrypoint", "aegis", "core", "media", "jobs", "voice"],
+        storage: { kind: "s3", endpoint: "https://s3.eu-central-1.amazonaws.com", bucket: "argon-content", region: "eu-central-1" },
+        traffic: { kind: "own-certificate" },
+        voice: true,
+    },
+    credentials: ["object storage"],
+    panelPassword: true,
+    warnings: WARNINGS,
+    image: {
+        reference: "ghcr.io/argon-chat/orleans:1.4.0",
+        version: { value: "1.4.0", source: "label", reference: "ghcr.io/argon-chat/orleans:1.4.0" },
+        pairing: { ok: true },
+        roles: ROLES,
+        topologies: [{ name: "distributed", roles: POLICY.required }],
+    },
+    panel: { url: "https://chat.example.org/panel", note: "The wizard has moved here. `/` is Argon now." },
+};
+
+const SCREENS = {
+    signin: null,
+
+    // The panel after the install: the code has been retired, so the only door left is the password.
+    // `null` here too — the state is still refused; what differs is what `/api/auth/mode` says.
+    "signin-password": null,
+    wizard: BASE,
+    ready: ANSWERED,
+
+    applying: { ...ANSWERED, stage: "starting", progress: PROGRESS, services: SERVICES },
+
+    running: {
+        ...ANSWERED,
+        stage: "running",
+        services: SERVICES.map((s) => (s.state === "restarting" ? { ...s, state: "running" } : s)),
+        written: [
+            { path: "compose.yaml", mode: 0o644 },
+            { path: "conf.d/kestrel.json", mode: 0o644 },
+            { path: "conf.d/database.json", mode: 0o644 },
+            { path: "secrets.json", mode: 0o600 },
+            { path: "traefik/traefik.yml", mode: 0o644 },
+        ],
+    },
+
+    invalid: {
+        ...ANSWERED,
+        stage: "invalid",
+        validation: [
+            { role: "entrypoint", ok: true, output: "role 'entrypoint' — 27 configuration section(s) across 33 feature(s)\n  => 0 error(s), 0 warning(s)" },
+            {
+                role: "core",
+                ok: false,
+                output:
+                    "role 'core' — 21 configuration section(s) across 26 feature(s)\n" +
+                    "  error C2 [core]: database: Database:ConnectionString — is empty, and every grain in this role reads it\n" +
+                    "  error C3 [core]: messages: 'Messages:Retention' is owned by the 'jobs' role and set here as well\n" +
+                    "  warning C6 [core]: argon-authorization: auth:deviceMatching:weights — were never configured\n" +
+                    "  => 2 error(s), 1 warning(s)",
+            },
+        ],
+    },
+
+    degraded: {
+        ...ANSWERED,
+        stage: "degraded",
+        services: SERVICES,
+        progress: PROGRESS,
+        problem:
+            "the start did not finish: argon-core exited with code 1. Containers are running against the configuration that was just written, so this is not a clean retry — read the output below and decide what to do with the project that exists before starting another.",
+    },
+
+    blocked: {
+        ...ANSWERED,
+        stage: "blocked",
+        problem:
+            "an install already exists in this directory and it was not written by this process. Its answers are gone, and overwriting them would leave a configuration nobody can account for.",
+    },
+};
+
+/** What `/api/panel/overview` answers once the instance is up. See ui/app.js's panel section. */
+const OVERVIEW = {
+    domain: "chat.example.org",
+    services: SERVICES.map((s) => (s.state === "restarting" ? { ...s, state: "running" } : s)),
+
+    // Everything but the panel itself. `controllable()` in panel/containers.ts decides this, and the
+    // route enforces it — the page only decides whether to draw a button that would be refused anyway.
+    controllable: SERVICES.map((s) => s.service).filter((name) => name !== "argon-panel"),
+
+    certificates: [
+        {
+            host: "chat.example.org",
+            purpose: "instance",
+            verdict: "expiring",
+            renewal: "operator",
+            days: 11,
+            certificate: { issuer: { commonName: "Example Corporate CA" } },
+            coverage: { covers: true, by: "chat.example.org" },
+        },
+        {
+            host: "media.example.org",
+            purpose: "media",
+            verdict: "valid",
+            renewal: "traefik",
+            days: 74,
+            certificate: { issuer: { commonName: "R11" } },
+            coverage: { covers: false, why: "the certificate covers chat.example.org and *.internal.example.org, neither of which is media.example.org" },
+        },
+    ],
+
+    backups: [
+        { name: "argon-20260824T0300Z.tar.gz", bytes: 48_211_904 },
+        { name: "argon-20260817T0300Z.tar.gz", bytes: 47_002_112 },
+    ],
+
+    version: {
+        current: { version: "1.4.0", at: "2026-08-21T09:14:00.000Z", outcome: "succeeded" },
+        previous: { version: "1.3.4", at: "2026-07-02T22:41:00.000Z", outcome: "succeeded" },
+    },
+};
+
+const screen = new URLSearchParams(location.search).get("screen") ?? "wizard";
+const state = SCREENS[screen] ?? SCREENS.wizard;
+
+/* The stub. Installed before app.js runs, which a classic script before a module is guaranteed to do. */
+window.fetch = async (input) => {
+    const path = String(input);
+    const json = (body, status = 200) =>
+        new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+
+    // `signin` is the absence of a session, which is exactly how the panel reports it.
+    if (path.includes("/api/state")) return state === null ? json({ error: "unauthenticated" }, 401) : json(state);
+
+    // Which doors are open. The retired panel offers only the password; everything else is mid-install.
+    if (path.includes("/api/auth/mode"))
+        return json(screen === "signin-password" ? { code: false, password: true } : { code: true, password: false });
+
+    if (path.includes("/api/panel/overview")) return json(OVERVIEW);
+
+    // The log viewer, so the panel screen can be opened with something in it.
+    if (path.includes("/logs"))
+        return json({
+            truncated: true,
+            lines: [
+                { stream: "stdout", text: "info: Argon.Api.Program[0] starting role 'core'" },
+                { stream: "stdout", text: "info: Orleans.Runtime.Silo[0] silo started" },
+                { stream: "stderr", text: "warn: Npgsql[0] retrying connection to argon-postgres (attempt 2)" },
+                { stream: "stdout", text: "info: Argon.Api.Program[0] listening on http://0.0.0.0:8080" },
+            ],
+        });
+
+    if (path.includes("/api/auth/challenge")) return json({ id: "preview", nonce: "00" });
+    if (path.includes("/api/auth/verify")) return json({ error: "rejected" }, 401);
+    if (path.includes("/api/auth/password")) return json({ error: "rejected" }, 401);
+
+    return json(state ?? {});
+};
+</script>
+
+<div id="app" aria-live="polite"></div>
+<script type="module" src="../ui/dist/app.js"></script>
+</body>
+</html>

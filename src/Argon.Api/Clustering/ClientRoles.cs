@@ -17,8 +17,8 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<ServerTimingFeature>();
         features.Add<MessagePipeFeature>();
         features.Add<DatabaseFeature>();
-
         features.Add<KestrelFeature>();
+        features.Add<ForwardedHeadersFeature>();
         features.Add<RoutingFeature>();
         features.Add<ControllersFeature>();
         features.Add<WebSocketsFeature>();
@@ -29,10 +29,6 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<IonProtocolFeature>();
         features.Add<AppHubFeature>();
         features.Add<DiscoveryFeature>();
-
-        // The routing decision — which region owns this space, this user, this channel — is taken
-        // here, before Orleans is involved, because this is where the request arrives. So this is
-        // where the clients for the other regions live. With one region configured it holds none.
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();
 
@@ -61,6 +57,7 @@ public sealed class BotApiRole : IArgonRole
         features.Add<DatabaseFeature>();
 
         features.Add<KestrelFeature>();
+        features.Add<ForwardedHeadersFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
         features.Add<ClientLifecycleFeature>();
@@ -86,6 +83,7 @@ public sealed class AccountConsoleRole : IArgonRole
         features.Add<SentryFeature>();
 
         features.Add<KestrelFeature>();
+        features.Add<ForwardedHeadersFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
         features.Add<ClientLifecycleFeature>();
@@ -109,6 +107,7 @@ public sealed class AdminRole : IArgonRole
         features.Add<DatabaseFeature>();
 
         features.Add<KestrelFeature>();
+        features.Add<ForwardedHeadersFeature>();
         features.Add<RoutingFeature>();
         features.Add<HostHooksFeature>();
         features.Add<ClientLifecycleFeature>();

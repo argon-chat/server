@@ -1,0 +1,52 @@
+<!doctype html>
+<!--
+  The setup panel, and afterwards the panel.
+
+  `class="dark"` on the root: OLED black is the brand default and `html:not(.dark)` is the light opt-out
+  — the reverse of the usual Tailwind convention, so a root without it silently renders light. See
+  ds-bundle/README.md in the support repository, which src/argon-ds.css is vendored from.
+
+  Vite's entry. Everything else — the stylesheet included — is pulled in from main.ts and emitted beside
+  this file as app.js and app.css, which are the two names `server.ts` serves by.
+-->
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="color-scheme" content="dark light" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Argon — setup</title>
+
+<!--
+  Inline, as a data URI, for the reason nothing else here is fetched either — and because without any
+  icon the browser asks for /favicon.ico on every load and the panel answers 404. A 404 in the console
+  of an installer is a thing an operator reasonably stops to investigate.
+-->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%238b5cf6'/%3E%3Cpath d='M16 8l7 16h-4l-3-7-3 7H9z' fill='%23fff'/%3E%3C/svg%3E" />
+
+<!--
+  Before the stylesheet, so a light-preferring machine never paints black and then corrects itself.
+  Inline for the same reason as everything else: this page fetches nothing from anywhere.
+-->
+<script>
+  if (window.matchMedia?.("(prefers-color-scheme: light)").matches)
+      document.documentElement.classList.remove("dark");
+</script>
+</head>
+<body class="min-h-screen bg-oled-bg text-text-primary font-sans antialiased">
+
+<noscript>
+  <div class="max-w-lg mx-auto mt-20 panel p-6">
+    <h1 class="text-lg font-bold text-text-primary">JavaScript is required</h1>
+    <p class="text-sm text-text-secondary mt-2">
+      This page finishes installing Argon on this machine, and afterwards is how it is administered. It
+      reads the installer's state and reports what it is doing, and it cannot do either without scripts.
+    </p>
+  </div>
+</noscript>
+
+<div id="app"></div>
+
+<script type="module" src="./src/main.ts"></script>
+</body>
+</html>

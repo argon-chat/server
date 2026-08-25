@@ -207,7 +207,6 @@ public class UserChatGrain(
                 conversation.LastMessageAt = now;
                 conversation.LastMessageText = previewText;
                 conversation.LastMessageSenderId = senderId;
-                conversation.LastMessageId = messageId;
                 ctx.Conversations.Update(conversation);
 
                 // Update sender's chat (no unread increment)

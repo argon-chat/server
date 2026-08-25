@@ -6,107 +6,36 @@ on:
   workflow_dispatch:
 
 jobs:
-  # test:
-  #   runs-on: ubuntu-latest
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-  #         submodules: recursive
+  # Wired in rather than left commented out, as it was before `tests.yml` became reusable. This is the
+  # release path: an image published over a red suite is one somebody deploys.
+  test:
+    uses: ./.github/workflows/tests.yml
+    with:
+      database: postgres
+      coverage: true
+      threshold: 50
 
-  #     - name: Setup .NET
-  #       uses: actions/setup-dotnet@v4
-  #       with:
-  #         dotnet-version: 10.0.x
+  # Seconds, and unrelated to the above: the bootstrapper is TypeScript and the install scripts are
+  # shell. It gates the publish because the bootstrapper image *is* this code.
+  installer:
+    uses: ./.github/workflows/installer-tests.yml
 
-  #     - name: Cache NuGet packages
-  #       uses: actions/cache@v4
-  #       with:
-  #         path: ~/.nuget/packages
-  #         key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
-
-  #     - name: Restore
-  #       run: dotnet restore
-
-  #     - name: Build
-  #       run: dotnet build --no-restore --verbosity normal
-
-  #     - name: Test
-  #       run: dotnet test --no-build --verbosity normal
-
-  build-ghcr:
-    runs-on: ubuntu-latest
+  publish:
+    needs: [test, installer]
+    uses: ./.github/workflows/publish.yml
     permissions:
       id-token: write
       contents: read
       packages: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          submodules: recursive
+    secrets: inherit
 
-      - name: Docker login GHCR
-        uses: docker/login-action@v4
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.ARGON_GHCR_PAT }}
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Build and push image to GHCR
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: ./src/Argon.Api/Dockerfile
-          push: true
-          tags: |
-            ghcr.io/argon-chat/orleans:${{ github.run_number }}
-            ghcr.io/argon-chat/orleans:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          build-args: |
-            GIT_COMMIT=${{ github.sha }}
-            VERSION=${{ github.run_number }}
-            BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
-
-  # build-dockerhub:
-  #   if: startsWith(github.ref, 'refs/tags/v')
-  #   runs-on: ubuntu-latest
-  #   #needs: test
-  #   permissions:
-  #     id-token: write
-  #     contents: read
-  #     packages: write
-  #   steps:
-  #     - uses: actions/checkout@v4
-  #       with:
-  #         fetch-depth: 0
-  #         submodules: recursive
-
-  #     - name: Docker login Docker Hub
-  #       uses: docker/login-action@v3
-  #       with:
-  #         username: ${{ secrets.DOCKER_HUB_USERNAME }}
-  #         password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
-
-  #     - name: Setup Docker Buildx
-  #       uses: docker/setup-buildx-action@v3
-
-  #     - name: Build and push image to Docker Hub
-  #       uses: docker/build-push-action@v6
-  #       with:
-  #         context: .
-  #         file: ./src/Argon.Api/Dockerfile
-  #         push: true
-  #         tags: |
-  #           argonchat/argon-server:${{ github.run_number }}
-  #           argonchat/argon-server:latest
-  #         cache-from: type=gha
-  #         cache-to: type=gha,mode=max
-  #         build-args: |
-  #           GIT_COMMIT=${{ github.sha }}
-  #           VERSION=${{ github.run_number }}
-  #           BUILD_DATE=${{ github.event.repository.pushed_at || github.run_started_at }}
+# Not gated on the CockroachDB run, which the canary workflow does on every push to development. That
+# is a deliberate trade: it is the slow one, and master is reached through that branch. If a release
+# should not go out without the engine production runs on having been exercised on the exact merge
+# commit, add a second `uses: ./.github/workflows/tests.yml` with `database: cockroach` and put it in
+# `needs` — nothing else has to change.
+#
+# The Docker Hub publish that used to sit here commented out has been removed rather than carried
+# forward. It pushed `argonchat/argon-server`, a name nothing in this repository resolves any more —
+# `compose.ts` and the deployment both name `ghcr.io/argon-chat/orleans`, and the stale one had already
+# been copied into the bootstrapper once by someone reading it as current.

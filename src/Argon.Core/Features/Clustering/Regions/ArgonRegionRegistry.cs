@@ -274,6 +274,24 @@ public sealed class ArgonRegionRegistry : IArgonRegionRegistry, IHostedService, 
                 $"region '{options.Self}' is configured as index {options.SelfIndex}. Every identifier " +
                 "created here would name the wrong region.");
 
+        // The epoch as well as the index, because the two are read from different places and only agree
+        // by convention. RegionOf below reads options.EffectiveIdEpoch; the routing gate on the request
+        // path reads ArgonId.Epoch, which is whatever hosting stamped. Let those drift and the gate
+        // calls an identifier foreign that RegionOf then resolves to this very region, or worse, the
+        // reverse — a call that should have crossed a boundary and quietly did not.
+        // Compared in milliseconds, which is the resolution ArgonId stores: it keeps the epoch as a Unix
+        // millisecond count, so DateTimeOffset.MaxValue — the value an unset epoch takes — comes back
+        // with its sub-millisecond ticks gone and is not equal to the MaxValue the options still hold.
+        // Comparing the DateTimeOffsets directly made this guard fire on every single-region-with-peers
+        // configuration, which is to say on the ones it was written to protect.
+        if (peers.Count > 0
+         && ArgonId.Epoch.ToUnixTimeMilliseconds() != options.EffectiveIdEpoch.ToUnixTimeMilliseconds())
+            throw new InvalidOperationException(
+                $"This process reads identifiers against epoch {ArgonId.Epoch:O}, but its region " +
+                $"configuration declares {options.EffectiveIdEpoch:O}. The two decide which region an " +
+                "identifier belongs to, and a call routed by one and resolved by the other goes to the " +
+                "wrong cluster or to none.");
+
         if (peers.Count == 0)
         {
             logger.LogInformation("Single region '{Region}'; no peers configured", options.Self);

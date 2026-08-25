@@ -37,6 +37,22 @@ public class RegionRegistryClusterTests : TestBase
     private const string Here  = "region-a";
     private const string There = "region-b";
 
+    // Zero for the local one, deliberately: the registry refuses to start when the process mints for a
+    // different index than its own region is configured with, and the test process mints for zero
+    // because nothing called UseRegion. Matching it here buys the assertion without stamping a static
+    // that the rest of the suite is reading in parallel.
+    private const int HereIndex  = 0;
+    private const int ThereIndex = 1;
+
+    /// <summary>The cutover these identifiers are read against.</summary>
+    /// <remarks>
+    /// In the past, so that an identifier minted during the test is after it and carries its region.
+    /// Anything older answers with the original region, which is the production database's whole
+    /// content and is the behaviour <see cref="ArgonIdTests"/> covers; here the point is the opposite
+    /// case.
+    /// </remarks>
+    private static readonly DateTimeOffset Epoch = new(2020, 1, 1, 0, 0, 0, TimeSpan.Zero);
+
     private RoleHost here  = null!;
     private RoleHost there = null!;
 
@@ -55,21 +71,39 @@ public class RegionRegistryClusterTests : TestBase
         there = new RoleHost(settings, IntegrationTestRole.Id, TherePort, $"argon-test-{There}");
         _ = there.Services.GetRequiredService<IGrainFactory>();
 
+        // Stamped before the registry starts, because the registry refuses to start when the process
+        // and its configuration disagree about either the index or the epoch — and it is right to: the
+        // routing gate on the request path reads these statics while RegionOf reads the options, so a
+        // divergence sends calls to the wrong cluster. Put back in Stop, since this fixture is
+        // NonParallelizable but the rest of the assembly is not.
+        ArgonId.UseRegion(HereIndex, Epoch);
+
         registry = new ArgonRegionRegistry(
             Options.Create(new ArgonRegionOptions
             {
-                Self  = Here,
+                Self = Here,
+
+                // Set, where this fixture used to leave them at their defaults, and the difference is
+                // what makes routing testable at all. RegionOf reads an index out of the identifier and
+                // maps it back to a name, so without distinct indices every identifier answers with the
+                // same region and TryGetClientFor cannot be wrong. The epoch is required beside them:
+                // it is the cutover before which an identifier belongs to the original region, and with
+                // none set every identifier predates everything.
+                IdEpoch = Epoch,
+
                 Nodes = new(StringComparer.OrdinalIgnoreCase)
                 {
                     [Here] = new()
                     {
                         Zone      = "test",
+                        Index     = HereIndex,
                         Gateway   = GatewayOf(here),
                         ClusterId = $"argon-test-{Here}"
                     },
                     [There] = new()
                     {
                         Zone      = "test",
+                        Index     = ThereIndex,
                         Gateway   = GatewayOf(there),
 
                         // The cluster id is the only identifier this has to say out loud. The service
@@ -107,6 +141,8 @@ public class RegionRegistryClusterTests : TestBase
 
         here?.Dispose();
         there?.Dispose();
+
+        ArgonId.UseRegion(ArgonId.OriginalRegionIndex);
     }
 
     /// <summary>
@@ -185,7 +221,58 @@ public class RegionRegistryClusterTests : TestBase
         Assert.That(result, Is.Not.Null);
     }
 
+    /// <summary>
+    /// An identifier minted by the other region resolves to the other region's cluster.
+    /// </summary>
+    /// <remarks>
+    /// The decision the routing seam makes, against two real clusters rather than a fake. Asserted by
+    /// reference on the client, because the two are indistinguishable by anything else they say — and
+    /// then again, below, by asking a grain which silo answered.
+    /// </remarks>
     [Test, Order(3)]
+    public void An_identifier_from_another_region_resolves_to_that_regions_cluster()
+    {
+        var mine  = ArgonId.Create(HereIndex);
+        var yours = ArgonId.Create(ThereIndex);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(registry.RegionOf(mine), Is.EqualTo(Here));
+            Assert.That(registry.RegionOf(yours), Is.EqualTo(There));
+
+            Assert.That(registry.TryGetClientFor(yours, out var owner), Is.True);
+            Assert.That(owner, Is.SameAs(registry.GetClient(There)),
+                "a foreign identifier handed back the local cluster, which is the failure that looks "
+              + "like a working deployment and writes to the wrong database");
+        });
+    }
+
+    /// <summary>
+    /// And a call placed through that client is genuinely served by the far cluster.
+    /// </summary>
+    /// <remarks>
+    /// <para>The reference assertion above proves the decision; this proves the consequence. It is the
+    /// same trick the connectivity test uses — <c>IManagementGrain</c> answers with the silos of
+    /// whichever cluster served the call, so the port in the reply is the assertion. Getting
+    /// <see cref="HerePort"/> back would mean the routing had quietly kept the call at home.</para>
+    ///
+    /// <para>This is what the seam in <c>ServiceEx.GetGrain</c> does, with the identifier decode in
+    /// front of it. It is asserted here rather than there because the seam needs an Ion request context
+    /// and this needs two clusters, and the two are not worth standing up together to prove the same
+    /// sentence twice.</para>
+    /// </remarks>
+    [Test, Order(4)]
+    public async Task A_call_routed_by_identifier_is_served_by_the_owning_cluster()
+    {
+        Assert.That(registry.TryGetClientFor(ArgonId.Create(ThereIndex), out var owner), Is.True);
+
+        var silos = await owner!.GetGrain<IManagementGrain>(0).GetHosts(true);
+
+        Assert.That(silos.Keys.Select(silo => silo.Endpoint.Port), Does.Contain(TherePort),
+            "the call was answered by the local cluster, so the identifier decided nothing");
+    }
+
+    [Test, Order(5)]
     public void The_local_region_resolves_to_the_local_cluster()
     {
         Assert.Multiple(() =>
@@ -205,7 +292,7 @@ public class RegionRegistryClusterTests : TestBase
     /// client that accepts calls and lets them time out. Refusing here is what lets a caller route
     /// somewhere else instead of waiting.
     /// </remarks>
-    [Test, Order(4)]
+    [Test, Order(6)]
     public void A_region_that_never_connected_is_refused_rather_than_handed_out()
     {
         Assert.Multiple(() =>

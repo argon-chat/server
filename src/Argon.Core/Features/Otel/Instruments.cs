@@ -638,6 +638,9 @@ public static class InstrumentNames
     /// </remarks>
     public const string ChannelMessagesSent = "argon-channel-messages-sent";
 
+    /// <summary>Calls that addressed another region's id and were served here regardless.</summary>
+    public const string ForeignRegionCalls = "argon-region-foreign-calls";
+
     /// <summary>
     /// Duration of message send operations in milliseconds (Histogram).
     /// Tags: channel_type (text, voice), has_reply (true, false)
