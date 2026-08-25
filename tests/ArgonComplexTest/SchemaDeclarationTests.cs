@@ -121,9 +121,10 @@ public class SchemaDeclarationTests : TestBase
     ///
     /// <para><b>The refusal is asserted as a log line and never as a catalogue read.</b> Asserting that
     /// <c>Messages</c> is <em>not</em> <c>REGIONAL BY ROW</c> would contradict
-    /// <see cref="TablePlacementTests.Messages_are_regional_by_row"/>, which is red on purpose because
-    /// that conversion is a staged operator-run migration nobody has executed. Two fixtures asserting
-    /// opposite things about one table is worse than either of them being red. What belongs here is
+    /// <see cref="TablePlacementTests.Messages_are_regional_by_row"/>, which is ignored rather than run
+    /// because that conversion is a staged operator-run migration nobody has executed. Two fixtures
+    /// asserting opposite things about one table is worse than one of them being switched off — and an
+    /// assertion that the table is *not* converted would have to be deleted the day it is. What belongs here is
     /// that the step declines rather than silently omitting: a table missing from a run is
     /// indistinguishable from a table nobody declared.</para>
     ///

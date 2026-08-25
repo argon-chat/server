@@ -8,6 +8,7 @@ using ArgonComplexTest.Infrastructure;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using System.Reflection;
 using Microsoft.Extensions.Options;
 using Orleans;
 using Orleans.Configuration;
@@ -97,9 +98,20 @@ public class RoleStartupTests
             // build because something it depends on is not. KlipyService is registered on core and
             // needs IS3StorageService, which lives on media — the grain that takes it fails to
             // activate all the same.
+            //
+            // Asked the way the grain asks. Several constructors take a keyed service — the Redis pools
+            // are registered one per profile, and ChannelGrain and SpaceReadGrain want the `Cache` one —
+            // and a plain `GetService` for that type answers null however well the role is wired. This
+            // reported both of those grains as unbuildable on `core` for as long as the attribute has
+            // been on them; nobody saw it because the workflow that runs this suite was watching a
+            // branch that had stopped receiving pushes.
+            //
+            // The dangerous half is the direction of the false alarm: it says a service is missing, and
+            // the obvious repair is to add a second, unkeyed registration of a thing that is deliberately
+            // one-per-profile.
             try
             {
-                if (services.GetService(parameter.ParameterType) is null)
+                if (Resolve(services, parameter) is null)
                     missing.Add($"{grain.Name} needs {parameter.ParameterType.Name}, which role '{id}' does not register");
             }
             catch (Exception e)
@@ -110,6 +122,28 @@ public class RoleStartupTests
         }
 
         Assert.That(missing, Is.Empty, string.Join(Environment.NewLine, missing.Distinct()));
+    }
+
+    /// <summary>
+    /// One constructor parameter, asked for the way the constructor asks for it.
+    /// </summary>
+    /// <remarks>
+    /// <para>A grain that carries <c>[FromKeyedServices(RedisProfiles.Cache)]</c> is not asking for
+    /// "an <c>IRedisPoolConnections</c>" — there is no such registration and there is not meant to be.
+    /// It is asking for the one belonging to a named profile, and the container will only produce it
+    /// when asked by that name.</para>
+    ///
+    /// <para>Returning something non-null is all this needs to decide: whether the value could be
+    /// <em>built</em> is the point of resolving rather than looking up, and a keyed resolution builds
+    /// exactly as an unkeyed one does.</para>
+    /// </remarks>
+    private static object? Resolve(IServiceProvider services, System.Reflection.ParameterInfo parameter)
+    {
+        var keyed = parameter.GetCustomAttribute<FromKeyedServicesAttribute>();
+
+        return keyed is null
+            ? services.GetService(parameter.ParameterType)
+            : services.GetKeyedService(parameter.ParameterType, keyed.Key);
     }
 
     private static bool IsSuppliedByOrleans(System.Reflection.ParameterInfo parameter)
