@@ -40,15 +40,15 @@
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.11" />
         <PackageReference Include="Microsoft.Extensions.Http.Resilience" Version="10.9.0" />
-        <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Server" Version="10.2.2" />
-        <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.2.2" />
+        <PackageReference Include="Microsoft.Orleans.BroadcastChannel" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Clustering.Redis" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Dashboard" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Reminders.Redis" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Runtime" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Sdk" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Serialization.NewtonsoftJson" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Server" Version="10.3.1" />
+        <PackageReference Include="Microsoft.Orleans.Streaming" Version="10.3.1" />
         <PackageReference Include="Microsoft.VisualStudio.Azure.Containers.Tools.Targets" Version="1.23.0" />
         <PackageReference Include="NATS.Net" Version="3.1.1" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
