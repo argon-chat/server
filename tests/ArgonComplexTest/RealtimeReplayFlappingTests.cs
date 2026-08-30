@@ -157,20 +157,43 @@ public class RealtimeReplayFlappingTests
     /// An id another stream of the same kind really issued is still a gap.
     /// </summary>
     /// <remarks>
-    /// The neighbouring fixture builds a synthetic id that no stream issued. This one takes a real,
-    /// in-window id from a different user's stream — right shape, right age, minted by the same Redis
-    /// — which is what a mixed-up session or a reused cursor actually looks like. Nothing about the
-    /// id itself can betray it; only asking whether <em>this</em> stream issued it can.
+    /// <para>The neighbouring fixture builds a synthetic id that no stream issued. This one takes a
+    /// real, in-window id from a different user's stream — right shape, right age, minted by the
+    /// same Redis — which is what a mixed-up session or a reused cursor actually looks like. Nothing
+    /// about the id itself can betray it; only asking whether <em>this</em> stream issued it can.</para>
+    ///
+    /// <para><b>The spacing is load-bearing, and the first version of this test did without it.</b>
+    /// Redis numbers sequences per key, so two streams appended inside one millisecond both mint
+    /// <c>&lt;ms&gt;-0</c> — the same id. The buffer's own remarks name that collision as the limit
+    /// of what a cursor can prove, so a foreign cursor that collides is <em>supposed</em> to be
+    /// accepted. Without the delays this fixture raced the clock: locally the appends straddled a
+    /// millisecond and it passed, in CI they did not and it failed, and neither outcome said
+    /// anything about the anchor probe.</para>
+    ///
+    /// <para>So the premise is asserted rather than hoped for. If the stranger's id ever does turn
+    /// out to be one this stream issued, this fails on that line and says so, instead of failing on
+    /// the gap and blaming the code.</para>
     /// </remarks>
     [Test]
     public async Task A_cursor_that_belongs_to_another_users_stream_is_a_gap()
     {
-        var mine      = Guid.NewGuid();
-        var stranger  = Guid.NewGuid();
+        var mine     = Guid.NewGuid();
+        var stranger = Guid.NewGuid();
 
-        await Buffer.AppendUserAsync(mine, Payload(1));
+        var oldest = await Buffer.AppendUserAsync(mine, Payload(1));
+
+        await Task.Delay(5);
         var theirs = await Buffer.AppendUserAsync(stranger, Payload(2));
+        await Task.Delay(5);
+
         await Buffer.AppendUserAsync(mine, Payload(3));
+
+        var ours = new List<string> { oldest };
+        ours.AddRange((await Buffer.ReadUserSinceAsync(mine, oldest)).Entries.Select(e => e.Id));
+
+        Assert.That(ours, Does.Not.Contain(theirs),
+            "premise: the stranger's id must be one this stream never issued, or the anchor probe is "
+          + "right to accept it and there is nothing here to measure");
 
         var result = await Buffer.ReadUserSinceAsync(mine, theirs);
 

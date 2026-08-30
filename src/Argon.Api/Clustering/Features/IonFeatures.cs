@@ -72,10 +72,19 @@ public sealed class IonProtocolFeature : IArgonFeature
 
 public sealed class AdminConsoleFeature : IArgonFeature
 {
+    /// <remarks>
+    /// <c>PresenceFeature</c> because <c>AdminConsoleImpl</c> takes <c>IUserSessionNotifier</c> in its
+    /// constructor — it pushes the consequences of an operator action to the sessions they land on —
+    /// and presence is the only thing that registers one. Without it the console could not be built
+    /// at all, and the role advertised the port regardless: the first operator call resolved the
+    /// service and got a container error. It is a client role hosting no grains, so the fixture that
+    /// walks every hosted grain's constructor had nothing here to walk.
+    /// </remarks>
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("IAdminConsole on a port of its own")
             .Requires<OperatorAuthFeature>()
             .Requires<IonEndpointsFeature>()
+            .Requires<PresenceFeature>()
             .After<RoutingFeature>()
             .Options<AdminConsoleOptions>("AdminConsole");
 
