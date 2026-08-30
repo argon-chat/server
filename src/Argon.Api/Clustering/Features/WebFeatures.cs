@@ -177,16 +177,66 @@ public sealed class AppHubFeature : IArgonFeature
 
 public sealed class SentryTunnelFeature : IArgonFeature
 {
+    /// <summary>
+    /// Any origin at all, which is the point of a tunnel.
+    /// </summary>
+    /// <remarks>
+    /// <para>The default policy is an allowlist of <c>argon.gl</c> and its subdomains, and it carries
+    /// credentials. Neither fits here. What posts to this path is the error reporter of whatever page
+    /// happens to be running — the official client, a self-hosted one, a developer on
+    /// <c>https://localhost:5005</c> — and the request is an opaque envelope forwarded to Sentry. It
+    /// reads nothing, returns nothing, and needs no cookie, so there is nothing for an origin to
+    /// abuse by being allowed.</para>
+    ///
+    /// <para>Separate from <c>DiscoveryFeature.OpenPublicPolicy</c>, which is otherwise the same
+    /// idea, because that one permits GET and OPTIONS and this is a POST.</para>
+    ///
+    /// <para><c>AllowAnyOrigin</c> and <c>AllowCredentials</c> are mutually exclusive in ASP.NET, so
+    /// this policy cannot be folded into the default one even if the allowlist were widened.</para>
+    /// </remarks>
+    public const string OpenTunnelPolicy = "SentryTunnelOpen";
+
     public static void Describe(IFeatureDescriptor d)
         => d.Requires<SentryFeature>().Before<RoutingFeature>();
 
     // The tunnel is configured from the same block as Sentry itself, and SentryFeature owns it.
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddSentryTunneling(ctx.OptionsOf<SentryFeature, ArgonSentryOptions>().TunnelHost);
+    {
+        ctx.Services.AddSentryTunneling(ctx.OptionsOf<SentryFeature, ArgonSentryOptions>().TunnelHost);
+
+        ctx.Services.AddCors(o => o.AddPolicy(OpenTunnelPolicy, p =>
+            p.AllowAnyOrigin()
+             .AllowAnyHeader()
+             .WithMethods("POST", "OPTIONS")));
+    }
 
     public void Map(ArgonEndpointContext ctx)
     {
         var options = ctx.App.Services.GetRequiredService<IOptions<ArgonSentryOptions>>().Value;
+
+        // CORS FOR THIS PATH ONLY, AND AHEAD OF THE TUNNEL.
+        //
+        // This feature maps Before<RoutingFeature>, so the tunnel middleware already ran by the time
+        // RoutingFeature's UseCors is reached — and the tunnel answers and stops. That is why a
+        // browser saw `200 OK` with no `Access-Control-Allow-Origin` on it and blocked the response
+        // anyway: nothing had put the header there, and a 200 the browser refuses to hand to the page
+        // is indistinguishable from a network failure in the console.
+        //
+        // Branched on the path rather than placed in front of everything, because a second CORS
+        // middleware covering the whole pipeline would apply this permissive policy to every request
+        // and then collide with the credentialed default one downstream. The branch rejoins the main
+        // pipeline, so the tunnel below still sees the request.
+        //
+        // The preflight was never the broken half. Sentry's own tunnel middleware answers OPTIONS on
+        // this path already — measured: `200` with the full CORS set on it, where every other path
+        // gives this origin a bare `204`. It just does nothing for the POST that follows, which is
+        // the one the page has to read. After this branch the preflight is answered here instead,
+        // one middleware earlier and as a `204` without `Access-Control-Allow-Credentials`; the
+        // tunnel never sees it. That costs nothing, because a policy built on AllowAnyOrigin could
+        // not honour credentials anyway.
+        ctx.App.UseWhen(
+            http => http.Request.Path.StartsWithSegments(options.TunnelPath),
+            branch => branch.UseCors(OpenTunnelPolicy));
 
         ctx.App.UseSentryTunneling(options.TunnelPath);
         ctx.App.UseSentryTracing();
