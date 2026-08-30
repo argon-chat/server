@@ -317,7 +317,39 @@ public sealed class BotEventPublisher(
             Data      = payload
         };
 
-        await js.PublishAsync(subject, evt, serializer: serializer);
+        try
+        {
+            await js.PublishAsync(subject, evt, serializer: serializer);
+        }
+        catch (NatsJSPublishNoResponseException)
+        {
+            // ONE EXCEPTION, TWO CAUSES, AND THEY NEED OPPOSITE REPAIRS.
+            //
+            // "No response received from the server" is raised both when nothing is bound to the
+            // subject — so no stream can acknowledge — and when a stream is there but the reply did
+            // not arrive in time. The message is the same either way, which is why a CI run could
+            // fail eighty-one publishes without saying which it was.
+            //
+            // Two facts separate them: whether the stream answers now, and how long the publish
+            // waited. Absent, near-instantly, means the stream is not there whatever
+            // CreateOrUpdateStream reported. Present, after the client's request timeout, means it
+            // is there and the acknowledgement did not come back — a different problem entirely,
+            // and not one to be fixed by declaring the stream harder.
+            //
+            // Both are read on a path that has already failed, so this costs nothing on a healthy
+            // publish; the original exception is rethrown untouched for the caller to handle.
+            var present = await StreamRespondsAsync(subject);
+
+            logger.LogWarning(
+                "JetStream did not acknowledge a publish to {Subject} after {ElapsedMs}ms. The stream "
+              + "{Presence} when asked immediately afterwards, so this is {Diagnosis}",
+                subject, sw.ElapsedMilliseconds,
+                present ? "answered" : "did not answer",
+                present ? "an acknowledgement that did not arrive in time, not a missing stream"
+                        : "a subject with no stream bound to it");
+
+            throw;
+        }
 
         sw.Stop();
         var tag = new KeyValuePair<string, object?>("event_type", type.ToString());
@@ -387,6 +419,28 @@ public sealed class BotEventPublisher(
         };
 
         await js.PublishAsync(subject, evt, serializer: serializer);
+    }
+
+    /// <summary>
+    /// Whether JetStream will own up to a stream on this subject, asked only after a publish to it
+    /// has already failed.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately swallows everything and answers false. It is a diagnostic on a path that is
+    /// already broken, and an exception raised while explaining a failure would replace the
+    /// explanation with a second, less useful one.
+    /// </remarks>
+    private async ValueTask<bool> StreamRespondsAsync(string streamName)
+    {
+        try
+        {
+            await js.GetStreamAsync(streamName);
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private ValueTask EnsureDirectStreamAsync(Guid botUserId)
