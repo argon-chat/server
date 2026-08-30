@@ -41,8 +41,6 @@ public static class DatabaseFeature
     {
         AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", false);
         DateTime.SpecifyKind(DateTime.UtcNow, DateTimeKind.Utc);
-        builder.Services.AddSingleton<IVaultDbCredentialsProvider, VaultDbCredentialsProvider>();
-        builder.Services.AddHostedService(sp => sp.GetRequiredService<IVaultDbCredentialsProvider>());
 
         var connectionString = string.IsNullOrWhiteSpace(database.ConnectionString)
             ? builder.Configuration.GetConnectionString("Default")

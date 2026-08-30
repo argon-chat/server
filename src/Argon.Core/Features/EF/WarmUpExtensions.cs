@@ -104,17 +104,6 @@ public static class WarmUpExtension
             return app;
         }
 
-        public async Task<WebApplication> WarmUpRotations()
-        {
-            if (app.Services.GetRequiredService<RoleDescriptor>().IsClient)
-                return app;
-
-            using var scope = app.Services.CreateScope();
-
-            var rotationManager = scope.ServiceProvider.GetRequiredService<IVaultDbCredentialsProvider>();
-            await rotationManager.EnsureLoadedAsync();
-            return app;
-        }
     }
 
     /// <summary>

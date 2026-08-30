@@ -18,7 +18,6 @@ var app = builder.Build();
 
 app.UseArgonRole();
 
-await app.WarmUpRotations();
 await app.WarmUp<ApplicationDbContext>();
 
 await app.RunAsync();
