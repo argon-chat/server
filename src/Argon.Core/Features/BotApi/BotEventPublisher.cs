@@ -319,7 +319,7 @@ public sealed class BotEventPublisher(
 
         try
         {
-            await js.PublishAsync(subject, evt, serializer: serializer);
+            await js.PublishAsync(subject, evt, serializer: serializer, opts: PublishRetry);
         }
         catch (NatsJSPublishNoResponseException)
         {
@@ -418,7 +418,7 @@ public sealed class BotEventPublisher(
             Data      = payload
         };
 
-        await js.PublishAsync(subject, evt, serializer: serializer);
+        await js.PublishAsync(subject, evt, serializer: serializer, opts: PublishRetry);
     }
 
     /// <summary>
@@ -442,6 +442,38 @@ public sealed class BotEventPublisher(
             return false;
         }
     }
+
+    /// <summary>
+    /// Publish options with enough retry budget to outlast a stream that exists but is not yet
+    /// reachable on its subject.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Measured, not guessed.</b> A CI run failed 101 publishes, and the diagnostic on that
+    /// path reported the same thing every time: the stream ANSWERED when asked immediately
+    /// afterwards, and the publish had given up after 250ms — median 252, tightest spread from 250
+    /// to 341. That is not a network timeout, which would be seconds and scattered. It is a
+    /// schedule: the client's own retry.</para>
+    ///
+    /// <para>The library retries only on <c>NoResponders</c> — the server saying nothing is bound to
+    /// that subject — and by default makes two attempts 250ms apart. So the sequence was: publish,
+    /// no responders, wait 250ms, publish, no responders, give up. Meanwhile the stream was already
+    /// there. What had not happened yet was the subject interest reaching the publishing connection,
+    /// which is a gap that opens right after <c>CreateOrUpdateStream</c> and closes on its own.</para>
+    ///
+    /// <para>So the budget is widened rather than the stream declared harder. Five attempts 200ms
+    /// apart is about eight hundred milliseconds of patience, against a gap measured in hundreds.
+    /// It costs a healthy publish nothing at all: these retries fire only on <c>NoResponders</c>,
+    /// and a stream that is reachable never produces one.</para>
+    ///
+    /// <para>The events this drops are not free. A bot's <c>messageCreate</c> that never arrives is
+    /// a message its author saw sent, and the only test that noticed was the one that waited forty
+    /// seconds for a single event and called it a timeout.</para>
+    /// </remarks>
+    private static readonly NatsJSPubOpts PublishRetry = new()
+    {
+        RetryAttempts            = 5,
+        RetryWaitBetweenAttempts = TimeSpan.FromMilliseconds(200)
+    };
 
     private ValueTask EnsureDirectStreamAsync(Guid botUserId)
         => EnsureStreamAsync(botUserId, NatsStreamExtensions.ToBotDirectSubject(botUserId), maxMsgs: 1000);

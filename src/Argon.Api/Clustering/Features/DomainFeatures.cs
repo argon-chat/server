@@ -66,10 +66,31 @@ public sealed class MessagesFeature : IArgonFeature
         => ctx.Builder.AddMessagesLayout();
 }
 
+/// <summary>
+/// User presence tracking, and the bus it needs to say anything about it.
+/// </summary>
+/// <remarks>
+/// <para><b>The dependency on the bus is declared, and it was not.</b> This feature registers
+/// <c>IUserSessionNotifier</c>, whose only implementation resolves <c>AppHubServer</c> — and does it
+/// inside the call, out of a scope it opens itself, because the notifier is a singleton and the hub
+/// server is scoped. Nothing in a constructor names it, so nothing could see the requirement: not
+/// the feature graph, not the role wiring, and not the test that walks every hosted grain's
+/// constructor looking for services its role forgot to register.</para>
+///
+/// <para>It came due on <c>voice</c>, which takes this feature for <c>CallGrain</c> and
+/// <c>SipGrain</c> and never took the bus. Hanging up a call answered <c>500</c> with
+/// "No service for type AppHubServer has been registered" — raised inside the notify, after the call
+/// had already been torn down, so the hangup half-succeeded and the caller was told it failed.</para>
+///
+/// <para>Adding the bus to the role would have fixed that role. Declaring it here fixes every role
+/// that takes presence, including the next one somebody adds.</para>
+/// </remarks>
 public sealed class PresenceFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("user presence tracking").Requires<CacheFeature>();
+        => d.Describing("user presence tracking")
+            .Requires<CacheFeature>()
+            .Requires<RealtimeBusFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddUserPresenceFeature();
