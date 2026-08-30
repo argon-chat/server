@@ -208,12 +208,37 @@ public static class ArgonOrleansHosting
                     options.TurnWarningLengthThreshold       = TimeSpan.FromSeconds(10);
                 });
 
-            // Reminders are per-role: a silo that hosts no IRemindable grain has no reason to poll
-            // the reminder table. Validation rule E3 keeps the flag honest.
-            if (role.UsesReminders)
-                silo.AddReminders()
-                   .UseRedisReminderService(x => x.ConfigurationOptions =
-                        new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
+            // EVERY SILO, NOT THE ONES THAT HOST IRemindable GRAINS.
+            //
+            // This was gated on `role.UsesReminders`, on the reasoning that a silo hosting no
+            // IRemindable grain has no reason to poll the reminder table. That reasoning is wrong,
+            // and the way it is wrong takes a cluster down rather than merely wasting a poll.
+            //
+            // Reminder operations are not served by the silo that issues them. They are routed
+            // across the cluster, and a silo that never called AddReminders has no such system
+            // target to receive them — so the call is rejected with "SystemTarget
+            // sys.svc.user.<hash>/<address> not active on this silo". Observed on the dev stand with
+            // reminders on `core` and `jobs` only: jobs registering its own reminder was routed to
+            // `moderation`, and a user session on `core` asking for one was routed to `commerce`.
+            // Neither had the service.
+            //
+            // The consequences were not symmetrical, and the quieter one is worse. `jobs` failed in
+            // a startup task and crash-looped, which is at least visible. On `core` the rejection
+            // surfaced through the session grain, so the SignalR connection closed, the client
+            // reconnected, activated the session again, and failed again -- a reconnect loop that
+            // reads on the client as the server refusing it, with nothing in that log naming
+            // reminders at all.
+            //
+            // The poll this was avoiding is also smaller than it looked: the reminder table is
+            // partitioned across the silos that serve it, so adding silos divides the same work
+            // rather than repeating it.
+            //
+            // `UsesReminders` and validation rule E3 still describe which roles HOST an IRemindable
+            // grain, which is a real question -- but it is not this one, and nothing here may branch
+            // on it again.
+            silo.AddReminders()
+               .UseRedisReminderService(x => x.ConfigurationOptions =
+                    new RedisProfileRegistry(builder.Configuration).BuildOptions(RedisProfiles.Orleans));
 
             // The declaration in the role drives validation (E5); the action itself still has to name
             // the grain and the method, so it stays explicit and gated on the declaration.

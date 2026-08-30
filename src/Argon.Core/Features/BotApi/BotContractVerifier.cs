@@ -693,14 +693,67 @@ public static class BotContractVerifier
         type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(Guid) ||
         type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(decimal);
 
+    /// <summary>
+    /// Every Argon assembly, loaded rather than merely whatever happened to be loaded already.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>AppDomain.CurrentDomain.GetAssemblies()</c> answers with what the runtime has loaded
+    /// so far, and .NET loads lazily — an assembly nothing has touched yet is simply not in the
+    /// list. The bot interfaces live in <c>Argon.Api</c>, so a caller that had not yet reached into
+    /// it got an empty manifest and no error: <see cref="Verify"/> compared nothing against nothing
+    /// and reported no mismatches.</para>
+    ///
+    /// <para>That is worse in the CI gate than in a test. <c>bot-api verify</c> exists to fail when
+    /// a published contract changes shape, and discovering zero interfaces is indistinguishable from
+    /// discovering that everything matches. The gate would have gone green on a broken contract.</para>
+    ///
+    /// <para>It surfaced as two tests that passed alone and failed in a full run, depending on
+    /// whether some earlier test had touched <c>Argon.Api</c> first — which is the same fault
+    /// wearing test-flake clothing.</para>
+    /// </remarks>
+    private static IEnumerable<Assembly> ArgonAssemblies()
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true));
+
+        foreach (var start in new[] { typeof(BotContractVerifier).Assembly, Assembly.GetEntryAssembly() })
+            if (start is not null)
+                queue.Enqueue(start);
+
+        while (queue.Count > 0)
+        {
+            var assembly = queue.Dequeue();
+            if (assembly.FullName is not { } name || !seen.Add(name))
+                continue;
+
+            if (name.StartsWith("Argon"))
+                yield return assembly;
+
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                if (reference.FullName.StartsWith("Argon") && !seen.Contains(reference.FullName))
+                {
+                    // A reference that cannot be resolved is not this method's problem to report:
+                    // the scan is a best effort over what the deployment actually ships.
+                    try
+                    {
+                        queue.Enqueue(Assembly.Load(reference));
+                    }
+                    catch (Exception)
+                    {
+                        // ignored — an unresolvable Argon reference simply contributes no types
+                    }
+                }
+            }
+        }
+    }
+
     private static List<(Type Type, BotInterfaceAttribute Attr, BotInterfaceDeprecatedAttribute? Deprecated)> DiscoverInterfaces()
     {
         var result = new List<(Type, BotInterfaceAttribute, BotInterfaceDeprecatedAttribute?)>();
 
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
-           .Where(a => a.FullName?.StartsWith("Argon") == true);
-
-        foreach (var assembly in assemblies)
+        foreach (var assembly in ArgonAssemblies())
         {
             foreach (var type in assembly.GetTypes())
             {
