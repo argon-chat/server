@@ -27,12 +27,14 @@ public record ContentViolationEntity : ArgonEntity, IEntityTypeConfiguration<Con
            .HasColumnType("jsonb")
            .HasConversion(
                 v => JsonConvert.SerializeObject(v),
-                v => JsonConvert.DeserializeObject<Dictionary<string, float>>(v) ?? new());
+                v => JsonConvert.DeserializeObject<Dictionary<string, float>>(v) ?? new())
+           .Metadata.SetValueComparer(new JsonValueComparer<Dictionary<string, float>>());
 
         builder.Property(x => x.RefinedScores)
            .HasColumnType("jsonb")
            .HasConversion(
                 v => v == null ? null : JsonConvert.SerializeObject(v),
-                v => v == null ? null : JsonConvert.DeserializeObject<Dictionary<string, float>>(v));
+                v => v == null ? null : JsonConvert.DeserializeObject<Dictionary<string, float>>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<Dictionary<string, float>?>());
     }
 }

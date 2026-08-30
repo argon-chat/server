@@ -73,19 +73,23 @@ public record ArgonMessageEntity : ArgonEntityWithOwnershipNoKey, IEntityTypeCon
 
         builder.Property(m => m.Entities)
            .HasConversion<PolyListNewtonsoftJsonValueConverter<List<IMessageEntity>, IMessageEntity>>()
-           .HasColumnType("jsonb");
+           .HasColumnType("jsonb")
+           .Metadata.SetValueComparer(
+                new PolyListJsonValueComparer<List<IMessageEntity>, IMessageEntity>());
 
         builder.Property(m => m.Controls)
            .HasColumnType("jsonb")
            .HasConversion(
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
-                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<ControlRowV1>>(v));
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<ControlRowV1>>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<List<ControlRowV1>?>());
 
         builder.Property(m => m.Reactions)
            .HasColumnType("jsonb")
            .HasConversion(
                 v => v == null ? null : Newtonsoft.Json.JsonConvert.SerializeObject(v),
-                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<MessageReactionData>>(v));
+                v => v == null ? null : Newtonsoft.Json.JsonConvert.DeserializeObject<List<MessageReactionData>>(v))
+           .Metadata.SetValueComparer(new JsonValueComparer<List<MessageReactionData>?>());
     }
 
     public const int ReactionUserPreviewLimit = 3;

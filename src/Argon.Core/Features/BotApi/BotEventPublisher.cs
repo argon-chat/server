@@ -389,12 +389,37 @@ public sealed class BotEventPublisher(
         await js.PublishAsync(subject, evt, serializer: serializer);
     }
 
-    private async ValueTask EnsureDirectStreamAsync(Guid botUserId)
+    private ValueTask EnsureDirectStreamAsync(Guid botUserId)
+        => EnsureStreamAsync(botUserId, NatsStreamExtensions.ToBotDirectSubject(botUserId), maxMsgs: 1000);
+
+    private ValueTask EnsureStreamAsync(Guid spaceId)
+        => EnsureStreamAsync(spaceId, NatsStreamExtensions.ToBotEventSubject(spaceId), maxMsgs: 5000);
+
+    /// <summary>
+    /// Declares the stream a subject needs, once per key for the life of this publisher.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The failure is logged now.</b> It used to be swallowed by a bare <c>catch</c> whose
+    /// comment read "stream may already exist" — which is not a thing that happens:
+    /// <c>CreateOrUpdateStreamAsync</c> is idempotent, that being the point of the name. So the
+    /// excuse covered every real reason instead: JetStream not enabled, no storage left, the account
+    /// out of streams, the server unreachable.</para>
+    ///
+    /// <para>What made it worse is where the consequence surfaced. The caller publishes regardless,
+    /// and a publish to a subject no stream is bound to gets no acknowledgement — so the operator
+    /// saw <c>NatsJSPublishNoResponseException: No response received from the server</c> against
+    /// their event, one layer away from the thing that actually failed, with the reason discarded.
+    /// That is what this log is for; the publish that follows will still fail, and now it can be
+    /// explained.</para>
+    ///
+    /// <para>Removing the key on failure is kept: it is what lets the next event try again rather
+    /// than remembering a stream that was never created.</para>
+    /// </remarks>
+    private async ValueTask EnsureStreamAsync(Guid key, string streamName, int maxMsgs)
     {
-        if (!_ensuredStreams.TryAdd(botUserId, true))
+        if (!_ensuredStreams.TryAdd(key, true))
             return;
 
-        var streamName = NatsStreamExtensions.ToBotDirectSubject(botUserId);
         try
         {
             await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
@@ -403,42 +428,19 @@ public sealed class BotEventPublisher(
                 MaxAge          = TimeSpan.FromMinutes(5),
                 AllowDirect     = true,
                 MaxBytes        = -1,
-                MaxMsgs         = 1000,
+                MaxMsgs         = maxMsgs,
                 Retention       = StreamConfigRetention.Limits,
                 Storage         = StreamConfigStorage.Memory,
                 Discard         = StreamConfigDiscard.Old
             });
         }
-        catch
+        catch (Exception ex)
         {
-            _ensuredStreams.TryRemove(botUserId, out _);
-        }
-    }
+            _ensuredStreams.TryRemove(key, out _);
 
-    private async ValueTask EnsureStreamAsync(Guid spaceId)
-    {
-        if (!_ensuredStreams.TryAdd(spaceId, true))
-            return;
-
-        var streamName = NatsStreamExtensions.ToBotEventSubject(spaceId);
-        try
-        {
-            await js.CreateOrUpdateStreamAsync(new StreamConfig(streamName, [streamName])
-            {
-                DuplicateWindow = TimeSpan.Zero,
-                MaxAge          = TimeSpan.FromMinutes(5),
-                AllowDirect     = true,
-                MaxBytes        = -1,
-                MaxMsgs         = 5000,
-                Retention       = StreamConfigRetention.Limits,
-                Storage         = StreamConfigStorage.Memory,
-                Discard         = StreamConfigDiscard.Old
-            });
-        }
-        catch
-        {
-            // Stream may already exist; remove from dict so next attempt retries
-            _ensuredStreams.TryRemove(spaceId, out _);
+            logger.LogWarning(ex,
+                "Failed to declare NATS stream {StreamName}; the publish that follows will not be " +
+                "acknowledged, because nothing is bound to that subject", streamName);
         }
     }
 }

@@ -72,7 +72,9 @@ public record DirectMessageV2Entity : ArgonEntityWithOwnershipNoKey,
 
         builder.Property(m => m.Entities)
             .HasConversion<PolyListNewtonsoftJsonValueConverter<List<IMessageEntity>, IMessageEntity>>()
-            .HasColumnType("jsonb");
+            .HasColumnType("jsonb")
+            .Metadata.SetValueComparer(
+                 new PolyListJsonValueComparer<List<IMessageEntity>, IMessageEntity>());
 
         builder.Property(m => m.CreatorId)
             .IsRequired();

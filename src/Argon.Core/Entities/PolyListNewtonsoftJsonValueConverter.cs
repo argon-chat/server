@@ -13,9 +13,12 @@ public class PolyListNewtonsoftJsonValueConverter<T, E>()
         Converters       = [new PolymorphicListConverter<E>()]
     };
 
-    private static string ToJson(T value)
+    // internal rather than private: PolyListJsonValueComparer has to serialize by exactly these
+    // settings, and a comparer that disagreed with its converter about $type would report two
+    // different element types as the same value.
+    internal static string ToJson(T value)
         => JsonConvert.SerializeObject(value, _settings);
 
-    private static T FromJson(string json)
+    internal static T FromJson(string json)
         => JsonConvert.DeserializeObject<T>(json, _settings) ?? new();
 }

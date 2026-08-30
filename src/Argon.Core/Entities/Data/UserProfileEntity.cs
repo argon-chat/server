@@ -34,7 +34,8 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
            .HasConversion(
                 v => JsonConvert.SerializeObject(v),
                 v => JsonConvert.DeserializeObject<List<string>>(v) ?? new List<string>()
-            );
+            )
+           .Metadata.SetValueComparer(new JsonValueComparer<List<string>>());
 
         builder.HasOne(x => x.User)
            .WithOne(x => x.Profile)

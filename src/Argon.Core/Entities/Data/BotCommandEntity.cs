@@ -49,7 +49,8 @@ public class BotCommandEntity : IEntityTypeConfiguration<BotCommandEntity>
            .HasColumnType("jsonb")
            .HasConversion(
                 v => Newtonsoft.Json.JsonConvert.SerializeObject(v),
-                v => Newtonsoft.Json.JsonConvert.DeserializeObject<List<BotCommandOption>>(v) ?? new List<BotCommandOption>());
+                v => Newtonsoft.Json.JsonConvert.DeserializeObject<List<BotCommandOption>>(v) ?? new List<BotCommandOption>())
+           .Metadata.SetValueComparer(new JsonValueComparer<List<BotCommandOption>>());
     }
 }
 
