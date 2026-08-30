@@ -172,13 +172,30 @@ public static class ArgonOrleansHosting
                 // Stores nothing. It is here so a grain can declare in-memory state as
                 // IPersistentState and have the runtime carry it across a migration for free.
                .AddVolatileStorage()
-               .Configure<ClusterMembershipOptions>(options =>
-                {
-                    options.IAmAliveTablePublishTimeout = TimeSpan.FromSeconds(10);
-                    options.TableRefreshTimeout         = TimeSpan.FromSeconds(10);
-                    options.MaxJoinAttemptTime          = TimeSpan.FromMinutes(2);
-                    options.DefunctSiloExpiration       = TimeSpan.FromSeconds(60);
-                })
+
+                // NO ClusterMembershipOptions BLOCK. There was one, tightening four timeouts — table
+                // publish and refresh to 10s, join to 2min, defunct expiry to 60s. It is gone as of
+                // Orleans 10.3, and what it was reaching for is now done better by something else.
+                //
+                // None of those four is a probe setting, which is the thing that actually detects a
+                // dead silo. Probes are on the defaults and always were: 5s timeout, three missed
+                // before suspicion, up to ten silos watched each. 10.3 made that timeout and the
+                // interval between probes ADAPTIVE — tuned per monitored silo from its observed
+                // response times, bounded by MinProbeTimeout and MaxProbeTimeout — and added
+                // connection liveness checks and local-stall detection on top. Leaving those alone
+                // is what lets any of it work.
+                //
+                // So the four were buying convergence through the membership TABLE, at six times the
+                // read traffic and three times the write traffic against the clustering store, for a
+                // path that is not how failure is noticed. This cluster has six silo roles and
+                // NumProbedSilos defaults to ten, so every silo probes every other one directly:
+                // there is nobody whose death only the table could reveal.
+                //
+                // DefunctSiloExpiration is the one whose default is not a wash — 60s becomes seven
+                // days, so dead rows now linger rather than being swept within the minute. That is
+                // upstream's own default and the entries are inert, but a stand that redeploys
+                // eleven roles on every push accumulates them, and it is the number to reach for
+                // first if the clustering store starts looking untidy.
                .Configure<ExceptionSerializationOptions>(x => x.SupportedNamespacePrefixes.Add("Argon"))
                .Configure<GrainCollectionOptions>(options =>
                 {

@@ -540,10 +540,17 @@ public class BotApiTests : TestBase
     /// Helper: opens SSE stream, collects events until predicate is met or timeout.
     /// Returns list of parsed SSE frames (event name, data JSON).
     /// </summary>
+    // `subscribed`, when supplied, is completed as soon as the gateway sends `ready` — the first
+    // thing it writes, and only once the subscription is registered. A caller that publishes
+    // something and then waits for it to come back must await that first: the gateway delivers to
+    // the subscriptions that exist at the moment of publication, so anything published earlier is
+    // published to nobody and the wait can only end in a timeout. It is cancelled if the stream ends
+    // without a `ready`, so such a caller fails on the subscription instead of hanging.
     private async Task<List<(string EventName, JObject Data)>> CollectSseEventsAsync(
         long? intents = null,
         Func<string, JObject, bool>? stopWhen = null,
         TimeSpan? timeout = null,
+        TaskCompletionSource? subscribed = null,
         CancellationToken ct = default)
     {
         timeout ??= TimeSpan.FromSeconds(10);
@@ -580,6 +587,9 @@ public class BotApiTests : TestBase
                     var jo = JObject.Parse(line[6..]);
                     result.Add((currentEvent, jo));
 
+                    if (currentEvent == "ready")
+                        subscribed?.TrySetResult();
+
                     if (stopWhen?.Invoke(currentEvent, jo) == true)
                         break;
 
@@ -588,6 +598,14 @@ public class BotApiTests : TestBase
             }
         }
         catch (OperationCanceledException) { }
+        finally
+        {
+            // No-op once `ready` has been seen. It matters when it has not: a caller awaiting the
+            // subscription must not be left waiting on a stream that has already timed out, ended or
+            // faulted — it should fail saying the stream never became ready, which is the actual
+            // fault, rather than sit until its own timeout and report a lost event.
+            subscribed?.TrySetCanceled();
+        }
 
         return result;
     }
@@ -644,14 +662,34 @@ public class BotApiTests : TestBase
     public async Task Events_Stream_ReceivesMessageCreate_WithEntities()
     {
         // Start collecting events in background
+        var subscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var eventTask = CollectSseEventsAsync(
             stopWhen: (name, _) => name == "messageCreate",
-            timeout: TimeSpan.FromSeconds(40));
+            timeout: TimeSpan.FromSeconds(40),
+            subscribed: subscribed);
 
-        // Let the SSE connection establish before publishing. Generous on purpose: under coverage
-        // instrumentation the host runs several times slower, and a message published before the
-        // subscription is live is simply never delivered.
-        await Task.Delay(3000);
+        // Wait for the subscription to be live, not for a duration.
+        //
+        // This was `await Task.Delay(3000)`, and the sleep is what made this test the only one in the
+        // suite that failed. It held when the fixture ran alone — the stream was up in well under a
+        // second — and lost during a full run, where the host is serving dozens of other fixtures and
+        // the SSE request had not been answered by the time the message was published. The gateway
+        // delivers to the subscriptions that exist at that moment, so the message went to nobody and
+        // the collector below could only run out its forty seconds. That reads as a lost event and is
+        // really a race in the test.
+        //
+        // `ready` is the gateway's own statement that the subscription is registered, so awaiting it
+        // makes the ordering a fact rather than a guess, and does it without adding a fixed delay to
+        // every run.
+        try
+        {
+            await subscribed.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            Assert.Fail("the event stream ended before it reported 'ready', so there was no subscription to publish to");
+        }
 
         // Send a message with entities via Bot API
         var sendResp = await BotCallRawAsync(
@@ -702,11 +740,23 @@ public class BotApiTests : TestBase
     [Test, CancelAfter(60_000), Order(74)]
     public async Task Events_Stream_MessageCreate_HasNoTypeMetadata()
     {
+        var subscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var eventTask = CollectSseEventsAsync(
             stopWhen: (name, _) => name == "messageCreate",
-            timeout: TimeSpan.FromSeconds(40));
+            timeout: TimeSpan.FromSeconds(40),
+            subscribed: subscribed);
 
-        await Task.Delay(3000);
+        // Same ordering hazard as the test above, and the same fix: publish only once the gateway has
+        // said the subscription exists.
+        try
+        {
+            await subscribed.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            Assert.Fail("the event stream ended before it reported 'ready', so there was no subscription to publish to");
+        }
 
         await BotCallAsync(
             HttpMethod.Post, "/IMessages/v1/Send",
@@ -733,11 +783,33 @@ public class BotApiTests : TestBase
     public async Task Events_Stream_IntentFiltering_NoMessages()
     {
         // Connect with only Voice intent (2048) — should NOT receive messageCreate
+        var subscribed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
         var eventTask = CollectSseEventsAsync(
             intents: 2048, // Voice only
-            timeout: TimeSpan.FromSeconds(20));
+            timeout: TimeSpan.FromSeconds(20),
+            subscribed: subscribed);
 
-        await Task.Delay(3000);
+        // THIS ONE MATTERS MOST, because here losing the race made the test PASS.
+        //
+        // The assertion is that messageCreate does not arrive. Whenever the publication got ahead of
+        // the subscription — which is what a fixed sleep cannot prevent under load — the message
+        // arrived nowhere at all, and that satisfies the assertion without the intent filter having
+        // done anything. On those runs the test was green and proved nothing. The `ready` assertion
+        // below does not close it either: it is checked after the fact, and `ready` arriving late
+        // still leaves the publication ahead of the subscription.
+        //
+        // Waiting here is what makes the absence of messageCreate evidence about the filter. Verified
+        // by mutation: widen the intents to 2048 | BotIntent.Messages and this test fails on exactly
+        // that assertion.
+        try
+        {
+            await subscribed.Task;
+        }
+        catch (OperationCanceledException)
+        {
+            Assert.Fail("the event stream ended before it reported 'ready', so there was no subscription to publish to");
+        }
 
         await BotCallAsync(
             HttpMethod.Post, "/IMessages/v1/Send",
