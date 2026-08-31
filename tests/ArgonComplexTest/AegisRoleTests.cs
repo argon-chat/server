@@ -135,15 +135,40 @@ public class AegisRoleTests
     }
 
     /// <summary>
-    /// The Sentry tunnel carries payloads rather than documents, and a policy on it would only ever
-    /// be in the way.
+    /// A path on the exclusion list is served without a policy, and its neighbours still get one.
     /// </summary>
+    /// <remarks>
+    /// <para>The exclusion is for anything mounted here whose payloads are not documents — a policy
+    /// on those is never anything but an obstacle. Nothing qualifies on this role today, so
+    /// <c>CspExcludedPaths</c> ships empty and the fixture configures <c>/k</c> itself. That is
+    /// deliberate: an earlier version of this test read <c>/k</c> out of the shipped default, so
+    /// emptying the default turned a test of the mechanism into a test of a constant, and it began
+    /// failing on a change that had broken nothing.</para>
+    ///
+    /// <para>Both halves are asserted together because either alone is satisfied by a bug. An
+    /// exclusion that swallowed every path would pass the first; one that never matched would pass
+    /// the second.</para>
+    /// </remarks>
     [Test, CancelAfter(300_000)]
-    public async Task The_excluded_paths_get_no_content_security_policy()
+    public async Task An_excluded_path_is_served_without_a_content_security_policy()
     {
-        using var client   = AegisClient.For(host);
-        using var response = await client.GetAsync("/k");
+        using var client = AegisClient.For(host);
 
-        Assert.That(response.Headers.Contains("Content-Security-Policy"), Is.False);
+        bool HasPolicy(HttpResponseMessage response)
+        {
+            using (response)
+                return response.Headers.Contains("Content-Security-Policy");
+        }
+
+        var onExcluded = HasPolicy(await client.GetAsync("/k"));
+        var onOrdinary = HasPolicy(await client.GetAsync("/api/auth/session/check"));
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(onExcluded, Is.False, "a path on the exclusion list was given a policy anyway");
+            Assert.That(onOrdinary, Is.True,
+                "the exclusion reached a path that is not on the list, which would leave the widget "
+              + "itself unprotected");
+        });
     }
 }

@@ -2,7 +2,7 @@
 import { Button } from "@argon/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@argon/ui/dialog";
 import { onMounted, ref, watch } from "vue";
-import { LogInIcon, ArrowRightIcon, LockKeyholeIcon, Loader2Icon, EyeIcon, EyeOffIcon, FingerprintIcon } from "lucide-vue-next";
+import { LogInIcon, ArrowRightIcon, LockKeyholeIcon, Loader2Icon, EyeIcon, EyeOffIcon, FingerprintIcon } from "@lucide/vue";
 import QRStyled from "./QRStyled.vue";
 import { useLocale } from "@/store/localeStore";
 import InputWithError from "../InputWithError.vue";

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { cn } from "@argon/core";
-import { X } from "lucide-vue-next";
+import { X } from "@lucide/vue";
 import { ToastClose, type ToastCloseProps } from "reka-ui";
 import { computed, type HTMLAttributes } from "vue";
 

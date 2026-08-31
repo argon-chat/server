@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
 import { PinInput, PinInputGroup, PinInputInput, PinInputSeparator } from "@argon/ui/pin-input";
-import { ArrowLeftIcon, MailIcon, Loader2Icon, ShieldCheckIcon } from "lucide-vue-next";
+import { ArrowLeftIcon, MailIcon, Loader2Icon, ShieldCheckIcon } from "@lucide/vue";
 import { ref, onMounted } from "vue";
 import { useLocale } from "@/store/localeStore";
 

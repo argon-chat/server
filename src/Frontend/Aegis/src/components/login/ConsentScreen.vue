@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
 import { Badge } from "@argon/ui/badge";
-import { ShieldCheckIcon, ShieldAlertIcon, CheckIcon, ArrowRightLeftIcon, Loader2Icon, XIcon } from "lucide-vue-next";
+import { ShieldCheckIcon, ShieldAlertIcon, CheckIcon, ArrowRightLeftIcon, Loader2Icon, XIcon } from "@lucide/vue";
 import { computed, ref, onMounted } from "vue";
 
 interface ConsentInfo {

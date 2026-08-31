@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { UserCircleIcon, CheckIcon, ChevronRightIcon, PlusIcon, UsersIcon } from "lucide-vue-next";
+import { UserCircleIcon, CheckIcon, ChevronRightIcon, PlusIcon, UsersIcon } from "@lucide/vue";
 import { ref, onMounted } from "vue";
 
 interface Account {

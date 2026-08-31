@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { CheckboxRootEmits, CheckboxRootProps } from "reka-ui";
 import { cn } from "@argon/core";
-import { Check } from "lucide-vue-next";
+import { Check } from "@lucide/vue";
 import {
   CheckboxIndicator,
   CheckboxRoot,

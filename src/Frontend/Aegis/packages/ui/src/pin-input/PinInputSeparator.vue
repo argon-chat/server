@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Dot } from "lucide-vue-next";
+import { Dot } from "@lucide/vue";
 import { Primitive, type PrimitiveProps, useForwardProps } from "reka-ui";
 
 const props = defineProps<PrimitiveProps>();

@@ -119,7 +119,13 @@ public static class TestServerConfiguration
     {
         ["AegisRateLimits:Auth:Permits"]   = "100000",
         ["AegisRateLimits:Token:Permits"]  = "100000",
-        ["AegisRateLimits:Global:Permits"] = "100000"
+        ["AegisRateLimits:Global:Permits"] = "100000",
+
+        // Nothing is excluded by default, because this role maps no path that would want to be:
+        // the Sentry tunnel lives on the entry point, not here. One is configured anyway so the
+        // exclusion itself stays covered -- it is a branch whose absence looks exactly like a
+        // branch that works, since both leave every real path with a policy.
+        ["Aegis:CspExcludedPaths:0"]       = "/k"
     };
 
     /// <summary>Account deletion needs a grace period configured before it will schedule anything.</summary>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
-import { ShieldCheckIcon, FingerprintIcon, Loader2Icon, XIcon } from "lucide-vue-next";
+import { ShieldCheckIcon, FingerprintIcon, Loader2Icon, XIcon } from "@lucide/vue";
 import { ref, onMounted, computed } from "vue";
 import { useLocale } from "@/store/localeStore";
 

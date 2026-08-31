@@ -21,10 +21,3 @@ onMounted(async () => {
     <Toaster />
   </div>
 </template>
-
-<style scoped>
-
-</style>
-<style>
-@import '@argon/assets/styles';
-</style>

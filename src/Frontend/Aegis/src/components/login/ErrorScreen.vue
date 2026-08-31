@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
-import { XIcon, ArrowLeftIcon } from "lucide-vue-next";
+import { XIcon, ArrowLeftIcon } from "@lucide/vue";
 import { ref, onMounted } from "vue";
 
 defineProps<{
