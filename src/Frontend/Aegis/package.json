@@ -23,7 +23,7 @@
     "@vueuse/motion": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
-    "lucide-vue-next": "^0.548.0",
+    "lucide-vue-next": "^0.577.0",
     "pinia": "^3.0.2",
     "qr-code-styling": "^1.9.2",
     "reka-ui": "2.6.0",

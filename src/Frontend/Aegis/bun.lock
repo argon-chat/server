@@ -15,7 +15,7 @@
         "@vueuse/motion": "^3.0.3",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
-        "lucide-vue-next": "^0.548.0",
+        "lucide-vue-next": "^0.577.0",
         "pinia": "^3.0.2",
         "qr-code-styling": "^1.9.2",
         "reka-ui": "2.6.0",
@@ -91,7 +91,7 @@
       "dependencies": {
         "@argon/core": "workspace:*",
         "class-variance-authority": "^0.7.1",
-        "lucide-vue-next": "^0.548.0",
+        "lucide-vue-next": "^0.577.0",
         "reka-ui": "^2.6.0",
       },
       "peerDependencies": {
@@ -562,7 +562,7 @@
 
     "lru-cache": ["lru-cache@5.1.1", "", { "dependencies": { "yallist": "^3.0.2" } }, "sha512-KpNARQA3Iwv+jTA0utUVVbrh+Jlrr1Fv0e56GGzAFOXN7dk/FviaDW8LHmK52DlcH4WP2n6gI8vN1aesBFgo9w=="],
 
-    "lucide-vue-next": ["lucide-vue-next@0.548.0", "", { "peerDependencies": { "vue": ">=3.0.1" } }, "sha512-VtL3HkoPOhrhBkJdLWm6JY1kmCetsri1lvoaenem5PQagO2cjR1sNENNnuLJHzl/l0IcFg8RKJyiHt2GZtvj2A=="],
+    "lucide-vue-next": ["lucide-vue-next@0.577.0", "", { "peerDependencies": { "vue": ">=3.0.1" } }, "sha512-py05bAfv9SHVJqscbiOnjcnLlEmOffA58a+7XhZuFxrs6txe1E8VoR1ngWGTYO+9aVKABAz8l3ee3PqiQN9QPA=="],
 
     "magic-string": ["magic-string@0.30.21", "", { "dependencies": { "@jridgewell/sourcemap-codec": "^1.5.5" } }, "sha512-vd2F4YUyEXKGcLHoq+TEyCjxueSeHnFxyyjNp80yg0XV4vUhnDer/lvvlqM/arB5bXQN5K2/3oinyCRyx8T2CQ=="],
 
