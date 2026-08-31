@@ -79,6 +79,23 @@ public sealed class DuplicateSectionFeature : IArgonFeature
         => d.Named("dupe").Options<GadgetOptions>("same").Options<SidecarOptions>("same");
 }
 
+/// <summary>Carries the real listener options, so the TLS rules can be exercised as written.</summary>
+public sealed class ListenerFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("listener").Options<Argon.Features.Web.ArgonKestrelOptions>("Kestrel:Argon");
+}
+
+public sealed class ListenerRole : IArgonRole
+{
+    public static ArgonRoleId Id => new("listener");
+
+    public bool IsClient => true;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+        => features.Add<ListenerFeature>();
+}
+
 public sealed class ConfiguredRole : IArgonRole
 {
     public static ArgonRoleId Id => new("configured");

@@ -1,0 +1,48 @@
+{
+  "name": "aegis-widget",
+  "private": true,
+  "version": "1.1.0.0",
+  "branch": "master",
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@argon/assets": "workspace:*",
+    "@argon/i18n": "workspace:*",
+    "@argon/storage": "workspace:*",
+    "@argon/theme": "workspace:*",
+    "@argon/ui": "workspace:*",
+    "@radix-icons/vue": "^1.0.0",
+    "@vueuse/core": "^14.0.0",
+    "@vueuse/motion": "^3.0.3",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-vue-next": "^0.548.0",
+    "pinia": "^3.0.2",
+    "qr-code-styling": "^1.9.2",
+    "reka-ui": "2.6.0",
+    "superjson": "^2.2.2",
+    "tailwind-merge": "^2.6.0",
+    "tailwindcss-animate": "^1.0.7",
+    "vue": "^3.5.13",
+    "vue-i18n": "^11.1.12",
+    "vue-router": "^4.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "autoprefixer": "^10.4.20",
+    "tailwindcss": "^3.4.13",
+    "typescript": "^5.7.2",
+    "vite": "^7.1.12",
+    "vite-plugin-vue-devtools": "^8.0.3",
+    "vite-svg-loader": "^5.1.0",
+    "vue-tsc": "^3.1.2"
+  }
+}

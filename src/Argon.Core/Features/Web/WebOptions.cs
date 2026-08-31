@@ -25,6 +25,47 @@ public sealed class ArgonKestrelOptions : IValidatableFeatureOptions
             report.RequireFile(CertificatePath, nameof(CertificatePath));
             report.RequireFile(CertificateKeyPath, nameof(CertificateKeyPath));
         }
+
+        RequireSomethingToPresent(report);
+    }
+
+    /// <summary>
+    /// A TLS listener that can answer a connection, whatever name it arrives under.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>This rule exists because production ran without it.</b> A role was configured with
+    /// <c>Kestrel:Endpoints:Https</c> carrying an <c>Sni</c> map keyed on its public host and no
+    /// default certificate, and nothing above noticed: neither branch fires when this section names
+    /// no certificate at all, and the endpoints section is ASP.NET's rather than this feature's, so
+    /// it was never read.</para>
+    ///
+    /// <para>What that produces is the worst shape a misconfiguration can take. The port binds, the
+    /// host logs <c>Now listening on https://…</c>, the pod goes ready and stays ready, and every
+    /// single request fails — because the proxy in front reaches the pod by its <i>service</i> name,
+    /// never the public one, so the SNI it sends matches nothing and Kestrel has no certificate to
+    /// present. It closes the connection without an alert, which the proxy reports as <c>EOF</c> and
+    /// the caller sees as <c>502</c>. Nothing in the application logs a word.</para>
+    ///
+    /// <para>Only fires when an SNI map exists. A role with no HTTPS endpoints is a silo or a pod
+    /// behind a proxy that terminates TLS itself, and neither has anything to present.</para>
+    /// </remarks>
+    private void RequireSomethingToPresent(IFeatureConfigurationReport report)
+    {
+        if (UseLocalhostCertificate || UseFileCertificate)
+            return;
+
+        var https = report.Read<KestrelHttpsSection>("Kestrel:Endpoints:Https");
+
+        if (https.Sni.Count == 0 || https.Certificate is not null)
+            return;
+
+        report.Invalid(
+            $"Kestrel:Endpoints:Https names certificates for {string.Join(", ", https.Sni.Keys.ToArray())} and no " +
+            "default one, and this section configures none either — so a connection whose SNI is not " +
+            "one of those names is answered with no certificate at all and dropped mid-handshake. " +
+            "The proxy in front connects by the service name rather than the public host, which " +
+            "makes that every request. Set useFileCertificate here, or add a default " +
+            "Kestrel:Endpoints:Https:Certificate");
     }
 
     /// <summary>
@@ -55,6 +96,35 @@ public sealed class ArgonKestrelOptions : IValidatableFeatureOptions
 
     public string CertificatePath    { get; set; } = "/etc/tls/tls.crt";
     public string CertificateKeyPath { get; set; } = "/etc/tls/tls.key";
+}
+
+/// <summary>
+/// As much of ASP.NET's own <c>Kestrel:Endpoints:Https</c> as a rule here needs to read.
+/// </summary>
+/// <remarks>
+/// Not a settings model — nothing binds these to configure anything, and the host reads that section
+/// itself. It exists so <see cref="ArgonKestrelOptions"/> can ask the one question the host will not
+/// answer until a client is already waiting on the handshake: is there a certificate for a name that
+/// is not in the map.
+/// </remarks>
+internal sealed class KestrelHttpsSection
+{
+    /// <summary>The certificate used when the SNI map has no entry for the name asked for.</summary>
+    public KestrelCertificateSection? Certificate { get; set; }
+
+    public Dictionary<string, KestrelSniSection> Sni { get; set; } = [];
+}
+
+internal sealed class KestrelSniSection
+{
+    public KestrelCertificateSection? Certificate { get; set; }
+}
+
+internal sealed class KestrelCertificateSection
+{
+    public string? Path    { get; set; }
+    public string? KeyPath { get; set; }
+    public string? Subject { get; set; }
 }
 
 /// <summary>Which origins the browser is allowed to call this host from.</summary>

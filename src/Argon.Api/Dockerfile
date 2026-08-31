@@ -12,6 +12,23 @@ LABEL org.opencontainers.image.title="Argon.Api" \
 WORKDIR /app
 
 
+# The Aegis sign-in widget, which the identity server serves itself from Aegis:StaticRoot rather
+# than from a CDN of its own. Its own stage, and one buildkit runs alongside the .NET ones: it
+# shares nothing with them but the final image.
+FROM oven/bun:1 AS widget
+WORKDIR /widget
+
+# Manifests and workspace packages first, so a change to a component does not re-resolve the whole
+# dependency tree. The packages have to come along with the lockfile — bun reads every workspace
+# member's package.json to install, and `packages/*` is where they are.
+COPY src/Frontend/Aegis/package.json src/Frontend/Aegis/bun.lock ./
+COPY src/Frontend/Aegis/packages ./packages
+RUN bun install --frozen-lockfile --no-progress
+
+COPY src/Frontend/Aegis ./
+RUN bun run build
+
+
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
@@ -43,6 +60,11 @@ FROM base AS final
 WORKDIR /app
 
 COPY --from=publish /app/publish .
+
+# Where Aegis:StaticRoot points. Only the identity server reads it, and only when it is configured
+# to — a deployment that puts the widget behind its own CDN leaves the setting empty and the
+# directory unread.
+COPY --from=widget /widget/dist ./wwwroot
 
 ENV DOTNET_ENABLE_HTTP3="true"
 

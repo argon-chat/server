@@ -40,10 +40,15 @@ public sealed class AegisOptions : IValidatableFeatureOptions
         "worker-src 'self' blob:; frame-ancestors 'none';";
 
     /// <summary>
-    /// Path prefixes served without a CSP — the Sentry tunnel, whose payloads are not documents and
-    /// whose policy would only ever be in the way.
+    /// Path prefixes served without a CSP, for anything mounted here whose payloads are not
+    /// documents and to which a policy would only ever be in the way.
     /// </summary>
-    public List<string> CspExcludedPaths { get; set; } = ["/k"];
+    /// <remarks>
+    /// Empty by default. This used to be <c>["/k"]</c>, for the Sentry tunnel, which this role no
+    /// longer maps — the sign-in widget it serves has no browser-side reporter to forward. A
+    /// deployment still naming <c>/k</c> here is excluding a path that answers 404.
+    /// </remarks>
+    public List<string> CspExcludedPaths { get; set; } = [];
 
     public void Validate(IFeatureConfigurationReport report)
     {

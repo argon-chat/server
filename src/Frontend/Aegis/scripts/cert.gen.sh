@@ -1,0 +1,1 @@
+mkcert -key-file localhost-key.pem -cert-file localhost.pem localhost

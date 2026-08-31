@@ -1,7 +1,9 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Aegis;
 using Argon.Features.Sentry;
 using Argon.Features.Web;
+using Argon.Features.WebSession;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
 
@@ -243,6 +245,36 @@ public sealed class SentryTunnelFeature : IArgonFeature
     }
 }
 
+/// <summary>
+/// The cookie session the first-party web client signs in with.
+/// </summary>
+/// <remarks>
+/// <para>Registered on the role that serves the web client and nowhere else. It adds one way in —
+/// an audience-gated exchange of an Aegis token for an Argon session — and changes nothing about how
+/// any other OAuth application is authenticated: those keep their own tokens and their own
+/// interceptors, and no path here widens what they can reach.</para>
+///
+/// <para>After <c>RoutingFeature</c> because both endpoints are ordinary routed, CORS-covered
+/// requests; the browser calls them cross-origin from the web client with credentials, which the
+/// default policy already permits for <c>argon.gl</c>.</para>
+/// </remarks>
+public sealed class WebSessionFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("web-session")
+            .Describing("cookie sessions for the first-party web client")
+            .Requires<JwtFeature>()
+            .Requires<CacheFeature>()
+            .After<RoutingFeature>()
+            .Options<WebSessionOptions>(WebSessionOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Builder.AddWebSession();
+
+    public void Map(ArgonEndpointContext ctx)
+        => ctx.App.MapWebSession();
+}
+
 public sealed class DiscoveryFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
@@ -280,7 +312,7 @@ public sealed class HostHooksFeature : IArgonFeature
     {
         var options = ctx.Options<HostHooksOptions>();
 
-        if (options.ExposeVersion)
+        if (options.ExposeVersion && !ServesASiteAtRoot(ctx))
             ctx.App.MapGet("/", () => new
             {
                 version = $"{GlobalVersion.FullSemVer}.{GlobalVersion.ShortSha}"
@@ -289,4 +321,23 @@ public sealed class HostHooksFeature : IArgonFeature
         if (options.PreStopHook)
             ctx.App.UsePreStopHook();
     }
+
+    /// <summary>
+    /// Whether something else on this role answers <c>/</c> with a page.
+    /// </summary>
+    /// <remarks>
+    /// <para>An endpoint mapped here would win, and silently. <c>UseStaticFiles</c> and the SPA
+    /// fallback both stand down once routing has already selected an endpoint, and a literal
+    /// <c>/</c> route outranks the fallback's catch-all — so the identity server would answer its
+    /// own front door with a version document while every deep link into the widget rendered
+    /// normally. That is a confusing shape of broken, and the version is still one <c>GET</c> away
+    /// on every other role.</para>
+    ///
+    /// <para>Only the identity server serves a site of its own today, and only when it is the whole
+    /// process: under the co-hosted development role <c>AegisFeature</c> maps no static files at
+    /// all, so <c>/</c> is free there and keeps reporting the build.</para>
+    /// </remarks>
+    private static bool ServesASiteAtRoot(ArgonEndpointContext ctx)
+        => ctx.Role.Id == ArgonRoleId.Aegis &&
+           ctx.App.Services.GetService<IOptions<AegisOptions>>() is { Value.StaticRoot.Length: > 0 };
 }

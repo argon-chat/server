@@ -1,0 +1,79 @@
+{
+  "cancel": "Отмена",
+  "create_one": "Создать аккаунт",
+  "dont_have_account": "Нет аккаунта?",
+  "enter_your_otp": "Введите ваш код OTP",
+  "greetings": {
+    "glad_you_here": {
+      "desc": "Получите доступ к вашему пространству и оставайтесь на связи",
+      "title": "Рад, что вы здесь 🌙"
+    },
+    "good_to_see_you": {
+      "desc": "Войдите и продолжайте ваше путешествие",
+      "title": "Рад видеть вас ✨"
+    },
+    "hello_again": {
+      "desc": "Войдите и продолжайте исследовать",
+      "title": "Привет снова 🙈"
+    },
+    "hey_there": {
+      "desc": "Введите данные вашей учетной записи, чтобы продолжить",
+      "title": "Привет 👋"
+    },
+    "welcome_back": {
+      "desc": "Продолжайте там, где остановились",
+      "title": "С возвращением"
+    }
+  },
+  "login_with_passkey": "Войти по ключу доступа",
+  "next": "Далее",
+  "operator_authenticate": "Аутентификация",
+  "operator_cert_accepted": "Сертификат оператора принят.",
+  "operator_cert_failed": "Ошибка проверки сертификата",
+  "operator_cert_failed_desc": "Проверка сертификата не пройдена.",
+  "operator_confirm_device": "Подтвердите запрос на вашем устройстве безопасности",
+  "operator_fips_badge": "FIPS 140-2 Level 3",
+  "operator_requires_access": "Это приложение требует операторского доступа через сертификат FIPS HSM",
+  "operator_step_confirm_pin": "Подтвердите PIN-кодом",
+  "operator_step_confirm_pin_desc": "Введите PIN-код устройства для авторизации",
+  "operator_step_connect": "Подключите устройство",
+  "operator_step_connect_desc": "Вставьте FIPS HSM в USB-порт",
+  "operator_step_select_cert": "Выберите сертификат",
+  "operator_step_select_cert_desc": "Выберите сертификат оператора при появлении запроса",
+  "operator_verification": "Верификация оператора",
+  "operator_verified": "Подтверждено",
+  "operator_verify_error": "Ошибка верификации",
+  "operator_verify_error_desc": "Не удалось проверить сертификат. Убедитесь, что YubiKey подключён.",
+  "operator_verifying_identity": "Проверка личности...",
+  "operator_waiting_device": "Ожидание устройства...",
+  "passkey_cancelled": "Отменено",
+  "passkey_cancelled_desc": "Аутентификация была отменена или истекло время ожидания",
+  "passkey_complete_failed": "Не удалось завершить вход по ключу доступа",
+  "passkey_error": "Ошибка ключа доступа",
+  "passkey_error_bad_otp": "Введённый код подтверждения неверен",
+  "passkey_error_bad_otp_title": "Неверный OTP",
+  "passkey_error_challenge_expired": "Время аутентификации истекло. Попробуйте снова",
+  "passkey_error_challenge_expired_title": "Истекло",
+  "passkey_error_invalid_assertion": "Ответ ключа доступа недействителен",
+  "passkey_error_invalid_assertion_title": "Недействительный ключ",
+  "passkey_error_no_passkeys": "Для этого аккаунта не зарегистрированы ключи доступа",
+  "passkey_error_no_passkeys_title": "Нет ключей",
+  "passkey_error_nonce_expired": "Сеанс ключа доступа истёк. Попробуйте снова",
+  "passkey_error_nonce_expired_title": "Сеанс истёк",
+  "passkey_error_user_not_found": "Аккаунт с таким email не найден",
+  "passkey_error_user_not_found_title": "Пользователь не найден",
+  "passkey_error_verification_failed": "Проверка ключа доступа не пройдена",
+  "passkey_error_verification_failed_title": "Ошибка проверки",
+  "passkey_generic_error": "Произошла ошибка при аутентификации по ключу доступа",
+  "passkey_otp_failed": "Не удалось проверить OTP",
+  "passkey_otp_required": "Требуется OTP",
+  "passkey_otp_required_desc": "Проверьте электронную почту для получения кода подтверждения",
+  "passkey_start_failed": "Не удалось начать аутентификацию по ключу доступа",
+  "passkey_too_many_attempts": "Слишком много попыток",
+  "passkey_too_many_attempts_desc": "Подождите немного и попробуйте снова",
+  "qr_code_login": "Или войдите с помощью QR-кода",
+  "scan_with_app": "Сканируйте с мобильным приложением Argon",
+  "signin": "Войти",
+  "verify_and_sigin": "Подтвердить и войти",
+  "we_sent_it_on_email": "Мы отправили его на ваш email."
+}

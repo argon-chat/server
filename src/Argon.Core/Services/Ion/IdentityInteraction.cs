@@ -3,6 +3,7 @@ namespace Argon.Services.Ion;
 using Core.Services.Validators;
 using Features.Auth;
 using Features.Jwt;
+using Features.WebSession;
 
 public class IdentityInteraction(
     ILogger<IIdentityInteraction> logger,
@@ -12,6 +13,7 @@ public class IdentityInteraction(
     DeviceIdentityService devices,
     IDbContextFactory<ApplicationDbContext> context,
     IHttpContextAccessor http,
+    IOptions<WebSessionOptions> webSession,
     IQrLoginService qrLogin) : IIdentityInteraction
 {
     public async Task<IAuthorizeResult> Authorize(UserCredentialsInput data, CancellationToken ct = default)
@@ -179,6 +181,13 @@ public class IdentityInteraction(
 
     public async Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default)
     {
+        // A browser has no refresh token to pass: for the web client it is in a cookie the page
+        // cannot read, which is the point of it being there. The argument still wins where it is
+        // given, so every installed client keeps the path it has always taken and this branch is
+        // only reached by a caller that has nothing to offer otherwise.
+        if (string.IsNullOrEmpty(refreshToken) && http.HttpContext is { } context)
+            refreshToken = WebSessionCookie.Read(context, webSession.Value);
+
         if (string.IsNullOrEmpty(refreshToken))
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
 

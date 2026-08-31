@@ -403,7 +403,8 @@ public sealed class AegisFeature : IArgonFeature
         if (string.IsNullOrWhiteSpace(options.StaticRoot))
             return;
 
-        var files = new PhysicalFileProvider(Path.GetFullPath(options.StaticRoot));
+        var root  = Path.GetFullPath(options.StaticRoot);
+        var files = new PhysicalFileProvider(root);
 
         ctx.App.UseDefaultFiles(new DefaultFilesOptions
         {
@@ -411,11 +412,26 @@ public sealed class AegisFeature : IArgonFeature
             DefaultFileNames = ["index.html"]
         });
 
+        ctx.App.UsePrecompressedStaticFiles(files);
+
         ctx.App.UseStaticFiles(new StaticFileOptions
         {
             FileProvider          = files,
             ServeUnknownFileTypes = false,
-            ContentTypeProvider   = new FileExtensionContentTypeProvider()
+            ContentTypeProvider   = new PrecompressedContentTypeProvider(),
+
+            OnPrepareResponse = context =>
+            {
+                var headers = context.Context.Response.Headers;
+
+                // Everything under /assets is named by content hash, so a change is a new URL and
+                // the old one can be kept forever. index.html is the opposite: it is the document
+                // that names those hashes, and a cached copy of it points at a build that may no
+                // longer exist.
+                headers.CacheControl = context.File.Name.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                    ? "no-cache"
+                    : "public, max-age=31536000, immutable";
+            }
         });
 
         // The widget routes client-side, so a deep link has to be answered with the shell rather

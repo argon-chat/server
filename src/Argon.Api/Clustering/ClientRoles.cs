@@ -28,6 +28,7 @@ public sealed class EntryPointRole : IArgonRole
 
         features.Add<IonProtocolFeature>();
         features.Add<AppHubFeature>();
+        features.Add<WebSessionFeature>();
         features.Add<DiscoveryFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();
@@ -143,8 +144,15 @@ public sealed class AegisRole : IArgonRole
     {
         features.Add<TelemetryFeature>();
         features.Add<RegionRegistryFeature>();
+
+        // SentryFeature but not SentryTunnelFeature: this role reports its own errors, and has
+        // nothing left to forward. The tunnel existed for the sign-in widget's browser-side
+        // reporter, and the widget carries none — see src/Frontend/Aegis. The entry point keeps its
+        // tunnel, because the web client it serves still has one.
+        //
+        // UseSentryTracing goes with it, so requests to the identity server are no longer sampled
+        // into Sentry transactions. Errors still are: that comes from SentryFeature.
         features.Add<SentryFeature>();
-        features.Add<SentryTunnelFeature>();
         features.Add<ServerTimingFeature>();
 
         features.Add<KestrelFeature>();

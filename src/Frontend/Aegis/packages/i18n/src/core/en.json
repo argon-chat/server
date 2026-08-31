@@ -1,0 +1,79 @@
+{
+  "cancel": "Cancel",
+  "create_one": "Create one",
+  "dont_have_account": "Don’t have an account?",
+  "enter_your_otp": "Enter your OTP code",
+  "greetings": {
+    "glad_you_here": {
+      "desc": "Access your space and stay connected",
+      "title": "Glad you’re here 🌙"
+    },
+    "good_to_see_you": {
+      "desc": "Log in and continue your journey",
+      "title": "Good to see you ✨"
+    },
+    "hello_again": {
+      "desc": "Sign in and keep exploring",
+      "title": "Hello again 🙈"
+    },
+    "hey_there": {
+      "desc": "Enter your account details to continue",
+      "title": "Hey there 👋"
+    },
+    "welcome_back": {
+      "desc": "Pick up right where you left off",
+      "title": "Welcome back"
+    }
+  },
+  "login_with_passkey": "Login with Passkey",
+  "next": "Next",
+  "operator_authenticate": "Authenticate",
+  "operator_cert_accepted": "Operator certificate accepted.",
+  "operator_cert_failed": "Certificate Verification Failed",
+  "operator_cert_failed_desc": "Certificate verification failed.",
+  "operator_confirm_device": "Confirm the request on your security device",
+  "operator_fips_badge": "FIPS 140-2 Level 3",
+  "operator_requires_access": "This app requires operator access via FIPS HSM certificate authentication",
+  "operator_step_confirm_pin": "Confirm with PIN",
+  "operator_step_confirm_pin_desc": "Enter your device PIN to authorize",
+  "operator_step_connect": "Connect device",
+  "operator_step_connect_desc": "Insert your FIPS HSM into a USB port",
+  "operator_step_select_cert": "Select certificate",
+  "operator_step_select_cert_desc": "Choose the operator certificate when prompted",
+  "operator_verification": "Operator Verification",
+  "operator_verified": "Verified",
+  "operator_verify_error": "Verification Error",
+  "operator_verify_error_desc": "Failed to verify certificate. Ensure your YubiKey is connected.",
+  "operator_verifying_identity": "Verifying identity...",
+  "operator_waiting_device": "Waiting for device...",
+  "passkey_cancelled": "Passkey Cancelled",
+  "passkey_cancelled_desc": "Authentication was cancelled or timed out",
+  "passkey_complete_failed": "Failed to complete passkey login",
+  "passkey_error": "Passkey Error",
+  "passkey_error_bad_otp": "The verification code you entered is incorrect",
+  "passkey_error_bad_otp_title": "Invalid OTP",
+  "passkey_error_challenge_expired": "The authentication challenge has expired. Please try again",
+  "passkey_error_challenge_expired_title": "Expired",
+  "passkey_error_invalid_assertion": "The passkey response was invalid",
+  "passkey_error_invalid_assertion_title": "Invalid Passkey",
+  "passkey_error_no_passkeys": "No passkeys are registered for this account",
+  "passkey_error_no_passkeys_title": "No Passkeys",
+  "passkey_error_nonce_expired": "Your passkey session has expired. Please try again",
+  "passkey_error_nonce_expired_title": "Session Expired",
+  "passkey_error_user_not_found": "No account found with this email",
+  "passkey_error_user_not_found_title": "User Not Found",
+  "passkey_error_verification_failed": "Passkey verification failed",
+  "passkey_error_verification_failed_title": "Verification Failed",
+  "passkey_generic_error": "An error occurred during passkey authentication",
+  "passkey_otp_failed": "Failed to verify OTP",
+  "passkey_otp_required": "OTP Required",
+  "passkey_otp_required_desc": "Check your email for the verification code",
+  "passkey_start_failed": "Failed to start passkey authentication",
+  "passkey_too_many_attempts": "Too Many Attempts",
+  "passkey_too_many_attempts_desc": "Please wait a moment before trying again",
+  "qr_code_login": "Or log in with QR Code",
+  "scan_with_app": "Scan with Argon mobile app",
+  "signin": "Sign In",
+  "verify_and_sigin": "Verify & Sign In",
+  "we_sent_it_on_email": "We’ve sent it to your email."
+}

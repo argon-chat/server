@@ -1,0 +1,79 @@
+{
+  "cancel": "キャンセル",
+  "create_one": "作成する",
+  "dont_have_account": "アカウントをお持ちでないですか？",
+  "enter_your_otp": "OTPコードを入力してください",
+  "greetings": {
+    "glad_you_here": {
+      "desc": "スペースにアクセスしてつながり続けましょう",
+      "title": "お越しいただきありがとうございます 🌙"
+    },
+    "good_to_see_you": {
+      "desc": "ログインして続けてください",
+      "title": "お会いできて嬉しいです ✨"
+    },
+    "hello_again": {
+      "desc": "サインインして探索を続けてください",
+      "title": "こんにちは 🙈"
+    },
+    "hey_there": {
+      "desc": "アカウント情報を入力して続行してください",
+      "title": "やあ 👋"
+    },
+    "welcome_back": {
+      "desc": "前回の続きから始めましょう",
+      "title": "お帰りなさい"
+    }
+  },
+  "login_with_passkey": "パスキーでログイン",
+  "next": "次へ",
+  "operator_authenticate": "認証",
+  "operator_cert_accepted": "オペレーター証明書が受理されました。",
+  "operator_cert_failed": "証明書の検証に失敗しました",
+  "operator_cert_failed_desc": "証明書の検証に失敗しました。",
+  "operator_confirm_device": "セキュリティデバイスでリクエストを確認してください",
+  "operator_fips_badge": "FIPS 140-2 Level 3",
+  "operator_requires_access": "このアプリにはFIPS HSM証明書認証によるオペレーターアクセスが必要です",
+  "operator_step_confirm_pin": "PINで確認",
+  "operator_step_confirm_pin_desc": "デバイスのPINを入力して承認してください",
+  "operator_step_connect": "デバイスを接続",
+  "operator_step_connect_desc": "FIPS HSMをUSBポートに挿入してください",
+  "operator_step_select_cert": "証明書を選択",
+  "operator_step_select_cert_desc": "プロンプトが表示されたらオペレーター証明書を選択してください",
+  "operator_verification": "オペレーター認証",
+  "operator_verified": "認証完了",
+  "operator_verify_error": "検証エラー",
+  "operator_verify_error_desc": "証明書の検証に失敗しました。YubiKeyが接続されていることを確認してください。",
+  "operator_verifying_identity": "本人確認中...",
+  "operator_waiting_device": "デバイスを待機中...",
+  "passkey_cancelled": "キャンセルされました",
+  "passkey_cancelled_desc": "認証がキャンセルされたかタイムアウトしました",
+  "passkey_complete_failed": "パスキーログインを完了できませんでした",
+  "passkey_error": "パスキーエラー",
+  "passkey_error_bad_otp": "入力された確認コードが正しくありません",
+  "passkey_error_bad_otp_title": "無効なOTP",
+  "passkey_error_challenge_expired": "認証チャレンジの有効期限が切れました。もう一度お試しください",
+  "passkey_error_challenge_expired_title": "期限切れ",
+  "passkey_error_invalid_assertion": "パスキーの応答が無効です",
+  "passkey_error_invalid_assertion_title": "無効なパスキー",
+  "passkey_error_no_passkeys": "このアカウントにはパスキーが登録されていません",
+  "passkey_error_no_passkeys_title": "パスキーなし",
+  "passkey_error_nonce_expired": "パスキーセッションの有効期限が切れました。もう一度お試しください",
+  "passkey_error_nonce_expired_title": "セッション期限切れ",
+  "passkey_error_user_not_found": "このメールのアカウントが見つかりません",
+  "passkey_error_user_not_found_title": "ユーザーが見つかりません",
+  "passkey_error_verification_failed": "パスキーの検証に失敗しました",
+  "passkey_error_verification_failed_title": "検証失敗",
+  "passkey_generic_error": "パスキー認証中にエラーが発生しました",
+  "passkey_otp_failed": "OTPの検証に失敗しました",
+  "passkey_otp_required": "OTPが必要です",
+  "passkey_otp_required_desc": "メールで確認コードをご確認ください",
+  "passkey_start_failed": "パスキー認証を開始できませんでした",
+  "passkey_too_many_attempts": "試行回数が多すぎます",
+  "passkey_too_many_attempts_desc": "しばらくしてからもう一度お試しください",
+  "qr_code_login": "またはQRコードでログイン",
+  "scan_with_app": "Argonモバイルアプリでスキャン",
+  "signin": "サインイン",
+  "verify_and_sigin": "認証してサインイン",
+  "we_sent_it_on_email": "メールに送信しました。"
+}

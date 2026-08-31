@@ -1,0 +1,13 @@
+{
+  "name": "@argon/assets",
+  "version": "1.0.0",
+  "type": "module",
+  "exports": {
+    "./styles": "./styles/index.css",
+    "./icons/*": "./icons/*"
+  },
+  "files": [
+    "icons",
+    "styles"
+  ]
+}
