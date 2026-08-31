@@ -368,8 +368,7 @@ public sealed class AegisFeature : IArgonFeature
                 headers["X-Permitted-Cross-Domain-Policies"]   = "none";
                 headers["Permissions-Policy"]                  = "camera=(), microphone=(), geolocation=()";
 
-                if (!string.IsNullOrWhiteSpace(options.ContentSecurityPolicy) &&
-                    !options.CspExcludedPaths.Any(path => http.Request.Path.StartsWithSegments(path)))
+                if (!string.IsNullOrWhiteSpace(options.ContentSecurityPolicy))
                     headers["Content-Security-Policy"] = options.ContentSecurityPolicy;
 
                 await next();
