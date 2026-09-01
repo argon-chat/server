@@ -1,66 +1,31 @@
-### SAP Individual Contributor License Agreement
+# Argon Individual Contributor License Agreement
 
-Thank you for your interest in contributing to open source software projects (“Projects”) made available by SAP SE or its affiliates (“SAP”). This Individual Contributor License Agreement (“Agreement”) sets out the terms governing any source code, object code, bug fixes, configuration changes, tools, specifications, documentation, data, materials, feedback, information or other works of authorship that you submit or have submitted, in any form and in any manner, to SAP in respect of any of the Projects (collectively “Contributions”). If you have any questions respecting this Agreement, please contact opensource@sap.com.
+**Version 2, effective 1 September 2026.** Version 2 supersedes version 1. Version 1 was an unmodified copy of a third-party template and named a different company as the recipient of every license granted below; it was replaced for that reason. Signatures collected against version 1 remain in `.github/signs/v1/cla.json` for the record and grant Argon nothing. Signatures against this version are collected in `.github/signs/v2/cla.json`.
 
+Thank you for your interest in contributing to the software projects ("Projects") made available by Argon Inc. LLC, a limited liability company organized under the laws of the Republic of Armenia, and its affiliates ("Argon"). This Individual Contributor License Agreement ("Agreement") sets out the terms governing any source code, object code, bug fixes, configuration changes, tools, specifications, documentation, data, materials, feedback, information or other works of authorship that you submit or have submitted, in any form and in any manner, to Argon in respect of any of the Projects (collectively "Contributions"). If you have any questions respecting this Agreement, please contact opensource@argon.gl.
 
 You agree that the following terms apply to all of your past, present and future Contributions. Except for the licenses granted in this Agreement, you retain all of your right, title and interest in and to your Contributions.
 
+**Copyright License.** You hereby grant, and agree to grant, to Argon a non-exclusive, perpetual, irrevocable, worldwide, fully-paid, royalty-free, transferable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, and distribute your Contributions and such derivative works, with the right to sublicense the foregoing rights through multiple tiers of sublicensees.
 
-**Copyright License.** You hereby grant, and agree to grant, to SAP a non-exclusive, perpetual, irrevocable, worldwide, fully-paid, royalty-free, transferable copyright license to reproduce, prepare derivative works of, publicly display, publicly perform, and distribute your Contributions and such derivative works, with the right to sublicense the foregoing rights through multiple tiers of sublicensees.
+**Patent License.** You hereby grant, and agree to grant, to Argon a non-exclusive, perpetual, irrevocable, worldwide, fully-paid, royalty-free, transferable patent license to make, have made, use, offer to sell, sell, import, and otherwise transfer your Contributions, where such license applies only to those patent claims licensable by you that are necessarily infringed by your Contributions alone or by combination of your Contributions with the Project to which such Contributions were submitted, with the right to sublicense the foregoing rights through multiple tiers of sublicensees.
 
+**Licensing of the Projects.** You acknowledge that the Projects are not distributed under an OSI-approved open source license. As of the date of this Agreement the Projects are made available under the Business Source License 1.1, with MPL 2.0 as the change license taking effect four years after the publication of each commit, snapshot or release, and Argon additionally offers the Projects under separate commercial, hosted and alternative licensing arrangements. You acknowledge and agree that the licenses granted above permit Argon to include your Contributions in the Projects under those terms, under any future version of those terms, and under any other license terms Argon may adopt, including proprietary and commercial terms, without any obligation of notice, accounting or payment to you.
 
-**Patent License.** You hereby grant, and agree to grant, to SAP a non-exclusive, perpetual, irrevocable,
-worldwide, fully-paid, royalty-free, transferable patent license to make, have made, use, offer to sell, sell,
-import, and otherwise transfer your Contributions, where such license applies only to those patent claims
-licensable by you that are necessarily infringed by your Contributions alone or by combination of your
-Contributions with the Project to which such Contributions were submitted, with the right to sublicense the
-foregoing rights through multiple tiers of sublicensees.
+**Moral Rights.** To the fullest extent permitted under applicable law, you hereby waive, and agree not to assert, all of your "moral rights" in or relating to your Contributions for the benefit of Argon, its assigns, and their respective direct and indirect sublicensees.
 
+**Third Party Content/Rights.** If your Contribution includes or is based on any source code, object code, bug fixes, configuration changes, tools, specifications, documentation, data, materials, feedback, information or other works of authorship that were not authored by you ("Third Party Content") or if you are aware of any third party intellectual property or proprietary rights associated with your Contribution ("Third Party Rights"), then you agree to include with the submission of your Contribution full details respecting such Third Party Content and Third Party Rights, including, without limitation, identification of which aspects of your Contribution contain Third Party Content or are associated with Third Party Rights, the owner/author of the Third Party Content and Third Party Rights, where you obtained the Third Party Content, and any applicable third party license terms or restrictions respecting the Third Party Content and Third Party Rights. For greater certainty, the foregoing obligations respecting the identification of Third Party Content and Third Party Rights do not apply to any portion of a Project that is incorporated into your Contribution to that same Project.
 
-**Moral Rights.** To the fullest extent permitted under applicable law, you hereby waive, and agree not to
-assert, all of your “moral rights” in or relating to your Contributions for the benefit of SAP, its assigns, and
-their respective direct and indirect sublicensees.
+**Generated Content.** If any part of your Contribution was produced with the assistance of a code generation or other machine learning tool, you remain solely responsible for that part as if you had authored it yourself, and your representations below apply to it in full.
 
+**Representations.** You represent that, other than the Third Party Content and Third Party Rights identified by you in accordance with this Agreement, you are the sole author of your Contributions and are legally entitled to grant the foregoing licenses and waivers in respect of your Contributions. If your Contributions were created in the course of your employment with your past or present employer(s), you represent that such employer(s) has authorized you to make your Contributions on behalf of such employer(s) or such employer(s) has waived all of their right, title or interest in or to your Contributions.
 
-**Third Party Content/Rights.** If your Contribution includes or is based on any source code, object code, bug
-fixes, configuration changes, tools, specifications, documentation, data, materials, feedback, information or
-other works of authorship that were not authored by you (“Third Party Content”) or if you are aware of any
-third party intellectual property or proprietary rights associated with your Contribution (“Third Party Rights”),
-then you agree to include with the submission of your Contribution full details respecting such Third Party
-Content and Third Party Rights, including, without limitation, identification of which aspects of your
-Contribution contain Third Party Content or are associated with Third Party Rights, the owner/author of the
-Third Party Content and Third Party Rights, where you obtained the Third Party Content, and any applicable
-third party license terms or restrictions respecting the Third Party Content and Third Party Rights. For greater
-certainty, the foregoing obligations respecting the identification of Third Party Content and Third Party Rights
-do not apply to any portion of a Project that is incorporated into your Contribution to that same Project.
+**Contributions on behalf of an entity.** This Agreement covers Contributions you make as an individual. If you are contributing in the course of your employment or engagement, or otherwise on behalf of a company or other legal entity, and that entity rather than you holds the rights in the Contributions, this Agreement alone is not sufficient: please contact opensource@argon.gl to put a corporate contributor license agreement in place before submitting.
 
+**Disclaimer.** To the fullest extent permitted under applicable law, your Contributions are provided on an "as is" basis, without any warranties or conditions, express or implied, including, without limitation, any implied warranties or conditions of non-infringement, merchantability or fitness for a particular purpose. You are not required to provide support for your Contributions, except to the extent you desire to provide support.
 
-**Representations.** You represent that, other than the Third Party Content and Third Party Rights identified by
-you in accordance with this Agreement, you are the sole author of your Contributions and are legally entitled
-to grant the foregoing licenses and waivers in respect of your Contributions. If your Contributions were
-created in the course of your employment with your past or present employer(s), you represent that such
-employer(s) has authorized you to make your Contributions on behalf of such employer(s) or such employer
-(s) has waived all of their right, title or interest in or to your Contributions.
+**No Obligation.** You acknowledge that Argon is under no obligation to use or incorporate your Contributions into any of the Projects. The decision to use or incorporate your Contributions into any of the Projects will be made at the sole discretion of Argon or its authorized delegates.
 
+**Disputes.** This Agreement shall be governed by and construed in accordance with the laws of the Republic of Armenia, without giving effect to its principles or rules regarding conflicts of laws, other than such principles directing application of Armenian law. The parties hereby submit to venue in, and jurisdiction of, the courts of the Republic of Armenia located in Yerevan for purposes relating to this Agreement. In the event that any of the provisions of this Agreement shall be held by a court or other tribunal of competent jurisdiction to be unenforceable, the remaining portions hereof shall remain in full force and effect.
 
-**Disclaimer.** To the fullest extent permitted under applicable law, your Contributions are provided on an "asis"
-basis, without any warranties or conditions, express or implied, including, without limitation, any implied
-warranties or conditions of non-infringement, merchantability or fitness for a particular purpose. You are not
-required to provide support for your Contributions, except to the extent you desire to provide support.
-
-
-**No Obligation.** You acknowledge that SAP is under no obligation to use or incorporate your Contributions
-into any of the Projects. The decision to use or incorporate your Contributions into any of the Projects will be
-made at the sole discretion of SAP or its authorized delegates ..
-
-
-**Disputes.** This Agreement shall be governed by and construed in accordance with the laws of the State of
-New York, United States of America, without giving effect to its principles or rules regarding conflicts of laws,
-other than such principles directing application of New York law. The parties hereby submit to venue in, and
-jurisdiction of the courts located in New York, New York for purposes relating to this Agreement. In the event
-that any of the provisions of this Agreement shall be held by a court or other tribunal of competent jurisdiction
-to be unenforceable, the remaining portions hereof shall remain in full force and effect.
-
-
-**Assignment.** You agree that SAP may assign this Agreement, and all of its rights, obligations and licenses
-hereunder.
+**Assignment.** You agree that Argon may assign this Agreement, and all of its rights, obligations and licenses hereunder.

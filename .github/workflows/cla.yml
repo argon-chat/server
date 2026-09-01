@@ -1,27 +1,45 @@
 name: "CLA Assistant"
+
 on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
   issue_comment:
     types: [created]
-  pull_request_target:
-    types: [opened,closed,synchronize]
 
 permissions:
-  actions: write
   contents: write
   pull-requests: write
   statuses: write
 
+# Serialise per pull request so two events cannot race on the signature file. Not
+# cancel-in-progress: cancelling a run that is midway through committing a signature would lose it.
+concurrency:
+  group: cla-${{ github.event.pull_request.number || github.event.issue.number }}
+  cancel-in-progress: false
+
 jobs:
-  CLAssistant:
+  cla:
     runs-on: ubuntu-latest
+    # Bots cannot sign a CLA, so nagging them is pure noise (renovate opens most of the PRs here).
+    # Skipping at job level rather than inside the action means no runner is spent and no comment is
+    # posted at all. `github.event.pull_request` is null on issue_comment and `github.event.comment`
+    # is null on pull_request_target; both then read as '' and the respective check passes.
+    if: >-
+      github.event.pull_request.user.type != 'Bot'
+      && github.event.comment.user.type != 'Bot'
+      && (github.event_name == 'pull_request_target'
+      || (github.event.issue.pull_request
+      && (github.event.comment.body == '/recheck'
+      || contains(github.event.comment.body, 'I have read the CLA Document and I hereby sign the CLA'))))
     steps:
-      - name: "CLA Assistant"
-        if: (github.event.comment.body == '/recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
-        uses: contributor-assistant/github-action@v2.6.1
-        env:
-          GITHUB_TOKEN: ${{ secrets.CODE_MAID_PAT }}
-          PERSONAL_ACCESS_TOKEN : ${{ secrets.CODE_MAID_PAT }}
+      # Our own action, replacing contributor-assistant/github-action: that one was archived on
+      # 2026-03-23, is read-only, and declares `using: "node20"`, which GitHub removes from the
+      # runners on 2026-09-23. See https://github.com/argon-chat/cla for what else it got wrong.
+      # No PAT: the token defaults to this job's GITHUB_TOKEN, and the permissions block above
+      # raises it to write even though the repository default is read-only. master requires signed
+      # commits, which the contents API satisfies on its own, and restricts nobody from pushing.
+      - uses: argon-chat/cla@v1
         with:
-          path-to-signatures: '.github/signs/v1/cla.json'
-          path-to-document: 'https://github.com/argon-chat/server/blob/master/.github/CLA.md'
-          branch: 'master'
+          document-url: 'https://github.com/argon-chat/server/blob/master/.github/CLA.md'
+          signatures-path: '.github/signs/v2/cla.json'
+          signatures-branch: 'master'
