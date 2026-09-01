@@ -53,6 +53,13 @@ public sealed class SentryFeature : IArgonFeature
 
         ctx.Builder.WebHost.UseSentry(o =>
         {
+            // Sentry.AspNetCore has already bound the `Sentry` section into these options by the
+            // time this runs, so everything the SDK understands is configurable from
+            // appsettings.json under its own name whether or not ArgonSentryOptions models it.
+            // What follows is only what Argon has an opinion about, and each assignment is the same
+            // section read through the validated class — so an appsettings value survives it rather
+            // than being overwritten by a default.
+
             // The connection string is where this lived before options existed; keeping it as the
             // fallback means an existing deployment does not have to move it to switch over.
             o.Dsn                 = options.Dsn ?? ctx.Configuration.GetConnectionString("Sentry");
@@ -60,8 +67,38 @@ public sealed class SentryFeature : IArgonFeature
             o.AutoSessionTracking = options.AutoSessionTracking;
             o.TracesSampleRate    = options.TracesSampleRate;
             o.ProfilesSampleRate  = options.ProfilesSampleRate;
+            o.SampleRate          = (float)options.SampleRate;
+            o.SendDefaultPii      = options.SendDefaultPii;
+            o.AttachStacktrace    = options.AttachStacktrace;
+            o.MaxBreadcrumbs      = options.MaxBreadcrumbs;
             o.DiagnosticLogger    = new TraceDiagnosticLogger(SentryLevel.Debug);
+
+            if (!string.IsNullOrWhiteSpace(options.Environment))
+                o.Environment = options.Environment;
+
+            // Which build, not just which deployment. Left to configuration when it is set, because
+            // a self-hosted instance may want to name its own; otherwise the running version, which
+            // is what makes an event point at a commit.
+            o.Release = string.IsNullOrWhiteSpace(options.Release)
+                ? $"argon@{GlobalVersion.FullSemVer}+{GlobalVersion.ShortSha}"
+                : options.Release;
+
+            // WHICH ROLE RAISED IT.
+            //
+            // Every role runs from one image and reports to one project, so without this an event
+            // says "argon" and nothing more — and the roles fail differently enough that the first
+            // question about any event is which one it came from. A tag rather than a context
+            // because Sentry indexes tags: this is meant to be searched and grouped by.
+            o.DefaultTags["argon.role"] = ctx.Role.Id.Value;
+
+            // Both are opt-in in the SDK. Metrics additionally need the bridge below, which has
+            // nothing to send them through unless this is on.
+            o.EnableLogs    = options.EnableLogs;
+            o.EnableMetrics = options.Metrics.Enabled;
         });
+
+        if (options.Metrics.Enabled)
+            ctx.Services.AddHostedService<SentryMeterBridge>();
     }
 }
 

@@ -82,6 +82,13 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- The meter bridge's matching and mapping rules are internal on purpose — they are not an
+             API — but they are also the two decisions in it that are silent when wrong, so the fast
+             suite checks them directly rather than through a host. -->
+        <InternalsVisibleTo Include="ArgonSharedLogicTest" />
+    </ItemGroup>
+
+    <ItemGroup>
         <ProjectReference Include="..\Argon.CodeGenAccount\Argon.Ion.CodeGenAccount.csproj" />
         <ProjectReference Include="..\Argon.CodeGenAdmin\Argon.Ion.CodeGenAdmin.csproj" />
         <ProjectReference Include="..\Argon.CodeGen\Argon.Ion.CodeGen.csproj" />
