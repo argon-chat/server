@@ -31,7 +31,26 @@ public sealed class BotGatewayGrain(
     }
 
     private BotIntent                                       _intents;
-    private bool                                            _isConnected;
+
+    /// <summary>
+    /// How many SSE streams are open for this bot, not whether one is.
+    /// </summary>
+    /// <remarks>
+    /// <para>This grain is keyed by the bot, and every stream calls <see cref="ConnectAsync"/> when
+    /// it opens and <see cref="DisconnectAsync"/> when it closes. A boolean made the <i>second</i>
+    /// close tear down the <i>first</i> stream's subscription, and the two do not have to be
+    /// concurrent for that to happen: the endpoint disconnects from the <c>finally</c> of an async
+    /// enumerator, which runs when cancellation reaches it rather than when the client walked away.
+    /// A bot that reconnects faster than its previous stream unwinds — which is what a reconnect is
+    /// — therefore came back to a gateway that went offline a few milliseconds later, and then
+    /// received nothing at all while looking perfectly connected.</para>
+    ///
+    /// <para>Counting instead means the last stream out does the teardown. Overlapping streams
+    /// still share one set of durable NATS consumers, so they divide the events between them rather
+    /// than each seeing all of them — that is the shape of one gateway per bot, and unchanged here.
+    /// What changed is that closing one no longer silences the others.</para>
+    /// </remarks>
+    private int                                             _openStreams;
     private IGrainTimer?                                    _heartbeatTimer;
     private readonly Dictionary<Guid, INatsJSConsumer>      _consumers = new();
     private readonly List<Guid>                             _spaceIds  = new();
@@ -42,14 +61,16 @@ public sealed class BotGatewayGrain(
     private ulong                                           _lastDirectSeq;
     private int                                             _presenceTickCount;
 
+    private bool _isConnected => _openStreams > 0;
+
     private Guid BotUserId => this.GetPrimaryKey();
 
     private string BotSessionId => $"bot_{BotUserId:N}";
 
     public async Task<List<BotSpaceInfo>> ConnectAsync(BotIntent intents)
     {
-        _intents     = intents;
-        _isConnected = true;
+        _intents = intents;
+        _openStreams++;
 
         // Get bot's spaces
         var spaceIds = await GrainFactory.GetGrain<IUserGrain>(BotUserId).GetMyServersIds();
@@ -142,7 +163,19 @@ public sealed class BotGatewayGrain(
 
     public async Task DisconnectAsync()
     {
-        _isConnected = false;
+        // Guarded rather than decremented blindly: OnDeactivateAsync also calls this, and a stream
+        // whose disconnect arrives after the grain has already been torn down must not push the
+        // count negative and leave the next connect one short of online.
+        if (_openStreams > 0)
+            _openStreams--;
+
+        if (_openStreams > 0)
+        {
+            logger.LogInformation("Bot {BotId} closed a stream; {Remaining} still open",
+                BotUserId, _openStreams);
+            return;
+        }
+
         _heartbeatTimer?.Dispose();
         _heartbeatTimer = null;
 
@@ -410,7 +443,11 @@ public sealed class BotGatewayGrain(
     public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
         if (_isConnected)
+        {
+            // Whatever streams were still open die with the grain, so this is the last one out.
+            _openStreams = 1;
             await DisconnectAsync();
+        }
 
         await base.OnDeactivateAsync(reason, cancellationToken);
     }

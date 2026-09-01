@@ -2,5 +2,27 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended"
+  ],
+  "packageRules": [
+    {
+      "description": "TypeScript 7 is the Go rewrite and does not expose ts.sys, which is where @vue/compiler-sfc gets file access when it resolves an imported type. Every SFC that types defineProps from an imported interface then fails the build. Tried and reverted; see src/Frontend/Aegis/README.md.",
+      "matchFileNames": [
+        "src/Frontend/**"
+      ],
+      "matchPackageNames": [
+        "typescript"
+      ],
+      "allowedVersions": "<7.0.0"
+    },
+    {
+      "description": "Tailwind 4 is a rewrite rather than an upgrade, and its @config compatibility shim carries neither theme.container nor the sizing scale — the sign-in widget comes out roughly three times its intended size. Migrating means porting tailwind.config.js into CSS @theme and re-checking every screen, which is a task of its own. The developer console beside it is already on 4 and is not covered by this rule.",
+      "matchFileNames": [
+        "src/Frontend/Aegis/**"
+      ],
+      "matchPackageNames": [
+        "tailwindcss"
+      ],
+      "allowedVersions": "<4.0.0"
+    }
   ]
 }
