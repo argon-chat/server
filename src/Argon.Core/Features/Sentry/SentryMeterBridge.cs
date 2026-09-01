@@ -63,7 +63,7 @@ public sealed class SentryMeterBridge(
 
         logger.LogInformation(
             "Sentry meter bridge listening to {Meters}, reading observable instruments every {Interval}",
-            string.Join(", ", settings.Meters), settings.ObservableInterval);
+            string.Join(", ", settings.Effective), settings.ObservableInterval);
 
         return Task.CompletedTask;
     }
@@ -117,7 +117,7 @@ public sealed class SentryMeterBridge(
         return false;
     }
 
-    private bool IsListenedTo(string meterName) => IsListenedTo(meterName, settings.Meters);
+    private bool IsListenedTo(string meterName) => IsListenedTo(meterName, settings.Effective);
 
     /// <summary>
     /// Which kind of Sentry metric an instrument becomes.

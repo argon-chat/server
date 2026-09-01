@@ -26,8 +26,9 @@ public sealed class ArgonSentryOptions : IValidatableFeatureOptions
 
         if (Metrics.Enabled)
         {
-            report.Require(Metrics.Meters.Count > 0, $"{nameof(Metrics)}:{nameof(Metrics.Meters)}",
-                "is empty, so the bridge would listen to nothing and the setting is a lie");
+            foreach (var meter in Metrics.Meters)
+                report.Require(!string.IsNullOrWhiteSpace(meter), $"{nameof(Metrics)}:{nameof(Metrics.Meters)}",
+                    "contains a blank name, which matches nothing and is more likely a stray comma");
 
             report.Require(Metrics.ObservableInterval > TimeSpan.Zero,
                 $"{nameof(Metrics)}:{nameof(Metrics.ObservableInterval)}",
@@ -119,18 +120,35 @@ public sealed class SentryMetricsOptions
     public bool Enabled { get; set; }
 
     /// <summary>
-    /// Meter names to forward. A name ending in <c>.</c> or <c>*</c> matches by prefix, so
-    /// <c>Microsoft.AspNetCore.*</c> takes the family; anything else must match exactly.
+    /// The same meters the OTLP exporter already forwards, used when configuration names none.
     /// </summary>
-    public List<string> Meters { get; set; } =
+    public static readonly string[] DefaultMeters =
     [
-        "Argon",                 // the product's own instruments
-        "Ion",                   // the RPC transport
-        "Microsoft.Orleans.*",   // grain calls, activations, the directory, the scheduler
-        "Microsoft.AspNetCore.*",// requests, routing, rate limiting, Kestrel
-        "System.Runtime",        // GC, threadpool, exceptions
-        "System.Net.Http"        // what this process calls out to
+        "Argon",                  // the product's own instruments
+        "Ion",                    // the RPC transport
+        "Microsoft.Orleans.*",    // grain calls, activations, the directory, the scheduler
+        "Microsoft.AspNetCore.*", // requests, routing, rate limiting, Kestrel
+        "System.Runtime",         // GC, threadpool, exceptions
+        "System.Net.Http"         // what this process calls out to
     ];
+
+    /// <summary>
+    /// Meter names to forward, or empty for <see cref="DefaultMeters"/>. A name ending in <c>.</c>
+    /// or <c>*</c> matches by prefix, so <c>Microsoft.AspNetCore.*</c> takes the family; anything
+    /// else must match exactly.
+    /// </summary>
+    /// <remarks>
+    /// Empty rather than pre-populated, and that is not a style choice. Configuration binding
+    /// <i>appends</i> to a collection that already has items rather than replacing it, so a default
+    /// list here would mean a deployment naming three meters in <c>appsettings.json</c> silently got
+    /// those three plus these six — and could never narrow the set at all. The default is applied by
+    /// <see cref="Effective"/> instead, where "configuration said nothing" and "configuration said
+    /// this" stay distinguishable.
+    /// </remarks>
+    public List<string> Meters { get; set; } = [];
+
+    /// <summary>What the bridge actually listens to.</summary>
+    public IReadOnlyList<string> Effective => Meters.Count > 0 ? Meters : DefaultMeters;
 
     /// <summary>
     /// How often observable instruments — gauges and the like — are read.
