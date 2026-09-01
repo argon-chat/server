@@ -87,7 +87,12 @@ public static class ArgonOrleansHosting
     /// between regions.</para>
     /// </remarks>
     public static IServiceCollection AddArgonSerializer(this IServiceCollection services)
-        => services.AddSerializer(x => x.AddNewtonsoftJsonSerializer(_ => true, options =>
+    {
+        // Having a codec for a type is not the same as being allowed to name it, and the catch-all
+        // below only supplies the first. See IonUnionTypeFilter for what the second one cost.
+        services.AddSingleton<ITypeFilter, IonUnionTypeFilter>();
+
+        return services.AddSerializer(x => x.AddNewtonsoftJsonSerializer(_ => true, options =>
             options.Configure(z =>
             {
                 z.SerializerSettings                       ??= new JsonSerializerSettings();
@@ -98,6 +103,7 @@ public static class ArgonOrleansHosting
                 z.SerializerSettings.Converters.Add(new IonArrayConverter());
                 z.SerializerSettings.Converters.Add(new StringEnumConverter());
             })));
+    }
 
     private static string DatacenterOf(WebApplicationBuilder builder)
         => ArgonDatacenter.Current;
