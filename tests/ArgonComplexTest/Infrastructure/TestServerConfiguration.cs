@@ -125,7 +125,11 @@ public static class TestServerConfiguration
         // the Sentry tunnel lives on the entry point, not here. One is configured anyway so the
         // exclusion itself stays covered -- it is a branch whose absence looks exactly like a
         // branch that works, since both leave every real path with a policy.
-        ["Aegis:CspExcludedPaths:0"]       = "/k"
+        ["Aegis:CspExcludedPaths:0"]       = "/k",
+
+        // Where userinfo builds avatar addresses. Empty in the shipped defaults, so without this the
+        // field is simply absent and a test for it would be asserting the absence of configuration.
+        ["Aegis:AvatarBaseUrl"]            = "https://api.test.local"
     };
 
     /// <summary>Account deletion needs a grace period configured before it will schedule anything.</summary>

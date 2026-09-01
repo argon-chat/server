@@ -3,6 +3,7 @@ namespace Argon.Api.Features.Aegis;
 using System.Collections.Immutable;
 using System.Text.Json;
 using Argon.Features.Aegis;
+using Argon.Features.Storage;
 using OpenIddict.Abstractions;
 using OpenIddict.Server;
 using static OpenIddict.Server.OpenIddictServerEvents;
@@ -130,7 +131,7 @@ public sealed class ValidateTokenHandler(IAegisDirectory directory)
 /// proved it for this token.
 /// </para>
 /// </remarks>
-public sealed class UserInfoHandler(IClusterClient cluster)
+public sealed class UserInfoHandler(IClusterClient cluster, IOptions<AegisOptions> options)
     : IOpenIddictServerHandler<HandleUserInfoRequestContext>
 {
     public async ValueTask HandleAsync(HandleUserInfoRequestContext context)
@@ -158,6 +159,14 @@ public sealed class UserInfoHandler(IClusterClient cluster)
         {
             context.PreferredUsername = me.Username.ToLowerInvariant();
             context.Claims.Add("displayName", new OpenIddictParameter(me.DisplayName));
+
+            // An address rather than an identifier, because an identifier is only useful to somebody
+            // who already knows how this deployment stores files — and an application integrating
+            // over OIDC does not, and should not have to. Absent rather than empty when there is no
+            // avatar: a consumer checking for the field is right, and one that would have rendered an
+            // empty string is not given the chance.
+            if (AvatarUrlFor(me.AvatarFileId) is { } avatarUrl)
+                context.Claims.Add("avatarUrl", new OpenIddictParameter(avatarUrl));
         }
 
         if (scopes.Contains(ArgonScopes.Role))
@@ -183,6 +192,24 @@ public sealed class UserInfoHandler(IClusterClient cluster)
         context.Claims.Add("isBanned", new OpenIddictParameter(me.LockDownIsAppealable));
 
         AddOperatorClaims(context, scopes);
+    }
+
+    /// <summary>
+    /// The stable address of a user's avatar, or null when there is nothing to point at.
+    /// </summary>
+    /// <remarks>
+    /// Composed on the API's own base, so the URL survives the storage behind it being re-pointed:
+    /// what it names is an endpoint that decides, per request, which regional mirror to send the
+    /// caller to. A URL naming a mirror would be correct until the mirror moved, and by then it would
+    /// be sitting in someone else's database.
+    /// </remarks>
+    private string? AvatarUrlFor(string? avatarFileId)
+    {
+        var baseUrl = options.Value.AvatarBaseUrl;
+
+        return string.IsNullOrWhiteSpace(baseUrl) || string.IsNullOrWhiteSpace(avatarFileId)
+            ? null
+            : CdnOptions.FileUrlOn(baseUrl, avatarFileId);
     }
 
     private static void AddOperatorClaims(HandleUserInfoRequestContext context, ImmutableArray<string> scopes)

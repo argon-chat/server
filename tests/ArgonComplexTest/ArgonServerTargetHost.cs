@@ -111,6 +111,12 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("Storage:BucketName", settings.S3Bucket);
         builder.UseSetting("Storage:ExportBucketName", settings.S3Bucket);
         builder.UseSetting("Storage:Region", "us-east-1");
+
+        // The CDN half. Configured because the redirect endpoint reads it, and a default-constructed
+        // one sends a relative Location that the caller resolves against the API itself.
+        builder.UseSetting("Storage:Cdn:PublicBaseUrl", "https://api.test.local");
+        builder.UseSetting("Storage:Cdn:Default:BaseUrl", "https://cdn.test.local");
+        builder.UseSetting("Storage:Cdn:RedirectCacheSeconds", "300");
         builder.UseSetting("Storage:UseSsl", "false");
 
         builder.UseSetting("CallKit:Sfu:CommandUrl", "http://localhost:7880");

@@ -80,8 +80,24 @@ public class CdnOptions
            .ToDictionary(g => g.Key, g => g.First().r, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Stable by-fileId URL the API 302s (region resolved per-fetch). Relative when PublicBaseUrl is unset.</summary>
+    /// <summary>
+    /// The path the API answers file redirects on.
+    /// </summary>
+    /// <remarks>
+    /// A constant because more than one thing composes this URL and they are not near each other —
+    /// the redirect endpoint declares the route, this builder emits it for the API's own consumers,
+    /// and the identity server emits it for third-party applications. Three spellings of the same
+    /// path is three chances for one of them to be wrong in a way that only shows up as a broken
+    /// image somewhere nobody is looking.
+    /// </remarks>
+    public const string FilePath = "/files";
+
+    /// <summary>The same address, on a base the caller chooses rather than the configured one.</summary>
+    public static string FileUrlOn(string baseUrl, string fileId)
+        => $"{baseUrl.TrimEnd('/')}{FilePath}/{fileId}";
+
     public string BuildFileUrl(Guid fileId)
-        => $"{PublicBaseUrl.TrimEnd('/')}/files/{fileId}";
+        => FileUrlOn(PublicBaseUrl, fileId.ToString());
 
     /// <summary>Stable by-key URL for keyless assets (cached GIFs, flat-keyed avatars in exports).</summary>
     public string BuildKeyUrl(string objectKey)

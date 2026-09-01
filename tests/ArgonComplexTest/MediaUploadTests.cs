@@ -7,6 +7,7 @@ using Argon.Features.Storage;
 using ArgonComplexTest.Infrastructure;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Options;
 
 /// <summary>
@@ -233,6 +234,48 @@ public class MediaUploadTests : TestBase
                     FileSize: 512L * 1024 * 1024, spaceId, channelId), ct),
             Throws.Exception,
             "half a gigabyte was accepted for a channel attachment, and the limit only exists here");
+    }
+
+    // ── the address handed to clients ───────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The public file address redirects somewhere a caller can actually go.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>This is the shape of a production outage, not a hypothetical.</b> The endpoint reads
+    /// the storage options; the role that serves it did not declare that section; the options bound to
+    /// a default-constructed instance with no regional origins. The redirect then carried the bare
+    /// object key as its <c>Location</c> — relative, so every caller resolved it against the API and
+    /// got a 404 — and no cache window, so the round trip was paid again on every image. Nothing
+    /// failed to start, nothing was logged, and every avatar in the product was broken.</para>
+    ///
+    /// <para>Both halves are asserted because both were wrong for the same reason and either alone
+    /// would let the other back in.</para>
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task A_file_address_redirects_somewhere_absolute_and_says_how_long_it_keeps()
+    {
+        using var client = FactoryAsp.CreateClient(new WebApplicationFactoryClientOptions
+        {
+            AllowAutoRedirect = false
+        });
+
+        using var response = await client.GetAsync($"{CdnOptions.FilePath}/{Guid.CreateVersion7()}");
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Found));
+
+        var location = response.Headers.Location;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(location?.IsAbsoluteUri, Is.True,
+                $"the redirect is relative ('{location}'), so a browser resolves it against whatever "
+              + "host it asked — which is the API, where nothing serves it");
+
+            Assert.That(response.Headers.CacheControl?.ToString(), Does.Contain("max-age="),
+                "the redirect is region-dependent but not cacheable at all, so every image fetch pays "
+              + "for a round trip that could have been remembered");
+        });
     }
 
     // ── addressing ──────────────────────────────────────────────────────────────────────────────

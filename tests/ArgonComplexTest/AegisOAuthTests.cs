@@ -4,6 +4,11 @@ using System.Net;
 using System.Net.Http.Json;
 using Argon.Api.Features.Aegis;
 using Argon.Entities;
+using System.Net.Http.Headers;
+using System.Security.Cryptography;
+using System.Text;
+using System.Web;
+using Argon.Features.Aegis;
 using Argon.Features.Clustering;
 using ArgonComplexTest.Infrastructure;
 using Microsoft.EntityFrameworkCore;
@@ -27,7 +32,9 @@ using AccountContracts;
 [TestFixture]
 public class AegisOAuthTests : TestBase
 {
-    private RoleHost host        = null!;
+    private RoleHost host         = null!;
+    private TestUserSession ownerSession = null!;
+    private string          oauthClientId = null!;
     private string   clientId    = null!;
     private Guid     ownerId;
     private NewUserCredentialsInputForTest ownerCredentials = null!;
@@ -51,7 +58,26 @@ public class AegisOAuthTests : TestBase
         var app   = await teams.CreateClientAppAsync(team.teamId, "Aegis Test App", ClientAppPlatform.WebBased);
 
         clientId = app.clientId;
+
+        // A second application, and a bot one, because only bots take part in OAuth: the credentials
+        // the authorization endpoint resolves come from BotEntities alone, so a client app has no
+        // client secret, no redirects and no scopes and is refused as an unknown client. The widget
+        // tests above never noticed, because the widget's own API answers from a different lookup and
+        // none of them reaches /connect.
+        var oauthApp = await teams.CreateBotAppAsync(team.teamId, "Aegis OAuth App",
+            $"aegisoauth{Guid.NewGuid():N}"[..16]);
+
+        oauthClientId = oauthApp.clientId;
+
+        await teams.AddRedirectAsync(team.teamId, oauthApp.appId, RedirectUri);
+        await teams.UpdateScopeAsync(team.teamId, oauthApp.appId,
+            new ScopeKeyValue(isRequired: true, ArgonScopes.UserRead, isLocked: false));
+
+        ownerSession = owner;
     }
+
+    /// <summary>Registered on the application above; the authorization endpoint checks it exactly.</summary>
+    private const string RedirectUri = "https://app.test.local/callback";
 
     [OneTimeTearDown]
     public async Task StopTheIdentityServer()
@@ -276,12 +302,150 @@ public class AegisOAuthTests : TestBase
 
     // ── helpers ──────────────────────────────────────────────────────────────────────────────
 
-    private Task<OAuthAuthorizeResponse> SignIn(HttpClient client, NewUserCredentialsInputForTest credentials)
+    /// <summary>
+    /// What an application actually receives about a user, all the way to <c>userinfo</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>The whole leg is here — consent, the authorization code, the exchange at the token
+    /// endpoint, the call to <c>userinfo</c> — because none of it was covered and because the field
+    /// under test only exists at the end of it. Asserting that a handler would have added a claim
+    /// proves nothing about what a third party is handed.</para>
+    ///
+    /// <para><c>avatarUrl</c> is the point: an application integrating over OIDC has no way to turn a
+    /// file identifier into an address, so it gets the address. It names the API rather than a
+    /// storage mirror, which is what makes it survive the storage behind it moving.</para>
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task Userinfo_hands_an_application_a_usable_avatar_address()
+    {
+        var avatarFileId = await GiveTheOwnerAnAvatar();
+
+        using var client = AegisClient.For(host);
+
+        var claims = await AuthorizeAndReadUserInfo(client);
+
+        Assert.That(claims.Value<string>("avatarUrl"), Is.EqualTo($"{AvatarBase}/files/{avatarFileId}"),
+            "an application was given no avatar address, or one it cannot resolve");
+    }
+
+    /// <summary>
+    /// And nothing at all when the account has no avatar.
+    /// </summary>
+    /// <remarks>
+    /// Absent rather than empty: a consumer that checks for the field is answered correctly, and one
+    /// that would have rendered an empty string never gets the chance to.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task Userinfo_omits_the_avatar_address_when_there_is_none()
+    {
+        using var client = AegisClient.For(host);
+
+        var withoutAvatar = await CreateSessionAsync();
+        var claims        = await AuthorizeAndReadUserInfo(client, withoutAvatar.Credentials);
+
+        Assert.That(claims.ContainsKey("avatarUrl"), Is.False,
+            "an account with no avatar was still given an address, which resolves to nothing");
+    }
+
+    /// <summary>The base the identity server is configured to build avatar addresses on.</summary>
+    private const string AvatarBase = "https://api.test.local";
+
+    /// <summary>
+    /// Uploads a real avatar for the owner, through the ordinary client path.
+    /// </summary>
+    /// <remarks>
+    /// Through the API rather than by writing the column, because the identifier userinfo reports has
+    /// to be one the upload path actually produced — setting it directly would assert that this test
+    /// can write to a database.
+    /// </remarks>
+    private async Task<string> GiveTheOwnerAnAvatar()
+    {
+        var users  = ownerSession.Client.ForService<IUserInteraction>(FactoryAsp.Services);
+        var begin  = await users.BeginUploadAvatar();
+
+        if (begin is not SuccessUploadFile ticket)
+        {
+            Assert.Fail($"could not start an avatar upload: {(begin as FailedUploadFile)?.error}");
+            return string.Empty;
+        }
+
+        var png = Convert.FromBase64String(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==");
+
+        using var stored = await TestObjectStore.UploadAsync(ticket.uploadUrl, png, "image/png",
+            ticket.formFields.Select(f => (f.key, f.value)));
+
+        Assert.That(stored.IsSuccessStatusCode, Is.True, "the object store refused the avatar upload");
+
+        await users.CompleteUploadAvatar(ticket.blobId);
+
+        return (await users.GetMe()).avatarFileId!;
+    }
+
+    /// <summary>
+    /// Signs in, consents, redeems the code and reads <c>userinfo</c> — the flow an application runs.
+    /// </summary>
+    private async Task<JObject> AuthorizeAndReadUserInfo(
+        HttpClient client, NewUserCredentialsInputForTest? credentials = null)
+    {
+        var verifier  = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
+        var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
+
+        var signIn = await SignIn(client, credentials ?? ownerCredentials, oauthClientId);
+        Assert.That(signIn.Success, Is.True, $"sign-in failed: {signIn.Error}");
+
+        // The widget posts the flow back to the authorization endpoint as a form once consent is
+        // given; the code comes back on the redirect rather than in a body.
+        using var authorize = await client.PostAsync("/", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["client_id"]             = oauthClientId,
+            ["redirect_uri"]          = RedirectUri,
+            ["response_type"]         = "code",
+            ["scope"]                 = $"openid {ArgonScopes.UserRead}",
+            ["code_challenge"]        = challenge,
+            ["code_challenge_method"] = "S256"
+        }));
+
+        Assert.That(authorize.Headers.Location, Is.Not.Null,
+            $"the authorization endpoint did not redirect ({(int)authorize.StatusCode}): "
+          + await authorize.Content.ReadAsStringAsync());
+
+        var code = HttpUtility.ParseQueryString(authorize.Headers.Location!.Query)["code"];
+        Assert.That(code, Is.Not.Null.And.Not.Empty, "the redirect carried no authorization code");
+
+        using var token = await client.PostAsync("/connect/token", new FormUrlEncodedContent(new Dictionary<string, string>
+        {
+            ["grant_type"]    = "authorization_code",
+            ["code"]          = code!,
+            ["redirect_uri"]  = RedirectUri,
+            ["client_id"]     = oauthClientId,
+            ["code_verifier"] = verifier
+        }));
+
+        var tokenBody = JObject.Parse(await token.Content.ReadAsStringAsync());
+        var accessToken = tokenBody.Value<string>("access_token");
+
+        Assert.That(accessToken, Is.Not.Null.And.Not.Empty,
+            $"the token endpoint returned no access token: {tokenBody}");
+
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/connect/userinfo");
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        using var userInfo = await client.SendAsync(request);
+
+        return JObject.Parse(await userInfo.Content.ReadAsStringAsync());
+    }
+
+    private static string Base64Url(byte[] bytes)
+        => Convert.ToBase64String(bytes).Replace('+', '-').Replace('/', '_').TrimEnd('=');
+
+    private Task<OAuthAuthorizeResponse> SignIn(
+        HttpClient client, NewUserCredentialsInputForTest credentials, string? forClientId = null)
         => Post<OAuthAuthorizeResponse>(client, "/api/auth/oauth/authorize", new
         {
             email    = credentials.email,
             password = credentials.password,
-            clientId
+            clientId = forClientId ?? clientId
         });
 
     private static async Task<JObject> Post(HttpClient client, string path, object body)

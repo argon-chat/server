@@ -3,6 +3,7 @@ namespace Argon.Api.Clustering;
 using Argon.Features.AccountConsole;
 using Argon.Features.Aegis;
 using Argon.Features.Sentry;
+using Argon.Features.Storage;
 using Argon.Features.Web;
 using Argon.Features.WebSession;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
@@ -278,10 +279,19 @@ public sealed class WebSessionFeature : IArgonFeature
 
 public sealed class DiscoveryFeature : IArgonFeature
 {
+    /// <remarks>
+    /// <c>StorageOptions</c> because <c>MapCdnRedirect</c> reads it, and declaring the section is what
+    /// binds it. Without this the endpoint ran on a default-constructed one: no regional origins, so
+    /// the 302 it sent was the bare object key — a relative <c>Location</c> the browser resolved
+    /// against the API itself and got a 404 — and no cache window, so every image fetch paid for the
+    /// round trip again. Nothing failed to start and nothing was logged; the only signal was a
+    /// configuration warning saying the storage file did not name a feature this role enables.
+    /// </remarks>
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("client bootstrap and CDN redirects")
             .After<RoutingFeature>()
-            .Options<DiscoveryOptions>(DiscoveryOptions.SectionName);
+            .Options<DiscoveryOptions>(DiscoveryOptions.SectionName)
+            .Options<StorageOptions>(StorageOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddDiscoveryFeature();

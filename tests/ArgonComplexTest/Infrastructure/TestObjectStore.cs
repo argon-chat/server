@@ -7,6 +7,8 @@ using Genbox.SimpleS3.Core.Extensions;
 using Genbox.SimpleS3.Extensions.GenericS3.Extensions;
 using Genbox.SimpleS3.Extensions.HttpClient.Extensions;
 using Microsoft.Extensions.DependencyInjection;
+using System.Net;
+using System.Net.Sockets;
 
 /// <summary>
 /// Provisioning the object store the suite uploads into.
@@ -22,6 +24,45 @@ using Microsoft.Extensions.DependencyInjection;
 /// </remarks>
 public static class TestObjectStore
 {
+    /// <summary>
+    /// Sends bytes to a presigned URL, exactly as it was signed.
+    /// </summary>
+    /// <remarks>
+    /// <para>Nothing is added to the request beyond what the caller passes: the host and, where the
+    /// server chose to sign one, the content type are part of the signature, so a header improvised
+    /// here would be rejected by the store rather than by anything under test.</para>
+    ///
+    /// <para>DNS is skipped. A virtual-host URL names <c>{bucket}.{endpoint}</c>, and nothing on a
+    /// test machine answers for that; dialling the mapped port directly leaves the request — and so
+    /// the signature — untouched, which resolving to a different host would not.</para>
+    /// </remarks>
+    public static async Task<HttpResponseMessage> UploadAsync(
+        string url, byte[] payload, string contentType, IEnumerable<(string Key, string Value)> signedHeaders)
+    {
+        var port = int.Parse(ArgonTestEnvironment.Instance.S3Endpoint.Split(':')[1]);
+
+        using var client = new HttpClient(new SocketsHttpHandler
+        {
+            ConnectCallback = async (_, token) =>
+            {
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+
+                await socket.ConnectAsync(IPAddress.Loopback, port, token);
+
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+        });
+
+        using var content = new ByteArrayContent(payload);
+
+        content.Headers.TryAddWithoutValidation("Content-Type", contentType);
+
+        foreach (var (key, value) in signedHeaders)
+            content.Headers.TryAddWithoutValidation(key, value);
+
+        return await client.PutAsync(url, content);
+    }
+
     public static async Task EnsureBucketAsync(
         string endpoint, string accessKey, string secretKey, string bucket, CancellationToken ct)
     {

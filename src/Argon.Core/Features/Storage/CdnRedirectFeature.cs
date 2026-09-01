@@ -34,10 +34,12 @@ public static class CdnRedirectFeature
 {
     public static WebApplication MapCdnRedirect(this WebApplication app)
     {
-        app.MapGet("/files/{fileId:guid}", FileRedirectHandler)
+        // The path comes from CdnOptions, which is also where it is composed into URLs -- see
+        // CdnOptions.FilePath for why the route and the builders read one constant.
+        app.MapGet($"{CdnOptions.FilePath}/{{fileId:guid}}", FileRedirectHandler)
            .AllowAnonymous().RequireCors(DiscoveryFeature.OpenPublicPolicy);
 
-        app.MapGet("/files/k/{**key}", KeyRedirectHandler)
+        app.MapGet($"{CdnOptions.FilePath}/k/{{**key}}", KeyRedirectHandler)
            .AllowAnonymous().RequireCors(DiscoveryFeature.OpenPublicPolicy);
 
         return app;
