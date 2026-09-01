@@ -96,6 +96,34 @@ public sealed class ListenerRole : IArgonRole
         => features.Add<ListenerFeature>();
 }
 
+/// <summary>
+/// Carries the moderation options, so their rules can be exercised as written.
+/// </summary>
+/// <remarks>
+/// Under a section of its own rather than <c>ModeratorConfig.SectionName</c>: the real feature owns
+/// that name, and a second declaration of it makes the catalog report two owners for one section —
+/// correctly, since that is a rule the product enforces. The rules being tested read the values, not
+/// the path they came from.
+/// </remarks>
+public sealed class ModerationOptionsFeature : IArgonFeature
+{
+    public const string Section = "ModerationUnderTest";
+
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("moderation-options")
+            .Options<Argon.Features.Moderation.ModeratorConfig>(Section);
+}
+
+public sealed class ModerationOptionsRole : IArgonRole
+{
+    public static ArgonRoleId Id => new("moderation-options");
+
+    public bool IsClient => false;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+        => features.Add<ModerationOptionsFeature>();
+}
+
 public sealed class ConfiguredRole : IArgonRole
 {
     public static ArgonRoleId Id => new("configured");

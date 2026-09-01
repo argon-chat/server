@@ -64,8 +64,10 @@ public class AegisOAuthTests : TestBase
         // client secret, no redirects and no scopes and is refused as an unknown client. The widget
         // tests above never noticed, because the widget's own API answers from a different lookup and
         // none of them reaches /connect.
+        // The username has to end in "bot" -- the grain refuses anything else, and a bot is what this
+        // has to be, because only bots carry OAuth credentials.
         var oauthApp = await teams.CreateBotAppAsync(team.teamId, "Aegis OAuth App",
-            $"aegisoauth{Guid.NewGuid():N}"[..16]);
+            $"aegis{Guid.NewGuid():N}"[..12] + "bot");
 
         oauthClientId = oauthApp.clientId;
 
@@ -314,37 +316,29 @@ public class AegisOAuthTests : TestBase
     /// <para><c>avatarUrl</c> is the point: an application integrating over OIDC has no way to turn a
     /// file identifier into an address, so it gets the address. It names the API rather than a
     /// storage mirror, which is what makes it survive the storage behind it moving.</para>
+    ///
+    /// <para>Both states in one test, in order, rather than two. The account has to be the
+    /// application's owner — a stranger is refused the application entirely, which is a different
+    /// rule and one the fixture already covers — so "before" and "after" are the same account, and
+    /// splitting them would leave two tests whose result depended on which ran first.</para>
     /// </remarks>
     [Test, CancelAfter(300_000)]
-    public async Task Userinfo_hands_an_application_a_usable_avatar_address()
+    public async Task Userinfo_gains_an_avatar_address_when_the_account_gains_an_avatar()
     {
+        using var client = AegisClient.For(host);
+
+        var before = await AuthorizeAndReadUserInfo(client);
+
+        Assert.That(before.ContainsKey("avatarUrl"), Is.False,
+            "an account with no avatar was given an address, which resolves to nothing — absent is "
+          + "what lets a consumer tell the difference");
+
         var avatarFileId = await GiveTheOwnerAnAvatar();
 
-        using var client = AegisClient.For(host);
+        var after = await AuthorizeAndReadUserInfo(client);
 
-        var claims = await AuthorizeAndReadUserInfo(client);
-
-        Assert.That(claims.Value<string>("avatarUrl"), Is.EqualTo($"{AvatarBase}/files/{avatarFileId}"),
+        Assert.That(after.Value<string>("avatarUrl"), Is.EqualTo($"{AvatarBase}/files/{avatarFileId}"),
             "an application was given no avatar address, or one it cannot resolve");
-    }
-
-    /// <summary>
-    /// And nothing at all when the account has no avatar.
-    /// </summary>
-    /// <remarks>
-    /// Absent rather than empty: a consumer that checks for the field is answered correctly, and one
-    /// that would have rendered an empty string never gets the chance to.
-    /// </remarks>
-    [Test, CancelAfter(300_000)]
-    public async Task Userinfo_omits_the_avatar_address_when_there_is_none()
-    {
-        using var client = AegisClient.For(host);
-
-        var withoutAvatar = await CreateSessionAsync();
-        var claims        = await AuthorizeAndReadUserInfo(client, withoutAvatar.Credentials);
-
-        Assert.That(claims.ContainsKey("avatarUrl"), Is.False,
-            "an account with no avatar was still given an address, which resolves to nothing");
     }
 
     /// <summary>The base the identity server is configured to build avatar addresses on.</summary>

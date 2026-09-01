@@ -66,7 +66,11 @@ public class ModeratorConfig : IValidatableFeatureOptions
     /// </remarks>
     public void Validate(IFeatureConfigurationReport report)
     {
-        if (!report.SectionExists)
+        // The same switch the feature reads. AddContentModeration treats an unnamed model as "this
+        // deployment does not want moderation" and registers the no-op deliberately, so a rule that
+        // refused it here would stop every role that merely has the feature from starting. What is
+        // refused is a section that names a model and then describes one that cannot work.
+        if (!report.SectionExists || string.IsNullOrWhiteSpace(PrimaryModel.ModelPath))
             return;
 
         report.Require(ClassLabels.Length > 0, nameof(ClassLabels),

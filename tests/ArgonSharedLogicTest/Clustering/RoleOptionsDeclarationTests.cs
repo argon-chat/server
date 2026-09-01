@@ -1,0 +1,88 @@
+namespace ArgonSharedLogicTest.Clustering;
+
+using System.Reflection;
+using Argon.Features.Clustering;
+
+/// <summary>
+/// Whether every role can actually read the settings its own code asks for.
+/// </summary>
+/// <remarks>
+/// <para><b>This is the check that was missing when the file redirect broke in production.</b> The
+/// endpoint's handler takes <c>IOptions&lt;StorageOptions&gt;</c>; the feature that maps it declared
+/// only its own section. Declaring is what binds, so on the role that serves that endpoint the
+/// handler got a default-constructed instance — no regional origins, so it redirected to a relative
+/// path the caller resolved against the API and got a 404, and no cache window, so every image paid
+/// for the round trip again. The process was healthy throughout and logged nothing.</para>
+///
+/// <para><b>No functional test could have caught it</b>, and that is the reason this one is here
+/// rather than another scenario. The integration suite composes every role into a single process, so
+/// some feature always declares the section and the binding always exists; the defect only appears
+/// where the roles are split, which is production. A check that walks the roles as declared is the
+/// only place it is visible before a deploy.</para>
+///
+/// <para>Per role rather than per feature, because a feature is allowed to read what a feature it
+/// requires declared — that is what requiring one is for. What is not allowed is a role that maps
+/// code reaching for a section nothing in that role owns.</para>
+/// </remarks>
+[TestFixture]
+public class RoleOptionsDeclarationTests
+{
+    /// <summary>
+    /// The production roles, forced into the process before anything asks what roles there are.
+    /// </summary>
+    /// <remarks>
+    /// The scan looks at loaded assemblies, and .NET loads one when something first needs a type from
+    /// it — so without this the catalog contains the fixtures' own roles and none of the real ones,
+    /// and every case passes while checking nothing. Naming a type here is what loads it.
+    /// </remarks>
+    private static readonly Assembly Product = typeof(Argon.Api.Clustering.EntryPointRole).Assembly;
+
+    private static readonly ArgonClusterCatalog Catalog = ArgonClusterCatalog.Build();
+
+    private static readonly OptionsUsageScanner Scanner = new(ClusterScanScope.Default());
+
+    private static IEnumerable<TestCaseData> Roles()
+        => Catalog.Roles.Values
+              .OrderBy(role => role.Id.Value)
+              .Select(role => new TestCaseData(role).SetName($"{{m}}({role.Id.Value})"));
+
+    /// <summary>
+    /// The roles that ship are among the ones checked.
+    /// </summary>
+    /// <remarks>
+    /// Its own test because the failure it guards is invisible: if the scan stops seeing the product
+    /// assembly, every case above still runs and still passes — over the fixtures' toy roles. A check
+    /// that cannot fail is worse than none, because it is reported as coverage.
+    /// </remarks>
+    [Test]
+    public void The_roles_that_ship_are_the_ones_being_checked()
+    {
+        var names = Catalog.Roles.Keys.Select(id => id.Value).ToHashSet();
+
+        Assert.That(Product, Is.Not.Null);
+        Assert.That(names, Is.SupersetOf(new[] { "entrypoint", "core", "media", "aegis", "jobs" }),
+            $"the catalog holds {string.Join(", ", names.Order())} — the production roles are not in "
+          + "it, so every case in this fixture is checking the fixtures' own roles");
+    }
+
+    [TestCaseSource(nameof(Roles))]
+    public void Every_setting_a_role_reads_is_declared_by_one_of_its_features(RoleDescriptor role)
+    {
+        var declared = role.Features.Ordered
+           .SelectMany(feature => feature.Options.Select(option => option.OptionsType))
+           .ToHashSet();
+
+        var undeclared = role.Features.Ordered
+           .SelectMany(feature => Scanner.UsagesOf(feature.FeatureType)
+                                         .Where(used => !declared.Contains(used))
+                                         .Select(used => (Feature: feature.Name, Setting: used.Name)))
+           .Distinct()
+           .OrderBy(x => x.Feature)
+           .ToArray();
+
+        Assert.That(undeclared, Is.Empty,
+            $"role '{role.Id.Value}' runs code that reads settings no feature of it declared, so those "
+          + "settings bind to defaults and the code runs on them silently: "
+          + string.Join(", ", undeclared.Select(x => $"{x.Feature} reads {x.Setting}")));
+    }
+}

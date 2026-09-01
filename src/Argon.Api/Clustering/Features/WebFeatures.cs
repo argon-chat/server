@@ -279,28 +279,46 @@ public sealed class WebSessionFeature : IArgonFeature
 
 public sealed class DiscoveryFeature : IArgonFeature
 {
-    /// <remarks>
-    /// <c>StorageOptions</c> because <c>MapCdnRedirect</c> reads it, and declaring the section is what
-    /// binds it. Without this the endpoint ran on a default-constructed one: no regional origins, so
-    /// the 302 it sent was the bare object key — a relative <c>Location</c> the browser resolved
-    /// against the API itself and got a 404 — and no cache window, so every image fetch paid for the
-    /// round trip again. Nothing failed to start and nothing was logged; the only signal was a
-    /// configuration warning saying the storage file did not name a feature this role enables.
-    /// </remarks>
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("client bootstrap and CDN redirects")
+        => d.Describing("client bootstrap")
             .After<RoutingFeature>()
-            .Options<DiscoveryOptions>(DiscoveryOptions.SectionName)
-            .Options<StorageOptions>(StorageOptions.SectionName);
+            .Options<DiscoveryOptions>(DiscoveryOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddDiscoveryFeature();
 
     public void Map(ArgonEndpointContext ctx)
-    {
-        ctx.App.MapDiscovery();
-        ctx.App.MapCdnRedirect();
-    }
+        => ctx.App.MapDiscovery();
+}
+
+/// <summary>
+/// The public address of a file, and the object-storage settings that describe where files live.
+/// </summary>
+/// <remarks>
+/// <para><b>Its own feature because the endpoint and the settings have to travel together.</b> The
+/// redirect used to be mapped by <c>DiscoveryFeature</c>, which declared only its own section — so on
+/// a role that did not also run the storage feature the handler read a default-constructed
+/// <c>StorageOptions</c>: no regional origins, so it answered with the bare object key as a relative
+/// <c>Location</c> that callers resolved against the API and got a 404, and no cache window, so every
+/// image paid for the round trip again. The process started, stayed ready, and logged nothing.</para>
+///
+/// <para>Owning the section rather than declaring it twice: one section has one owner, or a
+/// <c>conf.d</c> file has no unambiguous home. <c>FileStorageFeature</c> requires this one and reads
+/// the same settings, which is how a silo that stores files and an entry point that only addresses
+/// them agree about where they are without the entry point taking on a database and S3 credentials
+/// it has no use for.</para>
+/// </remarks>
+public sealed class CdnFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("cdn")
+            .Describing("public file addresses and the storage settings behind them")
+            .After<RoutingFeature>()
+            .Options<StorageOptions>(StorageOptions.SectionName)
+            .Options<FileLimitsOptions>(FileLimitsOptions.SectionName);
+
+    public void Map(ArgonEndpointContext ctx)
+        => ctx.App.MapCdnRedirect();
 }
 
 public sealed class TemplateEngineFeature : IArgonFeature

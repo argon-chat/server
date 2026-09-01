@@ -133,11 +133,12 @@ public sealed class SocialFeature : IArgonFeature
 public sealed class FileStorageFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
+        // The settings live on CdnFeature, which owns the section and serves the public address built
+        // from it. Requiring it is what puts both on any role that stores files.
         => d.Describing("S3 object storage")
             .Requires<VaultFeature>()
             .Requires<DatabaseFeature>()
-            .Options<StorageOptions>(StorageOptions.SectionName)
-            .Options<FileLimitsOptions>(FileLimitsOptions.SectionName);
+            .Requires<CdnFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddFileStorageFeature();
