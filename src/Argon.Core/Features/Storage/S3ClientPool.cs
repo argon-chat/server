@@ -36,7 +36,10 @@ public sealed class S3ClientPool : IS3ClientPool
                 config.Endpoint             = opts.UseSsl ? $"https://{opts.Endpoint}" : $"http://{opts.Endpoint}";
                 config.RegionCode           = opts.Region;
                 config.Credentials          = new StringAccessKey(opts.AccessKey, opts.SecretKey);
-                config.NamingMode           = NamingMode.PathStyle;
+                // The same switch the presigned URLs are built from. Reading it in both places is the
+                // whole point: a client that uploads to one style and a server that then looks for
+                // the object in the other agree about everything except where the object is.
+                config.NamingMode           = opts.UsePathStyle ? NamingMode.PathStyle : NamingMode.VirtualHost;
                 config.PayloadSignatureMode = SignatureMode.FullSignature;
             });
 

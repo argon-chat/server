@@ -14,11 +14,18 @@ using Microsoft.Extensions.Logging;
 /// Decides whether the migration pipeline emits CockroachDB-only DDL. Getting this wrong against a
 /// vanilla PostgreSQL container fails at the first <c>CREATE TABLE … WITH (ttl = 'on')</c>.
 /// </param>
+/// <param name="S3Endpoint">
+/// Host and port of the object store, without a scheme — the shape <c>Storage:Endpoint</c> takes.
+/// </param>
 public sealed record ArgonTestHostSettings(
     string RedisConnectionString,
     string NatsConnectionString,
     string DatabaseConnectionString,
-    DatabaseProviderKind DatabaseProvider);
+    DatabaseProviderKind DatabaseProvider,
+    string S3Endpoint,
+    string S3AccessKey,
+    string S3SecretKey,
+    string S3Bucket);
 
 public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicationFactory<Program>
 {
@@ -93,6 +100,18 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
                      "IMembers", "IVoice", "IBotSelf", "ICalls", "IVoiceEgress", "IEvents"
                  })
             builder.UseSetting($"BotApi:RateLimits:Interfaces:{botInterface}:PermitLimit", "100000");
+
+        // Object storage. Configured through settings rather than by substituting a fake service, so
+        // the presigned URL the client is handed is the one production would generate and the upload
+        // is a real PUT against a real S3 — which is the half of this that has no other way of being
+        // wrong in a way a test could see.
+        builder.UseSetting("Storage:Endpoint", settings.S3Endpoint);
+        builder.UseSetting("Storage:AccessKey", settings.S3AccessKey);
+        builder.UseSetting("Storage:SecretKey", settings.S3SecretKey);
+        builder.UseSetting("Storage:BucketName", settings.S3Bucket);
+        builder.UseSetting("Storage:ExportBucketName", settings.S3Bucket);
+        builder.UseSetting("Storage:Region", "us-east-1");
+        builder.UseSetting("Storage:UseSsl", "false");
 
         builder.UseSetting("CallKit:Sfu:CommandUrl", "http://localhost:7880");
         builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");

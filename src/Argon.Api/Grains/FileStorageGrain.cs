@@ -47,11 +47,16 @@ public class FileStorageGrain(
         var fileId = ArgonId.New();
         var s3Key  = BuildS3Key(request.Purpose, fileId, userId, request.SpaceId, request.ChannelId);
 
-        var contentTypePrefix = GetContentTypePrefix(request.Purpose);
-
+        // NOT the purpose's prefix. It used to be passed here as the content type, which signed the
+        // literal string "image/" into the request and obliged the client to send exactly that — so
+        // every avatar was stored, and afterwards served, with a media type that has no subtype and
+        // that a browser will not render. It restricted nothing either: "must send image/" is not
+        // "must be an image". The prefix is a rule about the bytes, so it is checked against what the
+        // store actually received, at FinalizeUploadAsync. Signing nothing here lets the client's own
+        // Content-Type through, which is where the real type has been all along.
         var putData = presignedUrlGenerator.GeneratePresignedPut(
             s3Key,
-            contentTypePrefix,
+            contentType: null,
             _limits.BlobTtlSeconds);
 
         await using var db = await dbFactory.CreateDbContextAsync(ct);
@@ -137,6 +142,28 @@ public class FileStorageGrain(
         var metadata = await s3.HeadFileAsync(file.S3Key, ct);
         if (metadata is null)
             throw new InvalidOperationException("File not found in storage — upload may have failed");
+
+        // Validate what was actually stored against what this purpose accepts. Here rather than in
+        // the signature because this is the first moment anyone knows: the server never sees the
+        // bytes, and the content type the client declared when it asked for the URL is a claim it
+        // was never held to.
+        var required = GetContentTypePrefix(file.Purpose);
+
+        if (required is not null &&
+            !(metadata.ContentType?.StartsWith(required, StringComparison.OrdinalIgnoreCase) ?? false))
+        {
+            await s3.DeleteFileAsync(file.S3Key, ct);
+            db.Files.Remove(file);
+            db.FileBlobs.Remove(blob);
+            await db.SaveChangesAsync(ct);
+
+            StorageInstruments.UploadsFailed.Add(1,
+                new KeyValuePair<string, object?>("purpose", file.Purpose.ToString()),
+                new KeyValuePair<string, object?>("reason", "content_type_rejected"));
+
+            throw new InvalidOperationException(
+                $"Uploaded content type '{metadata.ContentType}' is not allowed for purpose {file.Purpose}");
+        }
 
         // Validate size
         if (metadata.ContentLength > blob.SizeLimit)

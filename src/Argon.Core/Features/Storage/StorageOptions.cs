@@ -12,6 +12,24 @@ public class StorageOptions
     public bool   UseSsl     { get; set; } = true;
 
     /// <summary>
+    /// Address objects as <c>{endpoint}/{bucket}/{key}</c> rather than <c>{bucket}.{endpoint}/{key}</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>One setting, because the two halves of this must agree and once did not.</b> The
+    /// server's own client addressed the store path-style while the presigned URLs handed to clients
+    /// were virtual-host — which works against a provider that accepts both and breaks against one
+    /// that does not, in a way nothing on the server can see: uploads fail at the store, on a URL the
+    /// server signed correctly for a style the store never supported.</para>
+    ///
+    /// <para>Path-style by default because it is the style every S3-compatible store understands,
+    /// including the self-hosted ones, and because a virtual-host URL additionally needs DNS for
+    /// <c>{bucket}.{endpoint}</c> to resolve — which for a store reached by address, or by a name with
+    /// no wildcard record, it does not. Turn it off only for a provider that requires the other
+    /// style.</para>
+    /// </remarks>
+    public bool UsePathStyle { get; set; } = true;
+
+    /// <summary>
     ///     When true, avatars are stored at the bucket root as just {fileId} (no path prefix).
     ///     This keeps AvatarFileId == S3 key == fileId GUID string.
     /// </summary>

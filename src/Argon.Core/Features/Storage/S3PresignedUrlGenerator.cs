@@ -31,9 +31,8 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
         var amzDate   = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
 
-        var scheme   = _opts.UseSsl ? "https" : "http";
-        var host     = $"{bucketName}.{_opts.Endpoint}";
-        var path     = $"/{objectKey}";
+        var scheme        = _opts.UseSsl ? "https" : "http";
+        var (host, path)  = Address(bucketName, objectKey);
 
         // Signed headers
         var signedHeaders = string.IsNullOrEmpty(contentType) ? "host" : "content-type;host";
@@ -107,9 +106,8 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
         var amzDate   = now.ToString("yyyyMMdd'T'HHmmss'Z'", CultureInfo.InvariantCulture);
         var credential = $"{_opts.AccessKey}/{dateStamp}/{_opts.Region}/s3/aws4_request";
 
-        var scheme = _opts.UseSsl ? "https" : "http";
-        var host   = $"{bucketName}.{_opts.Endpoint}";
-        var path   = $"/{objectKey}";
+        var scheme       = _opts.UseSsl ? "https" : "http";
+        var (host, path) = Address(bucketName, objectKey);
 
         const string signedHeaders = "host";
 
@@ -146,6 +144,20 @@ public class S3PresignedUrlGenerator(IOptions<StorageOptions> options)
 
         return $"{scheme}://{host}{path}?{canonicalQueryString}&X-Amz-Signature={signature}";
     }
+
+    /// <summary>
+    /// Where the object lives, in whichever style the store understands.
+    /// </summary>
+    /// <remarks>
+    /// The host is signed — it is the whole of <c>canonicalHeaders</c> here — so this is not merely a
+    /// way of writing a URL: composing it one way and letting the store expect the other produces a
+    /// signature the store computes differently and rejects, which is why both styles come from the
+    /// same option as the server's own client rather than from a second decision made here.
+    /// </remarks>
+    private (string Host, string Path) Address(string bucketName, string objectKey)
+        => _opts.UsePathStyle
+            ? (_opts.Endpoint, $"/{bucketName}/{objectKey}")
+            : ($"{bucketName}.{_opts.Endpoint}", $"/{objectKey}");
 
     private string CalculateSignature(string dateStamp, string stringToSign)
     {

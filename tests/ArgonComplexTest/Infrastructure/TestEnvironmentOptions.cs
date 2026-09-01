@@ -36,6 +36,7 @@ public static class TestEnvironmentOptions
 
     public const string RedisImageVariable = "ARGON_TEST_REDIS_IMAGE";
     public const string NatsImageVariable = "ARGON_TEST_NATS_IMAGE";
+    public const string MinioImageVariable = "ARGON_TEST_MINIO_IMAGE";
 
     /// <summary>
     /// Set to <c>1</c>/<c>true</c> to keep containers alive between runs (Testcontainers reuse).
@@ -138,6 +139,16 @@ public static class TestEnvironmentOptions
     public static string RedisImage => Read(RedisImageVariable) ?? "redis:7-alpine";
 
     public static string NatsImage => Read(NatsImageVariable) ?? "nats:2.10-alpine";
+
+    /// <summary>
+    /// The S3 the media tests upload to.
+    /// </summary>
+    /// <remarks>
+    /// Pinned to a release rather than <c>latest</c>: MinIO ships breaking changes to its own console
+    /// and defaults often enough that a floating tag turns an unrelated pull into a red suite, and the
+    /// only thing this suite asks of it is the S3 API, which does not move.
+    /// </remarks>
+    public static string MinioImage => Read(MinioImageVariable) ?? "minio/minio:RELEASE.2025-04-22T22-12-26Z";
 
     public static bool ReuseContainers => IsTruthy(Read(ReuseContainersVariable));
 
