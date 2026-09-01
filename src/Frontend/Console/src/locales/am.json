@@ -1,0 +1,400 @@
+{
+  "close": "Փակել",
+  "ok": "Հաստատել",
+  "or": "կամ",
+  "start": "Արարել",
+  "wait_connect": "Սպասում է կապին, խնդրում ենք սպասել...",
+  "create_new_server": "Ստեղծել նոր սերվեր",
+  "announcement": "Հայտարարություն",
+  "privacy_settings": "Գաղտնիության կարգավորումներ",
+  "cancel": "Չեղարկել",
+  "voice": "Ավագ",
+  "start_video": "Սկսել տեսանյութը",
+  "stop_video": "Ավարտել տեսանյութը",
+  "text": "Տեքստ",
+  "enter_some_text": "Մուտքագրեք ինչ-որ տեքստ...",
+  "replying_to": "Պատասխանել է՝",
+  "cannot_be_open": "Չի կարող բացվել",
+  "friends": "Ընկերներ",
+  "dont_have_friends": "Դուք չունեք ընկերներ... նույնիսկ Clippy-ն ինքնալուծվեց...",
+  "notifications": "Ծանուցումներ",
+  "no_new_notifications": "Նոր ծանուցումներ չկան",
+  "inventory": "Ապրանքներ",
+  "profile_views": "Պրոֆիլի դիտումներ",
+  "profile": "Պրոֆիլ",
+  "activity": "ակտիվություն",
+  "no_activity": "Ակտիվություն չկա..",
+  "bio": "Ծառայություն",
+  "greetings": {
+    "good_to_see_you": {
+      "title": "Դրական է տեսնել քեզ ✨",
+      "desc": "Մուտք գործիր և շարունակիր քո ուղին"
+    },
+    "hey_there": {
+      "title": "Հեյ, հա՛յ 👋",
+      "desc": "Մուտքագրիր քո հաշվի տվյալները՝ շարունակելու համար"
+    },
+    "welcome_back": {
+      "title": "Շնորհավորում ենք, որ վերադառնում եք",
+      "desc": "Նույն տեղից սկսիր, որտեղ ավարտեցիր"
+    },
+    "glad_you_here": {
+      "title": "Շնորհակալ ենք, որ այստեղ եք 🌙",
+      "desc": "Մուտք գործիր քո տարածք և մնա կապակցված"
+    },
+    "hello_again": {
+      "title": "Բարև, կրկին 🙈",
+      "desc": "Մուտք գործիր և շարունակիր ուսումնասիրել"
+    }
+  },
+  "enter_your_otp": "Մուտքագրեք ձեր OTP կոդը",
+  "enter_email": "Մուտքագրեք էլփոստը",
+  "we_will_send_reset_code": "Մենք ձեզ կուղարկենք գաղտնաբառի վերականգնման կոդը։",
+  "we_sent_it_on_email": "Մենք այն ուղարկել ենք ձեր էլփոստին։",
+  "verify_and_sigin": "Հաստատել և մուտք գործել",
+  "forgot_password": "Մոռացե՞լ եք գաղտնաբառը",
+  "reset_password": "Վերականգնել գաղտնաբառը",
+  "password": "Գաղտնաբառ",
+  "dob": "Ծննդյան օր",
+  "recive_emails_and_news": "Ստացեք ընտրովի էլփոստեր՝ թարմացումներ և նորություններ",
+  "accept": "Ընդունել",
+  "terms": "Կոնվենցիա",
+  "privacy_policy": "Գաղտնիության քաղաքականություն",
+  "register": "Գրանցում",
+  "already_have_account": "Հաշիվ ունե՞ք",
+  "next": "Հաջորդը",
+  "signin": "Մուտք գործել",
+  "dont_have_account": "Չունե՞ք հաշիվ",
+  "create_one": "Ստեղծել մեկը",
+  "qr_code_login": "կամ մուտք գործել QR կոդով",
+  "scan_with_app": "Սկանցեք Argon մոբայլ հավելվածով",
+  "create_account": "Ստեղծել հաշիվ",
+  "join_argon": "Միացեք Argon-ին և սկսեք ձեր ուղին ✨",
+  "enter_reset_code": "Մուտքագրեք վերականգնման կոդը",
+  "sent_on_email": "Նա ուղարկվել է ձեր էլփոստին։",
+  "choose_your_path": "Ընտրեք ձեր ուղին ներքևում ✨",
+  "space_name_required": "SPACE NAME հարկավոր է",
+  "role_color": "Դերերի գույնը",
+  "role_color_explain": "Անդամները օգտագործում են իրենց բարձրագույն դերի գույնը դերի ցանկում",
+  "permissions_name": "Թույլտվություններ",
+  "description": "Նկարագրություն",
+  "group_members_with_this_role": "Խմբի անդամները այդ դերով?",
+  "mention_hard": {
+    "allow_mention_role": "Թույլատրել {mention} այս դերը թույլատրել բոլորին?",
+    "mention": "@նշում"
+  },
+  "search_users": "Որոնել օգտվողներ...",
+  "users_with_this_role": "Օգտվողներ այս դերով",
+  "no_users_with_this_role": "Օգտվողներ այս դերով չկան",
+  "no_users_found": "Օգտվողներ չեն գտնվել",
+  "loading": "Loading...",
+  "saved": "📁 Պահպանված",
+  "save_changes": "Պահպանել փոփոխությունները",
+  "fail_save": "Անհաջողվեց պահպանել դերը",
+  "dev_tools": "Ազատ ծրագրավորման գործիքներ",
+  "open_dev_tools": "Բացել ծրագրավորման գործիքները",
+  "diagnostic_board": "Անցնուցական վահանակ",
+  "diagnostic_control_board_open": "Բացել անցնուցական կառավարման վահանակը",
+  "diagnostic_board_open": "Բացել անցնուցական վահանակը",
+  "copy_my_userid": "Պատճենել իմ UserId- ը",
+  "copy": "Պատճենել",
+  "channel": "Չենել",
+  "select_update_channel": "Ընտրել թարմացման չենել",
+  "select_channel_placeholder": "Օրինակ՝ Live",
+  "beta_channel": "Բետա չենել",
+  "canary_channel": "Կանարյան չենել",
+  "live_channel": "Օնլայն",
+  "api_endpoint": "API Վայրը",
+  "warning_change_endpoint": "(ՆՇՈՒՄ: Վայրը փոփոխելուց հետո բոլոր տվյալները ջնջվում են)",
+  "usedid_copied": "Ձեր UserId-ը պատճենվեց!",
+  "version_label": "Վերամշակումը: {version}",
+  "build_time_label": "Կառուցման ժամանակը: {buildtime}",
+  "host_version_label": "Հյոստ Վերամշակումը: {host_version}",
+  "select_api_endpoint_placeholder": "Օրինակ՝ Live",
+  "live_endpoint": "Օնլայն",
+  "dev_endpoint": "Աչքանցում",
+  "local_endpoint": "Տեղական",
+  "crop_image": "Կտրել պատկերն",
+  "disable_otp": "Անջատել OTP",
+  "sound_level": "Արտահոսքի մակարդակը",
+  "sound_power_of_system_notification": "Համակարգային ծանուցումների ձայնային հզորություն",
+  "no_microphone": "Փնտռել microphones չեն գտել",
+  "noname_microphone": "Անանուն Microphone",
+  "left": "MAYDAY Ձախ",
+  "right": "MAYDA YԱջ",
+  "loading_history": "Բեռնվում է պատմությունը...",
+  "delete": "Ջնջել",
+  "leave": "Դուրս գալ",
+  "kick": "Հեռացնել",
+  "connected": "Միացված է",
+  "connecting": "Միացում",
+  "reconnect": "Վերամիացում",
+  "development_panel": "Ազատ ծրագրավորման վահանակ",
+  "browser_not_support_video": "Ձեր դիտարկիչը չի աջակցում տեսանյութը։",
+  "unknown_display_name": "Անհայտ",
+  "not_supported_message_please_update": " Այս հաղորդագրությունը չի աջակցվում ձեր Argon Chat տարբերակով <br/> Խնդրում ենք թարմացնել վերջին տարբերակին կամ կրկնարկել հաճախորդը ավտոմատ թարմացման համար։",
+  "update_is_ready": "Թարմացումը պատրաստ է։",
+  "camera": "Կամերա",
+  "microphone": "Միկրոֆոն",
+  "select_audio_source": "Ընտրեք ձայնային աղբյուր",
+  "select_video_source": "Ընտրեք տեսախցիկի աղբյուր",
+  "add_channel": "Ավելացնել ալիք",
+  "channel_name_required": "Ալիքի անունը պարտադիր է",
+  "channel_type": "Ալիքի տեսակը",
+  "channel_name": "Ալիքի անվանումը",
+  "channel_type_text": "Տեքստային ալիք",
+  "channel_type_voice": "Ձայնային ալիք",
+  "channel_type_announcement": "Հայտարարություններ",
+  "join_to_server": "Միանալ սերվերին",
+  "invite_code": "Հրավերային կոդ",
+  "join_or_create_server": "Միանալ կամ ստեղծել սերվեր",
+  "servers": "Սերվերներ",
+  "users": "Օգտագործողներ",
+  "mute": "Անջատել ձայնը",
+  "unmute": "Անջատել ձայնը",
+  "noise_sup": "Շտապելու ձայների կրճատում",
+  "send_message": "Ուղարկել հաղորդագրություն",
+  "window_preview": "Նախադիտում պատուհանից",
+  "enable_sound_from_window": "Անցկացնել ձայն պատուհանից",
+  "enable_system_sound": "Անցկացնել համակարգային ձայն",
+  "screencast_title": "Ցուցադրել ձեր էկրանն կամ պատուհանը",
+  "screencast": "Էկրանային շփում",
+  "monitors": "Մոնիտորներ",
+  "windows": "Պատուհաններ",
+  "monitor_index": "Մոնիտոր {idx}",
+  "quality": "Որակը",
+  "select_quality": "Ընտրեք որակը",
+  "fps": "Կադրեր վայրկյանում (FPS)",
+  "select_fps": "Ընտրեք FPS",
+  "hotkey": "Գառուղ ստեղն",
+  "press_any_key": "Սեղմեք ցանկացած ստեղն... ",
+  "app_language": "Ծրագրի լեզու",
+  "close_behaviour": "Փակման վարք",
+  "minimize_to_tray": "Նվազեցնել դեպի տարածք կամ փակել ծրագիրը",
+  "application_settings": "Ծրագրի կարգավորումներ",
+  "connected_devices": "Կապված սարքեր",
+  "logout_all_devices": "Դուրս գալ բոլոր սարքերից",
+  "list_hotkeys": "Ձեր գառուղ ստեղների ցանկ",
+  "name": "Անվանում",
+  "is_global_q": "Գլոբալ?",
+  "global_toltip": "Գլոբալ գառուղ ստեղները աշխատում են նույնիսկ ծրագրի փակման և այլ ծրագրերում",
+  "add_invite": "Ավելացնել հրավեր",
+  "remove": "Հեռացնել",
+  "no_any_invite_codes_created": "Չկան ստեղծված հրավերային կոդեր",
+  "profile_settings": "Պրոֆիլի կարգավորումներ",
+  "username": "Օգտագործողի անուն",
+  "display_name": "Ցուցադրվող անուն",
+  "email": "Էլ. փոստ",
+  "phone_number": "Հեռախոսահամար",
+  "otp_title": "Երկրորդական վավերացում (OTP)",
+  "invite_codes": "Հրավերային կոդեր",
+  "select_camera": "Ընտրեք տեսախցիկ",
+  "no_camera_found": "Տեսախցիկներ չեն գտնվել",
+  "unnamed_camera": "Անանուն տեսախցիկ",
+  "test_camera": "Թեստային տեսահաղորդագրություն",
+  "you_not_access_to_channel_or_not_found_channels": "Դուք չունեք մուտք դեպի որևէ տեքստային ալիք կամ դրանք չեն գտնվել այս սերվերում",
+  "no_text_channel_found": "Տեքստային ալիք չի գտնվել",
+  "settings": "Կարգավորումներ",
+  "manage_settings": "Կառավարել ձեր հաշիվը և կարգավորումները",
+  "account": "Հաշիվ",
+  "application": "Ծրագիր",
+  "voice_video": "Ձայն և տեսանյութ",
+  "hotkeys": "Գառուղ ստեղներ",
+  "languages": "Լեզուներ",
+  "sounds": "Ձայներ",
+  "playSoftEnterSound": "Ձայն՝ ալիք մտնելու համար",
+  "playSoftEnterSound_details": "Վերականգնե՞լ ձայնը ալիք մտնելուց",
+  "playSoftLeaveSound": "Ձայն՝ ալիքից դուրս գալու համար",
+  "playSoftLeaveSound_details": "Վերականգնե՞լ ձայնը ալիքից դուրս գալուց",
+  "playMuteAllSound": "Ձայն՝ ամբողջական անջատման համար",
+  "playMuteAllSound_details": "Վերականգնե՞լ ձայնը ամբողջական անջատման համար",
+  "playReconnectSound": "Ձայն՝ վերաբեռնում",
+  "playReconnectSound_details": "Վերականգնե՞լ ձայնը վերաբեռնումից",
+  "playUnmuteAllSound": "Ձայն՝ ամբողջական միացման համար",
+  "playUnmuteAllSound_details": "Վերականգնե՞լ ձայնը ամբողջական միացման համար",
+  "playNotificationSound": "Ձայն՝ ծանուցման համար",
+  "playNotificationSound_details": "Վերականգնե՞լ ձայնը ծանուցման համար",
+  "playRingSound": "Ձայն՝ զանգի համար",
+  "playRingSound_details": "Վերականգնե՞լ ձայնը զանգի համար",
+  "activity_play_in": "Խաղում է",
+  "activity_work_in": "Աշխատում է",
+  "activity_stream": "Արհեստական հոսք",
+  "activity_listen": "Լսում է",
+  "key.microphone.toggle": "Միացնել / անջատել խոսափողի ձայնը",
+  "key.microphone.on": "Միացնել խոսափողի ձայնը",
+  "key.microphone.off": "Անջատել խոսափողի ձայնը",
+  "key.sound.toggle": "Միացնել / անջատել ձայնը",
+  "key.sound.on": "Անջատել ձայնը",
+  "key.sound.off": "Միացնել ձայնը",
+  "status_0": "Offline",
+  "status_1": "Online",
+  "status_2": "Away",
+  "status_5": "Շփվում է բնության հետ",
+  "status_6": "Մի անհանգստացնել",
+  "noise_sup_desc": "Արտաքին աղմուկի ճնշում (Արտաքին աղմուկի ճնշում)",
+  "select_microphone": "Ընտրել խոսափողը",
+  "voice_video_settings": "Ձայնի և տեսագրության կարգավորումներ",
+  "socials": "Սոցիալական ինտեգրումներ",
+  "typing": {
+    "one": "{name}-ը գրում է",
+    "few": "{names}-ը գրում են",
+    "many": "Մի քանի օգտատեր է գրում"
+  },
+  "force_to_mono_voice": "Համոզել միալար ռեժիմին",
+  "force_to_mono_voice_desc": "Եթե ձայնային քարտը միայն մեկ ալիքով է փոխանցում խոսափողի ձայնը, ապա կարող եք ստիպել կրկնօրինակել այն ստերեո ռեժիմում՝ խուսափելու ձայնի միայն մեկ ականջում լինելու ազդեցությունից։",
+  "unnamed_speaker": "Անանուն բարձրախոսներ",
+  "no_speakers_found": "Բարձրախոսներ չեն հայտնաբերվել",
+  "select_output": "Ընտրեք բարձրախոսը",
+  "permissions": {
+    "groups": {
+      "basic": {
+        "name": "Հիմնական մուտք",
+        "description": "Առավելագույն նվազագույն իրավունքներ դիտման և ընթերցման համար:"
+      },
+      "messaging": {
+        "name": "Հաղորդագրություններ",
+        "description": "Թույլտվություն բազմանդամ հաղորդակցման և բովանդակության համար:"
+      },
+      "voice": {
+        "name": "Ձայն և տեսո",
+        "description": "Թույլատրում է ձայնային և տեսազրույցներ:"
+      },
+      "moderation": {
+        "name": "Մոդերացիա",
+        "description": "Թույլատրում է անդամների կառավարում:"
+      },
+      "management": {
+        "name": "Կառավարում",
+        "description": "Սերվերի կարգավորում և ադմինիստրատիվ իրավունքներ:"
+      }
+    },
+    "flags": {
+      "ViewChannel": {
+        "name": "Բաժին դիտում",
+        "description": "Թույլ է տալիս տեսնել բաժինն ու դրա բովանդակությունը:"
+      },
+      "ReadHistory": {
+        "name": "Պատմության ընթերցում",
+        "description": "Թույլ է տալիս դիտել նախորդ հաղորդագրությունները:"
+      },
+      "JoinToVoice": {
+        "name": "Միանալ ձայն",
+        "description": "Թույլ է տալիս միանալ ձայնային ալիքներին:"
+      },
+      "SendMessages": {
+        "name": "Հաղորդագրություններ ուղարկել",
+        "description": "Թույլ է տալիս ուղարկել տեքստային հաղորդագրություններ:"
+      },
+      "AttachFiles": {
+        "name": "Ֆայլեր կցել",
+        "description": "Թույլ է տալիս կցել պատկերներ և փաստաթղթեր:"
+      },
+      "AddReactions": {
+        "name": "Ծագեցնել ռեակցիաներ",
+        "description": "Թույլ է տալիս ավելացնել ռեակցիաներ:"
+      },
+      "AnyMentions": {
+        "name": "Անուն տալ անդամներին",
+        "description": "Թույլ է տալիս նշել այլ օգտվողներին:"
+      },
+      "MentionEveryone": {
+        "name": "Բոլորի նշում",
+        "description": "Թույլ է տալիս օգտագործել {'@'}everyone և {'@'}here:"
+      },
+      "ExternalEmoji": {
+        "name": "Արտաքին էմոջիներ",
+        "description": "Թույլ է տալիս օգտագործել այլ սերվերից էմոջիներ:"
+      },
+      "ExternalStickers": {
+        "name": "Արտաքին ստիկերներ",
+        "description": "Թույլ է տալիս օգտագործել այլ սերվերից ստիկերներ:"
+      },
+      "UseCommands": {
+        "name": "Կոմանդների օգտագործում",
+        "description": "Թույլ է տալիս օգտագործել slash-комանդներ:"
+      },
+      "PostEmbeddedLinks": {
+        "name": "Տեղադրված հղումներ",
+        "description": "Թույլ է տալիս սերտել բովանդակություն հղումներով:"
+      },
+      "SendVoice": {
+        "name": "Ուղարկել ձայնային հաղորդագրություն",
+        "description": "Թույլ է տալիս ուղարկել ձայնային հաղորդագրություններ:"
+      },
+      "Connect": {
+        "name": "Միացե՛լ ձայնին",
+        "description": "Թույլ է տալիս միանալ ձայնային ալիքներին:"
+      },
+      "Speak": {
+        "name": "Խոսել",
+        "description": "Թույլ է տալիս խոսել ձայնային ալիքներում:"
+      },
+      "Video": {
+        "name": "Տեսանկար",
+        "description": "Թույլ է տալիս օգտագործել տեսախցիկը:"
+      },
+      "Stream": {
+        "name": "Էկրանի հաղորդում",
+        "description": "Թույլ է տալիս ցուցադրել էկրան:"
+      },
+      "UseASIO": {
+        "name": "ASIO ռեժիմ",
+        "description": "Թույլ է տալիս օգտագործել ցածր_latency ձայնայն ռեժիմ:"
+      },
+      "AdditionalStreams": {
+        "name": "Լրացուցիչ հոսքեր",
+        "description": "Թույլ է տալիս մի քանի տեսահոսքեր:"
+      },
+      "DisconnectMember": {
+        "name": "Վարչում անդամին անջատել",
+        "description": "Թույլ է տալիս զրկել անդամին ձայնային խորհրդակցությունից:"
+      },
+      "MoveMember": {
+        "name": "Տարատարել անդամին",
+        "description": "Թույլ է տալիս տեղափոխել անդամին ալիքների միջև:"
+      },
+      "MuteMember": {
+        "name": "Միկրոֆոնը անջատել",
+        "description": "Թույլ է տալիս անջատել անդամի միկրոֆոնը:"
+      },
+      "KickMember": {
+        "name": "Ձայնով անդամին հեռացնել",
+        "description": "Թույլ է տալիս հեռացնել անդամին սերվերից:"
+      },
+      "BanMember": {
+        "name": "Արգելափակել անդամին",
+        "description": "Թույլ է տալիս արգելափակել անդամին սերվերից:"
+      },
+      "ManageChannels": {
+        "name": "Միացումների կառավարում",
+        "description": "Թույլ է տալիս ստեղծել, ջնջել և խմբագրել ալիքները:"
+      },
+      "ManageArchetype": {
+        "name": "Դերի կառավարում",
+        "description": "Թույլ է տալիս խմբագրել սերվերի դերը:"
+      },
+      "ManageBots": {
+        "name": "Բոտերի կառավարում",
+        "description": "Թույլ է տալիս կարգավորել և চালարկել բոտեր:"
+      },
+      "ManageEvents": {
+        "name": "Միջոցառումների կառավարում",
+        "description": "Թույլ է տալիս ստեղծել և խմբագրել սերվերի միջոցառումներ:"
+      },
+      "ManageBehaviour": {
+        "name": "Վարքագծի կառավարում",
+        "description": "Թույլ է տալիս կարգավորել սերվերի սցենարներ կամ ավտոմատիկա:"
+      },
+      "ManageServer": {
+        "name": "Սերվերի կառավարում",
+        "description": "Տրվում է լիարժեք ադմինական մուտք կարգավորումների:"
+      }
+    }
+  },
+  "feedback_title": "Կարծիք",
+  "feedback_subtitle": "Պատմիր խնդրի կամ առաջարկի մասին",
+  "attachments": "Կցված ֆայլեր",
+  "drag_or_click_to_upload": "Քաշիր այստեղ կամ սեղմիր ներբեռնելու համար",
+  "send_feedback": "Ուղարկել",
+  "feedback_attachments_limit": "PNG / JPG մինչև 2 ՄԲ (առավելագույնը 3 ֆայլ)"
+}

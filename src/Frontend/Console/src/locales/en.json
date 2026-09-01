@@ -1,0 +1,411 @@
+{
+  "close": "Close",
+  "ok": "Confirm",
+  "or": "or",
+  "start": "Start",
+  "wait_connect": "Waiting for connection, please wait...",
+  "create_new_server": "Create New Server",
+  "announcement": "Announcement",
+  "privacy_settings":"Privacy Settings",
+  "cancel": "Cancel",
+  "voice": "Voice",
+  "start_video": "Start Video",
+  "stop_video": "Stop Video",
+  "text": "Text",
+  "enter_some_text": "Enter some text...",
+  "replying_to": "Replying to:",
+  "cannot_be_open": "Cannot be open",
+  "friends": "Friends",
+  "dont_have_friends": "You don’t have any friends… even Clippy uninstalled himself...",
+  "notifications": "Notifications",
+  "no_new_notifications": "There are no new notifications",
+  "inventory": "Inventory",
+  "profile_views": "Profile Views",
+  "profile": "Profile",
+  "activity": "Activity",
+  "no_activity": "No any activity..",
+  "bio": "Bio",
+  "greetings": {
+    "good_to_see_you": {
+      "title": "Good to see you ✨",
+      "desc": "Log in and continue your journey"
+    },
+    "hey_there": {
+      "title": "Hey there 👋",
+      "desc": "Enter your account details to continue"
+    },
+    "welcome_back": {
+      "title": "Welcome back",
+      "desc": "Pick up right where you left off"
+    },
+    "glad_you_here": {
+      "title": "Glad you’re here 🌙",
+      "desc": "Access your space and stay connected"
+    },
+    "hello_again": {
+      "title": "Hello again 🙈",
+      "desc": "Sign in and keep exploring"
+    }
+  },
+  "enter_your_otp": "Enter your OTP code",
+  "enter_email": "Enter email",
+  "we_will_send_reset_code": "We will send you a password reset code.",
+  "we_sent_it_on_email": "We’ve sent it to your email.",
+  "verify_and_sigin": "Verify & Sign In",
+  "forgot_password": "Forgot password?",
+  "reset_password": "Reset Password",
+  "password": "Password",
+  "dob": "Date of Birth",
+  "recive_emails_and_news": "Receive optional emails with updates & news",
+  "accept": "Accept",
+  "terms": "Terms",
+  "privacy_policy": "Privacy Policy",
+  "register": "Register",
+  "already_have_account": "Already have an account?",
+  "next": "Next",
+  "signin": "Sign In",
+  "dont_have_account": "Don’t have an account?",
+  "create_one": "Create one",
+  "qr_code_login": "Or log in with QR Code",
+  "scan_with_app": "Scan with Argon mobile app",
+  "create_account": "Create Account",
+  "join_argon": "Join Argon and start your journey ✨",
+  "join_to_server": "Join Server",
+  "enter_reset_code": "Enter reset code",
+  "sent_on_email": "It has been sent to your email.",
+  "choose_your_path": "Choose your path below ✨",
+  "space_name_required": "Space name is required",
+  "role_color": "Role Color",
+  "role_color_explain": "Members use the colour of the highest role they have on the roles list",
+  "permissions_name": "Permissions",
+  "description": "Description",
+  "group_members_with_this_role": "Group members with this role?",
+  "mention_hard": {
+    "allow_mention_role": "Allow {mention} of this role to everyone else",
+    "mention": "{'@'}mention"
+  },
+  "search_users": "Search users...",
+  "users_with_this_role": "Users with this role",
+  "no_users_with_this_role": "No users with this role",
+  "no_users_found": "No users found",
+  "loading": "Loading...",
+  "saved": "📁 Saved",
+  "save_changes": "Save changes",
+  "fail_save": "Failed to save Role",
+  "dev_tools": "Dev Tools",
+  "open_dev_tools": "Open Dev Tools",
+  "diagnostic_board": "Diagnostic Board",
+  "diagnostic_control_board_open": "Open diagnostic control panel",
+  "diagnostic_board_open": "Open Diagnostic Board",
+  "copy_my_userid": "Copy My UserId",
+  "copy": "Copy",
+  "channel": "Channel",
+  "select_update_channel": "Select update channel",
+  "select_channel_placeholder": "Live",
+  "beta_channel": "Beta Channel",
+  "canary_channel": "Canary Channel",
+  "live_channel": "Live",
+  "api_endpoint": "API Endpoint",
+  "warning_change_endpoint": "(WARNING: after change endpoint all data has been cleared)",
+  "usedid_copied": "Your UserId has been copied!",
+  "version_label": "Version: {version}",
+  "build_time_label": "Build Time: {buildtime}",
+  "host_version_label": "Host Version: {host_version}",
+  "select_api_endpoint_placeholder": "Live",
+  "live_endpoint": "Live",
+  "dev_endpoint": "Development",
+  "local_endpoint": "Local",
+  "crop_image": "Crop image",
+  "disable_otp": "Disable OTP",
+  "sound_level": "Sound Level",
+  "sound_power_of_system_notification": "Sound power of system notifications",
+  "no_microphone": "No microphones found",
+  "noname_microphone": "Unnamed Microphone",
+  "left": "Left",
+  "right": "Right",
+  "loading_history": "Loading History...",
+  "delete": "Delete",
+  "leave": "Leave",
+  "kick": "Kick",
+  "connected": "Connected",
+  "connecting": "Connecting",
+  "reconnect": "Reconnect",
+  "development_panel": "Development Panel",
+  "browser_not_support_video": "Your browser not support video.",
+  "unknown_display_name": "Unknown",
+  "not_supported_message_please_update": " This message is not supported by your Argon Chat version <br/> Please update to the latest version via settings or restart client for auto update.",
+  "update_is_ready": "Update is ready!",
+  "camera": "Camera",
+  "microphone": "Microphone",
+  "select_audio_source": "Select Audio Source",
+  "select_video_source": "Select Video Source",
+  "add_channel": "Add Channel",
+  "channel_name_required": "Channel name is required",
+  "channel_type": "Channel Type",
+  "channel_name": "Channel Name",
+  "channel_type_text": "Text",
+  "channel_type_voice": "Voice",
+  "channel_type_announcement": "Announcement",
+  "invite_code": "Invite Code",
+  "join_or_create_server": "Join or Create a Server",
+  "servers": "Servers",
+  "users": "Users",
+  "mute": "Mute",
+  "unmute": "Unmute",
+  "noise_sup": "Noise Suppressor",
+  "send_message": "Send message",
+  "window_preview": "Window preview",
+  "enable_sound_from_window": "Include sound from window",
+  "enable_system_sound": "Include system sound",
+  "screencast_title": "Show your screen or windows",
+  "screencast": "Screen Cast",
+  "monitors": "Monitors",
+  "windows": "Windows",
+  "monitor_index": "Monitor {idx}",
+  "quality": "Quality",
+  "select_quality": "Select Quality",
+  "fps": "FPS",
+  "select_fps": "Select FPS",
+  "hotkey": "Hotkey",
+  "press_any_key": "Press any key combination...",
+  "app_language": "App Language",
+  "close_behaviour": "Close Behaviour",
+  "minimize_to_tray": "Minimize to tray or close application",
+  "application_settings": "Application Settings",
+  "connected_devices": "Connected Devices",
+  "logout_all_devices": "Logout All",
+  "list_hotkeys": "A list of your hotkeys.",
+  "name": "Name",
+  "is_global_q": "Is Global?",
+  "global_toltip": "Global hotkeys work even with a minimized window in the tray and in other programs.",
+  "add_invite": "Add Invite",
+  "remove": "Remove",
+  "no_any_invite_codes_created": "No any created invite codes",
+  "profile_settings": "Profile Settings",
+  "username": "Username",
+  "display_name": "Display Name",
+  "email": "EMail",
+  "phone_number": "Phone Number",
+  "otp_title": "Two-Factor Authentication (OTP)",
+  "key.microphone.toggle": "Toggle mute in microphone",
+  "key.microphone.on": "Disable mute in microphone",
+  "key.microphone.off": "Mute microphone",
+  "key.sound.toggle": "Toggle mute sound",
+  "key.sound.on": "Mute sound",
+  "key.sound.off": "Unmute sound",
+  "invite_codes": "Invite Codes",
+  "select_camera": "Select Camera",
+  "no_camera_found": "No cameras found",
+  "unnamed_camera": "Unnamed Camera",
+  "test_camera": "Test Video",
+  "you_not_access_to_channel_or_not_found_channels": "You don't have access to any text channel or there are none in this server.",
+  "no_text_channel_found": "No Text Channel",
+  "settings": "Settings",
+  "manage_settings": "Manage your account and preferences",
+  "account": "Account",
+  "application": "Application",
+  "voice_video": "Voice & Video",
+  "hotkeys": "Hot & keys",
+  "languages": "Languages",
+  "sounds": "Sounds",
+  "playSoftEnterSound": "Channel Join Sound",
+  "playSoftEnterSound_details": "Should the channel join sound be played?",
+  "playSoftLeaveSound": "Channel Leave Sound",
+  "playSoftLeaveSound_details": "Should the channel leave sound be played?",
+  "playMuteAllSound": "Mute/Unmute Sound",
+  "playMuteAllSound_details": "Should the mute/unmute sound be played?",
+  "playReconnectSound": "Reconnect Sound",
+  "playReconnectSound_details": "Should the reconnect sound be played?",
+  "playUnmuteAllSound": "Unmute Sound",
+  "playUnmuteAllSound_details": "Should the unmute sound be played?",
+  "playNotificationSound": "Notification Sound",
+  "playNotificationSound_details": "Should the notification sound be played?",
+  "playRingSound": "Ring Sound",
+  "playRingSound_details": "Should the ring sound be played?",
+  "activity_play_in": "Playing in",
+  "activity_work_in": "Works in",
+  "activity_stream": "Streaming",
+  "activity_listen": "Listen",
+  "status_5": "Touch Grass",
+  "status_6": "Do not disturb",
+  "status_0": "Offline",
+  "status_1": "Online",
+  "status_2": "Away",
+  "noise_sup_desc": "Noise Suppression (Noise Suppression)",
+  "select_microphone": "Select Microphone",
+  "voice_video_settings": "Voice & Video Settings",
+  "socials": "Social Integrations",
+  "typing": {
+    "one": "{name} is typing",
+    "few": "{names} are typing",
+    "many": "Several people are typing"
+  },
+  "force_to_mono_voice": "Force to mono channels",
+  "force_to_mono_voice_desc": "If your sound card outputs the microphone output to one of the channels, then you can force duplication in stereo mode to avoid the effect of sound in one ear.",
+  "unnamed_speaker": "Unnamed Speakers",
+  "no_speakers_found": "No Speakers Found",
+  "select_output": "Select Speakers",
+  "permissions": {
+    "groups": {
+      "basic": {
+        "name": "Basic Access",
+        "description": "Minimal rights to view and read."
+      },
+      "messaging": {
+        "name": "Messaging",
+        "description": "Permissions to chat and send content."
+      },
+      "voice": {
+        "name": "Voice & Video",
+        "description": "Rights for voice and video communication."
+      },
+      "moderation": {
+        "name": "Moderation",
+        "description": "Rights to manage members."
+      },
+      "management": {
+        "name": "Management",
+        "description": "Rights for settings and administration."
+      }
+    },
+    "flags": {
+      "ViewChannel": {
+        "name": "View Channels",
+        "description": "Allows seeing the channel and its content."
+      },
+      "ReadHistory": {
+        "name": "Read History",
+        "description": "Allows viewing previous messages."
+      },
+      "JoinToVoice": {
+        "name": "Join Voice",
+        "description": "Allows joining voice channels."
+      },
+      "SendMessages": {
+        "name": "Send Messages",
+        "description": "Allows sending text messages."
+      },
+      "AttachFiles": {
+        "name": "Attach Files",
+        "description": "Allows attaching images and documents."
+      },
+      "AddReactions": {
+        "name": "Add Reactions",
+        "description": "Allows adding reactions to messages."
+      },
+      "AnyMentions": {
+        "name": "Mention Members",
+        "description": "Allows mentioning other users."
+      },
+      "MentionEveryone": {
+        "name": "Mention Everyone",
+        "description": "Allows using {'@'}everyone and {'@'}here."
+      },
+      "ExternalEmoji": {
+        "name": "External Emoji",
+        "description": "Allows using emojis from other servers."
+      },
+      "ExternalStickers": {
+        "name": "External Stickers",
+        "description": "Allows using stickers from other servers."
+      },
+      "UseCommands": {
+        "name": "Use Commands",
+        "description": "Allows using slash commands."
+      },
+      "PostEmbeddedLinks": {
+        "name": "Embed Links",
+        "description": "Allows embedding content via links."
+      },
+      "SendVoice": {
+        "name": "Send Voice",
+        "description": "Allows sending voice messages."
+      },
+      "Connect": {
+        "name": "Connect to Voice",
+        "description": "Allows connecting to voice channels."
+      },
+      "Speak": {
+        "name": "Speak",
+        "description": "Allows speaking in voice channel."
+      },
+      "Video": {
+        "name": "Video",
+        "description": "Allows using camera."
+      },
+      "Stream": {
+        "name": "Screen Share",
+        "description": "Allows streaming your screen."
+      },
+      "UseASIO": {
+        "name": "ASIO Mode",
+        "description": "Allows using low-latency audio mode."
+      },
+      "AdditionalStreams": {
+        "name": "Additional Streams",
+        "description": "Allows using multiple video streams."
+      },
+      "DisconnectMember": {
+        "name": "Disconnect Member",
+        "description": "Allows forcibly disconnecting a member from voice."
+      },
+      "MoveMember": {
+        "name": "Move Member",
+        "description": "Allows moving members between channels."
+      },
+      "MuteMember": {
+        "name": "Mute Member",
+        "description": "Allows muting a member's mic."
+      },
+      "KickMember": {
+        "name": "Kick Member",
+        "description": "Allows kicking a member from the server."
+      },
+      "BanMember": {
+        "name": "Ban Member",
+        "description": "Allows banning a member from the server."
+      },
+      "ManageChannels": {
+        "name": "Manage Channels",
+        "description": "Allows creating, deleting, and editing channels."
+      },
+      "ManageArchetype": {
+        "name": "Manage Roles",
+        "description": "Allows editing server roles (archetypes)."
+      },
+      "ManageBots": {
+        "name": "Manage Bots",
+        "description": "Allows configuring and running bots."
+      },
+      "ManageEvents": {
+        "name": "Manage Events",
+        "description": "Allows creating and editing server events."
+      },
+      "ManageBehaviour": {
+        "name": "Manage Behaviour",
+        "description": "Allows configuring server scripts or automations."
+      },
+      "ManageServer": {
+        "name": "Manage Server",
+        "description": "Grants full administrative access to server settings."
+      }
+    }
+  },
+  "storage": {
+    "media": "Media",
+    "audio": "Audio",
+    "files": "Files",
+    "systemCache": "System Cache",
+    "other": "Other",
+    "free": "Free",
+    "total": "Total",
+    "space": "Storage Space"
+  },
+  "storages": "Storage",
+  "feedback_title": "Feedback",
+  "feedback_subtitle": "Tell us about an issue or share your idea",
+  "attachments": "Attachments",
+  "drag_or_click_to_upload": "Drag files here or click to upload",
+  "send_feedback": "Send Feedback",
+  "feedback_attachments_limit": "PNG / JPG up to 2 MB (max 3 files)"
+}

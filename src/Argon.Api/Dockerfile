@@ -12,21 +12,24 @@ LABEL org.opencontainers.image.title="Argon.Api" \
 WORKDIR /app
 
 
-# The Aegis sign-in widget, which the identity server serves itself from Aegis:StaticRoot rather
-# than from a CDN of its own. Its own stage, and one buildkit runs alongside the .NET ones: it
-# shares nothing with them but the final image.
-FROM oven/bun:1 AS widget
-WORKDIR /widget
+# Both front-ends: the Aegis sign-in widget and the developer console. One stage, because they are
+# one bun workspace — a single install resolves the dependencies they share instead of twice. Its
+# own stage, and one buildkit runs alongside the .NET ones: it shares nothing with them but the
+# final image.
+FROM oven/bun:1 AS widgets
+WORKDIR /frontend
 
 # Manifests and workspace packages first, so a change to a component does not re-resolve the whole
-# dependency tree. The packages have to come along with the lockfile — bun reads every workspace
-# member's package.json to install, and `packages/*` is where they are.
-COPY src/Frontend/Aegis/package.json src/Frontend/Aegis/bun.lock ./
-COPY src/Frontend/Aegis/packages ./packages
+# dependency tree. Every workspace member's package.json has to be here for the install to plan, so
+# the shared packages come along whole and the two apps contribute their manifests.
+COPY src/Frontend/package.json src/Frontend/bun.lock ./
+COPY src/Frontend/packages ./packages
+COPY src/Frontend/Aegis/package.json ./Aegis/
+COPY src/Frontend/Console/package.json ./Console/
 RUN bun install --frozen-lockfile --no-progress
 
-COPY src/Frontend/Aegis ./
-RUN bun run build
+COPY src/Frontend ./
+RUN bun run --cwd Aegis build && bun run --cwd Console build
 
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
@@ -61,10 +64,16 @@ WORKDIR /app
 
 COPY --from=publish /app/publish .
 
-# Where Aegis:StaticRoot points. Only the identity server reads it, and only when it is configured
-# to — a deployment that puts the widget behind its own CDN leaves the setting empty and the
-# directory unread.
-COPY --from=widget /widget/dist ./wwwroot
+# Where Aegis:StaticRoot and AccountConsole:StaticRoot point. Each is read by one role, and only
+# when that role is configured to — a deployment that puts a front-end behind its own CDN leaves
+# the setting empty and the directory unread.
+#
+# Named after the app rather than one of them being `wwwroot`: with two of them neither is "the"
+# static root, and a directory actually called wwwroot is one ASP.NET adopts as WebRootPath on
+# every role in this image, which would quietly put the sign-in widget behind any future bare
+# UseStaticFiles() call.
+COPY --from=widgets /frontend/Aegis/dist ./aegis
+COPY --from=widgets /frontend/Console/dist ./console
 
 ENV DOTNET_ENABLE_HTTP3="true"
 

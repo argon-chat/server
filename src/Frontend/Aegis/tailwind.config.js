@@ -13,7 +13,7 @@ export default {
   
   content: [
     './src/**/*.{ts,tsx,vue}',
-    './packages/*/src/**/*.{ts,tsx,vue}',
+    '../packages/*/src/**/*.{ts,tsx,vue}',
 	],
   
   theme: {

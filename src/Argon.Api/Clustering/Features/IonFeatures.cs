@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Middlewares;
 using AccountContracts;
 using Argon.Api.Features.AccountConsole;
 using Argon.Features.AccountConsole;
@@ -131,4 +132,15 @@ public sealed class AccountConsoleFeature : IArgonFeature
         ctx.Services.AddMemoryCache();
         ctx.Services.AddScoped<ITeamAccessChecker, TeamAccessChecker>();
     }
+
+    /// <summary>
+    /// The console's own page, when the deployment has it in the image rather than on a CDN.
+    /// </summary>
+    /// <remarks>
+    /// The same call the identity server makes for the sign-in widget: compressed siblings, cache
+    /// headers, and a client-routing fallback. Ion answers on a port of its own, so nothing here
+    /// competes with it — this is the ordinary HTTP surface the role already has.
+    /// </remarks>
+    public void Map(ArgonEndpointContext ctx)
+        => ctx.App.UseSpaStaticFiles(ctx.Options<AccountConsoleOptions>().StaticRoot);
 }

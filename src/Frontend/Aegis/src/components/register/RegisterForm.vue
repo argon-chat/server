@@ -8,7 +8,7 @@ import { onMounted, ref, computed } from "vue";
 import { useRoute } from "vue-router";
 import { useRegisterStore } from "@/store/registerStore";
 import InputWithError from "../InputWithError.vue";
-import IconSw from "@/assets/icons/icon_cat.svg";
+import IconSw from "@argon/assets/icons/icon_cat.svg";
 
 const route = useRoute();
 const store = useRegisterStore();

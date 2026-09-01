@@ -3,7 +3,7 @@ import router from "@/router";
 import { useSimpleAuthStore } from "@/store/simpleAuthStore";
 import { onMounted } from "vue";
 import AuthTabs from "@/components/login/AuthTabs.vue";
-import IconSw from "@/assets/icons/icon_cat.svg"
+import IconSw from "@argon/assets/icons/icon_cat.svg"
 
 const authStore = useSimpleAuthStore();
 onMounted(async () => {

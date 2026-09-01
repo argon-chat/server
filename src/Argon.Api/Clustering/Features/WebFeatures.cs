@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.AccountConsole;
 using Argon.Features.Aegis;
 using Argon.Features.Sentry;
 using Argon.Features.Web;
@@ -333,11 +334,21 @@ public sealed class HostHooksFeature : IArgonFeature
     /// normally. That is a confusing shape of broken, and the version is still one <c>GET</c> away
     /// on every other role.</para>
     ///
-    /// <para>Only the identity server serves a site of its own today, and only when it is the whole
-    /// process: under the co-hosted development role <c>AegisFeature</c> maps no static files at
-    /// all, so <c>/</c> is free there and keeps reporting the build.</para>
+    /// <para>Two roles serve a site: the identity server the sign-in widget, the account role the
+    /// developer console. Both do it only when a static root is configured, and the identity server
+    /// only when it is the whole process — under the co-hosted development role <c>AegisFeature</c>
+    /// maps no static files at all, so <c>/</c> is free there and keeps reporting the build.</para>
     /// </remarks>
     private static bool ServesASiteAtRoot(ArgonEndpointContext ctx)
-        => ctx.Role.Id == ArgonRoleId.Aegis &&
-           ctx.App.Services.GetService<IOptions<AegisOptions>>() is { Value.StaticRoot.Length: > 0 };
+    {
+        if (ctx.Role.Id == ArgonRoleId.Aegis)
+            return Configured(ctx.App.Services.GetService<IOptions<AegisOptions>>()?.Value.StaticRoot);
+
+        if (ctx.Role.Id == ArgonRoleId.Account)
+            return Configured(ctx.App.Services.GetService<IOptions<AccountConsoleOptions>>()?.Value.StaticRoot);
+
+        return false;
+
+        static bool Configured(string? root) => !string.IsNullOrWhiteSpace(root);
+    }
 }

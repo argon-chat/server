@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Argon Developer Console</title>
+    <link rel="preconnect" href="https://api.argon.gl" />
+    <style>
+      /* The desktop host draws its own window controls over the page. */
+      button.separate-window {
+        display: none !important;
+      }
+      button:focus,
+      button:focus-visible {
+        outline: none !important;
+        box-shadow: none !important;
+      }
+      .disabled {
+        cursor: not-allowed;
+      }
+    </style>
+  </head>
+  <body>
+    <div vaul-drawer-wrapper id="app"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

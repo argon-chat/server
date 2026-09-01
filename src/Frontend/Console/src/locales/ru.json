@@ -1,0 +1,400 @@
+{
+  "close": "Закрыть",
+  "ok": "Подтвердить",
+  "or": "или",
+  "start": "Начать",
+  "wait_connect": "Ожидание подключения, пожалуйста, подождите...",
+  "create_new_server": "Создать новый сервер",
+  "announcement": "Объявление",
+  "privacy_settings":"Настройки приватности",
+  "cancel": "Отмена",
+  "voice": "Голос",
+  "start_video": "Начать видео",
+  "stop_video": "Остановить видео",
+  "text": "Текст",
+  "enter_some_text": "Введите текст...",
+  "replying_to": "Ответ на:",
+  "cannot_be_open": "Не может быть открыт",
+  "friends": "Друзья",
+  "dont_have_friends": "У вас нет друзей… даже Клиппи удалился...",
+  "notifications": "Уведомления",
+  "no_new_notifications": "Нет новых уведомлений",
+  "inventory": "Инвентарь",
+  "profile_views": "Просмотры профиля",
+  "profile": "Профиль",
+  "activity": "Активность",
+  "no_activity": "Нет активности..",
+  "bio": "Биография",
+  "greetings": {
+    "good_to_see_you": {
+      "title": "Рад видеть вас ✨",
+      "desc": "Войдите и продолжайте ваше путешествие"
+    },
+    "hey_there": {
+      "title": "Привет 👋",
+      "desc": "Введите данные вашей учетной записи, чтобы продолжить"
+    },
+    "welcome_back": {
+      "title": "С возвращением",
+      "desc": "Продолжайте там, где остановились"
+    },
+    "glad_you_here": {
+      "title": "Рад, что вы здесь 🌙",
+      "desc": "Получите доступ к вашему пространству и оставайтесь на связи"
+    },
+    "hello_again": {
+      "title": "Привет снова 🙈",
+      "desc": "Войдите и продолжайте исследовать"
+    }
+  },
+  "enter_your_otp": "Введите ваш код OTP",
+  "enter_email": "Введите email",
+  "we_will_send_reset_code": "Мы отправим вам код для сброса пароля.",
+  "we_sent_it_on_email": "Мы отправили его на ваш email.",
+  "verify_and_sigin": "Подтвердить и войти",
+  "forgot_password": "Забыли пароль?",
+  "reset_password": "Сброс пароля",
+  "password": "Пароль",
+  "dob": "Дата рождения",
+  "recive_emails_and_news": "Получать по желанию обновления и новости по электронной почте",
+  "accept": "Принять",
+  "terms": "Условия",
+  "privacy_policy": "Политика конфиденциальности",
+  "register": "Регистрация",
+  "already_have_account": "Уже есть аккаунт?",
+  "next": "Далее",
+  "signin": "Войти",
+  "dont_have_account": "Нет аккаунта?",
+  "create_one": "Создать аккаунт",
+  "qr_code_login": "Или войдите с помощью QR-кода",
+  "scan_with_app": "Сканируйте с мобильным приложением Argon",
+  "create_account": "Создать аккаунт",
+  "join_argon": "Присоединяйтесь к Argon и начните свое путешествие ✨",
+  "join_to_server": "Присоединиться к серверу",
+  "enter_reset_code": "Введите код сброса",
+  "sent_on_email": "Это было отправлено на ваш email.",
+  "choose_your_path": "Выберите ваш путь ниже ✨",
+  "space_name_required": "Требуется название пространства",
+  "role_color": "Цвет роли",
+  "role_color_explain": "Участники используют цвет самой высокой роли, которую они имеют в списке ролей",
+  "permissions_name": "Права доступа",
+  "description": "Описание",
+  "group_members_with_this_role": "Группа участников с этой ролью?",
+  "mention_hard": {
+    "allow_mention_role": "Разрешить {mention} этой роли упоминать всех остальных?",
+    "mention": "@упоминание"
+  },
+  "search_users": "Поиск пользователей...",
+  "users_with_this_role": "Пользователи с этой ролью",
+  "no_users_with_this_role": "Нет пользователей с этой ролью",
+  "no_users_found": "Пользователи не найдены",
+  "loading": "Загрузка...",
+  "saved": "📁 Сохранено",
+  "save_changes": "Сохранить изменения",
+  "fail_save": "Ошибка сохранения роли",
+  "dev_tools": "Инструменты разработчика",
+  "open_dev_tools": "Открыть инструменты разработчика",
+  "diagnostic_board": "Диагностическая панель",
+  "diagnostic_control_board_open": "Открыть панель диагностики",
+  "diagnostic_board_open": "Открыть диагностическую панель",
+  "copy_my_userid": "Копировать мой UserId",
+  "copy": "Копировать",
+  "channel": "Канал",
+  "select_update_channel": "Выберите канал обновлений",
+  "select_channel_placeholder": "Прямой эфир",
+  "beta_channel": "Бета-канал",
+  "canary_channel": "Канарейка-канал",
+  "live_channel": "Прямой эфир",
+  "api_endpoint": "API-адрес",
+  "warning_change_endpoint": "(ВНИМАНИЕ: после изменения адреса все данные будут очищены)",
+  "usedid_copied": "Ваш UserId скопирован!",
+  "version_label": "Версия: {version}",
+  "build_time_label": "Время сборки: {buildtime}",
+  "host_version_label": "Версия хоста: {host_version}",
+  "select_api_endpoint_placeholder": "Прямой эфир",
+  "live_endpoint": "Прямой эфир",
+  "dev_endpoint": "Разработка",
+  "local_endpoint": "Локальный",
+  "crop_image": "Обрезать изображение",
+  "disable_otp": "Отключить OTP",
+  "sound_level": "Уровень звука",
+  "sound_power_of_system_notification": "Громкость системных уведомлений",
+  "no_microphone": "Микрофоны не найдены",
+  "noname_microphone": "Микрофон без имени",
+  "left": "Лево",
+  "right": "Право",
+  "loading_history": "Загрузка истории...",
+  "delete": "Удалить",
+  "leave": "Покинуть",
+  "kick": "Кикнуть",
+  "connected": "Подключено",
+  "connecting": "Подключение...",
+  "reconnect": "Переподключение",
+  "development_panel": "Панель разработчика",
+  "browser_not_support_video": "Ваш браузер не поддерживает видео.",
+  "unknown_display_name": "Неизвестно",
+  "not_supported_message_please_update": "Это сообщение не поддерживается вашей версией Argon Chat <br/> Пожалуйста, обновите до последней версии через настройки или перезапустите клиент для автоматического обновления.",
+  "update_is_ready": "Обновление готово!",
+  "camera": "Камера",
+  "microphone": "Микрофон",
+  "select_audio_source": "Выберите источник звука",
+  "select_video_source": "Выберите источник видео",
+  "add_channel": "Добавить канал",
+  "channel_type": "Тип канала",
+  "channel_name": "Наименование канала",
+  "channel_type_text": "Текстовый канал",
+  "channel_type_voice": "Голосовой канал",
+  "channel_type_announcement": "Анонсы",
+  "channel_name_required": "Требуется название канала",
+  "invite_code": "Код приглашения",
+  "join_or_create_server": "Присоединиться или создать сервер",
+  "servers": "Серверы",
+  "users": "Пользователи",
+  "mute": "Отключить звук",
+  "unmute": "Включить звук",
+  "noise_sup": "Подавление шума",
+  "send_message": "Отправить сообщение",
+  "window_preview": "Предпросмотр окна",
+  "enable_sound_from_window": "Включить звук из окна",
+  "enable_system_sound": "Включить системный звук",
+  "screencast_title": "Показать свой экран или окна",
+  "screencast": "Трансляция экрана",
+  "monitors": "Мониторы",
+  "windows": "Окна",
+  "monitor_index": "Монитор {idx}",
+  "quality": "Качество",
+  "select_quality": "Выберите качество",
+  "fps": "Кадры в секунду (FPS)",
+  "select_fps": "Выберите FPS",
+  "hotkey": "Горячая клавиша",
+  "press_any_key": "Нажмите любую комбинацию клавиш...",
+  "app_language": "Язык приложения",
+  "close_behaviour": "Поведение при закрытии",
+  "minimize_to_tray": "Сворачивать в трей или закрывать приложение",
+  "application_settings": "Настройки приложения",
+  "connected_devices": "Подключенные устройства",
+  "logout_all_devices": "Выйти из всех устройств",
+  "list_hotkeys": "Список ваших горячих клавиш.",
+  "name": "Название",
+  "is_global_q": "Глобальная?",
+  "global_toltip": "Глобальные горячие клавиши работают даже при свёрнутом окне в трей и в других программах.",
+  "add_invite": "Добавить приглашение",
+  "remove": "Удалить",
+  "no_any_invite_codes_created": "Нет созданных кодов приглашений",
+  "profile_settings": "Настройки профиля",
+  "username": "Имя пользователя",
+  "display_name": "Отображаемое имя",
+  "email": "E-mail",
+  "phone_number": "Номер телефона",
+  "otp_title": "Двухфакторная аутентификация (OTP)",
+  "invite_codes": "Коды приглашений",
+  "select_camera": "Выберите камеру",
+  "no_camera_found": "Камеры не найдены",
+  "unnamed_camera": "Безымянная камера",
+  "test_camera": "Тестовое видео",
+  "you_not_access_to_channel_or_not_found_channels": "У вас нет доступа ни к одному текстовому каналу или они отсутствуют на этом сервере.",
+  "no_text_channel_found": "Текстовый канал не найден",
+  "settings": "Настройки",
+  "manage_settings": "Управляйте своим аккаунтом и настройками",
+  "account": "Аккаунт",
+  "application": "Приложение",
+  "voice_video": "Голос и видео",
+  "hotkeys": "Горячие клавиши",
+  "languages": "Языки",
+  "sounds": "Звуки",
+  "playSoftEnterSound": "Звук входа в канал",
+  "playSoftEnterSound_details": "Воспроизводить ли звук входа в канал?",
+  "playSoftLeaveSound": "Звук выхода из канала",
+  "playSoftLeaveSound_details": "Воспроизводить ли звук выхода из канала?",
+  "playMuteAllSound": "Звук отключения звука/микрофона",
+  "playMuteAllSound_details": "Воспроизводить звук отключения звука/микрофона?",
+  "playReconnectSound": "Звук переподключения",
+  "playReconnectSound_details": "Воспроизводить ли звук переподключения?",
+  "playUnmuteAllSound": "Звук включения звука/микрофона",
+  "playUnmuteAllSound_details": "Воспроизводить ли звук включения звука/микрофона",
+  "playNotificationSound": "Звук уведомления",
+  "playNotificationSound_details": "Воспроизводить ли звук уведомления?",
+  "playRingSound": "Звук звонка",
+  "playRingSound_details": "Воспроизводить ли звук звонка?",
+  "activity_play_in": "Играет в",
+  "activity_work_in": "Работает в",
+  "activity_stream": "Стримит",
+  "activity_listen": "Слушает",
+  "key.microphone.toggle": "Включить / выключить микрофон",
+  "key.microphone.on": "Включить микрофон",
+  "key.microphone.off": "Выключить микрофон",
+  "key.sound.toggle": "Включить / выключить звук",
+  "key.sound.on": "Выключить звук",
+  "key.sound.off": "Включить звук",
+  "status_0": "Offline",
+  "status_1": "Online",
+  "status_2": "Away",
+  "status_5": "Трогает траву",
+  "status_6": "Не беспокоить",
+  "noise_sup_desc": "Подавление шума (Подавление шума)",
+  "select_microphone": "Выбрать микрофон",
+  "voice_video_settings": "Настройки звука и видео",
+  "socials": "Интеграции с соцсетями",
+  "typing": {
+    "one": "{name} печатает",
+    "few": "{names} печатают",
+    "many": "Несколько человек печатают"
+  },
+  "force_to_mono_voice": "Принудительно в моно",
+  "force_to_mono_voice_desc": "Если ваша звуковая карта выводит микрофон только в один канал, вы можете принудительно включить дублирование в стерео, чтобы избежать звучания только в одном ухе.",
+  "unnamed_speaker": "Безымянные динамики",
+  "no_speakers_found": "Динамики не найдены",
+  "select_output": "Выберите динамики",
+  "permissions": {
+    "groups": {
+      "basic": {
+        "name": "Базовый доступ",
+        "description": "Минимальные права для присутствия и чтения"
+      },
+      "messaging": {
+        "name": "Сообщения",
+        "description": "Разрешения на общение и отправку контента"
+      },
+      "voice": {
+        "name": "Голос и видео",
+        "description": "Права на голосовую и видеосвязь"
+      },
+      "moderation": {
+        "name": "Модерация",
+        "description": "Права на управление участниками"
+      },
+      "management": {
+        "name": "Управление",
+        "description": "Права на настройки и администрирование"
+      }
+    },
+    "flags": {
+      "ViewChannel": {
+        "name": "Просмотр каналов",
+        "description": "Разрешает видеть канал и его содержимое."
+      },
+      "ReadHistory": {
+        "name": "Чтение истории",
+        "description": "Позволяет просматривать предыдущие сообщения."
+      },
+      "JoinToVoice": {
+        "name": "Вход в голос",
+        "description": "Разрешает подключаться к голосовым каналам."
+      },
+      "SendMessages": {
+        "name": "Отправка сообщений",
+        "description": "Позволяет отправлять текстовые сообщения."
+      },
+      "AttachFiles": {
+        "name": "Прикрепление файлов",
+        "description": "Разрешает прикреплять изображения и документы."
+      },
+      "AddReactions": {
+        "name": "Добавление реакций",
+        "description": "Позволяет ставить реакции на сообщения."
+      },
+      "AnyMentions": {
+        "name": "Упоминания участников",
+        "description": "Позволяет упоминать других пользователей."
+      },
+      "MentionEveryone": {
+        "name": "Упоминание всех",
+        "description": "Разрешает использовать {'@'}everyone и {'@'}here."
+      },
+      "ExternalEmoji": {
+        "name": "Внешние эмодзи",
+        "description": "Позволяет использовать эмодзи с других серверов."
+      },
+      "ExternalStickers": {
+        "name": "Внешние стикеры",
+        "description": "Позволяет использовать стикеры с других серверов."
+      },
+      "UseCommands": {
+        "name": "Использование команд",
+        "description": "Разрешает использовать слэш-команды."
+      },
+      "PostEmbeddedLinks": {
+        "name": "Встраивание ссылок",
+        "description": "Позволяет встраивать контент по ссылкам."
+      },
+      "SendVoice": {
+        "name": "Голосовые сообщения",
+        "description": "Позволяет отправлять голосовые записи."
+      },
+      "Connect": {
+        "name": "Подключение к голосу",
+        "description": "Разрешает подключаться к голосовым каналам."
+      },
+      "Speak": {
+        "name": "Разговор",
+        "description": "Позволяет говорить в голосовом канале."
+      },
+      "Video": {
+        "name": "Видеосвязь",
+        "description": "Разрешает использовать камеру."
+      },
+      "Stream": {
+        "name": "Трансляция экрана",
+        "description": "Позволяет демонстрировать экран."
+      },
+      "UseASIO": {
+        "name": "ASIO-режим",
+        "description": "Позволяет использовать низколатентный режим звука."
+      },
+      "AdditionalStreams": {
+        "name": "Доп. потоки",
+        "description": "Разрешает использовать несколько видеопотоков."
+      },
+      "DisconnectMember": {
+        "name": "Отключение участника",
+        "description": "Позволяет принудительно отключить участника от голосового канала."
+      },
+      "MoveMember": {
+        "name": "Перемещение участника",
+        "description": "Позволяет перемещать участников между каналами."
+      },
+      "MuteMember": {
+        "name": "Отключение микрофона",
+        "description": "Позволяет отключить микрофон участника."
+      },
+      "KickMember": {
+        "name": "Кик участника",
+        "description": "Позволяет кикнуть участника с сервера."
+      },
+      "BanMember": {
+        "name": "Бан участника",
+        "description": "Позволяет забанить участника на сервере."
+      },
+      "ManageChannels": {
+        "name": "Управление каналами",
+        "description": "Позволяет создавать, удалять и изменять каналы."
+      },
+      "ManageArchetype": {
+        "name": "Управление ролями",
+        "description": "Позволяет редактировать роли (архетипы) сервера."
+      },
+      "ManageBots": {
+        "name": "Управление ботами",
+        "description": "Разрешает конфигурировать и запускать ботов."
+      },
+      "ManageEvents": {
+        "name": "Управление событиями",
+        "description": "Позволяет создавать и редактировать события сервера."
+      },
+      "ManageBehaviour": {
+        "name": "Управление поведением",
+        "description": "Разрешает настраивать поведение серверных скриптов или автоматик."
+      },
+      "ManageServer": {
+        "name": "Управление сервером",
+        "description": "Дает полный административный доступ к настройкам сервера."
+      }
+    }
+  },
+  "feedback_title": "Обратная связь",
+  "feedback_subtitle": "Расскажи нам о проблеме или предложении",
+  "attachments": "Вложения",
+  "drag_or_click_to_upload": "Перетащи сюда или нажми для загрузки",
+  "send_feedback": "Отправить",
+  "feedback_attachments_limit": "PNG / JPG до 2 MB (макс. 3 файла)"
+}

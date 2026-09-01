@@ -1,0 +1,400 @@
+{
+  "wait_connect": "Йо-хо-хо! Шхуна на подходе, жди, штурман...",
+  "create_new_server": "Спустить новый фрегат!",
+  "join_to_server": "Пришвартоваться к братской шайке!",
+  "invite_code": "Код зова морских волков",
+  "join_or_create_server": "Примкнуть к шайке аль завести свою!",
+  "announcement": "Объявление",
+  "privacy_settings":"Приватные пиратские настройки",
+  "cancel": "Отмена",
+  "voice": "Голос",
+  "start_video": "Начать видео",
+  "stop_video": "Остановить видео",
+  "text": "Текст",
+  "enter_some_text": "Введите сообщение...",
+  "replying_to": "В ответ на:",
+  "cannot_be_open": "Нельзя открыть",
+  "friends": "Братва",
+  "dont_have_friends": "У вас нет друзей… даже Клиппи сам себя удалил...",
+  "notifications": "Уведомления",
+  "no_new_notifications": "Новых уведомлений нет",
+  "inventory": "Инвентарь",
+  "profile_views": "Просмотры профиля",
+  "profile": "Профиль",
+  "activity": "Деятельность",
+  "no_activity": "Нет активности...",
+  "bio": "Биография",
+  "greetings": {
+    "good_to_see_you": {
+      "title": "Рад видеть тебя, морской волк ✨",
+      "desc": "Войдите и продолжайте свой путь"
+    },
+    "hey_there": {
+      "title": "Эй, морской разбойник 👋",
+      "desc": "Введите свои данные, чтобы продолжить"
+    },
+    "welcome_back": {
+      "title": "С возвращением, капитан",
+      "desc": "Продолжайте там, где остановились"
+    },
+    "glad_you_here": {
+      "title": "Рад, что ты здесь 🌙",
+      "desc": "Получите доступ к своему кораблю и оставайтесь на связи"
+    },
+    "hello_again": {
+      "title": "Здравствуй снова, пират 🙈",
+      "desc": "Войдите и продолжайте исследовать"
+    }
+  },
+  "enter_your_otp": "Введите пароль от сундука",
+  "enter_email": "Введите свой пиратский ящик",
+  "we_will_send_reset_code": "Мы отправим вам код для сброса пароля.",
+  "we_sent_it_on_email": "Он отправлен на ваш пиратский ящик.",
+  "verify_and_sigin": "Проверь и войди, капитан",
+  "forgot_password": "Забыли пароль?",
+  "reset_password": "Сбросить пароль",
+  "password": "Пароль",
+  "dob": "Дата рождения",
+  "recive_emails_and_news": "Получать обновления и новости по желанию",
+  "accept": "Принять",
+  "terms": "Условия",
+  "privacy_policy": "Политика конфиденциальности",
+  "register": "Регистрация",
+  "already_have_account": "Уже есть аккаунт?",
+  "next": "Далее",
+  "signin": "Войти",
+  "dont_have_account": "Нет аккаунта?",
+  "create_one": "Создать его",
+  "qr_code_login": "Или войти через QR-код",
+  "scan_with_app": "Отсканируйте в приложении Аргон",
+  "create_account": "Создать аккаунт",
+  "join_argon": "Присоединяйтесь к Аргону и начните свое приключение ✨",
+  "enter_reset_code": "Введите код сброса",
+  "sent_on_email": "Он отправлен на ваш пиратский ящик.",
+  "choose_your_path": "Выберите свой путь ниже ✨",
+  "space_name_required": "Требуется название корабля",
+  "role_color": "Цвет роли",
+  "role_color_explain": "Члены используют цвет самой высокой роли из списка ролей",
+  "permissions_name": "Права",
+  "description": "Описание",
+  "group_members_with_this_role": "Группировать участников с этой ролью?",
+  "mention_hard": {
+    "allow_mention_role": "Разрешить {mention} этой роли обращаться ко всем?",
+    "mention": "@упоминание"
+  },
+  "search_users": "Искать пиратов...",
+  "users_with_this_role": "Пираты с этой ролью",
+  "no_users_with_this_role": "Пиров с этой ролью нет",
+  "no_users_found": "Пираты не найдены",
+  "loading": "Загрузка, капитан...",
+  "saved": "📁 Сохранено",
+  "save_changes": "Сохранить все, йо-хо-хо!",
+  "fail_save": "Не удалось сохранить роль",
+  "dev_tools": "Инструменты штурмана",
+  "open_dev_tools": "Открыть инструменты",
+  "diagnostic_board": "Диагностическая карта",
+  "diagnostic_control_board_open": "Открыть панель диагностики",
+  "diagnostic_board_open": "Открыть карту",
+  "copy_my_userid": "Копировать мой ID",
+  "copy": "Копировать",
+  "channel": "Канал",
+  "select_update_channel": "Выбрать канал обновлений",
+  "select_channel_placeholder": "Живой",
+  "beta_channel": "Бета-канал",
+  "canary_channel": "Канарейка-канал",
+  "live_channel": "Живой",
+  "api_endpoint": "API-адрес",
+  "warning_change_endpoint": "(ВНИМАНИЕ: после изменения адреса все данные будут удалены)",
+  "usedid_copied": "Ваш ID скопирован!",
+  "version_label": "Версия: {version}",
+  "build_time_label": "Время сборки: {buildtime}",
+  "host_version_label": "Версия хоста: {host_version}",
+  "select_api_endpoint_placeholder": "Живой",
+  "live_endpoint": "Живой",
+  "dev_endpoint": "Разработка",
+  "local_endpoint": "Локальный",
+  "crop_image": "Обрезать изображение",
+  "disable_otp": "Отключить OTP",
+  "sound_level": "Уровень звука",
+  "sound_power_of_system_notification": "Громкость системных уведомлений",
+  "no_microphone": "Микрофоны не найдены",
+  "noname_microphone": "Микрофон без имени",
+  "left": "Лево",
+  "right": "Право",
+  "loading_history": "Загрузка истории...",
+  "delete": "Удалить",
+  "leave": "Пойти в море",
+  "kick": "Вышвырнуть за борт",
+  "connected": "Подключено",
+  "connecting": "Подключение...",
+  "reconnect": "Переподключиться",
+  "development_panel": "Панель штурмана",
+  "browser_not_support_video": "Браузер не поддерживает видео.",
+  "unknown_display_name": "Неизвестный",
+  "not_supported_message_please_update": "Это сообщение не поддерживается вашей версией Аргон Чата. <br/> Обновите до последней версии или перезапустите клиент для автообновления.",
+  "update_is_ready": "Обновление готово!",
+  "camera": "Камера",
+  "microphone": "Микрофон",
+  "select_audio_source": "Выбрать источник звука",
+  "select_video_source": "Выбрать источник видео",
+  "add_channel": "Пришвартовать канал",
+  "channel_type": "Сорт канала",
+  "channel_name": "Зови как хочешь, моряк!",
+  "channel_type_text": "Балабольный канал",
+  "channel_type_voice": "Орущий канал",
+  "channel_type_announcement": "Капитанские возгласы",
+  "channel_name_required": "Требуется название канала",
+  "or": "иль",
+  "servers": "Пиратские гавани",
+  "users": "Братва",
+  "mute": "Заткнуть болтуна",
+  "unmute": "Развязать язык!",
+  "noise_sup": "Утихомиривание качки",
+  "send_message": "Послать весточку в бутылке!",
+  "close": "Закрыть трюм!",
+  "ok": "Подтвердить, йо-хо-хо!",
+  "start": "Вперёд на абордаж!",
+  "window_preview": "Глянуть в подзорную трубу",
+  "enable_sound_from_window": "Поднять паруса звука",
+  "enable_system_sound": "Пустить рёв пушек",
+  "screencast_title": "Показать палубу али трюм",
+  "screencast": "Передача навигации",
+  "monitors": "Штурвалы",
+  "windows": "Иллюминаторы",
+  "monitor_index": "Штурвал {idx}",
+  "quality": "Корабельное состояние",
+  "select_quality": "Выбрать крепость корпуса",
+  "fps": "Курс (FPS)",
+  "select_fps": "Выбрать скорость ветра",
+  "hotkey": "Пиратская команда",
+  "press_any_key": "Ударь по доске, как капитан!",
+  "app_language": "Язык морских волков",
+  "close_behaviour": "Что с мешком золота делать?",
+  "minimize_to_tray": "Убрать в трюм или покинуть корабль?",
+  "application_settings": "Настройки шхуны",
+  "connected_devices": "Пришвартованные устройства",
+  "logout_all_devices": "Смыть всех за борт!",
+  "list_hotkeys": "Список боевых команд",
+  "name": "Кличка",
+  "is_global_q": "Общепиратский?",
+  "global_toltip": "Общепиратские команды работают даже если шхуна скрыта в трюме и заняты другие дела.",
+  "add_invite": "Добавить пиратскую метку",
+  "remove": "Сбросить за борт",
+  "no_any_invite_codes_created": "Ни одной пиратской метки не сделано!",
+  "profile_settings": "Настройки капитана",
+  "username": "Пиратский позывной",
+  "display_name": "Имя, что гремит в портах",
+  "email": "Голубиная почта",
+  "phone_number": "Говорильный сундук",
+  "otp_title": "Двойной замок от лазутчиков (OTP)",
+  "invite_codes": "Коды призыва матросов",
+  "select_camera": "Выбери шпионскую трубу",
+  "no_camera_found": "Не найдено ни одной шпионской трубы!",
+  "unnamed_camera": "Камера без клички",
+  "test_camera": "Проверить трубу",
+  "you_not_access_to_channel_or_not_found_channels": "Йо-хо-хо! У тебя нет доступа к текстовым каютам, или их вовсе нет на этом корабле!",
+  "no_text_channel_found": "Нет текстовой каюты!",
+  "settings": "Настройки сокровищ",
+  "manage_settings": "Управляй своей учеткой и тайными предпочтениями",
+  "account": "Личный сундук",
+  "application": "Приборы на борту",
+  "voice_video": "Говори и показывай",
+  "hotkeys": "Горячие клинки",
+  "languages": "Языки мореплавателей",
+  "sounds": "Звуки",
+  "playSoftEnterSound": "Звук входа на палубу",
+  "playSoftEnterSound_details": "Врубить звук, когда абордажник ступает на палубу?",
+  "playSoftLeaveSound": "Звук покидания палубы",
+  "playSoftLeaveSound_details": "Грянуть прощальный звон, как кто-то слинял с корабля?",
+  "playMuteAllSound": "Звук затыкания ртов",
+  "playMuteAllSound_details": "Проигрывать ли звук, когда заткнули всех болтунов аль развязали им язык?",
+  "playReconnectSound": "Звук возвращения к братве",
+  "playReconnectSound_details": "Бросить якорь звуком при повторном присоединении?",
+  "playUnmuteAllSound": "Звук развязывания языка",
+  "playUnmuteAllSound_details": "Проиграть звук, как только крик снова разрешён?",
+  "playNotificationSound": "Звук морского гонца",
+  "playNotificationSound_details": "Пустить тревожный звон, как весточка пришла?",
+  "playRingSound": "Звон абордажного колокола",
+  "playRingSound_details": "Бить в колокол, когда кто-то зовёт на палубу?",
+  "activity_play_in": "Барабозит в",
+  "activity_work_in": "Батрачит в",
+  "activity_stream": "Гримит в порту о",
+  "activity_listen": "Наслаждается",
+  "key.microphone.toggle": "То трещит, то молчит треклятый глоткоговор!",
+  "key.microphone.on": "Пусть глотка вещает, как шторма зов!",
+  "key.microphone.off": "Затычку на глотку!",
+  "key.sound.toggle": "То руби, то врубай звуки!",
+  "key.sound.on": "Заткни проклятые гудки!",
+  "key.sound.off": "Дай грома в паруса!",
+  "status_0": "Наелся и спит",
+  "status_1": "Бодор как бобр",
+  "status_2": "Откис",
+  "status_5": "Щупает зелёный ковёр земли, подальше от штурвала!",
+  "status_6": "Не тревожь — капитан в мыслях с морским дьяволом!",
+  "noise_sup_desc": "Подавление вражеского шума (вражеский шум подавлен!)",
+  "select_microphone": "Выбери глоткоговор!",
+  "voice_video_settings": "Настройки звуков и видения с борта",
+  "socials": "Связи с братвой",
+  "typing": {
+    "one": "{name} скребёт по пергаменту",
+    "few": "{names} скребут по пергаменту",
+    "many": "Толпа корсар скребёт что-то"
+  },
+  "force_to_mono_voice": "Загнать в моно, чтоб попугай не шкодничал!",
+  "force_to_mono_voice_desc": "Если твой говорящий попугай орёт только в одно ухо — заставь его повторять свои байки в оба! А то как же штурвал держать, когда полкоманды в одно ухо улетает, аррр!",
+  "unnamed_speaker": "Динамики без флага и имени",
+  "no_speakers_found": "Ни одного крикливого сундука не найдено!",
+  "select_output": "Выбери, из чего греметь, чтоб попугай аж взлетел!",
+  "permissions": {
+    "groups": {
+      "basic": {
+        "name": "Базовый доступ, ё-моё!",
+        "description": "Минимальные права, чтоб видеть и читать, а не скрипеть"
+      },
+      "messaging": {
+        "name": "Пиратская болтовня",
+        "description": "Права на базар и штурманскую болтовню"
+      },
+      "voice": {
+        "name": "Голос и образ",
+        "description": "Права на голосовую каверзу и видеопередачу"
+      },
+      "moderation": {
+        "name": "Боевое управление",
+        "description": "Права рулить матроснёй"
+      },
+      "management": {
+        "name": "Корма и штурвал",
+        "description": "Права на настройки и капитанскую рубку"
+      }
+    },
+    "flags": {
+      "ViewChannel": {
+        "name": "Смотреть каюты",
+        "description": "Позволяет глазеть, что в канале"
+      },
+      "ReadHistory": {
+        "name": "Читать по бороде",
+        "description": "Позволяет листать, что было раньше"
+      },
+      "JoinToVoice": {
+        "name": "Влезть в голос",
+        "description": "Позволяет ввалиться в голосовой канал"
+      },
+      "SendMessages": {
+        "name": "Писать письма в бутылке",
+        "description": "Позволяет кидать текстовые пакости"
+      },
+      "AttachFiles": {
+        "name": "Прикреплять сокровища",
+        "description": "Позволяет цеплять картинки и доки"
+      },
+      "AddReactions": {
+        "name": "Ляпать иконки",
+        "description": "Позволяет ставить реакцию на каждую чушь"
+      },
+      "AnyMentions": {
+        "name": "Звать матросов",
+        "description": "Позволяет упоминать других пиратов"
+      },
+      "MentionEveryone": {
+        "name": "Оповестить весь флот",
+        "description": "Позволяет кричать {'@'}everyone и {'@'}here"
+      },
+      "ExternalEmoji": {
+        "name": "Чужие эмодзи",
+        "description": "Пользоваться смайликами чужих фрегатов"
+      },
+      "ExternalStickers": {
+        "name": "Чужие стикеры",
+        "description": "Пользоваться картинками с других кораблей"
+      },
+      "UseCommands": {
+        "name": "Бранные команды",
+        "description": "Позволяет юзать слэш-команды"
+      },
+      "PostEmbeddedLinks": {
+        "name": "Вставлять катушки",
+        "description": "Позволяет встраивать контент по якорям"
+      },
+      "SendVoice": {
+        "name": "Писать весточки голосом",
+        "description": "Позволяет шлёпать голосовые весточки"
+      },
+      "Connect": {
+        "name": "Подключиться к голосу",
+        "description": "Позволяет залесть в голосовой канал"
+      },
+      "Speak": {
+        "name": "Трепаться",
+        "description": "Позволяет орать в голосовом канале"
+      },
+      "Video": {
+        "name": "Кадры с палубы",
+        "description": "Позволяет включить камеру"
+      },
+      "Stream": {
+        "name": "Показывать карту",
+        "description": "Позволяет вещать экран"
+      },
+      "UseASIO": {
+        "name": "ASIO‑режим, мате!",
+        "description": "Позволяет звук низкой задержки"
+      },
+      "AdditionalStreams": {
+        "name": "Доп. потоки",
+        "description": "Позволяет юзать несколько видеопотоков"
+      },
+      "DisconnectMember": {
+        "name": "Выпнуть матроса",
+        "description": "Позволяет выбросить участника из голоса"
+      },
+      "MoveMember": {
+        "name": "Перетянуть матроса",
+        "description": "Позволяет таскать пиратов между каналами"
+      },
+      "MuteMember": {
+        "name": "Засекретить микрофон",
+        "description": "Позволяет выключить микрофон участника"
+      },
+      "KickMember": {
+        "name": "Кикнуть матроса",
+        "description": "Позволяет вышвырнуть участника с корабля"
+      },
+      "BanMember": {
+        "name": "Забанить матроса",
+        "description": "Позволяет банить участника на корабле"
+      },
+      "ManageChannels": {
+        "name": "Управлять гаванями",
+        "description": "Позволяет создавать, удалять и менять каналы"
+      },
+      "ManageArchetype": {
+        "name": "Управлять ролями",
+        "description": "Позволяет редактировать роли команды"
+      },
+      "ManageBots": {
+        "name": "Управлять ботами",
+        "description": "Позволяет конфигурировать бот-компаньонов"
+      },
+      "ManageEvents": {
+        "name": "Управлять рейдами",
+        "description": "Позволяет создавать и менять события"
+      },
+      "ManageBehaviour": {
+        "name": "Управлять автоматами",
+        "description": "Позволяет настраивать серверные скрипты"
+      },
+      "ManageServer": {
+        "name": "Управлять кораблём",
+        "description": "Даёт полный контроль над сервером"
+      }
+    }
+  },
+  "feedback_title": "Капитанский доклад",
+  "feedback_subtitle": "Сообщи, братишка, о поломке али сундуке с идеями",
+  "attachments": "Карта сокровищ (файлы)",
+  "drag_or_click_to_upload": "Швыряй сюда али жми, чтоб подгрузить",
+  "send_feedback": "Пустить в бутылку",
+  "feedback_attachments_limit": "PNG / JPG не тяжелее 2 мегов (не больше 3 трофеев)"
+}

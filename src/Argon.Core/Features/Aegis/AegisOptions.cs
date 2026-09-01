@@ -23,8 +23,14 @@ public sealed class AegisOptions : IValidatableFeatureOptions
     /// <summary>
     /// Directory the sign-in widget is served from, and the <c>index.html</c> a client-routed path
     /// falls back to. Empty serves no static files at all, which is what a deployment that puts the
-    /// widget behind its own CDN wants.
+    /// widget behind its own CDN wants — and what a local run wants, since the directory only
+    /// exists inside the image.
     /// </summary>
+    /// <remarks>
+    /// The shipped image builds it into <c>/app/aegis</c>; see the <c>widgets</c> stage in
+    /// <c>src/Argon.Api/Dockerfile</c> and <c>src/Frontend/Aegis</c>. It was <c>/app/wwwroot</c>
+    /// until the developer console joined it in the same image.
+    /// </remarks>
     public string StaticRoot { get; set; } = "";
 
     public bool SecurityHeaders { get; set; } = true;

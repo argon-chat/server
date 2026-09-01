@@ -1,0 +1,15 @@
+{
+  "name": "argon-frontend",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "Aegis",
+    "Console"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "build:aegis": "bun run --cwd Aegis build",
+    "build:console": "bun run --cwd Console build"
+  }
+}

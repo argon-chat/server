@@ -1,0 +1,398 @@
+{
+  "close": "閉じる",
+  "ok": "確認",
+  "or": "または",
+  "start": "開始",
+  "wait_connect": "接続を待っています、お待ちください...",
+  "create_new_server": "新しいサーバーを作成",
+  "announcement": "お知らせ",
+  "privacy_settings":"プライバシー設定",
+  "cancel": "キャンセル",
+  "voice": "音声",
+  "start_video": "ビデオ開始",
+  "stop_video": "ビデオ停止",
+  "text": "テキスト",
+  "enter_some_text": "テキストを入力...",
+  "replying_to": "返信先：",
+  "cannot_be_open": "開けません",
+  "friends": "友達",
+  "dont_have_friends": "友達がいません… Clippyもアンインストールされました...",
+  "notifications": "通知",
+  "no_new_notifications": "新しい通知はありません",
+  "inventory": "インベントリ",
+  "profile_views": "プロフィール閲覧数",
+  "profile": "プロフィール",
+  "activity": "アクティビティ",
+  "no_activity": "アクティビティはありません",
+  "bio": "自己紹介",
+  "greetings": {
+    "good_to_see_you": {
+      "title": "お会いできて嬉しいです ✨",
+      "desc": "ログインして続けてください"
+    },
+    "hey_there": {
+      "title": "やあ 👋",
+      "desc": "アカウント情報を入力して続行してください"
+    },
+    "welcome_back": {
+      "title": "お帰りなさい",
+      "desc": "前回の続きから始めましょう"
+    },
+    "glad_you_here": {
+      "title": "お越しいただきありがとうございます 🌙",
+      "desc": "スペースにアクセスしてつながり続けましょう"
+    },
+    "hello_again": {
+      "title": "こんにちは 🙈",
+      "desc": "サインインして探索を続けてください"
+    }
+  },
+  "enter_your_otp": "OTPコードを入力してください",
+  "enter_email": "メールアドレスを入力",
+  "we_will_send_reset_code": "パスワードリセットコードを送信します。",
+  "we_sent_it_on_email": "メールに送信しました。",
+  "verify_and_sigin": "認証してサインイン",
+  "forgot_password": "パスワードをお忘れですか？",
+  "reset_password": "パスワードリセット",
+  "password": "パスワード",
+  "dob": "生年月日",
+  "recive_emails_and_news": "最新情報やニュースのメールを受け取る（任意）",
+  "accept": "同意する",
+  "terms": "利用規約",
+  "privacy_policy": "プライバシーポリシー",
+  "register": "登録",
+  "already_have_account": "すでにアカウントをお持ちですか？",
+  "next": "次へ",
+  "signin": "サインイン",
+  "dont_have_account": "アカウントをお持ちでないですか？",
+  "create_one": "作成する",
+  "qr_code_login": "またはQRコードでログイン",
+  "scan_with_app": "Argonモバイルアプリでスキャン",
+  "create_account": "アカウント作成",
+  "join_argon": "Argonに参加して旅を始めましょう ✨",
+  "enter_reset_code": "リセットコードを入力",
+  "sent_on_email": "メールに送信されました。",
+  "choose_your_path": "以下から道を選んでください ✨",
+  "space_name_required": "スペース名が必要です",
+  "role_color": "役割の色",
+  "role_color_explain": "メンバーは役割リストの最高役割の色を使用します",
+  "permissions_name": "権限",
+  "description": "説明",
+  "group_members_with_this_role": "この役割を持つグループメンバー？",
+  "mention_hard": {
+    "allow_mention_role": "{mention} にこの役割を全員に許可しますか？",
+    "mention": "@メンション"
+  },
+  "search_users": "ユーザー検索...",
+  "users_with_this_role": "この役割を持つユーザー",
+  "no_users_with_this_role": "この役割を持つユーザーはいません",
+  "no_users_found": "ユーザーが見つかりません",
+  "loading": "読み込み中...",
+  "saved": "📁 保存しました",
+  "save_changes": "変更を保存",
+  "fail_save": "役割の保存に失敗しました",
+  "dev_tools": "開発ツール",
+  "open_dev_tools": "開発ツールを開く",
+  "diagnostic_board": "診断ボード",
+  "diagnostic_control_board_open": "診断コントロールパネルを開く",
+  "diagnostic_board_open": "診断ボードを開く",
+  "copy_my_userid": "ユーザーIDをコピー",
+  "copy": "コピー",
+  "channel": "チャンネル",
+  "select_update_channel": "アップデートチャンネルを選択",
+  "select_channel_placeholder": "ライブ",
+  "beta_channel": "ベータチャンネル",
+  "canary_channel": "カナリアチャンネル",
+  "live_channel": "ライブ",
+  "api_endpoint": "APIエンドポイント",
+  "warning_change_endpoint": "(警告：エンドポイント変更後、すべてのデータが消去されます)",
+  "usedid_copied": "あなたのユーザーIDをコピーしました！",
+  "version_label": "バージョン：{version}",
+  "build_time_label": "ビルド時刻：{buildtime}",
+  "host_version_label": "ホストバージョン：{host_version}",
+  "select_api_endpoint_placeholder": "ライブ",
+  "live_endpoint": "ライブ",
+  "dev_endpoint": "開発",
+  "local_endpoint": "ローカル",
+  "crop_image": "画像をトリミング",
+  "disable_otp": "OTPを無効にする",
+  "sound_level": "音量レベル",
+  "sound_power_of_system_notification": "システム通知の音量",
+  "no_microphone": "マイクが見つかりません",
+  "noname_microphone": "無名マイク",
+  "left": "左",
+  "right": "右",
+  "loading_history": "履歴を読み込み中...",
+  "delete": "削除",
+  "leave": "退出",
+  "kick": "キック",
+  "connected": "接続済み",
+  "connecting": "接続中",
+  "reconnect": "再接続",
+  "development_panel": "開発パネル",
+  "browser_not_support_video": "お使いのブラウザはビデオに対応していません。",
+  "unknown_display_name": "不明",
+  "not_supported_message_please_update": "このメッセージはお使いのArgon Chatバージョンではサポートされていません。<br/>最新バージョンに更新するか、クライアントを再起動してください。",
+  "update_is_ready": "アップデートの準備ができました！",
+  "camera": "カメラ",
+  "microphone": "マイク",
+  "select_audio_source": "音声ソースを選択",
+  "select_video_source": "ビデオソースを選択",
+  "add_channel": "チャンネルを追加",
+  "channel_type": "チャネルの種類",
+  "channel_name": "チャンネル名",
+  "channel_type_text": "テキストチャンネル",
+  "channel_type_voice": "音声チャンネル",
+  "channel_type_announcement": "お知らせ",
+  "invite_code": "招待コード",
+  "join_or_create_server": "サーバーに参加または作成",
+  "servers": "サーバー",
+  "users": "ユーザー",
+  "mute": "ミュート",
+  "unmute": "ミュート解除",
+  "noise_sup": "ノイズ抑制",
+  "send_message": "メッセージを送信",
+  "window_preview": "ウィンドウプレビュー",
+  "enable_sound_from_window": "ウィンドウの音声を含める",
+  "enable_system_sound": "システム音声を含める",
+  "screencast_title": "画面またはウィンドウを共有",
+  "screencast": "画面共有",
+  "monitors": "モニター",
+  "windows": "ウィンドウ",
+  "monitor_index": "モニター {idx}",
+  "quality": "品質",
+  "select_quality": "品質を選択",
+  "fps": "FPS",
+  "select_fps": "FPSを選択",
+  "hotkey": "ホットキー",
+  "press_any_key": "任意のキーを押してください...",
+  "app_language": "アプリの言語",
+  "close_behaviour": "閉じる動作",
+  "minimize_to_tray": "トレイに最小化するかアプリを終了する",
+  "application_settings": "アプリケーション設定",
+  "connected_devices": "接続されたデバイス",
+  "logout_all_devices": "すべてのデバイスからログアウト",
+  "list_hotkeys": "ホットキーの一覧",
+  "name": "名前",
+  "is_global_q": "グローバルですか？",
+  "global_toltip": "グローバルホットキーは、ウィンドウをトレイに最小化しても、他のプログラム内でも動作します。",
+  "add_invite": "招待を追加",
+  "remove": "削除",
+  "no_any_invite_codes_created": "作成された招待コードはありません",
+  "profile_settings": "プロフィール設定",
+  "username": "ユーザー名",
+  "display_name": "表示名",
+  "email": "Eメール",
+  "phone_number": "電話番号",
+  "otp_title": "二要素認証 (OTP)",
+  "invite_codes": "招待コード",
+  "select_camera": "カメラを選択",
+  "no_camera_found": "カメラが見つかりません",
+  "unnamed_camera": "名前なしのカメラ",
+  "test_camera": "ビデオテスト",
+  "you_not_access_to_channel_or_not_found_channels": "どのテキストチャンネルにもアクセスできないか、このサーバーにはチャンネルがありません。",
+  "no_text_channel_found": "テキストチャンネルが見つかりません",
+  "settings": "設定",
+  "manage_settings": "アカウントと設定を管理",
+  "account": "アカウント",
+  "application": "アプリケーション",
+  "voice_video": "音声とビデオ",
+  "hotkeys": "ホットキー",
+  "languages": "言語",
+  "sounds": "音",
+  "playSoftEnterSound": "チャンネル参加音",
+  "playSoftEnterSound_details": "チャンネルに参加したときの音を再生しますか？",
+  "playSoftLeaveSound": "チャンネル退出音",
+  "playSoftLeaveSound_details": "チャンネルから退出したときの音を再生しますか？",
+  "playMuteAllSound": "ミュート/ミュート解除音",
+  "playMuteAllSound_details": "ミュートやミュート解除時の音を再生しますか？",
+  "playReconnectSound": "再接続音",
+  "playReconnectSound_details": "再接続時の音を再生しますか？",
+  "playUnmuteAllSound": "ミュート解除音",
+  "playUnmuteAllSound_details": "ミュート解除時の音を再生しますか？",
+  "playNotificationSound": "通知音",
+  "playNotificationSound_details": "通知音を再生しますか？",
+  "playRingSound": "着信音",
+  "playRingSound_details": "着信音を再生しますか？",
+  "activity_play_in": "でプレイ中",
+  "activity_work_in": "で働いている",
+  "activity_stream": "配信中",
+  "activity_listen": "を聴きます",
+  "key.microphone.toggle": "マイクのミュート切替",
+  "key.microphone.on": "マイクのミュートを解除",
+  "key.microphone.off": "マイクをミュート",
+  "key.sound.toggle": "サウンドのミュート切替",
+  "key.sound.on": "サウンドをミュート",
+  "key.sound.off": "サウンドのミュートを解除",
+  "status_0": "Offline",
+  "status_1": "Online",
+  "status_2": "Away",
+  "status_5": "外でリフレッシュ中",
+  "status_6": "取り込み中",
+  "noise_sup_desc": "ノイズ抑制（ノイズ抑制）",
+  "select_microphone": "マイクを選択",
+  "voice_video_settings": "音声とビデオの設定",
+  "socials": "ソーシャル連携",
+  "typing": {
+    "one": "{name}が入力中です",
+    "few": "{names}が入力しています",
+    "many": "複数のユーザーが入力しています"
+  },
+  "force_to_mono_voice": "モノラル強制",
+  "force_to_mono_voice_desc": "サウンドカードがマイクの音声を片方のチャンネルだけに出力する場合、ステレオモードで音声を複製して、片耳だけで聞こえる問題を防ぐことができます。",
+  "unnamed_speaker": "名前なしのスピーカー",
+  "no_speakers_found": "スピーカーが見つかりません",
+  "select_output": "スピーカーを選択",
+  "permissions": {
+    "groups": {
+      "basic": {
+        "name": "基本アクセス",
+        "description": "閲覧と読み取りに必要な最小限の権限。"
+      },
+      "messaging": {
+        "name": "メッセージ",
+        "description": "チャットやコンテンツ送信の権限。"
+      },
+      "voice": {
+        "name": "音声・ビデオ",
+        "description": "音声およびビデオ通話の権限。"
+      },
+      "moderation": {
+        "name": "モデレーション",
+        "description": "メンバー管理の権限。"
+      },
+      "management": {
+        "name": "管理",
+        "description": "設定や管理者操作の権限。"
+      }
+    },
+    "flags": {
+      "ViewChannel": {
+        "name": "チャンネル閲覧",
+        "description": "チャンネルとその内容を見ることができます。"
+      },
+      "ReadHistory": {
+        "name": "履歴閲覧",
+        "description": "過去のメッセージを見ることができます。"
+      },
+      "JoinToVoice": {
+        "name": "ボイス参加",
+        "description": "ボイスチャネルに参加できます。"
+      },
+      "SendMessages": {
+        "name": "メッセージ送信",
+        "description": "テキストメッセージを送信できます。"
+      },
+      "AttachFiles": {
+        "name": "ファイル添付",
+        "description": "画像やドキュメントを添付できます。"
+      },
+      "AddReactions": {
+        "name": "リアクション追加",
+        "description": "メッセージにリアクションを追加できます。"
+      },
+      "AnyMentions": {
+        "name": "メンション",
+        "description": "他のユーザーをメンションできます。"
+      },
+      "MentionEveryone": {
+        "name": "全員にメンション",
+        "description": "{'@'}everyone と {'@'}here を使用できます。"
+      },
+      "ExternalEmoji": {
+        "name": "外部絵文字",
+        "description": "他サーバーの絵文字が使用できます。"
+      },
+      "ExternalStickers": {
+        "name": "外部スタンプ",
+        "description": "他サーバーのスタンプが使用できます。"
+      },
+      "UseCommands": {
+        "name": "コマンド使用",
+        "description": "スラッシュコマンドを使用できます。"
+      },
+      "PostEmbeddedLinks": {
+        "name": "リンク埋め込み",
+        "description": "リンクでコンテンツを埋め込めます。"
+      },
+      "SendVoice": {
+        "name": "音声送信",
+        "description": "音声メッセージを送信できます。"
+      },
+      "Connect": {
+        "name": "ボイス接続",
+        "description": "ボイスチャネルに接続できます。"
+      },
+      "Speak": {
+        "name": "発言",
+        "description": "ボイスチャネルで話せます。"
+      },
+      "Video": {
+        "name": "ビデオ",
+        "description": "カメラを使用できます。"
+      },
+      "Stream": {
+        "name": "画面共有",
+        "description": "画面を共有できます。"
+      },
+      "UseASIO": {
+        "name": "ASIOモード",
+        "description": "低遅延オーディオモードが使用できます。"
+      },
+      "AdditionalStreams": {
+        "name": "追加ストリーム",
+        "description": "複数の映像ストリームを使用できます。"
+      },
+      "DisconnectMember": {
+        "name": "メンバー切断",
+        "description": "ボイスからメンバーを強制切断できます。"
+      },
+      "MoveMember": {
+        "name": "メンバー移動",
+        "description": "メンバーをチャンネル間で移動できます。"
+      },
+      "MuteMember": {
+        "name": "ミュート",
+        "description": "メンバーのマイクをミュートできます。"
+      },
+      "KickMember": {
+        "name": "キック",
+        "description": "サーバーからメンバーをキックできます。"
+      },
+      "BanMember": {
+        "name": "バン",
+        "description": "サーバーからメンバーを禁止できます。"
+      },
+      "ManageChannels": {
+        "name": "チャンネル管理",
+        "description": "チャンネルの作成・削除・編集ができます。"
+      },
+      "ManageArchetype": {
+        "name": "役割管理",
+        "description": "サーバーの役割 (アーキタイプ) を編集できます。"
+      },
+      "ManageBots": {
+        "name": "ボット管理",
+        "description": "ボットの設定と実行ができます。"
+      },
+      "ManageEvents": {
+        "name": "イベント管理",
+        "description": "サーバーイベントの作成と編集ができます。"
+      },
+      "ManageBehaviour": {
+        "name": "動作管理",
+        "description": "サーバースクリプトや自動処理の設定ができます。"
+      },
+      "ManageServer": {
+        "name": "サーバー管理",
+        "description": "設定へのフル管理アクセスが付与されます。"
+      }
+    }
+  },
+  "feedback_title": "フィードバック",
+  "feedback_subtitle": "問題や提案を教えてください",
+  "attachments": "添付ファイル",
+  "drag_or_click_to_upload": "ここにドラッグするかクリックしてアップロード",
+  "send_feedback": "送信",
+  "feedback_attachments_limit": "PNG / JPG 2MBまで（最大3ファイル）"
+}

@@ -1,0 +1,21 @@
+/* Global font imports */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+/* Minimal global overrides — all base styles are in index.css */
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+a:hover {
+  color: var(--color-accent-hover);
+}
+
+#app {
+  width: 100%;
+  min-height: 100vh;
+}
+
+.focus-visible\:ring-ring:focus-visible {
+  --tw-ring-color: hsl(0deg 0% 0% / 0%);
+}
