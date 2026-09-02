@@ -38,6 +38,7 @@ public enum ReportTargetKind : u4
     CHANNEL = 2,
     SPACE = 3,
     USER = 4,
+    DIRECT_MESSAGE = 5,
 }
 
 /// <summary>Open-enum helpers for <see cref="ReportTargetKind"/>.</summary>
@@ -52,7 +53,7 @@ public static class Ion_ReportTargetKind_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this ReportTargetKind value)
-        => value == ReportTargetKind.PROFILE || value == ReportTargetKind.MESSAGE || value == ReportTargetKind.CHANNEL || value == ReportTargetKind.SPACE || value == ReportTargetKind.USER;
+        => value == ReportTargetKind.PROFILE || value == ReportTargetKind.MESSAGE || value == ReportTargetKind.CHANNEL || value == ReportTargetKind.SPACE || value == ReportTargetKind.USER || value == ReportTargetKind.DIRECT_MESSAGE;
 
     /// <summary>
     /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no

@@ -407,7 +407,11 @@ public class UserGrain(
     {
         var user = await GetMe();
 
-        if (user.LockdownReason is LockdownReason.NONE)
+        // A lockdown with an expiry that has passed is no lockdown. Nothing sweeps the columns
+        // clear, so this is where a timed ban actually ends — the request interceptor reads the
+        // same two fields the same way.
+        if (user.LockdownReason is LockdownReason.NONE
+         || user.LockDownExpiration is { } expiry && expiry <= DateTimeOffset.UtcNow)
             return new LockedAuthStatus(null, null, false, LockdownSeverity.Low);
 
         return new LockedAuthStatus(user.LockdownReason, user.LockDownExpiration?.UtcDateTime ?? DateTime.Now.AddYears(20),

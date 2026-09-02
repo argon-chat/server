@@ -124,6 +124,29 @@ public sealed class ModerationOptionsRole : IArgonRole
         => features.Add<ModerationOptionsFeature>();
 }
 
+/// <summary>
+/// Carries the report-system options under a section of their own, for the same reason as the
+/// moderation fixture above: the real feature owns <c>ReportSystem</c>.
+/// </summary>
+public sealed class ReportOptionsFeature : IArgonFeature
+{
+    public const string Section = "ReportSystemUnderTest";
+
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("report-options")
+            .Options<Argon.Features.Moderation.ReportSystemOptions>(Section);
+}
+
+public sealed class ReportOptionsRole : IArgonRole
+{
+    public static ArgonRoleId Id => new("report-options");
+
+    public bool IsClient => false;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+        => features.Add<ReportOptionsFeature>();
+}
+
 /// <summary>Carries the operator step-up options, under a section of its own.</summary>
 /// <remarks>
 /// Not <c>OperatorMutualTlsOptions.SectionName</c>: the real feature owns that, and a second claim on

@@ -2499,176 +2499,111 @@ public class AdminConsoleImpl(
     }
 
     // ===== Reports & Trust =====
+    //
+    // The console does not read the report tables. Every call goes through IReportGrain, the one
+    // place the report system's rules live; what is left here is the mapping onto the console
+    // contract, the audit line, and the operator's id — which the grain cannot see for itself,
+    // since an operator's identity lives in a context that does not cross a grain call.
+
+    private IReportGrain Reports => grainFactory.GetGrain<IReportGrain>(Guid.CreateVersion7());
+
+    private static Guid CurrentOperatorId => OperatorRequestContext.Current.OperatorId;
 
     public async Task<AdminReportPage> GetReports(ReportStatus? status, ReportCategory? category, int limit, int offset, CancellationToken ct = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
-
-        offset = Math.Max(0, offset);
-        limit = Math.Clamp(limit, 1, 100);
-
-        var query = db.Reports.AsNoTracking().AsQueryable();
-
-        if (status.HasValue)
-            query = query.Where(x => x.Status == status.Value);
-        if (category.HasValue)
-            query = query.Where(x => x.Category == category.Value);
-
-        var totalCount = await query.CountAsync(ct);
-
-        var entities = await query
-           .OrderByDescending(x => x.PriorityScore)
-           .ThenByDescending(x => x.CreatedAt)
-           .Skip(offset)
-           .Take(limit)
-           .Include(x => x.Reporter)
-           .ToListAsync(ct);
-
-        var targetIds = entities.Select(x => x.TargetId).Distinct().ToList();
-        var targetUsers = await db.Users
-           .AsNoTracking()
-           .Where(u => targetIds.Contains(u.Id))
-           .ToDictionaryAsync(u => u.Id, u => u.DisplayName ?? u.Username, ct);
-
-        var targetSpaces = await db.Spaces
-           .AsNoTracking()
-           .Where(s => targetIds.Contains(s.Id))
-           .ToDictionaryAsync(s => s.Id, s => s.Name, ct);
-
-        var reports = entities.Select(r => new AdminReportEntry(
-            r.Id,
-            r.ReporterId,
-            r.Reporter.Username,
-            new ReportTarget(r.TargetKind, r.TargetId, r.ChannelId, r.MessageId),
-            ResolveTargetDisplayName(r, targetUsers, targetSpaces),
-            r.Category,
-            r.Reason,
-            r.AdditionalInfo,
-            r.Status,
-            r.ReferenceReportId,
-            r.AssignedOperatorId,
-            r.ResolutionNote,
-            r.CreatedAt.UtcDateTime,
-            r.ResolvedAt?.UtcDateTime
-        )).ToList();
+        var page = await Reports.GetReportsAsync(new ReportCaseQuery(status, category, limit, offset), ct);
 
         return new AdminReportPage(
-            new IonArray<AdminReportEntry>(reports),
-            totalCount,
-            offset,
-            limit
-        );
+            new IonArray<AdminReportEntry>(page.Reports.Select(ToEntry).ToList()),
+            page.TotalCount,
+            page.Offset,
+            page.Limit);
     }
 
     public async Task<AdminReportEntry> GetReportById(Guid reportId, CancellationToken ct = default)
     {
-        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var report = await Reports.GetReportAsync(reportId, ct)
+                  ?? throw new KeyNotFoundException($"Report {reportId} not found");
 
-        var r = await db.Reports
-           .AsNoTracking()
-           .Include(x => x.Reporter)
-           .FirstOrDefaultAsync(x => x.Id == reportId, ct);
-
-        if (r is null)
-            throw new KeyNotFoundException($"Report {reportId} not found");
-
-        var targetName = await ResolveTargetDisplayNameAsync(db, r, ct);
-
-        return new AdminReportEntry(
-            r.Id,
-            r.ReporterId,
-            r.Reporter.Username,
-            new ReportTarget(r.TargetKind, r.TargetId, r.ChannelId, r.MessageId),
-            targetName,
-            r.Category,
-            r.Reason,
-            r.AdditionalInfo,
-            r.Status,
-            r.ReferenceReportId,
-            r.AssignedOperatorId,
-            r.ResolutionNote,
-            r.CreatedAt.UtcDateTime,
-            r.ResolvedAt?.UtcDateTime
-        );
+        return ToEntry(report);
     }
 
+    /// <summary>Resolves the report's case, and with it every report on that case.</summary>
     public async Task<UserActionResult> ResolveReport(ResolveReportInput input, CancellationToken ct = default)
     {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var caseId = await Reports.FindCaseByReportAsync(input.reportId, ct);
 
-            var report = await db.Reports.FindAsync([input.reportId], ct);
-            if (report is null)
-                return new UserActionResult(false, "Report not found");
+        if (caseId is null)
+            return new UserActionResult(false, "Report not found");
 
-            report.Status         = input.status;
-            report.ResolutionNote = input.resolutionNote;
-            report.ResolvedAt     = DateTimeOffset.UtcNow;
-            report.UpdatedAt      = DateTimeOffset.UtcNow;
-
-            await db.SaveChangesAsync(ct);
-
-            // Recalculate target user's trust score
-            try
-            {
-                var trustGrain = grainFactory.GetGrain<IUserTrustGrain>(report.TargetId);
-                await trustGrain.OnReportResolvedAsync(input.status, ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to notify trust grain on report resolution");
-            }
-
-            // Recalculate reporter's credibility (resolution affects their accuracy)
-            try
-            {
-                var reporterTrustGrain = grainFactory.GetGrain<IUserTrustGrain>(report.ReporterId);
-                await reporterTrustGrain.RecalculateTrustAsync(ct);
-            }
-            catch (Exception ex)
-            {
-                logger.LogWarning(ex, "Failed to recalculate reporter {ReporterId} credibility", report.ReporterId);
-            }
-
-            await auditService.LogAsync("ResolveReport", "Report", input.reportId.ToString(),
-                $"Status={input.status}, Action={input.applyAction}");
-
-            return new UserActionResult(true, null);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Failed to resolve report {ReportId}", input.reportId);
-            return new UserActionResult(false, e.Message);
-        }
+        return await ResolveReportCase(new ResolveReportCaseInput(caseId.Value, input.status, input.resolutionNote, input.applyAction), ct);
     }
 
     public async Task<UserActionResult> AssignReport(Guid reportId, Guid operatorId, CancellationToken ct = default)
     {
-        try
-        {
-            await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var caseId = await Reports.FindCaseByReportAsync(reportId, ct);
 
-            var report = await db.Reports.FindAsync([reportId], ct);
-            if (report is null)
-                return new UserActionResult(false, "Report not found");
+        if (caseId is null)
+            return new UserActionResult(false, "Report not found");
 
-            report.AssignedOperatorId = operatorId;
-            report.Status             = ReportStatus.UNDER_REVIEW;
-            report.UpdatedAt          = DateTimeOffset.UtcNow;
+        return await AssignReportCase(caseId.Value, operatorId, ct);
+    }
 
-            await db.SaveChangesAsync(ct);
+    public async Task<AdminReportCasePage> GetReportCases(ReportStatus? status, ReportCategory? category, int limit, int offset, CancellationToken ct = default)
+    {
+        var page = await Reports.GetCasesAsync(new ReportCaseQuery(status, category, limit, offset), ct);
 
-            await auditService.LogAsync("AssignReport", "Report", reportId.ToString(),
-                $"OperatorId={operatorId}");
+        return new AdminReportCasePage(
+            new IonArray<AdminReportCaseSummary>(page.Cases.Select(ToSummary).ToList()),
+            page.TotalCount,
+            page.Offset,
+            page.Limit);
+    }
 
-            return new UserActionResult(true, null);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Failed to assign report {ReportId}", reportId);
-            return new UserActionResult(false, e.Message);
-        }
+    public async Task<AdminReportCaseDetails> GetReportCase(Guid caseId, CancellationToken ct = default)
+    {
+        var view = await Reports.GetCaseAsync(caseId, ct)
+                ?? throw new KeyNotFoundException($"Report case {caseId} not found");
+
+        return new AdminReportCaseDetails(
+            ToSummary(view.Summary),
+            view.ContentSnapshot,
+            new IonArray<AdminReportEntry>(view.Reports.Select(ToEntry).ToList()),
+            view.ResolutionNote,
+            view.ResolvedByOperatorId,
+            view.TargetTrustScore);
+    }
+
+    public async Task<UserActionResult> AssignReportCase(Guid caseId, Guid operatorId, CancellationToken ct = default)
+    {
+        var result = await Reports.AssignCaseAsync(caseId, operatorId, ct);
+
+        if (result.Success)
+            await auditService.LogAsync("AssignReportCase", "ReportCase", caseId.ToString(), $"OperatorId={operatorId}");
+
+        return new UserActionResult(result.Success, result.Error);
+    }
+
+    public async Task<UserActionResult> ResolveReportCase(ResolveReportCaseInput input, CancellationToken ct = default)
+    {
+        var result = await Reports.ResolveCaseAsync(
+            new ResolveReportCaseCommand(input.caseId, input.status, input.resolutionNote, input.applyAction, CurrentOperatorId), ct);
+
+        if (result.Success)
+            await auditService.LogAsync("ResolveReportCase", "ReportCase", input.caseId.ToString(),
+                $"Status={input.status}, Action={input.applyAction}");
+
+        return new UserActionResult(result.Success, result.Error);
+    }
+
+    public async Task<UserActionResult> ReopenReportCase(Guid caseId, string? note, CancellationToken ct = default)
+    {
+        var result = await Reports.ReopenCaseAsync(caseId, CurrentOperatorId, note, ct);
+
+        if (result.Success)
+            await auditService.LogAsync("ReopenReportCase", "ReportCase", caseId.ToString(), note);
+
+        return new UserActionResult(result.Success, result.Error);
     }
 
     public async Task<AdminUserTrustCard> GetUserTrustCard(Guid userId, CancellationToken ct = default)
@@ -2686,10 +2621,6 @@ public class AdminConsoleImpl(
             : TimeSpan.Zero;
 
         var lastActivity = user?.UpdatedAt.UtcDateTime ?? DateTime.UtcNow;
-
-        logger.LogInformation(
-            "[TrustCardDiag] userId={UserId}, userFound={UserFound}, username={Username}, trustScore={TrustScore}, accountAge={AccountAge}, entityExists={EntityExists}, entityScore={EntityScore}",
-            userId, user is not null, user?.Username, trustInfo.trustScore, accountAge, trustEntity is not null, trustEntity?.TrustScore);
 
         return new AdminUserTrustCard(
             userId,
@@ -2736,30 +2667,44 @@ public class AdminConsoleImpl(
         );
     }
 
-    private static string ResolveTargetDisplayName(
-        ReportEntity report,
-        Dictionary<Guid, string> users,
-        Dictionary<Guid, string> spaces)
-    {
-        if (report.TargetKind == ReportTargetKind.SPACE)
-            return spaces.GetValueOrDefault(report.TargetId, "Unknown Space");
-        return users.GetValueOrDefault(report.TargetId, "Unknown User");
-    }
+    private static AdminReportEntry ToEntry(ReportEntryView r)
+        => new(
+            r.ReportId,
+            r.ReporterId,
+            r.ReporterUsername,
+            new ReportTarget(r.TargetKind, r.TargetId, r.ChannelId, r.MessageId is { } message ? (ulong)message : null),
+            r.TargetDisplayName,
+            r.Category,
+            r.Reason,
+            r.AdditionalInfo,
+            r.Status,
+            null,
+            r.AssignedOperatorId,
+            r.ResolutionNote,
+            r.CreatedAt,
+            r.ResolvedAt,
+            r.CaseId,
+            r.PriorityScore,
+            r.EscalationRule,
+            r.IsIndependent);
 
-    private static async Task<string> ResolveTargetDisplayNameAsync(
-        ApplicationDbContext db,
-        ReportEntity report,
-        CancellationToken ct)
-    {
-        if (report.TargetKind == ReportTargetKind.SPACE)
-        {
-            var space = await db.Spaces.AsNoTracking().FirstOrDefaultAsync(s => s.Id == report.TargetId, ct);
-            return space?.Name ?? "Unknown Space";
-        }
-
-        var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == report.TargetId, ct);
-        return user?.DisplayName ?? user?.Username ?? "Unknown User";
-    }
+    private static AdminReportCaseSummary ToSummary(ReportCaseSummary c)
+        => new(
+            c.CaseId,
+            new ReportTarget(c.TargetKind, c.TargetId, c.ChannelId, c.MessageId is { } message ? (ulong)message : null),
+            c.TargetDisplayName,
+            c.Status,
+            c.TopCategory,
+            c.PriorityScore,
+            c.ReportCount,
+            c.IndependentReporterCount,
+            c.IsEscalated,
+            c.EscalationRule,
+            c.AssignedOperatorId,
+            c.FirstReportedAt,
+            c.LastReportedAt,
+            c.ResolvedAt,
+            c.AppliedAction);
 
     #region Feature Flags
 

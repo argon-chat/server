@@ -2440,7 +2440,7 @@ public sealed class Ion_AdminReportEntry_Formatter : IonFormatter<AdminReportEnt
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public AdminReportEntry Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(14, "AdminReportEntry");
+        var arraySize = reader.ReadStartMessage(18, "AdminReportEntry");
         var __reportid = IonFormatterStorage<guid>.Read(reader);
         var __reporterid = IonFormatterStorage<guid>.Read(reader);
         var __reporterusername = IonFormatterStorage<string>.Read(reader);
@@ -2455,14 +2455,18 @@ public sealed class Ion_AdminReportEntry_Formatter : IonFormatter<AdminReportEnt
         var __resolutionnote = reader.ReadNullable<string>();
         var __createdat = IonFormatterStorage<datetime>.Read(reader);
         var __resolvedat = reader.ReadNullable<datetime>();
-        reader.ReadEndArrayAndSkip(arraySize - 14);
-        return new(__reportid, __reporterid, __reporterusername, __target, __targetdisplayname, __category, __reason, __additionalinfo, __status, __referencereportid, __assignedoperatorid, __resolutionnote, __createdat, __resolvedat);
+        var __caseid = reader.ReadNullable<guid>();
+        var __priorityscore = IonFormatterStorage<i4>.Read(reader);
+        var __escalationrule = reader.ReadNullable<string>();
+        var __isindependent = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 18);
+        return new(__reportid, __reporterid, __reporterusername, __target, __targetdisplayname, __category, __reason, __additionalinfo, __status, __referencereportid, __assignedoperatorid, __resolutionnote, __createdat, __resolvedat, __caseid, __priorityscore, __escalationrule, __isindependent);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, AdminReportEntry value)
     {
-        writer.WriteStartArray(14);
+        writer.WriteStartArray(18);
         IonFormatterStorage<guid>.Write(writer, value.reportId);
         IonFormatterStorage<guid>.Write(writer, value.reporterId);
         IonFormatterStorage<string>.Write(writer, value.reporterUsername);
@@ -2477,6 +2481,10 @@ public sealed class Ion_AdminReportEntry_Formatter : IonFormatter<AdminReportEnt
         IonFormatterStorage<string>.WriteNullable(writer, value.resolutionNote);
         IonFormatterStorage<datetime>.Write(writer, value.createdAt);
         IonFormatterStorage<datetime>.WriteNullable(writer, value.resolvedAt);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.caseId);
+        IonFormatterStorage<i4>.Write(writer, value.priorityScore);
+        IonFormatterStorage<string>.WriteNullable(writer, value.escalationRule);
+        IonFormatterStorage<bool>.Write(writer, value.isIndependent);
         writer.WriteEndArray();
     }
 }
@@ -2501,6 +2509,140 @@ public sealed class Ion_ResolveReportInput_Formatter : IonFormatter<ResolveRepor
     {
         writer.WriteStartArray(4);
         IonFormatterStorage<guid>.Write(writer, value.reportId);
+        IonFormatterStorage<ReportStatus>.Write(writer, value.status);
+        IonFormatterStorage<string>.WriteNullable(writer, value.resolutionNote);
+        IonFormatterStorage<ReportActionKind>.Write(writer, value.applyAction);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminReportCaseSummary_Formatter : IonFormatter<AdminReportCaseSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminReportCaseSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(15, "AdminReportCaseSummary");
+        var __caseid = IonFormatterStorage<guid>.Read(reader);
+        var __target = IonFormatterStorage<ReportTarget>.Read(reader);
+        var __targetdisplayname = IonFormatterStorage<string>.Read(reader);
+        var __status = IonFormatterStorage<ReportStatus>.Read(reader);
+        var __topcategory = IonFormatterStorage<ReportCategory>.Read(reader);
+        var __priorityscore = IonFormatterStorage<i4>.Read(reader);
+        var __reportcount = IonFormatterStorage<i4>.Read(reader);
+        var __independentreportercount = IonFormatterStorage<i4>.Read(reader);
+        var __isescalated = IonFormatterStorage<bool>.Read(reader);
+        var __escalationrule = reader.ReadNullable<string>();
+        var __assignedoperatorid = reader.ReadNullable<guid>();
+        var __firstreportedat = IonFormatterStorage<datetime>.Read(reader);
+        var __lastreportedat = IonFormatterStorage<datetime>.Read(reader);
+        var __resolvedat = reader.ReadNullable<datetime>();
+        var __appliedaction = IonFormatterStorage<ReportActionKind>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 15);
+        return new(__caseid, __target, __targetdisplayname, __status, __topcategory, __priorityscore, __reportcount, __independentreportercount, __isescalated, __escalationrule, __assignedoperatorid, __firstreportedat, __lastreportedat, __resolvedat, __appliedaction);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminReportCaseSummary value)
+    {
+        writer.WriteStartArray(15);
+        IonFormatterStorage<guid>.Write(writer, value.caseId);
+        IonFormatterStorage<ReportTarget>.Write(writer, value.target);
+        IonFormatterStorage<string>.Write(writer, value.targetDisplayName);
+        IonFormatterStorage<ReportStatus>.Write(writer, value.status);
+        IonFormatterStorage<ReportCategory>.Write(writer, value.topCategory);
+        IonFormatterStorage<i4>.Write(writer, value.priorityScore);
+        IonFormatterStorage<i4>.Write(writer, value.reportCount);
+        IonFormatterStorage<i4>.Write(writer, value.independentReporterCount);
+        IonFormatterStorage<bool>.Write(writer, value.isEscalated);
+        IonFormatterStorage<string>.WriteNullable(writer, value.escalationRule);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.assignedOperatorId);
+        IonFormatterStorage<datetime>.Write(writer, value.firstReportedAt);
+        IonFormatterStorage<datetime>.Write(writer, value.lastReportedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.resolvedAt);
+        IonFormatterStorage<ReportActionKind>.Write(writer, value.appliedAction);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminReportCasePage_Formatter : IonFormatter<AdminReportCasePage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminReportCasePage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "AdminReportCasePage");
+        var __cases = IonFormatterStorage<AdminReportCaseSummary>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__cases, __totalcount, __offset, __limit);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminReportCasePage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<AdminReportCaseSummary>.WriteArray(writer, value.cases);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AdminReportCaseDetails_Formatter : IonFormatter<AdminReportCaseDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AdminReportCaseDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(6, "AdminReportCaseDetails");
+        var __summary = IonFormatterStorage<AdminReportCaseSummary>.Read(reader);
+        var __contentsnapshot = reader.ReadNullable<string>();
+        var __reports = IonFormatterStorage<AdminReportEntry>.ReadArray(reader);
+        var __resolutionnote = reader.ReadNullable<string>();
+        var __resolvedbyoperatorid = reader.ReadNullable<guid>();
+        var __targettrustscore = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__summary, __contentsnapshot, __reports, __resolutionnote, __resolvedbyoperatorid, __targettrustscore);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AdminReportCaseDetails value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<AdminReportCaseSummary>.Write(writer, value.summary);
+        IonFormatterStorage<string>.WriteNullable(writer, value.contentSnapshot);
+        IonFormatterStorage<AdminReportEntry>.WriteArray(writer, value.reports);
+        IonFormatterStorage<string>.WriteNullable(writer, value.resolutionNote);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.resolvedByOperatorId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.targetTrustScore);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ResolveReportCaseInput_Formatter : IonFormatter<ResolveReportCaseInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ResolveReportCaseInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "ResolveReportCaseInput");
+        var __caseid = IonFormatterStorage<guid>.Read(reader);
+        var __status = IonFormatterStorage<ReportStatus>.Read(reader);
+        var __resolutionnote = reader.ReadNullable<string>();
+        var __applyaction = IonFormatterStorage<ReportActionKind>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__caseid, __status, __resolutionnote, __applyaction);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ResolveReportCaseInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.caseId);
         IonFormatterStorage<ReportStatus>.Write(writer, value.status);
         IonFormatterStorage<string>.WriteNullable(writer, value.resolutionNote);
         IonFormatterStorage<ReportActionKind>.Write(writer, value.applyAction);

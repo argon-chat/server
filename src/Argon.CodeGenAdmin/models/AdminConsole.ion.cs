@@ -323,11 +323,27 @@ public sealed record AdminReportPage(IonArray<AdminReportEntry> reports, i4 tota
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record AdminReportEntry(guid reportId, guid reporterId, string reporterUsername, ReportTarget target, string targetDisplayName, ReportCategory category, ReportReason reason, string? additionalInfo, ReportStatus status, guid? referenceReportId, guid? assignedOperatorId, string? resolutionNote, datetime createdAt, datetime? resolvedAt);
+public sealed record AdminReportEntry(guid reportId, guid reporterId, string reporterUsername, ReportTarget target, string targetDisplayName, ReportCategory category, ReportReason reason, string? additionalInfo, ReportStatus status, guid? referenceReportId, guid? assignedOperatorId, string? resolutionNote, datetime createdAt, datetime? resolvedAt, guid? caseId, i4 priorityScore, string? escalationRule, bool isIndependent);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record ResolveReportInput(guid reportId, ReportStatus status, string? resolutionNote, ReportActionKind applyAction);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminReportCaseSummary(guid caseId, ReportTarget target, string targetDisplayName, ReportStatus status, ReportCategory topCategory, i4 priorityScore, i4 reportCount, i4 independentReporterCount, bool isEscalated, string? escalationRule, guid? assignedOperatorId, datetime firstReportedAt, datetime lastReportedAt, datetime? resolvedAt, ReportActionKind appliedAction);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminReportCasePage(IonArray<AdminReportCaseSummary> cases, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AdminReportCaseDetails(AdminReportCaseSummary summary, string? contentSnapshot, IonArray<AdminReportEntry> reports, string? resolutionNote, guid? resolvedByOperatorId, i4? targetTrustScore);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ResolveReportCaseInput(guid caseId, ReportStatus status, string? resolutionNote, ReportActionKind applyAction);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -703,6 +719,11 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> AssignReport(guid reportId, guid operatorId, CancellationToken ct = default);
     Task<AdminUserTrustCard> GetUserTrustCard(guid userId, CancellationToken ct = default);
     Task<AdminUserTrustCard> RecalculateUserTrust(guid userId, CancellationToken ct = default);
+    Task<AdminReportCasePage> GetReportCases(ReportStatus? status, ReportCategory? category, i4 limit, i4 offset, CancellationToken ct = default);
+    Task<AdminReportCaseDetails> GetReportCase(guid caseId, CancellationToken ct = default);
+    Task<UserActionResult> AssignReportCase(guid caseId, guid operatorId, CancellationToken ct = default);
+    Task<UserActionResult> ResolveReportCase(ResolveReportCaseInput input, CancellationToken ct = default);
+    Task<UserActionResult> ReopenReportCase(guid caseId, string? note, CancellationToken ct = default);
     Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default);
     Task<FeatureFlagDetails> GetFeatureFlag(string flagId, CancellationToken ct = default);
     Task<FeatureFlagActionResult> CreateFeatureFlag(CreateFeatureFlagInput input, CancellationToken ct = default);

@@ -15,7 +15,19 @@ using ion.runtime;
 public class DefaultHeaderInterceptor : IIonInterceptor
 {
     private readonly Guid    _sessionId = Guid.CreateVersion7();
-    private readonly Guid    _machineId = Guid.CreateVersion7();
+    private readonly Guid    _machineId;
+
+    public DefaultHeaderInterceptor() : this(Guid.CreateVersion7())
+    {
+    }
+
+    /// <summary>
+    /// A client on a machine the test names. Two sessions built with the same id look like two
+    /// accounts on one device, which is the shape the report system's independence rule exists to
+    /// see through.
+    /// </summary>
+    public DefaultHeaderInterceptor(Guid machineId)
+        => _machineId = machineId;
 
     /// <summary>
     /// The device id this client claims, verbatim as it goes out in <c>Sec-Carry</c>.

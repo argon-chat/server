@@ -99,6 +99,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AdminReportPage>.Value = new Ion_AdminReportPage_Formatter();
       IonFormatterStorage<AdminReportEntry>.Value = new Ion_AdminReportEntry_Formatter();
       IonFormatterStorage<ResolveReportInput>.Value = new Ion_ResolveReportInput_Formatter();
+      IonFormatterStorage<AdminReportCaseSummary>.Value = new Ion_AdminReportCaseSummary_Formatter();
+      IonFormatterStorage<AdminReportCasePage>.Value = new Ion_AdminReportCasePage_Formatter();
+      IonFormatterStorage<AdminReportCaseDetails>.Value = new Ion_AdminReportCaseDetails_Formatter();
+      IonFormatterStorage<ResolveReportCaseInput>.Value = new Ion_ResolveReportCaseInput_Formatter();
       IonFormatterStorage<AdminUserTrustCard>.Value = new Ion_AdminUserTrustCard_Formatter();
       IonFormatterStorage<FeatureFlagList>.Value = new Ion_FeatureFlagList_Formatter();
       IonFormatterStorage<FeatureFlagSummary>.Value = new Ion_FeatureFlagSummary_Formatter();

@@ -40,6 +40,14 @@ public interface IChannelGrain : IGrainWithGuidKey
     Task<DeleteMessageError> DeleteMessage(long messageId, CancellationToken ct = default);
 
     /// <summary>
+    /// Soft-deletes a message on a moderator's decision, with no caller to check. Reached only from
+    /// the report grain, which has already established who decided and why; nothing on the wire
+    /// maps to it. False when the message was already gone.
+    /// </summary>
+    [Alias("DeleteMessageByModeration")]
+    Task<bool> DeleteMessageByModeration(long messageId, Guid operatorId, CancellationToken ct = default);
+
+    /// <summary>
     /// Mints an invite code that points at this voice room. Returns the raw code; turning it into a
     /// link is the caller's job because the domain is configuration, not grain state.
     /// </summary>

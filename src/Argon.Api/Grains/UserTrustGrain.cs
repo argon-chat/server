@@ -5,6 +5,20 @@ using Argon.Features.Moderation;
 using Core.Entities.Data;
 using Orleans.Concurrency;
 
+/// <summary>
+/// A user's standing, recomputed from the cases decided about them and by them.
+/// </summary>
+/// <remarks>
+/// <para>Only a moderator's word moves anything here. A confirmed report is one resolved as
+/// <see cref="ReportStatus.RESOLVED_ACTION_TAKEN"/>; a false one is one <see cref="ReportStatus.DISMISSED"/>.
+/// An escalated report is an <em>open</em> report at the top of the queue and counts as nothing,
+/// and a report resolved with no action is an honest mistake that counts against nobody.</para>
+///
+/// <para>Both of those used to be otherwise: escalation counted as confirmation on both sides —
+/// so filing in a critical category raised the filer's own credibility before anyone looked —
+/// and the target lost points the moment a report arrived. Each was a lever that needed no
+/// review to pull.</para>
+/// </remarks>
 [StatelessWorker]
 public class UserTrustGrain(
     IDbContextFactory<ApplicationDbContext> context,
@@ -12,36 +26,22 @@ public class UserTrustGrain(
     IOptions<ReportSystemOptions> reportOptions,
     ILogger<IUserTrustGrain> logger) : Grain, IUserTrustGrain
 {
-    private TrustScoringOptions Cfg => trustOptions.Value;
+    private TrustScoringOptions Cfg  => trustOptions.Value;
     private ReportSystemOptions RCfg => reportOptions.Value;
 
     public async Task<UserTrustInfo> GetTrustScoreAsync(CancellationToken ct = default)
     {
         var userId = this.GetPrimaryKey();
 
-        logger.LogInformation(
-            "[TrustDiag] GetTrustScore for {UserId}: IsEnabled={IsEnabled}, DefaultTrustScore={DefaultTrustScore}, MaxTrustScore={MaxTrustScore}, CredBase={CredBase}",
-            userId, RCfg.IsEnabled, Cfg.DefaultTrustScore, Cfg.MaxTrustScore, Cfg.CredibilityBase);
-
         if (!RCfg.IsEnabled)
-        {
-            logger.LogWarning("[TrustDiag] Report system DISABLED, returning default {DefaultTrustScore} for {UserId}", Cfg.DefaultTrustScore, userId);
             return new UserTrustInfo(userId, Cfg.DefaultTrustScore, 0, 0, 0, 0, DateTime.UtcNow);
-        }
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
         var entity = await ctx.UserTrustScores.FindAsync([userId], ct);
 
         if (entity is null)
-        {
-            logger.LogInformation("[TrustDiag] No UserTrustScore entity for {UserId}, returning default {DefaultTrustScore}", userId, Cfg.DefaultTrustScore);
             return new UserTrustInfo(userId, Cfg.DefaultTrustScore, 0, 0, 0, 0, DateTime.UtcNow);
-        }
-
-        logger.LogInformation(
-            "[TrustDiag] Found entity for {UserId}: TrustScore={TrustScore}, TotalReceived={TotalReceived}, Confirmed={Confirmed}, Filed={Filed}, False={False}",
-            userId, entity.TrustScore, entity.TotalReportsReceived, entity.ConfirmedReportsReceived, entity.TotalReportsFiled, entity.FalseReportsFiled);
 
         return new UserTrustInfo(
             entity.UserId,
@@ -73,15 +73,13 @@ public class UserTrustGrain(
            .CountAsync(x => x.TargetId == userId, ct);
 
         entity.ConfirmedReportsReceived = await ctx.Reports
-           .CountAsync(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED), ct);
+           .CountAsync(x => x.TargetId == userId && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN, ct);
 
         entity.TotalReportsFiled = await ctx.Reports
            .CountAsync(x => x.ReporterId == userId, ct);
 
         entity.FalseReportsFiled = await ctx.Reports
-           .CountAsync(x => x.ReporterId == userId
-                && (x.Status == ReportStatus.DISMISSED || x.Status == ReportStatus.RESOLVED_NO_ACTION), ct);
+           .CountAsync(x => x.ReporterId == userId && x.Status == ReportStatus.DISMISSED, ct);
 
         entity.UniqueReporterCount = await ctx.Reports
            .Where(x => x.TargetId == userId)
@@ -93,8 +91,7 @@ public class UserTrustGrain(
            .CountAsync(x => x.BlockedId == userId, ct);
 
         entity.LastConfirmedReportAt = await ctx.Reports
-           .Where(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED))
+           .Where(x => x.TargetId == userId && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN)
            .OrderByDescending(x => x.ResolvedAt)
            .Select(x => x.ResolvedAt)
            .FirstOrDefaultAsync(ct);
@@ -102,8 +99,7 @@ public class UserTrustGrain(
         // ── Load confirmed reports with detail ───────────────────────
         var confirmedReports = await ctx.Reports
            .AsNoTracking()
-           .Where(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED))
+           .Where(x => x.TargetId == userId && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN)
            .Select(x => new
            {
                x.Category,
@@ -155,12 +151,12 @@ public class UserTrustGrain(
         var velocityWindow = DateTimeOffset.UtcNow.AddDays(-Cfg.VelocityWindowDays);
         var recentConfirmed = await ctx.Reports
            .CountAsync(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED)
+                && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN
                 && x.CreatedAt > velocityWindow, ct);
 
         var recentUniqueReporters = await ctx.Reports
            .Where(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED)
+                && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN
                 && x.CreatedAt > velocityWindow)
            .Select(x => x.ReporterId)
            .Distinct()
@@ -226,32 +222,6 @@ public class UserTrustGrain(
             entity.FalseReportsFiled,
             entity.LastRecalculatedAt.UtcDateTime
         );
-    }
-
-    public async Task OnReportReceivedAsync(ReportCategory category, CancellationToken ct = default)
-    {
-        if (!RCfg.IsEnabled) return;
-
-        var userId = this.GetPrimaryKey();
-
-        try
-        {
-            await using var ctx = await context.CreateDbContextAsync(ct);
-            var entity = await ctx.UserTrustScores.FindAsync([userId], ct);
-            entity ??= await EnsureEntityAsync(ctx, userId, ct);
-
-            entity.TotalReportsReceived++;
-
-            var provisionalPenalty = Cfg.SeverityWeights.GetValueOrDefault(category, Cfg.DefaultSeverityWeight) / Cfg.ProvisionalPenaltyDivisor;
-            entity.TrustScore = Math.Clamp(entity.TrustScore - provisionalPenalty, Cfg.MinTrustScore, Cfg.MaxTrustScore);
-            entity.UpdatedAt  = DateTimeOffset.UtcNow;
-
-            await ctx.SaveChangesAsync(ct);
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e, "Failed to process report received for user {UserId}", userId);
-        }
     }
 
     public async Task OnReportResolvedAsync(ReportStatus resolution, CancellationToken ct = default)
@@ -322,18 +292,25 @@ public class UserTrustGrain(
         return Math.Min(boost, Cfg.PositiveSignalCap);
     }
 
+    /// <summary>
+    /// How much a report from this person is worth, 0–100.
+    /// </summary>
+    /// <remarks>
+    /// Accuracy is confirmed against dismissed — a report resolved with no action is neither, so
+    /// an honest report that turned out not to be a violation costs nothing. Only a moderator's
+    /// decision enters this number; a report merely filed, or merely escalated, is not evidence
+    /// that the filer was right.
+    /// </remarks>
     private async Task<int> CalculateReporterCredibilityAsync(
         ApplicationDbContext ctx, Guid userId, CancellationToken ct)
     {
         var cred = Cfg.CredibilityBase;
 
         var confirmedFiled = await ctx.Reports
-           .CountAsync(x => x.ReporterId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED), ct);
+           .CountAsync(x => x.ReporterId == userId && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN, ct);
 
         var dismissedFiled = await ctx.Reports
-           .CountAsync(x => x.ReporterId == userId
-                && (x.Status == ReportStatus.DISMISSED || x.Status == ReportStatus.RESOLVED_NO_ACTION), ct);
+           .CountAsync(x => x.ReporterId == userId && x.Status == ReportStatus.DISMISSED, ct);
 
         var total = confirmedFiled + dismissedFiled;
         if (total > 0)
@@ -350,8 +327,7 @@ public class UserTrustGrain(
         }
 
         var confirmedReceived = await ctx.Reports
-           .CountAsync(x => x.TargetId == userId
-                && (x.Status == ReportStatus.RESOLVED_ACTION_TAKEN || x.Status == ReportStatus.ESCALATED), ct);
+           .CountAsync(x => x.TargetId == userId && x.Status == ReportStatus.RESOLVED_ACTION_TAKEN, ct);
 
         if (confirmedReceived >= Cfg.CredibilitySelfReportedThreshold)
             cred -= Cfg.CredibilitySelfReportedPenalty;
@@ -366,6 +342,10 @@ public class UserTrustGrain(
         return Math.Clamp(cred, 0, 100);
     }
 
+    /// <summary>
+    /// Flags a crossed threshold for a person to look at. Deliberately does not lock anyone: the
+    /// score is a derived number and a derived number is not a decision.
+    /// </summary>
     private async Task CheckAutoActionsAsync(
         ApplicationDbContext ctx, Guid userId, UserTrustScoreEntity entity, int previousScore, CancellationToken ct)
     {
@@ -399,7 +379,7 @@ public class UserTrustGrain(
         {
             UserId              = userId,
             TrustScore          = Cfg.DefaultTrustScore,
-            ReporterCredibility = RCfg.DefaultReporterCredibility,
+            ReporterCredibility = RCfg.Priority.DefaultCredibility,
             LastRecalculatedAt  = DateTimeOffset.UtcNow,
             CreatedAt           = DateTimeOffset.UtcNow,
             UpdatedAt           = DateTimeOffset.UtcNow,

@@ -12,7 +12,9 @@ public static class ArgonRequestContext
     public static   void Set(ArgonRequestContextData data) => _current.Value = data;
     internal static void Clear()                           => _current.Value = null;
 
-    public static string LockdownCacheKey(Guid userId) => $"lockdown:{userId}";
+    // v2: the cached value grew an expiry (see LockdownSnapshot). A new key rather than a new
+    // shape under the old one, so entries a previous build wrote are never read as the new type.
+    public static string LockdownCacheKey(Guid userId) => $"lockdown:v2:{userId}";
 }
 
 public sealed class ArgonRequestContextData

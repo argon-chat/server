@@ -1086,6 +1086,96 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<AdminUserTrustCard>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetReportCases_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 4;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetReportCases");
+    
+        var __status = reader.ReadNullable<ReportStatus>();
+        var __category = reader.ReadNullable<ReportCategory>();
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetReportCases(__status, __category, __limit, __offset);
+        
+        IonFormatterStorage<AdminReportCasePage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetReportCase_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetReportCase");
+    
+        var __caseid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetReportCase(__caseid);
+        
+        IonFormatterStorage<AdminReportCaseDetails>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task AssignReportCase_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.AssignReportCase");
+    
+        var __caseid = IonFormatterStorage<guid>.Read(reader);
+        var __operatorid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.AssignReportCase(__caseid, __operatorid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ResolveReportCase_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ResolveReportCase");
+    
+        var __input = IonFormatterStorage<ResolveReportCaseInput>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ResolveReportCase(__input);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ReopenReportCase_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ReopenReportCase");
+    
+        var __caseid = IonFormatterStorage<guid>.Read(reader);
+        var __note = reader.ReadNullable<string>();
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ReopenReportCase(__caseid, __note);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetFeatureFlags_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1419,6 +1509,16 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return GetUserTrustCard_Execute(reader, writer, ct);
         if (methodName.Equals("RecalculateUserTrust", StringComparison.InvariantCultureIgnoreCase))
             return RecalculateUserTrust_Execute(reader, writer, ct);
+        if (methodName.Equals("GetReportCases", StringComparison.InvariantCultureIgnoreCase))
+            return GetReportCases_Execute(reader, writer, ct);
+        if (methodName.Equals("GetReportCase", StringComparison.InvariantCultureIgnoreCase))
+            return GetReportCase_Execute(reader, writer, ct);
+        if (methodName.Equals("AssignReportCase", StringComparison.InvariantCultureIgnoreCase))
+            return AssignReportCase_Execute(reader, writer, ct);
+        if (methodName.Equals("ResolveReportCase", StringComparison.InvariantCultureIgnoreCase))
+            return ResolveReportCase_Execute(reader, writer, ct);
+        if (methodName.Equals("ReopenReportCase", StringComparison.InvariantCultureIgnoreCase))
+            return ReopenReportCase_Execute(reader, writer, ct);
         if (methodName.Equals("GetFeatureFlags", StringComparison.InvariantCultureIgnoreCase))
             return GetFeatureFlags_Execute(reader, writer, ct);
         if (methodName.Equals("GetFeatureFlag", StringComparison.InvariantCultureIgnoreCase))

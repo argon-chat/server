@@ -120,6 +120,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 #region Reports & Trust
 
     public DbSet<ReportEntity>         Reports         => Set<ReportEntity>();
+    public DbSet<ReportCaseEntity>     ReportCases     => Set<ReportCaseEntity>();
     public DbSet<UserTrustScoreEntity> UserTrustScores => Set<UserTrustScoreEntity>();
 
 #endregion
@@ -148,6 +149,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(ApplicationDbContext).Assembly);
         modelBuilder.PlaceArgonTables();
         modelBuilder.UseUnsignedLongCompatibility();
+        modelBuilder.UseUnsignedEnumCompatibility();
         modelBuilder.UseSoftDeleteCompatibility();
 
         modelBuilder.Entity<UserEntity>().HasData(new UserEntity

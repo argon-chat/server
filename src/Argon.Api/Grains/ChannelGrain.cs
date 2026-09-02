@@ -763,6 +763,36 @@ public class ChannelGrain(
         return DeleteMessageError.NONE;
     }
 
+    public async Task<bool> DeleteMessageByModeration(long messageId, Guid operatorId, CancellationToken ct = default)
+    {
+        var channelId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        // The same soft delete as above, minus the permission check: the report grain calling this
+        // has already established that an operator decided, and the operator is not a member of
+        // the space and holds no entitlement in it — which is exactly why the ordinary path cannot
+        // be reused.
+        var affected = await ctx.Messages
+           .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId && !m.IsDeleted)
+           .ExecuteUpdateAsync(s => s
+               .SetProperty(m => m.IsDeleted, true)
+               .SetProperty(m => m.DeletedAt, DateTimeOffset.UtcNow)
+               .SetProperty(m => m.UpdatedAt, DateTimeOffset.UtcNow), ct);
+
+        if (affected == 0)
+            return false;
+
+        logger.LogWarning("Moderation removed message {MessageId} in channel {ChannelId} of space {SpaceId} (operator {OperatorId})",
+            messageId, channelId, SpaceId, operatorId);
+
+        // Attributed to the system user: the operator's id is not a user id the clients know, and
+        // the event only needs to say "gone".
+        await FireChannel(new MessageDeleted(SpaceId, channelId, messageId, UserEntity.SystemUser), ct);
+
+        return true;
+    }
+
     /// <summary>
     /// Refuses a send that arrives inside the channel's cooldown. Slow mode is a tool moderators
     /// point at a room, not at themselves, so anyone holding <c>ManageMessages</c> — the same

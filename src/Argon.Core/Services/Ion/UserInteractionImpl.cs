@@ -178,39 +178,11 @@ public class UserInteractionImpl(
     /// </remarks>
     private async Task<bool> CanReachAsync(Guid callerId, Guid targetId, CancellationToken ct)
     {
-        if (callerId == targetId)
-            return true;
-
+        // One definition, shared with the report system: what is enough standing to look someone
+        // up is exactly enough standing to report them. See SocialReach.
         await using var ctx = await context.CreateDbContextAsync(ct);
 
-        // A block is a refusal to be reachable, and it holds whichever way round it was made:
-        // the blocker should not be lookup-able by the person they blocked either.
-        if (await ctx.UserBlocklist.AnyAsync(
-                x => (x.UserId == callerId && x.BlockedId == targetId) ||
-                     (x.UserId == targetId && x.BlockedId == callerId), ct))
-            return false;
-
-        if (await ctx.Friends.AnyAsync(
-                x => (x.UserId == callerId && x.FriendId == targetId) ||
-                     (x.UserId == targetId && x.FriendId == callerId), ct))
-            return true;
-
-        if (await ctx.FriendRequest.AnyAsync(
-                x => (x.RequesterId == callerId && x.TargetId == targetId) ||
-                     (x.RequesterId == targetId && x.TargetId == callerId), ct))
-            return true;
-
-        var conversationId = ConversationEntity.GenerateConversationId(callerId, targetId);
-
-        if (await ctx.Conversations.AnyAsync(x => x.Id == conversationId, ct))
-            return true;
-
-        var callerSpaces = ctx.UsersToServerRelations
-           .Where(x => x.UserId == callerId)
-           .Select(x => x.SpaceId);
-
-        return await ctx.UsersToServerRelations
-           .AnyAsync(x => x.UserId == targetId && callerSpaces.Contains(x.SpaceId), ct);
+        return await Argon.Api.Features.CoreLogic.Social.SocialReach.CanReachAsync(ctx, callerId, targetId, ct);
     }
 
     public async Task<IUploadFileResult> BeginUploadAvatar(CancellationToken ct = default)

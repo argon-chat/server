@@ -140,6 +140,16 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(GetUserTrustCard), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> RecalculateUserTrust_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(RecalculateUserTrust), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetReportCases_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetReportCases), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetReportCase_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetReportCase), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> AssignReportCase_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(AssignReportCase), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ResolveReportCase_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ResolveReportCase), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ReopenReportCase_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ReopenReportCase), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetFeatureFlags_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetFeatureFlags), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetFeatureFlag_Ref = new(() =>
@@ -1234,6 +1244,96 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AdminUserTrustCard>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminReportCasePage> GetReportCases(ReportStatus? __status, ReportCategory? __category, i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetReportCases_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 4;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<ReportStatus>.WriteNullable(writer, __status);
+        IonFormatterStorage<ReportCategory>.WriteNullable(writer, __category);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminReportCasePage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AdminReportCaseDetails> GetReportCase(guid __caseid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetReportCase_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __caseid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AdminReportCaseDetails>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> AssignReportCase(guid __caseid, guid __operatorid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), AssignReportCase_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __caseid);
+        IonFormatterStorage<guid>.Write(writer, __operatorid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ResolveReportCase(ResolveReportCaseInput __input, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ResolveReportCase_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<ResolveReportCaseInput>.Write(writer, __input);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ReopenReportCase(guid __caseid, string? __note, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ReopenReportCase_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __caseid);
+        IonFormatterStorage<string>.WriteNullable(writer, __note);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default)

@@ -11,33 +11,64 @@ namespace ArgonComplexTest.Infrastructure;
 public static class TestServerConfiguration
 {
     /// <summary>
+    /// The HMAC key the test host hashes reporter addresses and devices with. Without one, no
+    /// hash is stored and every account is an independent reporter — which would make the
+    /// sock-puppet tests pass for the wrong reason.
+    /// </summary>
+    public const string ReporterIdentityPepper = "integration-tests-reporter-identity-pepper";
+
+    /// <summary>Independent reporters that make a case urgent in the test configuration.</summary>
+    public const int IndependentReportersThreshold = 3;
+
+    /// <summary>
     /// A complete, valid moderation configuration. Without it <c>ReportSystem:IsEnabled</c> is false
     /// and the report/trust code paths short-circuit on their first line, so none of that behaviour
     /// can be tested at all.
     /// </summary>
+    /// <remarks>
+    /// The filing limits are raised out of the way and the account-age and credibility floors are
+    /// zero: every test user is registered seconds before it files, and the suite is about the
+    /// rules, not the throttles. Escalation and actions keep small, exact values the tests assert
+    /// against by name.
+    /// </remarks>
     public static IEnumerable<KeyValuePair<string, string?>> ReportSystem { get; } = new Dictionary<string, string?>
     {
-        ["ReportSystem:IsEnabled"]                          = "true",
-        // Zero so freshly registered test users can file reports immediately.
-        ["ReportSystem:MinAccountAgeDays"]                   = "0",
-        ["ReportSystem:MaxReportsPerHour"]                   = "1000",
-        ["ReportSystem:MaxReportsPerTargetPerDay"]           = "100",
-        ["ReportSystem:MaxReportsPerPage"]                   = "50",
-        ["ReportSystem:CategoryPriorityBase:SPAM"]           = "10",
-        ["ReportSystem:CategoryPriorityBase:SCAM_OR_FRAUD"]  = "40",
-        ["ReportSystem:CategoryPriorityBase:VIOLENCE"]       = "80",
-        ["ReportSystem:CredibilityPriorityMultiplier"]       = "1",
-        ["ReportSystem:DefaultPriorityBase"]                 = "20",
-        ["ReportSystem:ClusterEscalationThreshold"]          = "3",
-        ["ReportSystem:ClusterEscalationWindowMinutes"]      = "60",
-        ["ReportSystem:HighCredibilityThreshold"]            = "80",
-        ["ReportSystem:LowTrustTargetThreshold"]             = "30",
-        ["ReportSystem:DefaultReporterCredibility"]          = "50",
-        ["ReportSystem:MinCredibilityForTrustNotification"]  = "40",
-        ["ReportSystem:CriticalCategoryLockdownDays"]        = "30",
-        ["ReportSystem:CriticalCategories:0"]                = "VIOLENCE",
-        ["ReportSystem:SeriousCategories:0"]                 = "VIOLENCE",
-        ["ReportSystem:SeriousCategories:1"]                 = "CHILD_ABUSE",
+        ["ReportSystem:IsEnabled"] = "true",
+        ["ReportSystem:MaxPageSize"] = "200",
+
+        ["ReportSystem:Filing:MinAccountAgeDays"]         = "0",
+        ["ReportSystem:Filing:MaxReportsPerHour"]         = "1000",
+        ["ReportSystem:Filing:MaxReportsPerDay"]          = "5000",
+        ["ReportSystem:Filing:MaxReportsPerTargetPerDay"] = "100",
+        ["ReportSystem:Filing:DuplicateWindowHours"]      = "24",
+        ["ReportSystem:Filing:MaxAdditionalInfoLength"]   = "200",
+
+        ["ReportSystem:Priority:CategoryBase:SPAM"]          = "10",
+        ["ReportSystem:Priority:CategoryBase:SCAM_OR_FRAUD"] = "40",
+        ["ReportSystem:Priority:CategoryBase:VIOLENCE"]      = "80",
+        ["ReportSystem:Priority:DefaultBase"]                = "20",
+        ["ReportSystem:Priority:DefaultCredibility"]         = "50",
+        ["ReportSystem:Priority:CredibilityMultiplier"]      = "1",
+        ["ReportSystem:Priority:IndependentReporterBoost"]   = "100",
+        ["ReportSystem:Priority:IndependentReporterBoostCap"] = "1000",
+
+        ["ReportSystem:Escalation:IndependentReportersThreshold"]        = IndependentReportersThreshold.ToString(),
+        ["ReportSystem:Escalation:WindowMinutes"]                        = "60",
+        ["ReportSystem:Escalation:HighCredibilityThreshold"]             = "80",
+        ["ReportSystem:Escalation:LowTrustTargetThreshold"]              = "30",
+        ["ReportSystem:Escalation:IndependentReporterMinAccountAgeDays"] = "0",
+        ["ReportSystem:Escalation:IndependentReporterMinCredibility"]    = "0",
+        ["ReportSystem:Escalation:CriticalCategories:0"]                 = "VIOLENCE",
+        ["ReportSystem:Escalation:SeriousCategories:0"]                  = "VIOLENCE",
+        ["ReportSystem:Escalation:SeriousCategories:1"]                  = "CHILD_ABUSE",
+
+        ["ReportSystem:Actions:MuteDays"]                   = "1",
+        ["ReportSystem:Actions:RestrictDays"]               = "2",
+        ["ReportSystem:Actions:BanDays"]                    = "0",
+        ["ReportSystem:Actions:NotifyReporterOnResolution"] = "true",
+        ["ReportSystem:Actions:NotifyTargetOnWarning"]      = "true",
+
+        ["ReportSystem:Privacy:ReporterIdentityPepper"] = ReporterIdentityPepper,
 
         ["TrustScoring:DefaultTrustScore"]                   = "50",
         ["TrustScoring:MinTrustScore"]                       = "0",
@@ -46,7 +77,6 @@ public static class TestServerConfiguration
         ["TrustScoring:SeverityWeights:SCAM_OR_FRAUD"]       = "15",
         ["TrustScoring:SeverityWeights:VIOLENCE"]            = "30",
         ["TrustScoring:DefaultSeverityWeight"]               = "10",
-        ["TrustScoring:ProvisionalPenaltyDivisor"]           = "2",
         ["TrustScoring:DecayRate"]                           = "0.5",
         ["TrustScoring:DecayPhase1Days"]                     = "30",
         ["TrustScoring:DecayPhase2Days"]                     = "90",

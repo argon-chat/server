@@ -3,79 +3,21 @@ namespace Argon.Features.Moderation;
 using ArgonContracts;
 using Microsoft.Extensions.Options;
 
-public class ReportSystemOptionsValidator : IValidateOptions<ReportSystemOptions>
-{
-    public ValidateOptionsResult Validate(string? name, ReportSystemOptions o)
-    {
-        if (!o.IsEnabled)
-            return ValidateOptionsResult.Success;
-
-        var errors = new List<string>();
-
-        if (o.MinAccountAgeDays < 0)
-            errors.Add("MinAccountAgeDays must be >= 0");
-        if (o.MaxReportsPerHour <= 0)
-            errors.Add("MaxReportsPerHour must be > 0");
-        if (o.MaxReportsPerTargetPerDay <= 0)
-            errors.Add("MaxReportsPerTargetPerDay must be > 0");
-        if (o.MaxReportsPerPage is <= 0 or > 200)
-            errors.Add("MaxReportsPerPage must be between 1 and 200");
-
-        if (o.CategoryPriorityBase.Count == 0)
-            errors.Add("CategoryPriorityBase must have at least one entry");
-
-        foreach (var (cat, priority) in o.CategoryPriorityBase)
-        {
-            if (priority < 0)
-                errors.Add($"CategoryPriorityBase[{cat}] must be >= 0");
-        }
-
-        if (o.CredibilityPriorityMultiplier < 0)
-            errors.Add("CredibilityPriorityMultiplier must be >= 0");
-        if (o.DefaultPriorityBase < 0)
-            errors.Add("DefaultPriorityBase must be >= 0");
-
-        if (o.ClusterEscalationThreshold < 2)
-            errors.Add("ClusterEscalationThreshold must be >= 2");
-        if (o.ClusterEscalationWindowMinutes <= 0)
-            errors.Add("ClusterEscalationWindowMinutes must be > 0");
-        if (o.HighCredibilityThreshold is < 0 or > 100)
-            errors.Add("HighCredibilityThreshold must be between 0 and 100");
-        if (o.LowTrustTargetThreshold < 0)
-            errors.Add("LowTrustTargetThreshold must be >= 0");
-
-        if (o.DefaultReporterCredibility is < 0 or > 100)
-            errors.Add("DefaultReporterCredibility must be between 0 and 100");
-        if (o.MinCredibilityForTrustNotification is < 0 or > 100)
-            errors.Add("MinCredibilityForTrustNotification must be between 0 and 100");
-
-        if (o.CriticalCategoryLockdownDays <= 0)
-            errors.Add("CriticalCategoryLockdownDays must be > 0");
-
-        if (o.CriticalCategories.Count == 0)
-            errors.Add("CriticalCategories must not be empty");
-        if (o.SeriousCategories.Count == 0)
-            errors.Add("SeriousCategories must not be empty");
-
-        if (!o.CriticalCategories.IsSubsetOf(o.SeriousCategories))
-            errors.Add("CriticalCategories must be a subset of SeriousCategories");
-
-        return errors.Count > 0
-            ? ValidateOptionsResult.Fail(errors)
-            : ValidateOptionsResult.Success;
-    }
-}
-
+/// <summary>
+/// Rules for the trust-scoring section. The report system's own rules live on its options class;
+/// this one is separate because it needs the report system's <c>IsEnabled</c>, which the options
+/// binder cannot hand it.
+/// </summary>
 public class TrustScoringOptionsValidator : IValidateOptions<TrustScoringOptions>
 {
-    private readonly IOptions<ReportSystemOptions> _reportOptions;
+    private readonly IOptions<ReportSystemOptions> reportOptions;
 
     public TrustScoringOptionsValidator(IOptions<ReportSystemOptions> reportOptions)
-        => _reportOptions = reportOptions;
+        => this.reportOptions = reportOptions;
 
     public ValidateOptionsResult Validate(string? name, TrustScoringOptions o)
     {
-        if (!_reportOptions.Value.IsEnabled)
+        if (!reportOptions.Value.IsEnabled)
             return ValidateOptionsResult.Success;
 
         var errors = new List<string>();
@@ -100,8 +42,6 @@ public class TrustScoringOptionsValidator : IValidateOptions<TrustScoringOptions
 
         if (o.DefaultSeverityWeight < 0)
             errors.Add("DefaultSeverityWeight must be >= 0");
-        if (o.ProvisionalPenaltyDivisor <= 0)
-            errors.Add("ProvisionalPenaltyDivisor must be > 0 (division by zero)");
 
         if (o.DecayRate <= 0)
             errors.Add("DecayRate must be > 0");

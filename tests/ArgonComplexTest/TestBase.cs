@@ -132,10 +132,20 @@ public abstract class TestBase
     /// a test needs more than one identity at a time — two sessions never share a token, so the
     /// ambient <see cref="SetAuthToken"/> state cannot leak between them.
     /// </summary>
-    protected async Task<TestUserSession> CreateSessionAsync(CancellationToken ct = default)
+    protected Task<TestUserSession> CreateSessionAsync(CancellationToken ct = default)
+        => CreateSessionAsync(new DefaultHeaderInterceptor(), ct);
+
+    /// <summary>
+    /// A registered user whose client claims the given machine id. Several sessions on one id are
+    /// several accounts on one device — the shape a sock-puppet farm has, and the one the report
+    /// system's independence rule is meant to collapse to a single reporter.
+    /// </summary>
+    protected Task<TestUserSession> CreateSessionOnMachineAsync(Guid machineId, CancellationToken ct = default)
+        => CreateSessionAsync(new DefaultHeaderInterceptor(machineId), ct);
+
+    private async Task<TestUserSession> CreateSessionAsync(DefaultHeaderInterceptor interceptor, CancellationToken ct)
     {
-        var interceptor = new DefaultHeaderInterceptor();
-        var client      = IonClient.Create(HttpClient, WsFactory);
+        var client = IonClient.Create(HttpClient, WsFactory);
         client.WithInterceptor(interceptor);
 
         var creds = GenerateCredentials();
@@ -335,4 +345,6 @@ public sealed class TestUserSession(
     public IInventoryInteraction Inventory => Client.ForService<IInventoryInteraction>(services);
     public IUltimaInteraction    Ultima    => Client.ForService<IUltimaInteraction>(services);
     public IPrivacyInteraction   Privacy   => Client.ForService<IPrivacyInteraction>(services);
+    public IUserChatInteractions Chats     => Client.ForService<IUserChatInteractions>(services);
+    public IReportInteraction    Reports   => Client.ForService<IReportInteraction>(services);
 }

@@ -282,9 +282,11 @@ public class UserChatGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
 
+        // Direct messages are not ArgonEntity rows, so the global soft-delete filter does not
+        // cover them; a message moderation took down has to be left out here by hand.
         var query = ctx.DirectMessages
             .AsNoTracking()
-            .Where(m => m.ConversationId == conversationId);
+            .Where(m => m.ConversationId == conversationId && !m.IsDeleted);
 
         if (from.HasValue)
         {

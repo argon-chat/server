@@ -25,6 +25,9 @@ public sealed class ArgonOrleansInterceptor : IIonInterceptor
     }
 }
 
+/// <summary>What the request interceptor caches about an account's lockdown.</summary>
+public sealed record LockdownSnapshot(LockdownReason Reason, DateTimeOffset? ExpiresAt);
+
 public sealed class ArgonTransactionInterceptor(
     TokenAuthorization                  validationParameters,
     IOptions<AnonymousRateLimitOptions> anonymousLimits,
@@ -285,7 +288,9 @@ public sealed class ArgonTransactionInterceptor(
     {
         var cache = sp.GetRequiredService<HybridCache>();
 
-        var reason = await cache.GetOrCreateAsync(
+        // Reason and expiry together: a timed lockdown ends when its expiry passes, and nothing
+        // else clears the column. Reading the reason alone made every timed ban permanent.
+        var snapshot = await cache.GetOrCreateAsync(
             ArgonRequestContext.LockdownCacheKey(userId),
             async token =>
             {
@@ -294,19 +299,16 @@ public sealed class ArgonTransactionInterceptor(
                 return await db.Users
                    .AsNoTracking()
                    .Where(u => u.Id == userId)
-                   .Select(u => u.LockdownReason)
-                   .FirstOrDefaultAsync(token);
+                   .Select(u => new LockdownSnapshot(u.LockdownReason, u.LockDownExpiration))
+                   .FirstOrDefaultAsync(token) ?? new LockdownSnapshot(LockdownReason.NONE, null);
             },
             LockdownCacheOptions,
             cancellationToken: ct);
 
-        return reason switch
-        {
-            LockdownReason.NONE                => LockdownSeverity.Low,
-            LockdownReason.UNDER_INVESTIGATION => LockdownSeverity.Middle,
-            LockdownReason.INCITING_MOMENT     => LockdownSeverity.Middle,
-            _                                  => LockdownSeverity.Critical
-        };
+        if (snapshot.ExpiresAt is { } expiry && expiry <= DateTimeOffset.UtcNow)
+            return LockdownSeverity.Low;
+
+        return Argon.Features.Moderation.ReportActionPlanner.SeverityOf(snapshot.Reason);
     }
 
 

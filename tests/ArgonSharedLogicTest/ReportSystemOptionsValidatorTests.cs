@@ -1,152 +1,183 @@
 namespace ArgonSharedLogicTest;
 
+using Argon.Features.Clustering;
 using Argon.Features.Moderation;
 using ArgonContracts;
+using ArgonSharedLogicTest.Clustering;
 using Microsoft.Extensions.Options;
 
 /// <summary>
-/// These validators are the only thing standing between a typo in <c>appsettings</c> and a
-/// moderation system that divides by zero or auto-locks accounts on a threshold outside its own
-/// score range. They run at start-up, so every rule here is a rule that fails the deploy rather
-/// than the request.
+/// The rules a report-system policy is checked against before a role starts.
 /// </summary>
+/// <remarks>
+/// <para>These run at start-up and on <c>--validate-config</c>, so every rule here is a rule that
+/// fails the deploy rather than the request. The values under test are invented: what is tested is
+/// that a wrong policy is refused and a coherent one accepted, which six made-up numbers show as
+/// well as the real ones.</para>
+///
+/// <para>Through <see cref="FeatureConfigurationValidator"/> rather than by calling the options
+/// class directly, because the binder is part of what is under test: a section that is absent, a
+/// list that appends, a dictionary that merges — those are binder behaviours the rules were written
+/// around.</para>
+/// </remarks>
 [TestFixture]
 public class ReportSystemOptionsValidatorTests
 {
-    private static ReportSystemOptions ValidReportOptions() => new()
+    private const string Section = ReportOptionsFeature.Section;
+
+    private static (string[] Errors, string[] Warnings) Validate(params (string Key, string? Value)[] overrides)
     {
-        IsEnabled                          = true,
-        MinAccountAgeDays                  = 7,
-        MaxReportsPerHour                  = 10,
-        MaxReportsPerTargetPerDay          = 3,
-        MaxReportsPerPage                  = 50,
-        CategoryPriorityBase               = new() { [ReportCategory.SPAM] = 10 },
-        CredibilityPriorityMultiplier      = 2,
-        DefaultPriorityBase                = 5,
-        ClusterEscalationThreshold         = 3,
-        ClusterEscalationWindowMinutes     = 60,
-        HighCredibilityThreshold           = 80,
-        LowTrustTargetThreshold            = 20,
-        DefaultReporterCredibility         = 50,
-        MinCredibilityForTrustNotification = 40,
-        CriticalCategoryLockdownDays       = 30,
-        CriticalCategories                 = [ReportCategory.SPAM],
-        SeriousCategories                  = [ReportCategory.SPAM, ReportCategory.SCAM_OR_FRAUD]
-    };
+        var settings = new List<(string, string?)> { ($"{Section}:IsEnabled", "true") };
 
-    private static ValidateOptionsResult Validate(ReportSystemOptions options)
-        => new ReportSystemOptionsValidator().Validate(null, options);
-
-    [Test]
-    public void ValidOptions_Pass()
-        => Assert.That(Validate(ValidReportOptions()).Succeeded, Is.True);
-
-    [Test]
-    public void DisabledSystem_SkipsValidationEntirely()
-    {
-        // Nothing about a disabled report system can hurt production, and demanding a fully
-        // populated config to turn the feature *off* would be its own footgun.
-        var nonsense = new ReportSystemOptions { IsEnabled = false, MaxReportsPerHour = -1 };
-
-        Assert.That(Validate(nonsense).Succeeded, Is.True);
-    }
-
-    [Test]
-    public void NegativeMinAccountAge_Fails()
-    {
-        var options = ValidReportOptions();
-        options.MinAccountAgeDays = -1;
-
-        Assert.That(Validate(options).Failures, Does.Contain("MinAccountAgeDays must be >= 0"));
-    }
-
-    [Test]
-    public void NonPositiveRateLimits_Fail()
-    {
-        var options = ValidReportOptions();
-        options.MaxReportsPerHour         = 0;
-        options.MaxReportsPerTargetPerDay = 0;
-
-        Assert.That(Validate(options).Failures, Is.SupersetOf(new[]
+        foreach (var (key, value) in overrides)
         {
-            "MaxReportsPerHour must be > 0",
-            "MaxReportsPerTargetPerDay must be > 0"
-        }));
+            settings.RemoveAll(s => s.Item1 == key);
+            settings.Add((key, value));
+        }
+
+        var report = FeatureConfigurationValidator.Validate(
+            ConfigurationFixtures.Role<ReportOptionsRole>(),
+            ConfigurationFixtures.From([.. settings]));
+
+        return (report.Errors.Select(d => d.ToString()).ToArray(), report.Warnings.Select(d => d.ToString()).ToArray());
     }
 
     [Test]
-    public void PageSizeOutsideRange_Fails([Values(0, 201)] int pageSize)
+    public void The_defaults_are_a_working_policy()
+        => Assert.That(Validate().Errors, Is.Empty, "enabling the system with nothing else set has to start");
+
+    /// <summary>
+    /// The two things a self-hosted instance most likely forgot, said out loud rather than quietly
+    /// degraded around.
+    /// </summary>
+    [Test]
+    public void The_defaults_warn_about_the_pepper_and_the_category_lists()
     {
-        var options = ValidReportOptions();
-        options.MaxReportsPerPage = pageSize;
+        var (_, warnings) = Validate();
 
-        Assert.That(Validate(options).Failures, Does.Contain("MaxReportsPerPage must be between 1 and 200"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(warnings, Has.Some.Contains("privacy:ReporterIdentityPepper"));
+            Assert.That(warnings, Has.Some.Contains("escalation:CriticalCategories"));
+            Assert.That(warnings, Has.Some.Contains("escalation:SeriousCategories"));
+        });
     }
 
     [Test]
-    public void EmptyCategoryPriorityBase_Fails()
+    public void A_disabled_system_is_not_checked_at_all()
     {
-        var options = ValidReportOptions();
-        options.CategoryPriorityBase = new();
+        // Nothing about a disabled report system can hurt production, and demanding a coherent
+        // policy from a deployment that turned the feature *off* would be its own footgun.
+        var (errors, warnings) = Validate(($"{Section}:IsEnabled", "false"), ($"{Section}:Filing:MaxReportsPerHour", "-1"));
 
-        Assert.That(Validate(options).Failures, Does.Contain("CategoryPriorityBase must have at least one entry"));
+        Assert.Multiple(() =>
+        {
+            Assert.That(errors, Is.Empty);
+            Assert.That(warnings, Is.Empty);
+        });
     }
 
     [Test]
-    public void ClusterEscalationThresholdBelowTwo_Fails()
-    {
-        // A "cluster" of one is just a report; the escalation path would fire on every single one.
-        var options = ValidReportOptions();
-        options.ClusterEscalationThreshold = 1;
-
-        Assert.That(Validate(options).Failures, Does.Contain("ClusterEscalationThreshold must be >= 2"));
-    }
+    public void An_absent_section_is_a_system_that_is_off()
+        => Assert.That(FeatureConfigurationValidator.Validate(ConfigurationFixtures.Role<ReportOptionsRole>(), ConfigurationFixtures.From()).Errors, Is.Empty);
 
     [Test]
-    public void CredibilityThresholdOutsidePercentRange_Fails([Values(-1, 101)] int threshold)
-    {
-        var options = ValidReportOptions();
-        options.HighCredibilityThreshold = threshold;
-
-        Assert.That(Validate(options).Failures, Does.Contain("HighCredibilityThreshold must be between 0 and 100"));
-    }
+    public void A_negative_account_age_is_refused()
+        => Assert.That(Validate(($"{Section}:Filing:MinAccountAgeDays", "-1")).Errors, Has.Some.Contains("filing:MinAccountAgeDays"));
 
     [Test]
-    public void CriticalCategoriesNotASubsetOfSerious_Fails()
+    public void A_daily_limit_below_the_hourly_one_is_refused()
+        => Assert.That(Validate(($"{Section}:Filing:MaxReportsPerHour", "50"), ($"{Section}:Filing:MaxReportsPerDay", "10")).Errors,
+            Has.Some.Contains("filing:MaxReportsPerDay"));
+
+    [Test]
+    public void A_comment_longer_than_the_column_is_refused()
+        => Assert.That(Validate(($"{Section}:Filing:MaxAdditionalInfoLength", "5000")).Errors, Has.Some.Contains("filing:MaxAdditionalInfoLength"));
+
+    /// <summary>A "cluster" of one is a report; the rule would fire on every single one.</summary>
+    [Test]
+    public void A_cluster_threshold_below_two_is_refused()
+        => Assert.That(Validate(($"{Section}:Escalation:IndependentReportersThreshold", "1")).Errors,
+            Has.Some.Contains("escalation:IndependentReportersThreshold"));
+
+    [Test]
+    public void A_critical_category_that_is_not_serious_is_refused()
     {
         // Critical implies serious everywhere downstream; letting the two sets diverge means a
-        // category that triggers a lockdown but is not treated as serious when scoring trust.
-        var options = ValidReportOptions();
-        options.CriticalCategories = [ReportCategory.VIOLENCE];
-        options.SeriousCategories  = [ReportCategory.SPAM];
+        // category that is urgent on sight but not serious when a credible reporter names it.
+        var (errors, _) = Validate(
+            ($"{Section}:Escalation:CriticalCategories:0", nameof(ReportCategory.VIOLENCE)),
+            ($"{Section}:Escalation:SeriousCategories:0", nameof(ReportCategory.SPAM)));
 
-        Assert.That(Validate(options).Failures, Does.Contain("CriticalCategories must be a subset of SeriousCategories"));
+        Assert.That(errors, Has.Some.Contains("escalation:CriticalCategories"));
     }
 
     [Test]
-    public void EmptyCategorySets_Fail()
+    public void A_coherent_category_pair_is_accepted_without_the_warnings()
     {
-        var options = ValidReportOptions();
-        options.CriticalCategories = [];
-        options.SeriousCategories  = [];
+        var (errors, warnings) = Validate(
+            ($"{Section}:Escalation:CriticalCategories:0", nameof(ReportCategory.CHILD_ABUSE)),
+            ($"{Section}:Escalation:SeriousCategories:0", nameof(ReportCategory.CHILD_ABUSE)),
+            ($"{Section}:Escalation:SeriousCategories:1", nameof(ReportCategory.VIOLENCE)));
 
-        Assert.That(Validate(options).Failures, Is.SupersetOf(new[]
+        Assert.Multiple(() =>
         {
-            "CriticalCategories must not be empty",
-            "SeriousCategories must not be empty"
-        }));
+            Assert.That(errors, Is.Empty);
+            Assert.That(warnings.Where(w => w.Contains("Categories")), Is.Empty);
+        });
     }
 
     [Test]
-    public void MultipleProblems_AreAllReported()
+    public void A_credibility_outside_percent_is_refused([Values(-1, 101)] int value)
+        => Assert.That(Validate(($"{Section}:Escalation:HighCredibilityThreshold", value.ToString())).Errors,
+            Has.Some.Contains("escalation:HighCredibilityThreshold"));
+
+    [Test]
+    public void A_boost_cap_below_one_boost_is_refused()
+        => Assert.That(Validate(($"{Section}:Priority:IndependentReporterBoost", "100"), ($"{Section}:Priority:IndependentReporterBoostCap", "50")).Errors,
+            Has.Some.Contains("priority:IndependentReporterBoostCap"));
+
+    [Test]
+    public void A_short_pepper_is_refused_and_a_real_one_silences_the_warning()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Validate(($"{Section}:Privacy:ReporterIdentityPepper", "short")).Errors, Has.Some.Contains("privacy:ReporterIdentityPepper"));
+
+            var (errors, warnings) = Validate(($"{Section}:Privacy:ReporterIdentityPepper", "long-enough-to-be-a-key-1234"));
+            Assert.That(errors, Is.Empty);
+            Assert.That(warnings.Where(w => w.Contains("ReporterIdentityPepper")), Is.Empty);
+        });
+    }
+
+    [Test]
+    public void A_mute_of_zero_days_is_refused()
+        => Assert.That(Validate(($"{Section}:Actions:MuteDays", "0")).Errors, Has.Some.Contains("actions:MuteDays"));
+
+    [Test]
+    public void A_permanent_ban_is_spelled_zero()
+    {
+        Assert.Multiple(() =>
+        {
+            Assert.That(Validate(($"{Section}:Actions:BanDays", "0")).Errors, Is.Empty);
+            Assert.That(Validate(($"{Section}:Actions:BanDays", "-1")).Errors, Has.Some.Contains("actions:BanDays"));
+        });
+    }
+
+    [Test]
+    public void A_page_size_outside_range_is_refused([Values(0, 201)] int value)
+        => Assert.That(Validate(($"{Section}:MaxPageSize", value.ToString())).Errors, Has.Some.Contains("maxPageSize"));
+
+    [Test]
+    public void Every_problem_is_reported_at_once()
     {
         // The validator collects rather than short-circuits, so one deploy surfaces every mistake.
-        var options = ValidReportOptions();
-        options.MinAccountAgeDays = -1;
-        options.MaxReportsPerHour = 0;
-        options.MaxReportsPerPage = 500;
+        var (errors, _) = Validate(
+            ($"{Section}:Filing:MinAccountAgeDays", "-1"),
+            ($"{Section}:Escalation:IndependentReportersThreshold", "0"),
+            ($"{Section}:MaxPageSize", "500"));
 
-        Assert.That(Validate(options).Failures!.Count(), Is.GreaterThanOrEqualTo(3));
+        Assert.That(errors, Has.Length.GreaterThanOrEqualTo(3));
     }
 }
 
@@ -160,7 +191,6 @@ public class TrustScoringOptionsValidatorTests
         MaxTrustScore                    = 100,
         SeverityWeights                  = new() { [ReportCategory.SPAM] = 5 },
         DefaultSeverityWeight            = 3,
-        ProvisionalPenaltyDivisor        = 2,
         DecayRate                        = 0.5,
         DecayPhase1Days                  = 30,
         DecayPhase2Days                  = 90,
@@ -238,19 +268,14 @@ public class TrustScoringOptionsValidatorTests
     }
 
     [Test]
-    public void ZeroDivisors_Fail()
+    public void ZeroDivisor_Fails()
     {
-        // Both of these are used as denominators; the validator calls that out by name rather than
-        // letting a DivideByZeroException surface inside trust recalculation.
+        // Used as a denominator; the validator calls that out by name rather than letting a
+        // DivideByZeroException surface inside trust recalculation.
         var options = ValidTrustOptions();
-        options.ProvisionalPenaltyDivisor = 0;
-        options.FriendBoostDivisor        = 0;
+        options.FriendBoostDivisor = 0;
 
-        Assert.That(Validate(options).Failures, Is.SupersetOf(new[]
-        {
-            "ProvisionalPenaltyDivisor must be > 0 (division by zero)",
-            "FriendBoostDivisor must be > 0 (division by zero)"
-        }));
+        Assert.That(Validate(options).Failures, Does.Contain("FriendBoostDivisor must be > 0 (division by zero)"));
     }
 
     [Test]
