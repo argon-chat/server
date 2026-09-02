@@ -30,6 +30,7 @@ public class AuthController(
     IOperatorVerificationStore operatorVerifications,
     AegisSession session,
     ClassicJwtFlow jwtFlow,
+    IOptions<AegisOptions> aegis,
     ILogger<AuthController> logger) : ControllerBase
 {
     private IAuthorizationGrain Authorization => cluster.GetGrain<IAuthorizationGrain>(Guid.NewGuid());
@@ -450,6 +451,7 @@ public class AuthController(
                             UserId       = id,
                             Username     = info.Username,
                             AvatarFileId = info.AvatarFileId,
+                            AvatarUrl    = aegis.Value.AvatarUrlFor(info.AvatarFileId),
                             IsCurrent    = id == userId
                         });
                 }

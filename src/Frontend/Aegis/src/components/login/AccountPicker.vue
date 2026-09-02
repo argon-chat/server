@@ -6,6 +6,14 @@ interface Account {
   userId: string;
   username: string;
   avatarFileId?: string;
+  /**
+   * Where to fetch the avatar, as published by this deployment.
+   *
+   * Sent by the server rather than built here from `avatarFileId`. This template used to compose
+   * `https://ru.cdn.argon.gl/{id}` — one region, written in by hand, wrong for every user outside
+   * it and a host that does not exist in a self-hosted deployment. Absent means show initials.
+   */
+  avatarUrl?: string;
   isCurrent: boolean;
 }
 
@@ -65,8 +73,8 @@ onMounted(() => {
             <div class="relative shrink-0">
               <div class="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500/20 to-indigo-500/20 border border-white/[0.08] flex items-center justify-center text-sm font-bold text-white overflow-hidden">
                 <img
-                  v-if="account.avatarFileId"
-                  :src="`https://ru.cdn.argon.gl/${account.avatarFileId}`"
+                  v-if="account.avatarUrl"
+                  :src="account.avatarUrl"
                   :alt="account.username"
                   class="w-full h-full object-cover"
                 />

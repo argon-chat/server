@@ -1,6 +1,7 @@
 namespace Argon.Features.Aegis;
 
 using Argon.Features.Clustering;
+using Argon.Features.Storage;
 
 /// <summary>
 /// The identity server's own surface: the host it answers as, and the browser-facing hardening
@@ -36,6 +37,25 @@ public sealed class AegisOptions : IValidatableFeatureOptions
     /// section would mean giving this role an object store it has no business knowing about.</para>
     /// </remarks>
     public string AvatarBaseUrl { get; set; } = "";
+
+    /// <summary>
+    /// The stable address of an avatar, or null when there is nothing to point at.
+    /// </summary>
+    /// <remarks>
+    /// <para>Here rather than in the handler that first needed it, because more than one surface
+    /// hands a user's avatar to a browser: <c>userinfo</c> gives it to third-party applications, and
+    /// the account picker gives it to Aegis' own widget. The widget used to compose its own —
+    /// <c>https://ru.cdn.argon.gl/{id}</c>, a region pinned in a template — which is wrong for every
+    /// user outside that region and names a host a self-hosted deployment does not have at all.</para>
+    ///
+    /// <para>Null when no base is configured, which reads the same at every call site: no address,
+    /// so show initials. It is deliberately not a relative path — these URLs are rendered by pages
+    /// served from other origins, where a relative one resolves against the wrong host.</para>
+    /// </remarks>
+    public string? AvatarUrlFor(string? avatarFileId)
+        => string.IsNullOrWhiteSpace(AvatarBaseUrl) || string.IsNullOrWhiteSpace(avatarFileId)
+            ? null
+            : CdnOptions.FileUrlOn(AvatarBaseUrl, avatarFileId);
 
     /// <summary>
     /// Directory the sign-in widget is served from, and the <c>index.html</c> a client-routed path

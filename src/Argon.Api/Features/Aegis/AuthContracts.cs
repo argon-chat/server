@@ -89,6 +89,18 @@ public record AccountInfo
     public Guid    UserId       { get; init; }
     public string  Username     { get; init; } = "";
     public string? AvatarFileId { get; init; }
+
+    /// <summary>
+    /// Where to fetch this account's avatar, or null when there is nothing to show.
+    /// </summary>
+    /// <remarks>
+    /// The picker used to build this itself out of <see cref="AvatarFileId"/> and a hostname written
+    /// into the template — a single region, which is wrong for everyone outside it and names nothing
+    /// at all in a self-hosted deployment. A file id says where a file sits in some deployment's
+    /// storage; only the server knows how that deployment publishes it, so the server is what says.
+    /// </remarks>
+    public string? AvatarUrl { get; init; }
+
     public bool    IsCurrent    { get; init; }
 }
 
