@@ -111,7 +111,6 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<PrivacyPolicyGrain>();
         registry.AddToRef<AuthorizationGrain>();
         registry.AddToRef<SecurityGrain>();
-        registry.AddToRef<UserTrustGrain>();
         registry.AddToRef<FeatureFlagGrain>();
 
         // Space RBAC — archetypes, channel permission overwrites, member assignment — keyed by
@@ -295,12 +294,12 @@ public sealed class JobsRole : IArgonRole
         registry.AddToRef<UserDataExportGrain>();
         registry.AddToRef<EmailManager>();
         registry.AddToRef<ReportGrain>();
+        registry.AddToRef<UserTrustGrain>();
 
         registry.AddStartupCall<IAutoDeleteSchedulerGrain>();
         registry.AddStartupCall<ITtlSweepGrain>();
 
         registry.AcceptRemote<IFileStorageGrain>("cleanup path only; media owns the storage stack");
-        registry.AcceptRemote<IUserTrustGrain>("single call site in ReportGrain");
         registry.AcceptRemote<IUserGrain>(
             "reached through the authorization stack the deletion path needs; co-hosting it would " +
             "put a second copy of core's busiest worker on a role that runs batch work");

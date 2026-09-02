@@ -51,6 +51,35 @@ public sealed class OptionsUsageScanner(ClusterScanScope scope)
     /// </remarks>
     private const int MaxDepth = 4;
 
+    /// <summary>
+    /// Settings types a class asks for in its constructors — what a hosted grain needs bound on the
+    /// role that activates it.
+    /// </summary>
+    /// <remarks>
+    /// <para>A grain is not reached by the walk from a feature: Orleans activates it from the role's
+    /// grain registry, and nothing in any feature's code names its constructor. So a grain that takes
+    /// <c>IOptions&lt;T&gt;</c> on a role whose features never declared <c>T</c> got a default
+    /// instance and ran on it — which is how the trust grain sat on <c>core</c> reading an
+    /// <c>IsEnabled</c> that was always false, and every trust score in production was the default of
+    /// an empty section.</para>
+    ///
+    /// <para>Constructors only, no walk: what a grain's methods reach for through the container is
+    /// the grain's business and rare; what it cannot be activated without is in its signature.</para>
+    /// </remarks>
+    public IReadOnlySet<Type> ConstructedWith(Type type)
+    {
+        var found = new HashSet<Type>();
+        var into  = new List<Type>();
+
+        foreach (var constructor in type.GetConstructors(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+        foreach (var parameter in constructor.GetParameters())
+            Collect(parameter.ParameterType, into);
+
+        found.UnionWith(into);
+
+        return found;
+    }
+
     public IReadOnlySet<Type> UsagesOf(Type featureType)
     {
         var found   = new HashSet<Type>();

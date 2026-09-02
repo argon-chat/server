@@ -85,4 +85,46 @@ public class RoleOptionsDeclarationTests
           + "settings bind to defaults and the code runs on them silently: "
           + string.Join(", ", undeclared.Select(x => $"{x.Feature} reads {x.Setting}")));
     }
+
+    /// <summary>
+    /// The same rule for the grains a role activates, which the walk above cannot see.
+    /// </summary>
+    /// <remarks>
+    /// <para>A grain is reached from the role's grain registry, not from any feature's code, so a
+    /// feature walk never arrives at its constructor. That is the gap the trust grain fell through:
+    /// hosted on <c>core</c> with <c>IOptions&lt;ReportSystemOptions&gt;</c> in its constructor and no
+    /// feature on <c>core</c> declaring the section, it read <c>IsEnabled</c> as false and reported
+    /// the default score of an empty <c>TrustScoring</c> — zero, "Locked" in the console — for every
+    /// user in production, while the report grain a role away recorded resolutions it would never
+    /// count.</para>
+    ///
+    /// <para>Only settings some feature declares somewhere are checked. A grain taking the options of
+    /// a library or the framework is asking for something no feature owns, and this fixture is about
+    /// ownership.</para>
+    /// </remarks>
+    [TestCaseSource(nameof(Roles))]
+    public void Every_setting_a_hosted_grain_reads_is_declared_by_one_of_the_roles_features(RoleDescriptor role)
+    {
+        var declaredAnywhere = Catalog.Roles.Values
+           .SelectMany(r => r.Features.Ordered)
+           .SelectMany(feature => feature.Options.Select(option => option.OptionsType))
+           .ToHashSet();
+
+        var declaredHere = role.Features.Ordered
+           .SelectMany(feature => feature.Options.Select(option => option.OptionsType))
+           .ToHashSet();
+
+        var undeclared = role.HostedGrains
+           .SelectMany(grain => Scanner.ConstructedWith(grain)
+                                       .Where(used => declaredAnywhere.Contains(used) && !declaredHere.Contains(used))
+                                       .Select(used => (Grain: grain.Name, Setting: used.Name)))
+           .Distinct()
+           .OrderBy(x => x.Grain)
+           .ToArray();
+
+        Assert.That(undeclared, Is.Empty,
+            $"role '{role.Id.Value}' hosts grains built with settings no feature of it declared, so those "
+          + "grains are activated on default instances and run on them silently: "
+          + string.Join(", ", undeclared.Select(x => $"{x.Grain} takes {x.Setting}")));
+    }
 }
