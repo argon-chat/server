@@ -19,7 +19,7 @@ public sealed record ArgonIonTicket(guid userId, string ip, string ray, string c
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ArgonAuthMode
+public enum ArgonAuthMode : u4
 {
     EmailPassword = 0,
     EmailOtp = 1,
@@ -28,13 +28,59 @@ public enum ArgonAuthMode
     PasskeyWithOtp = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="ArgonAuthMode"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ArgonAuthMode_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ArgonAuthMode value)
+        => value == ArgonAuthMode.EmailPassword || value == ArgonAuthMode.EmailOtp || value == ArgonAuthMode.EmailPasswordOtp || value == ArgonAuthMode.PasskeyOnly || value == ArgonAuthMode.PasskeyWithOtp;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ArgonAuthMode value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum OtpMethod
+public enum OtpMethod : u4
 {
     Email = 0,
     Phone = 1,
     Totp = 2,
+}
+
+/// <summary>Open-enum helpers for <see cref="OtpMethod"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_OtpMethod_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this OtpMethod value)
+        => value == OtpMethod.Email || value == OtpMethod.Phone || value == OtpMethod.Totp;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this OtpMethod value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 

@@ -24,7 +24,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetSpaceSnapshot");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __known = reader.ReadNullable<SpaceVersions>();
@@ -42,7 +42,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetMemberPresence");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -59,7 +59,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetMembers");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -76,7 +76,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetMember");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __userid = IonFormatterStorage<guid>.Read(reader);
@@ -94,7 +94,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetInviteCodes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -111,7 +111,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.CreateInviteCode");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __expireminutes = IonFormatterStorage<i4>.Read(reader);
@@ -130,7 +130,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.RevokeInviteCode");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __code = IonFormatterStorage<InviteCode>.Read(reader);
@@ -146,7 +146,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.UpdateSpaceInfo");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -163,7 +163,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.SetBoostStripHidden");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __hidden = IonFormatterStorage<bool>.Read(reader);
@@ -179,7 +179,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetSpaceStats");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -196,7 +196,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.PrefetchUser");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __userid = IonFormatterStorage<guid>.Read(reader);
@@ -214,7 +214,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.PrefetchProfile");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __userid = IonFormatterStorage<guid>.Read(reader);
@@ -232,7 +232,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetChannels");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -249,7 +249,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetServerArchetypes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -266,7 +266,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetDetailedServerArchetypes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -283,7 +283,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.BeginUploadSpaceProfileHeader");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -300,7 +300,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.CompleteUploadSpaceProfileHeader");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __blobid = IonFormatterStorage<guid>.Read(reader);
@@ -316,7 +316,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.BeginUploadSpaceAvatar");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -333,7 +333,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.CompleteUploadSpaceAvatar");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __blobid = IonFormatterStorage<guid>.Read(reader);
@@ -349,7 +349,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.BeginUploadInviteImage");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -366,7 +366,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.CompleteUploadInviteImage");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __blobid = IonFormatterStorage<guid>.Read(reader);
@@ -382,7 +382,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetChannelGroups");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -399,7 +399,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.RequestDeleteSpace");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -416,7 +416,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.CancelDeleteSpace");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -433,7 +433,7 @@ public sealed class Ion_ServerInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ServerInteraction.GetSpaceDeletionState");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     

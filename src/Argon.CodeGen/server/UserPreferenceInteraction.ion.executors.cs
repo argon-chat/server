@@ -24,7 +24,7 @@ public sealed class Ion_PreferenceInteraction_ServiceExecutor(AsyncServiceScope 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "PreferenceInteraction.SetPreference");
     
         var __scope = IonFormatterStorage<string>.Read(reader);
         var __value = IonFormatterStorage<string>.Read(reader);
@@ -40,7 +40,7 @@ public sealed class Ion_PreferenceInteraction_ServiceExecutor(AsyncServiceScope 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "PreferenceInteraction.GetPreference");
     
         var __scope = IonFormatterStorage<string>.Read(reader);
         var __value = IonFormatterStorage<string>.Read(reader);

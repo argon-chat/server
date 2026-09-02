@@ -24,7 +24,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.GetServerArchetypes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -41,7 +41,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.CreateArchetype");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -59,7 +59,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.UpdateArchetype");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __data = IonFormatterStorage<Archetype>.Read(reader);
@@ -77,7 +77,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.SetArchetypeToMember");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __memberid = IonFormatterStorage<guid>.Read(reader);
@@ -97,7 +97,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.GetDetailedServerArchetypes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -114,7 +114,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.UpsertArchetypeEntitlementForChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -135,7 +135,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.GetChannelEntitlementOverwrites");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -153,7 +153,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.DeleteEntitlementForChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -172,7 +172,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.DeleteArchetype");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __archetypeid = IonFormatterStorage<guid>.Read(reader);
@@ -190,7 +190,7 @@ public sealed class Ion_ArchetypeInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ArchetypeInteraction.ReorderArchetypes");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __ordered = IonFormatterStorage<guid>.ReadArray(reader);

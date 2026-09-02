@@ -47,15 +47,38 @@ public sealed record SpaceBooster(guid userId, string username, i4 boostCount);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum UltimaPlan
+public enum UltimaPlan : u4
 {
     Monthly = 0,
     Annual = 1,
 }
 
+/// <summary>Open-enum helpers for <see cref="UltimaPlan"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_UltimaPlan_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this UltimaPlan value)
+        => value == UltimaPlan.Monthly || value == UltimaPlan.Annual;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this UltimaPlan value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum UltimaSubscriptionStatus
+public enum UltimaSubscriptionStatus : u4
 {
     Active = 0,
     Cancelled = 1,
@@ -63,9 +86,32 @@ public enum UltimaSubscriptionStatus
     GracePeriod = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="UltimaSubscriptionStatus"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_UltimaSubscriptionStatus_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this UltimaSubscriptionStatus value)
+        => value == UltimaSubscriptionStatus.Active || value == UltimaSubscriptionStatus.Cancelled || value == UltimaSubscriptionStatus.Expired || value == UltimaSubscriptionStatus.GracePeriod;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this UltimaSubscriptionStatus value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum BoostPackType
+public enum BoostPackType : u4
 {
     Pack1 = 0,
     Pack3 = 1,
@@ -75,9 +121,32 @@ public enum BoostPackType
     Pack5Annual = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="BoostPackType"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_BoostPackType_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this BoostPackType value)
+        => value == BoostPackType.Pack1 || value == BoostPackType.Pack3 || value == BoostPackType.Pack5 || value == BoostPackType.Pack1Annual || value == BoostPackType.Pack3Annual || value == BoostPackType.Pack5Annual;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this BoostPackType value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum BoostSource
+public enum BoostSource : u4
 {
     Subscription = 0,
     PurchasedPack1 = 1,
@@ -89,18 +158,64 @@ public enum BoostSource
     PurchasedPack5Annual = 7,
 }
 
+/// <summary>Open-enum helpers for <see cref="BoostSource"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_BoostSource_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this BoostSource value)
+        => value == BoostSource.Subscription || value == BoostSource.PurchasedPack1 || value == BoostSource.PurchasedPack3 || value == BoostSource.PurchasedPack5 || value == BoostSource.GiftReward || value == BoostSource.PurchasedPack1Annual || value == BoostSource.PurchasedPack3Annual || value == BoostSource.PurchasedPack5Annual;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this BoostSource value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum CheckoutError
+public enum CheckoutError : u4
 {
     ALREADY_SUBSCRIBED = 0,
     PAYMENT_ERROR = 1,
     REGION_UNAVAILABLE = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="CheckoutError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CheckoutError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CheckoutError value)
+        => value == CheckoutError.ALREADY_SUBSCRIBED || value == CheckoutError.PAYMENT_ERROR || value == CheckoutError.REGION_UNAVAILABLE;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CheckoutError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ApplyBoostError
+public enum ApplyBoostError : u4
 {
     NOT_FOUND = 0,
     NO_AVAILABLE_SLOTS = 1,
@@ -108,9 +223,32 @@ public enum ApplyBoostError
     ALREADY_APPLIED = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="ApplyBoostError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ApplyBoostError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ApplyBoostError value)
+        => value == ApplyBoostError.NOT_FOUND || value == ApplyBoostError.NO_AVAILABLE_SLOTS || value == ApplyBoostError.NOT_A_MEMBER || value == ApplyBoostError.ALREADY_APPLIED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ApplyBoostError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum TransferBoostError
+public enum TransferBoostError : u4
 {
     NOT_FOUND = 0,
     ON_COOLDOWN = 1,
@@ -118,21 +256,90 @@ public enum TransferBoostError
     NOT_APPLIED = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="TransferBoostError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_TransferBoostError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this TransferBoostError value)
+        => value == TransferBoostError.NOT_FOUND || value == TransferBoostError.ON_COOLDOWN || value == TransferBoostError.NOT_A_MEMBER || value == TransferBoostError.NOT_APPLIED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this TransferBoostError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum PurchaseBoostError
+public enum PurchaseBoostError : u4
 {
     PAYMENT_ERROR = 0,
     LIMIT_REACHED = 1,
 }
 
+/// <summary>Open-enum helpers for <see cref="PurchaseBoostError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_PurchaseBoostError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this PurchaseBoostError value)
+        => value == PurchaseBoostError.PAYMENT_ERROR || value == PurchaseBoostError.LIMIT_REACHED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this PurchaseBoostError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SendGiftError
+public enum SendGiftError : u4
 {
     USER_NOT_FOUND = 0,
     SELF_GIFT = 1,
     PAYMENT_ERROR = 2,
+}
+
+/// <summary>Open-enum helpers for <see cref="SendGiftError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SendGiftError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SendGiftError value)
+        => value == SendGiftError.USER_NOT_FOUND || value == SendGiftError.SELF_GIFT || value == SendGiftError.PAYMENT_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SendGiftError value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -190,8 +397,7 @@ public sealed class Ion_ICheckoutResult_Formatter : IonFormatter<ICheckoutResult
 {
     public ICheckoutResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ICheckoutResult", 2u);
         ICheckoutResult result;
         if (false) {}
         
@@ -202,8 +408,8 @@ public sealed class Ion_ICheckoutResult_Formatter : IonFormatter<ICheckoutResult
             result = IonFormatterStorage<FailedCheckout>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ICheckoutResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -229,7 +435,8 @@ public sealed class Ion_ICheckoutResult_Formatter : IonFormatter<ICheckoutResult
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ICheckoutResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -241,7 +448,7 @@ public sealed class Ion_SuccessCheckout_Formatter : IonFormatter<SuccessCheckout
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessCheckout Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SuccessCheckout");
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
         var __sessionid = IonFormatterStorage<string>.Read(reader);
         var __countrycode = IonFormatterStorage<string>.Read(reader);
@@ -266,7 +473,7 @@ public sealed class Ion_FailedCheckout_Formatter : IonFormatter<FailedCheckout>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedCheckout Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedCheckout");
         var __error = IonFormatterStorage<CheckoutError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -318,8 +525,7 @@ public sealed class Ion_IApplyBoostResult_Formatter : IonFormatter<IApplyBoostRe
 {
     public IApplyBoostResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IApplyBoostResult", 2u);
         IApplyBoostResult result;
         if (false) {}
         
@@ -330,8 +536,8 @@ public sealed class Ion_IApplyBoostResult_Formatter : IonFormatter<IApplyBoostRe
             result = IonFormatterStorage<FailedApplyBoost>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IApplyBoostResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -357,7 +563,8 @@ public sealed class Ion_IApplyBoostResult_Formatter : IonFormatter<IApplyBoostRe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IApplyBoostResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -369,7 +576,7 @@ public sealed class Ion_SuccessApplyBoost_Formatter : IonFormatter<SuccessApplyB
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessApplyBoost Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessApplyBoost");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -390,7 +597,7 @@ public sealed class Ion_FailedApplyBoost_Formatter : IonFormatter<FailedApplyBoo
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedApplyBoost Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedApplyBoost");
         var __error = IonFormatterStorage<ApplyBoostError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -442,8 +649,7 @@ public sealed class Ion_ITransferBoostResult_Formatter : IonFormatter<ITransferB
 {
     public ITransferBoostResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ITransferBoostResult", 2u);
         ITransferBoostResult result;
         if (false) {}
         
@@ -454,8 +660,8 @@ public sealed class Ion_ITransferBoostResult_Formatter : IonFormatter<ITransferB
             result = IonFormatterStorage<FailedTransfer>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ITransferBoostResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -481,7 +687,8 @@ public sealed class Ion_ITransferBoostResult_Formatter : IonFormatter<ITransferB
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ITransferBoostResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -493,7 +700,7 @@ public sealed class Ion_SuccessTransfer_Formatter : IonFormatter<SuccessTransfer
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessTransfer Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessTransfer");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -514,7 +721,7 @@ public sealed class Ion_FailedTransfer_Formatter : IonFormatter<FailedTransfer>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedTransfer Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedTransfer");
         var __error = IonFormatterStorage<TransferBoostError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -566,8 +773,7 @@ public sealed class Ion_IPurchaseBoostResult_Formatter : IonFormatter<IPurchaseB
 {
     public IPurchaseBoostResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IPurchaseBoostResult", 2u);
         IPurchaseBoostResult result;
         if (false) {}
         
@@ -578,8 +784,8 @@ public sealed class Ion_IPurchaseBoostResult_Formatter : IonFormatter<IPurchaseB
             result = IonFormatterStorage<FailedPurchaseBoost>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IPurchaseBoostResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -605,7 +811,8 @@ public sealed class Ion_IPurchaseBoostResult_Formatter : IonFormatter<IPurchaseB
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IPurchaseBoostResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -617,7 +824,7 @@ public sealed class Ion_SuccessPurchaseBoost_Formatter : IonFormatter<SuccessPur
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessPurchaseBoost Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "SuccessPurchaseBoost");
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
         var __countrycode = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -640,7 +847,7 @@ public sealed class Ion_FailedPurchaseBoost_Formatter : IonFormatter<FailedPurch
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedPurchaseBoost Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedPurchaseBoost");
         var __error = IonFormatterStorage<PurchaseBoostError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -692,8 +899,7 @@ public sealed class Ion_ISendGiftResult_Formatter : IonFormatter<ISendGiftResult
 {
     public ISendGiftResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ISendGiftResult", 2u);
         ISendGiftResult result;
         if (false) {}
         
@@ -704,8 +910,8 @@ public sealed class Ion_ISendGiftResult_Formatter : IonFormatter<ISendGiftResult
             result = IonFormatterStorage<FailedSendGift>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ISendGiftResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -731,7 +937,8 @@ public sealed class Ion_ISendGiftResult_Formatter : IonFormatter<ISendGiftResult
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ISendGiftResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -743,7 +950,7 @@ public sealed class Ion_SuccessSendGift_Formatter : IonFormatter<SuccessSendGift
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessSendGift Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "SuccessSendGift");
         var __checkouturl = IonFormatterStorage<string>.Read(reader);
         var __countrycode = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -766,7 +973,7 @@ public sealed class Ion_FailedSendGift_Formatter : IonFormatter<FailedSendGift>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedSendGift Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedSendGift");
         var __error = IonFormatterStorage<SendGiftError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

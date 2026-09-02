@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from "vue"
+import { ref, shallowRef, onMounted, computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { Loader2, ArrowLeft } from "@lucide/vue"
 import { useApi } from "@/store/apiStore"
@@ -14,7 +14,11 @@ const router = useRouter()
 const api = useApi()
 const { toast } = useToast()
 
-const app = ref<AppDetails | null>(null)
+// Shallow because `AppDetails` now carries an `IonDateTime`, and a deep ref maps over the value's
+// properties — which turns a class instance into a plain object without its private state, so the
+// result no longer satisfies the type it was read as. Nothing here mutates the object in place; it
+// is replaced whole, which is all a shallow ref tracks.
+const app = shallowRef<AppDetails | null>(null)
 const bot = ref<BotDetails | null>(null)
 const clientApp = ref<ClientApp | null>(null)
 const isLoading = ref(true)

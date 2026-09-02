@@ -19,7 +19,7 @@ public sealed class Ion_ArgonIonTicket_Formatter : IonFormatter<ArgonIonTicket>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonIonTicket Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(9, "ArgonIonTicket");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __ip = IonFormatterStorage<string>.Read(reader);
         var __ray = IonFormatterStorage<string>.Read(reader);

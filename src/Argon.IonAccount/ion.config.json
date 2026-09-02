@@ -14,7 +14,7 @@
             "outputs": "./../Argon.CodeGenAccount/"
         },
         "browser": {
-            "outputFile": "./../src/lib/glue/accountConsole.ts",
+            "outputFile": "./../Frontend/Console/src/lib/glue/accountConsole.ts",
             "singleFileOutput": true
         }
     }

@@ -24,7 +24,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.SearchBots");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __query = IonFormatterStorage<string>.Read(reader);
@@ -42,7 +42,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.GetBotDetails");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __botappid = IonFormatterStorage<guid>.Read(reader);
@@ -60,7 +60,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.GetInstalledBots");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -77,7 +77,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.InstallBot");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __botappid = IonFormatterStorage<guid>.Read(reader);
@@ -95,7 +95,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.UninstallBot");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __botappid = IonFormatterStorage<guid>.Read(reader);
@@ -113,7 +113,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.GetSpaceCommands");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -130,7 +130,7 @@ public sealed class Ion_BotManagementInteraction_ServiceExecutor(AsyncServiceSco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "BotManagementInteraction.ApproveBotEntitlements");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __botappid = IonFormatterStorage<guid>.Read(reader);

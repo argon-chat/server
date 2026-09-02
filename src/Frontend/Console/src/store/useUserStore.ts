@@ -3,11 +3,23 @@ import { ref } from "vue";
 import { useApi } from "./apiStore";
 import { MeDetails } from "@/lib/glue/accountConsole";
 import { useTeamsStore } from "./useTeamsStore";
+import { fetchUserInfo } from "@/composables/useOAuth";
 
 export const useUserStore = defineStore("user", () => {
     const api = useApi();
     const teamsStore = useTeamsStore();
     const user = ref<MeDetails | null>(null);
+
+    /**
+     * The address of this user's avatar, as published by Aegis.
+     *
+     * Kept apart from `user` because it comes from somewhere else and is allowed to be missing: the
+     * console's own `GetMe` carries a file id, which says where a file sits in this deployment's
+     * storage, while userinfo carries the address that survives storage moving. Null covers every
+     * way the second can be absent — no avatar set, the scope not granted, userinfo unreachable —
+     * and each renders the same initials the console showed before there was an avatar.
+     */
+    const avatarUrl = ref<string | null>(null);
     const isLoading = ref(false);
     const isLoaded = ref(false);
     const retryCount = ref(0);
@@ -38,6 +50,11 @@ export const useUserStore = defineStore("user", () => {
         try {
             const me = await api.consoleInteraction.GetMe();
             user.value = me;
+
+            // Deliberately outside this try's failure path: the console is perfectly usable without
+            // an avatar, and letting userinfo failing take the profile load down with it would put
+            // the page into its retry loop over a decoration.
+            void loadAvatar();
             await teamsStore.fetchTeams();
             isLoaded.value = true;
             retryCount.value = 0;
@@ -65,6 +82,14 @@ export const useUserStore = defineStore("user", () => {
         }
     }
 
+    async function loadAvatar() {
+        try {
+            avatarUrl.value = (await fetchUserInfo())?.avatarUrl ?? null;
+        } catch {
+            avatarUrl.value = null;
+        }
+    }
+
     function retryFetch() {
         clearRetryTimer();
         retryCount.value = 0;
@@ -72,5 +97,5 @@ export const useUserStore = defineStore("user", () => {
         fetchUser(true, false);
     }
 
-    return { user, isLoading, isLoaded, errorMessage, fetchUser, retryFetch };
+    return { user, avatarUrl, isLoading, isLoaded, errorMessage, fetchUser, retryFetch };
 });

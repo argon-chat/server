@@ -31,7 +31,7 @@ public sealed record UserTrustInfo(guid userId, i4 trustScore, i4 totalReportsRe
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ReportTargetKind
+public enum ReportTargetKind : u4
 {
     PROFILE = 0,
     MESSAGE = 1,
@@ -40,9 +40,32 @@ public enum ReportTargetKind
     USER = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="ReportTargetKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ReportTargetKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ReportTargetKind value)
+        => value == ReportTargetKind.PROFILE || value == ReportTargetKind.MESSAGE || value == ReportTargetKind.CHANNEL || value == ReportTargetKind.SPACE || value == ReportTargetKind.USER;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ReportTargetKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ReportCategory
+public enum ReportCategory : u4
 {
     I_DONT_LIKE_IT = 0,
     CHILD_ABUSE = 1,
@@ -56,9 +79,32 @@ public enum ReportCategory
     OTHER = 9,
 }
 
+/// <summary>Open-enum helpers for <see cref="ReportCategory"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ReportCategory_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ReportCategory value)
+        => value == ReportCategory.I_DONT_LIKE_IT || value == ReportCategory.CHILD_ABUSE || value == ReportCategory.VIOLENCE || value == ReportCategory.ILLEGAL_GOODS || value == ReportCategory.ILLEGAL_ADULT_CONTENT || value == ReportCategory.PERSONAL_DATA || value == ReportCategory.SCAM_OR_FRAUD || value == ReportCategory.COPYRIGHT || value == ReportCategory.SPAM || value == ReportCategory.OTHER;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ReportCategory value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ReportReason
+public enum ReportReason : u4
 {
     NONE = 0,
     CHILD_SEXUAL_ABUSE = 1,
@@ -104,9 +150,32 @@ public enum ReportReason
     OTHER_ELSE = 41,
 }
 
+/// <summary>Open-enum helpers for <see cref="ReportReason"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ReportReason_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ReportReason value)
+        => value == ReportReason.NONE || value == ReportReason.CHILD_SEXUAL_ABUSE || value == ReportReason.CHILD_PHYSICAL_ABUSE || value == ReportReason.INSULTS_OR_FALSE_INFO || value == ReportReason.GRAPHIC_OR_DISTURBING_CONTENT || value == ReportReason.EXTREME_VIOLENCE || value == ReportReason.HATE_SPEECH_OR_SYMBOL || value == ReportReason.CALLING_FOR_VIOLENCE || value == ReportReason.ORGANIZED_CRIME || value == ReportReason.TERRORISM || value == ReportReason.ANIMAL_ABUSE || value == ReportReason.WEAPONS || value == ReportReason.DRUGS || value == ReportReason.FAKE_DOCUMENTS || value == ReportReason.COUNTERFEIT_MONEY || value == ReportReason.HACKING_TOOLS_AND_MALWARE || value == ReportReason.COUNTERFEIT_MERCHANDISE || value == ReportReason.OTHER_GOODS_AND_SERVICES || value == ReportReason.IAC_CHILD_ABUSE || value == ReportReason.ILLEGAL_SEXUAL_SERVICES || value == ReportReason.IAC_ANIMAL_ABUSE || value == ReportReason.NON_CONSENSUAL_SEXUAL_IMAGERY || value == ReportReason.PORNOGRAPHY || value == ReportReason.IAC_OTHER || value == ReportReason.PRIVATE_IMAGES || value == ReportReason.PHONE_NUMBER || value == ReportReason.ADDRESS || value == ReportReason.STOLEN_DATA_OR_CREDENTIALS || value == ReportReason.PD_OTHER || value == ReportReason.IMPERSONATION || value == ReportReason.DECEPTIVE_FINANCIAL_CLAIMS || value == ReportReason.SF_MALWARE || value == ReportReason.PHISHING || value == ReportReason.FRAUDULENT_SELLER || value == ReportReason.SPAM_INSULTS_OR_FALSE_INFO || value == ReportReason.PROMOTING_ILLEGAL_CONTENT || value == ReportReason.SPAM_OTHER || value == ReportReason.OTHER_I_DONT_LIKE_IT || value == ReportReason.OTHER_FALSE_INFO || value == ReportReason.OTHER_ILLEGAL_ADULT_CONTENT || value == ReportReason.OTHER_ILLEGAL_GOODS_AND_SERVICES || value == ReportReason.OTHER_ELSE;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ReportReason value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ReportStatus
+public enum ReportStatus : u4
 {
     PENDING = 0,
     UNDER_REVIEW = 1,
@@ -116,9 +185,32 @@ public enum ReportStatus
     ESCALATED = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="ReportStatus"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ReportStatus_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ReportStatus value)
+        => value == ReportStatus.PENDING || value == ReportStatus.UNDER_REVIEW || value == ReportStatus.RESOLVED_ACTION_TAKEN || value == ReportStatus.RESOLVED_NO_ACTION || value == ReportStatus.DISMISSED || value == ReportStatus.ESCALATED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ReportStatus value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SubmitReportError
+public enum SubmitReportError : u4
 {
     NONE = 0,
     INVALID_TARGET = 1,
@@ -127,6 +219,29 @@ public enum SubmitReportError
     RATE_LIMITED = 4,
     TARGET_NOT_FOUND = 5,
     INTERNAL_ERROR = 6,
+}
+
+/// <summary>Open-enum helpers for <see cref="SubmitReportError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SubmitReportError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SubmitReportError value)
+        => value == SubmitReportError.NONE || value == SubmitReportError.INVALID_TARGET || value == SubmitReportError.CANNOT_REPORT_SELF || value == SubmitReportError.DUPLICATE_REPORT || value == SubmitReportError.RATE_LIMITED || value == SubmitReportError.TARGET_NOT_FOUND || value == SubmitReportError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SubmitReportError value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -174,8 +289,7 @@ public sealed class Ion_ISubmitReportResult_Formatter : IonFormatter<ISubmitRepo
 {
     public ISubmitReportResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ISubmitReportResult", 2u);
         ISubmitReportResult result;
         if (false) {}
         
@@ -186,8 +300,8 @@ public sealed class Ion_ISubmitReportResult_Formatter : IonFormatter<ISubmitRepo
             result = IonFormatterStorage<FailedSubmitReport>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ISubmitReportResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -213,7 +327,8 @@ public sealed class Ion_ISubmitReportResult_Formatter : IonFormatter<ISubmitRepo
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ISubmitReportResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -225,7 +340,7 @@ public sealed class Ion_SuccessSubmitReport_Formatter : IonFormatter<SuccessSubm
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessSubmitReport Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessSubmitReport");
         var __reportid = IonFormatterStorage<guid>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__reportid);
@@ -246,7 +361,7 @@ public sealed class Ion_FailedSubmitReport_Formatter : IonFormatter<FailedSubmit
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedSubmitReport Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedSubmitReport");
         var __error = IonFormatterStorage<SubmitReportError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

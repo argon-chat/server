@@ -27,7 +27,7 @@ public sealed record InventoryNotification(guid inventoryItemId, string id, date
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ItemUseVector
+public enum ItemUseVector : u4
 {
     RedeemCode = 0,
     Premium = 1,
@@ -35,15 +35,61 @@ public enum ItemUseVector
     QualifierBox = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="ItemUseVector"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ItemUseVector_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ItemUseVector value)
+        => value == ItemUseVector.RedeemCode || value == ItemUseVector.Premium || value == ItemUseVector.Box || value == ItemUseVector.QualifierBox;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ItemUseVector value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum RedeemError
+public enum RedeemError : u4
 {
     NOT_FOUND = 0,
     INACTIVE = 1,
     EXPIRED = 2,
     LIMIT_REACHED = 3,
     ALREADY = 4,
+}
+
+/// <summary>Open-enum helpers for <see cref="RedeemError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_RedeemError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this RedeemError value)
+        => value == RedeemError.NOT_FOUND || value == RedeemError.INACTIVE || value == RedeemError.EXPIRED || value == RedeemError.LIMIT_REACHED || value == RedeemError.ALREADY;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this RedeemError value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -94,8 +140,7 @@ public sealed class Ion_IRedeemResult_Formatter : IonFormatter<IRedeemResult>
 {
     public IRedeemResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRedeemResult", 2u);
         IRedeemResult result;
         if (false) {}
         
@@ -106,8 +151,8 @@ public sealed class Ion_IRedeemResult_Formatter : IonFormatter<IRedeemResult>
             result = IonFormatterStorage<FailedRedeem>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRedeemResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -133,7 +178,8 @@ public sealed class Ion_IRedeemResult_Formatter : IonFormatter<IRedeemResult>
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRedeemResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -145,7 +191,7 @@ public sealed class Ion_SuccessRedeem_Formatter : IonFormatter<SuccessRedeem>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRedeem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRedeem");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -166,7 +212,7 @@ public sealed class Ion_FailedRedeem_Formatter : IonFormatter<FailedRedeem>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRedeem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRedeem");
         var __error = IonFormatterStorage<RedeemError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

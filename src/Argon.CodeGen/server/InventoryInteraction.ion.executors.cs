@@ -24,7 +24,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "InventoryInteraction.GetMyInventoryItems");
     
         
     
@@ -41,7 +41,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "InventoryInteraction.MarkSeen");
     
         var __itemids = IonFormatterStorage<guid>.ReadArray(reader);
     
@@ -56,7 +56,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "InventoryInteraction.GetNotifications");
     
         
     
@@ -73,7 +73,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "InventoryInteraction.RedeemCode");
     
         var __code = IonFormatterStorage<string>.Read(reader);
     
@@ -90,7 +90,7 @@ public sealed class Ion_InventoryInteraction_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "InventoryInteraction.UseItem");
     
         var __itemid = IonFormatterStorage<guid>.Read(reader);
     

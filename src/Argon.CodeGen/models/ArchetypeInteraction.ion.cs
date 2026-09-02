@@ -23,7 +23,7 @@ public sealed record Archetype(guid id, guid spaceId, string name, string descri
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ArchetypeError
+public enum ArchetypeError : u2
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -33,6 +33,29 @@ public enum ArchetypeError
     IN_USE = 5,
     INCOMPLETE_ORDER = 6,
     INTERNAL_ERROR = 7,
+}
+
+/// <summary>Open-enum helpers for <see cref="ArchetypeError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ArchetypeError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ArchetypeError value)
+        => value == ArchetypeError.NONE || value == ArchetypeError.NOT_FOUND || value == ArchetypeError.NO_PERMISSION || value == ArchetypeError.IS_DEFAULT || value == ArchetypeError.IS_LOCKED || value == ArchetypeError.IN_USE || value == ArchetypeError.INCOMPLETE_ORDER || value == ArchetypeError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this ArchetypeError value)
+        => value.IsKnown() ? null : (u2)value;
 }
 
 
@@ -88,8 +111,7 @@ public sealed class Ion_IDeleteArchetypeResult_Formatter : IonFormatter<IDeleteA
 {
     public IDeleteArchetypeResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IDeleteArchetypeResult", 2u);
         IDeleteArchetypeResult result;
         if (false) {}
         
@@ -100,8 +122,8 @@ public sealed class Ion_IDeleteArchetypeResult_Formatter : IonFormatter<IDeleteA
             result = IonFormatterStorage<FailedDeleteArchetype>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IDeleteArchetypeResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -127,7 +149,8 @@ public sealed class Ion_IDeleteArchetypeResult_Formatter : IonFormatter<IDeleteA
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IDeleteArchetypeResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -139,7 +162,7 @@ public sealed class Ion_SuccessDeleteArchetype_Formatter : IonFormatter<SuccessD
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessDeleteArchetype Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessDeleteArchetype");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -160,7 +183,7 @@ public sealed class Ion_FailedDeleteArchetype_Formatter : IonFormatter<FailedDel
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedDeleteArchetype Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedDeleteArchetype");
         var __error = IonFormatterStorage<ArchetypeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -212,8 +235,7 @@ public sealed class Ion_IReorderArchetypesResult_Formatter : IonFormatter<IReord
 {
     public IReorderArchetypesResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IReorderArchetypesResult", 2u);
         IReorderArchetypesResult result;
         if (false) {}
         
@@ -224,8 +246,8 @@ public sealed class Ion_IReorderArchetypesResult_Formatter : IonFormatter<IReord
             result = IonFormatterStorage<FailedReorderArchetypes>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IReorderArchetypesResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -251,7 +273,8 @@ public sealed class Ion_IReorderArchetypesResult_Formatter : IonFormatter<IReord
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IReorderArchetypesResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -263,7 +286,7 @@ public sealed class Ion_SuccessReorderArchetypes_Formatter : IonFormatter<Succes
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessReorderArchetypes Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessReorderArchetypes");
         var __archetypes = IonFormatterStorage<Archetype>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__archetypes);
@@ -284,7 +307,7 @@ public sealed class Ion_FailedReorderArchetypes_Formatter : IonFormatter<FailedR
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedReorderArchetypes Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedReorderArchetypes");
         var __error = IonFormatterStorage<ArchetypeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

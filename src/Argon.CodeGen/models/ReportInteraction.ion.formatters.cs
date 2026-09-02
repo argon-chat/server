@@ -19,7 +19,7 @@ public sealed class Ion_ReportTarget_Formatter : IonFormatter<ReportTarget>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ReportTarget Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "ReportTarget");
         var __kind = IonFormatterStorage<ReportTargetKind>.Read(reader);
         var __targetid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = reader.ReadNullable<guid>();
@@ -46,7 +46,7 @@ public sealed class Ion_CreateReportInput_Formatter : IonFormatter<CreateReportI
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public CreateReportInput Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "CreateReportInput");
         var __target = IonFormatterStorage<ReportTarget>.Read(reader);
         var __category = IonFormatterStorage<ReportCategory>.Read(reader);
         var __reason = IonFormatterStorage<ReportReason>.Read(reader);
@@ -75,7 +75,7 @@ public sealed class Ion_ReportInfo_Formatter : IonFormatter<ReportInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ReportInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(9, "ReportInfo");
         var __reportid = IonFormatterStorage<guid>.Read(reader);
         var __reporterid = IonFormatterStorage<guid>.Read(reader);
         var __target = IonFormatterStorage<ReportTarget>.Read(reader);
@@ -112,7 +112,7 @@ public sealed class Ion_UserTrustInfo_Formatter : IonFormatter<UserTrustInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UserTrustInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "UserTrustInfo");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __trustscore = IonFormatterStorage<i4>.Read(reader);
         var __totalreportsreceived = IonFormatterStorage<i4>.Read(reader);

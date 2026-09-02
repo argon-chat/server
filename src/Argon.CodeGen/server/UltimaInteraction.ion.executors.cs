@@ -24,7 +24,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.GetPricing");
     
         
     
@@ -41,7 +41,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.GetMySubscription");
     
         
     
@@ -58,7 +58,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.CreateCheckoutSession");
     
         var __plan = IonFormatterStorage<UltimaPlan>.Read(reader);
     
@@ -75,7 +75,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.CancelSubscription");
     
         
     
@@ -92,7 +92,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.GetTransactionHistory");
     
         
     
@@ -109,7 +109,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.GetMyBoosts");
     
         
     
@@ -126,7 +126,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.ApplyBoost");
     
         var __boostid = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
@@ -144,7 +144,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.TransferBoost");
     
         var __boostid = IonFormatterStorage<guid>.Read(reader);
         var __newspaceid = IonFormatterStorage<guid>.Read(reader);
@@ -162,7 +162,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.RemoveBoost");
     
         var __boostid = IonFormatterStorage<guid>.Read(reader);
     
@@ -179,7 +179,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.GetSpaceBoostStatus");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -196,7 +196,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.PurchaseBoostPack");
     
         var __pack = IonFormatterStorage<BoostPackType>.Read(reader);
     
@@ -213,7 +213,7 @@ public sealed class Ion_UltimaInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UltimaInteraction.SendUltimaGift");
     
         var __recipientid = IonFormatterStorage<guid>.Read(reader);
         var __plan = IonFormatterStorage<UltimaPlan>.Read(reader);

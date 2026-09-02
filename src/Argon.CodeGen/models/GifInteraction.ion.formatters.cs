@@ -19,7 +19,7 @@ public sealed class Ion_GifItem_Formatter : IonFormatter<GifItem>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public GifItem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "GifItem");
         var __gifid = IonFormatterStorage<string>.Read(reader);
         var __title = reader.ReadNullable<string>();
         var __previewurl = IonFormatterStorage<string>.Read(reader);
@@ -52,7 +52,7 @@ public sealed class Ion_GifSearchResult_Formatter : IonFormatter<GifSearchResult
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public GifSearchResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "GifSearchResult");
         var __items = IonFormatterStorage<GifItem>.ReadArray(reader);
         var __hasnext = IonFormatterStorage<bool>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -75,7 +75,7 @@ public sealed class Ion_SavedGif_Formatter : IonFormatter<SavedGif>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SavedGif Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(8, "SavedGif");
         var __id = IonFormatterStorage<guid>.Read(reader);
         var __gifid = reader.ReadNullable<string>();
         var __fileid = IonFormatterStorage<guid>.Read(reader);
@@ -110,7 +110,7 @@ public sealed class Ion_GifCategory_Formatter : IonFormatter<GifCategory>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public GifCategory Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "GifCategory");
         var __title = IonFormatterStorage<string>.Read(reader);
         var __imageurl = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);

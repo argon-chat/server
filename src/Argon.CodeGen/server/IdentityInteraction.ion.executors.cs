@@ -24,7 +24,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.Authorize");
     
         var __data = IonFormatterStorage<UserCredentialsInput>.Read(reader);
     
@@ -41,7 +41,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.Registration");
     
         var __data = IonFormatterStorage<NewUserCredentialsInput>.Read(reader);
     
@@ -58,7 +58,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.BeginResetPassword");
     
         var __email = IonFormatterStorage<string>.Read(reader);
     
@@ -75,7 +75,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.ResetPassword");
     
         var __email = IonFormatterStorage<string>.Read(reader);
         var __otpcode = IonFormatterStorage<string>.Read(reader);
@@ -94,7 +94,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.GetAuthorizationScenario");
     
         
     
@@ -111,7 +111,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.GetAuthorizationScenarioFor");
     
         var __data = IonFormatterStorage<UserLoginInput>.Read(reader);
     
@@ -128,7 +128,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.GetMyAuthorization");
     
         var __token = IonFormatterStorage<string>.Read(reader);
         var __refreshtoken = reader.ReadNullable<string>();
@@ -146,7 +146,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.CreateLoginRequest");
     
         
     
@@ -163,7 +163,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.PollLoginRequest");
     
         var __token = IonFormatterStorage<string>.Read(reader);
     
@@ -180,7 +180,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.PreviewLoginRequest");
     
         var __token = IonFormatterStorage<string>.Read(reader);
     
@@ -197,7 +197,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.ApproveLoginRequest");
     
         var __token = IonFormatterStorage<string>.Read(reader);
     
@@ -214,7 +214,7 @@ public sealed class Ion_IdentityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "IdentityInteraction.RejectLoginRequest");
     
         var __token = IonFormatterStorage<string>.Read(reader);
     

@@ -24,7 +24,7 @@ public sealed class Ion_FeatureFlagInteractions_ServiceExecutor(AsyncServiceScop
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FeatureFlagInteractions.GetMyFeatureFlags");
     
         
     

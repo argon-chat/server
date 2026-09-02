@@ -24,7 +24,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetMe");
     
         
     
@@ -41,7 +41,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.CreateSpace");
     
         var __request = IonFormatterStorage<CreateServerRequest>.Read(reader);
     
@@ -58,7 +58,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetSpaces");
     
         
     
@@ -75,7 +75,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.UpdateMe");
     
         var __request = IonFormatterStorage<UserEditInput>.Read(reader);
     
@@ -92,7 +92,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.JoinToSpace");
     
         var __invitecode = IonFormatterStorage<InviteCode>.Read(reader);
     
@@ -109,7 +109,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.PreviewInvite");
     
         var __invitecode = IonFormatterStorage<InviteCode>.Read(reader);
     
@@ -126,7 +126,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.BroadcastPresence");
     
         var __presence = IonFormatterStorage<UserActivityPresence>.Read(reader);
     
@@ -141,7 +141,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.RemoveBroadcastPresence");
     
         
     
@@ -156,7 +156,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetMyFeatures");
     
         
     
@@ -173,7 +173,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetMyProfile");
     
         
     
@@ -190,7 +190,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.LookupUser");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -207,7 +207,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.LookupProfile");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -224,7 +224,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.BeginUploadAvatar");
     
         
     
@@ -241,7 +241,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.CompleteUploadAvatar");
     
         var __blobid = IonFormatterStorage<guid>.Read(reader);
     
@@ -256,7 +256,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetTodayStats");
     
         
     
@@ -273,7 +273,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetMyLevel");
     
         
     
@@ -290,7 +290,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.ClaimLevelCoin");
     
         
     
@@ -307,7 +307,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetGlobalBadges");
     
         
     
@@ -324,7 +324,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.AckChannel");
     
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __lastreadmessageid = IonFormatterStorage<i8>.Read(reader);
@@ -340,7 +340,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.MuteTarget");
     
         var __targetid = IonFormatterStorage<guid>.Read(reader);
         var __targettype = IonFormatterStorage<MuteTargetKind>.Read(reader);
@@ -359,7 +359,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.UnmuteTarget");
     
         var __targetid = IonFormatterStorage<guid>.Read(reader);
     
@@ -374,7 +374,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetNotificationFeed");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __before = reader.ReadNullable<datetime>();
@@ -392,7 +392,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.MarkNotificationRead");
     
         var __notificationid = IonFormatterStorage<guid>.Read(reader);
     
@@ -407,7 +407,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.MarkAllNotificationsRead");
     
         var __type = reader.ReadNullable<string>();
     
@@ -422,7 +422,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.GetMyLegalState");
     
         
     
@@ -439,7 +439,7 @@ public sealed class Ion_UserInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserInteraction.AcceptLegal");
     
         var __request = IonFormatterStorage<AcceptLegalInput>.Read(reader);
     

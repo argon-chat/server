@@ -19,7 +19,7 @@ public sealed class Ion_SessionInfo_Formatter : IonFormatter<SessionInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SessionInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "SessionInfo");
         var __sessionid = IonFormatterStorage<guid>.Read(reader);
         var __clientname = IonFormatterStorage<string>.Read(reader);
         var __region = IonFormatterStorage<string>.Read(reader);
@@ -48,7 +48,7 @@ public sealed class Ion_SecurityDetails_Formatter : IonFormatter<SecurityDetails
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SecurityDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "SecurityDetails");
         var __otpenabled = IonFormatterStorage<bool>.Read(reader);
         var __passkeys = IonFormatterStorage<Passkey>.ReadArray(reader);
         var __email = reader.ReadNullable<string>();
@@ -77,7 +77,7 @@ public sealed class Ion_Passkey_Formatter : IonFormatter<Passkey>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public Passkey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "Passkey");
         var __id = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __createdat = IonFormatterStorage<datetime>.Read(reader);
@@ -108,7 +108,7 @@ public sealed class Ion_AutoDeletePeriod_Formatter : IonFormatter<AutoDeletePeri
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public AutoDeletePeriod Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "AutoDeletePeriod");
         var __months = reader.ReadNullable<i4>();
         var __enabled = IonFormatterStorage<bool>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -131,7 +131,7 @@ public sealed class Ion_DataExportStatus_Formatter : IonFormatter<DataExportStat
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public DataExportStatus Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "DataExportStatus");
         var __status = IonFormatterStorage<DataExportStatusKind>.Read(reader);
         var __exportid = reader.ReadNullable<guid>();
         var __startedat = reader.ReadNullable<datetime>();

@@ -19,7 +19,7 @@ public sealed class Ion_BotSearchResult_Formatter : IonFormatter<BotSearchResult
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public BotSearchResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(8, "BotSearchResult");
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
@@ -54,7 +54,7 @@ public sealed class Ion_BotDetails_Formatter : IonFormatter<BotDetails>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public BotDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(11, "BotDetails");
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
@@ -95,7 +95,7 @@ public sealed class Ion_InstalledBotInfo_Formatter : IonFormatter<InstalledBotIn
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InstalledBotInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(9, "InstalledBotInfo");
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
@@ -132,7 +132,7 @@ public sealed class Ion_SpaceCommandOption_Formatter : IonFormatter<SpaceCommand
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceCommandOption Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "SpaceCommandOption");
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
         var __type = IonFormatterStorage<CommandOptionType>.Read(reader);
@@ -159,7 +159,7 @@ public sealed class Ion_SpaceCommand_Formatter : IonFormatter<SpaceCommand>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceCommand Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "SpaceCommand");
         var __commandid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);

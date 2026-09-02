@@ -27,7 +27,7 @@ public sealed record MeDetails(bool gdrpExportInProgress, DeletionStatusKind del
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DeleteAccountError
+public enum DeleteAccountError : u4
 {
     None = 0,
     InvalidPassword = 1,
@@ -38,9 +38,32 @@ public enum DeleteAccountError
     InternalError = 6,
 }
 
+/// <summary>Open-enum helpers for <see cref="DeleteAccountError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DeleteAccountError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DeleteAccountError value)
+        => value == DeleteAccountError.None || value == DeleteAccountError.InvalidPassword || value == DeleteAccountError.AlreadyScheduled || value == DeleteAccountError.HasActiveSubscription || value == DeleteAccountError.OwnsSpaces || value == DeleteAccountError.AccountLocked || value == DeleteAccountError.InternalError;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this DeleteAccountError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum CancelDeleteError
+public enum CancelDeleteError : u4
 {
     None = 0,
     NotScheduled = 1,
@@ -49,9 +72,32 @@ public enum CancelDeleteError
     InternalError = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="CancelDeleteError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CancelDeleteError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CancelDeleteError value)
+        => value == CancelDeleteError.None || value == CancelDeleteError.NotScheduled || value == CancelDeleteError.AlreadyExecuting || value == CancelDeleteError.AlreadyCompleted || value == CancelDeleteError.InternalError;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CancelDeleteError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum RequestExportGDRPStatus
+public enum RequestExportGDRPStatus : u4
 {
     Unknown = 0,
     Ok = 1,
@@ -59,15 +105,61 @@ public enum RequestExportGDRPStatus
     RateLimit = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="RequestExportGDRPStatus"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_RequestExportGDRPStatus_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this RequestExportGDRPStatus value)
+        => value == RequestExportGDRPStatus.Unknown || value == RequestExportGDRPStatus.Ok || value == RequestExportGDRPStatus.Already || value == RequestExportGDRPStatus.RateLimit;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this RequestExportGDRPStatus value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DeletionStatusKind
+public enum DeletionStatusKind : u4
 {
     None = 0,
     Scheduled = 1,
     Executing = 2,
     Completed = 3,
     Failed = 4,
+}
+
+/// <summary>Open-enum helpers for <see cref="DeletionStatusKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DeletionStatusKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DeletionStatusKind value)
+        => value == DeletionStatusKind.None || value == DeletionStatusKind.Scheduled || value == DeletionStatusKind.Executing || value == DeletionStatusKind.Completed || value == DeletionStatusKind.Failed;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this DeletionStatusKind value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 

@@ -19,7 +19,7 @@ public sealed class Ion_DeleteAccountResult_Formatter : IonFormatter<DeleteAccou
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public DeleteAccountResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "DeleteAccountResult");
         var __success = IonFormatterStorage<bool>.Read(reader);
         var __error = IonFormatterStorage<DeleteAccountError>.Read(reader);
         var __scheduledat = reader.ReadNullable<datetime>();
@@ -46,7 +46,7 @@ public sealed class Ion_CancelDeleteResult_Formatter : IonFormatter<CancelDelete
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public CancelDeleteResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "CancelDeleteResult");
         var __success = IonFormatterStorage<bool>.Read(reader);
         var __error = IonFormatterStorage<CancelDeleteError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -69,7 +69,7 @@ public sealed class Ion_MeDetails_Formatter : IonFormatter<MeDetails>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public MeDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "MeDetails");
         var __gdrpexportinprogress = IonFormatterStorage<bool>.Read(reader);
         var __deletionstatus = IonFormatterStorage<DeletionStatusKind>.Read(reader);
         var __deletionscheduledat = reader.ReadNullable<datetime>();

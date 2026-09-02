@@ -19,7 +19,7 @@ public sealed class Ion_AddRedirectResult_Formatter : IonFormatter<AddRedirectRe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public AddRedirectResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "AddRedirectResult");
         var __ok = IonFormatterStorage<bool>.Read(reader);
         var __error = reader.ReadNullable<string>();
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -42,7 +42,7 @@ public sealed class Ion_MyInvitesInfo_Formatter : IonFormatter<MyInvitesInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public MyInvitesInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "MyInvitesInfo");
         var __from = IonFormatterStorage<ShortUserDetails>.Read(reader);
         var __date = IonFormatterStorage<datetime>.Read(reader);
         var __team = IonFormatterStorage<TeamShortDetails>.Read(reader);
@@ -67,7 +67,7 @@ public sealed class Ion_TeamInviteInfo_Formatter : IonFormatter<TeamInviteInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public TeamInviteInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "TeamInviteInfo");
         var __from = IonFormatterStorage<ShortUserDetails>.Read(reader);
         var __to = IonFormatterStorage<ShortUserDetails>.Read(reader);
         var __date = IonFormatterStorage<datetime>.Read(reader);
@@ -92,7 +92,7 @@ public sealed class Ion_AppDetails_Formatter : IonFormatter<AppDetails>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public AppDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(13, "AppDetails");
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -137,7 +137,7 @@ public sealed class Ion_ScopeKeyValue_Formatter : IonFormatter<ScopeKeyValue>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ScopeKeyValue Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "ScopeKeyValue");
         var __isrequired = IonFormatterStorage<bool>.Read(reader);
         var __key = IonFormatterStorage<string>.Read(reader);
         var __islocked = IonFormatterStorage<bool>.Read(reader);
@@ -162,7 +162,7 @@ public sealed class Ion_BotDetails_Formatter : IonFormatter<BotDetails>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public BotDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(9, "BotDetails");
         var __requiresoauth2 = IonFormatterStorage<bool>.Read(reader);
         var __requiresargxauth = IonFormatterStorage<bool>.Read(reader);
         var __allowdms = IonFormatterStorage<bool>.Read(reader);
@@ -199,7 +199,7 @@ public sealed class Ion_ClientAppDetails_Formatter : IonFormatter<ClientAppDetai
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ClientAppDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(8, "ClientAppDetails");
         var __platform = IonFormatterStorage<ClientAppPlatform>.Read(reader);
         var __alloweddevelopmentregeneratecoockies = IonFormatterStorage<bool>.Read(reader);
         var __ispublic = IonFormatterStorage<bool>.Read(reader);
@@ -234,7 +234,7 @@ public sealed class Ion_TeamShortDetails_Formatter : IonFormatter<TeamShortDetai
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public TeamShortDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "TeamShortDetails");
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __avatarfileid = IonFormatterStorage<string>.Read(reader);
@@ -261,7 +261,7 @@ public sealed class Ion_TeamDetails_Formatter : IonFormatter<TeamDetails>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public TeamDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "TeamDetails");
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __ownerid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -292,7 +292,7 @@ public sealed class Ion_TeamMemberDetails_Formatter : IonFormatter<TeamMemberDet
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public TeamMemberDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "TeamMemberDetails");
         var __user = IonFormatterStorage<ShortUserDetails>.Read(reader);
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __ispending = IonFormatterStorage<bool>.Read(reader);
@@ -323,7 +323,7 @@ public sealed class Ion_ShortUserDetails_Formatter : IonFormatter<ShortUserDetai
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ShortUserDetails Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "ShortUserDetails");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __avatarfileid = IonFormatterStorage<string>.Read(reader);
         var __displayname = IonFormatterStorage<string>.Read(reader);

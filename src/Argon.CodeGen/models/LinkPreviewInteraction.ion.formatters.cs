@@ -19,7 +19,7 @@ public sealed class Ion_LinkPreview_Formatter : IonFormatter<LinkPreview>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public LinkPreview Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "LinkPreview");
         var __url = IonFormatterStorage<string>.Read(reader);
         var __title = reader.ReadNullable<string>();
         var __description = reader.ReadNullable<string>();

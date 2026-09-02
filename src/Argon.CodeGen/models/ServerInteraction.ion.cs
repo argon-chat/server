@@ -79,16 +79,39 @@ public sealed record ArgonUserProfile(guid userId, string? customStatus, string?
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SpaceDeletionStatus
+public enum SpaceDeletionStatus : u2
 {
     NONE = 0,
     SCHEDULED = 1,
     EXECUTING = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="SpaceDeletionStatus"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SpaceDeletionStatus_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SpaceDeletionStatus value)
+        => value == SpaceDeletionStatus.NONE || value == SpaceDeletionStatus.SCHEDULED || value == SpaceDeletionStatus.EXECUTING;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this SpaceDeletionStatus value)
+        => value.IsKnown() ? null : (u2)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SpaceDeletionError
+public enum SpaceDeletionError : u2
 {
     NONE = 0,
     NOT_OWNER = 1,
@@ -98,9 +121,32 @@ public enum SpaceDeletionError
     INTERNAL_ERROR = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="SpaceDeletionError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SpaceDeletionError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SpaceDeletionError value)
+        => value == SpaceDeletionError.NONE || value == SpaceDeletionError.NOT_OWNER || value == SpaceDeletionError.ALREADY_SCHEDULED || value == SpaceDeletionError.NOT_SCHEDULED || value == SpaceDeletionError.ALREADY_EXECUTING || value == SpaceDeletionError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this SpaceDeletionError value)
+        => value.IsKnown() ? null : (u2)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum UserStatus
+public enum UserStatus : u4
 {
     Offline = 0,
     Online = 1,
@@ -109,6 +155,29 @@ public enum UserStatus
     Listen = 4,
     TouchGrass = 5,
     DoNotDisturb = 6,
+}
+
+/// <summary>Open-enum helpers for <see cref="UserStatus"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_UserStatus_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this UserStatus value)
+        => value == UserStatus.Offline || value == UserStatus.Online || value == UserStatus.Away || value == UserStatus.InGame || value == UserStatus.Listen || value == UserStatus.TouchGrass || value == UserStatus.DoNotDisturb;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this UserStatus value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -233,8 +302,7 @@ public sealed class Ion_IRequestDeleteSpaceResult_Formatter : IonFormatter<IRequ
 {
     public IRequestDeleteSpaceResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRequestDeleteSpaceResult", 2u);
         IRequestDeleteSpaceResult result;
         if (false) {}
         
@@ -245,8 +313,8 @@ public sealed class Ion_IRequestDeleteSpaceResult_Formatter : IonFormatter<IRequ
             result = IonFormatterStorage<FailedRequestDeleteSpace>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRequestDeleteSpaceResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -272,7 +340,8 @@ public sealed class Ion_IRequestDeleteSpaceResult_Formatter : IonFormatter<IRequ
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRequestDeleteSpaceResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -284,7 +353,7 @@ public sealed class Ion_SuccessRequestDeleteSpace_Formatter : IonFormatter<Succe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRequestDeleteSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessRequestDeleteSpace");
         var __state = IonFormatterStorage<SpaceDeletionState>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__state);
@@ -305,7 +374,7 @@ public sealed class Ion_FailedRequestDeleteSpace_Formatter : IonFormatter<Failed
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRequestDeleteSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRequestDeleteSpace");
         var __error = IonFormatterStorage<SpaceDeletionError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -357,8 +426,7 @@ public sealed class Ion_ICancelDeleteSpaceResult_Formatter : IonFormatter<ICance
 {
     public ICancelDeleteSpaceResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ICancelDeleteSpaceResult", 2u);
         ICancelDeleteSpaceResult result;
         if (false) {}
         
@@ -369,8 +437,8 @@ public sealed class Ion_ICancelDeleteSpaceResult_Formatter : IonFormatter<ICance
             result = IonFormatterStorage<FailedCancelDeleteSpace>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ICancelDeleteSpaceResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -396,7 +464,8 @@ public sealed class Ion_ICancelDeleteSpaceResult_Formatter : IonFormatter<ICance
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ICancelDeleteSpaceResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -408,7 +477,7 @@ public sealed class Ion_SuccessCancelDeleteSpace_Formatter : IonFormatter<Succes
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessCancelDeleteSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessCancelDeleteSpace");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -429,7 +498,7 @@ public sealed class Ion_FailedCancelDeleteSpace_Formatter : IonFormatter<FailedC
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedCancelDeleteSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedCancelDeleteSpace");
         var __error = IonFormatterStorage<SpaceDeletionError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

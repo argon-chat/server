@@ -24,7 +24,7 @@ public sealed class Ion_AccountConsole_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AccountConsole.GetMe");
     
         
     
@@ -41,7 +41,7 @@ public sealed class Ion_AccountConsole_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AccountConsole.RequestDeleteAccount");
     
         var __password = IonFormatterStorage<string>.Read(reader);
     
@@ -58,7 +58,7 @@ public sealed class Ion_AccountConsole_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AccountConsole.CancelDeleteAccount");
     
         
     
@@ -75,7 +75,7 @@ public sealed class Ion_AccountConsole_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AccountConsole.RequestExportGDRP");
     
         
     

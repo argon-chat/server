@@ -19,7 +19,7 @@ public sealed class Ion_UserBlock_Formatter : IonFormatter<UserBlock>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UserBlock Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "UserBlock");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __blockedid = IonFormatterStorage<guid>.Read(reader);
         var __blockedat = IonFormatterStorage<datetime>.Read(reader);
@@ -44,7 +44,7 @@ public sealed class Ion_FriendRequest_Formatter : IonFormatter<FriendRequest>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FriendRequest Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "FriendRequest");
         var __requesterid = IonFormatterStorage<guid>.Read(reader);
         var __targetid = IonFormatterStorage<guid>.Read(reader);
         var __requestedat = IonFormatterStorage<datetime>.Read(reader);
@@ -69,7 +69,7 @@ public sealed class Ion_Friendship_Formatter : IonFormatter<Friendship>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public Friendship Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "Friendship");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __friendid = IonFormatterStorage<guid>.Read(reader);
         var __friendat = IonFormatterStorage<datetime>.Read(reader);
@@ -94,7 +94,7 @@ public sealed class Ion_UserChat_Formatter : IonFormatter<UserChat>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UserChat Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "UserChat");
         var __peerid = IonFormatterStorage<guid>.Read(reader);
         var __ispinned = IonFormatterStorage<bool>.Read(reader);
         var __userid = IonFormatterStorage<guid>.Read(reader);
@@ -127,7 +127,7 @@ public sealed class Ion_DirectMessage_Formatter : IonFormatter<DirectMessage>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public DirectMessage Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "DirectMessage");
         var __messageid = IonFormatterStorage<i8>.Read(reader);
         var __senderid = IonFormatterStorage<guid>.Read(reader);
         var __receiverid = IonFormatterStorage<guid>.Read(reader);

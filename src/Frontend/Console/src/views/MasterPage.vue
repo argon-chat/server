@@ -20,8 +20,8 @@ const isDeletionScheduled = computed(() =>
   userData.value?.deletionStatus === DeletionStatusKind.Scheduled ||
   userData.value?.deletionStatus === DeletionStatusKind.Executing
 )
-const deletionScheduledAt = computed(() => userData.value?.deletionScheduledAt)
-const deletionExecutionAt = computed(() => userData.value?.deletionExecutionAt)
+const deletionScheduledAt = computed(() => userData.value?.deletionScheduledAt?.toDate())
+const deletionExecutionAt = computed(() => userData.value?.deletionExecutionAt?.toDate())
 const isExportProgress = ref(user.user?.gdrpExportInProgress)
 const showDeleteDialog = ref(false)
 const showExportDialog = ref(false)

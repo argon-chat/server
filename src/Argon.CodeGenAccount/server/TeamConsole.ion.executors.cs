@@ -24,7 +24,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.GetMyTeams");
     
         
     
@@ -41,7 +41,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.GetTeamDetails");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -58,7 +58,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.GetTeamInvites");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -75,7 +75,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.CreateTeam");
     
         var __name = IonFormatterStorage<string>.Read(reader);
     
@@ -92,7 +92,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.InviteUserToTeam");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
@@ -110,7 +110,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.BeginUploadTeamAvatar");
     
         
     
@@ -127,7 +127,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.CompleteUploadTeamAvatar");
     
         var __blobid = IonFormatterStorage<guid>.Read(reader);
     
@@ -142,7 +142,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.GetMyInvites");
     
         
     
@@ -159,7 +159,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.AcceptTeamInvite");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -174,7 +174,7 @@ public sealed class Ion_TeamConsole_ServiceExecutor(AsyncServiceScope scope) : I
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "TeamConsole.DeclineTeamInvite");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -231,7 +231,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.CreateBotApp");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -250,7 +250,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.CreateClientApp");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
@@ -269,7 +269,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.EnsureCoockiesForApp");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -285,7 +285,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.GetAppDetails");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -303,7 +303,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.RegenerateBotToken");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -321,7 +321,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.CheckUsernameForBot");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
@@ -339,7 +339,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.BeginUploadAppAvatar");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -356,7 +356,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.CompleteUploadAppAvatar");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __blobid = IonFormatterStorage<guid>.Read(reader);
@@ -372,7 +372,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.UpdateScope");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -389,7 +389,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.UpdateRedirects");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -406,7 +406,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.AddRedirect");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -425,7 +425,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.RemoveRedirect");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -442,7 +442,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.PublishBot");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -458,7 +458,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.UnpublishBot");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -474,7 +474,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.SuspendBot");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -490,7 +490,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.UpdateBotEntitlements");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -507,7 +507,7 @@ public sealed class Ion_AppManagement_ServiceExecutor(AsyncServiceScope scope) :
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AppManagement.SetBotOAuth");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);

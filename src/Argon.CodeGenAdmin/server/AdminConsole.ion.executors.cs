@@ -24,7 +24,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchUser");
     
         var __query = IonFormatterStorage<string>.Read(reader);
     
@@ -41,7 +41,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetUserCard");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -58,7 +58,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetPlatformStats");
     
         
     
@@ -75,7 +75,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetItemTemplates");
     
         
     
@@ -92,7 +92,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateItemTemplate");
     
         var __input = IonFormatterStorage<CreateItemTemplateInput>.Read(reader);
     
@@ -109,7 +109,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteItemTemplate");
     
         var __itemid = IonFormatterStorage<guid>.Read(reader);
     
@@ -126,7 +126,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteItemFromUserInventory");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __itemid = IonFormatterStorage<guid>.Read(reader);
@@ -144,7 +144,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetCoupons");
     
         
     
@@ -161,7 +161,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateCoupon");
     
         var __input = IonFormatterStorage<CreateCouponInput>.Read(reader);
     
@@ -178,7 +178,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.BlockUser");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __reason = IonFormatterStorage<LockdownReason>.Read(reader);
@@ -198,7 +198,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UnblockUser");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -215,7 +215,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GrantXp");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __amount = IonFormatterStorage<i4>.Read(reader);
@@ -233,7 +233,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GrantItem");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __itemid = IonFormatterStorage<guid>.Read(reader);
@@ -251,7 +251,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ChangeUsername");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __newusername = IonFormatterStorage<string>.Read(reader);
@@ -269,7 +269,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RemoveTwoFactor");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -286,7 +286,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RemovePhoneNumber");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -303,7 +303,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ChangeEmail");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __newemail = IonFormatterStorage<string>.Read(reader);
@@ -321,7 +321,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetUserDevices");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -338,7 +338,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetDeviceAccounts");
     
         var __deviceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -355,7 +355,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.BanDevice");
     
         var __deviceid = IonFormatterStorage<guid>.Read(reader);
         var __reason = IonFormatterStorage<string>.Read(reader);
@@ -374,7 +374,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UnbanDevice");
     
         var __deviceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -391,7 +391,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetDiagnostics");
     
         
     
@@ -408,7 +408,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetOperators");
     
         
     
@@ -425,7 +425,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetOperatorDetails");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
     
@@ -442,7 +442,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateOperator");
     
         var __input = IonFormatterStorage<CreateOperatorInput>.Read(reader);
     
@@ -459,7 +459,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeactivateOperator");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
     
@@ -476,7 +476,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ActivateOperator");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
     
@@ -493,7 +493,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RevokeOperatorCertificate");
     
         var __certificateid = IonFormatterStorage<guid>.Read(reader);
     
@@ -510,7 +510,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.EnrollOperatorCertificate");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
         var __csrpem = IonFormatterStorage<string>.Read(reader);
@@ -530,7 +530,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetOperatorAppAccess");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
     
@@ -547,7 +547,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GrantOperatorAppAccess");
     
         var __input = IonFormatterStorage<GrantOperatorAppAccessInput>.Read(reader);
     
@@ -564,7 +564,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RevokeOperatorAppAccess");
     
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
         var __appid = IonFormatterStorage<guid>.Read(reader);
@@ -582,7 +582,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UpdateOperatorAppAccess");
     
         var __input = IonFormatterStorage<UpdateOperatorAppAccessInput>.Read(reader);
     
@@ -599,7 +599,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchInternalApps");
     
         var __query = IonFormatterStorage<string>.Read(reader);
     
@@ -616,7 +616,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetAuditLog");
     
         var __query = IonFormatterStorage<AuditLogQuery>.Read(reader);
     
@@ -633,7 +633,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchBot");
     
         var __query = IonFormatterStorage<string>.Read(reader);
     
@@ -650,7 +650,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetBotCard");
     
         var __appid = IonFormatterStorage<guid>.Read(reader);
     
@@ -667,7 +667,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetBotVerified");
     
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __isverified = IonFormatterStorage<bool>.Read(reader);
@@ -685,7 +685,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetBotMaxSpaces");
     
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __maxspaces = IonFormatterStorage<i4>.Read(reader);
@@ -703,7 +703,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetBotInternalApp");
     
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __isinternalapp = IonFormatterStorage<bool>.Read(reader);
@@ -721,7 +721,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetBotLifecycleState");
     
         var __appid = IonFormatterStorage<guid>.Read(reader);
         var __state = IonFormatterStorage<AdminBotLifecycleState>.Read(reader);
@@ -739,7 +739,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchTeam");
     
         var __query = IonFormatterStorage<string>.Read(reader);
     
@@ -756,7 +756,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetTeamCard");
     
         var __teamid = IonFormatterStorage<guid>.Read(reader);
     
@@ -773,7 +773,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SearchSpace");
     
         var __query = IonFormatterStorage<string>.Read(reader);
     
@@ -790,7 +790,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetSpaceCard");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
     
@@ -807,7 +807,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetSpaceMembers");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -826,7 +826,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CancelUserSubscription");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -843,7 +843,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ExpireUserSubscription");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -860,7 +860,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GrantPremium");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __tier = IonFormatterStorage<UltimaPlan>.Read(reader);
@@ -879,7 +879,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetUserTransactions");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __page = IonFormatterStorage<i4>.Read(reader);
@@ -898,7 +898,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetTransactionByXsollaId");
     
         var __xsollatxid = IonFormatterStorage<string>.Read(reader);
     
@@ -915,7 +915,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ChangeUserAuthMode");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __authmode = IonFormatterStorage<ArgonAuthMode>.Read(reader);
@@ -933,7 +933,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ChangeUserOtpMethod");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __otpmethod = IonFormatterStorage<OtpMethod>.Read(reader);
@@ -951,7 +951,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.BeginUploadUserAvatar");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -968,7 +968,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CompleteUploadUserAvatar");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __blobid = IonFormatterStorage<guid>.Read(reader);
@@ -986,7 +986,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetReports");
     
         var __status = reader.ReadNullable<ReportStatus>();
         var __category = reader.ReadNullable<ReportCategory>();
@@ -1006,7 +1006,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetReportById");
     
         var __reportid = IonFormatterStorage<guid>.Read(reader);
     
@@ -1023,7 +1023,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ResolveReport");
     
         var __input = IonFormatterStorage<ResolveReportInput>.Read(reader);
     
@@ -1040,7 +1040,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.AssignReport");
     
         var __reportid = IonFormatterStorage<guid>.Read(reader);
         var __operatorid = IonFormatterStorage<guid>.Read(reader);
@@ -1058,7 +1058,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetUserTrustCard");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -1075,7 +1075,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RecalculateUserTrust");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -1092,7 +1092,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetFeatureFlags");
     
         
     
@@ -1109,7 +1109,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetFeatureFlag");
     
         var __flagid = IonFormatterStorage<string>.Read(reader);
     
@@ -1126,7 +1126,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateFeatureFlag");
     
         var __input = IonFormatterStorage<CreateFeatureFlagInput>.Read(reader);
     
@@ -1143,7 +1143,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UpdateFeatureFlag");
     
         var __input = IonFormatterStorage<UpdateFeatureFlagInput>.Read(reader);
     
@@ -1160,7 +1160,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteFeatureFlag");
     
         var __flagid = IonFormatterStorage<string>.Read(reader);
     
@@ -1177,7 +1177,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetFeatureFlagOverride");
     
         var __input = IonFormatterStorage<SetFeatureFlagOverrideInput>.Read(reader);
     
@@ -1194,7 +1194,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteFeatureFlagOverride");
     
         var __overrideid = IonFormatterStorage<guid>.Read(reader);
     
@@ -1211,7 +1211,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetTenantDirectory");
     
         
     
@@ -1228,7 +1228,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.CreateTenant");
     
         var __input = IonFormatterStorage<CreateTenantInput>.Read(reader);
     
@@ -1245,7 +1245,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.UpdateTenant");
     
         var __input = IonFormatterStorage<UpdateTenantInput>.Read(reader);
     
@@ -1262,7 +1262,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetTenantVerified");
     
         var __tenantid = IonFormatterStorage<guid>.Read(reader);
         var __isverified = IonFormatterStorage<bool>.Read(reader);
@@ -1280,7 +1280,7 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.DeleteTenant");
     
         var __tenantid = IonFormatterStorage<guid>.Read(reader);
     

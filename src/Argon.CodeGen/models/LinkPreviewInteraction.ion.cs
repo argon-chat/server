@@ -19,13 +19,36 @@ public sealed record LinkPreview(string url, string? title, string? description,
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum LinkPreviewError
+public enum LinkPreviewError : u2
 {
     NONE = 0,
     INVALID_URL = 1,
     NO_PREVIEW = 2,
     UNAVAILABLE = 3,
     RATE_LIMITED = 4,
+}
+
+/// <summary>Open-enum helpers for <see cref="LinkPreviewError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_LinkPreviewError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this LinkPreviewError value)
+        => value == LinkPreviewError.NONE || value == LinkPreviewError.INVALID_URL || value == LinkPreviewError.NO_PREVIEW || value == LinkPreviewError.UNAVAILABLE || value == LinkPreviewError.RATE_LIMITED;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this LinkPreviewError value)
+        => value.IsKnown() ? null : (u2)value;
 }
 
 
@@ -72,8 +95,7 @@ public sealed class Ion_ILinkPreviewResult_Formatter : IonFormatter<ILinkPreview
 {
     public ILinkPreviewResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ILinkPreviewResult", 2u);
         ILinkPreviewResult result;
         if (false) {}
         
@@ -84,8 +106,8 @@ public sealed class Ion_ILinkPreviewResult_Formatter : IonFormatter<ILinkPreview
             result = IonFormatterStorage<LinkPreviewFailed>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ILinkPreviewResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -111,7 +133,8 @@ public sealed class Ion_ILinkPreviewResult_Formatter : IonFormatter<ILinkPreview
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ILinkPreviewResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -123,7 +146,7 @@ public sealed class Ion_LinkPreviewReady_Formatter : IonFormatter<LinkPreviewRea
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public LinkPreviewReady Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "LinkPreviewReady");
         var __preview = IonFormatterStorage<LinkPreview>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__preview);
@@ -144,7 +167,7 @@ public sealed class Ion_LinkPreviewFailed_Formatter : IonFormatter<LinkPreviewFa
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public LinkPreviewFailed Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "LinkPreviewFailed");
         var __error = IonFormatterStorage<LinkPreviewError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

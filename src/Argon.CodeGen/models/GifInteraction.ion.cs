@@ -31,11 +31,34 @@ public sealed record GifCategory(string title, string imageUrl);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SaveGifError
+public enum SaveGifError : u4
 {
     INVALID_HMAC = 0,
     ALREADY_SAVED = 1,
     NOT_FOUND = 2,
+}
+
+/// <summary>Open-enum helpers for <see cref="SaveGifError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SaveGifError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SaveGifError value)
+        => value == SaveGifError.INVALID_HMAC || value == SaveGifError.ALREADY_SAVED || value == SaveGifError.NOT_FOUND;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SaveGifError value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -87,8 +110,7 @@ public sealed class Ion_ISaveGifResult_Formatter : IonFormatter<ISaveGifResult>
 {
     public ISaveGifResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ISaveGifResult", 2u);
         ISaveGifResult result;
         if (false) {}
         
@@ -99,8 +121,8 @@ public sealed class Ion_ISaveGifResult_Formatter : IonFormatter<ISaveGifResult>
             result = IonFormatterStorage<FailedSaveGif>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ISaveGifResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -126,7 +148,8 @@ public sealed class Ion_ISaveGifResult_Formatter : IonFormatter<ISaveGifResult>
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ISaveGifResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -138,7 +161,7 @@ public sealed class Ion_SuccessSaveGif_Formatter : IonFormatter<SuccessSaveGif>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessSaveGif Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessSaveGif");
         var __gif = IonFormatterStorage<SavedGif>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__gif);
@@ -159,7 +182,7 @@ public sealed class Ion_FailedSaveGif_Formatter : IonFormatter<FailedSaveGif>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedSaveGif Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedSaveGif");
         var __error = IonFormatterStorage<SaveGifError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

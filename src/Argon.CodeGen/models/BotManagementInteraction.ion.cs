@@ -35,7 +35,7 @@ public sealed record SpaceCommand(guid commandId, guid appId, string name, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum InstallBotError
+public enum InstallBotError : u4
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -45,9 +45,32 @@ public enum InstallBotError
     BOT_RESTRICTED = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="InstallBotError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_InstallBotError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this InstallBotError value)
+        => value == InstallBotError.NONE || value == InstallBotError.NOT_FOUND || value == InstallBotError.ALREADY_INSTALLED || value == InstallBotError.INSUFFICIENT_PERMISSIONS || value == InstallBotError.BOT_SPACE_LIMIT || value == InstallBotError.BOT_RESTRICTED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this InstallBotError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum UninstallBotError
+public enum UninstallBotError : u4
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -55,9 +78,32 @@ public enum UninstallBotError
     INSUFFICIENT_PERMISSIONS = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="UninstallBotError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_UninstallBotError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this UninstallBotError value)
+        => value == UninstallBotError.NONE || value == UninstallBotError.NOT_FOUND || value == UninstallBotError.NOT_INSTALLED || value == UninstallBotError.INSUFFICIENT_PERMISSIONS;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this UninstallBotError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ApproveBotEntitlementsError
+public enum ApproveBotEntitlementsError : u4
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -66,9 +112,32 @@ public enum ApproveBotEntitlementsError
     ALREADY_UP_TO_DATE = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="ApproveBotEntitlementsError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ApproveBotEntitlementsError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ApproveBotEntitlementsError value)
+        => value == ApproveBotEntitlementsError.NONE || value == ApproveBotEntitlementsError.NOT_FOUND || value == ApproveBotEntitlementsError.NOT_INSTALLED || value == ApproveBotEntitlementsError.INSUFFICIENT_PERMISSIONS || value == ApproveBotEntitlementsError.ALREADY_UP_TO_DATE;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ApproveBotEntitlementsError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum CommandOptionType
+public enum CommandOptionType : u2
 {
     String = 0,
     Integer = 1,
@@ -77,6 +146,29 @@ public enum CommandOptionType
     Channel = 4,
     Role = 5,
     Number = 6,
+}
+
+/// <summary>Open-enum helpers for <see cref="CommandOptionType"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CommandOptionType_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CommandOptionType value)
+        => value == CommandOptionType.String || value == CommandOptionType.Integer || value == CommandOptionType.Boolean || value == CommandOptionType.User || value == CommandOptionType.Channel || value == CommandOptionType.Role || value == CommandOptionType.Number;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this CommandOptionType value)
+        => value.IsKnown() ? null : (u2)value;
 }
 
 
@@ -129,8 +221,7 @@ public sealed class Ion_IInstallBotResult_Formatter : IonFormatter<IInstallBotRe
 {
     public IInstallBotResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IInstallBotResult", 2u);
         IInstallBotResult result;
         if (false) {}
         
@@ -141,8 +232,8 @@ public sealed class Ion_IInstallBotResult_Formatter : IonFormatter<IInstallBotRe
             result = IonFormatterStorage<FailedInstallBot>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IInstallBotResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -168,7 +259,8 @@ public sealed class Ion_IInstallBotResult_Formatter : IonFormatter<IInstallBotRe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IInstallBotResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -180,7 +272,7 @@ public sealed class Ion_SuccessInstallBot_Formatter : IonFormatter<SuccessInstal
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessInstallBot Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessInstallBot");
         var __bot = IonFormatterStorage<InstalledBotInfo>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__bot);
@@ -201,7 +293,7 @@ public sealed class Ion_FailedInstallBot_Formatter : IonFormatter<FailedInstallB
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedInstallBot Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedInstallBot");
         var __error = IonFormatterStorage<InstallBotError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -253,8 +345,7 @@ public sealed class Ion_IUninstallBotResult_Formatter : IonFormatter<IUninstallB
 {
     public IUninstallBotResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IUninstallBotResult", 2u);
         IUninstallBotResult result;
         if (false) {}
         
@@ -265,8 +356,8 @@ public sealed class Ion_IUninstallBotResult_Formatter : IonFormatter<IUninstallB
             result = IonFormatterStorage<FailedUninstallBot>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IUninstallBotResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -292,7 +383,8 @@ public sealed class Ion_IUninstallBotResult_Formatter : IonFormatter<IUninstallB
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IUninstallBotResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -304,7 +396,7 @@ public sealed class Ion_SuccessUninstallBot_Formatter : IonFormatter<SuccessUnin
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessUninstallBot Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessUninstallBot");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -325,7 +417,7 @@ public sealed class Ion_FailedUninstallBot_Formatter : IonFormatter<FailedUninst
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedUninstallBot Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedUninstallBot");
         var __error = IonFormatterStorage<UninstallBotError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -377,8 +469,7 @@ public sealed class Ion_IApproveBotEntitlementsResult_Formatter : IonFormatter<I
 {
     public IApproveBotEntitlementsResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IApproveBotEntitlementsResult", 2u);
         IApproveBotEntitlementsResult result;
         if (false) {}
         
@@ -389,8 +480,8 @@ public sealed class Ion_IApproveBotEntitlementsResult_Formatter : IonFormatter<I
             result = IonFormatterStorage<FailedApproval>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IApproveBotEntitlementsResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -416,7 +507,8 @@ public sealed class Ion_IApproveBotEntitlementsResult_Formatter : IonFormatter<I
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IApproveBotEntitlementsResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -428,7 +520,7 @@ public sealed class Ion_SuccessApproval_Formatter : IonFormatter<SuccessApproval
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessApproval Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessApproval");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -449,7 +541,7 @@ public sealed class Ion_FailedApproval_Formatter : IonFormatter<FailedApproval>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedApproval Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedApproval");
         var __error = IonFormatterStorage<ApproveBotEntitlementsError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

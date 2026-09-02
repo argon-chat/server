@@ -19,7 +19,7 @@ public sealed class Ion_SpaceDeletionState_Formatter : IonFormatter<SpaceDeletio
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceDeletionState Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "SpaceDeletionState");
         var __status = IonFormatterStorage<SpaceDeletionStatus>.Read(reader);
         var __scheduledat = reader.ReadNullable<datetime>();
         var __executionat = reader.ReadNullable<datetime>();
@@ -46,7 +46,7 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonSpaceBase Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(11, "ArgonSpaceBase");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
@@ -87,7 +87,7 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(12, "ArgonSpace");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
@@ -130,7 +130,7 @@ public sealed class Ion_ArchetypeGroup_Formatter : IonFormatter<ArchetypeGroup>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArchetypeGroup Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "ArchetypeGroup");
         var __archetype = IonFormatterStorage<Archetype>.Read(reader);
         var __members = IonFormatterStorage<guid>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -153,7 +153,7 @@ public sealed class Ion_SpaceMemberArchetype_Formatter : IonFormatter<SpaceMembe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceMemberArchetype Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "SpaceMemberArchetype");
         var __servermemberid = IonFormatterStorage<guid>.Read(reader);
         var __archetypeid = IonFormatterStorage<guid>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -176,7 +176,7 @@ public sealed class Ion_SpaceMember_Formatter : IonFormatter<SpaceMember>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceMember Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "SpaceMember");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __joinedat = IonFormatterStorage<datetime>.Read(reader);
@@ -207,7 +207,7 @@ public sealed class Ion_RealtimeServerMember_Formatter : IonFormatter<RealtimeSe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public RealtimeServerMember Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "RealtimeServerMember");
         var __member = IonFormatterStorage<SpaceMember>.Read(reader);
         var __status = IonFormatterStorage<UserStatus>.Read(reader);
         var __presence = reader.ReadNullable<UserActivityPresence>();
@@ -232,7 +232,7 @@ public sealed class Ion_SpaceVersions_Formatter : IonFormatter<SpaceVersions>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceVersions Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "SpaceVersions");
         var __members = reader.ReadNullable<string>();
         var __channels = reader.ReadNullable<string>();
         var __groups = reader.ReadNullable<string>();
@@ -259,7 +259,7 @@ public sealed class Ion_SpaceSnapshot_Formatter : IonFormatter<SpaceSnapshot>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceSnapshot Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "SpaceSnapshot");
         var __versions = IonFormatterStorage<SpaceVersions>.Read(reader);
         var __members = IonFormatterStorage<SpaceMember>.ReadNullableArray(reader);
         var __channels = IonFormatterStorage<RealtimeChannel>.ReadNullableArray(reader);
@@ -288,7 +288,7 @@ public sealed class Ion_MemberPresence_Formatter : IonFormatter<MemberPresence>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public MemberPresence Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "MemberPresence");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __status = IonFormatterStorage<UserStatus>.Read(reader);
         var __activity = reader.ReadNullable<UserActivityPresence>();
@@ -313,7 +313,7 @@ public sealed class Ion_InviteCodeEntity_Formatter : IonFormatter<InviteCodeEnti
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InviteCodeEntity Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "InviteCodeEntity");
         var __code = IonFormatterStorage<InviteCode>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __issuerid = IonFormatterStorage<guid>.Read(reader);
@@ -346,7 +346,7 @@ public sealed class Ion_ServerInvites_Formatter : IonFormatter<ServerInvites>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ServerInvites Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "ServerInvites");
         var __domain = IonFormatterStorage<string>.Read(reader);
         var __invites = IonFormatterStorage<InviteCodeEntity>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -369,7 +369,7 @@ public sealed class Ion_InviteCode_Formatter : IonFormatter<InviteCode>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InviteCode Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "InviteCode");
         var __invitecode = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__invitecode);
@@ -390,7 +390,7 @@ public sealed class Ion_SpaceStats_Formatter : IonFormatter<SpaceStats>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceStats Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "SpaceStats");
         var __membercount = IonFormatterStorage<i4>.Read(reader);
         var __onlinecount = IonFormatterStorage<i4>.Read(reader);
         var __channelcount = IonFormatterStorage<i4>.Read(reader);
@@ -421,7 +421,7 @@ public sealed class Ion_ArgonUser_Formatter : IonFormatter<ArgonUser>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonUser Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "ArgonUser");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
         var __displayname = IonFormatterStorage<string>.Read(reader);
@@ -450,7 +450,7 @@ public sealed class Ion_ArgonUserProfile_Formatter : IonFormatter<ArgonUserProfi
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonUserProfile Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(15, "ArgonUserProfile");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __customstatus = reader.ReadNullable<string>();
         var __customstatusiconid = reader.ReadNullable<string>();

@@ -24,7 +24,7 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "VoiceInteraction.DisconnectFromVoiceChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -42,7 +42,7 @@ public sealed class Ion_VoiceInteraction_ServiceExecutor(AsyncServiceScope scope
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "VoiceInteraction.KickMemberFromChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -85,7 +85,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.DingDongCreep");
     
         var __creepid = IonFormatterStorage<guid>.Read(reader);
     
@@ -102,7 +102,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.PickUpCall");
     
         var __callid = IonFormatterStorage<guid>.Read(reader);
     
@@ -119,7 +119,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.RejectCall");
     
         var __callid = IonFormatterStorage<guid>.Read(reader);
     
@@ -134,7 +134,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.HangupCall");
     
         var __callid = IonFormatterStorage<guid>.Read(reader);
     
@@ -149,7 +149,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.UssdExecute");
     
         var __ussd = IonFormatterStorage<string>.Read(reader);
         var __corlid = IonFormatterStorage<guid>.Read(reader);
@@ -167,7 +167,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.BeginDialCheck");
     
         var __phoneid = IonFormatterStorage<guid>.Read(reader);
     
@@ -184,7 +184,7 @@ public sealed class Ion_CallInteraction_ServiceExecutor(AsyncServiceScope scope)
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "CallInteraction.DialUp");
     
         var __phoneid = IonFormatterStorage<guid>.Read(reader);
         var __corlid = IonFormatterStorage<guid>.Read(reader);

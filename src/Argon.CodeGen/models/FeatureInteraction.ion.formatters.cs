@@ -19,7 +19,7 @@ public sealed class Ion_FeatureFlagData_Formatter : IonFormatter<FeatureFlagData
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FeatureFlagData Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(4, "FeatureFlagData");
         var __flagid = IonFormatterStorage<string>.Read(reader);
         var __isenabled = IonFormatterStorage<bool>.Read(reader);
         var __variant = reader.ReadNullable<string>();

@@ -19,7 +19,7 @@ public sealed class Ion_UltimaPricing_Formatter : IonFormatter<UltimaPricing>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UltimaPricing Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(8, "UltimaPricing");
         var __subscriptionmonthly = IonFormatterStorage<ProductPrice>.Read(reader);
         var __subscriptionannual = IonFormatterStorage<ProductPrice>.Read(reader);
         var __boostpack1 = IonFormatterStorage<ProductPrice>.Read(reader);
@@ -54,7 +54,7 @@ public sealed class Ion_ProductPrice_Formatter : IonFormatter<ProductPrice>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ProductPrice Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "ProductPrice");
         var __amount = IonFormatterStorage<string>.Read(reader);
         var __amountwithoutdiscount = reader.ReadNullable<string>();
         var __currency = IonFormatterStorage<string>.Read(reader);
@@ -79,7 +79,7 @@ public sealed class Ion_UltimaSubscriptionInfo_Formatter : IonFormatter<UltimaSu
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UltimaSubscriptionInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(9, "UltimaSubscriptionInfo");
         var __subscriptionid = IonFormatterStorage<guid>.Read(reader);
         var __tier = IonFormatterStorage<UltimaPlan>.Read(reader);
         var __status = IonFormatterStorage<UltimaSubscriptionStatus>.Read(reader);
@@ -116,7 +116,7 @@ public sealed class Ion_PaymentAccountInfo_Formatter : IonFormatter<PaymentAccou
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public PaymentAccountInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "PaymentAccountInfo");
         var __cardlastfour = reader.ReadNullable<string>();
         var __cardtype = reader.ReadNullable<string>();
         var __expirymonth = reader.ReadNullable<string>();
@@ -145,7 +145,7 @@ public sealed class Ion_UltimaTransaction_Formatter : IonFormatter<UltimaTransac
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UltimaTransaction Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(12, "UltimaTransaction");
         var __paymentid = IonFormatterStorage<string>.Read(reader);
         var __date = IonFormatterStorage<datetime>.Read(reader);
         var __amount = reader.ReadNullable<string>();
@@ -188,7 +188,7 @@ public sealed class Ion_UltimaBoost_Formatter : IonFormatter<UltimaBoost>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public UltimaBoost Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "UltimaBoost");
         var __boostid = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = reader.ReadNullable<guid>();
         var __spacename = reader.ReadNullable<string>();
@@ -219,7 +219,7 @@ public sealed class Ion_SpaceBoostStatus_Formatter : IonFormatter<SpaceBoostStat
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceBoostStatus Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SpaceBoostStatus");
         var __boostcount = IonFormatterStorage<i4>.Read(reader);
         var __boostlevel = IonFormatterStorage<i4>.Read(reader);
         var __boosters = IonFormatterStorage<SpaceBooster>.ReadArray(reader);
@@ -244,7 +244,7 @@ public sealed class Ion_SpaceBooster_Formatter : IonFormatter<SpaceBooster>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SpaceBooster Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SpaceBooster");
         var __userid = IonFormatterStorage<guid>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
         var __boostcount = IonFormatterStorage<i4>.Read(reader);

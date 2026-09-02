@@ -24,7 +24,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.GetBlockList");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -42,7 +42,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.GetMyFriendPendingList");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -60,7 +60,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.GetMyFriendOutgoingList");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -78,7 +78,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.GetMyFriendships");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -96,7 +96,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.SendFriendRequest");
     
         var __username = IonFormatterStorage<string>.Read(reader);
     
@@ -113,7 +113,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.RemoveFriend");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -128,7 +128,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.AcceptFriendRequest");
     
         var __fromuserid = IonFormatterStorage<guid>.Read(reader);
     
@@ -143,7 +143,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.DeclineFriendRequest");
     
         var __fromuserid = IonFormatterStorage<guid>.Read(reader);
     
@@ -158,7 +158,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.CancelFriendRequest");
     
         var __touserid = IonFormatterStorage<guid>.Read(reader);
     
@@ -173,7 +173,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.BlockUser");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -188,7 +188,7 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.UnblockUser");
     
         var __userid = IonFormatterStorage<guid>.Read(reader);
     
@@ -247,7 +247,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.GetRecentChats");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);
@@ -265,7 +265,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.PinChat");
     
         var __peerid = IonFormatterStorage<guid>.Read(reader);
     
@@ -280,7 +280,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.UnpinChat");
     
         var __peerid = IonFormatterStorage<guid>.Read(reader);
     
@@ -295,7 +295,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.MarkChatRead");
     
         var __peerid = IonFormatterStorage<guid>.Read(reader);
     
@@ -310,7 +310,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.SendDirectMessage");
     
         var __receiverid = IonFormatterStorage<guid>.Read(reader);
         var __text = IonFormatterStorage<string>.Read(reader);
@@ -331,7 +331,7 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.QueryDirectMessages");
     
         var __peerid = IonFormatterStorage<guid>.Read(reader);
         var __from = reader.ReadNullable<i8>();

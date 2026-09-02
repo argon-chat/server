@@ -81,7 +81,7 @@ const displayedAppId = computed(() => {
             </p>
           </div>
         </div>
-        <p class="text-xs text-text-muted">Created at {{ app.createdAt.date.toLocaleDateString() }}</p>
+        <p class="text-xs text-text-muted">Created at {{ app.createdAt.toDate().toLocaleDateString() }}</p>
         <p class="text-sm text-text-secondary">{{ app.desc || "No description provided." }}</p>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-y-2 text-sm">

@@ -19,7 +19,7 @@ public sealed class Ion_PrivacyRuleView_Formatter : IonFormatter<PrivacyRuleView
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public PrivacyRuleView Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(5, "PrivacyRuleView");
         var __key = IonFormatterStorage<string>.Read(reader);
         var __mode = IonFormatterStorage<PrivacyRuleMode>.Read(reader);
         var __scopespaceid = reader.ReadNullable<guid>();

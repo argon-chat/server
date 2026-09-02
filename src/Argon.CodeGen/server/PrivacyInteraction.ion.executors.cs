@@ -24,7 +24,7 @@ public sealed class Ion_PrivacyInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "PrivacyInteraction.GetPrivacyRule");
     
         var __key = IonFormatterStorage<string>.Read(reader);
         var __spaceid = reader.ReadNullable<guid>();
@@ -42,7 +42,7 @@ public sealed class Ion_PrivacyInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "PrivacyInteraction.SetPrivacyRule");
     
         var __key = IonFormatterStorage<string>.Read(reader);
         var __mode = IonFormatterStorage<PrivacyRuleMode>.Read(reader);

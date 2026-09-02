@@ -10,20 +10,34 @@ const props = withDefaults(
     serverId?: string
     userId?: string
     overridedSize?: number
+    /**
+     * A ready address, used as-is instead of resolving `fileId` against file storage.
+     *
+     * This is how the signed-in user's own avatar arrives: `avatarUrl` from Aegis' userinfo, the
+     * address the deployment is configured to publish rather than one this widget assembles from a
+     * file id and a hostname it happens to know. Only that avatar has such an address — userinfo
+     * describes the caller and nobody else — so teams, bots and other members still go through file
+     * storage below.
+     */
+    src?: string | null
   }>(),
   {
     overridedSize: undefined,
+    src: null,
   },
 )
 
-const fileIdRef = toRef(props, "fileId")
+// Withheld from the resolver when an address was given, rather than resolved and then ignored:
+// `useAvatarBlob` fetches on sight, and handing it a file id it must not fetch would put a request
+// to file storage behind every avatar that already has an address.
+const fileIdRef = computed(() => (props.src ? null : props.fileId))
 const userIdRef = toRef(props, "userId")
 
-const { loaded, loading, blobSrc } = useAvatarBlob(
-  fileIdRef,
-  userIdRef,
-  "user",
-)
+const blob = useAvatarBlob(fileIdRef, userIdRef, "user")
+
+const loading = computed(() => (props.src ? false : blob.loading.value))
+const loaded = computed(() => (props.src ? true : blob.loaded.value))
+const blobSrc = computed(() => props.src ?? blob.blobSrc.value)
 
 const size = computed(() =>
   props.overridedSize ? `${props.overridedSize}px` : "40px",

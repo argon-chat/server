@@ -19,7 +19,7 @@ public sealed class Ion_LoginRequestTicket_Formatter : IonFormatter<LoginRequest
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public LoginRequestTicket Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "LoginRequestTicket");
         var __token = IonFormatterStorage<string>.Read(reader);
         var __expiresat = IonFormatterStorage<datetime>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -42,7 +42,7 @@ public sealed class Ion_LoginRequestPreview_Formatter : IonFormatter<LoginReques
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public LoginRequestPreview Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(6, "LoginRequestPreview");
         var __clientname = IonFormatterStorage<string>.Read(reader);
         var __hostname = reader.ReadNullable<string>();
         var __ip = IonFormatterStorage<string>.Read(reader);

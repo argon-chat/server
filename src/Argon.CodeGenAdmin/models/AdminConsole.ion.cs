@@ -403,7 +403,7 @@ public sealed record DeviceAccountList(IonArray<DeviceAccount> accounts);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SearchMatchKind
+public enum SearchMatchKind : u4
 {
     None = 0,
     UserId = 1,
@@ -412,9 +412,32 @@ public enum SearchMatchKind
     Phone = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="SearchMatchKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SearchMatchKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SearchMatchKind value)
+        => value == SearchMatchKind.None || value == SearchMatchKind.UserId || value == SearchMatchKind.Username || value == SearchMatchKind.Email || value == SearchMatchKind.Phone;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SearchMatchKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DeviceTypeKind
+public enum DeviceTypeKind : u4
 {
     Unknown = 0,
     WindowsDesktop = 1,
@@ -426,9 +449,32 @@ public enum DeviceTypeKind
     SteamDevice = 7,
 }
 
+/// <summary>Open-enum helpers for <see cref="DeviceTypeKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DeviceTypeKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DeviceTypeKind value)
+        => value == DeviceTypeKind.Unknown || value == DeviceTypeKind.WindowsDesktop || value == DeviceTypeKind.OsxDesktop || value == DeviceTypeKind.Browser || value == DeviceTypeKind.IosMobile || value == DeviceTypeKind.AndroidMobile || value == DeviceTypeKind.Xbox || value == DeviceTypeKind.SteamDevice;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this DeviceTypeKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ItemScenarioKind
+public enum ItemScenarioKind : u4
 {
     None = 0,
     RedeemCode = 1,
@@ -437,36 +483,128 @@ public enum ItemScenarioKind
     Box = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="ItemScenarioKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ItemScenarioKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ItemScenarioKind value)
+        => value == ItemScenarioKind.None || value == ItemScenarioKind.RedeemCode || value == ItemScenarioKind.Premium || value == ItemScenarioKind.QualifierBox || value == ItemScenarioKind.Box;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ItemScenarioKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum AdminBotLifecycleState
+public enum AdminBotLifecycleState : u4
 {
     Development = 0,
     Published = 1,
     Suspended = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="AdminBotLifecycleState"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AdminBotLifecycleState_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AdminBotLifecycleState value)
+        => value == AdminBotLifecycleState.Development || value == AdminBotLifecycleState.Published || value == AdminBotLifecycleState.Suspended;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AdminBotLifecycleState value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum AdminDevAppType
+public enum AdminDevAppType : u4
 {
     Application = 0,
     Bot = 1,
     WebApp = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="AdminDevAppType"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AdminDevAppType_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AdminDevAppType value)
+        => value == AdminDevAppType.Application || value == AdminDevAppType.Bot || value == AdminDevAppType.WebApp;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AdminDevAppType value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SpaceSearchMatchKind
+public enum SpaceSearchMatchKind : u4
 {
     None = 0,
     SpaceId = 1,
     Name = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="SpaceSearchMatchKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SpaceSearchMatchKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SpaceSearchMatchKind value)
+        => value == SpaceSearchMatchKind.None || value == SpaceSearchMatchKind.SpaceId || value == SpaceSearchMatchKind.Name;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SpaceSearchMatchKind value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ReportActionKind
+public enum ReportActionKind : u4
 {
     NONE = 0,
     WARN_USER = 1,
@@ -475,6 +613,29 @@ public enum ReportActionKind
     BAN_USER = 4,
     DELETE_CONTENT = 5,
     QUARANTINE_CONTENT = 6,
+}
+
+/// <summary>Open-enum helpers for <see cref="ReportActionKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ReportActionKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ReportActionKind value)
+        => value == ReportActionKind.NONE || value == ReportActionKind.WARN_USER || value == ReportActionKind.MUTE_USER || value == ReportActionKind.RESTRICT_USER || value == ReportActionKind.BAN_USER || value == ReportActionKind.DELETE_CONTENT || value == ReportActionKind.QUARANTINE_CONTENT;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ReportActionKind value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 

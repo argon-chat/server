@@ -27,7 +27,7 @@ public sealed record ServiceUssdResult(bool success, string message);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum CallFailedError
+public enum CallFailedError : u4
 {
     NONE = 0,
     CALLEE_OFFLINE = 1,
@@ -36,9 +36,32 @@ public enum CallFailedError
     POOL_EMPTY_TRY_LATE = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="CallFailedError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CallFailedError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CallFailedError value)
+        => value == CallFailedError.NONE || value == CallFailedError.CALLEE_OFFLINE || value == CallFailedError.INSUFFICIENT_BALANCE || value == CallFailedError.VERIFICATION_FAILED || value == CallFailedError.POOL_EMPTY_TRY_LATE;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CallFailedError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DialCheckFailReason
+public enum DialCheckFailReason : u4
 {
     COUNTRY_NOT_SUPPORT = 0,
     INVALID_NUMBER_COUNTRY = 1,
@@ -46,6 +69,29 @@ public enum DialCheckFailReason
     NUMBER_NOT_AVAILABLE = 3,
     INSUFFICIENT_POOL = 4,
     UNKNOWN_ERROR = 5,
+}
+
+/// <summary>Open-enum helpers for <see cref="DialCheckFailReason"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DialCheckFailReason_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DialCheckFailReason value)
+        => value == DialCheckFailReason.COUNTRY_NOT_SUPPORT || value == DialCheckFailReason.INVALID_NUMBER_COUNTRY || value == DialCheckFailReason.INSUFFICIENT_BALANCE || value == DialCheckFailReason.NUMBER_NOT_AVAILABLE || value == DialCheckFailReason.INSUFFICIENT_POOL || value == DialCheckFailReason.UNKNOWN_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this DialCheckFailReason value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -106,8 +152,7 @@ public sealed class Ion_IBeginCallResult_Formatter : IonFormatter<IBeginCallResu
 {
     public IBeginCallResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IBeginCallResult", 2u);
         IBeginCallResult result;
         if (false) {}
         
@@ -118,8 +163,8 @@ public sealed class Ion_IBeginCallResult_Formatter : IonFormatter<IBeginCallResu
             result = IonFormatterStorage<FailedDingDong>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IBeginCallResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -145,7 +190,8 @@ public sealed class Ion_IBeginCallResult_Formatter : IonFormatter<IBeginCallResu
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IBeginCallResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -157,7 +203,7 @@ public sealed class Ion_SuccessDingDong_Formatter : IonFormatter<SuccessDingDong
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessDingDong Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SuccessDingDong");
         var __token = IonFormatterStorage<string>.Read(reader);
         var __callid = IonFormatterStorage<guid>.Read(reader);
         var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
@@ -182,7 +228,7 @@ public sealed class Ion_FailedDingDong_Formatter : IonFormatter<FailedDingDong>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedDingDong Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedDingDong");
         var __error = IonFormatterStorage<CallFailedError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -234,8 +280,7 @@ public sealed class Ion_IPickUpCallResult_Formatter : IonFormatter<IPickUpCallRe
 {
     public IPickUpCallResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IPickUpCallResult", 2u);
         IPickUpCallResult result;
         if (false) {}
         
@@ -246,8 +291,8 @@ public sealed class Ion_IPickUpCallResult_Formatter : IonFormatter<IPickUpCallRe
             result = IonFormatterStorage<FailedPickUp>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IPickUpCallResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -273,7 +318,8 @@ public sealed class Ion_IPickUpCallResult_Formatter : IonFormatter<IPickUpCallRe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IPickUpCallResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -285,7 +331,7 @@ public sealed class Ion_SuccessPickUp_Formatter : IonFormatter<SuccessPickUp>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessPickUp Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SuccessPickUp");
         var __token = IonFormatterStorage<string>.Read(reader);
         var __callid = IonFormatterStorage<guid>.Read(reader);
         var __rtc = IonFormatterStorage<RtcEndpoint>.Read(reader);
@@ -310,7 +356,7 @@ public sealed class Ion_FailedPickUp_Formatter : IonFormatter<FailedPickUp>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedPickUp Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedPickUp");
         var __error = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -362,8 +408,7 @@ public sealed class Ion_IDialCheckResult_Formatter : IonFormatter<IDialCheckResu
 {
     public IDialCheckResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IDialCheckResult", 2u);
         IDialCheckResult result;
         if (false) {}
         
@@ -374,8 +419,8 @@ public sealed class Ion_IDialCheckResult_Formatter : IonFormatter<IDialCheckResu
             result = IonFormatterStorage<FailedDialCheck>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IDialCheckResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -401,7 +446,8 @@ public sealed class Ion_IDialCheckResult_Formatter : IonFormatter<IDialCheckResu
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IDialCheckResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -413,7 +459,7 @@ public sealed class Ion_SuccessDialCheck_Formatter : IonFormatter<SuccessDialChe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessDialCheck Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "SuccessDialCheck");
         var __pricemin = IonFormatterStorage<i4>.Read(reader);
         var __corelid = IonFormatterStorage<guid>.Read(reader);
         var __corlid = IonFormatterStorage<guid>.Read(reader);
@@ -438,7 +484,7 @@ public sealed class Ion_FailedDialCheck_Formatter : IonFormatter<FailedDialCheck
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedDialCheck Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "FailedDialCheck");
         var __reason = IonFormatterStorage<DialCheckFailReason>.Read(reader);
         var __pricemin = IonFormatterStorage<i4>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);

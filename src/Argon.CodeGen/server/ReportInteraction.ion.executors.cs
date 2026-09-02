@@ -24,7 +24,7 @@ public sealed class Ion_ReportInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ReportInteraction.SubmitReport");
     
         var __input = IonFormatterStorage<CreateReportInput>.Read(reader);
     
@@ -41,7 +41,7 @@ public sealed class Ion_ReportInteraction_ServiceExecutor(AsyncServiceScope scop
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ReportInteraction.GetMyReports");
     
         var __limit = IonFormatterStorage<i4>.Read(reader);
         var __offset = IonFormatterStorage<i4>.Read(reader);

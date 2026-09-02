@@ -12,15 +12,17 @@ import {
   CborWriter, 
   
   DateOnly, 
-  DateTimeOffset, 
+  IonDateTime, 
+  IonDecimal, 
   Duration, 
   TimeOnly, 
   Guid, 
   
   IonFormatterStorage,
 
-  IonArray, 
+  IonArray,
   IonMaybe,
+  IonPartial,
 
   IIonService,
   IIonUnion,
@@ -35,7 +37,13 @@ import {
 type guid = Guid;
 type timeonly = TimeOnly;
 type duration = Duration;
-type datetime = DateTimeOffset;
+// IonDateTime, never the deprecated `DateTimeOffset { date: Date; offsetMinutes }`
+// shape: `Date` is millisecond-resolution, so it cannot hold the 100ns ticks the
+// wire form carries, and the webcore "datetime" formatter now reads and writes
+// IonDateTime — leaving the old alias here would be a live type mismatch, not just
+// a lossy one.
+type datetime = IonDateTime;
+type decimal = IonDecimal;
 type dateonly = DateOnly;
 
 declare type bool = boolean;
@@ -94,6 +102,30 @@ export enum DeleteAccountError
   InternalError = 6,
 }
 
+const declaredDeleteAccountError: ReadonlySet<unknown> = new Set<unknown>([DeleteAccountError.None, DeleteAccountError.InvalidPassword, DeleteAccountError.AlreadyScheduled, DeleteAccountError.HasActiveSubscription, DeleteAccountError.OwnsSpaces, DeleteAccountError.AccountLocked, DeleteAccountError.InternalError]);
+
+/**
+ * Open-enum helpers for {@link DeleteAccountError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_DeleteAccountError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: DeleteAccountError): boolean {
+    return declaredDeleteAccountError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: DeleteAccountError): u4 | undefined {
+    return declaredDeleteAccountError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
 
 export enum CancelDeleteError
 {
@@ -104,6 +136,30 @@ export enum CancelDeleteError
   InternalError = 4,
 }
 
+const declaredCancelDeleteError: ReadonlySet<unknown> = new Set<unknown>([CancelDeleteError.None, CancelDeleteError.NotScheduled, CancelDeleteError.AlreadyExecuting, CancelDeleteError.AlreadyCompleted, CancelDeleteError.InternalError]);
+
+/**
+ * Open-enum helpers for {@link CancelDeleteError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_CancelDeleteError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: CancelDeleteError): boolean {
+    return declaredCancelDeleteError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: CancelDeleteError): u4 | undefined {
+    return declaredCancelDeleteError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
 
 export enum RequestExportGDRPStatus
 {
@@ -112,6 +168,30 @@ export enum RequestExportGDRPStatus
   Already = 2,
   RateLimit = 3,
 }
+
+const declaredRequestExportGDRPStatus: ReadonlySet<unknown> = new Set<unknown>([RequestExportGDRPStatus.Unknown, RequestExportGDRPStatus.Ok, RequestExportGDRPStatus.Already, RequestExportGDRPStatus.RateLimit]);
+
+/**
+ * Open-enum helpers for {@link RequestExportGDRPStatus}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_RequestExportGDRPStatus_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: RequestExportGDRPStatus): boolean {
+    return declaredRequestExportGDRPStatus.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: RequestExportGDRPStatus): u4 | undefined {
+    return declaredRequestExportGDRPStatus.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
 
 
 export enum DeletionStatusKind
@@ -122,6 +202,30 @@ export enum DeletionStatusKind
   Completed = 3,
   Failed = 4,
 }
+
+const declaredDeletionStatusKind: ReadonlySet<unknown> = new Set<unknown>([DeletionStatusKind.None, DeletionStatusKind.Scheduled, DeletionStatusKind.Executing, DeletionStatusKind.Completed, DeletionStatusKind.Failed]);
+
+/**
+ * Open-enum helpers for {@link DeletionStatusKind}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_DeletionStatusKind_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: DeletionStatusKind): boolean {
+    return declaredDeletionStatusKind.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: DeletionStatusKind): u4 | undefined {
+    return declaredDeletionStatusKind.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
 
 
 export interface AddRedirectResult {
@@ -236,6 +340,30 @@ export enum UploadFileError
   INTERNAL_ERROR = 2,
 }
 
+const declaredUploadFileError: ReadonlySet<unknown> = new Set<unknown>([UploadFileError.NONE, UploadFileError.NOT_AUTHORIZED, UploadFileError.INTERNAL_ERROR]);
+
+/**
+ * Open-enum helpers for {@link UploadFileError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_UploadFileError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: UploadFileError): boolean {
+    return declaredUploadFileError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: UploadFileError): u4 | undefined {
+    return declaredUploadFileError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
 
 export enum InviteUserError
 {
@@ -245,6 +373,30 @@ export enum InviteUserError
   ALREADY_IN_TEAM = 3,
   INTERNAL_ERROR = 4,
 }
+
+const declaredInviteUserError: ReadonlySet<unknown> = new Set<unknown>([InviteUserError.OK, InviteUserError.USER_NOT_FOUND, InviteUserError.ALREADY_INVITED, InviteUserError.ALREADY_IN_TEAM, InviteUserError.INTERNAL_ERROR]);
+
+/**
+ * Open-enum helpers for {@link InviteUserError}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_InviteUserError_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: InviteUserError): boolean {
+    return declaredInviteUserError.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: InviteUserError): u4 | undefined {
+    return declaredInviteUserError.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
 
 
 export enum ClientAppPlatform
@@ -257,6 +409,30 @@ export enum ClientAppPlatform
   Android = 5,
 }
 
+const declaredClientAppPlatform: ReadonlySet<unknown> = new Set<unknown>([ClientAppPlatform.WindowsDesktop, ClientAppPlatform.MacOSDesktop, ClientAppPlatform.LinuxDesktop, ClientAppPlatform.WebBased, ClientAppPlatform.iOS, ClientAppPlatform.Android]);
+
+/**
+ * Open-enum helpers for {@link ClientAppPlatform}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_ClientAppPlatform_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: ClientAppPlatform): boolean {
+    return declaredClientAppPlatform.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: ClientAppPlatform): u4 | undefined {
+    return declaredClientAppPlatform.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
 
 export enum CheckBotUsernameValid
 {
@@ -264,6 +440,30 @@ export enum CheckBotUsernameValid
   ALREADY_CLAIMED = 1,
   POSTFIX_BOT_REQUIRED = 2,
 }
+
+const declaredCheckBotUsernameValid: ReadonlySet<unknown> = new Set<unknown>([CheckBotUsernameValid.OK, CheckBotUsernameValid.ALREADY_CLAIMED, CheckBotUsernameValid.POSTFIX_BOT_REQUIRED]);
+
+/**
+ * Open-enum helpers for {@link CheckBotUsernameValid}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_CheckBotUsernameValid_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: CheckBotUsernameValid): boolean {
+    return declaredCheckBotUsernameValid.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: CheckBotUsernameValid): u4 | undefined {
+    return declaredCheckBotUsernameValid.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
 
 
 export enum BotLifecycleState
@@ -273,6 +473,30 @@ export enum BotLifecycleState
   Suspended = 2,
 }
 
+const declaredBotLifecycleState: ReadonlySet<unknown> = new Set<unknown>([BotLifecycleState.Development, BotLifecycleState.Published, BotLifecycleState.Suspended]);
+
+/**
+ * Open-enum helpers for {@link BotLifecycleState}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_BotLifecycleState_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: BotLifecycleState): boolean {
+    return declaredBotLifecycleState.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: BotLifecycleState): u4 | undefined {
+    return declaredBotLifecycleState.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
+
 
 export enum AppKind
 {
@@ -280,6 +504,30 @@ export enum AppKind
   BotApp = 1,
   WebApp = 2,
 }
+
+const declaredAppKind: ReadonlySet<unknown> = new Set<unknown>([AppKind.ClientApp, AppKind.BotApp, AppKind.WebApp]);
+
+/**
+ * Open-enum helpers for {@link AppKind}.
+ *
+ * Adding a member to an Ion enum is a safe schema change, so a value this revision does
+ * not declare is decoded, carried and re-encoded verbatim rather than rejected. These
+ * say whether that happened — a `switch` over the enum cannot, because an undeclared
+ * value simply matches no case.
+ */
+export const Ion_AppKind_OpenEnum = {
+  /** Whether `value` is a member this schema revision declares. */
+  isKnown(value: AppKind): boolean {
+    return declaredAppKind.has(value);
+  },
+  /**
+   * The raw `u4` the peer sent when `value` names no declared member, or
+   * `undefined` when it does. This is the exact value that will be written back out.
+   */
+  unknownValue(value: AppKind): u4 | undefined {
+    return declaredAppKind.has(value) ? undefined : (value as unknown as u4);
+  },
+} as const;
 
 
 
@@ -321,10 +569,9 @@ export class FailedUploadAvatarFile extends IUploadAvatarResult
 
 IonFormatterStorage.register("IUploadAvatarResult", {
   read(reader: CborReader): IUploadAvatarResult {
-    reader.readStartArray();
+    const unionIndex = IonFormatterStorage.readStartUnion(reader, "IUploadAvatarResult", 2);
     let value: IUploadAvatarResult = null as any;
-    const unionIndex = reader.readUInt32();
-    
+
     if (false)
     {}
         else if (unionIndex == 0)
@@ -332,9 +579,9 @@ IonFormatterStorage.register("IUploadAvatarResult", {
     else if (unionIndex == 1)
       value = IonFormatterStorage.get<FailedUploadAvatarFile>("FailedUploadAvatarFile").read(reader);
 
-    else throw new Error();
-  
-    reader.readEndArray();
+    else IonFormatterStorage.invalidUnionIndex("IUploadAvatarResult", unionIndex, 2);
+
+    IonFormatterStorage.readEndUnion(reader);
     return value!;
   },
   write(writer: CborWriter, value: IUploadAvatarResult): void {
@@ -349,7 +596,7 @@ IonFormatterStorage.register("IUploadAvatarResult", {
         IonFormatterStorage.get<FailedUploadAvatarFile>("FailedUploadAvatarFile").write(writer, value as FailedUploadAvatarFile);
     }
   
-    else throw new Error();
+    else throw new Error(`Ion union 'IUploadAvatarResult' has no case ${value.UnionIndex}; this revision declares 2 case(s)`);
     writer.writeEndArray();
   }
 });
@@ -357,7 +604,7 @@ IonFormatterStorage.register("IUploadAvatarResult", {
 
 IonFormatterStorage.register("SuccessUploadAvatarFile", {
   read(reader: CborReader): SuccessUploadAvatarFile {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "SuccessUploadAvatarFile");
     const blobId = IonFormatterStorage.get<guid>('guid').read(reader);
     reader.readEndArrayAndSkip(arraySize - 1);
     return new SuccessUploadAvatarFile(blobId);
@@ -371,7 +618,7 @@ IonFormatterStorage.register("SuccessUploadAvatarFile", {
 
 IonFormatterStorage.register("FailedUploadAvatarFile", {
   read(reader: CborReader): FailedUploadAvatarFile {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 1, "FailedUploadAvatarFile");
     const error = IonFormatterStorage.get<UploadFileError>('UploadFileError').read(reader);
     reader.readEndArrayAndSkip(arraySize - 1);
     return new FailedUploadAvatarFile(error);
@@ -387,8 +634,7 @@ IonFormatterStorage.register("FailedUploadAvatarFile", {
 
 IonFormatterStorage.register("DeleteAccountError", {
   read(reader: CborReader): DeleteAccountError {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return DeleteAccountError[num] !== undefined ? num as DeleteAccountError : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<DeleteAccountError>(reader, 'u4');
   },
   write(writer: CborWriter, value: DeleteAccountError): void {
     const casted: u4 = value;
@@ -398,7 +644,7 @@ IonFormatterStorage.register("DeleteAccountError", {
 
 IonFormatterStorage.register("DeleteAccountResult", {
   read(reader: CborReader): DeleteAccountResult {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 4, "DeleteAccountResult");
     const success = IonFormatterStorage.get<bool>('bool').read(reader);
     const error = IonFormatterStorage.get<DeleteAccountError>('DeleteAccountError').read(reader);
     const scheduledAt = IonFormatterStorage.readNullable<datetime>(reader, 'datetime');
@@ -418,8 +664,7 @@ IonFormatterStorage.register("DeleteAccountResult", {
 
 IonFormatterStorage.register("CancelDeleteError", {
   read(reader: CborReader): CancelDeleteError {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return CancelDeleteError[num] !== undefined ? num as CancelDeleteError : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<CancelDeleteError>(reader, 'u4');
   },
   write(writer: CborWriter, value: CancelDeleteError): void {
     const casted: u4 = value;
@@ -429,7 +674,7 @@ IonFormatterStorage.register("CancelDeleteError", {
 
 IonFormatterStorage.register("CancelDeleteResult", {
   read(reader: CborReader): CancelDeleteResult {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 2, "CancelDeleteResult");
     const success = IonFormatterStorage.get<bool>('bool').read(reader);
     const error = IonFormatterStorage.get<CancelDeleteError>('CancelDeleteError').read(reader);
     reader.readEndArrayAndSkip(arraySize - 2);
@@ -445,8 +690,7 @@ IonFormatterStorage.register("CancelDeleteResult", {
 
 IonFormatterStorage.register("DeletionStatusKind", {
   read(reader: CborReader): DeletionStatusKind {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return DeletionStatusKind[num] !== undefined ? num as DeletionStatusKind : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<DeletionStatusKind>(reader, 'u4');
   },
   write(writer: CborWriter, value: DeletionStatusKind): void {
     const casted: u4 = value;
@@ -456,7 +700,7 @@ IonFormatterStorage.register("DeletionStatusKind", {
 
 IonFormatterStorage.register("MeDetails", {
   read(reader: CborReader): MeDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 7, "MeDetails");
     const gdrpExportInProgress = IonFormatterStorage.get<bool>('bool').read(reader);
     const deletionStatus = IonFormatterStorage.get<DeletionStatusKind>('DeletionStatusKind').read(reader);
     const deletionScheduledAt = IonFormatterStorage.readNullable<datetime>(reader, 'datetime');
@@ -482,8 +726,7 @@ IonFormatterStorage.register("MeDetails", {
 
 IonFormatterStorage.register("RequestExportGDRPStatus", {
   read(reader: CborReader): RequestExportGDRPStatus {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return RequestExportGDRPStatus[num] !== undefined ? num as RequestExportGDRPStatus : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<RequestExportGDRPStatus>(reader, 'u4');
   },
   write(writer: CborWriter, value: RequestExportGDRPStatus): void {
     const casted: u4 = value;
@@ -493,7 +736,7 @@ IonFormatterStorage.register("RequestExportGDRPStatus", {
 
 IonFormatterStorage.register("AddRedirectResult", {
   read(reader: CborReader): AddRedirectResult {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 2, "AddRedirectResult");
     const ok = IonFormatterStorage.get<bool>('bool').read(reader);
     const error = IonFormatterStorage.readNullable<string>(reader, 'string');
     reader.readEndArrayAndSkip(arraySize - 2);
@@ -509,7 +752,7 @@ IonFormatterStorage.register("AddRedirectResult", {
 
 IonFormatterStorage.register("ShortUserDetails", {
   read(reader: CborReader): ShortUserDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 4, "ShortUserDetails");
     const userId = IonFormatterStorage.get<guid>('guid').read(reader);
     const avatarFileId = IonFormatterStorage.get<string>('string').read(reader);
     const displayName = IonFormatterStorage.get<string>('string').read(reader);
@@ -529,7 +772,7 @@ IonFormatterStorage.register("ShortUserDetails", {
 
 IonFormatterStorage.register("TeamShortDetails", {
   read(reader: CborReader): TeamShortDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 4, "TeamShortDetails");
     const teamId = IonFormatterStorage.get<guid>('guid').read(reader);
     const name = IonFormatterStorage.get<string>('string').read(reader);
     const avatarFileId = IonFormatterStorage.get<string>('string').read(reader);
@@ -549,7 +792,7 @@ IonFormatterStorage.register("TeamShortDetails", {
 
 IonFormatterStorage.register("MyInvitesInfo", {
   read(reader: CborReader): MyInvitesInfo {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 3, "MyInvitesInfo");
     const from = IonFormatterStorage.get<ShortUserDetails>('ShortUserDetails').read(reader);
     const date = IonFormatterStorage.get<datetime>('datetime').read(reader);
     const team = IonFormatterStorage.get<TeamShortDetails>('TeamShortDetails').read(reader);
@@ -567,7 +810,7 @@ IonFormatterStorage.register("MyInvitesInfo", {
 
 IonFormatterStorage.register("TeamInviteInfo", {
   read(reader: CborReader): TeamInviteInfo {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 3, "TeamInviteInfo");
     const from = IonFormatterStorage.get<ShortUserDetails>('ShortUserDetails').read(reader);
     const to = IonFormatterStorage.get<ShortUserDetails>('ShortUserDetails').read(reader);
     const date = IonFormatterStorage.get<datetime>('datetime').read(reader);
@@ -585,8 +828,7 @@ IonFormatterStorage.register("TeamInviteInfo", {
 
 IonFormatterStorage.register("AppKind", {
   read(reader: CborReader): AppKind {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return AppKind[num] !== undefined ? num as AppKind : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<AppKind>(reader, 'u4');
   },
   write(writer: CborWriter, value: AppKind): void {
     const casted: u4 = value;
@@ -596,7 +838,7 @@ IonFormatterStorage.register("AppKind", {
 
 IonFormatterStorage.register("AppDetails", {
   read(reader: CborReader): AppDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 13, "AppDetails");
     const appId = IonFormatterStorage.get<guid>('guid').read(reader);
     const teamId = IonFormatterStorage.get<guid>('guid').read(reader);
     const name = IonFormatterStorage.get<string>('string').read(reader);
@@ -634,7 +876,7 @@ IonFormatterStorage.register("AppDetails", {
 
 IonFormatterStorage.register("ScopeKeyValue", {
   read(reader: CborReader): ScopeKeyValue {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 3, "ScopeKeyValue");
     const isRequired = IonFormatterStorage.get<bool>('bool').read(reader);
     const key = IonFormatterStorage.get<string>('string').read(reader);
     const isLocked = IonFormatterStorage.get<bool>('bool').read(reader);
@@ -652,8 +894,7 @@ IonFormatterStorage.register("ScopeKeyValue", {
 
 IonFormatterStorage.register("BotLifecycleState", {
   read(reader: CborReader): BotLifecycleState {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return BotLifecycleState[num] !== undefined ? num as BotLifecycleState : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<BotLifecycleState>(reader, 'u4');
   },
   write(writer: CborWriter, value: BotLifecycleState): void {
     const casted: u4 = value;
@@ -663,7 +904,7 @@ IonFormatterStorage.register("BotLifecycleState", {
 
 IonFormatterStorage.register("BotDetails", {
   read(reader: CborReader): BotDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 9, "BotDetails");
     const requiresOAuth2 = IonFormatterStorage.get<bool>('bool').read(reader);
     const requiresArgxAuth = IonFormatterStorage.get<bool>('bool').read(reader);
     const allowDMs = IonFormatterStorage.get<bool>('bool').read(reader);
@@ -693,8 +934,7 @@ IonFormatterStorage.register("BotDetails", {
 
 IonFormatterStorage.register("ClientAppPlatform", {
   read(reader: CborReader): ClientAppPlatform {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return ClientAppPlatform[num] !== undefined ? num as ClientAppPlatform : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<ClientAppPlatform>(reader, 'u4');
   },
   write(writer: CborWriter, value: ClientAppPlatform): void {
     const casted: u4 = value;
@@ -704,7 +944,7 @@ IonFormatterStorage.register("ClientAppPlatform", {
 
 IonFormatterStorage.register("ClientAppDetails", {
   read(reader: CborReader): ClientAppDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 8, "ClientAppDetails");
     const platform = IonFormatterStorage.get<ClientAppPlatform>('ClientAppPlatform').read(reader);
     const allowedDevelopmentRegenerateCoockies = IonFormatterStorage.get<bool>('bool').read(reader);
     const isPublic = IonFormatterStorage.get<bool>('bool').read(reader);
@@ -732,7 +972,7 @@ IonFormatterStorage.register("ClientAppDetails", {
 
 IonFormatterStorage.register("TeamDetails", {
   read(reader: CborReader): TeamDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 6, "TeamDetails");
     const teamId = IonFormatterStorage.get<guid>('guid').read(reader);
     const ownerId = IonFormatterStorage.get<guid>('guid').read(reader);
     const name = IonFormatterStorage.get<string>('string').read(reader);
@@ -756,7 +996,7 @@ IonFormatterStorage.register("TeamDetails", {
 
 IonFormatterStorage.register("TeamMemberDetails", {
   read(reader: CborReader): TeamMemberDetails {
-    const arraySize = reader.readStartArray() ?? (() => { throw new Error("undefined len array not allowed") })();
+    const arraySize = IonFormatterStorage.readStartMessage(reader, 6, "TeamMemberDetails");
     const user = IonFormatterStorage.get<ShortUserDetails>('ShortUserDetails').read(reader);
     const teamId = IonFormatterStorage.get<guid>('guid').read(reader);
     const isPending = IonFormatterStorage.get<bool>('bool').read(reader);
@@ -780,8 +1020,7 @@ IonFormatterStorage.register("TeamMemberDetails", {
 
 IonFormatterStorage.register("UploadFileError", {
   read(reader: CborReader): UploadFileError {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return UploadFileError[num] !== undefined ? num as UploadFileError : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<UploadFileError>(reader, 'u4');
   },
   write(writer: CborWriter, value: UploadFileError): void {
     const casted: u4 = value;
@@ -791,8 +1030,7 @@ IonFormatterStorage.register("UploadFileError", {
 
 IonFormatterStorage.register("InviteUserError", {
   read(reader: CborReader): InviteUserError {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return InviteUserError[num] !== undefined ? num as InviteUserError : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<InviteUserError>(reader, 'u4');
   },
   write(writer: CborWriter, value: InviteUserError): void {
     const casted: u4 = value;
@@ -802,14 +1040,14 @@ IonFormatterStorage.register("InviteUserError", {
 
 IonFormatterStorage.register("CheckBotUsernameValid", {
   read(reader: CborReader): CheckBotUsernameValid {
-    const num = (IonFormatterStorage.get<u4>('u4').read(reader))
-    return CheckBotUsernameValid[num] !== undefined ? num as CheckBotUsernameValid : (() => {throw new Error('invalid enum type')})();
+    return IonFormatterStorage.readOpenEnum<CheckBotUsernameValid>(reader, 'u4');
   },
   write(writer: CborWriter, value: CheckBotUsernameValid): void {
     const casted: u4 = value;
     IonFormatterStorage.get<u4>('u4').write(writer, casted);
   }
 });
+
 
 
 

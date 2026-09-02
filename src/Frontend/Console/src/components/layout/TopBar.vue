@@ -23,7 +23,7 @@ import { type MyInvitesInfo } from "@/lib/glue/accountConsole"
 const api = useApi()
 const userStore = useUserStore()
 const teamsStore = useTeamsStore()
-const { user, isLoaded } = storeToRefs(userStore)
+const { user, avatarUrl, isLoaded } = storeToRefs(userStore)
 const { teams, selectedTeam, isLoading: isTeamsLoading } = storeToRefs(teamsStore)
 
 // Team selector
@@ -282,6 +282,7 @@ function goHome() {
           :fallback="user.displayName?.[0] ?? '?'"
           :user-id="user.userId"
           :file-id="user.avatarFileId"
+          :src="avatarUrl"
           :overrided-size="32"
         />
       </div>

@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 2,
   "module": "AccountContracts",
   "definitions": {
     "DeleteAccountResult": {
@@ -597,11 +597,25 @@
       "cases": [
         {
           "index": 0,
-          "name": "SuccessUploadAvatarFile"
+          "name": "SuccessUploadAvatarFile",
+          "fields": [
+            {
+              "index": 0,
+              "name": "blobId",
+              "type": "guid"
+            }
+          ]
         },
         {
           "index": 1,
-          "name": "FailedUploadAvatarFile"
+          "name": "FailedUploadAvatarFile",
+          "fields": [
+            {
+              "index": 0,
+              "name": "error",
+              "type": "UploadFileError"
+            }
+          ]
         }
       ]
     },

@@ -24,7 +24,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.CreateChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -41,7 +41,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.MoveChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -60,7 +60,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.DeleteChannelGroup");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -78,7 +78,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.CreateChannelGroup");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -96,7 +96,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.MoveChannelGroup");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -114,7 +114,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.DeleteChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -130,7 +130,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.GetChannels");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -148,7 +148,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.UpdateChannelGroup");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -167,7 +167,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.UpdateChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -188,7 +188,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.CreateVoiceInviteCode");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -208,7 +208,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.QueryMessages");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -228,7 +228,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 6;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.SendMessage");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -250,7 +250,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 6;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.SendMessageWithReadback");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -272,7 +272,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.DeleteMessage");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -291,7 +291,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.DisconnectFromVoiceChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -307,7 +307,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.Interlink");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -325,7 +325,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.InterlinkStream");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -344,7 +344,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.StartDrawingSession");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -362,7 +362,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.StopDrawingSession");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -381,7 +381,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.KickMemberFromChannel");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -400,7 +400,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.BeginRecord");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -418,7 +418,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.StopRecord");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -436,7 +436,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.BeginUploadAttachment");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -454,7 +454,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.CompleteUploadAttachment");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -473,7 +473,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.InvokeSlashCommand");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -493,7 +493,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.InteractWithControl");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -513,7 +513,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 5;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.InteractWithSelect");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -534,7 +534,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.SubmitModal");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -554,7 +554,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.AddReaction");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -574,7 +574,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 4;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.RemoveReaction");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -594,7 +594,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.BatchGetReactions");
     
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -698,7 +698,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
         
         
 
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "EventBus.ForServer");
             
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
 
@@ -726,7 +726,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "EventBus.Dispatch");
     
         var __ev = IonFormatterStorage<IArgonClientEvent>.Read(reader);
     
@@ -752,7 +752,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
     return result;
 });
 
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "EventBus.Pipe");
             
         
 
@@ -780,7 +780,7 @@ public sealed class Ion_EventBus_ServiceExecutor(AsyncServiceScope scope) : ISer
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "EventBus.PickTicket");
     
         
     

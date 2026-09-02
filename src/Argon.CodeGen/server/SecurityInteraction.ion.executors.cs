@@ -24,7 +24,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RequestEmailChange");
     
         var __newemail = IonFormatterStorage<string>.Read(reader);
         var __password = IonFormatterStorage<string>.Read(reader);
@@ -42,7 +42,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.ConfirmEmailChange");
     
         var __verificationcode = IonFormatterStorage<string>.Read(reader);
     
@@ -59,7 +59,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RequestPhoneChange");
     
         var __newphone = IonFormatterStorage<string>.Read(reader);
         var __password = IonFormatterStorage<string>.Read(reader);
@@ -77,7 +77,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.ConfirmPhoneChange");
     
         var __verificationcode = IonFormatterStorage<string>.Read(reader);
     
@@ -94,7 +94,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RemovePhone");
     
         var __password = IonFormatterStorage<string>.Read(reader);
     
@@ -111,7 +111,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.ChangePassword");
     
         var __currentpassword = IonFormatterStorage<string>.Read(reader);
         var __newpassword = IonFormatterStorage<string>.Read(reader);
@@ -129,7 +129,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.EnableOTP");
     
         
     
@@ -146,7 +146,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.VerifyAndEnableOTP");
     
         var __code = IonFormatterStorage<string>.Read(reader);
     
@@ -163,7 +163,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.DisableOTP");
     
         var __code = IonFormatterStorage<string>.Read(reader);
     
@@ -180,7 +180,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.GetPasskeys");
     
         
     
@@ -197,7 +197,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.BeginAddPasskey");
     
         var __name = IonFormatterStorage<string>.Read(reader);
     
@@ -214,7 +214,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.CompleteAddPasskey");
     
         var __registrationresponse = IonFormatterStorage<string>.Read(reader);
     
@@ -231,7 +231,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RemovePasskey");
     
         var __passkeyid = IonFormatterStorage<guid>.Read(reader);
     
@@ -248,7 +248,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.SetAutoDeletePeriod");
     
         var __months = reader.ReadNullable<i4>();
     
@@ -265,7 +265,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.GetAutoDeletePeriod");
     
         
     
@@ -282,7 +282,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RequestDataExport");
     
         
     
@@ -299,7 +299,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.GetDataExportStatus");
     
         
     
@@ -316,7 +316,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.CancelDataExport");
     
         
     
@@ -331,7 +331,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.GetSecurityDetails");
     
         
     
@@ -348,7 +348,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.BeginValidatePasskey");
     
         
     
@@ -365,7 +365,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.CompleteValidatePasskey");
     
         var __authenticationresponse = IonFormatterStorage<string>.Read(reader);
     
@@ -382,7 +382,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.GetSessions");
     
         
     
@@ -399,7 +399,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RevokeSession");
     
         var __sessionid = IonFormatterStorage<guid>.Read(reader);
     
@@ -416,7 +416,7 @@ public sealed class Ion_SecurityInteraction_ServiceExecutor(AsyncServiceScope sc
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "SecurityInteraction.RevokeAllSessions");
     
         
     

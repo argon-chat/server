@@ -59,16 +59,39 @@ public sealed record ShortUserDetails(guid userId, string avatarFileId, string d
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum UploadFileError
+public enum UploadFileError : u4
 {
     NONE = 0,
     NOT_AUTHORIZED = 1,
     INTERNAL_ERROR = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="UploadFileError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_UploadFileError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this UploadFileError value)
+        => value == UploadFileError.NONE || value == UploadFileError.NOT_AUTHORIZED || value == UploadFileError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this UploadFileError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum InviteUserError
+public enum InviteUserError : u4
 {
     OK = 0,
     USER_NOT_FOUND = 1,
@@ -77,9 +100,32 @@ public enum InviteUserError
     INTERNAL_ERROR = 4,
 }
 
+/// <summary>Open-enum helpers for <see cref="InviteUserError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_InviteUserError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this InviteUserError value)
+        => value == InviteUserError.OK || value == InviteUserError.USER_NOT_FOUND || value == InviteUserError.ALREADY_INVITED || value == InviteUserError.ALREADY_IN_TEAM || value == InviteUserError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this InviteUserError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum ClientAppPlatform
+public enum ClientAppPlatform : u4
 {
     WindowsDesktop = 0,
     MacOSDesktop = 1,
@@ -89,31 +135,123 @@ public enum ClientAppPlatform
     Android = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="ClientAppPlatform"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ClientAppPlatform_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ClientAppPlatform value)
+        => value == ClientAppPlatform.WindowsDesktop || value == ClientAppPlatform.MacOSDesktop || value == ClientAppPlatform.LinuxDesktop || value == ClientAppPlatform.WebBased || value == ClientAppPlatform.iOS || value == ClientAppPlatform.Android;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ClientAppPlatform value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum CheckBotUsernameValid
+public enum CheckBotUsernameValid : u4
 {
     OK = 0,
     ALREADY_CLAIMED = 1,
     POSTFIX_BOT_REQUIRED = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="CheckBotUsernameValid"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_CheckBotUsernameValid_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this CheckBotUsernameValid value)
+        => value == CheckBotUsernameValid.OK || value == CheckBotUsernameValid.ALREADY_CLAIMED || value == CheckBotUsernameValid.POSTFIX_BOT_REQUIRED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this CheckBotUsernameValid value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum BotLifecycleState
+public enum BotLifecycleState : u4
 {
     Development = 0,
     Published = 1,
     Suspended = 2,
 }
 
+/// <summary>Open-enum helpers for <see cref="BotLifecycleState"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_BotLifecycleState_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this BotLifecycleState value)
+        => value == BotLifecycleState.Development || value == BotLifecycleState.Published || value == BotLifecycleState.Suspended;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this BotLifecycleState value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum AppKind
+public enum AppKind : u4
 {
     ClientApp = 0,
     BotApp = 1,
     WebApp = 2,
+}
+
+/// <summary>Open-enum helpers for <see cref="AppKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AppKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AppKind value)
+        => value == AppKind.ClientApp || value == AppKind.BotApp || value == AppKind.WebApp;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AppKind value)
+        => value.IsKnown() ? null : (u4)value;
 }
 
 
@@ -192,8 +330,7 @@ public sealed class Ion_IUploadAvatarResult_Formatter : IonFormatter<IUploadAvat
 {
     public IUploadAvatarResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IUploadAvatarResult", 2u);
         IUploadAvatarResult result;
         if (false) {}
         
@@ -204,8 +341,8 @@ public sealed class Ion_IUploadAvatarResult_Formatter : IonFormatter<IUploadAvat
             result = IonFormatterStorage<FailedUploadAvatarFile>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IUploadAvatarResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -231,7 +368,8 @@ public sealed class Ion_IUploadAvatarResult_Formatter : IonFormatter<IUploadAvat
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IUploadAvatarResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -243,7 +381,7 @@ public sealed class Ion_SuccessUploadAvatarFile_Formatter : IonFormatter<Success
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessUploadAvatarFile Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessUploadAvatarFile");
         var __blobid = IonFormatterStorage<guid>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__blobid);
@@ -264,7 +402,7 @@ public sealed class Ion_FailedUploadAvatarFile_Formatter : IonFormatter<FailedUp
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedUploadAvatarFile Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedUploadAvatarFile");
         var __error = IonFormatterStorage<UploadFileError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

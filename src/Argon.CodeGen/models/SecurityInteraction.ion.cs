@@ -35,7 +35,7 @@ public sealed record DataExportStatus(DataExportStatusKind status, guid? exportI
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum SessionError
+public enum SessionError : u4
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -43,9 +43,32 @@ public enum SessionError
     INTERNAL_ERROR = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="SessionError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_SessionError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this SessionError value)
+        => value == SessionError.NONE || value == SessionError.NOT_FOUND || value == SessionError.CANNOT_REVOKE_CURRENT || value == SessionError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this SessionError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum EmailChangeError
+public enum EmailChangeError : u4
 {
     NONE = 0,
     INVALID_EMAIL = 1,
@@ -57,9 +80,32 @@ public enum EmailChangeError
     INTERNAL_ERROR = 7,
 }
 
+/// <summary>Open-enum helpers for <see cref="EmailChangeError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_EmailChangeError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this EmailChangeError value)
+        => value == EmailChangeError.NONE || value == EmailChangeError.INVALID_EMAIL || value == EmailChangeError.EMAIL_ALREADY_USED || value == EmailChangeError.INVALID_PASSWORD || value == EmailChangeError.INVALID_VERIFICATION_CODE || value == EmailChangeError.VERIFICATION_CODE_EXPIRED || value == EmailChangeError.RATE_LIMITED || value == EmailChangeError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this EmailChangeError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum PhoneChangeError
+public enum PhoneChangeError : u4
 {
     NONE = 0,
     INVALID_PHONE = 1,
@@ -71,9 +117,32 @@ public enum PhoneChangeError
     INTERNAL_ERROR = 7,
 }
 
+/// <summary>Open-enum helpers for <see cref="PhoneChangeError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_PhoneChangeError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this PhoneChangeError value)
+        => value == PhoneChangeError.NONE || value == PhoneChangeError.INVALID_PHONE || value == PhoneChangeError.PHONE_ALREADY_USED || value == PhoneChangeError.INVALID_PASSWORD || value == PhoneChangeError.INVALID_VERIFICATION_CODE || value == PhoneChangeError.VERIFICATION_CODE_EXPIRED || value == PhoneChangeError.RATE_LIMITED || value == PhoneChangeError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this PhoneChangeError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum PasswordChangeError
+public enum PasswordChangeError : u4
 {
     NONE = 0,
     INVALID_CURRENT_PASSWORD = 1,
@@ -84,9 +153,32 @@ public enum PasswordChangeError
     INTERNAL_ERROR = 6,
 }
 
+/// <summary>Open-enum helpers for <see cref="PasswordChangeError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_PasswordChangeError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this PasswordChangeError value)
+        => value == PasswordChangeError.NONE || value == PasswordChangeError.INVALID_CURRENT_PASSWORD || value == PasswordChangeError.PASSWORD_TOO_WEAK || value == PasswordChangeError.PASSWORD_TOO_SHORT || value == PasswordChangeError.PASSWORD_SAME_AS_CURRENT || value == PasswordChangeError.RATE_LIMITED || value == PasswordChangeError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this PasswordChangeError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum OTPError
+public enum OTPError : u4
 {
     NONE = 0,
     ALREADY_ENABLED = 1,
@@ -96,9 +188,32 @@ public enum OTPError
     INTERNAL_ERROR = 5,
 }
 
+/// <summary>Open-enum helpers for <see cref="OTPError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_OTPError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this OTPError value)
+        => value == OTPError.NONE || value == OTPError.ALREADY_ENABLED || value == OTPError.NOT_ENABLED || value == OTPError.INVALID_CODE || value == OTPError.RATE_LIMITED || value == OTPError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this OTPError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum PasskeyError
+public enum PasskeyError : u4
 {
     NONE = 0,
     NOT_FOUND = 1,
@@ -109,9 +224,32 @@ public enum PasskeyError
     INTERNAL_ERROR = 6,
 }
 
+/// <summary>Open-enum helpers for <see cref="PasskeyError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_PasskeyError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this PasskeyError value)
+        => value == PasskeyError.NONE || value == PasskeyError.NOT_FOUND || value == PasskeyError.LIMIT_REACHED || value == PasskeyError.INVALID_CREDENTIAL || value == PasskeyError.VERIFICATION_FAILED || value == PasskeyError.CHALLENGE_EXPIRED || value == PasskeyError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this PasskeyError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum AutoDeleteError
+public enum AutoDeleteError : u4
 {
     NONE = 0,
     PREMIUM_REQUIRED = 1,
@@ -119,9 +257,32 @@ public enum AutoDeleteError
     INTERNAL_ERROR = 3,
 }
 
+/// <summary>Open-enum helpers for <see cref="AutoDeleteError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AutoDeleteError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AutoDeleteError value)
+        => value == AutoDeleteError.NONE || value == AutoDeleteError.PREMIUM_REQUIRED || value == AutoDeleteError.INVALID_PERIOD || value == AutoDeleteError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AutoDeleteError value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DataExportStatusKind
+public enum DataExportStatusKind : u2
 {
     IDLE = 0,
     QUEUED = 1,
@@ -132,14 +293,60 @@ public enum DataExportStatusKind
     FAILED = 6,
 }
 
+/// <summary>Open-enum helpers for <see cref="DataExportStatusKind"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DataExportStatusKind_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DataExportStatusKind value)
+        => value == DataExportStatusKind.IDLE || value == DataExportStatusKind.QUEUED || value == DataExportStatusKind.COLLECTING || value == DataExportStatusKind.ASSEMBLING || value == DataExportStatusKind.COMPLETED || value == DataExportStatusKind.EXPIRED || value == DataExportStatusKind.FAILED;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this DataExportStatusKind value)
+        => value.IsKnown() ? null : (u2)value;
+}
+
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public enum DataExportError
+public enum DataExportError : u2
 {
     NONE = 0,
     ALREADY_IN_PROGRESS = 1,
     RATE_LIMITED = 2,
     NOT_CONFIGURED = 3,
+}
+
+/// <summary>Open-enum helpers for <see cref="DataExportError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DataExportError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DataExportError value)
+        => value == DataExportError.NONE || value == DataExportError.ALREADY_IN_PROGRESS || value == DataExportError.RATE_LIMITED || value == DataExportError.NOT_CONFIGURED;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this DataExportError value)
+        => value.IsKnown() ? null : (u2)value;
 }
 
 
@@ -209,8 +416,7 @@ public sealed class Ion_IRevokeSessionResult_Formatter : IonFormatter<IRevokeSes
 {
     public IRevokeSessionResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRevokeSessionResult", 2u);
         IRevokeSessionResult result;
         if (false) {}
         
@@ -221,8 +427,8 @@ public sealed class Ion_IRevokeSessionResult_Formatter : IonFormatter<IRevokeSes
             result = IonFormatterStorage<FailedRevokeSession>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRevokeSessionResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -248,7 +454,8 @@ public sealed class Ion_IRevokeSessionResult_Formatter : IonFormatter<IRevokeSes
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRevokeSessionResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -260,7 +467,7 @@ public sealed class Ion_SuccessRevokeSession_Formatter : IonFormatter<SuccessRev
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRevokeSession Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRevokeSession");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -281,7 +488,7 @@ public sealed class Ion_FailedRevokeSession_Formatter : IonFormatter<FailedRevok
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRevokeSession Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRevokeSession");
         var __error = IonFormatterStorage<SessionError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -333,8 +540,7 @@ public sealed class Ion_IRequestEmailChangeResult_Formatter : IonFormatter<IRequ
 {
     public IRequestEmailChangeResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRequestEmailChangeResult", 2u);
         IRequestEmailChangeResult result;
         if (false) {}
         
@@ -345,8 +551,8 @@ public sealed class Ion_IRequestEmailChangeResult_Formatter : IonFormatter<IRequ
             result = IonFormatterStorage<FailedRequestEmailChange>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRequestEmailChangeResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -372,7 +578,8 @@ public sealed class Ion_IRequestEmailChangeResult_Formatter : IonFormatter<IRequ
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRequestEmailChangeResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -384,7 +591,7 @@ public sealed class Ion_SuccessRequestEmailChange_Formatter : IonFormatter<Succe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRequestEmailChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRequestEmailChange");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -405,7 +612,7 @@ public sealed class Ion_FailedRequestEmailChange_Formatter : IonFormatter<Failed
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRequestEmailChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRequestEmailChange");
         var __error = IonFormatterStorage<EmailChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -457,8 +664,7 @@ public sealed class Ion_IConfirmEmailChangeResult_Formatter : IonFormatter<IConf
 {
     public IConfirmEmailChangeResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IConfirmEmailChangeResult", 2u);
         IConfirmEmailChangeResult result;
         if (false) {}
         
@@ -469,8 +675,8 @@ public sealed class Ion_IConfirmEmailChangeResult_Formatter : IonFormatter<IConf
             result = IonFormatterStorage<FailedConfirmEmailChange>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IConfirmEmailChangeResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -496,7 +702,8 @@ public sealed class Ion_IConfirmEmailChangeResult_Formatter : IonFormatter<IConf
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IConfirmEmailChangeResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -508,7 +715,7 @@ public sealed class Ion_SuccessConfirmEmailChange_Formatter : IonFormatter<Succe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessConfirmEmailChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessConfirmEmailChange");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -529,7 +736,7 @@ public sealed class Ion_FailedConfirmEmailChange_Formatter : IonFormatter<Failed
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedConfirmEmailChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedConfirmEmailChange");
         var __error = IonFormatterStorage<EmailChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -581,8 +788,7 @@ public sealed class Ion_IRequestPhoneChangeResult_Formatter : IonFormatter<IRequ
 {
     public IRequestPhoneChangeResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRequestPhoneChangeResult", 2u);
         IRequestPhoneChangeResult result;
         if (false) {}
         
@@ -593,8 +799,8 @@ public sealed class Ion_IRequestPhoneChangeResult_Formatter : IonFormatter<IRequ
             result = IonFormatterStorage<FailedRequestPhoneChange>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRequestPhoneChangeResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -620,7 +826,8 @@ public sealed class Ion_IRequestPhoneChangeResult_Formatter : IonFormatter<IRequ
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRequestPhoneChangeResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -632,7 +839,7 @@ public sealed class Ion_SuccessRequestPhoneChange_Formatter : IonFormatter<Succe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRequestPhoneChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRequestPhoneChange");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -653,7 +860,7 @@ public sealed class Ion_FailedRequestPhoneChange_Formatter : IonFormatter<Failed
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRequestPhoneChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRequestPhoneChange");
         var __error = IonFormatterStorage<PhoneChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -705,8 +912,7 @@ public sealed class Ion_IConfirmPhoneChangeResult_Formatter : IonFormatter<IConf
 {
     public IConfirmPhoneChangeResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IConfirmPhoneChangeResult", 2u);
         IConfirmPhoneChangeResult result;
         if (false) {}
         
@@ -717,8 +923,8 @@ public sealed class Ion_IConfirmPhoneChangeResult_Formatter : IonFormatter<IConf
             result = IonFormatterStorage<FailedConfirmPhoneChange>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IConfirmPhoneChangeResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -744,7 +950,8 @@ public sealed class Ion_IConfirmPhoneChangeResult_Formatter : IonFormatter<IConf
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IConfirmPhoneChangeResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -756,7 +963,7 @@ public sealed class Ion_SuccessConfirmPhoneChange_Formatter : IonFormatter<Succe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessConfirmPhoneChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessConfirmPhoneChange");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -777,7 +984,7 @@ public sealed class Ion_FailedConfirmPhoneChange_Formatter : IonFormatter<Failed
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedConfirmPhoneChange Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedConfirmPhoneChange");
         var __error = IonFormatterStorage<PhoneChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -829,8 +1036,7 @@ public sealed class Ion_IRemovePhoneResult_Formatter : IonFormatter<IRemovePhone
 {
     public IRemovePhoneResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRemovePhoneResult", 2u);
         IRemovePhoneResult result;
         if (false) {}
         
@@ -841,8 +1047,8 @@ public sealed class Ion_IRemovePhoneResult_Formatter : IonFormatter<IRemovePhone
             result = IonFormatterStorage<FailedRemovePhone>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRemovePhoneResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -868,7 +1074,8 @@ public sealed class Ion_IRemovePhoneResult_Formatter : IonFormatter<IRemovePhone
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRemovePhoneResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -880,7 +1087,7 @@ public sealed class Ion_SuccessRemovePhone_Formatter : IonFormatter<SuccessRemov
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRemovePhone Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRemovePhone");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -901,7 +1108,7 @@ public sealed class Ion_FailedRemovePhone_Formatter : IonFormatter<FailedRemoveP
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRemovePhone Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRemovePhone");
         var __error = IonFormatterStorage<PhoneChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -953,8 +1160,7 @@ public sealed class Ion_IChangePasswordResult_Formatter : IonFormatter<IChangePa
 {
     public IChangePasswordResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IChangePasswordResult", 2u);
         IChangePasswordResult result;
         if (false) {}
         
@@ -965,8 +1171,8 @@ public sealed class Ion_IChangePasswordResult_Formatter : IonFormatter<IChangePa
             result = IonFormatterStorage<FailedChangePassword>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IChangePasswordResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -992,7 +1198,8 @@ public sealed class Ion_IChangePasswordResult_Formatter : IonFormatter<IChangePa
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IChangePasswordResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1004,7 +1211,7 @@ public sealed class Ion_SuccessChangePassword_Formatter : IonFormatter<SuccessCh
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessChangePassword Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessChangePassword");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -1025,7 +1232,7 @@ public sealed class Ion_FailedChangePassword_Formatter : IonFormatter<FailedChan
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedChangePassword Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedChangePassword");
         var __error = IonFormatterStorage<PasswordChangeError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1077,8 +1284,7 @@ public sealed class Ion_IEnableOTPResult_Formatter : IonFormatter<IEnableOTPResu
 {
     public IEnableOTPResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IEnableOTPResult", 2u);
         IEnableOTPResult result;
         if (false) {}
         
@@ -1089,8 +1295,8 @@ public sealed class Ion_IEnableOTPResult_Formatter : IonFormatter<IEnableOTPResu
             result = IonFormatterStorage<FailedEnableOTP>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IEnableOTPResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1116,7 +1322,8 @@ public sealed class Ion_IEnableOTPResult_Formatter : IonFormatter<IEnableOTPResu
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IEnableOTPResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1128,7 +1335,7 @@ public sealed class Ion_SuccessEnableOTP_Formatter : IonFormatter<SuccessEnableO
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessEnableOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "SuccessEnableOTP");
         var __secret = IonFormatterStorage<string>.Read(reader);
         var __qrcodeurl = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -1151,7 +1358,7 @@ public sealed class Ion_FailedEnableOTP_Formatter : IonFormatter<FailedEnableOTP
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedEnableOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedEnableOTP");
         var __error = IonFormatterStorage<OTPError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1203,8 +1410,7 @@ public sealed class Ion_IVerifyOTPResult_Formatter : IonFormatter<IVerifyOTPResu
 {
     public IVerifyOTPResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IVerifyOTPResult", 2u);
         IVerifyOTPResult result;
         if (false) {}
         
@@ -1215,8 +1421,8 @@ public sealed class Ion_IVerifyOTPResult_Formatter : IonFormatter<IVerifyOTPResu
             result = IonFormatterStorage<FailedVerifyOTP>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IVerifyOTPResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1242,7 +1448,8 @@ public sealed class Ion_IVerifyOTPResult_Formatter : IonFormatter<IVerifyOTPResu
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IVerifyOTPResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1254,7 +1461,7 @@ public sealed class Ion_SuccessVerifyOTP_Formatter : IonFormatter<SuccessVerifyO
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessVerifyOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessVerifyOTP");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -1275,7 +1482,7 @@ public sealed class Ion_FailedVerifyOTP_Formatter : IonFormatter<FailedVerifyOTP
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedVerifyOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedVerifyOTP");
         var __error = IonFormatterStorage<OTPError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1327,8 +1534,7 @@ public sealed class Ion_IDisableOTPResult_Formatter : IonFormatter<IDisableOTPRe
 {
     public IDisableOTPResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IDisableOTPResult", 2u);
         IDisableOTPResult result;
         if (false) {}
         
@@ -1339,8 +1545,8 @@ public sealed class Ion_IDisableOTPResult_Formatter : IonFormatter<IDisableOTPRe
             result = IonFormatterStorage<FailedDisableOTP>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IDisableOTPResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1366,7 +1572,8 @@ public sealed class Ion_IDisableOTPResult_Formatter : IonFormatter<IDisableOTPRe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IDisableOTPResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1378,7 +1585,7 @@ public sealed class Ion_SuccessDisableOTP_Formatter : IonFormatter<SuccessDisabl
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessDisableOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessDisableOTP");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -1399,7 +1606,7 @@ public sealed class Ion_FailedDisableOTP_Formatter : IonFormatter<FailedDisableO
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedDisableOTP Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedDisableOTP");
         var __error = IonFormatterStorage<OTPError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1451,8 +1658,7 @@ public sealed class Ion_IBeginPasskeyResult_Formatter : IonFormatter<IBeginPassk
 {
     public IBeginPasskeyResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IBeginPasskeyResult", 2u);
         IBeginPasskeyResult result;
         if (false) {}
         
@@ -1463,8 +1669,8 @@ public sealed class Ion_IBeginPasskeyResult_Formatter : IonFormatter<IBeginPassk
             result = IonFormatterStorage<FailedBeginPasskey>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IBeginPasskeyResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1490,7 +1696,8 @@ public sealed class Ion_IBeginPasskeyResult_Formatter : IonFormatter<IBeginPassk
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IBeginPasskeyResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1502,7 +1709,7 @@ public sealed class Ion_SuccessBeginPasskey_Formatter : IonFormatter<SuccessBegi
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessBeginPasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessBeginPasskey");
         var __optionsjson = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__optionsjson);
@@ -1523,7 +1730,7 @@ public sealed class Ion_FailedBeginPasskey_Formatter : IonFormatter<FailedBeginP
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedBeginPasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedBeginPasskey");
         var __error = IonFormatterStorage<PasskeyError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1575,8 +1782,7 @@ public sealed class Ion_ICompletePasskeyResult_Formatter : IonFormatter<IComplet
 {
     public ICompletePasskeyResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ICompletePasskeyResult", 2u);
         ICompletePasskeyResult result;
         if (false) {}
         
@@ -1587,8 +1793,8 @@ public sealed class Ion_ICompletePasskeyResult_Formatter : IonFormatter<IComplet
             result = IonFormatterStorage<FailedCompletePasskey>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ICompletePasskeyResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1614,7 +1820,8 @@ public sealed class Ion_ICompletePasskeyResult_Formatter : IonFormatter<IComplet
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ICompletePasskeyResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1626,7 +1833,7 @@ public sealed class Ion_SuccessCompletePasskey_Formatter : IonFormatter<SuccessC
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessCompletePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessCompletePasskey");
         var __passkey = IonFormatterStorage<Passkey>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__passkey);
@@ -1647,7 +1854,7 @@ public sealed class Ion_FailedCompletePasskey_Formatter : IonFormatter<FailedCom
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedCompletePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedCompletePasskey");
         var __error = IonFormatterStorage<PasskeyError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1699,8 +1906,7 @@ public sealed class Ion_IRemovePasskeyResult_Formatter : IonFormatter<IRemovePas
 {
     public IRemovePasskeyResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRemovePasskeyResult", 2u);
         IRemovePasskeyResult result;
         if (false) {}
         
@@ -1711,8 +1917,8 @@ public sealed class Ion_IRemovePasskeyResult_Formatter : IonFormatter<IRemovePas
             result = IonFormatterStorage<FailedRemovePasskey>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRemovePasskeyResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1738,7 +1944,8 @@ public sealed class Ion_IRemovePasskeyResult_Formatter : IonFormatter<IRemovePas
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRemovePasskeyResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1750,7 +1957,7 @@ public sealed class Ion_SuccessRemovePasskey_Formatter : IonFormatter<SuccessRem
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRemovePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessRemovePasskey");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -1771,7 +1978,7 @@ public sealed class Ion_FailedRemovePasskey_Formatter : IonFormatter<FailedRemov
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRemovePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRemovePasskey");
         var __error = IonFormatterStorage<PasskeyError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1823,8 +2030,7 @@ public sealed class Ion_IBeginPasskeyValidateResult_Formatter : IonFormatter<IBe
 {
     public IBeginPasskeyValidateResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IBeginPasskeyValidateResult", 2u);
         IBeginPasskeyValidateResult result;
         if (false) {}
         
@@ -1835,8 +2041,8 @@ public sealed class Ion_IBeginPasskeyValidateResult_Formatter : IonFormatter<IBe
             result = IonFormatterStorage<FailedBeginValidatePasskey>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IBeginPasskeyValidateResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1862,7 +2068,8 @@ public sealed class Ion_IBeginPasskeyValidateResult_Formatter : IonFormatter<IBe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IBeginPasskeyValidateResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1874,7 +2081,7 @@ public sealed class Ion_SuccessBeginValidatePasskey_Formatter : IonFormatter<Suc
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessBeginValidatePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessBeginValidatePasskey");
         var __optionsjson = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__optionsjson);
@@ -1895,7 +2102,7 @@ public sealed class Ion_FailedBeginValidatePasskey_Formatter : IonFormatter<Fail
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedBeginValidatePasskey Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedBeginValidatePasskey");
         var __error = IonFormatterStorage<PasskeyError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -1947,8 +2154,7 @@ public sealed class Ion_ISetAutoDeleteResult_Formatter : IonFormatter<ISetAutoDe
 {
     public ISetAutoDeleteResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("ISetAutoDeleteResult", 2u);
         ISetAutoDeleteResult result;
         if (false) {}
         
@@ -1959,8 +2165,8 @@ public sealed class Ion_ISetAutoDeleteResult_Formatter : IonFormatter<ISetAutoDe
             result = IonFormatterStorage<FailedSetAutoDelete>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("ISetAutoDeleteResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -1986,7 +2192,8 @@ public sealed class Ion_ISetAutoDeleteResult_Formatter : IonFormatter<ISetAutoDe
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'ISetAutoDeleteResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -1998,7 +2205,7 @@ public sealed class Ion_SuccessSetAutoDelete_Formatter : IonFormatter<SuccessSet
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessSetAutoDelete Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(0, "SuccessSetAutoDelete");
         
         reader.ReadEndArrayAndSkip(arraySize - 0);
         return new();
@@ -2019,7 +2226,7 @@ public sealed class Ion_FailedSetAutoDelete_Formatter : IonFormatter<FailedSetAu
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedSetAutoDelete Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedSetAutoDelete");
         var __error = IonFormatterStorage<AutoDeleteError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);
@@ -2071,8 +2278,7 @@ public sealed class Ion_IRequestDataExportResult_Formatter : IonFormatter<IReque
 {
     public IRequestDataExportResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
-        var unionIndex = reader.ReadUInt32();
+        var unionIndex = reader.ReadStartUnion("IRequestDataExportResult", 2u);
         IRequestDataExportResult result;
         if (false) {}
         
@@ -2083,8 +2289,8 @@ public sealed class Ion_IRequestDataExportResult_Formatter : IonFormatter<IReque
             result = IonFormatterStorage<FailedRequestDataExport>.Read(reader);
 
         else
-            throw new InvalidOperationException();
-        reader.ReadEndArray();
+            throw new IonInvalidUnionIndexException("IRequestDataExportResult", unionIndex, 2u);
+        reader.ReadEndUnion();
         return result;
     }
 
@@ -2110,7 +2316,8 @@ public sealed class Ion_IRequestDataExportResult_Formatter : IonFormatter<IReque
         }
     
         else
-            throw new InvalidOperationException();
+            throw new InvalidOperationException(
+                $"Ion union 'IRequestDataExportResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -2122,7 +2329,7 @@ public sealed class Ion_SuccessRequestDataExport_Formatter : IonFormatter<Succes
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SuccessRequestDataExport Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "SuccessRequestDataExport");
         var __exportid = IonFormatterStorage<guid>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__exportid);
@@ -2143,7 +2350,7 @@ public sealed class Ion_FailedRequestDataExport_Formatter : IonFormatter<FailedR
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public FailedRequestDataExport Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(1, "FailedRequestDataExport");
         var __error = IonFormatterStorage<DataExportError>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 1);
         return new(__error);

@@ -41,7 +41,7 @@ async function fetchApps() {
       appId: app.appId,
       name: app.name,
       kind: appKindLabel(app.kind),
-      createdAt: app.createdAt.date.toLocaleDateString(),
+      createdAt: app.createdAt.toDate().toLocaleDateString(),
     }))
   } catch (err: any) {
     errorMessage.value = err?.message ?? "Failed to load apps"

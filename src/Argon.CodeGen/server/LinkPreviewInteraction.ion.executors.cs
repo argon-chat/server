@@ -24,7 +24,7 @@ public sealed class Ion_LinkPreviewInteraction_ServiceExecutor(AsyncServiceScope
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "LinkPreviewInteraction.GetLinkPreview");
     
         var __url = IonFormatterStorage<string>.Read(reader);
     

@@ -19,7 +19,7 @@ public sealed class Ion_ChannelEntitlementOverwrite_Formatter : IonFormatter<Cha
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ChannelEntitlementOverwrite Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(7, "ChannelEntitlementOverwrite");
         var __channelid = IonFormatterStorage<guid>.Read(reader);
         var __archetypeid = reader.ReadNullable<guid>();
         var __servermemberid = reader.ReadNullable<guid>();
@@ -52,7 +52,7 @@ public sealed class Ion_Archetype_Formatter : IonFormatter<Archetype>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public Archetype Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(13, "Archetype");
         var __id = IonFormatterStorage<guid>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);

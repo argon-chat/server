@@ -19,7 +19,7 @@ public sealed class Ion_RtcEndpoint_Formatter : IonFormatter<RtcEndpoint>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public RtcEndpoint Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "RtcEndpoint");
         var __endpoint = IonFormatterStorage<string>.Read(reader);
         var __ices = IonFormatterStorage<IceEndpoint>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -42,7 +42,7 @@ public sealed class Ion_IceEndpoint_Formatter : IonFormatter<IceEndpoint>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public IceEndpoint Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "IceEndpoint");
         var __endpoint = IonFormatterStorage<string>.Read(reader);
         var __username = IonFormatterStorage<string>.Read(reader);
         var __password = IonFormatterStorage<string>.Read(reader);
@@ -67,7 +67,7 @@ public sealed class Ion_ServiceUssdResult_Formatter : IonFormatter<ServiceUssdRe
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ServiceUssdResult Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "ServiceUssdResult");
         var __success = IonFormatterStorage<bool>.Read(reader);
         var __message = IonFormatterStorage<string>.Read(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);

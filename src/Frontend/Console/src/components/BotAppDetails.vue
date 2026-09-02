@@ -357,7 +357,7 @@ async function copyToClipboard(value: string, fieldKey?: string) {
           <div class="flex items-center gap-3 mt-2 text-xs text-text-muted">
             <span class="font-mono select-all">{{ app.appId }}</span>
             <span>&middot;</span>
-            <span>Created {{ app.createdAt.date.toLocaleDateString() }}</span>
+            <span>Created {{ app.createdAt.toDate().toLocaleDateString() }}</span>
             <span>&middot;</span>
             <span>Max {{ bot.maxSpaces }} spaces</span>
           </div>

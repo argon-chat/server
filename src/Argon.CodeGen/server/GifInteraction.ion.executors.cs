@@ -24,7 +24,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.GetTrending");
     
         var __page = IonFormatterStorage<i4>.Read(reader);
         var __perpage = IonFormatterStorage<i4>.Read(reader);
@@ -42,7 +42,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 3;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.Search");
     
         var __query = IonFormatterStorage<string>.Read(reader);
         var __page = IonFormatterStorage<i4>.Read(reader);
@@ -61,7 +61,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 0;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.GetCategories");
     
         
     
@@ -78,7 +78,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.GetSavedGifs");
     
         var __page = IonFormatterStorage<i4>.Read(reader);
         var __perpage = IonFormatterStorage<i4>.Read(reader);
@@ -96,7 +96,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 2;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.SaveGif");
     
         var __gifid = IonFormatterStorage<string>.Read(reader);
         var __hmac = IonFormatterStorage<string>.Read(reader);
@@ -114,7 +114,7 @@ public sealed class Ion_GifInteraction_ServiceExecutor(AsyncServiceScope scope) 
     
         const int argumentSize = 1;
     
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");
+        var arraySize = reader.ReadStartMessage(argumentSize, "GifInteraction.RemoveSavedGif");
     
         var __savedgifid = IonFormatterStorage<guid>.Read(reader);
     

@@ -19,7 +19,7 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InventoryItem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(8, "InventoryItem");
         var __id = IonFormatterStorage<string>.Read(reader);
         var __instanceid = IonFormatterStorage<guid>.Read(reader);
         var __granteddate = IonFormatterStorage<datetime>.Read(reader);
@@ -54,7 +54,7 @@ public sealed class Ion_DetailedInventoryItem_Formatter : IonFormatter<DetailedI
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public DetailedInventoryItem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(2, "DetailedInventoryItem");
         var __item = IonFormatterStorage<InventoryItem>.Read(reader);
         var __containeditems = IonFormatterStorage<InventoryItem>.ReadArray(reader);
         reader.ReadEndArrayAndSkip(arraySize - 2);
@@ -77,7 +77,7 @@ public sealed class Ion_InventoryNotification_Formatter : IonFormatter<Inventory
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InventoryNotification Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var arraySize = reader.ReadStartMessage(3, "InventoryNotification");
         var __inventoryitemid = IonFormatterStorage<guid>.Read(reader);
         var __id = IonFormatterStorage<string>.Read(reader);
         var __createdat = IonFormatterStorage<datetime>.Read(reader);
