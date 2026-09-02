@@ -18,6 +18,7 @@ using System.Diagnostics;
 using Core.Features.Transport;
 using Argon.Core.Features.Logic;
 using Argon.Features.BotApi;
+using Argon.Features.Integrations.Crawler;
 using Argon.Features.Integrations.Klipy;
 using Argon.Core.Features.CoreLogic.Privacy;
 using Core.Entities.Data;
@@ -39,6 +40,8 @@ public class ChannelGrain(
     BotUserCache botUserCache,
     IS3StorageService s3,
     IKlipyService klipy,
+    ILinkPreviewService linkPreviews,
+    IOptions<CrawlerOptions> crawlerOptions,
     ISpaceReadCache readCache,
     // Same pool the read-state and replay-buffer caches use. The channel's high-water mark is a
     // cache value, not a second source of truth: it is written here and read by anyone who needs it
@@ -917,6 +920,7 @@ public class ChannelGrain(
         
         var sanitized = SanitizeEntities(entities ?? []);
         await CacheGifEntitiesAsync(sanitized, senderId);
+        var pendingPreview = await PrepareLinkPreviewAsync(sanitized, text ?? "", senderId, channelId);
 
         var message = new ArgonMessageEntity
         {
@@ -960,6 +964,10 @@ public class ChannelGrain(
         // (large spaces → channel-scoped + pull-based unread; small spaces → space-scoped + live
         // unread), unlike typing/reactions/edits which have no cross-channel consumer.
         FireDetached(new MessageSent(_self.SpaceId, dto));
+
+        // The card the crawler had not cached in time follows the message rather than holding it.
+        if (pendingPreview is not null)
+            _ = ResolveLinkPreviewLaterAsync(msgId, pendingPreview);
 
         // Two copies of the channel high-water mark, kept for two different readers. The durable one
         // is only noted here and written by the flush timer, into ChannelLastMessages — a row that
@@ -1226,6 +1234,89 @@ WHERE ""ChannelLastMessages"".""LastMessageId"" < EXCLUDED.""LastMessageId""");
             entities[i] = gif with { fileId = cached.Value.FileId };
 
             _ = this.GrainFactory.GetGrain<ISavedGifsGrain>(senderId).SaveGifAsync(gif.gifId);
+        }
+    }
+
+    /// <summary>
+    /// Settles the link-preview stub the client attached, if any, before the message is stored: the
+    /// URL is checked, the sender's right to embed is checked, and the crawler is given
+    /// <see cref="CrawlerOptions.SendBudget"/> to answer from its cache.
+    /// </summary>
+    /// <returns>
+    /// The stub still waiting on the crawler, to be finished after the send by
+    /// <see cref="ResolveLinkPreviewLaterAsync"/>; null when there is nothing left to do.
+    /// </returns>
+    private async Task<MessageEntityLinkPreview?> PrepareLinkPreviewAsync(List<IMessageEntity> entities, string text, Guid senderId, Guid channelId)
+    {
+        var stub = LinkPreviewEntities.TakeStub(entities, text);
+        if (stub is null)
+            return null;
+
+        if (!await entitlementChecker.HasChannelAccessAsync(SpaceId, channelId, senderId, ArgonEntitlement.PostEmbeddedLinks))
+        {
+            // Not an error: the link stays, the card does not — as if the client had never asked.
+            entities.Remove(stub);
+            return null;
+        }
+
+        var outcome = await linkPreviews.ResolveAsync(stub.url, crawlerOptions.Value.SendBudget);
+
+        switch (outcome.Status)
+        {
+            case LinkPreviewStatus.Ready:
+                entities[entities.IndexOf(stub)] = LinkPreviewEntities.Fill(stub, outcome.Preview!);
+                return null;
+            case LinkPreviewStatus.Unavailable when outcome.Retryable:
+                // The crawler is on the page: the message goes out now and the card follows.
+                return stub;
+            default:
+                entities.Remove(stub);
+                return null;
+        }
+    }
+
+    /// <summary>
+    /// The second half of <see cref="PrepareLinkPreviewAsync"/>, off the send: waits the full lookup
+    /// time for the crawler, then rewrites the stored entities and tells the channel through
+    /// <see cref="MessageUpdated"/> — with the card, or without the stub when the page gave nothing.
+    /// </summary>
+    private async Task ResolveLinkPreviewLaterAsync(long messageId, MessageEntityLinkPreview stub)
+    {
+        var channelId = this.GetPrimaryKey();
+        try
+        {
+            var outcome = await linkPreviews.ResolveAsync(stub.url, crawlerOptions.Value.Timeout);
+
+            await using var ctx = await context.CreateDbContextAsync();
+
+            var message = await ctx.Messages
+               .Where(m => m.SpaceId == SpaceId && m.ChannelId == channelId && m.MessageId == messageId)
+               .FirstOrDefaultAsync();
+
+            // Deleted in the meantime, or the stub is gone: nothing to tell anyone.
+            if (message is null)
+                return;
+
+            var updated = new List<IMessageEntity>(message.Entities ?? []);
+            var at      = updated.FindIndex(e => e is MessageEntityLinkPreview p && p.url == stub.url);
+            if (at < 0)
+                return;
+
+            if (outcome.Status == LinkPreviewStatus.Ready)
+                updated[at] = LinkPreviewEntities.Fill(stub, outcome.Preview!);
+            else
+                updated.RemoveAt(at);
+
+            message.Entities  = updated;
+            message.UpdatedAt = DateTimeOffset.UtcNow;
+            await ctx.SaveChangesAsync();
+
+            await ResolveAttachmentUrls(message);
+            await FireChannel(new MessageUpdated(SpaceId, channelId, message.ToDto()));
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "link preview for message {MessageId} in channel {ChannelId} was not finished", messageId, channelId);
         }
     }
 

@@ -42,7 +42,8 @@ public static class BotEventMapper
         MessageEntitySystemUserJoined e   => Base(e.type, e.offset, e.length) with { UserId = e.userId, InviterId = e.inviterId },
         MessageEntityAttachment e         => Base(e.type, e.offset, e.length) with { FileName = e.fileName, FileSize = e.fileSize, ContentType = e.contentType, Width = e.width, Height = e.height, ThumbHash = e.thumbHash },
         MessageEntityGif e               => Base(e.type, e.offset, e.length) with { Width = e.width, Height = e.height },
-        _ => Base(EntityType.Bold, 0, 0) // unreachable — all 22 variants covered
+        MessageEntityLinkPreview e       => Base(e.type, e.offset, e.length) with { Url = e.url, Title = e.title, Description = e.description, SiteName = e.siteName, ImageUrl = e.imageUrl, CanonicalUrl = e.canonicalUrl },
+        _ => Base(EntityType.Bold, 0, 0) // unreachable — all 23 variants covered
     };
 
     public static async ValueTask<BotMessageV1> FromArgonMessageAsync(ArgonMessage msg, BotUserCache userCache, List<ControlRowV1>? controls = null)

@@ -40,6 +40,9 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<SocialFeature>();
         features.Add<GeoIpFeature>();
         features.Add<SfuFeature>();
+
+        // The composer's link lookup (ILinkPreviewInteraction) talks to the crawler from here.
+        features.Add<LinkPreviewFeature>();
     }
 }
 

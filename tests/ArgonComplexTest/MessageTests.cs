@@ -492,4 +492,47 @@ public class MessageTests : TestBase
         Assert.That(messages.Values[0].text, Is.EqualTo(longText));
         Assert.That(messages.Values[0].text.Length, Is.GreaterThan(1000));
     }
+
+    /// <summary>
+    /// The test host has NATS but no crawler. A message that asks for a link preview must still go
+    /// out, and nothing the client wrote into the stub — title, image — may survive: the card is the
+    /// server's to fill, and without a crawler there is no card.
+    /// </summary>
+    [Test, CancelAfter(1000 * 60 * 5), Order(11)]
+    public async Task SendMessage_WithLinkPreviewStub_WithoutCrawler_SendsWithoutTheCard(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var token = await RegisterAndGetTokenAsync(ct);
+        SetAuthToken(token);
+
+        var spaceId   = await CreateSpaceAndGetIdAsync(ct);
+        var channelId = await CreateTextChannelAsync(spaceId, "links", ct);
+
+        const string text = "look at https://example.com/page";
+        var stub = new MessageEntityLinkPreview(EntityType.LinkPreview, 8, 24, 1,
+            "https://example.com/page", "PHISHING", "client-written", "Evil", "https://evil.test/i.png", null);
+
+        var messageId = await GetChannelService(scope.ServiceProvider).SendMessage(
+            spaceId, channelId, text, new IonArray<IMessageEntity>([stub]), 1, null, ct);
+
+        Assert.That(messageId, Is.GreaterThan(0));
+
+        var messages = await GetChannelService(scope.ServiceProvider).QueryMessages(
+            spaceId, channelId, null, 10, ct);
+
+        var stored  = messages.Values.Single(m => m.messageId == messageId);
+        var preview = stored.entities.Values.OfType<MessageEntityLinkPreview>().SingleOrDefault();
+
+        // Either dropped at once (nobody listens on the crawler subject) or, if the NATS server has
+        // no no-responders support, left as a bare stub for the deferred resolution to remove.
+        Assert.That(stored.text, Is.EqualTo(text));
+        if (preview is not null)
+        {
+            Assert.That(preview.title, Is.Null);
+            Assert.That(preview.description, Is.Null);
+            Assert.That(preview.siteName, Is.Null);
+            Assert.That(preview.imageUrl, Is.Null);
+        }
+    }
 }

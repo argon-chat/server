@@ -48,6 +48,8 @@ public sealed class MessageEntityStjConverter : JsonConverter<IMessageEntity>
             EntityType.SystemCallTimeout => JsonSerializer.Deserialize<MessageEntitySystemCallTimeout>(raw, options),
             EntityType.SystemUserJoined  => JsonSerializer.Deserialize<MessageEntitySystemUserJoined>(raw, options),
             EntityType.Attachment        => JsonSerializer.Deserialize<MessageEntityAttachment>(raw, options),
+            EntityType.Gif               => JsonSerializer.Deserialize<MessageEntityGif>(raw, options),
+            EntityType.LinkPreview       => JsonSerializer.Deserialize<MessageEntityLinkPreview>(raw, options),
             _ => throw new JsonException($"Unknown EntityType: {entityType}")
         };
     }

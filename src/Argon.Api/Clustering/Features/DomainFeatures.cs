@@ -1,5 +1,6 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Integrations.Crawler;
 using Argon.Features.Integrations.Phones;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
@@ -199,6 +200,22 @@ public sealed class KlipyFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddKlipyFeature();
+}
+
+/// <summary>
+/// Web page cards for links in messages, fetched by argon-crawler over NATS. Two roles want it:
+/// core, where ChannelGrain settles the stub a message carries, and entrypoint, where the composer
+/// asks for the card while the user is still typing. NATS itself is on every role already.
+/// </summary>
+public sealed class LinkPreviewFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("link-preview")
+            .Describing("link previews through argon-crawler")
+            .Options<CrawlerOptions>(CrawlerOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Builder.AddCrawlerFeature();
 }
 
 public sealed class GeoIpFeature : IArgonFeature

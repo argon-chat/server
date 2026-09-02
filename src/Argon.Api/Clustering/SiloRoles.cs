@@ -65,6 +65,7 @@ public sealed class CoreRole : IArgonRole
         features.Add<GeoIpFeature>();
         features.Add<SfuFeature>();
         features.Add<KlipyFeature>();
+        features.Add<LinkPreviewFeature>();
 
         // Every grain that raises an event needs the bus. Publishing goes through the backplane, so
         // this brings no listening socket with it — the client endpoint is entrypoint's business.
@@ -77,6 +78,14 @@ public sealed class CoreRole : IArgonRole
         // IFileStorageGrain, so the S3 client lands here whatever role owns the storage grain. That
         // is a leak worth closing at the call sites, not a decision about where media belongs.
         features.Add<FileStorageFeature>();
+
+        // OperatorAuthChallengeGrain lives here and resolves IVaultPkiService inside the method that
+        // checks a staff certificate — out of a scope it opens itself, so nothing in its constructor
+        // names it and the fixture that walks hosted grains' constructors had nothing to see. Only
+        // the admin console required this feature, and the admin role hosts no grains: the service
+        // was registered in the one process that never called it, and the step-up answered 500 on the
+        // silo the moment a smart card was presented.
+        features.Add<OperatorAuthFeature>();
     }
 
     public void OnGrainReferences(IGrainCollectionRegistry registry)

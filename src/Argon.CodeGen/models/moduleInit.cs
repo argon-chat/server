@@ -133,6 +133,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ItemUseVector>.Value = new Ion_ItemUseVector_Formatter();
       IonFormatterStorage<RedeemError>.Value = new Ion_RedeemError_Formatter();
       IonFormatterStorage<IRedeemResult>.Value = new Ion_IRedeemResult_Formatter();
+      IonFormatterStorage<LinkPreview>.Value = new Ion_LinkPreview_Formatter();
+      IonFormatterStorage<LinkPreviewError>.Value = new Ion_LinkPreviewError_Formatter();
+      IonFormatterStorage<ILinkPreviewResult>.Value = new Ion_ILinkPreviewResult_Formatter();
       IonFormatterStorage<PrivacyRuleView>.Value = new Ion_PrivacyRuleView_Formatter();
       IonFormatterStorage<PrivacyRuleMode>.Value = new Ion_PrivacyRuleMode_Formatter();
       IonFormatterStorage<ReportTarget>.Value = new Ion_ReportTarget_Formatter();
@@ -294,6 +297,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntitySystemUserJoined>.Value = new Ion_MessageEntitySystemUserJoined_Formatter();
       IonFormatterStorage<MessageEntityAttachment>.Value = new Ion_MessageEntityAttachment_Formatter();
       IonFormatterStorage<MessageEntityGif>.Value = new Ion_MessageEntityGif_Formatter();
+      IonFormatterStorage<MessageEntityLinkPreview>.Value = new Ion_MessageEntityLinkPreview_Formatter();
       IonFormatterStorage<SuccessUpdateChannel>.Value = new Ion_SuccessUpdateChannel_Formatter();
       IonFormatterStorage<FailedUpdateChannel>.Value = new Ion_FailedUpdateChannel_Formatter();
       IonFormatterStorage<SuccessCreateVoiceInvite>.Value = new Ion_SuccessCreateVoiceInvite_Formatter();
@@ -382,6 +386,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ArchetypesReordered>.Value = new Ion_ArchetypesReordered_Formatter();
       IonFormatterStorage<SpaceDeletionScheduled>.Value = new Ion_SpaceDeletionScheduled_Formatter();
       IonFormatterStorage<SpaceDeletionCancelled>.Value = new Ion_SpaceDeletionCancelled_Formatter();
+      IonFormatterStorage<MessageUpdated>.Value = new Ion_MessageUpdated_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();
@@ -406,6 +411,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<CertificateErrorAuthStatus>.Value = new Ion_CertificateErrorAuthStatus_Formatter();
       IonFormatterStorage<SuccessRedeem>.Value = new Ion_SuccessRedeem_Formatter();
       IonFormatterStorage<FailedRedeem>.Value = new Ion_FailedRedeem_Formatter();
+      IonFormatterStorage<LinkPreviewReady>.Value = new Ion_LinkPreviewReady_Formatter();
+      IonFormatterStorage<LinkPreviewFailed>.Value = new Ion_LinkPreviewFailed_Formatter();
       IonFormatterStorage<SuccessSubmitReport>.Value = new Ion_SuccessSubmitReport_Formatter();
       IonFormatterStorage<FailedSubmitReport>.Value = new Ion_FailedSubmitReport_Formatter();
       IonFormatterStorage<SuccessRevokeSession>.Value = new Ion_SuccessRevokeSession_Formatter();
@@ -488,6 +495,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddExecutor<Ion_GifInteraction_ServiceExecutor>("IGifInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_IdentityInteraction_ServiceExecutor>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_InventoryInteraction_ServiceExecutor>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddExecutor<Ion_LinkPreviewInteraction_ServiceExecutor>("ILinkPreviewInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_PrivacyInteraction_ServiceExecutor>("IPrivacyInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_ReportInteraction_ServiceExecutor>("IReportInteraction");
       IonExecutorMetadataStorage.AddExecutor<Ion_SecurityInteraction_ServiceExecutor>("ISecurityInteraction");
@@ -507,6 +515,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonExecutorMetadataStorage.AddClient<Ion_GifInteraction_ClientImpl>("IGifInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_IdentityInteraction_ClientImpl>("IIdentityInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_InventoryInteraction_ClientImpl>("IInventoryInteraction");
+      IonExecutorMetadataStorage.AddClient<Ion_LinkPreviewInteraction_ClientImpl>("ILinkPreviewInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_PrivacyInteraction_ClientImpl>("IPrivacyInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_ReportInteraction_ClientImpl>("IReportInteraction");
       IonExecutorMetadataStorage.AddClient<Ion_SecurityInteraction_ClientImpl>("ISecurityInteraction");

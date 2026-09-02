@@ -168,6 +168,7 @@ public enum EntityType
     SystemUserJoined = 19,
     Attachment = 20,
     Gif = 21,
+    LinkPreview = 22,
 }
 
 
@@ -486,6 +487,8 @@ public interface IMessageEntity : IIonUnion<IMessageEntity>
 
     internal bool IsMessageEntityGif => this is MessageEntityGif;
 
+    internal bool IsMessageEntityLinkPreview => this is MessageEntityLinkPreview;
+
 }
 
 
@@ -643,6 +646,13 @@ public sealed record MessageEntityGif(EntityType type, i4 offset, i4 length, i4 
     public uint UnionIndex => 21;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageEntityLinkPreview(EntityType type, i4 offset, i4 length, i4 version, string url, string? title, string? description, string? siteName, string? imageUrl, string? canonicalUrl) : IMessageEntity
+{
+    public string UnionKey => nameof(MessageEntityLinkPreview);
+    public uint UnionIndex => 22;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -720,6 +730,9 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
 
         else if (unionIndex == 21)
             result = IonFormatterStorage<MessageEntityGif>.Read(reader);
+
+        else if (unionIndex == 22)
+            result = IonFormatterStorage<MessageEntityLinkPreview>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -886,6 +899,13 @@ public sealed class Ion_IMessageEntity_Formatter : IonFormatter<IMessageEntity>
             if (n_21.UnionIndex != 21)
                 throw new InvalidOperationException();
             IonFormatterStorage<MessageEntityGif>.Write(writer, n_21);
+        }
+
+        else if (value is MessageEntityLinkPreview n_22)
+        {
+            if (n_22.UnionIndex != 22)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageEntityLinkPreview>.Write(writer, n_22);
         }
     
         else
@@ -1551,6 +1571,45 @@ public sealed class Ion_MessageEntityGif_Formatter : IonFormatter<MessageEntityG
         IonFormatterStorage<i4>.Write(writer, value.width);
         IonFormatterStorage<i4>.Write(writer, value.height);
         IonFormatterStorage<string>.WriteNullable(writer, value.previewUrl);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageEntityLinkPreview_Formatter : IonFormatter<MessageEntityLinkPreview>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageEntityLinkPreview Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __type = IonFormatterStorage<EntityType>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __length = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __url = IonFormatterStorage<string>.Read(reader);
+        var __title = reader.ReadNullable<string>();
+        var __description = reader.ReadNullable<string>();
+        var __sitename = reader.ReadNullable<string>();
+        var __imageurl = reader.ReadNullable<string>();
+        var __canonicalurl = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__type, __offset, __length, __version, __url, __title, __description, __sitename, __imageurl, __canonicalurl);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageEntityLinkPreview value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<EntityType>.Write(writer, value.type);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.length);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<string>.Write(writer, value.url);
+        IonFormatterStorage<string>.WriteNullable(writer, value.title);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.WriteNullable(writer, value.siteName);
+        IonFormatterStorage<string>.WriteNullable(writer, value.imageUrl);
+        IonFormatterStorage<string>.WriteNullable(writer, value.canonicalUrl);
         writer.WriteEndArray();
     }
 }
@@ -3188,6 +3247,8 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsSpaceDeletionCancelled => this is SpaceDeletionCancelled;
 
+    internal bool IsMessageUpdated => this is MessageUpdated;
+
 }
 
 
@@ -3639,6 +3700,13 @@ public sealed record SpaceDeletionCancelled(guid spaceId) : IArgonEvent
     public uint UnionIndex => 63;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record MessageUpdated(guid spaceId, guid channelId, ArgonMessage message) : IArgonEvent
+{
+    public string UnionKey => nameof(MessageUpdated);
+    public uint UnionIndex => 64;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3842,6 +3910,9 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 
         else if (unionIndex == 63)
             result = IonFormatterStorage<SpaceDeletionCancelled>.Read(reader);
+
+        else if (unionIndex == 64)
+            result = IonFormatterStorage<MessageUpdated>.Read(reader);
 
         else
             throw new InvalidOperationException();
@@ -4302,6 +4373,13 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
             if (n_63.UnionIndex != 63)
                 throw new InvalidOperationException();
             IonFormatterStorage<SpaceDeletionCancelled>.Write(writer, n_63);
+        }
+
+        else if (value is MessageUpdated n_64)
+        {
+            if (n_64.UnionIndex != 64)
+                throw new InvalidOperationException();
+            IonFormatterStorage<MessageUpdated>.Write(writer, n_64);
         }
     
         else
@@ -5855,6 +5933,31 @@ public sealed class Ion_SpaceDeletionCancelled_Formatter : IonFormatter<SpaceDel
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_MessageUpdated_Formatter : IonFormatter<MessageUpdated>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public MessageUpdated Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartArray() ?? throw new Exception("undefined len array not allowed");;
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+        var __message = IonFormatterStorage<ArgonMessage>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__spaceid, __channelid, __message);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, MessageUpdated value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.spaceId);
+        IonFormatterStorage<guid>.Write(writer, value.channelId);
+        IonFormatterStorage<ArgonMessage>.Write(writer, value.message);
         writer.WriteEndArray();
     }
 }

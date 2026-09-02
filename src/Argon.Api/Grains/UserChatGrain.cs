@@ -3,6 +3,7 @@ namespace Argon.Grains;
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Argon.Core.Services;
+using Argon.Features.Integrations.Crawler;
 using Orleans.Concurrency;
 using Core.Entities.Data;
 
@@ -12,7 +13,9 @@ public class UserChatGrain(
     ILogger<IUserChatGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
-    IConversationService conversationService) : Grain, IUserChatGrain
+    IConversationService conversationService,
+    ILinkPreviewService linkPreviews,
+    IOptions<CrawlerOptions> crawlerOptions) : Grain, IUserChatGrain
 {
     private Guid Me => this.GetUserId();
 
@@ -156,6 +159,26 @@ public class UserChatGrain(
         }, ct);
     }
 
+    /// <summary>
+    /// The card for a link in a direct message, settled before the insert: the client's stub is
+    /// reduced to its URL, the crawler gets the send budget, and the stub is filled or dropped. No
+    /// deferred path here — direct messages have no MessageUpdated counterpart yet, so a page the
+    /// crawler had not cached in time goes without a card. The composer's lookup while typing is
+    /// what makes that rare.
+    /// </summary>
+    private async Task SettleLinkPreviewAsync(List<IMessageEntity> entities, string text)
+    {
+        var stub = LinkPreviewEntities.TakeStub(entities, text);
+        if (stub is null)
+            return;
+
+        var outcome = await linkPreviews.ResolveAsync(stub.url, crawlerOptions.Value.SendBudget);
+        if (outcome.Status == LinkPreviewStatus.Ready)
+            entities[entities.IndexOf(stub)] = LinkPreviewEntities.Fill(stub, outcome.Preview!);
+        else
+            entities.Remove(stub);
+    }
+
     public async Task<long> SendDirectMessageAsync(
         Guid receiverId,
         string text,
@@ -169,6 +192,9 @@ public class UserChatGrain(
         logger.LogInformation(
             "SendDirectMessage: {SenderId} -> {ReceiverId}, TextLength={TextLength}, RandomId={RandomId}",
             senderId, receiverId, text?.Length ?? 0, randomId);
+
+        entities ??= [];
+        await SettleLinkPreviewAsync(entities, text ?? "");
 
         // Get or create conversation
         var conversation = await conversationService.GetOrCreateConversationAsync(senderId, receiverId, ct);

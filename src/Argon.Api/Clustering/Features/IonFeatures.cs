@@ -66,6 +66,7 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<IUltimaInteraction, UltimaInteractionImpl>();
             x.AddService<IReportInteraction, ReportInteractionImpl>();
             x.AddService<IGifInteraction, GifInteractionImpl>();
+            x.AddService<ILinkPreviewInteraction, LinkPreviewInteractionImpl>();
             x.IonWithSubProtocolTicketExchange<IonTicketExchangeImpl>();
         });
     }

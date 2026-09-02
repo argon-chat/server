@@ -4,6 +4,10 @@
     "Sentry": ""
   },
 
+  "Crawler": {
+    "AllowExternalImages": true
+  },
+
   "TicketJwt": {
     "Key": "3ca8a191a61bc0fef3d3f07ef56308fd7ec6baa37a72f787de54bf694f739ba3"
   },

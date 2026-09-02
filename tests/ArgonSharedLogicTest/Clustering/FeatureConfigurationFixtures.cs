@@ -124,6 +124,31 @@ public sealed class ModerationOptionsRole : IArgonRole
         => features.Add<ModerationOptionsFeature>();
 }
 
+/// <summary>Carries the operator step-up options, under a section of its own.</summary>
+/// <remarks>
+/// Not <c>OperatorMutualTlsOptions.SectionName</c>: the real feature owns that, and a second claim on
+/// it is a rule the product enforces. The cross-check under test reads <c>AegisSession</c> by
+/// absolute path, so where these values live does not matter to it.
+/// </remarks>
+public sealed class StepUpOptionsFeature : IArgonFeature
+{
+    public const string Section = "StepUpUnderTest";
+
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("step-up-options")
+            .Options<Argon.Features.Aegis.OperatorMutualTlsOptions>(Section);
+}
+
+public sealed class StepUpOptionsRole : IArgonRole
+{
+    public static ArgonRoleId Id => new("step-up-options");
+
+    public bool IsClient => true;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+        => features.Add<StepUpOptionsFeature>();
+}
+
 public sealed class ConfiguredRole : IArgonRole
 {
     public static ArgonRoleId Id => new("configured");
