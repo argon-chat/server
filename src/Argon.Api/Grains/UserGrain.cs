@@ -16,6 +16,8 @@ public class UserGrain(
     IDbContextFactory<ApplicationDbContext> context,
     IUserPresenceService presenceService,
     ILogger<IUserGrain> logger,
+    IUserSessionDiscoveryService sessionDiscovery,
+    IUserSessionNotifier notifier,
     AppHubServer appHubServer) : Grain, IUserGrain
 {
     private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
@@ -492,6 +494,89 @@ public class UserGrain(
             GrainFactory
                .GetGrain<ISpaceGrain>(server)
                .SetUserStatus(userId, aggregatedStatus)));
+
+        await BroadcastStatusToFriendsAsync(userId, aggregatedStatus, ct);
+    }
+
+    /// <summary>
+    /// The mirror of the fan-out below: a session that has just connected has missed every status
+    /// event that fired before it existed, so friends who were already online would read as offline
+    /// until they next changed anything.
+    /// </summary>
+    /// <remarks>
+    /// One friend-id query and one batched presence read per session start. Only friends who are
+    /// actually online are sent - the client's own default for an unknown user is offline.
+    /// </remarks>
+    public async ValueTask PushFriendPresenceAsync(CancellationToken ct = default)
+    {
+        var userId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var friendIds = await ctx.Friends
+           .AsNoTracking()
+           .Where(x => x.UserId == userId)
+           .Select(x => x.FriendId)
+           .ToListAsync(ct);
+
+        if (friendIds.Count == 0)
+            return;
+
+        var sessions = await sessionDiscovery.GetUserSessionsAsync(userId, ct);
+        if (sessions.Count == 0)
+            return;
+
+        var statuses = await presenceService.BatchGetAggregatedStatusAsync(friendIds, ct);
+
+        foreach (var (friendId, status) in statuses)
+        {
+            if (status == UserStatus.Offline)
+                continue;
+
+            await notifier.NotifySessionsAsync(
+                sessions,
+                new UserChangedStatus(Guid.Empty, friendId, status, new IonArray<string>([""])),
+                ct);
+        }
+    }
+
+    /// <summary>
+    /// UserChangedStatus is only ever fired by SpaceGrain, to the members of that space - so a
+    /// friend you share no space with never learned that you came online, and their friends list
+    /// sat on whatever it last happened to cache (for someone just added: offline, forever).
+    /// </summary>
+    /// <remarks>
+    /// Only reached when the aggregate actually changed - the hysteresis check above already
+    /// swallowed heartbeats and reconnects - so this costs one friend-id query and one notify per
+    /// real transition. A friend who is also a space member receives the event twice; deduplicating
+    /// would cost a membership join on every transition, and the client keys the update on the user
+    /// id alone, so the second one is a no-op.
+    /// </remarks>
+    private async Task BroadcastStatusToFriendsAsync(Guid userId, UserStatus status, CancellationToken ct)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var friendIds = await ctx.Friends
+           .AsNoTracking()
+           .Where(x => x.UserId == userId)
+           .Select(x => x.FriendId)
+           .ToListAsync(ct);
+
+        if (friendIds.Count == 0)
+            return;
+
+        var sessionsPerFriend = await Task.WhenAll(
+            friendIds.Select(friendId => sessionDiscovery.GetUserSessionsAsync(friendId, ct)));
+
+        var sessions = sessionsPerFriend.SelectMany(x => x).ToList();
+        if (sessions.Count == 0)
+            return;
+
+        // There is no space this is about; the client reads userId and status and ignores the rest.
+        await notifier.NotifySessionsAsync(
+            sessions,
+            new UserChangedStatus(Guid.Empty, userId, status, new IonArray<string>([""])),
+            ct);
     }
 
     private async ValueTask RecordViolationAsync(
