@@ -14,7 +14,14 @@ public record FileBlobEntity : ArgonEntity, IEntityTypeConfiguration<FileBlobEnt
     public void Configure(EntityTypeBuilder<FileBlobEntity> builder)
     {
         builder.HasIndex(x => x.FileId);
-        builder.HasIndex(x => x.ExpiresAt);
+
+        // Partial index for the GC sweep (ExpiresAt < now LIMIT n). Remove() is a soft delete,
+        // so expired rows pile up under IsDeleted = true forever; a plain ExpiresAt index puts
+        // them all in front of the live ones and the planner falls back to a full PK scan.
+        // Only live rows live in this index, so the sweep reads at most `n` entries.
+        builder.HasIndex(x => x.ExpiresAt)
+           .HasFilter("\"IsDeleted\" = false")
+           .IsCreatedConcurrently();
         builder.Property(x => x.Purpose).HasConversion<int>();
     }
 }
