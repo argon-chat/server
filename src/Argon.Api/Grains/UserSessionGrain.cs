@@ -148,6 +148,7 @@ public class UserSessionGrain(
         await presenceService.SetSessionOnlineAsync(_userId, SessionId);
         await presenceService.SetSessionStatusAsync(_userId, SessionId, activation.State.PreferredStatus.Value);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+        await grainFactory.GetGrain<IUserGrain>(_userId).PushFriendPresenceAsync();
         await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
 
         logger.LogInformation("Session {sid} started for user {userId}", SessionId, _userId);

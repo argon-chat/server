@@ -23,6 +23,16 @@ public class FriendsGrain(
         await notifier.NotifySessionsAsync(sessions, payload);
     }
 
+    /// <summary>
+    /// Two people who have just become friends have each missed every status event the other has
+    /// ever fired, and presence is only pushed forward from here - without this both sides read as
+    /// offline until the other happens to change something.
+    /// </summary>
+    private Task ExchangePresenceAsync(Guid a, Guid b)
+        => Task.WhenAll(
+            GrainFactory.GetGrain<IUserGrain>(a).PushFriendPresenceAsync().AsTask(),
+            GrainFactory.GetGrain<IUserGrain>(b).PushFriendPresenceAsync().AsTask());
+
     public async Task<List<UserBlock>> GetBlockListAsync(int limit, int offset, CancellationToken ct = default)
     {
         var             meUserId = this.GetUserId();
@@ -158,6 +168,8 @@ public class FriendsGrain(
             await NotifyAsync(target.Value,
                 new FriendRequestAcceptedEvent(me, ts));
 
+            await ExchangePresenceAsync(me, target.Value);
+
             return SendFriendStatus.AutoAccepted;
         }
 
@@ -289,6 +301,8 @@ public class FriendsGrain(
 
         await NotifyAsync(fromUserId,
             new FriendRequestAcceptedEvent(me, ts));
+
+        await ExchangePresenceAsync(me, fromUserId);
 
         var chatId = ArgonId.New();
 

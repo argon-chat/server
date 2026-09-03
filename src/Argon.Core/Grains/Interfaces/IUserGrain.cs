@@ -65,6 +65,14 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(AggregateAndBroadcastStatusAsync))]
     ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Sends this user's sessions the current status of each of their friends.
+    /// Called by UserSessionGrain when a session starts: presence events only travel forward in
+    /// time, so a fresh session knows nothing about friends who came online before it connected.
+    /// </summary>
+    [Alias(nameof(PushFriendPresenceAsync))]
+    ValueTask PushFriendPresenceAsync(CancellationToken ct = default);
+
     [Alias(nameof(ResetPremiumProfileAsync))]
     ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
 
