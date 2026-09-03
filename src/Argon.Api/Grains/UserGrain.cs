@@ -169,12 +169,15 @@ public class UserGrain(
     {
         await using var ctx = await context.CreateDbContextAsync();
 
-        var user = await ctx.Users
+        // Only IsVerified is needed from the bot; projecting it avoids materializing the
+        // whole TPT BotEntity (DevApps + Bots) on this hot path.
+        var row = await ctx.Users
            .AsNoTracking()
-           .Include(u => u.BotEntity)
-           .FirstAsync(u => u.Id == this.GetPrimaryKey());
+           .Where(u => u.Id == this.GetPrimaryKey())
+           .Select(u => new { User = u, IsVerified = u.BotEntity != null && u.BotEntity.IsVerified })
+           .FirstAsync();
 
-        return UserEntity.Map(user);
+        return UserEntity.Map(row.User, row.IsVerified);
     }
 
     public async Task<ArgonUserProfile> GetMyProfile()

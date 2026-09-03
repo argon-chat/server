@@ -268,6 +268,24 @@ public record BotEntity : DevAppEntity, IEntityTypeConfiguration<BotEntity>
            .WithOne(x => x.BotEntity)
            .HasForeignKey<BotEntity>(x => x.BotAsUserId)
            .OnDelete(DeleteBehavior.Cascade);
+
+        // Covering index: lookups by BotAsUserId (user -> bot, gateway, channel joins)
+        // read every Bots-table column straight from the index instead of doing an
+        // index join back to Bots@PK on each call.
+        builder.HasIndex(x => x.BotAsUserId)
+           .IsUnique()
+           .IncludeProperties(x => new
+            {
+                x.BotToken,
+                x.RequiresOAuth2,
+                x.AllowDMs,
+                x.IsVerified,
+                x.MaxSpaces,
+                x.LifecycleState,
+                x.RequiredEntitlements,
+                x.EntitlementsVersion
+            })
+           .IsCreatedConcurrently();
     }
 }
 

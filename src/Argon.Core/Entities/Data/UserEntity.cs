@@ -61,6 +61,13 @@ public record UserEntity : ArgonEntity, IMapper<UserEntity, ArgonUser>, IEntityT
     public static ArgonUser Map(scoped in UserEntity self)
         => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self));
 
+    /// <summary>
+    /// Same as <see cref="Map(in UserEntity)"/> but takes the bot's verified flag separately,
+    /// so callers can project a single boolean instead of loading the whole TPT BotEntity.
+    /// </summary>
+    public static ArgonUser Map(scoped in UserEntity self, bool isVerified)
+        => new(self.Id, self.Username, self.DisplayName, self.AvatarFileId, GetFlags(self, isVerified));
+
     public static UserFlag GetFlags(scoped in UserEntity self)
     {
         var flags = UserFlag.NONE;

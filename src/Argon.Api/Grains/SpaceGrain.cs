@@ -341,18 +341,19 @@ public class SpaceGrain(
 
         await using var ctx = await context.CreateDbContextAsync(ct);
         
-        var user = await ctx.Users
+        // Only IsVerified is needed from the bot; projecting it avoids materializing the
+        // whole TPT BotEntity (DevApps + Bots) for every prefetched user.
+        var row = await ctx.Users
            .IgnoreQueryFilters()
-           .Include(x => x.BotEntity)
            .AsNoTracking()
            .Where(u => u.Id == userId)
-           .Select(u => new ArgonUser(u.Id, u.Username, u.DisplayName, u.AvatarFileId, UserEntity.GetFlags(u)))
+           .Select(u => new { User = u, IsVerified = u.BotEntity != null && u.BotEntity.IsVerified })
            .FirstOrDefaultAsync(ct);
 
-        if (user is null)
+        if (row is null)
             return new ArgonUser(userId, "unknown", "Unknown User", null, UserFlag.NONE);
 
-        return user;
+        return UserEntity.Map(row.User, row.IsVerified);
     }
 
 
