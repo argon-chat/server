@@ -1,5 +1,7 @@
 namespace Argon.Features.Clustering;
 
+using Microsoft.AspNetCore.Mvc;
+
 public sealed class ClusterValidationOptions
 {
     /// <summary>
@@ -65,7 +67,8 @@ public sealed class ValidationReport
 /// E7 an unresolvable grain call site with no matching <c>AllowUnresolved</c>;
 /// E8 a feature-graph cycle, missing dependency or conflict;
 /// E9 a duplicate role id, an include cycle, or an unknown role in a topology;
-/// E10 a topology with client roles and no silo role exposing a cluster gateway.
+/// E10 a topology with client roles and no silo role exposing a cluster gateway;
+/// E11 an MVC controller no feature claims, which therefore no role routes.
 /// <para>
 /// <b>Warnings.</b>
 /// W1 a role calls a <c>[StatelessWorker]</c> it does not host — the call works but loses worker
@@ -241,6 +244,26 @@ public static class ClusterValidator
                 diagnostics.Add(ClusterDiagnostic.Error("E2",
                     $"grain '{TypeName(grainClass)}' is hosted by no role in topology '{topology.Name}'",
                     target: TypeName(grainClass)));
+
+        // ── E11: a controller nobody claims ─────────────────────────────────────────────────
+        // Routing a controller is now a feature's decision, which means forgetting to declare one is
+        // a controller that exists, compiles, and answers nowhere. That is the same silence the
+        // filtering was introduced to remove, so it is refused here rather than discovered by a
+        // client getting a 404 from an endpoint someone is sure they wrote.
+        var claimedControllers = catalog.Roles.Values
+           .SelectMany(role => role.Features.Ordered)
+           .SelectMany(feature => feature.Controllers)
+           .ToHashSet();
+
+        foreach (var controller in catalog.Scope.Types()
+                    .Where(t => t is { IsClass: true, IsAbstract: false, ContainsGenericParameters: false })
+                    .Where(t => typeof(ControllerBase).IsAssignableFrom(t))
+                    .Where(t => !claimedControllers.Contains(t))
+                    .OrderBy(TypeName))
+            diagnostics.Add(ClusterDiagnostic.Error("E11",
+                $"controller '{TypeName(controller)}' is claimed by no feature, so no role routes it. " +
+                "Declare it with Controller<T>() on the feature that owns its endpoints.",
+                target: TypeName(controller)));
 
         // ── E10: somebody has to accept client connections ──────────────────────────────────
         // An Orleans client reaches grains only through a gateway, and a silo configured with proxy

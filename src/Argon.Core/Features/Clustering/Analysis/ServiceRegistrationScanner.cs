@@ -28,16 +28,12 @@ public sealed class ServiceRegistrationScanner(ClusterScanScope scope)
     };
 
     /// <summary>
-    /// Calls that register a whole family of types by convention rather than by naming them.
-    /// <c>AddControllers()</c> hands MVC every <c>ControllerBase</c> it can find; <c>MapBotApi()</c>
-    /// does the same for the bot interfaces. Nothing in the IL names those types, so the scanner
-    /// mirrors the convention the framework applies at run time.
+    /// Calls that register a whole family of types by convention rather than by naming them. The
+    /// table is <see cref="ReflectionConventions.Roots"/> so that every scanner walking a feature
+    /// applies the same one; keeping a copy here is how this scanner came to know about the bot API
+    /// while the options scanner did not.
     /// </summary>
-    private static readonly (string Method, string MarkerType)[] ConventionRoots =
-    [
-        ("AddControllers", "Microsoft.AspNetCore.Mvc.ControllerBase"),
-        ("MapBotApi",      "Argon.Features.BotApi.IBotInterface")
-    ];
+    private static (string Method, string MarkerType)[] ConventionRoots => ReflectionConventions.Roots;
 
     private readonly HashSet<Assembly>                        scanned = scope.Assemblies.ToHashSet();
     private readonly ConcurrentDictionary<MethodBase, Type[]> cache   = new();
@@ -107,17 +103,8 @@ public sealed class ServiceRegistrationScanner(ClusterScanScope scope)
 
     /// <summary>Concrete scanned types assignable to a marker named by its full name.</summary>
     private Type[] ImplementorsOf(string markerTypeName)
-        => conventionCache.GetOrAdd(markerTypeName, name =>
-        {
-            var marker = concreteTypes.Value
-               .SelectMany(t => t.GetInterfaces().Cast<Type>().Append(t))
-               .FirstOrDefault(t => t.FullName == name)
-                      ?? concreteTypes.Value.Select(t => t.BaseType).FirstOrDefault(t => t?.FullName == name);
-
-            return marker is null
-                ? []
-                : concreteTypes.Value.Where(t => t != marker && marker.IsAssignableFrom(t)).ToArray();
-        });
+        => conventionCache.GetOrAdd(markerTypeName,
+            name => ReflectionConventions.ImplementorsOf(concreteTypes.Value, name));
 
     /// <summary>Calls into the product's own code, so the walk follows extension methods.</summary>
     private IEnumerable<MethodBase> Callees(MethodBase method)

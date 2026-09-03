@@ -33,6 +33,12 @@ public sealed class OptionsUsageScanner(ClusterScanScope scope)
     private readonly HashSet<Assembly>                        scanned = scope.Assemblies.ToHashSet();
     private readonly ConcurrentDictionary<MethodBase, Type[]> cache   = new();
 
+    private readonly Lazy<Type[]> concreteTypes = new(() => scope.Types()
+       .Where(t => t is { IsClass: true, IsAbstract: false, ContainsGenericParameters: false })
+       .ToArray());
+
+    private readonly ConcurrentDictionary<string, Type[]> conventionCache = new(StringComparer.Ordinal);
+
     /// <summary>
     /// Settings types the feature's own code reaches for, transitively.
     /// </summary>
@@ -81,6 +87,28 @@ public sealed class OptionsUsageScanner(ClusterScanScope scope)
     }
 
     public IReadOnlySet<Type> UsagesOf(Type featureType)
+        => UsagesOf(featureType, null);
+
+    /// <summary>
+    /// What a feature reads, counting a reflection-adopted family only where it can be built.
+    /// </summary>
+    /// <param name="activatable">
+    /// Whether the role under consideration can construct a given type. Null counts every adopted
+    /// type, which is what a caller asking about a feature in isolation wants.
+    /// </param>
+    /// <remarks>
+    /// <para>Without this, adopting a family over-reports. Every role mapping controllers is handed
+    /// every <c>ControllerBase</c> in the product — including the identity server's, whose
+    /// constructors need services only the Aegis features register. MVC does route them there, so
+    /// the type really is adopted; what it cannot do is <i>run</i>, because activation fails on the
+    /// first missing dependency. Reporting the settings it would have read is a finding about code
+    /// that cannot execute, and a check that reports those gets waived along with the true ones.</para>
+    ///
+    /// <para>The bot interfaces are the other side of the same test: theirs need a grain factory and
+    /// their own settings, both present wherever the bot API is mapped, so they are counted — which
+    /// is what catches a role serving them without the section they read.</para>
+    /// </remarks>
+    public IReadOnlySet<Type> UsagesOf(Type featureType, Func<Type, bool>? activatable)
     {
         var found   = new HashSet<Type>();
         var visited = new HashSet<MethodBase>();
@@ -98,6 +126,21 @@ public sealed class OptionsUsageScanner(ClusterScanScope scope)
             foreach (var used in Usages(method))
                 found.Add(used);
 
+            // A call that hands a framework a whole family of types brings that family's own
+            // constructors into this feature's reach, even though nothing in the IL names them.
+            foreach (var adopted in AdoptedByConvention(method))
+            {
+                if (activatable is not null && !activatable(adopted))
+                    continue;
+
+                found.UnionWith(ConstructedWith(adopted));
+
+                foreach (var own in adopted.GetMethods(
+                             BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.DeclaredOnly))
+                    if (visited.Add(own))
+                        queue.Enqueue((own, depth));
+            }
+
             if (depth >= MaxDepth)
                 continue;
 
@@ -107,6 +150,32 @@ public sealed class OptionsUsageScanner(ClusterScanScope scope)
         }
 
         return found;
+    }
+
+    /// <summary>
+    /// Types this method hands to a framework wholesale, by calling something that finds them itself.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The gap this closes cost an outage.</b> The bot API's <c>MapBotApi()</c> scans loaded
+    /// assemblies for bot interfaces and builds each through <c>ActivatorUtilities</c>, so their
+    /// constructor parameters are resolved by reflection at run time. One of them takes
+    /// <c>IOptions&lt;CallKitOptions&gt;</c> to tell an accepting bot where the audio ingress is —
+    /// and the role serving the bot API declared no such section, so the binder produced a default
+    /// instance whose <c>Sfu</c> was null. Accepting a call threw a null reference and answered 500.
+    /// Bots could be called and could never answer.</para>
+    ///
+    /// <para>Enqueued at the same depth rather than one deeper: the convention is not a call, it is
+    /// the framework adopting the type, so the family's own code gets the same budget the feature's
+    /// does instead of arriving pre-spent.</para>
+    /// </remarks>
+    private IEnumerable<Type> AdoptedByConvention(MethodBase method)
+    {
+        foreach (var callee in ResolveCalls(method))
+        foreach (var (name, marker) in ReflectionConventions.Roots)
+            if (callee.Name == name)
+                foreach (var type in conventionCache.GetOrAdd(marker,
+                             m => ReflectionConventions.ImplementorsOf(concreteTypes.Value, m)))
+                    yield return type;
     }
 
     private Type[] Usages(MethodBase method)

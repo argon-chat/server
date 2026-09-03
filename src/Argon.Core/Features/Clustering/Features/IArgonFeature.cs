@@ -1,5 +1,7 @@
 namespace Argon.Features.Clustering;
 
+using Microsoft.AspNetCore.Mvc;
+
 /// <summary>
 /// A named unit of DI and pipeline configuration with declared ordering relative to other features.
 /// </summary>
@@ -89,4 +91,23 @@ public interface IFeatureDescriptor
     /// grains. Applied to the enabling role's registry.
     /// </summary>
     IFeatureDescriptor GrainRoots(Action<IGrainCollectionRegistry> configure);
+
+    /// <summary>
+    /// An MVC controller this feature owns, routed only on roles that enable it.
+    /// </summary>
+    /// <remarks>
+    /// <para>Declared because <c>AddControllers()</c> does not ask: MVC discovers every
+    /// <see cref="Microsoft.AspNetCore.Mvc.ControllerBase"/> in the loaded assemblies and routes the
+    /// lot. That put the identity server's whole authorization surface — <c>api/auth</c>,
+    /// <c>api/users</c>, <c>api/email</c> — on the entrypoint role, which has none of the Aegis
+    /// features. Those requests could not do anything: activation needs services only the Aegis
+    /// features register, so every one of them failed on a missing dependency rather than a route
+    /// that was never there. A URL that exists and always fails is worse than one that does not,
+    /// both to read in logs and to reason about from outside.</para>
+    ///
+    /// <para>Every controller must be claimed by exactly one feature; one nobody claims is reported
+    /// rather than quietly unroutable, so that forgetting to declare is as loud as the problem it
+    /// replaced. Call this once per controller.</para>
+    /// </remarks>
+    IFeatureDescriptor Controller<TController>() where TController : ControllerBase;
 }

@@ -185,7 +185,8 @@ public sealed class SfuFeature : IArgonFeature
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("LiveKit selective forwarding unit")
             .Requires<VaultFeature>()
-            .Options<CallKitOptions>("CallKit");
+            .Options<CallKitOptions>("CallKit")
+            .Controller<LiveKitWebHookController>();
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddSelectiveForwardingUnit();

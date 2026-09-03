@@ -6,6 +6,7 @@ using Argon.Features.Sentry;
 using Argon.Features.Storage;
 using Argon.Features.Web;
 using Argon.Features.WebSession;
+using Microsoft.AspNetCore.Mvc.Controllers;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using System.Security.Cryptography.X509Certificates;
 
@@ -93,18 +94,62 @@ public sealed class RoutingFeature : IArgonFeature
     }
 }
 
+/// <summary>
+/// MVC, carrying only the controllers the role's own features claimed.
+/// </summary>
+/// <remarks>
+/// <para><b>The filtering is the point.</b> <c>AddControllers()</c> discovers every
+/// <see cref="ControllerBase"/> in the loaded assemblies, which is one assembly graph for the whole
+/// product — so every role that mapped controllers served all of them. The identity server's
+/// <c>api/auth</c>, <c>api/users</c> and <c>api/email</c> answered on the entrypoint role, which has
+/// no Aegis feature and therefore none of the services those controllers are built from: each
+/// request reached routing, failed to activate, and came back a 500 from a URL that was never meant
+/// to be there.</para>
+///
+/// <para>Which controller belongs to which feature is now written down at the feature —
+/// <c>Controller&lt;T&gt;()</c> — and a controller no feature claims is refused by the graph rather
+/// than silently dropped, so this cannot turn one quiet failure into another.</para>
+/// </remarks>
 public sealed class ControllersFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Describing("MVC controllers — webhooks and file storage")
+        => d.Describing("MVC controllers claimed by the role's features")
             .After<RoutingFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Services.AddControllers()
-           .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()));
+    {
+        var claimed = ctx.Role.Features.Ordered
+           .SelectMany(feature => feature.Controllers)
+           .ToHashSet();
+
+        ctx.Services.AddControllers()
+           .AddNewtonsoftJson(x => x.SerializerSettings.Converters.Add(new StringEnumConverter()))
+           .ConfigureApplicationPartManager(parts =>
+            {
+                // Replaced rather than added to: the providers are additive, so leaving the default
+                // in place would have it contribute the full set alongside ours and change nothing.
+                foreach (var provider in parts.FeatureProviders.OfType<ControllerFeatureProvider>().ToArray())
+                    parts.FeatureProviders.Remove(provider);
+
+                parts.FeatureProviders.Add(new ClaimedControllerFeatureProvider(claimed));
+            });
+    }
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapControllers();
+}
+
+/// <summary>
+/// Admits a controller only if a feature of this role claimed it.
+/// </summary>
+/// <remarks>
+/// Still defers to the base rule for what <i>is</i> a controller — the naming convention, the
+/// attributes, the exclusions. This narrows the set; it does not redefine the category.
+/// </remarks>
+internal sealed class ClaimedControllerFeatureProvider(IReadOnlySet<Type> claimed) : ControllerFeatureProvider
+{
+    protected override bool IsController(TypeInfo typeInfo)
+        => claimed.Contains(typeInfo.AsType()) && base.IsController(typeInfo);
 }
 
 public sealed class WebSocketsFeature : IArgonFeature
@@ -315,7 +360,14 @@ public sealed class CdnFeature : IArgonFeature
             .Describing("public file addresses and the storage settings behind them")
             .After<RoutingFeature>()
             .Options<StorageOptions>(StorageOptions.SectionName)
-            .Options<FileLimitsOptions>(FileLimitsOptions.SectionName);
+            .Options<FileLimitsOptions>(FileLimitsOptions.SectionName)
+
+            // The client-facing half of the same surface: this feature publishes where a file can be
+            // read from, and `/api/files` is how one gets there in the first place. It belongs with
+            // the public addresses rather than with `file-storage`, which is the storage grain and
+            // its S3 client — those live on the roles that hold the credentials, and this controller
+            // holds none: it takes a cluster client and asks the grain, wherever that grain runs.
+            .Controller<FileStorageController>();
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapCdnRedirect();

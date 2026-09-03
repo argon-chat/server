@@ -287,6 +287,15 @@ public sealed class AegisFeature : IArgonFeature
             .Requires<CacheFeature>()
             .After<RoutingFeature>()
             .Options<AegisOptions>(AegisOptions.SectionName)
+
+            // The identity server's HTTP surface, claimed so it is routed here and nowhere else. It
+            // used to appear on every role that mapped controllers, entrypoint included, where none
+            // of these can be built — AegisSession and IAegisDirectory are registered by the Aegis
+            // features alone — so the routes existed and could only ever answer 500.
+            .Controller<AuthController>()
+            .Controller<OperatorAuthController>()
+            .Controller<EmailSendController>()
+            .Controller<UserLookupController>()
             .GrainRoots(g =>
             {
                 g.AddCallRoot<AegisDirectory>();
@@ -316,16 +325,17 @@ public sealed class AegisFeature : IArgonFeature
         if (!OwnsThePipeline(ctx.Role))
             return;
 
-        // MVC would otherwise map every controller in the assembly onto this role, including the
-        // entry point's webhook and file endpoints — a surface the identity server never asked for,
-        // backed by services it does not register. Restricting it in a composite would unmap the
-        // entry point's own controllers instead, which is the opposite of the intent.
+        // Which controllers this role serves is settled by ControllersFeature, from what the role's
+        // features claimed with Controller<T>(). This used to narrow MVC to the Aegis namespace from
+        // here, which only worked in one direction: it kept the entry point's endpoints off the
+        // identity server, and had to be skipped in a composite — where it would have unmapped the
+        // entry point's own — leaving the reverse case, the identity server's endpoints answering on
+        // the entry point, in place. Claiming names the owner instead of the neighbourhood, so both
+        // directions follow from the same declaration and a composite is simply the union.
         //
-        // The grain-graph scanner does not see this narrowing: it mirrors AddControllers' convention
-        // over every ControllerBase in the assembly, so --explain aegis over-reports the interfaces
-        // this role can reach. Over-reporting is the safe direction — it can only ask for a grain to
-        // be hosted that need not be — but the list is wider than what actually runs.
-        ctx.Services.AddControllers().RestrictTo(typeof(AuthController).Namespace!);
+        // The grain-graph scanner still mirrors AddControllers' convention over every ControllerBase
+        // in the assembly, so --explain over-reports the interfaces a role can reach. That is the
+        // safe direction — it can only ask for a grain to be hosted that need not be.
 
         // Every origin is accepted here and the real check happens in Map, because the answer needs
         // a round trip and this predicate cannot await one. In a composite the static policy that

@@ -1,5 +1,7 @@
 namespace Argon.Features.Clustering;
 
+using Microsoft.AspNetCore.Mvc;
+
 /// <summary>
 /// Immutable result of running <see cref="IArgonFeature.Describe"/> against a feature type.
 /// </summary>
@@ -28,6 +30,11 @@ public sealed class FeatureDefinition
     /// </summary>
     public required IReadOnlyList<FeatureOptionsBinding> Options { get; init; }
 
+    /// <summary>
+    /// MVC controllers this feature owns. Only these are routed on a role that enables it.
+    /// </summary>
+    public required IReadOnlyList<Type> Controllers { get; init; }
+
     public override string ToString()
         => Name;
 }
@@ -40,6 +47,7 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
     private readonly List<Type>                             conflictingFeatures = [];
     private readonly List<Action<IGrainCollectionRegistry>>       grainRootHooks  = [];
     private readonly List<Func<string, FeatureOptionsBinding>>    optionsBindings = [];
+    private readonly List<Type>                                  ownedControllers = [];
 
     private string featureName        = DeriveName(featureType);
     private string featureDescription = string.Empty;
@@ -109,6 +117,12 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
         return this;
     }
 
+    public IFeatureDescriptor Controller<TController>() where TController : ControllerBase
+    {
+        ownedControllers.Add(typeof(TController));
+        return this;
+    }
+
     /// <summary>
     /// Deferred because the section defaults to the feature's name, and <see cref="Named"/> is free
     /// to come after this call in the fluent chain.
@@ -140,7 +154,8 @@ internal sealed class FeatureDescriptor(Type featureType) : IFeatureDescriptor
             Before      = beforeFeatures.Distinct().ToArray(),
             Conflicts   = conflictingFeatures.Distinct().ToArray(),
             GrainRoots  = grainRootHooks.ToArray(),
-            Options     = options
+            Options     = options,
+            Controllers = ownedControllers.Distinct().ToArray()
         };
     }
 }

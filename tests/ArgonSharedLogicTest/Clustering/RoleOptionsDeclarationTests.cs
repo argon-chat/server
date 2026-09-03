@@ -39,7 +39,11 @@ public class RoleOptionsDeclarationTests
 
     private static readonly ArgonClusterCatalog Catalog = ArgonClusterCatalog.Build();
 
-    private static readonly OptionsUsageScanner Scanner = new(ClusterScanScope.Default());
+    private static readonly ClusterScanScope Scope = ClusterScanScope.Default();
+
+    private static readonly OptionsUsageScanner Scanner = new(Scope);
+
+    private static readonly ServiceRegistrationScanner Registrations = new(Scope);
 
     private static IEnumerable<TestCaseData> Roles()
         => Catalog.Roles.Values
@@ -73,7 +77,7 @@ public class RoleOptionsDeclarationTests
            .ToHashSet();
 
         var undeclared = role.Features.Ordered
-           .SelectMany(feature => Scanner.UsagesOf(feature.FeatureType)
+           .SelectMany(feature => Scanner.UsagesOf(feature.FeatureType, ActivatableOn(role))
                                          .Where(used => !declared.Contains(used))
                                          .Select(used => (Feature: feature.Name, Setting: used.Name)))
            .Distinct()
@@ -126,5 +130,36 @@ public class RoleOptionsDeclarationTests
             $"role '{role.Id.Value}' hosts grains built with settings no feature of it declared, so those "
           + "grains are activated on default instances and run on them silently: "
           + string.Join(", ", undeclared.Select(x => $"{x.Grain} takes {x.Setting}")));
+    }
+
+    /// <summary>
+    /// Whether this role could actually build a type some framework adopted by convention.
+    /// </summary>
+    /// <remarks>
+    /// <para>Only reflection-adopted families are asked this, and only because adoption is not the
+    /// same as being usable. MVC hands every role that maps controllers every controller in the
+    /// product, the identity server's among them — but those need services the Aegis features alone
+    /// register, so on any other role activation fails before a line of them runs. A setting such a
+    /// type would have read is not a setting that role is missing.</para>
+    ///
+    /// <para>Only the product's own types are checked. A dependency from the framework — a grain
+    /// factory, a logger, <c>IOptions</c> itself — is provided by the host on every role, and
+    /// demanding that a feature register it would refuse every type in the product.</para>
+    /// </remarks>
+    private static Func<Type, bool> ActivatableOn(RoleDescriptor role)
+    {
+        var registered = role.Features.Ordered
+           .SelectMany(feature => Registrations.RegistrationsOf(feature.FeatureType))
+           .ToArray();
+
+        var scanned = Scope.Assemblies.ToHashSet();
+
+        bool Available(Type dependency)
+            => !scanned.Contains(dependency.Assembly)
+            || (dependency.IsGenericType && dependency.GetGenericTypeDefinition().Name.StartsWith("IOptions"))
+            || registered.Any(dependency.IsAssignableFrom);
+
+        return type => type.GetConstructors()
+           .Any(constructor => constructor.GetParameters().All(p => Available(p.ParameterType)));
     }
 }

@@ -290,7 +290,8 @@ public sealed class XsollaFeature : IArgonFeature
         => d.Describing("payments")
             .Requires<HttpClientFeature>()
             .Requires<VaultFeature>()
-            .Options<XsollaOptions>("Xsolla");
+            .Options<XsollaOptions>("Xsolla")
+            .Controller<XsollaWebHookController>();
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddXsollaFeature();

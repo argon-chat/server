@@ -20,6 +20,7 @@ public sealed class BotApiFeature : IArgonFeature
             .Requires<ArgonAuthorizationFeature>()
             .Requires<CacheFeature>()
             .Requires<AppHubFeature>()
+            .Requires<SfuFeature>()
             .After<RoutingFeature>()
             .Options<BotRateLimitOptions>(BotRateLimitOptions.SectionName);
 

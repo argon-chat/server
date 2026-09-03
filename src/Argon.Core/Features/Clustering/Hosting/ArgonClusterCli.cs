@@ -265,6 +265,23 @@ public static class ArgonClusterCli
                 Console.WriteLine($"  {feature.Name}{sections}");
             }
 
+            // Which URLs this role answers on is now a consequence of which features it enables, and
+            // that is not something anyone should have to reconstruct by reading the feature list.
+            //
+            // Claims from a role that does not map MVC are inert — a silo enabling the storage
+            // feature claims the file controller and serves nothing — so they are not listed. Saying
+            // a role routes something it does not would be a worse answer than saying nothing.
+            var controllers = role.Features.Ordered.Any(f => f.Name == "controllers")
+                ? role.Features.Ordered.SelectMany(f => f.Controllers).Distinct().ToArray()
+                : [];
+
+            if (controllers.Length > 0)
+            {
+                Console.WriteLine($"\nroutes {controllers.Length} controller(s):");
+                foreach (var controller in controllers.OrderBy(c => c.Name, StringComparer.Ordinal))
+                    Console.WriteLine($"  {controller.Name}");
+            }
+
             var configured = role.Features.Ordered.Where(f => f.Options.Count > 0).ToArray();
             if (configured.Length > 0)
             {
