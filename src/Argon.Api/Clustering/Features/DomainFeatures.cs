@@ -1,6 +1,7 @@
 namespace Argon.Api.Clustering;
 
 using Argon.Features.Integrations.Crawler;
+using Argon.HealthChecks;
 using Argon.Features.Integrations.Phones;
 using Argon.Features.Logic;
 using Argon.Features.Moderation;
@@ -142,7 +143,11 @@ public sealed class FileStorageFeature : IArgonFeature
             .Requires<CdnFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddFileStorageFeature();
+    {
+        ctx.Builder.AddFileStorageFeature();
+
+        ctx.Services.AddDependencyCheck<ObjectStorageHealthCheck>(DependencyNames.ObjectStorage);
+    }
 }
 
 public sealed class FileGcFeature : IArgonFeature
@@ -189,7 +194,11 @@ public sealed class SfuFeature : IArgonFeature
             .Controller<LiveKitWebHookController>();
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddSelectiveForwardingUnit();
+    {
+        ctx.Builder.AddSelectiveForwardingUnit();
+
+        ctx.Services.AddDependencyCheck<SfuHealthCheck>(DependencyNames.Sfu);
+    }
 }
 
 public sealed class KlipyFeature : IArgonFeature

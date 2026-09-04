@@ -87,9 +87,24 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
             builder.UseSetting($"Redis:{profile}:Database", db.ToString());
         }
 
+        // The object store the environment already runs, as the functional host configures it. Every
+        // silo role that stores files probes it on the startup probe, and a role with no credentials
+        // for it is — correctly — never ready.
+        builder.UseSetting("Storage:Endpoint", settings.S3Endpoint);
+        builder.UseSetting("Storage:AccessKey", settings.S3AccessKey);
+        builder.UseSetting("Storage:SecretKey", settings.S3SecretKey);
+        builder.UseSetting("Storage:BucketName", settings.S3Bucket);
+        builder.UseSetting("Storage:ExportBucketName", settings.S3Bucket);
+        builder.UseSetting("Storage:Region", "us-east-1");
+        builder.UseSetting("Storage:UseSsl", "false");
+
         builder.UseSetting("CallKit:Sfu:CommandUrl", "http://localhost:7880");
         builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");
         builder.UseSetting("CallKit:Sfu:Secret", "test-secret-key-that-is-long-enough-to-be-256-bits-minimum-for-livekit");
+
+        // Nothing answers at that URL. Left at its default the SFU check holds the startup probe at
+        // 503, and GrainMigrationTests reads that probe as "the silo joined the cluster".
+        builder.UseSetting("Probes:Dependencies:Overrides:sfu:Startup", "Degrade");
         builder.UseSetting("Xsolla:ProjectId", "1");
         builder.UseSetting("Xsolla:MerchantId", "1");
         builder.UseSetting("Xsolla:ApiKey", "test-key");

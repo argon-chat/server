@@ -172,6 +172,26 @@ public sealed class StepUpOptionsRole : IArgonRole
         => features.Add<StepUpOptionsFeature>();
 }
 
+/// <summary>Carries the probe options under a section of their own; the real feature owns <c>Probes</c>.</summary>
+public sealed class ProbeOptionsFeature : IArgonFeature
+{
+    public const string Section = "ProbesUnderTest";
+
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("probe-options")
+            .Options<Argon.HealthChecks.ProbeOptions>(Section);
+}
+
+public sealed class ProbeOptionsRole : IArgonRole
+{
+    public static ArgonRoleId Id => new("probe-options");
+
+    public bool IsClient => true;
+
+    public void OnFeatures(IArgonFeatureRegistry features)
+        => features.Add<ProbeOptionsFeature>();
+}
+
 public sealed class ConfiguredRole : IArgonRole
 {
     public static ArgonRoleId Id => new("configured");

@@ -1,6 +1,7 @@
 namespace Argon.Features.NatsStreaming;
 
 using Api.Features.Bus;
+using Argon.HealthChecks;
 using Bus;
 using Clustering;
 using NATS.Client.Core;
@@ -270,6 +271,9 @@ public static class NatsExtensions
         });
 
         builder.Services.AddSingleton<NatsContext>();
+
+        // Every role holds this client, so every role's probes ask whether it can reach the bus.
+        builder.Services.AddDependencyCheck<NatsHealthCheck>(DependencyNames.Nats);
 
         builder.Services.AddSingleton<IStreamManagement, StreamManagement>();
         builder.Services.AddStreamingPump();

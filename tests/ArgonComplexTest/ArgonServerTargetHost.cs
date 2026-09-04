@@ -123,6 +123,9 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         builder.UseSetting("CallKit:Sfu:ClientId", "test-api-key");
         builder.UseSetting("CallKit:Sfu:Secret", "test-secret-key-that-is-long-enough-to-be-256-bits-minimum-for-livekit");
 
+        // Nothing answers at that URL; see RoleHost for why the SFU check is kept off the startup probe.
+        builder.UseSetting("Probes:Dependencies:Overrides:sfu:Startup", "Degrade");
+
         builder.UseSetting("Xsolla:ProjectId", "1");
         builder.UseSetting("Xsolla:MerchantId", "1");
         builder.UseSetting("Xsolla:ApiKey", "test-key");

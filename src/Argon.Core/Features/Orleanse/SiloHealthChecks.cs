@@ -256,36 +256,32 @@ public static class HealthCheckExtensions
     /// The four endpoints, and the tags each one filters on.
     /// </summary>
     /// <remarks>
-    /// Shared with the client roles' checks rather than written twice: the paths and the tag names
-    /// are the contract a Kubernetes manifest is written against, and a role that answered the same
-    /// questions somewhere else would need a manifest of its own for no reason. What differs between
-    /// a silo and a client is which checks carry the tags, not where they are served.
+    /// <para>Shared with the client roles' checks rather than written twice: the paths and the tag
+    /// names are the contract a Kubernetes manifest is written against, and a role that answered the
+    /// same questions somewhere else would need a manifest of its own for no reason. What differs
+    /// between a silo and a client is which checks carry the tags, not where they are served.</para>
+    ///
+    /// <para>Each probe also runs the dependency checks the role's features registered — database,
+    /// NATS, Redis, object storage, Vault, the SFU — as <see cref="ProbeOptions"/> says it should:
+    /// the startup probe fails on them, readiness reports them, liveness ignores them. The probes are
+    /// mapped by hand rather than through <c>MapHealthChecks</c> because that arithmetic is not one
+    /// its options can express; see <see cref="ProbePolicy"/>.</para>
     /// </remarks>
     internal static IEndpointRouteBuilder MapProbeEndpoints(this IEndpointRouteBuilder app)
     {
-        // Kubernetes startup probe - has this process reached the cluster? Holds the other two off
-        // until it passes, so a slow join is not mistaken for a wedged process.
-        app.MapHealthChecks("/health/startup", new()
-        {
-            Predicate      = check => check.Tags.Contains("startup"),
-            ResponseWriter = WriteProbeResponse
-        });
+        // Kubernetes startup probe - has this process reached the cluster, and can it reach what it
+        // needs? Holds the other two off until it passes, so a slow join is not mistaken for a
+        // wedged process — and a pod that cannot reach its dependencies never passes it, which is
+        // what keeps a rollout from promoting it.
+        app.MapProbe("/health/startup", ProbeKind.Startup);
 
         // Kubernetes liveness probe - is the app alive?
-        app.MapHealthChecks("/health/live", new()
-        {
-            Predicate      = check => check.Tags.Contains("liveness"),
-            ResponseWriter = WriteProbeResponse
-        });
+        app.MapProbe("/health/live", ProbeKind.Liveness);
 
         // Kubernetes readiness probe - can the app accept traffic?
-        app.MapHealthChecks("/health/ready", new()
-        {
-            Predicate      = check => check.Tags.Contains("readiness"),
-            ResponseWriter = WriteProbeResponse
-        });
+        app.MapProbe("/health/ready", ProbeKind.Readiness);
 
-        // Detailed health status for monitoring
+        // Detailed health status for monitoring: every check, dependencies and diagnostics included.
         app.MapHealthChecks("/health", new()
         {
             ResponseWriter = WriteHealthResponse
@@ -293,6 +289,27 @@ public static class HealthCheckExtensions
 
         return app;
     }
+
+    private static void MapProbe(this IEndpointRouteBuilder app, string path, ProbeKind probe)
+        => app.MapGet(path, async (HttpContext http, HealthCheckService health, IOptions<ProbeOptions> options) =>
+        {
+            var policy = options.Value.Dependencies;
+
+            var report  = await health.CheckHealthAsync(
+                registration => ProbePolicy.Includes(registration, probe, policy), http.RequestAborted);
+            var verdict = ProbePolicy.Judge(report, probe, policy);
+
+            http.Response.StatusCode = verdict.Status is HealthStatus.Unhealthy
+                ? StatusCodes.Status503ServiceUnavailable
+                : StatusCodes.Status200OK;
+
+            // What the framework's own endpoint sets, kept: a cached probe answer is no answer.
+            http.Response.Headers.CacheControl = "no-store, no-cache";
+            http.Response.Headers.Pragma       = "no-cache";
+            http.Response.Headers.Expires      = "Thu, 01 Jan 1970 00:00:00 GMT";
+
+            await WriteProbeResponse(http, verdict);
+        });
 
     /// <summary>
     /// What a probe gets: the status code, and one word so a human curling it sees something.

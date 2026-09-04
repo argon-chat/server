@@ -1,5 +1,6 @@
 namespace Argon.Features.Clustering;
 
+using Argon.HealthChecks;
 using Orleans.Configuration;
 
 /// <summary>
@@ -61,6 +62,14 @@ public static class ArgonRoleHostExtensions
                 $"role '{role.Id}' is misconfigured:{Environment.NewLine}" +
                 string.Join(Environment.NewLine, fatalConfiguration.Select(d => $"  {d}")) +
                 $"{Environment.NewLine}Run --validate-config --role {role.Id} to check without starting.");
+
+        // The warnings outlive the check so /health can repeat them; the errors ended the process
+        // above and need no keeping.
+        builder.Services.AddSingleton(new RoleConfigurationVerdict(role.Id,
+            configuration.Concat(report.Diagnostics)
+               .Where(d => d.Severity is ClusterDiagnosticSeverity.Warning)
+               .ToArray(),
+            DateTimeOffset.UtcNow));
 
         var ionRegistrations = new List<Action<IIonTransportRegistration>>();
 

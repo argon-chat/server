@@ -10,6 +10,7 @@ using Argon.Features.Vault;
 using Argon.HealthChecks;
 using Argon.Services;
 using global::Sentry.Infrastructure;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 
 public sealed class LoggingFeature : IArgonFeature
 {
@@ -108,7 +109,17 @@ public sealed class VaultFeature : IArgonFeature
         => d.Describing("secret material for everything below").Options<VaultOptions>("Vault");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddVaultClient(ctx.Options<VaultOptions>());
+    {
+        var options = ctx.Options<VaultOptions>();
+
+        ctx.Builder.AddVaultClient(options);
+
+        // Only where a client exists. A deployment with no Vault has nothing here to probe, and
+        // reporting its absence as a failure would keep every such role out of service over a
+        // feature it does not use.
+        if (Argon.Features.Vault.VaultFeature.ResolveAuthMode(options) is not VaultAuthMode.None)
+            ctx.Services.AddDependencyCheck<VaultHealthCheck>(DependencyNames.Vault);
+    }
 }
 
 public sealed class CacheFeature : IArgonFeature
@@ -119,7 +130,12 @@ public sealed class CacheFeature : IArgonFeature
             .Options<RedisProfilesOptions>("Redis");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddArgonCacheDatabase();
+    {
+        ctx.Builder.AddArgonCacheDatabase();
+
+        ctx.Services.AddSingleton<RedisProbeConnections>();
+        ctx.Services.AddDependencyCheck<RedisHealthCheck>(DependencyNames.Redis);
+    }
 }
 
 public sealed class DatabaseFeature : IArgonFeature
@@ -131,7 +147,11 @@ public sealed class DatabaseFeature : IArgonFeature
             .Options<DatabaseRegionOptions>("Database:Regions");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddPooledDatabase<ApplicationDbContext>(ctx.Options<DatabaseOptions>());
+    {
+        ctx.Builder.AddPooledDatabase<ApplicationDbContext>(ctx.Options<DatabaseOptions>());
+
+        ctx.Services.AddDependencyCheck<DatabaseHealthCheck>(DependencyNames.Database);
+    }
 }
 
 public sealed class MessagePipeFeature : IArgonFeature
@@ -141,6 +161,32 @@ public sealed class MessagePipeFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Services.AddMessagePipe();
+}
+
+/// <summary>
+/// What the Kubernetes probes gate on beyond the process itself.
+/// </summary>
+/// <remarks>
+/// <para>Its own feature because two features map the probes — one per kind of role — and one
+/// section cannot have two owners. Both lifecycle features require it, which is what puts it on
+/// every role, and the probe endpoints they map read its options when they run.</para>
+///
+/// <para>The one thing it registers is the check that repeats the configuration validator's warnings
+/// on <c>/health</c>. The dependency checks themselves are registered by the features that own the
+/// dependency, so a role probes exactly what it uses.</para>
+/// </remarks>
+public sealed class ProbesFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("probes")
+           .Describing("what the Kubernetes probes gate on beyond the process itself")
+           .Options<ProbeOptions>(ProbeOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddHealthChecks()
+           .AddCheck<ConfigurationHealthCheck>(ConfigurationHealthCheck.Name,
+                failureStatus: HealthStatus.Unhealthy,
+                tags: ["diagnostic", ConfigurationHealthCheck.Name]);
 }
 
 /// <summary>
@@ -163,7 +209,9 @@ public sealed class MessagePipeFeature : IArgonFeature
 public sealed class SiloLifecycleFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Named("silo-lifecycle").Describing("Kubernetes probes and the pre-stop drain");
+        => d.Named("silo-lifecycle")
+           .Describing("Kubernetes probes and the pre-stop drain")
+           .Requires<ProbesFeature>();
 
     public void Map(ArgonEndpointContext ctx)
     {
@@ -196,7 +244,8 @@ public sealed class ClientLifecycleFeature : IArgonFeature
     public static void Describe(IFeatureDescriptor d)
         => d.Named("client-lifecycle")
            .Describing("Kubernetes probes and the pre-stop wait for a client role")
-           .Requires<HostHooksFeature>();
+           .Requires<HostHooksFeature>()
+           .Requires<ProbesFeature>();
 
     public void Map(ArgonEndpointContext ctx)
     {

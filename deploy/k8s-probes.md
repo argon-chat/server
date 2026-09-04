@@ -165,10 +165,10 @@ Same paths on both kinds of role, and the probes filter on the tags `startup`, `
 
 | path | on a silo | on a client role |
 |---|---|---|
-| `/health/startup` | has the silo joined the cluster — fails while its status is not `Active` | has the cluster client ever reached a gateway — fails until it has, passes for good after |
-| `/health/ready` | should this silo be given work — fails while draining, or while its status is not `Active` | should this pod be given connections — fails once a stop is requested, and only then |
+| `/health/startup` | has the silo joined the cluster — fails while its status is not `Active` — and can it reach what it depends on (below) | has the cluster client ever reached a gateway — fails until it has, passes for good after — and can it reach what it depends on |
+| `/health/ready` | should this silo be given work — fails while draining, or while its status is not `Active`; a dependency it cannot reach is reported as `Degraded`, which is still `200` | should this pod be given connections — fails once a stop is requested, and only then; dependencies reported the same way |
 | `/health/live` | is this process worth keeping — fails when the silo status is `Dead`, meaning the cluster wrote it off while the process kept running | never fails; a restart cannot help a client that is already retrying, and it costs the pod its sockets |
-| `/health` | everything above, with detail | for humans and dashboards, not for probes |
+| `/health` | everything above, the dependency checks and the configuration verdict, with detail | for humans and dashboards, not for probes |
 
 A client role's readiness deliberately does not look at the gateway count. Only `core` exposes a
 cluster gateway, so gating on it would take entrypoint, aegis, botapi, account and admin out of their
@@ -193,6 +193,81 @@ a client role, and that is the honest answer: a client role's stop is a countdow
 a state it sits in, so there is nothing to cancel. Cancelling a client rollout means stopping the
 rollout, not un-stopping the pod.
 
+## What the probes check beyond the process
+
+A process can join the cluster, take its place in the Service and still be unable to serve: the
+database connection string names the old cluster, the NATS URL is the other region's, a
+NetworkPolicy keeps it from Redis. Under a rolling update that surfaces as errors on the pods that
+were just promoted; under a blue/green deployment it surfaces as the new colour taking all the
+traffic and failing every request, because nothing the probes looked at was wrong.
+
+So every feature that opens a connection to something outside the process registers a check for
+it, and a role probes exactly what it uses:
+
+| check | registered by | what it does |
+|---|---|---|
+| `database` | `database` | a pooled connection and `SELECT 1` over it, bypassing EF's retry |
+| `nats` | every role | connect, ping, and JetStream account info — a server without JetStream accepts the connection and refuses every stream |
+| `redis` | `cache` | a ping on every profile that has a connection string, on that profile's logical database |
+| `object-storage` | `file-storage` | a list of at most one key in the bucket, and in the export bucket where one is set |
+| `vault` | `vault`, only where a Vault is configured | `sys/health`: initialised and unsealed |
+| `sfu` | `sfu` | a room lookup by a name no room has — proves the URL, key and secret without walking the rooms |
+
+Which probes those checks may fail is the `Probes` section, owned by the `probes` feature every
+role carries. The shipped defaults:
+
+```json
+{
+  "Probes": {
+    "Dependencies": {
+      "Startup": "Fail",
+      "Readiness": "Degrade",
+      "Liveness": "Off",
+      "Timeout": "00:00:05",
+      "Overrides": {}
+    }
+  }
+}
+```
+
+Each probe is set separately because Kubernetes does something different with each, and the
+defaults follow from what that costs:
+
+- **startup: `Fail`.** It is asked until it passes once, and a pod it never passes on is one that is
+  never routed to and never promoted. That is the deployment gate: a pod that cannot reach what it
+  needs stays out, the old colour keeps serving, and the rollout is turned back or held for someone
+  to look at. `failureThreshold × periodSeconds` on the startup probe is how long a colour gets to
+  reach its dependencies before the pod is restarted.
+- **readiness: `Degrade`.** Failing readiness takes a pod out of its Service, and every pod of every
+  role shares the same database and the same Redis. Failing all of them on a shared outage turns a
+  partial failure into a total one — the same reasoning that keeps a client role's readiness from
+  following the gateway count. The failure is reported as `Degraded`, which the endpoint shows and
+  Kubernetes reads as `200`. A deployment that would rather remove such pods sets `Fail`.
+- **liveness: `Off`.** Its only remedy is a restart, and a restart does not bring a database back; it
+  only costs the pod the connections it was holding.
+
+`Overrides` gates one dependency differently from the rest, keyed by the check's name. Vault is the
+usual candidate, since only operator step-up reads it:
+
+```json
+"Overrides": { "vault": { "Startup": "Degrade" } }
+```
+
+Every check is bounded by `Timeout`, applied on top of whatever the client's own connect timeout is
+— NATS is configured to wait a minute, which is a minute after Kubernetes stopped listening.
+
+## When the configuration is wrong
+
+The same rules run in two places and end the same way. The validator sidecar runs
+`--validate-config --role <name>` against the mounted `conf.d` and exits non-zero on any error,
+which is where a pipeline stops the rollout before a pod of the new colour exists. A role started
+anyway refuses to boot on the same findings, so its pod never passes the startup probe and the
+rollout never promotes it.
+
+A role that does start keeps the validator's warnings: `/health` lists them under the
+`configuration` check, healthy, so the first question about a pod behaving oddly — is it running
+the configuration you think — is one `curl` away.
+
 ## What has to be true for this to work
 
 - **More than one silo.** A drain with nowhere to send activations skips the migration and falls back
@@ -204,3 +279,9 @@ rollout, not un-stopping the pod.
 - **`terminationGracePeriodSeconds` exceeds the pre-stop block.** A drain that gives up after five
   minutes, or a client lead time of twenty seconds plus the host's shutdown timeout — whichever the
   role does, the grace period has to outlast it.
+- **A blue/green rollout promotes on the new colour being ready, not on it being scheduled.** The
+  startup probe is where a pod that cannot reach its dependencies, or was given a configuration it
+  cannot start on, is held; a controller that switches the Service on pod creation switches it onto
+  exactly those pods. Argo Rollouts and Flagger both wait for availability; a hand-rolled selector
+  switch has to do the same, and treat a startup probe that has not passed within its
+  `failureThreshold` as the signal to roll back.
