@@ -1,6 +1,7 @@
 namespace Argon.Features.Aegis;
 
 using Argon.Features.Clustering;
+using Argon.Features.Vault;
 
 /// <summary>
 /// The browser session the sign-in widget keeps while it walks a user through an OAuth flow.
@@ -40,8 +41,28 @@ public sealed class AegisSessionOptions : IValidatableFeatureOptions
     /// </summary>
     public string DataProtectionApplicationName { get; set; } = "Aegis";
 
+    /// <summary>
+    /// Where the key ring is kept. Empty falls back to <c>ConnectionStrings:Default</c>.
+    /// </summary>
+    /// <remarks>
+    /// Named here rather than read from the <c>Database</c> section, because that section belongs
+    /// to the database feature and this role deliberately does not enable it — see
+    /// <see cref="AegisKeyRingDbContext"/>. The fallback is the one the database feature has, so a
+    /// deployment that hands every role the same connection string keeps working unchanged.
+    /// </remarks>
+    public string? KeyRingConnectionString { get; set; }
+
     public void Validate(IFeatureConfigurationReport report)
     {
+        // Ahead of the section guard: the ring has to live somewhere whether or not anyone wrote
+        // the section, and a replica that cannot read it signs every user out.
+        report.Require(
+            !string.IsNullOrWhiteSpace(KeyRingConnectionString) ||
+            !string.IsNullOrWhiteSpace(report.Read<ConnectionStringsSection>("ConnectionStrings").Default),
+            nameof(KeyRingConnectionString),
+            "is not set and neither is ConnectionStrings:Default; the data-protection key ring has " +
+            "nowhere to live");
+
         if (!report.SectionExists)
             return;
 

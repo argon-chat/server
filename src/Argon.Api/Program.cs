@@ -1,3 +1,5 @@
+using Argon.Features.Aegis;
+
 if (BotApiCli.TryHandleCommand(args))
     return;
 
@@ -19,5 +21,6 @@ var app = builder.Build();
 app.UseArgonRole();
 
 await app.WarmUp<ApplicationDbContext>();
+await app.WarmUpKeyRing();
 
 await app.RunAsync();

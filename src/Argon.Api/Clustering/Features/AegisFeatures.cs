@@ -5,6 +5,7 @@ using System.Threading.RateLimiting;
 using Argon.Api.Features.Aegis;
 using Argon.Features.Aegis;
 using Argon.Features.Middlewares;
+using Argon.HealthChecks;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.StaticFiles;
@@ -37,7 +38,8 @@ public sealed class ForwardedHeadersFeature : IArgonFeature
 /// <remarks>
 /// Data protection comes with it and is not optional: the keys are what encrypt the cookie, so every
 /// replica of the role has to agree on the ring or a user is signed out depending on which node they
-/// land on. The application name is what they agree by.
+/// land on. The application name is what they agree by, and the database is where the ring they
+/// agree on is kept — see <see cref="AegisKeyRingDbContext"/> for why that is a context of its own.
 /// </remarks>
 public sealed class AegisSessionFeature : IArgonFeature
 {
@@ -45,13 +47,32 @@ public sealed class AegisSessionFeature : IArgonFeature
         => d.Named("aegis-session")
             .Describing("cookie session for the sign-in widget")
             .Requires<RoutingFeature>()
+            .Requires<ProbesFeature>()
             .Options<AegisSessionOptions>(AegisSessionOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
     {
         var options = ctx.Options<AegisSessionOptions>();
 
-        ctx.Services.AddDataProtection().SetApplicationName(options.DataProtectionApplicationName);
+        // The same fallback the database feature applies, restated here because that section is not
+        // this role's to read. Validated at boot: one of the two is set or the role does not start.
+        var keyRing = string.IsNullOrWhiteSpace(options.KeyRingConnectionString)
+            ? ctx.Configuration.GetConnectionString("Default")
+            : options.KeyRingConnectionString;
+
+        // Plain scoped registration rather than the pooled factory the application context uses.
+        // The ring is read once at start-up and again on the key manager's daily refresh, and written
+        // once per rotation; a pool would be holding contexts for a table touched a few times a day.
+        // Its migrations are applied by Program.cs through WarmUpKeyRing, on every role this runs on.
+        ctx.Services.AddDbContext<AegisKeyRingDbContext>(db => AegisKeyRingDbContext.Configure(db, keyRing));
+
+        ctx.Services.AddDataProtection()
+           .SetApplicationName(options.DataProtectionApplicationName)
+           .PersistKeysToDbContext<AegisKeyRingDbContext>();
+
+        // The role's one outside dependency besides the cluster, probed like every other: a pod that
+        // cannot read its ring must not be promoted, because every cookie it is handed is a sign-out.
+        ctx.Services.AddDependencyCheck<KeyRingHealthCheck>(DependencyNames.KeyRing);
 
         // Cookies as the default scheme, because the authentication middleware fills HttpContext.User
         // from the default and the whole widget flow reads it. Nothing else in the product relies on

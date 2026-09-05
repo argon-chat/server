@@ -5,6 +5,7 @@ using Argon.Features.Aegis;
 using Argon.Features.Clustering;
 using Argon.Features.Jwt;
 using ArgonComplexTest.Infrastructure;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -38,9 +39,11 @@ public class AegisRoleTests
         => await host.DisposeAsync();
 
     [Test, CancelAfter(300_000)]
-    public void It_is_a_client_that_hosts_no_grains_and_opens_no_connection()
+    public void It_is_a_client_that_hosts_no_grains_and_reaches_nothing_but_its_key_ring()
     {
         var role = host.Services.GetRequiredService<RoleDescriptor>();
+
+        using var scope = host.Services.CreateScope();
 
         Assert.Multiple(() =>
         {
@@ -56,10 +59,59 @@ public class AegisRoleTests
             Assert.That(host.Services.GetService<IDbContextFactory<ApplicationDbContext>>(), Is.Null,
                 "the identity server talks to grains, not to Postgres");
 
+            // What it does reach is its own key ring, through a context that maps that table alone.
+            Assert.That(scope.ServiceProvider.GetService<AegisKeyRingDbContext>(), Is.Not.Null,
+                "the session cookie's keys have to be shared between replicas, and the database is where");
+
             Assert.That(role.Features.Ordered.Select(f => f.Name), Does.Not.Contain("database"));
             Assert.That(role.Features.Ordered.Select(f => f.Name),
                 Does.Contain("aegis").And.Contain("openid").And.Contain("aegis-session"));
         });
+    }
+
+    /// <summary>
+    /// The ring is in the database, and a second replica reads the same one.
+    /// </summary>
+    /// <remarks>
+    /// Protecting anything is what makes the key manager create a key, so the first half is the row
+    /// that appears. The second half boots another identity server against the same database and has
+    /// it unprotect what the first one sealed — the property the store exists for, a cookie issued by
+    /// one pod being readable on the next, and the one the framework's default directory store fails
+    /// exactly once per rollout.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task The_key_ring_is_in_the_database_and_shared_between_replicas()
+    {
+        const string purpose = "aegis-role-tests";
+        const string secret  = "sealed on the first replica";
+
+        var sealedValue = host.Services.GetRequiredService<IDataProtectionProvider>()
+           .CreateProtector(purpose)
+           .Protect(secret);
+
+        using (var scope = host.Services.CreateScope())
+        {
+            var db   = scope.ServiceProvider.GetRequiredService<AegisKeyRingDbContext>();
+            var keys = await db.DataProtectionKeys.AsNoTracking().ToListAsync();
+
+            // The ring's own history, in its own table: the migration was applied by this role at
+            // boot, not by a silo's pipeline that happened to run first.
+            Assert.That(await db.Database.GetAppliedMigrationsAsync(), Is.Not.Empty,
+                "the key ring's migrations were not applied at boot");
+
+            Assert.That(keys, Is.Not.Empty,
+                "protecting a value created no key row, so the ring is being kept somewhere else");
+            Assert.That(keys.Select(k => k.Xml), Has.All.Contains("<key"));
+        }
+
+        await using var replica = new RoleHost(ArgonTestEnvironment.Instance.Host.Settings, ArgonRoleId.Aegis,
+            siloPort: 0, ArgonClusterEndpoints.DefaultClusterId);
+
+        var unsealed = replica.Services.GetRequiredService<IDataProtectionProvider>()
+           .CreateProtector(purpose)
+           .Unprotect(sealedValue);
+
+        Assert.That(unsealed, Is.EqualTo(secret));
     }
 
     /// <summary>

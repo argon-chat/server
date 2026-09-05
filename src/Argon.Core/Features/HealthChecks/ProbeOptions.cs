@@ -138,5 +138,12 @@ public static class DependencyNames
     public const string Vault         = "vault";
     public const string Sfu           = "sfu";
 
-    public static readonly IReadOnlyList<string> All = [Database, Nats, Redis, ObjectStorage, Vault, Sfu];
+    /// <summary>
+    /// The identity server's data-protection key ring — the same database, reached through its own
+    /// one-table context. Its own name because the co-hosted role registers both checks, and two
+    /// under one name is a registration the health service refuses.
+    /// </summary>
+    public const string KeyRing = "key-ring";
+
+    public static readonly IReadOnlyList<string> All = [Database, Nats, Redis, ObjectStorage, Vault, Sfu, KeyRing];
 }

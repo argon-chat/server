@@ -107,9 +107,13 @@ public class MigrationPortabilityTests
     /// strings, which are not SQL and are exactly how a clause is <em>supposed</em> to travel. Scanning
     /// them would flag the mechanism that makes this work.
     /// </remarks>
+    /// <summary>
+    /// Recursive, because there is more than one history now: the identity server's key ring keeps
+    /// its own under <c>Migrations/KeyRing</c>, and it replays on both engines the same way.
+    /// </summary>
     private static IEnumerable<FileInfo> MigrationFiles()
         => MigrationsDirectory()
-           .EnumerateFiles("*.cs")
+           .EnumerateFiles("*.cs", SearchOption.AllDirectories)
            .Where(f => !f.Name.EndsWith(".Designer.cs", StringComparison.Ordinal))
            .Where(f => !f.Name.EndsWith("ModelSnapshot.cs", StringComparison.Ordinal));
 

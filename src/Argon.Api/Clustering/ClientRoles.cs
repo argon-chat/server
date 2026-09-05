@@ -125,11 +125,13 @@ public sealed class AdminRole : IArgonRole
 /// The identity server — where anyone signing into anything Argon publishes actually signs in.
 /// </summary>
 /// <remarks>
-/// A client role, and one that opens no database connection of its own: everything it reads about
+/// A client role, and one that keeps the application database off: everything it reads about
 /// applications goes through <c>IDevTeamsGrain</c> and <c>IAppsManagementGrain</c>, and everything
 /// about people through <c>IIdentityDirectoryGrain</c>. That is not tidiness — this role is the one
 /// exposed to the whole internet, and the further it sits from the data the less a mistake on it
-/// costs.
+/// costs. The one connection it does open is to its own data-protection key ring, through a context
+/// that maps that table and nothing else — see <c>AegisKeyRingDbContext</c> for why the ring has
+/// to be shared and why it is not <c>ApplicationDbContext</c> that shares it.
 /// <para>
 /// Separate from <c>entrypoint</c> for the same reason it was a separate service before: the product
 /// and the thing that says who you are fail differently, are attacked differently, and should not

@@ -93,6 +93,28 @@ public class AegisConfigurationTests
     }
 
     /// <summary>
+    /// The ring has to live somewhere. The section's own setting is optional because the default
+    /// connection string is the usual answer; both empty is a role that signs everyone out.
+    /// </summary>
+    [Test]
+    public void A_key_ring_with_nowhere_to_live_is_refused()
+    {
+        var report = Validate(
+            ("ConnectionStrings:Default", ""),
+            ("AegisSession:keyRingConnectionString", ""));
+
+        Assert.That(report.Errors.Select(e => e.Target), Does.Contain("AegisSession:keyRingConnectionString"));
+    }
+
+    [Test]
+    public void The_default_connection_string_is_where_the_ring_lives_unless_told_otherwise()
+    {
+        var report = Validate(("AegisSession:keyRingConnectionString", ""));
+
+        Assert.That(report.Errors.Select(e => e.Target), Does.Not.Contain("AegisSession:keyRingConnectionString"));
+    }
+
+    /// <summary>
     /// A request carries its scopes space-separated, so a scope with a space in it is one no client
     /// could ever ask for.
     /// </summary>
