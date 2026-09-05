@@ -1,3 +1,4 @@
+using Argon.Features.Auth;
 using Argon.Features.Clustering.Regions;
 
 namespace Argon.Services.Ion;
@@ -28,6 +29,19 @@ public sealed class ArgonRequestContextData
     public required string?          MachineId  { get; init; }
     public required Guid?            UserId     { get; init; }
     public required IServiceProvider Scope      { get; init; }
+
+    /// <summary>
+    /// Where the edge placed the caller, beyond the country <see cref="Region"/> already carries.
+    /// </summary>
+    /// <remarks>
+    /// Optional with an unknown default, unlike the members above, because it is decoration on a
+    /// session rather than something a request is authorised or attributed by, and the contexts that
+    /// are not built from an HTTP request (a replayed ticket, a console token) have nothing to put here.
+    /// </remarks>
+    public GeoLocation Location { get; init; } = GeoLocation.Unknown;
+
+    /// <summary>What the caller said about itself — platform, version, device name. Display-only.</summary>
+    public ClientDescriptor Client { get; init; } = ClientDescriptor.Unknown;
 
     public LockdownSeverity LockdownSeverity { get; init; }
 
@@ -92,6 +106,9 @@ public static class ServiceEx
         public string? GetClientId()    => ArgonRequestContext.Current.AppId;
         public string  GetUserCountry() => ArgonRequestContext.Current.Region;
         public string? GetUserIp()      => ArgonRequestContext.Current.Ip;
+
+        public GeoLocation      GetGeoLocation()      => ArgonRequestContext.Current.Location;
+        public ClientDescriptor GetClientDescriptor() => ArgonRequestContext.Current.Client;
 
         public void EnforceLockdown(LockdownSeverity minSeverity)
         {

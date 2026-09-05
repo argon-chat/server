@@ -1,5 +1,6 @@
 namespace Argon.Grains.Interfaces;
 
+using Argon.Features.Auth;
 using Microsoft.AspNetCore.SignalR;
 
 public static class IGrainExtensions
@@ -26,6 +27,18 @@ public static class IGrainExtensions
             throw new NotAuthorizedCallException();
         return result;
     }
+
+    /// <summary>The application id (<c>ner</c>) the calling request carried, or null when it carried none.</summary>
+    public static string? GetUserAppId(this Grain grain)
+        => RequestContext.Get(CallerContext.AppIdKey) as string;
+
+    /// <summary>The city the edge placed the caller in, or null.</summary>
+    public static string? GetUserCity(this Grain grain)
+        => RequestContext.Get(CallerContext.CityKey) as string;
+
+    /// <summary>What the calling client said about itself. Never null; unknown when nothing was carried.</summary>
+    public static ClientDescriptor GetUserClient(this Grain grain)
+        => ClientDescriptor.FromTransport(RequestContext.Get(CallerContext.ClientKey) as string);
 
     public static Guid? GetUserId(this IIncomingGrainCallContext ctx)
     {
@@ -66,6 +79,23 @@ public static class IGrainExtensions
     public static void SetUserCountry(this IIonService that, string Country)
         => RequestContext.Set("$caller_country", Country);
 
+    /// <summary>
+    /// Marks the calling request as coming from a machine whose hardware key just proved itself.
+    /// </summary>
+    /// <remarks>
+    /// Read by the token issuer inside the authorization grain, which puts the thumbprint on the
+    /// refresh token as <c>cnf</c>. Set only after <c>DeviceProofVerifier</c> accepted a proof — this
+    /// is the one caller value on this list that is a security fact rather than a description.
+    /// </remarks>
+    public static void SetUserDeviceThumbprint(this IIonService that, string? thumbprint)
+        => CallerContext.SetOptional(CallerContext.DeviceThumbprintKey, thumbprint);
+    public static void SetUserAppId(this IIonService that, string? appId)
+        => CallerContext.SetOptional(CallerContext.AppIdKey, appId);
+    public static void SetUserClient(this IIonService that, ClientDescriptor client)
+        => CallerContext.SetOptional(CallerContext.ClientKey, client.IsEmpty ? null : client.ToTransport());
+    public static void SetUserCity(this IIonService that, string? city)
+        => CallerContext.SetOptional(CallerContext.CityKey, city);
+
     public static void SetUserIp(this RequestContext.ReentrancySection that, string userIp)
         => RequestContext.Set("$caller_user_ip", userIp);
     public static void SetUserId(this RequestContext.ReentrancySection that, Guid userId)
@@ -76,8 +106,43 @@ public static class IGrainExtensions
         => RequestContext.Set("$caller_session_id", sessionId);
     public static void SetUserCountry(this RequestContext.ReentrancySection that, string Country)
         => RequestContext.Set("$caller_country", Country);
+    public static void SetUserAppId(this RequestContext.ReentrancySection that, string? appId)
+        => CallerContext.SetOptional(CallerContext.AppIdKey, appId);
+    public static void SetUserClient(this RequestContext.ReentrancySection that, ClientDescriptor client)
+        => CallerContext.SetOptional(CallerContext.ClientKey, client.IsEmpty ? null : client.ToTransport());
+    public static void SetUserCity(this RequestContext.ReentrancySection that, string? city)
+        => CallerContext.SetOptional(CallerContext.CityKey, city);
 
     //  RequestContext.ReentrancySection
+}
+
+/// <summary>
+/// The keys under which the Ion layer describes a caller to the grains, and the one reader that is
+/// not a grain.
+/// </summary>
+/// <remarks>
+/// <c>ArgonAuthorizationService</c> mints tokens from inside a grain call but is a plain service, so
+/// it cannot use the <c>Grain</c> extensions above; <see cref="DeviceThumbprint"/> is the same read
+/// without the receiver.
+/// </remarks>
+public static class CallerContext
+{
+    public const string AppIdKey            = "$caller_app_id";
+    public const string ClientKey           = "$caller_client";
+    public const string CityKey             = "$caller_city";
+    public const string DeviceThumbprintKey = "$caller_device_thumbprint";
+
+    /// <summary>The verified hardware-key thumbprint of the calling machine, or null when none was proven.</summary>
+    public static string? DeviceThumbprint => RequestContext.Get(DeviceThumbprintKey) as string;
+
+    /// <summary>Sets a value, or clears the key when there is nothing to say — a null in the context is a stale answer waiting to be read.</summary>
+    public static void SetOptional(string key, string? value)
+    {
+        if (string.IsNullOrEmpty(value))
+            RequestContext.Remove(key);
+        else
+            RequestContext.Set(key, value);
+    }
 }
 
 public class NotAuthorizedCallException : Exception;

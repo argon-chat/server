@@ -2,10 +2,15 @@ namespace Argon.Services.Ion;
 
 using System.Buffers;
 using System.Formats.Cbor;
+using Argon.Features.Auth;
 using Argon.Features.Logic;
 using ion.runtime;
 
-public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider provider, IUserPresenceService presence) : IIonTicketExchange
+public class IonTicketExchangeImpl(
+    IArgonCacheDatabase cache,
+    IServiceProvider provider,
+    IUserPresenceService presence,
+    IOptions<ClientAppsOptions> clientApps) : IIonTicketExchange
 {
     public async Task<ReadOnlyMemory<byte>> OnExchangeCreateAsync(IIonCallContext callContext)
     {
@@ -36,7 +41,8 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
         // row. Recording it here rather than per request keeps a Redis write off the hot path, and
         // rather than in UserSessionGrain because the grain is reached through Orleans' request
         // context, which carries the ids but not the client name.
-        await presence.TouchSessionMetaAsync(ticket.userId, ticket.sessionId.ToString(), ticket.clientName, ticket.region);
+        await presence.TouchSessionMetaAsync(ticket.userId, ticket.sessionId.ToString(),
+            UserSessionMeta.Describe(req, clientApps.Value.Find(req.AppId, req.Client)));
 
         return ticketId.ToByteArray();
     }
@@ -45,7 +51,7 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
     {
         if (exchangeToken.Length != 16)
             return (new IonProtocolError("BAD_TICKET", $"Invalid token length: expected 16 bytes, got {exchangeToken.Length}"), null);
-        
+
         var ticketId = new Guid(exchangeToken.Span);
         var key      = await cache.StringGetAsync($"ion_exchange_{ticketId}");
 
@@ -80,7 +86,8 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
             SessionId  = t.sessionId,
             MachineId  = t.machineId,
             Ray        = t.ray,
-            Region     = t.region
+            Region     = t.region,
+            Client     = ClientDescriptor.FromUserAgent(t.clientName)
         });
 
         var reentrancy = RequestContext.AllowCallChainReentrancy();
@@ -90,5 +97,7 @@ public class IonTicketExchangeImpl(IArgonCacheDatabase cache, IServiceProvider p
         reentrancy.SetUserIp(t.ip);
         reentrancy.SetUserMachineId(t.machineId);
         reentrancy.SetUserSessionId(t.sessionId);
+        reentrancy.SetUserAppId(t.appId);
+        reentrancy.SetUserClient(ClientDescriptor.FromUserAgent(t.clientName));
     }
 }

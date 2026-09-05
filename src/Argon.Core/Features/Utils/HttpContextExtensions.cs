@@ -63,19 +63,47 @@ public static class HttpContextExtensions
         /// headers only an edge is supposed to write. Unknown is the honest answer for a request that
         /// did not come through one, and it is the answer such a request already got.
         /// </remarks>
-        public string GetRegion()
+        public string GetRegion() => ctx.GetGeoLocation().Country;
+
+        /// <summary>
+        /// Country, region and city the edge placed this caller in, with every edge's "don't know"
+        /// placeholder already folded into unknown.
+        /// </summary>
+        /// <remarks>
+        /// <para>Same trust gate as <see cref="GetRegion"/>. Cloudflare is read first, then Traefik's
+        /// geoip2 plugin, then a bare <c>X-Country</c>; the parts are always taken from the same edge as
+        /// the country, so a city is never paired with another hop's country.</para>
+        ///
+        /// <para>The plugin only fills region and city when it was given a City database — with the
+        /// Country edition both arrive as <c>XX</c>, which <see cref="GeoLocation.Of"/> reads as
+        /// unknown. Cloudflare needs the "add visitor location headers" managed transform switched on
+        /// for anything beyond the country.</para>
+        /// </remarks>
+        public Features.Auth.GeoLocation GetGeoLocation()
         {
             if (!ctx.ArrivedThroughTrustedProxy())
-                return "00";
+                return Features.Auth.GeoLocation.Unknown;
 
-            if (ctx.Request.Headers.TryGetValue("CF-IPCountry", out var cfIso) && !string.IsNullOrWhiteSpace(cfIso))
-                return cfIso.ToString();
-            if (ctx.Request.Headers.TryGetValue("x-geoip2-country", out var geoCountry) && !string.IsNullOrWhiteSpace(geoCountry))
-                return geoCountry.ToString();
-            if (ctx.Request.Headers.TryGetValue("X-Country", out var dIso) && !string.IsNullOrWhiteSpace(dIso))
-                return dIso.ToString();
+            var headers = ctx.Request.Headers;
 
-            return "00";
+            string? First(params string[] names)
+            {
+                foreach (var name in names)
+                {
+                    if (headers.TryGetValue(name, out var value) && !string.IsNullOrWhiteSpace(value))
+                        return value.ToString();
+                }
+
+                return null;
+            }
+
+            if (First("CF-IPCountry") is { } cloudflare)
+                return Features.Auth.GeoLocation.Of(cloudflare, First("cf-region", "cf-region-code"), First("cf-ipcity"));
+
+            if (First("x-geoip2-country") is { } geoip)
+                return Features.Auth.GeoLocation.Of(geoip, First("x-geoip2-region"), First("x-geoip2-city"));
+
+            return Features.Auth.GeoLocation.Of(First("X-Country"), null, null);
         }
 
         public string GetRay()
@@ -87,6 +115,15 @@ public static class HttpContextExtensions
             => ctx.Request.Headers.ContainsKey("User-Agent")
                 ? ctx.Request.Headers["User-Agent"].ToString()
                 : "unknown";
+
+        /// <summary>
+        /// What the client says it is: the <c>X-Argon-Client</c> header a first-party client sends,
+        /// filled out from the User-Agent for everything it leaves unsaid. Display-only.
+        /// </summary>
+        public Features.Auth.ClientDescriptor GetClientDescriptor()
+            => Features.Auth.ClientDescriptor.From(
+                ctx.Request.Headers.TryGetValue(Features.Auth.ClientDescriptor.HeaderName, out var declared) ? declared.ToString() : null,
+                ctx.Request.Headers.TryGetValue("User-Agent", out var userAgent) ? userAgent.ToString() : null);
 
         // The client's current app locale (raw app code, e.g. "ru", "jp", "ru_pt").
         // Normalized to BCP-47 at the Bot API boundary via LocaleNormalizer.
@@ -220,15 +257,25 @@ public static class HttpContextExtensions
         }
 
         /// <summary>
-        /// The device proof native code pushed into the cookie, or null.
+        /// The device proof this request carries, or null.
         /// </summary>
         /// <remarks>
-        /// Cookie only, and deliberately so: this is the channel that exists for native code to carry
-        /// device identity, which is why hardware never appears in the ion contract. A client too old
-        /// to send it reports nothing and is judged on the fingerprint vector instead.
+        /// <para>Two channels, one format (<c>publicKey.issuedAt.signature[.attestation]</c>). The
+        /// <c>Sec-Proof</c> header is a proof made for this very call: the desktop asks its TPM to sign
+        /// right before the handful of calls that mint or refresh a session, so the one-minute window
+        /// the verifier allows is never a problem. The cookie's <c>dev</c> field is what native code
+        /// wrote at launch — good for a refresh within a minute of starting and nothing after, which is
+        /// all an older desktop build can offer.</para>
+        ///
+        /// <para>Neither channel appears in the ion contract, deliberately: hardware identity rides
+        /// beside the request, and a client too old to send either reports nothing and is judged on the
+        /// fingerprint vector instead.</para>
         /// </remarks>
         public string? GetDeviceProof()
         {
+            if (ctx.Request.Headers.TryGetValue("Sec-Proof", out var fresh) && !string.IsNullOrWhiteSpace(fresh))
+                return fresh.ToString().Trim();
+
             if (!ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) || string.IsNullOrWhiteSpace(argonSecure))
                 return null;
 

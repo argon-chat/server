@@ -52,5 +52,6 @@ public enum DeviceTypeKind
     IosMobile,
     AndroidMobile,
     Xbox,
-    SteamDevice
+    SteamDevice,
+    LinuxDesktop
 }

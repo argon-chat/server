@@ -25,6 +25,8 @@ public class IdentityInteraction(
             !await CheckEmailRateLimitAsync("login", data.email!, max: 15, TimeSpan.FromMinutes(5), ct))
             return new FailedAuthorize(AuthorizationError.BAD_CREDENTIALS);
 
+        await BindProvenDeviceAsync(ct);
+
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Authorize(data);
 
         if (result.IsSuccess)
@@ -44,6 +46,8 @@ public class IdentityInteraction(
 
         if (!await CheckEmailRateLimitAsync("register", data.email, max: 5, TimeSpan.FromMinutes(15), ct))
             return new FailedRegistration(RegistrationError.VALIDATION_FAILED, "email", "Too many attempts, please try again later");
+
+        await BindProvenDeviceAsync(ct);
 
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).Register(data);
 
@@ -68,6 +72,8 @@ public class IdentityInteraction(
         if (!string.IsNullOrWhiteSpace(email) &&
             !await CheckEmailRateLimitAsync("reset-verify", email, max: 15, TimeSpan.FromMinutes(10), ct))
             return new FailedAuthorize(AuthorizationError.BAD_OTP);
+
+        await BindProvenDeviceAsync(ct);
 
         var result = await this.GetGrain<IAuthorizationGrain>(Guid.NewGuid()).ResetPass(email, otpCode, newPassword);
 
@@ -151,19 +157,19 @@ public class IdentityInteraction(
     }
 
     /// <summary>
-    /// Resolves the machine this request came from, from the proof native code put in the cookie.
+    /// The device proof this request carried, if it verifies. Verifying consumes it.
     /// </summary>
     /// <remarks>
-    /// <para>No RPC and no challenge round trip: the <c>ArgonSecure</c> cookie exists so native code
-    /// can carry device identity, and giving hardware its own ion service would put a TPM into a
-    /// contract that has no business knowing what one is.</para>
+    /// <para>No RPC and no challenge round trip: the proof rides beside the request — in the
+    /// <c>Sec-Proof</c> header when the desktop signed one for this call, in the <c>ArgonSecure</c>
+    /// cookie when native code wrote one at launch — and giving hardware its own ion service would
+    /// put a TPM into a contract that has no business knowing what one is.</para>
     ///
     /// <para>Read here rather than in the interceptor because verifying costs a signature check and
     /// a replay lookup, and because signing costs the client a TPM operation slow enough to notice.
-    /// Refresh is the one moment where both are worth paying: from here the resolved device rides
-    /// the access token as <c>did</c>, and every later request is judged on that.</para>
+    /// The calls that mint or refresh a session are the moments where both are worth paying.</para>
     /// </remarks>
-    private async Task<Guid?> ResolveDeviceAsync(Guid userId, CancellationToken ct)
+    private async Task<DeviceProof?> VerifiedProofAsync(CancellationToken ct)
     {
         var raw = http.HttpContext?.GetDeviceProof();
 
@@ -173,10 +179,57 @@ public class IdentityInteraction(
         if (!DeviceProofVerifier.IsAcceptablePublicKey(proof.PublicKey))
             return null;
 
-        if (!await deviceProofs.VerifyAsync(proof, this.GetMachineId(), ct))
+        // The proof is signed over the machine id, so without one there is nothing to check it against.
+        if (ArgonRequestContext.Current.MachineId is not { Length: > 0 } machineId)
             return null;
 
-        return await devices.ResolveByKeyAsync(userId, proof, ct);
+        return await deviceProofs.VerifyAsync(proof, machineId, ct) ? proof : null;
+    }
+
+    /// <summary>
+    /// Marks this request as coming from a machine whose hardware key just proved itself, so the
+    /// refresh token minted for it is bound to that key.
+    /// </summary>
+    /// <remarks>
+    /// <para>This is the answer to "copy the client's data folder to another machine and sign in":
+    /// the folder holds the refresh token and the cookie, and both are bearer values. A token bound
+    /// to a key that never leaves the TPM cannot be refreshed anywhere that TPM is not, however
+    /// faithfully the folder was copied.</para>
+    ///
+    /// <para>Best effort, deliberately. A machine without a usable TPM, a browser, an older build —
+    /// none of them can prove anything and all of them must still be able to sign in; they get the
+    /// session they always got, bound to the machine id alone. Refusing the proof-less would be
+    /// refusing every Mac and every Linux desktop today.</para>
+    /// </remarks>
+    private async Task BindProvenDeviceAsync(CancellationToken ct)
+    {
+        try
+        {
+            var proof = await VerifiedProofAsync(ct);
+
+            this.SetUserDeviceThumbprint(proof is null ? null : DeviceProofVerifier.Thumbprint(proof.PublicKey));
+        }
+        catch (Exception e)
+        {
+            // A proof that cannot be read is a proof that was not offered. Signing in must not fail
+            // over the binding on the token it is about to receive.
+            logger.LogWarning(e, "Could not verify a device proof at sign-in");
+            this.SetUserDeviceThumbprint(null);
+        }
+    }
+
+    /// <summary>The thumbprint of a verified proof on this request, or null. For callers that carry it elsewhere than the request context.</summary>
+    private async Task<string?> ProvenThumbprintAsync(CancellationToken ct)
+    {
+        try
+        {
+            return await VerifiedProofAsync(ct) is { } proof ? DeviceProofVerifier.Thumbprint(proof.PublicKey) : null;
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not verify a device proof");
+            return null;
+        }
     }
 
     public async Task<IMyAuthStatus> GetMyAuthorization(string token, string? refreshToken, CancellationToken ct = default)
@@ -203,16 +256,31 @@ public class IdentityInteraction(
             var (userId, scopes) = flow.ValidateRefreshTokenSession(
                 refreshToken, machineId, out var tokenSessionId, out var issuedAt, out var deviceThumbprint);
 
-            // A token bound to a hardware key is only good where that key is. Checked before
+            // Resolved for every caller that offers a proof, not only bound ones: this is also how a
+            // machine is first recorded, since there is no enrolment call to make. Checked before
             // revocation because it is the cheaper of the two and refuses the same requests.
-            // Resolved for every caller that offers a proof, not only bound ones: this is also how
-            // a machine is first recorded, since there is no enrolment call to make.
-            var provenDevice = await ResolveDeviceAsync(userId, ct);
+            var proof        = await VerifiedProofAsync(ct);
+            var provenDevice = proof is null ? null : await devices.ResolveByKeyAsync(userId, proof, ct);
 
-            // A token bound to a hardware key is only good where that key is. A missing or failed
-            // proof leaves provenDevice null, and the two not matching is the refusal.
-            if (deviceThumbprint is not null && provenDevice is null)
-                return new BadAuthStatus(BadAuthKind.SESSION_EXPIRED);
+            // A token bound to a hardware key is only good where that key is: the proof has to be
+            // there, has to verify, and has to come from the key the token names — a valid proof
+            // from some other machine's TPM is a proof of the wrong thing, and used to pass here.
+            // A barred machine also lands here, since ResolveByKeyAsync reports it as no device.
+            if (deviceThumbprint is not null)
+            {
+                if (proof is null || provenDevice is null)
+                    return new BadAuthStatus(BadAuthKind.SESSION_EXPIRED);
+
+                var presented = DeviceProofVerifier.Thumbprint(proof.PublicKey);
+
+                if (!CryptographicOperations.FixedTimeEquals(
+                        Encoding.UTF8.GetBytes(deviceThumbprint),
+                        Encoding.UTF8.GetBytes(presented)))
+                {
+                    logger.LogWarning("Refresh for {UserId} presented a proof from a different key than the token is bound to", userId);
+                    return new BadAuthStatus(BadAuthKind.SESSION_EXPIRED);
+                }
+            }
 
             // Checked here, against claims out of the signed token, rather than relying on the
             // interceptor's check: that one keys on the session id from the ArgonSecure cookie, and
@@ -261,8 +329,10 @@ public class IdentityInteraction(
     // the machine id inside it is what binds a pending request to the browser that opened it. The
     // per-IP throttle in ArgonTransactionInterceptor does not cover these methods (its table is
     // keyed by method name), so QrLoginService carries its own.
-    public Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default)
-        => qrLogin.CreateAsync(ct);
+    // The desktop's proof, when it has one, binds the session the phone will approve to this
+    // machine's key — the same binding a password sign-in gets, arrived at through a different door.
+    public async Task<ICreateLoginRequestResult> CreateLoginRequest(CancellationToken ct = default)
+        => await qrLogin.CreateAsync(await ProvenThumbprintAsync(ct), ct);
 
     public Task<ILoginPollResult> PollLoginRequest(string token, CancellationToken ct = default)
         => qrLogin.PollAsync(token, ct);

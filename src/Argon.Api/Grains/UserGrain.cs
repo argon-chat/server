@@ -18,6 +18,7 @@ public class UserGrain(
     ILogger<IUserGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IUserSessionNotifier notifier,
+    IOptions<ClientAppsOptions> clientApps,
     AppHubServer appHubServer) : Grain, IUserGrain
 {
     private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
@@ -312,23 +313,48 @@ public class UserGrain(
         logger.LogInformation("Upgraded the password digest for {UserId}", this.GetPrimaryKey());
     }
 
+    /// <summary>
+    /// Records that this user signed in, or connected, from the calling machine.
+    /// </summary>
+    /// <remarks>
+    /// Everything about the machine comes out of the request context the Ion layer set: address,
+    /// country, the application id and the client's description of itself. Callers that reach this
+    /// without those — a hub connection has ids and nothing else — would write a row that says
+    /// "unknown" in every column, which is why the hub no longer calls it.
+    /// </remarks>
     public async ValueTask UpdateUserDeviceHistory()
     {
         await using var ctx = await context.CreateDbContextAsync();
 
         try
         {
-            logger.LogWarning("UpdateUserDeviceHistory, {region}, {ip}, {userId}, {machineId}", this.GetUserRegion(), this.GetUserIp(),
-                this.GetPrimaryKey(), this.GetUserMachineId());
-            var history = await ctx.DeviceHistories.FirstOrDefaultAsync(x
-                => x.UserId == this.GetPrimaryKey() && x.MachineId == this.GetUserMachineId());
+            var userId     = this.GetPrimaryKey();
+            var machineId  = this.GetUserMachineId();
+            var client     = this.GetUserClient();
+            var appId      = this.GetUserAppId();
+            var deviceType = ClientIdentity.DeviceType(clientApps.Value.Find(appId, client), client);
+            var region     = this.GetUserRegion() is { Length: > 0 } country && country != GeoLocation.UnknownCountry ? country : "unknown";
+            var ip         = this.GetUserIp() ?? "unknown";
+            var now        = DateTimeOffset.UtcNow;
 
+            logger.LogDebug("Device history for {UserId}: machine={MachineId} app={AppId} type={DeviceType} region={Region}",
+                userId, machineId, appId, deviceType, region);
+
+            var history = await ctx.DeviceHistories.FirstOrDefaultAsync(x => x.UserId == userId && x.MachineId == machineId);
 
             if (history is not null)
             {
-                history.LastKnownIP   = this.GetUserIp() ?? "unknown";
-                history.RegionAddress = this.GetUserRegion() ?? "unknown";
-                history.LastLoginTime = DateTimeOffset.UtcNow;
+                history.LastKnownIP   = ip;
+                history.RegionAddress = region;
+                history.LastLoginTime = now;
+
+                // Rows written before the application was known say "unknown" and carry a guessed
+                // type; a connection that does know overwrites both, and one that does not leaves
+                // whatever was there rather than degrading it.
+                if (!string.IsNullOrWhiteSpace(appId))
+                    history.AppId = appId;
+                if (deviceType != DeviceTypeKind.Unknown)
+                    history.DeviceType = deviceType;
 
                 ctx.Update(history);
             }
@@ -336,19 +362,17 @@ public class UserGrain(
             {
                 await ctx.DeviceHistories.AddAsync(new UserDeviceHistoryEntity
                 {
-                    AppId         = "unknown",
-                    DeviceType    = DeviceTypeKind.WindowsDesktop,
-                    LastKnownIP   = this.GetUserIp() ?? "unknown",
-                    LastLoginTime = DateTimeOffset.UtcNow,
-                    MachineId     = this.GetUserMachineId(),
-                    RegionAddress = this.GetUserRegion() ?? "unknown",
-                    UserId        = this.GetPrimaryKey()
+                    AppId         = string.IsNullOrWhiteSpace(appId) ? "unknown" : appId,
+                    DeviceType    = deviceType,
+                    LastKnownIP   = ip,
+                    LastLoginTime = now,
+                    MachineId     = machineId,
+                    RegionAddress = region,
+                    UserId        = userId
                 });
             }
 
-            var result = await ctx.SaveChangesAsync();
-
-            logger.LogWarning("UpdateUserDeviceHistory, saved {count}", result);
+            await ctx.SaveChangesAsync();
         }
         catch (Exception e)
         {

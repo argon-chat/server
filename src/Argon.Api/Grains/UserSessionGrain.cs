@@ -149,7 +149,10 @@ public class UserSessionGrain(
         await presenceService.SetSessionStatusAsync(_userId, SessionId, activation.State.PreferredStatus.Value);
         await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
         await grainFactory.GetGrain<IUserGrain>(_userId).PushFriendPresenceAsync();
-        await grainFactory.GetGrain<IUserGrain>(_userId).UpdateUserDeviceHistory();
+        // Device history is no longer written from here: this grain is reached through the hub, whose
+        // request context carries the ids but neither the address nor the country, so every row it
+        // wrote said "unknown". PickTicket, which runs on the Ion path with the whole request in hand,
+        // writes it once per session instead.
 
         logger.LogInformation("Session {sid} started for user {userId}", SessionId, _userId);
 

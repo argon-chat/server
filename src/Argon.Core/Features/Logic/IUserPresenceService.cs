@@ -1,6 +1,8 @@
 namespace Argon.Features.Logic;
 
 using Argon.Core.Features.Logic;
+using Argon.Features.Auth;
+using Argon.Services.Ion;
 using Services;
 
 public static class UserPresenceFeature
@@ -93,6 +95,17 @@ public interface IUserPresenceService
     /// </remarks>
     Task TouchSessionMetaAsync(Guid userId, string sessionId, string clientName, string region, CancellationToken ct = default);
 
+    /// <summary>
+    /// Records a full description of a session the first time it is seen.
+    /// </summary>
+    /// <remarks>
+    /// Returns true when this call created the record and false when one was already there — in
+    /// which case nothing is overwritten and only its lifetime is extended. A reconnecting client
+    /// asks for a new ticket every time, and the description it gives is the same one; keeping the
+    /// first also keeps <see cref="UserSessionMeta.StartedAt"/> honest.
+    /// </remarks>
+    Task<bool> TouchSessionMetaAsync(Guid userId, string sessionId, UserSessionMeta meta, CancellationToken ct = default);
+
     /// <summary>The naming record for one session, or null if it was never written or has lapsed.</summary>
     Task<UserSessionMeta?> GetSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default);
 
@@ -109,7 +122,51 @@ public interface IUserPresenceService
 /// that arrives often enough to mean anything. A session whose presence key is alive but whose
 /// heartbeat is a minute old is exactly the distinction the devices list is there to show.
 /// </remarks>
-public sealed record UserSessionMeta(string ClientName, string Region, DateTime StartedAt, DateTime LastSeenAt);
+/// <param name="ClientName">The raw client string — a User-Agent. Kept for the tooltip.</param>
+/// <param name="Region">ISO country the session connected from, or "" when the edge said nothing.</param>
+/// <param name="AppId">The <c>ner</c> the client carried; resolved to a name through the app registry.</param>
+/// <param name="AppName">The name resolved when the record was written, so a session still has one if its id is later dropped from the registry.</param>
+public sealed record UserSessionMeta(
+    string ClientName,
+    string Region,
+    DateTime StartedAt,
+    DateTime LastSeenAt,
+    string? AppId = null,
+    string? AppName = null,
+    ClientPlatform Platform = ClientPlatform.UNKNOWN,
+    string? OsName = null,
+    string? AppVersion = null,
+    string? DeviceName = null,
+    string? Ip = null,
+    string? City = null)
+{
+    /// <summary>Everything a request context knows about the caller, in the shape the devices screen reads.</summary>
+    public static UserSessionMeta Describe(ArgonRequestContextData ctx, ClientAppEntry? app)
+    {
+        var now    = DateTime.UtcNow;
+        var client = ctx.Client;
+
+        // The country is stored as "" rather than the "00" sentinel: this record is read by a screen,
+        // and the screen's own word for unknown is better than a code that looks like a country.
+        var country = ctx.Location.HasCountry
+            ? ctx.Location.Country
+            : ctx.Region is GeoLocation.UnknownCountry or "" ? "" : ctx.Region;
+
+        return new UserSessionMeta(
+            ctx.ClientName,
+            country,
+            now,
+            now,
+            AppId: ctx.AppId,
+            AppName: ClientIdentity.AppName(app, client),
+            Platform: client.Platform,
+            OsName: client.OsName,
+            AppVersion: client.AppVersion,
+            DeviceName: client.DeviceName,
+            Ip: ctx.Ip,
+            City: ctx.Location.City);
+    }
+}
 
 public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
 {
@@ -168,13 +225,28 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         await RemoveSessionMetaAsync(userId, sessionId, ct);
     }
 
-    public async Task TouchSessionMetaAsync(Guid userId, string sessionId, string clientName, string region, CancellationToken ct = default)
+    public Task TouchSessionMetaAsync(Guid userId, string sessionId, string clientName, string region, CancellationToken ct = default)
     {
         var now = DateTime.UtcNow;
+        return TouchSessionMetaAsync(userId, sessionId, new UserSessionMeta(clientName, region, now, now), ct);
+    }
 
-        await cache.StringSetAsync(SessionMetaKey(userId, sessionId),
-            JsonConvert.SerializeObject(new UserSessionMeta(clientName, region, now, now)), SessionMetaTTL, ct);
-        await cache.StringSetAsync(SessionSeenKey(userId, sessionId), now.Ticks.ToString(), SessionMetaTTL, ct);
+    public async Task<bool> TouchSessionMetaAsync(Guid userId, string sessionId, UserSessionMeta meta, CancellationToken ct = default)
+    {
+        var key = SessionMetaKey(userId, sessionId);
+
+        // Two round trips rather than SET NX because the cache abstraction has no NX; the race this
+        // leaves is two reconnects of one session writing the same description twice, which is harmless.
+        if (await cache.KeyExistsAsync(key, ct))
+        {
+            await cache.UpdateStringExpirationAsync(key, SessionMetaTTL, ct);
+            return false;
+        }
+
+        await cache.StringSetAsync(key, JsonConvert.SerializeObject(meta), SessionMetaTTL, ct);
+        await cache.StringSetAsync(SessionSeenKey(userId, sessionId), meta.StartedAt.ToString("O"), SessionMetaTTL, ct);
+
+        return true;
     }
 
     public async Task<UserSessionMeta?> GetSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default)
@@ -182,9 +254,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var json = await cache.StringGetAsync(SessionMetaKey(userId, sessionId), ct);
         var seen = await cache.StringGetAsync(SessionSeenKey(userId, sessionId), ct);
 
-        var lastSeenAt = long.TryParse(seen, out var ticks)
-            ? new DateTime(ticks, DateTimeKind.Utc)
-            : (DateTime?)null;
+        var lastSeenAt = ParseSeen(seen);
 
         var meta = string.IsNullOrEmpty(json) ? null : JsonConvert.DeserializeObject<UserSessionMeta>(json);
 
@@ -196,6 +266,27 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
             return lastSeenAt is null ? null : new UserSessionMeta("", "", lastSeenAt.Value, lastSeenAt.Value);
 
         return lastSeenAt is null ? meta : meta with { LastSeenAt = lastSeenAt.Value };
+    }
+
+    /// <summary>
+    /// Reads the last-seen stamp in either shape it has been written in.
+    /// </summary>
+    /// <remarks>
+    /// The record used to be stamped with raw ticks while heartbeats wrote round-trip ("O") strings,
+    /// and only the ticks were ever parsed — so a session's last-seen froze at the moment it
+    /// connected and never moved with its heartbeats. Both shapes are read now; new writes use "O".
+    /// </remarks>
+    private static DateTime? ParseSeen(string? seen)
+    {
+        if (string.IsNullOrEmpty(seen))
+            return null;
+
+        if (long.TryParse(seen, out var ticks))
+            return new DateTime(ticks, DateTimeKind.Utc);
+
+        return DateTime.TryParse(seen, null, System.Globalization.DateTimeStyles.RoundtripKind, out var when)
+            ? when.ToUniversalTime()
+            : null;
     }
 
     public async Task RemoveSessionMetaAsync(Guid userId, string sessionId, CancellationToken ct = default)

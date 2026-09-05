@@ -5,8 +5,14 @@ using Microsoft.IdentityModel.Tokens;
 using System.Net.WebSockets;
 using System.Runtime.CompilerServices;
 using System.Security.Claims;
+using Argon.Features.Auth;
+using Argon.Features.Logic;
 
-public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuration) : IEventBus
+public class EventBusImpl(
+    ILogger<IEventBus> logger,
+    IConfiguration configuration,
+    IUserPresenceService presence,
+    IOptions<ClientAppsOptions> clientApps) : IEventBus
 {
     public IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, CancellationToken ct = default)
     {
@@ -75,6 +81,26 @@ public class EventBusImpl(ILogger<IEventBus> logger, IConfiguration configuratio
 
         var jwt = new JwtSecurityTokenHandler().WriteToken(token);
 
+        // The ticket is the one call every realtime connection makes with the whole HTTP request
+        // still in hand — address, country, User-Agent, the client's own description of itself — so
+        // it is where a session is described for the devices screen and where the device history is
+        // written. Once per session: a reconnect asks for a new ticket but finds the record in place.
+        // The session grain used to write the history, but it is reached through the hub, whose
+        // context carries the ids and nothing else, and every row it wrote said "unknown".
+        try
+        {
+            var ctx       = this.GetRequestContext();
+            var described = await presence.TouchSessionMetaAsync(userId, sid.ToString(),
+                UserSessionMeta.Describe(ctx, clientApps.Value.Find(ctx.AppId, ctx.Client)), ct);
+
+            if (described)
+                await this.GetGrain<IUserGrain>(userId).UpdateUserDeviceHistory();
+        }
+        catch (Exception e)
+        {
+            // Naming a session is a courtesy to the devices screen, not a condition of connecting.
+            logger.LogWarning(e, "Could not record the session description for {UserId}", userId);
+        }
 
         return jwt;
     }

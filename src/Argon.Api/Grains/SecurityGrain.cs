@@ -26,6 +26,7 @@ public class SecurityGrain(
     IUserPresenceService presence,
     IArgonCacheDatabase cache,
     IFido2 fido2,
+    IOptions<ClientAppsOptions> clientApps,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
 {
     private const int MaxPasskeys = 10;
@@ -823,12 +824,28 @@ public class SecurityGrain(
                 if (!Guid.TryParse(session.SessionId, out var sessionId))
                     continue;
 
+                var lastSeen = session.LastSeenAt ?? DateTime.UtcNow;
+
                 result.Add(new SessionInfo(
                     sessionId,
                     session.ClientName ?? "",
                     session.ClientRegion ?? "",
-                    session.LastSeenAt ?? DateTime.UtcNow,
-                    sessionId == currentSessionId));
+                    lastSeen,
+                    sessionId == currentSessionId,
+                    session.AppId ?? "",
+                    // The name resolved when the session connected, because it was resolved with the
+                    // client's whole self-description in hand (which is how an old desktop build
+                    // presenting the web id is still called a desktop). The registry only fills in
+                    // for a record written before names were recorded; a rename in configuration
+                    // reaches new sessions, and the record lives a day at most.
+                    !string.IsNullOrEmpty(session.AppName) ? session.AppName : clientApps.Value.Find(session.AppId)?.Name ?? "",
+                    session.AppVersion ?? "",
+                    session.Platform,
+                    session.OsName ?? "",
+                    session.DeviceName ?? "",
+                    session.Ip ?? "",
+                    session.City ?? "",
+                    session.StartedAt ?? lastSeen));
             }
 
             // Current first, then most recently seen: the row the user is least likely to want is the

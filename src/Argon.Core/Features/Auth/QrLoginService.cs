@@ -17,7 +17,11 @@ using Argon.Services.Ion;
 /// </remarks>
 public interface IQrLoginService
 {
-    Task<ICreateLoginRequestResult>  CreateAsync(CancellationToken ct = default);
+    /// <param name="deviceThumbprint">
+    /// The hardware key the asking machine just proved possession of, or null. Carried into the
+    /// approval so the session minted there is bound to that key and not merely to a cookie value.
+    /// </param>
+    Task<ICreateLoginRequestResult>  CreateAsync(string? deviceThumbprint = null, CancellationToken ct = default);
     Task<ILoginPollResult>           PollAsync(string token, CancellationToken ct = default);
     Task<ILoginRequestPreviewResult> PreviewAsync(string token, Guid userId, CancellationToken ct = default);
     Task<IApproveLoginRequestResult> ApproveAsync(string token, Guid userId, CancellationToken ct = default);
@@ -54,6 +58,14 @@ public sealed record QrLoginRecord
     public required string        Ip           { get; init; }
     public required string        Region       { get; init; }
     public required string        MachineId    { get; init; }
+
+    /// <summary>
+    /// The hardware key the desktop proved at <see cref="QrLoginService.CreateAsync"/>, or null for a
+    /// machine that offered none. Optional rather than required so records written before the field
+    /// existed still read back.
+    /// </summary>
+    public string? DeviceThumbprint { get; init; }
+
     public required DateTime      CreatedAt    { get; init; }
     public required DateTime      ExpiresAt    { get; init; }
     public          QrLoginStatus Status       { get; set; }
@@ -99,7 +111,7 @@ public sealed class QrLoginService(
 
     private static string Key(string token) => $"qr:login:{token}";
 
-    public async Task<ICreateLoginRequestResult> CreateAsync(CancellationToken ct = default)
+    public async Task<ICreateLoginRequestResult> CreateAsync(string? deviceThumbprint = null, CancellationToken ct = default)
     {
         var ctx = ArgonRequestContext.Current;
 
@@ -116,17 +128,16 @@ public sealed class QrLoginService(
         {
             ClientName = ctx.ClientName,
 
-            // Nothing on the wire carries the desktop's own hostname — neither the ion request
-            // context nor any header the clients send — so this stays null rather than being
-            // reconstructed from something that only looks like one. See the remarks on
-            // LoginRequestPreview.hostName in IdentityInteraction.ion.
-            HostName  = null,
-            Ip        = ctx.Ip,
-            Region    = ctx.Region,
-            MachineId = ctx.MachineId,
-            CreatedAt = now,
-            ExpiresAt = now + RequestTtl,
-            Status    = QrLoginStatus.Pending,
+            // The desktop's own hostname, when it said what it was (the X-Argon-Client header). A
+            // browser says nothing here and the approval card shows the client string instead.
+            HostName         = string.IsNullOrWhiteSpace(ctx.Client.DeviceName) ? null : ctx.Client.DeviceName,
+            Ip               = ctx.Ip,
+            Region           = ctx.Location.HasCountry ? ctx.Location.Country : ctx.Region,
+            MachineId        = ctx.MachineId,
+            DeviceThumbprint = deviceThumbprint,
+            CreatedAt        = now,
+            ExpiresAt        = now + RequestTtl,
+            Status           = QrLoginStatus.Pending,
         };
 
         await cache.StringSetAsync(Key(token), JsonConvert.SerializeObject(record), RequestTtl, ct);
@@ -209,8 +220,9 @@ public sealed class QrLoginService(
             // Bound to the machine that asked for the code, not to the phone's. Every access token in
             // the platform carries an `mh` claim that TokenAuthorization checks against the caller's
             // machine cookie, so a token minted here is only usable from that browser even if the
-            // record leaked in the seconds it exists.
-            var issued = await userManager.GenerateJwt(userId, record.MachineId, ["argon.app"]);
+            // record leaked in the seconds it exists. Where the desktop proved a hardware key when it
+            // asked, the refresh token is bound to that key as well.
+            var issued = await userManager.GenerateJwt(userId, record.MachineId, ["argon.app"], record.DeviceThumbprint);
 
             record.Status       = QrLoginStatus.Approved;
             record.UserId       = userId;

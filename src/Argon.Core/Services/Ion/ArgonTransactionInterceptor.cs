@@ -21,6 +21,11 @@ public sealed class ArgonOrleansInterceptor : IIonInterceptor
             section.SetUserMachineId(ctx.MachineId);
         if (ctx.SessionId is not null)
             section.SetUserSessionId(ctx.SessionId.Value);
+        // How the caller described itself, for the grains that record a login. Descriptions, not
+        // credentials — see CallerContext for the one value on this list that is a security fact.
+        section.SetUserAppId(ctx.AppId);
+        section.SetUserClient(ctx.Client);
+        section.SetUserCity(ctx.Location.City);
         return next(context, ct);
     }
 }
@@ -125,8 +130,10 @@ public sealed class ArgonTransactionInterceptor(
             {
                 Ip               = httpContext.GetIpAddress(),
                 Region           = httpContext.GetRegion(),
+                Location         = httpContext.GetGeoLocation(),
                 Ray              = httpContext.GetRay(),
                 ClientName       = httpContext.GetClientName(),
+                Client           = httpContext.GetClientDescriptor(),
                 SessionId        = httpContext.TryGetSessionId(out var sessionId) ? sessionId : null,
                 MachineId        = httpContext.TryGetMachineId(out var id) ? id : null,
                 AppId            = httpContext.TryGetAppId(out var appId) ? appId : null,
@@ -152,8 +159,10 @@ public sealed class ArgonTransactionInterceptor(
             {
                 Ip               = httpContext.GetIpAddress(),
                 Region           = httpContext.GetRegion(),
+                Location         = httpContext.GetGeoLocation(),
                 Ray              = httpContext.GetRay(),
                 ClientName       = httpContext.GetClientName(),
+                Client           = httpContext.GetClientDescriptor(),
                 SessionId        = httpContext.GetSessionId(),
                 MachineId        = httpContext.GetMachineId(),
                 AppId            = httpContext.GetAppId(),

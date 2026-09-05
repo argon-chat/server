@@ -16,13 +16,12 @@ public interface IUserSessionDiscoveryService
 /// One live session of one user.
 /// </summary>
 /// <remarks>
-/// <para><see cref="ClientName"/>, <see cref="ClientRegion"/> and <see cref="LastSeenAt"/> were
-/// added for the devices screen, which has to say <em>which</em> session it is offering to end — a
-/// list of opaque sids is not something anyone can make a safety decision from. They come from the
-/// per-session record <c>IUserPresenceService</c> writes at session start (see
-/// <c>TouchSessionMetaAsync</c>), so a session that predates that write, or whose record lapsed,
-/// degrades to the same anonymous row the fan-out callers already tolerated rather than dropping
-/// out of the list.</para>
+/// <para>Everything after <see cref="ServerId"/> exists for the devices screen, which has to say
+/// <em>which</em> session it is offering to end — a list of opaque sids is not something anyone can
+/// make a safety decision from. It comes from the per-session record <c>IUserPresenceService</c>
+/// writes when a session first connects (see <c>TouchSessionMetaAsync</c>), so a session that
+/// predates that write, or whose record lapsed, degrades to the same anonymous row the fan-out
+/// callers already tolerated rather than dropping out of the list.</para>
 ///
 /// <para><see cref="ClientRegion"/> is separate from <see cref="Region"/> on purpose and they are
 /// not interchangeable: <see cref="Region"/>/<see cref="ServerId"/> say where the session is being
@@ -36,7 +35,16 @@ public sealed record UserSessionDescriptor(
     string ServerId,
     string? ClientName = null,
     string? ClientRegion = null,
-    DateTime? LastSeenAt = null
+    DateTime? LastSeenAt = null,
+    string? AppId = null,
+    string? AppName = null,
+    ClientPlatform Platform = ClientPlatform.UNKNOWN,
+    string? OsName = null,
+    string? AppVersion = null,
+    string? DeviceName = null,
+    string? Ip = null,
+    string? City = null,
+    DateTime? StartedAt = null
 );
 
 public interface IUserSessionNotifier
@@ -75,7 +83,16 @@ public sealed class LocalUserSessionDiscoveryService(
                 ServerId: "ru-spb-3",
                 ClientName: meta?.ClientName,
                 ClientRegion: meta?.Region,
-                LastSeenAt: meta?.LastSeenAt));
+                LastSeenAt: meta?.LastSeenAt,
+                AppId: meta?.AppId,
+                AppName: meta?.AppName,
+                Platform: meta?.Platform ?? ClientPlatform.UNKNOWN,
+                OsName: meta?.OsName,
+                AppVersion: meta?.AppVersion,
+                DeviceName: meta?.DeviceName,
+                Ip: meta?.Ip,
+                City: meta?.City,
+                StartedAt: meta?.StartedAt));
         }
 
         return list;

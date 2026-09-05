@@ -787,8 +787,12 @@ public class ArgonAuthorizationService(
         }
     }
 
+    // The hardware-key thumbprint travels in the request context: this runs inside a grain call, and
+    // the proof was checked before the call was made, on the Ion side where the HTTP request lives.
+    // Null for every caller that offered no proof, which leaves the token bound to the machine id
+    // alone — what every session looked like before hardware keys existed.
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user, string machineId)
-        => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"]);
+        => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"], CallerContext.DeviceThumbprint);
 
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user)
         => await managerService.GenerateJwt(user.Id, ["argon.app"]);
