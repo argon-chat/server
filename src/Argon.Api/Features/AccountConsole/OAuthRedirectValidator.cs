@@ -56,6 +56,85 @@ public sealed class CompositeOAuthRedirectValidator : OAuthRedirectValidator
     }
 }
 
+/// <summary>
+/// The rule set for an application that runs on somebody's device rather than on a server.
+/// </summary>
+/// <remarks>
+/// A desktop or mobile client has nowhere to receive a redirect on the web, so RFC 8252 gives it two
+/// other ways home: a loopback address, which the web rules already accept, and a private-use scheme
+/// of its own. The latter is a URI no web rule can judge — it has no TLD to weigh, no certificate to
+/// dial — so it is judged on its own terms and everything else falls through to the web rules
+/// unchanged.
+/// <para>
+/// What makes accepting them safe is not this validator but the check at authorization time, which
+/// compares the incoming <c>redirect_uri</c> against the registered list exactly. This decides what
+/// may be written to that list; nothing here is pattern-matched later.
+/// </para>
+/// </remarks>
+public sealed class NativeAppRedirectValidator(OAuthRedirectValidator webValidator) : OAuthRedirectValidator
+{
+    public static NativeAppRedirectValidator ForNativeApps()
+        => new(CompositeOAuthRedirectValidator.ValidatorForOAuthApps());
+
+    private static readonly OAuthRedirectValidator Format = new BasicFormatValidator();
+    private static readonly OAuthRedirectValidator Path   = new PathValidator();
+    private static readonly OAuthRedirectValidator Query  = new QueryValidator();
+
+    private static readonly string[] Forbidden =
+        ["file", "ftp", "javascript", "ws", "wss", "data", "chrome", "blob", "about", "vbscript", "intent"];
+
+    public async override Task<string?> ValidateAsync(string rawRedirect)
+    {
+        if (await Format.ValidateAsync(rawRedirect) is { Length: > 0 } malformed)
+            return malformed;
+
+        if (!Uri.TryCreate(rawRedirect, UriKind.Absolute, out var uri))
+            return null;
+
+        if (uri.Scheme is "http" or "https")
+            return await webValidator.ValidateAsync(rawRedirect);
+
+        if (ValidatePrivateUseScheme(uri) is { Length: > 0 } badScheme)
+            return badScheme;
+
+        // A native redirect commonly has no path at all — gl.argon.app://callback is the whole of
+        // it — and the rule that insists on one is a rule about web addresses.
+        if (uri.AbsolutePath.Length > 0 && await Path.ValidateAsync(rawRedirect) is { Length: > 0 } badPath)
+            return badPath;
+
+        return await Query.ValidateAsync(rawRedirect);
+    }
+
+    /// <remarks>
+    /// The dot is RFC 8252 §7.1: a private-use scheme has to be a domain the developer controls,
+    /// spelled backwards. It costs nothing to type and it is the only thing standing between an
+    /// application and registering <c>mail:</c>.
+    /// </remarks>
+    private static string? ValidatePrivateUseScheme(Uri uri)
+    {
+        var scheme = uri.Scheme;
+
+        if (Forbidden.Contains(scheme, StringComparer.OrdinalIgnoreCase))
+            return $"Scheme '{scheme}' is forbidden.";
+
+        if (!scheme.Contains('.'))
+            return $"Private-use scheme '{scheme}' must be a domain you control in reverse order, e.g. 'gl.argon.app'.";
+
+        if (!Regex.IsMatch(scheme, "^[a-z][a-z0-9+.-]*$"))
+            return $"Private-use scheme '{scheme}' is not a valid URI scheme.";
+
+        var host = uri.Host;
+
+        if (host.Contains('*'))
+            return "Wildcard hosts forbidden.";
+
+        if (host.Contains('@'))
+            return "Host must not contain '@'.";
+
+        return host.Any(c => c > 127) ? "Unicode hostnames forbidden." : null;
+    }
+}
+
 public sealed class BasicFormatValidator : OAuthRedirectValidator
 {
     public override Task<string?> ValidateAsync(string rawRedirect)

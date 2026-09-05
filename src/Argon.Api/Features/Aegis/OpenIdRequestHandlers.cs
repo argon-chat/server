@@ -9,16 +9,9 @@ using OpenIddict.Server;
 using static OpenIddict.Server.OpenIddictServerEvents;
 
 /// <summary>
-/// Decides whether an authorization request may proceed at all.
+/// Which of the scopes a request asked for the application was never granted.
 /// </summary>
-/// <remarks>
-/// OpenIddict runs in degraded mode here — it keeps no client store of its own, so nothing has
-/// checked that the client exists, that the redirect it named is one of its own, or that the scopes
-/// it asked for are ones it was granted. That is what this does, and it runs before a code is minted
-/// rather than after: a redirect_uri accepted here is where the code gets sent.
-/// </remarks>
-public sealed class ValidateAuthorizationHandler(IAegisDirectory directory)
-    : IOpenIddictServerHandler<ValidateAuthorizationRequestContext>
+public static class GrantedScopes
 {
     /// <summary>
     /// Standard OIDC scopes every client may ask for regardless of its registration — refusing
@@ -30,6 +23,22 @@ public sealed class ValidateAuthorizationHandler(IAegisDirectory directory)
         OpenIddictConstants.Scopes.Profile
     };
 
+    public static List<string> NotGrantedIn(OpenIddictRequest request, IReadOnlyCollection<string> granted)
+        => [.. request.GetScopes().Except(granted).Where(scope => !AlwaysAllowed.Contains(scope))];
+}
+
+/// <summary>
+/// Decides whether an authorization request may proceed at all.
+/// </summary>
+/// <remarks>
+/// OpenIddict runs in degraded mode here — it keeps no client store of its own, so nothing has
+/// checked that the client exists, that the redirect it named is one of its own, or that the scopes
+/// it asked for are ones it was granted. That is what this does, and it runs before a code is minted
+/// rather than after: a redirect_uri accepted here is where the code gets sent.
+/// </remarks>
+public sealed class ValidateAuthorizationHandler(IAegisDirectory directory)
+    : IOpenIddictServerHandler<ValidateAuthorizationRequestContext>
+{
     public static OpenIddictServerHandlerDescriptor Descriptor { get; }
         = OpenIddictServerHandlerDescriptor.CreateBuilder<ValidateAuthorizationRequestContext>()
            .UseScopedHandler<ValidateAuthorizationHandler>()
@@ -62,10 +71,7 @@ public sealed class ValidateAuthorizationHandler(IAegisDirectory directory)
             return;
         }
 
-        var disallowed = context.Request.GetScopes()
-           .Except(credentials.scopes)
-           .Where(scope => !AlwaysAllowed.Contains(scope))
-           .ToList();
+        var disallowed = GrantedScopes.NotGrantedIn(context.Request, credentials.scopes);
 
         if (disallowed.Count > 0)
             context.Reject(OpenIddictConstants.Errors.InvalidScope,
@@ -82,6 +88,14 @@ public sealed class ValidateAuthorizationHandler(IAegisDirectory directory)
 /// the client secret <i>is</i> the whole credential. The code and refresh grants carry a token this
 /// server minted and encrypted, and OpenIddict has already established that it is genuine by the
 /// time this runs.
+/// <para>
+/// Its scopes are checked here too, because nothing else checks them: a code was minted through the
+/// authorization endpoint, which refused everything the application was not granted, but a
+/// client-credentials request goes straight to the token endpoint and asks for whatever it likes.
+/// That matters most for the applications that made this handler resolve client apps at all — a
+/// desktop or mobile client ships its secret inside the binary, so anyone holding one could
+/// otherwise mint a token bearing scopes the application was never granted.
+/// </para>
 /// </remarks>
 public sealed class ValidateTokenHandler(IAegisDirectory directory)
     : IOpenIddictServerHandler<ValidateTokenRequestContext>
@@ -110,9 +124,21 @@ public sealed class ValidateTokenHandler(IAegisDirectory directory)
             return;
         }
 
-        if (context.Request.IsClientCredentialsGrantType() &&
-            !ClientSecret.Matches(credentials.ClientSecret, context.Request.ClientSecret))
+        if (!context.Request.IsClientCredentialsGrantType())
+            return;
+
+        if (!ClientSecret.Matches(credentials.ClientSecret, context.Request.ClientSecret))
+        {
             context.Reject(OpenIddictConstants.Errors.InvalidClient, "Invalid client_secret.");
+            return;
+        }
+
+        var disallowed = GrantedScopes.NotGrantedIn(context.Request, credentials.scopes);
+
+        if (disallowed.Count > 0)
+            context.Reject(OpenIddictConstants.Errors.InvalidScope,
+                $"Client is not allowed to request scopes: {string.Join(", ", disallowed)}, " +
+                $"defined allowed: {string.Join(',', credentials.scopes)}");
     }
 }
 

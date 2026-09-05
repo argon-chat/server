@@ -93,11 +93,16 @@ public interface IDevTeamsGrain : IGrainWithGuidKey
     Task<AppLoginCheckInfo?> GetAppLoginCheckInfoAsync(string clientId, CancellationToken ct = default);
 
     /// <summary>
-    /// The OAuth credentials of a bot, with its scopes filtered down to the ones it is currently
-    /// entitled to. A scope stays in <c>RequiredScopes</c> after the bot loses eligibility for it —
-    /// losing verification re-locks <c>offline_access</c>, for one — so filtering here is what stops
-    /// the token endpoint from honouring it.
+    /// The OAuth credentials of an application — a client app or a bot — with its scopes filtered
+    /// down to the ones it is currently entitled to. A scope stays in <c>RequiredScopes</c> after
+    /// the application loses eligibility for it — losing verification re-locks
+    /// <c>offline_access</c>, for one — so filtering here is what stops the token endpoint from
+    /// honouring it.
     /// </summary>
+    /// <remarks>
+    /// Named for bots because that is what it once resolved, and kept that way because the name is
+    /// the Orleans alias: renaming it would break a call in flight across a rolling deployment.
+    /// </remarks>
     [Alias(nameof(GetBotCredentialsAsync))]
     Task<BotCredentialsInfo?> GetBotCredentialsAsync(string clientId, CancellationToken ct = default);
 

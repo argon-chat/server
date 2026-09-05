@@ -59,13 +59,14 @@ public class AegisOAuthTests : TestBase
 
         clientId = app.clientId;
 
-        // A second application, and a bot one, because only bots take part in OAuth: the credentials
-        // the authorization endpoint resolves come from BotEntities alone, so a client app has no
-        // client secret, no redirects and no scopes and is refused as an unknown client. The widget
-        // tests above never noticed, because the widget's own API answers from a different lookup and
-        // none of them reaches /connect.
-        // The username has to end in "bot" -- the grain refuses anything else, and a bot is what this
-        // has to be, because only bots carry OAuth credentials.
+        // The client app is registered for OAuth too, which is the point of it being here: an
+        // application the console can create has to be one the authorization endpoint recognises.
+        await teams.AddRedirectAsync(team.teamId, app.appId, RedirectUri);
+        await teams.UpdateScopeAsync(team.teamId, app.appId,
+            new ScopeKeyValue(isRequired: true, ArgonScopes.UserRead, isLocked: false));
+
+        // A second application, a bot one, so both kinds run the same flow. The username has to end
+        // in "bot" -- the grain refuses anything else.
         var oauthApp = await teams.CreateBotAppAsync(team.teamId, "Aegis OAuth App",
             $"aegis{Guid.NewGuid():N}"[..12] + "bot");
 
@@ -341,6 +342,27 @@ public class AegisOAuthTests : TestBase
             "an application was given no avatar address, or one it cannot resolve");
     }
 
+    /// <summary>
+    /// A client app runs the flow to the end, exactly as a bot does.
+    /// </summary>
+    /// <remarks>
+    /// The credentials the authorization endpoint resolves a <c>client_id</c> through used to come
+    /// from the bots table alone, so a client app — the kind the console offers first — reached the
+    /// consent screen and was then refused at <c>/connect</c> as an unknown client. Nothing above
+    /// noticed, because the widget's own API answers from a different lookup and none of it reaches
+    /// the OAuth endpoints.
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task A_client_app_is_authorized_like_any_other_application()
+    {
+        using var client = AegisClient.For(host);
+
+        var userInfo = await AuthorizeAndReadUserInfo(client, forClientId: clientId);
+
+        Assert.That(userInfo.Value<string>("preferred_username"), Is.Not.Null.And.Not.Empty,
+            $"a client app was refused its own authorization: {userInfo}");
+    }
+
     /// <summary>The base the identity server is configured to build avatar addresses on.</summary>
     private const string AvatarBase = "https://api.test.local";
 
@@ -380,19 +402,20 @@ public class AegisOAuthTests : TestBase
     /// Signs in, consents, redeems the code and reads <c>userinfo</c> — the flow an application runs.
     /// </summary>
     private async Task<JObject> AuthorizeAndReadUserInfo(
-        HttpClient client, NewUserCredentialsInputForTest? credentials = null)
+        HttpClient client, NewUserCredentialsInputForTest? credentials = null, string? forClientId = null)
     {
+        var app       = forClientId ?? oauthClientId;
         var verifier  = Guid.NewGuid().ToString("N") + Guid.NewGuid().ToString("N");
         var challenge = Base64Url(SHA256.HashData(Encoding.ASCII.GetBytes(verifier)));
 
-        var signIn = await SignIn(client, credentials ?? ownerCredentials, oauthClientId);
+        var signIn = await SignIn(client, credentials ?? ownerCredentials, app);
         Assert.That(signIn.Success, Is.True, $"sign-in failed: {signIn.Error}");
 
         // The widget posts the flow back to the authorization endpoint as a form once consent is
         // given; the code comes back on the redirect rather than in a body.
         using var authorize = await client.PostAsync("/", new FormUrlEncodedContent(new Dictionary<string, string>
         {
-            ["client_id"]             = oauthClientId,
+            ["client_id"]             = app,
             ["redirect_uri"]          = RedirectUri,
             ["response_type"]         = "code",
             ["scope"]                 = $"openid {ArgonScopes.UserRead}",
@@ -412,7 +435,7 @@ public class AegisOAuthTests : TestBase
             ["grant_type"]    = "authorization_code",
             ["code"]          = code!,
             ["redirect_uri"]  = RedirectUri,
-            ["client_id"]     = oauthClientId,
+            ["client_id"]     = app,
             ["code_verifier"] = verifier
         }));
 

@@ -25,7 +25,7 @@ public sealed class AppsManagementGrain(ILogger<AppsManagementGrain> logger) : G
         if (credentials is null)
             return null;
 
-        logger.LogDebug("Resolved bot credentials for {ClientId}: scopes [{Scopes}], redirects [{Redirects}]",
+        logger.LogDebug("Resolved app credentials for {ClientId}: scopes [{Scopes}], redirects [{Redirects}]",
             clientId, string.Join(',', credentials.scopes), string.Join(',', credentials.allowedRedirects));
 
         return credentials;

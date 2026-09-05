@@ -58,10 +58,15 @@ public sealed class AppManagementService(
     {
         await accessChecker.EnsureTeamMemberAsync(this.GetUserId(), teamId, ct);
 
+        // Which rules apply depends on where the application runs, so the app is read before its
+        // redirect is judged. It also throws when the app is not this team's, which is the same
+        // guard the grain applies to the write below.
+        var app = await Teams.GetAppDetailsAsync(teamId, appId, ct);
+
         // The validator dials the redirect host to inspect its certificate. That outbound connection
         // is made from the console, which is a client role, so a hostile redirect target never gets
         // to make a silo open a socket.
-        if (await CompositeOAuthRedirectValidator.ValidatorForOAuthApps().ValidateAsync(redirect) is { Length: > 0 } error)
+        if (await ValidatorFor(app).ValidateAsync(redirect) is { Length: > 0 } error)
             return new AddRedirectResult(false, error);
 
         return await Teams.AddRedirectAsync(teamId, appId, redirect, ct);
@@ -102,6 +107,15 @@ public sealed class AppManagementService(
 
     public Task CompleteUploadAppAvatar(Guid teamId, Guid blobId, CancellationToken ct = default)
         => throw new NotImplementedException();
+
+    /// <summary>
+    /// A client app that runs on a device may also come home through a private-use scheme; anything
+    /// hosted on the web — a bot, a web-based client app — may not.
+    /// </summary>
+    private static OAuthRedirectValidator ValidatorFor(AppDetails app)
+        => app.clientAppDetails is { platform: not ClientAppPlatform.WebBased }
+            ? NativeAppRedirectValidator.ForNativeApps()
+            : CompositeOAuthRedirectValidator.ValidatorForOAuthApps();
 
     private async Task SetLifecycle(Guid teamId, Guid appId, BotLifecycleState state, CancellationToken ct)
     {

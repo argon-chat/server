@@ -439,20 +439,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         db.Add(appEntity);
         await db.SaveChangesAsync(ct);
 
-        return new AppDetails(
-            appEntity.AppId,
-            appEntity.TeamId,
-            appEntity.Name,
-            appEntity.Description,
-            null,
-            MapClientApp(appEntity),
-            AppKind.ClientApp,
-            appEntity.ClientId,
-            appEntity.ClientSecret,
-            appEntity.VerificationKey,
-            now,
-            IonArray<ScopeKeyValue>.Empty,
-            IonArray<string>.Empty);
+        return Describe(appEntity);
     }
 
     public async Task<CheckBotUsernameValid> CheckUsernameForBotAsync(string username, CancellationToken ct = default)
@@ -494,20 +481,7 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
                .AsNoTracking()
                .FirstAsync(x => x.AppId == appId, ct);
 
-            return new AppDetails(
-                appEntity.AppId,
-                appEntity.TeamId,
-                appEntity.Name,
-                appEntity.Description,
-                null,
-                MapClientApp(appEntity),
-                AppKind.ClientApp,
-                appEntity.ClientId,
-                appEntity.ClientSecret,
-                appEntity.VerificationKey,
-                appEntity.CreatedAt.Date,
-                IonArray<ScopeKeyValue>.Empty,
-                new IonArray<string>(appEntity.AllowedRedirects));
+            return Describe(appEntity);
         }
 
         throw new NotSupportedException($"App type {appInfo.AppType} is not supported.");
@@ -516,6 +490,13 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     public async Task<AppDetails?> GetAppDetailsByClientIdAsync(string clientId, CancellationToken ct = default)
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
+
+        var clientApp = await db.AppClientEntities
+           .AsNoTracking()
+           .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
+
+        if (clientApp is not null)
+            return Describe(clientApp);
 
         var botEntity = await db.BotEntities
            .AsNoTracking()
@@ -572,27 +553,51 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
+        // Client apps first, and by the same rules: this is the lookup the authorization and token
+        // endpoints resolve a client_id through, so an application missing from here is an unknown
+        // client no matter how completely it is registered everywhere else.
+        var clientApp = await db.AppClientEntities
+           .AsNoTracking()
+           .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
+
+        if (clientApp is not null)
+            return CredentialsOf(clientApp, AvailableScopesFor(clientApp));
+
         var bot = await db.BotEntities
            .AsNoTracking()
            .Include(x => x.BotAsUser)
            .ThenInclude(x => x.Profile)
            .FirstOrDefaultAsync(x => x.ClientId == clientId, ct);
 
-        if (bot is null || string.IsNullOrEmpty(bot.ClientSecret))
+        return bot is null ? null : CredentialsOf(bot, AvailableScopesFor(bot));
+    }
+
+    /// <summary>
+    /// The credentials the OAuth endpoints work from, with <paramref name="available"/> filtered
+    /// down to the scopes the application is currently entitled to.
+    /// </summary>
+    /// <remarks>
+    /// A scope stays in <c>RequiredScopes</c> after the application loses eligibility for it —
+    /// losing verification re-locks <c>offline_access</c>, for one — so filtering here is what stops
+    /// the token endpoint from honouring it.
+    /// </remarks>
+    private static BotCredentialsInfo? CredentialsOf(DevAppEntity app, List<ScopeKeyValue> available)
+    {
+        if (string.IsNullOrEmpty(app.ClientSecret))
             return null;
 
-        var scopes = AvailableScopesFor(bot)
+        var scopes = available
            .Where(x => x is { isLocked: false, isRequired: true })
            .Select(x => x.key)
            .ToList();
 
         return new BotCredentialsInfo(
-            bot.ClientId,
-            bot.ClientSecret,
-            bot.AllowedRedirects,
+            app.ClientId,
+            app.ClientSecret,
+            app.AllowedRedirects,
             scopes,
             scopes.Contains("offline_access"),
-            bot.AllowMagicLink);
+            app.AllowMagicLink);
     }
 
     public async Task<AppOAuthDisplayInfo?> GetAppOAuthDisplayInfoAsync(string clientId, CancellationToken ct = default)
@@ -651,16 +656,16 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var botEntity = await RequireBotAsync(db, teamId, appId, ct);
-        var granted   = botEntity.RequiredScopes.Contains(scope.key);
+        var app     = await RequireAppAsync(db, teamId, appId, ct);
+        var granted = app.RequiredScopes.Contains(scope.key);
 
         if (scope.isRequired == granted)
             return;
 
         if (scope.isRequired)
-            botEntity.RequiredScopes.Add(scope.key);
+            app.RequiredScopes.Add(scope.key);
         else
-            botEntity.RequiredScopes.Remove(scope.key);
+            app.RequiredScopes.Remove(scope.key);
 
         await db.SaveChangesAsync(ct);
     }
@@ -669,12 +674,12 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var botEntity = await RequireBotAsync(db, teamId, appId, ct);
+        var app = await RequireAppAsync(db, teamId, appId, ct);
 
-        if (botEntity.AllowedRedirects.Contains(redirect))
+        if (app.AllowedRedirects.Contains(redirect))
             return new AddRedirectResult(false, "Redirect already exists.");
 
-        botEntity.AllowedRedirects.Add(redirect);
+        app.AllowedRedirects.Add(redirect);
 
         await db.SaveChangesAsync(ct);
 
@@ -685,9 +690,9 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     {
         await using var db = await contextFactory.CreateDbContextAsync(ct);
 
-        var botEntity = await RequireBotAsync(db, teamId, appId, ct);
+        var app = await RequireAppAsync(db, teamId, appId, ct);
 
-        if (!botEntity.AllowedRedirects.Remove(redirect))
+        if (!app.AllowedRedirects.Remove(redirect))
             return;
 
         await db.SaveChangesAsync(ct);
@@ -743,6 +748,20 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
         => await db.BotEntities.FirstOrDefaultAsync(b => b.AppId == appId && b.TeamId == teamId, ct)
         ?? throw new InvalidOperationException("Bot not found.");
 
+    /// <summary>
+    /// The same guard for the mutations that are not about bots at all.
+    /// </summary>
+    /// <remarks>
+    /// Scopes and redirects are an OAuth registration rather than a bot feature, and they live on
+    /// the base table for that reason. Resolving them through <see cref="RequireBotAsync"/> is what
+    /// made a client app's registration unwritable — and therefore its client id unknown to the
+    /// authorization endpoint, which resolves an application by what is registered on it.
+    /// </remarks>
+    private static async Task<DevAppEntity> RequireAppAsync(
+        ApplicationDbContext db, Guid teamId, Guid appId, CancellationToken ct)
+        => await db.AppEntities.FirstOrDefaultAsync(a => a.AppId == appId && a.TeamId == teamId, ct)
+        ?? throw new InvalidOperationException("App not found.");
+
     private static AppDetails Describe(BotEntity bot)
         => new(bot.AppId,
             bot.TeamId,
@@ -757,6 +776,21 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
             bot.CreatedAt.Date,
             new IonArray<ScopeKeyValue>(AvailableScopesFor(bot)),
             new IonArray<string>(bot.AllowedRedirects));
+
+    private static AppDetails Describe(ClientAppEntity app)
+        => new(app.AppId,
+            app.TeamId,
+            app.Name,
+            app.Description,
+            null,
+            MapClientApp(app),
+            AppKind.ClientApp,
+            app.ClientId,
+            app.ClientSecret,
+            app.VerificationKey,
+            app.CreatedAt.Date,
+            new IonArray<ScopeKeyValue>(AvailableScopesFor(app)),
+            new IonArray<string>(app.AllowedRedirects));
 
     private static BotDetails MapBot(BotEntity bot)
         => new(requiresOAuth2: bot.RequiresOAuth2,
@@ -806,23 +840,43 @@ public sealed class DevTeamsGrain(IDbContextFactory<ApplicationDbContext> contex
     ];
 
     /// <summary>
-    /// The scope list the console renders: every scope the bot could ask for, each flagged with
-    /// whether it currently asks for it and whether it may be toggled at all. Locking rather than
-    /// hiding is deliberate — a developer should see that <c>offline_access</c> exists and that
-    /// verification is what unlocks it.
+    /// A bot's scope list. Requires <c>BotAsUser.Profile</c> to have been loaded — the staff badge
+    /// on the bot's own account is what unlocks the internal scopes.
     /// </summary>
     private static List<ScopeKeyValue> AvailableScopesFor(BotEntity bot)
+        => AvailableScopes(bot.RequiredScopes, bot.IsVerified,
+            allowInternal: bot is { IsVerified: true, BotAsUser.Profile.Badges: ["staff"] });
+
+    /// <summary>
+    /// A client app's scope list.
+    /// </summary>
+    /// <remarks>
+    /// The internal scopes are unlocked by the app being an internal one rather than by a badge: a
+    /// client app has no account of its own to carry one, and <c>IsInternalApp</c> is already the
+    /// flag the sign-in policy reads to demand a staff mailbox and an operator step-up.
+    /// </remarks>
+    private static List<ScopeKeyValue> AvailableScopesFor(ClientAppEntity app)
+        => AvailableScopes(app.RequiredScopes, app.IsVerified,
+            allowInternal: app is { IsVerified: true, IsInternalApp: true });
+
+    /// <summary>
+    /// The scope list the console renders: every scope the application could ask for, each flagged
+    /// with whether it currently asks for it and whether it may be toggled at all. Locking rather
+    /// than hiding is deliberate — a developer should see that <c>offline_access</c> exists and that
+    /// verification is what unlocks it.
+    /// </summary>
+    private static List<ScopeKeyValue> AvailableScopes(List<string> required, bool isVerified, bool allowInternal)
     {
         var scopes = new List<ScopeKeyValue>
         {
             new(true, "openid", true)
         };
 
-        scopes.AddRange(ScopesForDefault.Select(v => new ScopeKeyValue(bot.RequiredScopes.Contains(v), v, false)));
-        scopes.AddRange(ScopesForVerified.Select(v => new ScopeKeyValue(bot.RequiredScopes.Contains(v), v, !bot.IsVerified)));
+        scopes.AddRange(ScopesForDefault.Select(v => new ScopeKeyValue(required.Contains(v), v, false)));
+        scopes.AddRange(ScopesForVerified.Select(v => new ScopeKeyValue(required.Contains(v), v, !isVerified)));
 
-        if (bot is { IsVerified: true, BotAsUser.Profile.Badges: ["staff"] })
-            scopes.AddRange(ScopesForInternal.Select(v => new ScopeKeyValue(bot.RequiredScopes.Contains(v), v, false)));
+        if (allowInternal)
+            scopes.AddRange(ScopesForInternal.Select(v => new ScopeKeyValue(required.Contains(v), v, false)));
 
         return scopes;
     }
