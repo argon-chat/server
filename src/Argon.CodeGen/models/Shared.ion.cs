@@ -84,6 +84,41 @@ public static class Ion_OtpMethod_OpenEnum
 }
 
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum ClientPlatform : u4
+{
+    UNKNOWN = 0,
+    WINDOWS = 1,
+    MACOS = 2,
+    LINUX = 3,
+    ANDROID = 4,
+    IOS = 5,
+}
+
+/// <summary>Open-enum helpers for <see cref="ClientPlatform"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_ClientPlatform_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this ClientPlatform value)
+        => value == ClientPlatform.UNKNOWN || value == ClientPlatform.WINDOWS || value == ClientPlatform.MACOS || value == ClientPlatform.LINUX || value == ClientPlatform.ANDROID || value == ClientPlatform.IOS;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this ClientPlatform value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
 [AttributeUsage(AttributeTargets.All)]
 public sealed class AllowAnonymousAttribute() : System.Attribute
 {

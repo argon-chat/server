@@ -19,25 +19,43 @@ public sealed class Ion_SessionInfo_Formatter : IonFormatter<SessionInfo>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public SessionInfo Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(5, "SessionInfo");
+        var arraySize = reader.ReadStartMessage(14, "SessionInfo");
         var __sessionid = IonFormatterStorage<guid>.Read(reader);
         var __clientname = IonFormatterStorage<string>.Read(reader);
         var __region = IonFormatterStorage<string>.Read(reader);
         var __lastseenat = IonFormatterStorage<datetime>.Read(reader);
         var __iscurrent = IonFormatterStorage<bool>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 5);
-        return new(__sessionid, __clientname, __region, __lastseenat, __iscurrent);
+        var __appid = IonFormatterStorage<string>.Read(reader);
+        var __appname = IonFormatterStorage<string>.Read(reader);
+        var __appversion = IonFormatterStorage<string>.Read(reader);
+        var __platform = IonFormatterStorage<ClientPlatform>.Read(reader);
+        var __osname = IonFormatterStorage<string>.Read(reader);
+        var __devicename = IonFormatterStorage<string>.Read(reader);
+        var __ip = IonFormatterStorage<string>.Read(reader);
+        var __city = IonFormatterStorage<string>.Read(reader);
+        var __startedat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 14);
+        return new(__sessionid, __clientname, __region, __lastseenat, __iscurrent, __appid, __appname, __appversion, __platform, __osname, __devicename, __ip, __city, __startedat);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, SessionInfo value)
     {
-        writer.WriteStartArray(5);
+        writer.WriteStartArray(14);
         IonFormatterStorage<guid>.Write(writer, value.sessionId);
         IonFormatterStorage<string>.Write(writer, value.clientName);
         IonFormatterStorage<string>.Write(writer, value.region);
         IonFormatterStorage<datetime>.Write(writer, value.lastSeenAt);
         IonFormatterStorage<bool>.Write(writer, value.isCurrent);
+        IonFormatterStorage<string>.Write(writer, value.appId);
+        IonFormatterStorage<string>.Write(writer, value.appName);
+        IonFormatterStorage<string>.Write(writer, value.appVersion);
+        IonFormatterStorage<ClientPlatform>.Write(writer, value.platform);
+        IonFormatterStorage<string>.Write(writer, value.osName);
+        IonFormatterStorage<string>.Write(writer, value.deviceName);
+        IonFormatterStorage<string>.Write(writer, value.ip);
+        IonFormatterStorage<string>.Write(writer, value.city);
+        IonFormatterStorage<datetime>.Write(writer, value.startedAt);
         writer.WriteEndArray();
     }
 }

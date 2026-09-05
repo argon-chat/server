@@ -15,7 +15,7 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record SessionInfo(guid sessionId, string clientName, string region, datetime lastSeenAt, bool isCurrent);
+public sealed record SessionInfo(guid sessionId, string clientName, string region, datetime lastSeenAt, bool isCurrent, string appId, string appName, string appVersion, ClientPlatform platform, string osName, string deviceName, string ip, string city, datetime startedAt);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

@@ -84,3 +84,20 @@ public sealed class Ion_OtpMethod_Formatter : IonFormatter<OtpMethod>
     }
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ClientPlatform_Formatter : IonFormatter<ClientPlatform>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ClientPlatform Read(CborReader reader)
+    {
+         return (ClientPlatform)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ClientPlatform value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+

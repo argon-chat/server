@@ -463,6 +463,7 @@ public enum DeviceTypeKind : u4
     AndroidMobile = 5,
     Xbox = 6,
     SteamDevice = 7,
+    LinuxDesktop = 8,
 }
 
 /// <summary>Open-enum helpers for <see cref="DeviceTypeKind"/>.</summary>
@@ -477,7 +478,7 @@ public static class Ion_DeviceTypeKind_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this DeviceTypeKind value)
-        => value == DeviceTypeKind.Unknown || value == DeviceTypeKind.WindowsDesktop || value == DeviceTypeKind.OsxDesktop || value == DeviceTypeKind.Browser || value == DeviceTypeKind.IosMobile || value == DeviceTypeKind.AndroidMobile || value == DeviceTypeKind.Xbox || value == DeviceTypeKind.SteamDevice;
+        => value == DeviceTypeKind.Unknown || value == DeviceTypeKind.WindowsDesktop || value == DeviceTypeKind.OsxDesktop || value == DeviceTypeKind.Browser || value == DeviceTypeKind.IosMobile || value == DeviceTypeKind.AndroidMobile || value == DeviceTypeKind.Xbox || value == DeviceTypeKind.SteamDevice || value == DeviceTypeKind.LinuxDesktop;
 
     /// <summary>
     /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
