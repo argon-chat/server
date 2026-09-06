@@ -531,12 +531,22 @@ public class PresenceRealtimeTests : TestBase
                 return stream == snapshot;
             }, PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
-            // Re-read after the dust settles: an event arriving after agreement was reached breaks it
-            // just as badly, and only a second look finds that.
+            // Look again after the dust settles: an event arriving after agreement was reached breaks it
+            // just as badly, and only a second look finds that. The second look is itself a poll, not a
+            // single read, because the two are written in sequence — the grain commits the aggregate
+            // and then publishes — so a read that lands between the two sees a snapshot the stream has
+            // not caught up with yet. On a loaded runner that gap is the whole status deadline (CI
+            // shard 2/4 read Online from the snapshot two milliseconds before the Online event
+            // arrived). A transition still in flight is not a disagreement; a stale event that never
+            // gets corrected is, and it never re-agrees, so it is still caught here.
             await Task.Delay(PresenceWaits.Slack, ct);
 
-            stream   = StatusesFor(watcher, user.UserId, spaceId).LastOrDefault()?.status ?? UserStatus.Offline;
-            snapshot = await SnapshotStatusAsync(observer, spaceId, user.UserId, ct);
+            await Poll.UntilAsync(async () =>
+            {
+                stream   = StatusesFor(watcher, user.UserId, spaceId).LastOrDefault()?.status ?? UserStatus.Offline;
+                snapshot = await SnapshotStatusAsync(observer, spaceId, user.UserId, ct);
+                return stream == snapshot;
+            }, PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             if (stream != snapshot)
                 mismatches.Add($"step {step} ({label}): stream says {stream}, GetMemberPresence says {snapshot}");
