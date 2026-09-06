@@ -124,18 +124,36 @@ public class IdentityInteraction(
     {
         try
         {
+            // Both halves of the identity, as everywhere else. The credential sid is the one that
+            // cannot be dodged; the presence sid — the scid this very request carries in its cookie —
+            // is added because a client that is still running after its row was signed out keeps
+            // presenting the tombstoned scid, and without this line its refresh went through: the
+            // interceptor refused every other call it made, the client refreshed, the interceptor
+            // refused again, and the two took turns forever instead of the client being signed out.
+            // A rotated scid escapes this and is caught by the credential mapping instead; a
+            // development stand-in (Guid.AllBitsSet) names no session and is skipped.
+            var identities = new List<Guid>(2);
+
             if (sessionId is { } sid)
+                identities.Add(sid);
+            if (ArgonRequestContext.Current.SessionId is { } presence && presence != Guid.Empty && presence != Guid.AllBitsSet)
+                identities.Add(presence);
+
+            if (identities.Count > 0)
             {
                 var revoked = await cache.SetMembersAsync(SessionRevocation.RevokedKey(userId), ct);
 
-                if (revoked.Contains(sid.ToString()))
-                    return true;
+                foreach (var identity in identities)
+                {
+                    if (revoked.Contains(identity.ToString()))
+                        return true;
 
-                // Also the shape this replaced. A revocation written before the set existed would
-                // otherwise be invisible, and the session its owner ended would start working again
-                // the moment this deploys.
-                if (await cache.KeyExistsAsync(SessionRevocation.LegacyRevokedKey(userId, sid), ct))
-                    return true;
+                    // Also the shape this replaced. A revocation written before the set existed would
+                    // otherwise be invisible, and the session its owner ended would start working
+                    // again the moment this deploys.
+                    if (await cache.KeyExistsAsync(SessionRevocation.LegacyRevokedKey(userId, identity), ct))
+                        return true;
+                }
             }
 
             // Through the shared reading of the watermark rather than a local one, so this path and

@@ -89,6 +89,7 @@ public class AppHub(
         // device back on every space group it used to be on, and a connect happens once.
         if (await IsSessionRevokedAsync(onConnect: true))
         {
+            await TellSignedOutAsync();
             Context.Abort();
             return;
         }
@@ -103,6 +104,7 @@ public class AppHub(
         // next heartbeat noticed, up to fifteen seconds of a signed-out device receiving everything.
         if (!await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).AttachConnectionAsync(Context.ConnectionId))
         {
+            await TellSignedOutAsync();
             Context.Abort();
             return;
         }
@@ -269,15 +271,40 @@ public class AppHub(
     {
         if (await IsSessionRevokedAsync())
         {
-            // Both, because they answer different halves: the abort stops a silent connection that
-            // makes no further calls from receiving anything, the exception tells the caller why this
-            // one failed.
+            // All three, because they answer different halves: the message tells the client to sign
+            // out rather than reconnect, the abort stops a silent connection that makes no further
+            // calls from receiving anything, the exception tells the caller why this one failed.
+            await TellSignedOutAsync();
             Context.Abort();
             throw new HubException("this session has been signed out");
         }
 
         if (markSeen)
             MarkSeen();
+    }
+
+    /// <summary>
+    /// Says so before the socket goes, so the client signs out at once instead of discovering it on
+    /// its next ticket request — and instead of answering the close with a reconnect loop.
+    /// </summary>
+    /// <remarks>
+    /// Same message, same reason code and the same bound as <see cref="HubConnectionRegistry"/> sends
+    /// on a sign-out signal, so the client has one thing to listen for and one code to translate.
+    /// Best effort: the refusal that follows does not depend on it arriving.
+    /// </remarks>
+    private async Task TellSignedOutAsync()
+    {
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+
+            await Clients.Caller.SendAsync(
+                HubConnectionRegistry.SessionRevokedMessage, HubConnectionRegistry.SignedOutReason, timeout.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogDebug(e, "Could not tell connection {ConnectionId} it was signed out", Context.ConnectionId);
+        }
     }
 
     /// <summary>Tells the session this connection is still there.</summary>

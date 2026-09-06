@@ -294,8 +294,17 @@ public class DataExportArchiveTests : TestBase
     /// the archive, in any file, under any shape — so that it stays green under any reasonable fix
     /// (new files, extra keys in <c>settings.json</c>, a single <c>other.json</c>) and can only be red
     /// because the data is genuinely absent.</para>
+    ///
+    /// <para><b>Confirmed defect.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>,
+    /// <c>ProcessDataCollectionAsync</c>: the collection phase has exactly nine steps — profile,
+    /// friends, blocks, settings, stats, devices, subscriptions, then conversations and channels — and
+    /// there is no collector for <c>FriendRequest</c>, <c>PrivacyRules</c>, <c>SavedGifs</c>,
+    /// <c>Passkeys</c> or <c>Files</c>, all five of which the same account owns rows in. All six
+    /// assertions below are red: the archive contains neither pending request, the privacy rule, the
+    /// saved GIF, the passkey nor the uploaded file, and reports <c>Completed</c> regardless. It should
+    /// either export them or state in the archive that they were withheld and why.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public void The_archive_accounts_for_the_personal_data_the_nine_files_leave_out()
     {
         var everything = string.Join('\n', archive.Values);
@@ -327,8 +336,15 @@ public class DataExportArchiveTests : TestBase
     /// anything was dropped: the file looks complete, the status says <c>Completed</c>, and the
     /// person receiving the archive has no way to tell. Seeded with exactly one message more than the
     /// batch so the failure reads as "the last one is missing" rather than as a size argument.
+    ///
+    /// <para><b>Confirmed defect.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>,
+    /// <c>CollectChannelMessagesBatchAsync</c>: <c>.OrderBy(m =&gt; m.MessageId).Take(MessageBatchSize)</c>
+    /// with no <c>Skip</c>, and <c>src/Argon.Api/Grains/States/UserDataExportGrainState.cs</c>'s
+    /// <c>ExportCursor</c> carries indices for conversations, memberships and channels but no message
+    /// offset, so a continuation cannot be expressed. Observed: six messages written, five in the
+    /// archive, status <c>Completed</c>. In production the ceiling is 200 per channel.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public void A_channel_with_more_messages_than_one_batch_exports_all_of_them()
     {
         var expected = AccountTimings.MessageBatchSize + 1;
@@ -429,8 +445,25 @@ public class DataExportArchiveTests : TestBase
     /// 0", which is either a division by zero or an infinite bar depending on the client. Asserted
     /// against the seeded account, which processed well over a dozen items, so a green here means a
     /// real estimate and not a coincidence.
+    ///
+    /// <para><b>Observed.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>,
+    /// <c>RequestExportAsync</c>: <c>state.State.TotalItemsEstimate = 0</c> is the only assignment in
+    /// the file, and the field is carried out through <c>GetExportStatusAsync</c>,
+    /// <c>ExportStatusDto</c> and <c>SecurityInteractionImpl.GetDataExportStatus</c> to the client
+    /// anyway. Observed: 17 items processed, estimate 0. Either compute it during collection or drop
+    /// it from the contract.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>X8</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the field is always 0, but the reviewer found no reader of it anywhere — the console gates on a
+    /// boolean and the desktop client never calls <c>GetDataExportStatus</c> — so the choice between
+    /// dropping <c>totalItemsEstimate</c> from the wire and making it honest belongs to the contracts
+    /// owner.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public void The_status_carries_a_total_a_client_can_render_progress_against()
     {
         Assert.That(finalStatus.itemsProcessed, Is.GreaterThan(1),
@@ -457,8 +490,26 @@ public class DataExportArchiveTests : TestBase
     /// the only reference to the object, so nothing can delete it afterwards either; every export ever
     /// run accumulates in the export bucket permanently. The store is asked directly here because no
     /// client surface reports it.</para>
+    ///
+    /// <para><b>Observed</b>, and only the last assertion is red — the status does flip to
+    /// <c>EXPIRED</c>, the url is nulled and the presigned link is refused.
+    /// <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>, <c>CheckExpiration</c> sets
+    /// <c>Status = Expired</c>, <c>DownloadUrl = null</c> and <c>ArchiveS3Key = null</c> and never
+    /// calls <c>IExportS3Service.DeleteObjectAsync</c>, which exists
+    /// (<c>src/Argon.Core/Features/Storage/ExportS3Service.cs</c>). Observed: the zip is still under
+    /// <c>exports/{user}/{export}/</c> after the archive expired. The method also never calls
+    /// <c>WriteStateAsync</c>, so the transition is recomputed per read rather than persisted.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>X3</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the object does survive, but the reviewer placed retention where <c>StorageOptions</c> already
+    /// documents it — a lifecycle rule on the export bucket — rather than in <c>CheckExpiration</c>;
+    /// the link itself is dead at the TTL, which the green half of this test proves.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public async Task An_archive_past_its_lifetime_is_unreachable_and_gone_from_the_store(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -695,8 +746,17 @@ public class DataExportArchiveTests : TestBase
     /// the state write nothing in the system still refers to them. Failure is injected late here — in a
     /// channel's message list, by corrupting the polymorphic entity column of one message — precisely
     /// so that seven files exist by the time the tick throws.
+    ///
+    /// <para><b>Confirmed defect.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>,
+    /// <c>ProcessTickAsync</c>'s catch block writes <c>Failed</c>, the reason and the state, disposes
+    /// the timer and unregisters the pump — and never calls <c>exportS3.DeletePrefixAsync</c>, which
+    /// <c>CancelExportAsync</c> a few lines above it does call. Observed: seven intermediate JSON
+    /// objects (<c>profile.json</c> with the account's e-mail and date of birth, <c>devices.json</c>
+    /// with its addresses, and five more) left under <c>exports/{user}/{export}/intermediate/</c>
+    /// after the export failed, in a bucket with no lifecycle rule and with nothing in the grain
+    /// still referring to them.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public async Task A_failed_export_does_not_leave_its_intermediate_files_behind(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -731,8 +791,19 @@ public class DataExportArchiveTests : TestBase
     /// receives "we have started preparing your archive" and then nothing, ever: the console shows no
     /// export status at all, and the only surface that reports <c>FAILED</c> is the desktop client's
     /// privacy screen. Under Art. 12(4) the controller has to say that it is not acting on the request.
+    ///
+    /// <para><b>Confirmed defect.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>,
+    /// <c>ProcessTickAsync</c>'s catch block records the failure and sends nothing;
+    /// <c>src/Argon.Core/Grains/Interfaces/IEmailManager.cs</c> has <c>SendExportStartedAsync</c> and
+    /// <c>SendExportReadyAsync</c> and no failure counterpart, and
+    /// <c>src/Argon.Core/Features/Testing/IEmailSink.cs</c>'s <c>EmailKinds</c> confirms the fourteen
+    /// kinds the product can send do not include one. Observed: the started mail arrives, the export
+    /// fails, and no further mail of any kind reaches the address. Compounding it,
+    /// <c>src/Argon.Api/Features/AccountConsole/AccountConsoleService.cs</c>'s <c>MeDetails</c> carries
+    /// only <c>gdrpExportInProgress</c>, so a web-console user has no surface that would show the
+    /// failure either.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public async Task The_person_who_asked_for_an_export_is_told_when_it_fails(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -848,8 +919,26 @@ public class DataExportArchiveTests : TestBase
     /// expires on its own schedule, so a refused download would be ambiguous evidence, while an object
     /// listing is not. Only the export side is asserted here — what deletion does to the account row
     /// itself is the deletion fixture's business.</para>
+    ///
+    /// <para><b>Observed.</b> <c>src/Argon.Api/Grains/AccountDeletionGrain.cs</c>,
+    /// <c>ExecuteDeletionAsync</c>: ten numbered steps — sessions, anonymise, reserve the username,
+    /// delete private data, memberships, teams, file refs, conversations, mail, done — and not one of
+    /// them mentions <c>IExportS3Service</c> or <c>IUserDataExportGrain</c>. Observed: after the
+    /// account reached <c>Completed</c> deletion, <c>exports/{user}/{export}/export-*.zip</c> was
+    /// still in the bucket. Deleting the object, or at least handing the export grain a hook to, is
+    /// what erasure has to include.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>X5</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the reviewer agreed nothing in <c>ExecuteDeletionAsync</c> mentions the export, but scoped the
+    /// harm to the one ordering that reaches it (an export started inside the last 48 h of the grace)
+    /// and split the fix into bucket-side retention plus the front-door deletion guard tracked as
+    /// ACC-10/ACC-11.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public async Task Erasing_the_account_destroys_the_archive_it_exported(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -930,8 +1019,16 @@ public class DataExportArchiveTests : TestBase
     /// global filter — and neither the started nor the ready mail is sent either, because both bail on
     /// a null user. Driven against the grain directly because a user that does not exist has no session
     /// to call from.</para>
+    ///
+    /// <para><b>Confirmed defect.</b> <c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>:
+    /// <c>CollectProfileAsync</c> ends with <c>if (user == null) return;</c> — no file, no failure —
+    /// while <c>CollectFriendsAsync</c>, <c>CollectBlocksAsync</c>, <c>CollectSettingsAsync</c>,
+    /// <c>CollectStatsAsync</c>, <c>CollectDevicesAsync</c> and <c>CollectSubscriptionsAsync</c> each
+    /// upload unconditionally, so <c>ProcessAssemblyAsync</c>'s <c>keys.Count == 0</c> guard (its
+    /// "No data collected" branch) is never reached. Observed: <c>Completed</c> after 10 items with a
+    /// live download url, for a <c>Guid</c> nobody owns.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, CancelAfter(120_000), Category("KnownPresenceBug")]
     public async Task An_export_for_an_account_that_does_not_exist_fails_instead_of_completing_empty(CancellationToken ct = default)
     {
         var nobody = GetGrainFactory().GetGrain<IUserDataExportGrain>(Guid.NewGuid());

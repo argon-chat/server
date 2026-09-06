@@ -311,7 +311,7 @@ public sealed class HubConnectionSweeper(
         if (doomed.Count == 0)
             return;
 
-        var closed = registry.Abort(doomed, "the sweep found it signed out");
+        var closed = await registry.Abort(doomed, "the sweep found it signed out");
 
         logger.LogInformation(
             "The hub connection sweep closed {Closed} of {Found} signed-out connection(s) out of {Live} live",

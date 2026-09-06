@@ -265,7 +265,7 @@ public class AccountConsoleTests : TestBase
     /// <c>ScheduledDeletionAt</c> on the <c>AlreadyScheduled</c> branch specifically so this can be
     /// answered. What happens to it between there and here is what this test is about.</para>
     ///
-    /// <para><b>Known defect.</b> <c>AccountConsoleService.RequestDeleteAccount</c>
+    /// <para><b>Observed.</b> <c>AccountConsoleService.RequestDeleteAccount</c>
     /// (<c>src/Argon.Api/Features/AccountConsole/AccountConsoleService.cs</c>) maps every failure
     /// through one expression that returns <c>new DeleteAccountResult(false, error, null, null)</c>:
     /// both timestamps are hard-coded null on the refusal path, so the
@@ -274,6 +274,16 @@ public class AccountConsoleTests : TestBase
     /// console ever sees it. Observed: the grain reported an execution date, the console answered
     /// <c>executionAt = null</c>. The console cannot render "already scheduled, for this date" at
     /// all; the fix is to carry <c>result.ScheduledDeletionAt</c> through the failure branch.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>CON-1</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the mapping does discard the date, but the reviewer found the refusal branch effectively
+    /// unreachable — the console gates the delete action on the <c>MeDetails</c> status it fetches at
+    /// page load — so populating it is a three-sided change (grain, mapping, a client that refetches)
+    /// nobody benefits from today.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     [Category("KnownPresenceBug")]
@@ -692,7 +702,7 @@ public class AccountConsoleTests : TestBase
     /// the account has been idle, so the test is red under either intended reading — "never" or "use
     /// the stored number" — and green only under the one the code actually implements.</para>
     ///
-    /// <para><b>Known defect.</b> <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
+    /// <para><b>Observed.</b> <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
     /// (<c>src/Argon.Api/Grains/AutoDeleteSchedulerGrain.cs</c>) projects the threshold as
     /// <c>AutoDeleteSettings.Where(s =&gt; s.UserId == u.Id &amp;&amp; s.Enabled).Select(s =&gt;
     /// s.Months).FirstOrDefault()</c>, which collapses "the switch is off" and "there is no setting"
@@ -702,6 +712,16 @@ public class AccountConsoleTests : TestBase
     /// and sent the <c>delete-notice</c> mail. Turning auto-deletion off makes it happen sooner than
     /// leaving it at thirty-six months would have. The projection has to carry <c>Enabled</c>
     /// alongside <c>Months</c> so the two states can be told apart at the point of decision.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>CON-2</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the arithmetic is as described, but the reviewer found no surface — user, operator or admin —
+    /// that can write <c>Enabled = false</c>, so the policy has to be decided before the projection:
+    /// either drop the off switch the column and the clients picker promise, or grant it on both sides
+    /// at once.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
     [Category("KnownPresenceBug")]
@@ -742,8 +762,20 @@ public class AccountConsoleTests : TestBase
     /// interactive one. It is the same grain and the same execution afterwards, so a guard that only
     /// the interactive path carries is not a policy, it is an accident of which caller you came
     /// from.</para>
+    ///
+    /// <para><b>Known defect.</b> <c>AccountDeletionGrain.RequestAutoDeleteAsync</c>
+    /// (<c>src/Argon.Api/Grains/AccountDeletionGrain.cs</c>) checks two things — already scheduled,
+    /// and <c>HasActiveUltima</c> — where <c>RequestDeletionAsync</c> checks four, dropping both the
+    /// <c>LockdownReason != NONE</c> bar and the <c>Spaces.Any(s =&gt; s.CreatorId == UserId
+    /// &amp;&amp; !s.IsDeleted)</c> bar. <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
+    /// (<c>src/Argon.Api/Grains/AutoDeleteSchedulerGrain.cs</c>) calls it unconditionally for every
+    /// inactive candidate. Observed: both accounts came back <c>Scheduled</c>. The execution that
+    /// follows soft-deletes memberships and anonymises the row while <c>SpaceEntity.CreatorId</c>
+    /// still points at it, so a live space is left owned by "Deleted Account"; and an account under
+    /// <c>UNDER_INVESTIGATION</c> is erased by a timer with nobody's approval.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
+    [Category("KnownPresenceBug")]
     public async Task RunScan_AppliesTheSameBarsAsAUserRequestedDeletion(CancellationToken ct = default)
     {
         var idleOwner  = await CreateSessionAsync(ct);

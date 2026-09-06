@@ -66,8 +66,37 @@ public sealed record HubConnectionEntry(
 /// once per connection — never on a message path — so a lock costs nothing worth measuring and is
 /// the version that is obviously correct.</para>
 /// </remarks>
-public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
+/// <param name="hub">
+/// The way to speak to a connection before closing it. Optional because the registry is also built
+/// where no hub is mapped — tests, a role that never registered SignalR — and a registry that cannot
+/// say goodbye still closes sockets exactly as before.
+/// </param>
+public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger, IHubContext<AppHub>? hub = null)
 {
+    /// <summary>
+    /// The client method invoked on a connection right before it is closed for a sign-out.
+    /// </summary>
+    /// <remarks>
+    /// Without it a closed socket is indistinguishable from a dropped one: the client answered a
+    /// sign-out with its reconnect logic, asked for a new hub ticket, was refused, and asked again on
+    /// every retry for as long as the app stayed open. One message with the reason turns that into an
+    /// immediate return to the sign-in screen. Carried by <see cref="AppHub"/>'s own refusals too.
+    /// </remarks>
+    public const string SessionRevokedMessage = "sessionRevoked";
+
+    /// <summary>
+    /// The one argument <see cref="SessionRevokedMessage"/> carries: a reason <em>code</em>, never a
+    /// sentence. The client turns it into text in the user's own language; a string composed here
+    /// would be English on every screen and impossible to translate after the fact.
+    /// </summary>
+    public const string SignedOutReason = "session_signed_out";
+
+    /// <summary>
+    /// How long the goodbye may take before the socket is closed regardless. A connection that cannot
+    /// take one message in this time is not one worth being polite to, and the close is the point.
+    /// </summary>
+    private static readonly TimeSpan GoodbyeTimeout = TimeSpan.FromSeconds(2);
+
     private readonly Lock gate = new();
 
     private readonly Dictionary<string, HubConnectionEntry>   connections  = new(StringComparer.Ordinal);
@@ -135,13 +164,13 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
 
     /// <summary>Closes the given connections, whatever decided they should go.</summary>
     /// <remarks>For <see cref="HubConnectionSweeper"/>, which selects by re-reading the store itself.</remarks>
-    public int Abort(IReadOnlyCollection<HubConnectionEntry> entries, string why)
+    public async Task<int> Abort(IReadOnlyCollection<HubConnectionEntry> entries, string why)
     {
         var closed = 0;
 
         foreach (var entry in entries)
         {
-            if (AbortOne(entry, why))
+            if (await AbortOne(entry, why))
                 closed++;
         }
 
@@ -159,7 +188,7 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
         lock (gate) return connections.Values.ToArray();
     }
 
-    private int Abort(Dictionary<string, HashSet<string>> index, string key, string why)
+    private Task<int> Abort(Dictionary<string, HashSet<string>> index, string key, string why)
     {
         HubConnectionEntry[] doomed;
 
@@ -168,7 +197,7 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
         lock (gate)
         {
             if (!index.TryGetValue(key, out var ids))
-                return 0;
+                return Task.FromResult(0);
 
             doomed = ids.Select(id => connections.GetValueOrDefault(id))
                .Where(x => x is not null)
@@ -178,13 +207,15 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
         return Abort(doomed, why);
     }
 
-    private bool AbortOne(HubConnectionEntry entry, string why)
+    private async Task<bool> AbortOne(HubConnectionEntry entry, string why)
     {
         // Before the abort rather than after: the disconnect callback is what would normally remove
         // this, and it runs on the connection's own loop at a time of SignalR's choosing. Removing it
         // here is what stops the next sweep — or a second signal — spending its budget on a socket
         // that is already on its way out.
         Detach(entry.ConnectionId);
+
+        await SayGoodbyeAsync(entry);
 
         try
         {
@@ -205,6 +236,34 @@ public sealed class HubConnectionRegistry(ILogger<HubConnectionRegistry> logger)
                 entry.ConnectionId, entry.SessionId);
 
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Tells the connection why it is about to be closed. Best effort, bounded, never throws.
+    /// </summary>
+    /// <remarks>
+    /// Sent through the hub context rather than the caller context because the latter can only
+    /// abort; and awaited, because a message posted and immediately followed by an abort is a message
+    /// that may never leave the buffer. The tombstone is already committed by the time this runs, so
+    /// a goodbye that does not arrive costs the client one refused ticket request and nothing else.
+    /// The <c>why</c> the callers pass is for this node's log; the wire carries the code.
+    /// </remarks>
+    private async Task SayGoodbyeAsync(HubConnectionEntry entry)
+    {
+        if (hub is null)
+            return;
+
+        try
+        {
+            using var timeout = new CancellationTokenSource(GoodbyeTimeout);
+
+            await hub.Clients.Client(entry.ConnectionId).SendAsync(SessionRevokedMessage, SignedOutReason, timeout.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogDebug(e, "Could not tell hub connection {ConnectionId} of session {SessionId} it was signed out",
+                entry.ConnectionId, entry.SessionId);
         }
     }
 

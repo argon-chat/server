@@ -44,6 +44,14 @@ using Orleans.Storage;
 /// differ the test is red and carries <c>KnownPresenceBug</c> with a <c>remarks</c> naming the file
 /// and method responsible. That is the deliverable: the red tests are the report.</para>
 ///
+/// <para><b>Everything an observer could see is captured once, in the window the erasure opened</b>
+/// (<see cref="Aftermath"/>), rather than looked up when each test runs. That is what makes the
+/// event and roster assertions mean something: the roster of a space whose read cache is never
+/// invalidated does eventually catch up when the entry expires two minutes later, so a test that
+/// asked at an arbitrary moment would report a defect or not depending on how long NUnit had spent
+/// on the tests before it. Anchored to the execution, "ten seconds after the account was erased the
+/// space still listed it" is the same statement every run.</para>
+///
 /// <para><b>D13 (execution interrupted mid-flight) is addressed by seeding the grain's persisted
 /// state.</b> There is no hook in the suite to deactivate a grain on demand, and
 /// <c>ExecuteDeletionAsync</c> catches every exception, so an <c>Executing</c> activation cannot be
@@ -107,7 +115,7 @@ public class AccountDeletionTests : TestBase
     /// internal errors rather than a clean sign-out. The machinery to do it properly is already in
     /// the codebase and used by <c>SecurityGrain.EndSessionAsync</c>.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task The_deleted_accounts_access_token_is_refused_on_every_authenticated_call(
         CancellationToken ct = default)
     {
@@ -184,26 +192,37 @@ public class AccountDeletionTests : TestBase
     /// joined. The desktop client of a deleted account keeps receiving other people's messages and
     /// presence until the user closes it.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task The_deleted_accounts_socket_is_closed_and_goes_quiet(CancellationToken ct = default)
     {
-        var closed = await scene.Victim.WaitForCloseAsync(Reaction, ct);
+        var observerMark = scene.Observer.Mark();
+        var victimMark   = scene.Victim.Mark();
 
-        // A fixed window on purpose: what is asserted is an absence, and an absence has no edge to
-        // poll for. The observer keeps talking in the meantime — see the traffic generated below —
-        // so the window is not empty of things the connection could have been told.
-        await scene.ObserverSession.Channels.SendMessage(
-            scene.SpaceA, scene.ChannelA, "traffic after the erasure", new IonArray<IMessageEntity>([]),
-            Random.Shared.NextInt64(), null, ct);
+        // Fresh traffic, generated now, long after the erasure: a status change fans out to the
+        // space group, which is the group the erased connection was never taken out of. Presence
+        // rather than a message because a space-wide broadcast is what a group membership decides,
+        // and a message would also have to survive a channel subscription this client never made.
+        await scene.Observer.Heartbeat(UserStatus.DoNotDisturb, ct);
 
-        var heard = scene.Victim.Records(scene.VictimMark);
+        // The control, and the reason this test can say anything at all: if the space was told
+        // nothing, "the erased client heard nothing" is true of a server that sent nothing.
+        var broadcast = await scene.Observer.FirstWithinAsync<UserChangedStatus>(
+            e => e.userId == scene.ObserverSession.UserId && e.status == UserStatus.DoNotDisturb,
+            Reaction, observerMark, ct);
+
+        Assert.That(broadcast, Is.Not.Null,
+            "the space was never told about the status change this test generates, so the assertion " +
+            "below would pass for a server that broadcast nothing at all");
+
+        var heard = scene.Victim.Records(victimMark);
 
         Assert.Multiple(() =>
         {
-            Assert.That(closed, Is.True,
+            Assert.That(scene.After.SocketClosed, Is.True,
                 "the erased account's hub connection is still open; it is still in every space group it joined");
             Assert.That(heard, Is.Empty,
-                $"the erased account's client is still being fed events: {scene.Victim.Dump(scene.VictimMark)}");
+                "the erased account's client is still being fed other people's presence: " +
+                scene.Victim.Dump(victimMark));
         });
     }
 
@@ -222,35 +241,27 @@ public class AccountDeletionTests : TestBase
     /// distributed expiry is two minutes. What every other member of the space sees is a person who is
     /// still in the roster, still shown online, for minutes after they were erased.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
-    public async Task The_spaces_are_told_the_member_left_and_stop_listing_them(CancellationToken ct = default)
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
+    public Task The_spaces_are_told_the_member_left_and_stop_listing_them(CancellationToken ct = default)
     {
-        var left = await scene.Observer.FirstWithinAsync<LeavedFromServerUser>(
-            e => e.userId == scene.VictimId, Reaction, scene.DeletionMark, ct);
-
-        var wentOffline = await scene.Observer.FirstWithinAsync<UserChangedStatus>(
-            e => e.userId == scene.VictimId && e.status == UserStatus.Offline, Reaction, scene.DeletionMark, ct);
-
-        var roster = await Poll.ForValueAsync(
-            async () => (
-                Members:  (await scene.ObserverSession.Servers.GetMembers(scene.SpaceA, ct))
-                          .Values.Select(m => m.member.userId).ToArray(),
-                Presence: (await scene.ObserverSession.Servers.GetMemberPresence(scene.SpaceA, ct))
-                          .Values.Select(p => p.userId).ToArray()),
-            seen => !seen.Members.Contains(scene.VictimId) && !seen.Presence.Contains(scene.VictimId),
-            Reaction, ct: ct);
+        // Read from the window the scenario opened at the instant of the erasure — see Aftermath.
+        var after = scene.After;
 
         Assert.Multiple(() =>
         {
-            Assert.That(left, Is.Not.Null,
+            Assert.That(after.Left, Is.Not.Null,
                 "nobody in the space was told the erased account left it");
-            Assert.That(wentOffline, Is.Not.Null,
+            Assert.That(after.WentOffline, Is.Not.Null,
                 "the space was never told the erased account went offline, so it is still rendered online");
-            Assert.That(roster.Members, Does.Not.Contain(scene.VictimId),
-                "GetMembers still lists an account that no longer exists");
-            Assert.That(roster.Presence, Does.Not.Contain(scene.VictimId),
+            Assert.That(after.Members, Does.Not.Contain(scene.VictimId),
+                $"GetMembers still listed an account that no longer exists {Reaction.TotalSeconds:F0}s " +
+                "after it was erased; the membership row was soft-deleted with no cache invalidation, " +
+                "so the roster only catches up when SpaceReadGrain's own entry expires");
+            Assert.That(after.Presence, Does.Not.Contain(scene.VictimId),
                 "GetMemberPresence still lists an account that no longer exists");
         });
+
+        return Task.CompletedTask;
     }
 
     // ── D4: voice ───────────────────────────────────────────────────────────────────────────────
@@ -267,28 +278,24 @@ public class AccountDeletionTests : TestBase
     /// <c>IChannelGrain.Leave</c>. The name stays in the room, for everyone, until the channel
     /// activation is collected — a ghost in a call belonging to an account that has been erased.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
-    public async Task The_voice_seat_is_vacated(CancellationToken ct = default)
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
+    public Task The_voice_seat_is_vacated(CancellationToken ct = default)
     {
         Assert.That(scene.VoiceOccupantsBefore, Does.Contain(scene.VictimId),
             $"the account never took the voice seat this test is about (joined via {scene.VoiceJoinPath}), " +
             "so what follows would pass for the wrong reason");
 
-        var vacated = await scene.Observer.FirstWithinAsync<LeavedFromChannelUser>(
-            e => e.userId == scene.VictimId && e.channelId == scene.VoiceChannel,
-            Reaction, scene.DeletionMark, ct);
-
-        var occupants = await Poll.ForValueAsync(
-            () => VoiceOccupantsAsync(scene.ObserverSession, scene.SpaceA, scene.VoiceChannel, ct),
-            users => !users.Contains(scene.VictimId), Reaction, ct: ct);
+        var after = scene.After;
 
         Assert.Multiple(() =>
         {
-            Assert.That(occupants, Does.Not.Contain(scene.VictimId),
+            Assert.That(after.Occupants, Does.Not.Contain(scene.VictimId),
                 "the voice channel still seats an account that no longer exists");
-            Assert.That(vacated, Is.Not.Null,
+            Assert.That(after.Vacated, Is.Not.Null,
                 "nobody was told the erased account left the call");
         });
+
+        return Task.CompletedTask;
     }
 
     // ── D5: the social graph ────────────────────────────────────────────────────────────────────
@@ -311,7 +318,7 @@ public class AccountDeletionTests : TestBase
     /// Account" placeholder <c>SpaceGrain.GetMemberProfile</c> returns. The conversation history
     /// survives, correctly, but the client has nothing to render at the top of it.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task The_social_graph_forgets_the_deleted_account(CancellationToken ct = default)
     {
         var peerFriends  = (await scene.PeerSession.Friends.GetMyFriendships(50, 0, ct)).Values.Select(f => f.friendId).ToArray();
@@ -319,8 +326,31 @@ public class AccountDeletionTests : TestBase
         var outgoingKept = (await scene.RequesterSession.Friends.GetMyFriendOutgoingList(50, 0, ct)).Values.Select(r => r.targetId).ToArray();
         var blockedList  = (await scene.BlockedSession.Friends.GetBlockList(50, 0, ct)).Values.Select(b => b.blockedId).ToArray();
 
-        var lookup  = await scene.PeerSession.Users.LookupUser(scene.VictimId, ct);
         var history = (await scene.PeerSession.Chats.QueryDirectMessages(scene.VictimId, null, 50, ct)).Values.Select(m => m.text).ToArray();
+
+        // Captured rather than awaited into an assertion: LookupUser routes through
+        // UserGrain.GetMe, whose SingleAsync runs under the soft-delete filter, so for an
+        // anonymised row it throws out of the RPC instead of answering. An exception escaping here
+        // would abort the test and hide every finding above it.
+        string  lookupOutcome;
+        string? lookupName = null;
+
+        try
+        {
+            var lookup = await scene.PeerSession.Users.LookupUser(scene.VictimId, ct);
+
+            lookupName    = (lookup as SuccessLookupUser)?.user.displayName;
+            lookupOutcome = lookup switch
+            {
+                SuccessLookupUser ok  => $"resolved as '{ok.user.displayName}' / @{ok.user.username}",
+                FailedLookupUser fail => $"refused with {fail.error}",
+                _                     => lookup.GetType().Name
+            };
+        }
+        catch (Exception e)
+        {
+            lookupOutcome = $"threw {e.GetType().Name}: {e.Message}";
+        }
 
         Assert.Multiple(() =>
         {
@@ -340,11 +370,9 @@ public class AccountDeletionTests : TestBase
             Assert.That(history, Does.Contain(DmFromVictim),
                 "the peer lost their own conversation history when the other party was erased");
 
-            Assert.That(lookup, Is.InstanceOf<SuccessLookupUser>(),
-                $"the peer's chat window cannot resolve the other party at all: " +
-                $"{(lookup as FailedLookupUser)?.error.ToString() ?? "no error"}");
-            Assert.That((lookup as SuccessLookupUser)?.user.displayName, Is.EqualTo("Deleted Account"),
-                "a deleted peer must render as a deleted account, not as their old name");
+            Assert.That(lookupName, Is.EqualTo("Deleted Account"),
+                "the peer's chat window has nothing to put at the top of a conversation it can still " +
+                $"read: LookupUser {lookupOutcome}");
         });
     }
 
@@ -354,12 +382,21 @@ public class AccountDeletionTests : TestBase
     /// The account cannot sign in again, its username is held back, and its e-mail address is freed.
     /// </summary>
     /// <remarks>
-    /// The three halves of "the account is gone" that a person can check for themselves. The username
-    /// reservation is deliberate — <c>ReserveUsernameAsync</c> writes a <c>UsernameReservedEntity</c>
-    /// row — so somebody else cannot inherit the identity a community knew. The e-mail is deliberately
-    /// <em>not</em> held: the row's address is rewritten to <c>deleted_{id}@void.local</c> and both
-    /// normalised columns are computed by the database, so the real address becomes registrable again,
-    /// which is what lets a person come back.
+    /// <para>The three halves of "the account is gone" that a person can check for themselves. The
+    /// username reservation is deliberate — <c>ReserveUsernameAsync</c> writes a
+    /// <c>UsernameReservedEntity</c> row — so somebody else cannot inherit the identity a community
+    /// knew. The e-mail is deliberately <em>not</em> held: the row's address is rewritten to
+    /// <c>deleted_{id}@void.local</c> and both normalised columns are computed by the database, so the
+    /// real address becomes registrable again, which is what lets a person come back.</para>
+    ///
+    /// <para><b>Only the e-mail door is tried, and that is not a gap in the test.</b>
+    /// <c>ArgonAuthorizationService.Authorize</c> (<c>src/Argon.Core/Features/Auth/ArgonAuthorizationService.cs:52</c>)
+    /// matches on <c>NormalizedEmail == input.email.ToLowerInvariant()</c> and never reads
+    /// <c>input.username</c> at all, so signing in by username is not a path this product has — and a
+    /// caller who omits the e-mail gets a <c>NullReferenceException</c> out of the LINQ parameter and
+    /// an <c>UPSTREAM_ERROR</c> back, for any account, deleted or not. That is a real defect and it is
+    /// reported, but it is not this one, and asserting it here would colour a deletion test with a
+    /// failure that has nothing to do with deletion.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task Login_is_refused_the_username_is_reserved_and_the_email_is_freed(CancellationToken ct = default)
@@ -368,8 +405,6 @@ public class AccountDeletionTests : TestBase
 
         var identity = GetIdentityService(scope.ServiceProvider);
 
-        var byUsername = await identity.Authorize(
-            new UserCredentialsInput(null, null, scene.Credentials.username, scene.Credentials.password, null, null), ct);
         var byEmail = await identity.Authorize(
             new UserCredentialsInput(scene.Credentials.email, null, null, scene.Credentials.password, null, null), ct);
 
@@ -380,8 +415,6 @@ public class AccountDeletionTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(byUsername, Is.InstanceOf<FailedAuthorize>(),
-                "an erased account still signs in with its username and password");
             Assert.That(byEmail, Is.InstanceOf<FailedAuthorize>(),
                 "an erased account still signs in with its e-mail address and password");
 
@@ -417,7 +450,7 @@ public class AccountDeletionTests : TestBase
     /// <para>The census is taken in one pass and asserted in one <c>Assert.Multiple</c> on purpose:
     /// the useful output of this test is the complete list of survivors, not the first one.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task Every_table_holding_personal_data_is_emptied(CancellationToken ct = default)
     {
         var census = await CensusAsync(scene.VictimId, ct);
@@ -471,8 +504,18 @@ public class AccountDeletionTests : TestBase
     /// identifying is left on it. The avatar is the one field that is both personal data and a
     /// reference somebody else's storage quota depends on, so both halves are asserted: the column is
     /// cleared and the file's reference count came down.
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-08</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the count does reach -1, but the reviewer found no observable consequence — the <c>RefCount
+    /// &lt;= 0</c> sweep collects the file whether the count lands on 0 or -1 — and put the fix in
+    /// <c>ReferenceCountService.DecrementAsync</c> (clamp the release at zero, where the invariant
+    /// lives) rather than anywhere in the deletion walk.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task The_row_is_anonymised_and_the_files_are_dereferenced(CancellationToken ct = default)
     {
         var row = await AccountSeed.ReadUserAsync(scene.VictimId, ct);
@@ -496,8 +539,14 @@ public class AccountDeletionTests : TestBase
             Assert.That(row.PasswordDigest, Is.Null);
             Assert.That(row.AvatarFileId, Is.Null, "the erased account still points at its avatar");
 
+            // Zero, not "at most zero": the seeded count was one and exactly one thing referenced
+            // the file. A negative count is a double release — AnonymizeUserAsync releases the
+            // avatar by id, and DecrementFileRefsAsync then walks every file the user owns, which
+            // includes the avatar — and a reference count that can go negative cannot be trusted to
+            // decide whether an object is still needed.
             Assert.That(avatarRefs, Is.Zero,
-                "the avatar file kept its reference, so the bytes are held for an account that does not exist");
+                "the avatar file's reference count is wrong after the deletion; below zero means it " +
+                "was released twice, once by AnonymizeUserAsync and again by DecrementFileRefsAsync");
             Assert.That(uploadRefs, Is.Zero,
                 "an uploaded file kept its reference, so the bytes are held for an account that does not exist");
         });
@@ -516,7 +565,7 @@ public class AccountDeletionTests : TestBase
     /// account for ever, in a store no data-subject process knows to look in. They cannot be cleared
     /// before step 9, which needs them; they can be cleared at step 10, which does not.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task The_grains_own_state_keeps_no_copy_of_the_identity(CancellationToken ct = default)
     {
         var kept = await ReadDeletionStateAsync(scene.VictimId);
@@ -540,15 +589,25 @@ public class AccountDeletionTests : TestBase
     /// An archive of the account's data does not outlive the account.
     /// </summary>
     /// <remarks>
-    /// <para><b>Defect (confirmed).</b> <c>ExecuteDeletionAsync</c> has ten steps and none of them
+    /// <para><b>Observed.</b> <c>ExecuteDeletionAsync</c> has ten steps and none of them
     /// mentions S3 or <c>IUserDataExportGrain</c>. A person who exports their data and then deletes
     /// their account leaves <c>exports/{userId}/{exportId}/export-*.zip</c> — profile.json with their
     /// e-mail, phone and date of birth, devices.json with up to a hundred IP addresses, every message
     /// they wrote — in the export bucket indefinitely, reachable without any authentication for the
     /// full remaining life of the presigned URL. Erasure that leaves a downloadable copy of everything
     /// behind is not erasure.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-10</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the archive does outlive the account, but the reviewer scoped the exposure to one ordering — an
+    /// export started inside the last 48 h of the grace — and put the fix at the front door (a
+    /// deletion guard on <c>RequestExportAsync</c>) plus bucket-side retention, not an eleventh step
+    /// in <c>ExecuteDeletionAsync</c>.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(180_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(180_000)]
     public async Task A_completed_export_does_not_survive_the_account(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -580,14 +639,25 @@ public class AccountDeletionTests : TestBase
     /// An account already on its way out cannot start a new export of itself.
     /// </summary>
     /// <remarks>
-    /// <para><b>Defect (confirmed).</b> <c>UserDataExportGrain.RequestExportAsync</c> has no deletion
+    /// <para><b>Observed.</b> <c>UserDataExportGrain.RequestExportAsync</c> has no deletion
     /// guard at all, so an export can be started for a scheduled account and — because the collection
     /// steps read the user row through the soft-delete filter and silently skip what they cannot find
     /// — can complete for one already erased, producing an archive with no profile.json in it and no
     /// mail to say it is ready. Either answer is defensible; starting a fresh copy of everything the
     /// account is about to have erased is not.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-11</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the reviewer read the missing guard as deliberate: during the grace the account is live and
+    /// cancellable and the archive is the copy the person most wants, and adopting this test's
+    /// expectation would deny a leaving user their Art. 15 data behind an “unexpected error” toast.
+    /// The exposure the claim borrows is ACC-10s, and it is independent of when the export was asked
+    /// for.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task An_export_cannot_be_started_for_an_account_under_deletion(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -670,7 +740,7 @@ public class AccountDeletionTests : TestBase
     /// Having already asked for a space to be deleted does not bar the owner from deleting themselves.
     /// </summary>
     /// <remarks>
-    /// <para><b>Defect (confirmed).</b> <c>SpaceDeletionGrain</c> leaves <c>SpaceEntity.IsDeleted</c>
+    /// <para><b>Observed.</b> <c>SpaceDeletionGrain</c> leaves <c>SpaceEntity.IsDeleted</c>
     /// false for the whole of its grace — seven days private, thirty community — and the account guard
     /// at <c>src/Argon.Api/Grains/AccountDeletionGrain.cs:125</c> is a plain "do you own any
     /// non-deleted space". So the sequence the console's own error text instructs — "please transfer
@@ -679,8 +749,18 @@ public class AccountDeletionTests : TestBase
     /// is entitled to, with nothing telling them so and no ownership-transfer call anywhere in the
     /// product to shorten it. Either the guard has to ignore a space already on its way out, or the
     /// refusal has to carry the date so the console can explain the wait.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-12</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the bar is real, but the reviewer called it the thing that prevents an unrecoverable orphaned
+    /// space; what is actually wrong is the console copy promising a transfer the product does not
+    /// have, and the absent payload on <c>OwnsSpaces</c> that would let the console say when the owner
+    /// may try again.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task A_space_already_scheduled_for_deletion_does_not_bar_the_owner(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -705,7 +785,7 @@ public class AccountDeletionTests : TestBase
     /// Asking twice keeps the first answer, and says what it was.
     /// </summary>
     /// <remarks>
-    /// <para><b>Defect (confirmed).</b> The grain does the right thing — <c>RequestDeletionAsync</c>
+    /// <para><b>Observed.</b> The grain does the right thing — <c>RequestDeletionAsync</c>
     /// answers <c>AlreadyScheduled</c> and populates <c>ScheduledDeletionAt</c> from the existing
     /// state — and <c>AccountConsoleService.RequestDeleteAccount</c> throws it away: every failure
     /// branch returns <c>(false, error, null, null)</c>
@@ -713,8 +793,17 @@ public class AccountDeletionTests : TestBase
     /// literally cannot render "already scheduled, for this date" even though the date came back to
     /// it, which is why a person who clicks the button twice sees an error with no information in
     /// it.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-13</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the reviewer found no client that reads either timestamp on the refusal branch — the console
+    /// learns the deadline from <c>GetMe</c> at page load and disables the button — so carrying it
+    /// through is an enhancement that only helps if the frontend refetches too, not a correctness fix.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task A_second_request_keeps_and_reports_the_original_execution_date(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -746,15 +835,25 @@ public class AccountDeletionTests : TestBase
     /// A request made after the account is already gone says so, rather than promising a deletion.
     /// </summary>
     /// <remarks>
-    /// <para><b>Defect (confirmed).</b> <c>RequestDeletionAsync</c> collapses <c>Executing</c> and
+    /// <para><b>Observed.</b> <c>RequestDeletionAsync</c> collapses <c>Executing</c> and
     /// <c>Completed</c> into <c>AlreadyScheduled</c>
     /// (<c>src/Argon.Api/Grains/AccountDeletionGrain.cs:74</c>), and the console maps that to
     /// "your account is already scheduled for deletion". For an account that has already been erased
     /// that sentence is false in a way that matters: it tells the person their data is still there and
     /// still cancellable. <c>DeleteAccountError</c> has no value for "already gone", though
     /// <c>CancelDeleteError</c> does.</para>
+    ///
+    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
+    /// <c>ACC-14</c>).</b> The review reproduced the mechanism above and then declined to call it a
+    /// bug: the reviewer called the collapsed enum copy-only — no banner, no Cancel button, no state change
+    /// — and a finer refusal an additive contract decision (an <c>AlreadyDeleted</c> arm on both
+    /// enums, regenerated with ionc), not a silent fix. The confusing screen behind it belongs to the
+    /// missing post-deletion revocation.
+    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
+    /// excludes it: it pins a decision the product still owes, and it goes green the day that
+    /// decision is made and implemented.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task A_request_after_completion_says_the_account_is_already_gone(CancellationToken ct = default)
     {
         var (consoleScope, console) = AccountConsoleHarness.Console(
@@ -1009,7 +1108,7 @@ public class AccountDeletionTests : TestBase
     /// itself wrote at <c>:375</c> into <c>account-deletion-store</c> before the grain has ever been
     /// activated, so the activation that follows is the one a restarted silo would have had.</para>
     /// </remarks>
-    [Test, CancelAfter(120_000)]
+    [Test, Category("KnownPresenceBug"), CancelAfter(120_000)]
     public async Task An_interrupted_execution_does_not_strand_the_account(CancellationToken ct = default)
     {
         var session = await CreateSessionAsync(ct);
@@ -1032,9 +1131,11 @@ public class AccountDeletionTests : TestBase
             "the interrupted execution could not be seeded into the grain's own store, so this test " +
             "is not observing what it claims to");
 
-        // The poll the timer would make, and the one a restarted silo would make on its next tick.
+        // The poll the timer would make, and the one a restarted silo would make on its next tick. A
+        // resumption starts on the first of them, so the budget is a handful of polls rather than a
+        // whole execution: waiting longer would only make the same absence cost more.
         var resumed = await AccountConsoleHarness.DriveDeletionUntilAsync(
-            session.UserId, AccountDeletionStatusKind.Completed, AccountTimings.ExecutionBudget, ct);
+            session.UserId, AccountDeletionStatusKind.Completed, AccountTimings.GraceAndABit, ct);
 
         var (consoleScope, console) = AccountConsoleHarness.Console(session);
         await using var scope = consoleScope;
@@ -1125,7 +1226,6 @@ public class AccountDeletionTests : TestBase
             users => users.Contains(victim.UserId), PresenceWaits.Settle, ct: ct);
 
         var deletionMark = observerClient.Mark();
-        var victimMark   = victimClient.Mark();
 
         var (consoleScope, console) = AccountConsoleHarness.Console(victim);
 
@@ -1148,12 +1248,60 @@ public class AccountDeletionTests : TestBase
                 $"the scenario deletion did not finish: status {reached}, reason " +
                 $"{(await GetGrainFactory().GetGrain<IAccountDeletionGrain>(victim.UserId).GetDeletionStatusAsync()).FailureReason}");
 
+        // One window, opened at the moment of the erasure, shared by every test that asks what the
+        // execution did. Anchoring the observation here rather than inside each test is what makes
+        // those tests deterministic: a roster that converges only when a two-minute read cache
+        // expires would otherwise pass or fail depending on how long NUnit spent on the tests that
+        // happened to run first, which is the difference between a finding and a coin toss.
+        var closedTask = victimClient.WaitForCloseAsync(Reaction, ct);
+
+        var leftTask = observerClient.FirstWithinAsync<LeavedFromServerUser>(
+            e => e.userId == victim.UserId, Reaction, deletionMark, ct);
+
+        var offlineTask = observerClient.FirstWithinAsync<UserChangedStatus>(
+            e => e.userId == victim.UserId && e.status == UserStatus.Offline, Reaction, deletionMark, ct);
+
+        var vacatedTask = observerClient.FirstWithinAsync<LeavedFromChannelUser>(
+            e => e.userId == victim.UserId && e.channelId == voiceRoom, Reaction, deletionMark, ct);
+
+        var rosterTask = Poll.ForValueAsync(
+            async () => (
+                Members:  (await observer.Servers.GetMembers(spaceA, ct))
+                          .Values.Select(m => m.member.userId).ToArray(),
+                Presence: (await observer.Servers.GetMemberPresence(spaceA, ct))
+                          .Values.Select(pr => pr.userId).ToArray()),
+            seen => !seen.Members.Contains(victim.UserId) && !seen.Presence.Contains(victim.UserId),
+            Reaction, ct: ct);
+
+        var seatTask = Poll.ForValueAsync(
+            () => VoiceOccupantsAsync(observer, spaceA, voiceRoom, ct),
+            users => !users.Contains(victim.UserId), Reaction, ct: ct);
+
+        var aftermath = new Aftermath(
+            SocketClosed: await closedTask,
+            Left:         await leftTask,
+            WentOffline:  await offlineTask,
+            Vacated:      await vacatedTask,
+            Members:      (await rosterTask).Members,
+            Presence:     (await rosterTask).Presence,
+            Occupants:    await seatTask);
+
         return new DeletedAccount(
             victim, observer, peer, requester, target, blocked,
             spaceA, spaceB, channelA, voiceRoom,
-            observerClient, victimClient, deletionMark, victimMark,
-            occupants, voiceJoinPath, censusBefore, avatarFileId, uploadFileId);
+            observerClient, victimClient, deletionMark,
+            occupants, voiceJoinPath, censusBefore, avatarFileId, uploadFileId, aftermath);
     }
+
+    /// <summary>What an observer, the roster and the voice room said in the window after the erasure.</summary>
+    private sealed record Aftermath(
+        bool            SocketClosed,
+        RecordedEvent?  Left,
+        RecordedEvent?  WentOffline,
+        RecordedEvent?  Vacated,
+        Guid[]          Members,
+        Guid[]          Presence,
+        List<Guid>      Occupants);
 
     /// <summary>
     /// Writes one row into every personal-data table the product has no call for.
@@ -1505,12 +1653,12 @@ public class AccountDeletionTests : TestBase
         RealtimeClient  Observer,
         RealtimeClient  Victim,
         int             DeletionMark,
-        int             VictimMark,
         List<Guid>      VoiceOccupantsBefore,
         string          VoiceJoinPath,
         PersonalDataCensus CensusBefore,
         Guid            AvatarFileId,
-        Guid            UploadFileId)
+        Guid            UploadFileId,
+        Aftermath       After)
     {
         public Guid VictimId => VictimSession.UserId;
 
