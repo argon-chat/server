@@ -53,7 +53,10 @@
 .PARAMETER Workers
     NUnit's `NumberOfTestWorkers` — how many fixtures one process runs at once. Passed as a
     runsettings parameter, so `AssemblyInfo.cs` keeps a safe default for anyone running `dotnet test`
-    by hand. Unset leaves the assembly's own LevelOfParallelism alone.
+    by hand. Unset leaves the assembly's own LevelOfParallelism alone — except on the presence shard,
+    which asks for one worker per core clamped to 2..8 (see scipts/test-shards.ps1). An explicit
+    -Workers beats both, and every sharded run prints the number it settled on, per shard, because it
+    is no longer the same on every machine and a shard that timed out is where you want to see it.
 
 .PARAMETER NoBuild
     Skip the build. Set by the shard children, which the parent has already built for.
@@ -167,6 +170,25 @@ function Get-EffectiveFilter {
     $exclusion = "TestCategory!=$knownBugCategory"
     if ([string]::IsNullOrWhiteSpace($Base)) { return $exclusion }
     return "($Base)&($exclusion)"
+}
+
+<#
+.SYNOPSIS
+    How many fixtures a shard will run at once, phrased for the console.
+.DESCRIPTION
+    Said out loud on every sharded run because the number stopped being a constant: the presence
+    shard asks for one worker per core clamped to 2..8, so the same command means eight fixtures at
+    once on a 32-core dev box and two on a GitHub runner. When a shard fails on timeouts that is the
+    first thing worth knowing, and it appears in no .trx and in no test output — only here.
+
+    0 is not "no workers": it is "say nothing and let `[assembly: LevelOfParallelism]` decide", which
+    is what every shard but presence does, so it is printed as what it means rather than as a zero.
+#>
+function Format-ShardWorkers {
+    param([int] $Workers)
+
+    if ($Workers -gt 0) { return "$Workers workers" }
+    'workers: assembly default'
 }
 
 <#
@@ -430,7 +452,8 @@ try {
         $mine = $plan[$Shard - 1]
 
         # An explicit -Workers wins; otherwise the shard's own answer, which is 0 — the assembly
-        # default — for every shard but presence.
+        # default — for every shard but presence, whose answer depends on the machine this is
+        # running on.
         if ($Workers -eq 0) { $Workers = $mine.Workers }
 
         # Only the topology shard keeps 11111/30000; see the sharding note in the header.
@@ -443,7 +466,8 @@ try {
         if (Test-Path $shardResults) { Remove-Item $shardResults -Recurse -Force }
         New-Item -ItemType Directory -Force -Path $shardResults | Out-Null
 
-        Write-Host "==> Shard $Shard/$Shards '$($mine.Name)': $($mine.Fixtures.Count) fixtures (db=$Database)" -ForegroundColor Cyan
+        Write-Host ("==> Shard $Shard/$Shards '$($mine.Name)': $($mine.Fixtures.Count) fixtures, " +
+                    "$(Format-ShardWorkers -Workers $Workers) on $([Environment]::ProcessorCount) cores (db=$Database)") -ForegroundColor Cyan
 
         if ($mine.UnitSuite) {
             Write-Host "==> Testing tests/ArgonSharedLogicTest (rides along on this shard)" -ForegroundColor Cyan
@@ -507,7 +531,11 @@ try {
                     -RedirectStandardOutput $log -RedirectStandardError "$log.err"
             }
 
-            Write-Host "==> shard $i/$Shards '$name' started -> $log" -ForegroundColor Cyan
+            # The child says this too, but into its redirected log, which nobody opens on a run that
+            # went well. The worker count is the one setting that differs between machines now, so
+            # the parent's console — the thing a person is actually watching — carries it as well.
+            $childWorkers = if ($Workers -gt 0) { $Workers } else { $plan[$i - 1].Workers }
+            Write-Host "==> shard $i/$Shards '$name' started, $(Format-ShardWorkers -Workers $childWorkers) -> $log" -ForegroundColor Cyan
         }
 
         # `$job`, never `$shard`: PowerShell variables are case-insensitive, so a loop variable named

@@ -227,6 +227,19 @@ function Get-ArgonTestShardPlan {
     # says", which is 4. Only the presence shard asks for more, and for a reason particular to it:
     # its fixtures spend their time waiting on grain timers and Redis TTLs rather than on a CPU, so
     # eight of them overlap for free where eight CPU-bound fixtures would just queue.
+    #
+    # "For free" is where the machine comes in, and it is why this is a clamp rather than the 8 it
+    # used to be. Waiting is free only while there is a core to run the small non-waiting part of
+    # each fixture — the Ion calls, the SignalR frames, the silo's own scheduler — on. Eight of them
+    # on a two-core GitHub runner, with a container stack and an Argon host already on those cores,
+    # do not wait in parallel: they queue, and a fixture that gave an event ten seconds to arrive
+    # gets a RealtimeWaitTimeoutException instead of a verdict. So: one worker per core, never fewer
+    # than two (one worker would serialise the whole 606 s the shard exists to overlap) and never
+    # more than eight (measured; past that the waiting is no longer what the shard is short of).
+    # -Workers on run-tests.ps1 overrides it, and 32-core dev boxes still get exactly the 8 the
+    # numbers in tests/README.md were measured at.
+    $presenceWorkers = [Math]::Clamp([Environment]::ProcessorCount, 2, 8)
+
     $plan = @(
         [pscustomobject]@{
             Name        = 'topology'
@@ -242,7 +255,7 @@ function Get-ArgonTestShardPlan {
             SiloPort    = 24110
             GatewayPort = 34110
             UnitSuite   = $false
-            Workers     = 8
+            Workers     = $presenceWorkers
         }
     )
 
@@ -443,7 +456,11 @@ if ($Verify) {
     Write-Host ("==> $($summary.Assigned) fixtures over $Shards shards, " +
                 "$($summary.Fixtures) in the tree, excluded: $($summary.Excluded -join ', ')") -ForegroundColor Green
     foreach ($shard in $plan) {
-        Write-Host ("    {0,-12} {1,2} fixtures  silo {2}" -f $shard.Name, $shard.Fixtures.Count,
+        # Workers is in this listing because it is no longer a constant — the presence shard's is
+        # this machine's core count, clamped — and a run that timed out is exactly when you want to
+        # know how many fixtures were in flight. It is not in the .trx.
+        Write-Host ("    {0,-12} {1,2} fixtures  {2,-26} silo {3}" -f $shard.Name, $shard.Fixtures.Count,
+            ($(if ($shard.Workers) { "$($shard.Workers) workers" } else { 'workers: assembly default' })),
             ($(if ($shard.SiloPort) { $shard.SiloPort } else { 'default (11111)' })))
     }
     return

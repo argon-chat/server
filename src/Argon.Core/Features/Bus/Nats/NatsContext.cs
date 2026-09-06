@@ -1,6 +1,7 @@
 namespace Argon.Features.NatsStreaming;
 
 using Api.Features.Bus;
+using Argon.Core.Features.Transport;
 using Argon.HealthChecks;
 using Bus;
 using Clustering;
@@ -271,6 +272,13 @@ public static class NatsExtensions
         });
 
         builder.Services.AddSingleton<NatsContext>();
+
+        // The publishing half of session revocation, on the same connection everything else uses.
+        // Registered here rather than with the hub because the two ends live on different roles: a
+        // silo raises the sign-out (SecurityGrain) and a web role raises the other one
+        // (WebSessionEndpoints), while only a role that maps the hub listens — see
+        // Argon.Core.Features.Transport.SessionRevocationSubscriber and AppHub's remarks.
+        builder.Services.AddSingleton<ISessionRevocationBroadcaster, NatsSessionRevocationBroadcaster>();
 
         // Every role holds this client, so every role's probes ask whether it can reach the bus.
         builder.Services.AddDependencyCheck<NatsHealthCheck>(DependencyNames.Nats);

@@ -1141,12 +1141,14 @@ public class PresenceSessionGrainTests : TestBase
     /// </summary>
     /// <remarks>
     /// <para>Closing the desktop and picking up the phone is two independent writes to the same
-    /// aggregate, and <c>RecalculateAggregatedStatusAsync</c> is a read-fold-write with nothing
-    /// serialising it — while <c>UserGrain</c> is a <c>[StatelessWorker]</c>, so several activations of
-    /// it can be folding at once. The losing fold can be the one that read the world before the new
-    /// session existed and after the old one was removed, and it writes Offline over a user who is
-    /// sitting there on their phone. Nothing recomputes afterwards, so the state is not transient: it
-    /// is where the user stays until they next change something.</para>
+    /// aggregate, and <c>RecalculateAggregatedStatusAsync</c> is a read-fold-write with nothing atomic
+    /// about it. It used to run from <c>UserGrain</c>, a <c>[StatelessWorker]</c>, so several
+    /// activations of one user could be folding at once: the losing fold was the one that read the
+    /// world before the new session existed and after the old one was removed, and it wrote Offline
+    /// over a user who was sitting there on their phone. Nothing recomputes afterwards, so the state
+    /// was not transient — it is where the user stayed until they next changed something. What
+    /// serialises it now is <c>IUserPresenceGrain</c>, one activation per user and one turn at a time,
+    /// so the last fold is necessarily the one that saw both writes.</para>
     ///
     /// <para>A race needs repetition to be evidence, so this runs the switch thirty times on fresh
     /// sids and reports how many left the aggregate wrong. One failure is a real failure — this is a

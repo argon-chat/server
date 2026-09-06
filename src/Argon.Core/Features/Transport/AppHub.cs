@@ -1,4 +1,4 @@
-namespace Argon.Core.Features.Transport;
+﻿namespace Argon.Core.Features.Transport;
 
 using Argon.Features.Auth;
 using Argon.Features.BotApi;
@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Net.Http.Headers;
 using StackExchange.Redis;
@@ -18,12 +19,48 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text.Encodings.Web;
 
+/// <summary>
+/// The client-facing end of the realtime bus: one socket per window, authenticated once by a ticket.
+/// </summary>
+/// <remarks>
+/// <para><b>How a sign-out reaches a socket, in three layers, because no one of them is enough.</b>
+/// A ticket is minted once and an established connection is never re-authenticated, so everything
+/// below exists to answer the same question after the fact: this device was signed out — does it
+/// still have a feed?</para>
+///
+/// <list type="number">
+/// <item><description><b>The gate on the calls.</b> <see cref="OnConnectedAsync"/> and every
+/// state-changing method consult <c>SessionRevocation</c> (see <see cref="EnsureSessionIsLiveAsync"/>)
+/// and abort on a hit. It is the layer that is always correct and always late: it runs when the
+/// <em>client</em> speaks, and a client that has been signed out has no reason to. The shipped
+/// desktop beats every fifteen seconds, so fifteen seconds is the best this layer can do — and a
+/// silent listener, which is exactly what an attacker holding a copied data folder would run, is
+/// never asked at all while every broadcast keeps arriving.</description></item>
+///
+/// <item><description><b>The signal.</b> <c>SecurityGrain.EndSessionAsync</c> and
+/// <c>WebSessionEndpoints.LogoutAsync</c> publish the ended ids on NATS core pub/sub the moment the
+/// tombstone commits; <see cref="SessionRevocationSubscriber"/> runs on every node that maps this
+/// hub and closes the matching connections through <see cref="HubConnectionRegistry"/>. That is what
+/// makes a sign-out immediate rather than eventual. It is fail-soft on purpose — a bus hiccup drops
+/// the courtesy, never the revocation, because the tombstone is the truth and this is only its
+/// delivery.</description></item>
+///
+/// <item><description><b>The floor.</b> <see cref="HubConnectionSweeper"/> walks the registry on a
+/// timer and re-reads the tombstones and the floor for every live connection, so a lost signal costs
+/// one sweep rather than the life of the socket. It depends on nothing but Redis, which is the same
+/// store the revocation itself lives in.</description></item>
+/// </list>
+///
+/// <para>The registry is populated here and nowhere else, and only after a successful attach: an
+/// entry for a connection the session does not believe in would be a handle to nothing.</para>
+/// </remarks>
 [Authorize(AuthenticationSchemes = "Ticket", Policy = "ticket")]
 public class AppHub(
     IGrainFactory factory,
     IRealtimeReplayBuffer replay,
     HybridCache cache,
     IArgonCacheDatabase cacheDb,
+    HubConnectionRegistry registry,
     ILogger<AppHub> logger) : Hub
 {
     /// <summary>
@@ -71,6 +108,14 @@ public class AppHub(
         }
 
         Context.Items[AttachedItem] = true;
+
+        // The handle the other two layers need. After the attach, deliberately: a registry entry is a
+        // promise that this connection is one the session is counting, and the two must not disagree.
+        // Both of the ids on the ticket go in — see HubConnectionEntry — because a device that
+        // rotated its scid is only reachable through the credential ones.
+        registry.Attach(new HubConnectionEntry(
+            Context.ConnectionId, UserId, Guid.Parse(Context.User!.FindFirstValue("sid")!),
+            CredentialSessionIds(), TicketIssuedAt(), Context));
     }
 
     /// <summary>
@@ -127,21 +172,6 @@ public class AppHub(
     // the same client resolve to the same session grain.
     private string SessionGrainKey => $"{UserId}:{Context.User!.FindFirstValue("sid")}";
 
-    /// <summary>
-    /// How long a revocation may take to be honoured on this path.
-    /// </summary>
-    /// <remarks>
-    /// The same numbers <c>ArgonTransactionInterceptor</c> uses for the same key, so the Ion path and
-    /// the hub cannot disagree about when a sign-out takes effect. Cached at all because the answer
-    /// is "no" for essentially every call ever made, and a heartbeat every fifteen seconds per
-    /// connection is not worth one Redis round trip each.
-    /// </remarks>
-    private static readonly HybridCacheEntryOptions RevokedSessionCacheOptions = new()
-    {
-        Expiration           = TimeSpan.FromSeconds(15),
-        LocalCacheExpiration = TimeSpan.FromSeconds(5),
-    };
-
     /// <summary>Whether the session this connection authenticated as has been signed out.</summary>
     /// <remarks>
     /// <para>Defect S6. The ticket carries a signed <c>sid</c> and is good for as long as it lives;
@@ -150,114 +180,58 @@ public class AppHub(
     /// broadcast and its next <c>Heartbeat</c> — fifteen seconds away — re-created the session's
     /// presence keys and put the row back on the devices screen.</para>
     ///
-    /// <para><b>Three things are tested, not one.</b> The ticket's <c>sid</c> is the presence id, and
-    /// the caller writes it — a signed-out device that generates a new <c>scid</c> before
-    /// reconnecting presents an id nobody has ever tombstoned. So every <c>csid</c> claim
-    /// <c>EventBusImpl.PickTicket</c> stamped into the ticket is tested too: those are the
-    /// server-minted credential ids, and <c>SecurityGrain.EndSessionAsync</c> tombstones them beside
-    /// the row the user pressed the button on. Last comes the floor, which is the only handle a
-    /// password change or a sign-out-everywhere has — a ticket lives a day and an established socket
-    /// is never re-authenticated, so without it a compromised client keeps a full realtime feed for
-    /// that long after the password behind it was changed. See <see cref="SessionRevocation"/>.</para>
+    /// <para>The reading itself is <see cref="SessionRevocation.IsRevokedAsync"/> — one gate for the
+    /// Ion path, this one and the connection sweep, so the three cannot disagree about when a
+    /// sign-out takes effect. What this method contributes is the identity: the ticket's <c>sid</c>
+    /// is the presence id and <em>the caller writes it</em>, so every <c>csid</c> claim
+    /// <c>EventBusImpl.PickTicket</c> stamped beside it goes in too, and the <c>iat</c> goes in for
+    /// the floor.</para>
     ///
     /// <para><b>Where the policy differs from the interceptor's, and why.</b>
-    /// <c>ArgonTransactionInterceptor.IsSessionRevokedAsync</c> reads the same key with the same
-    /// cache entry and the same options, and fails <em>open</em> on a store error for every call it
+    /// <c>ArgonTransactionInterceptor</c> fails <em>open</em> on a store error for every call it
     /// guards. This one fails open only for a call on a socket that is already established — refusing
     /// those during a Redis incident would sign the whole instance out, which is the trade the
     /// interceptor makes and the reason it is made. On <c>OnConnectedAsync</c> it fails
-    /// <em>closed</em>: refusing one new connection costs a client a retry and heals itself, whereas
-    /// admitting it hands a revoked device a fresh socket, every space group it used to be on, and a
-    /// re-created presence row — and an attacker can arrange the incident cheaply, since the same
-    /// instance carries presence, the replay buffers and the rate limiters. The connect path also
-    /// reads uncached, so a fifteen-second-old "no" cannot be the answer to a sign-out the user is
-    /// watching for. <c>IdentityInteraction.IsRefreshRevokedAsync</c> fails closed outright, because
-    /// minting a fresh credential is not something to do on a guess.</para>
+    /// <em>closed</em>, and reads uncached, so a fifteen-second-old "no" cannot be the answer to a
+    /// sign-out the user is watching for. <c>IdentityInteraction.IsRefreshRevokedAsync</c> fails
+    /// closed outright, because minting a fresh credential is not something to do on a guess.</para>
     /// </remarks>
     /// <param name="onConnect">
     /// Whether this is the gate on a brand new connection, which decides both the caching and the
     /// direction of the failure. See the remarks.
     /// </param>
-    private async Task<bool> IsSessionRevokedAsync(bool onConnect = false)
+    private Task<bool> IsSessionRevokedAsync(bool onConnect = false)
     {
         // An identity the gate cannot parse is refused, not waved through: everything below is a
         // lookup keyed on these two, and "no id to look up" is not the same answer as "not revoked".
         if (!Guid.TryParse(Context.UserIdentifier, out var userId))
-            return true;
+            return Task.FromResult(true);
         if (!Guid.TryParse(Context.User?.FindFirstValue("sid"), out var sid))
-            return true;
+            return Task.FromResult(true);
 
         // The presence sid the caller chose, plus every credential id the server minted for it.
-        var identities = new List<Guid> { sid };
+        return SessionRevocation.IsRevokedAsync(
+            cacheDb, onConnect ? null : cache, userId,
+            [sid, .. CredentialSessionIds()], TicketIssuedAt(), failClosed: onConnect, logger);
+    }
+
+    /// <summary>Every server-minted credential id this ticket carries.</summary>
+    /// <remarks>
+    /// Repeated claims rather than one joined value — a device may hold more than one credential —
+    /// and unparseable ones are dropped rather than refused, because a claim that names no session
+    /// cannot be matched against a tombstone either way.
+    /// </remarks>
+    private List<Guid> CredentialSessionIds()
+    {
+        var ids = new List<Guid>();
 
         foreach (var claim in Context.User?.FindAll(SessionRevocation.CredentialTicketClaim) ?? [])
         {
             if (Guid.TryParse(claim.Value, out var credentialSessionId))
-                identities.Add(credentialSessionId);
+                ids.Add(credentialSessionId);
         }
 
-        var key = SessionRevocation.RevokedKey(userId);
-
-        try
-        {
-            // The whole set per user, not one entry per (user, session) pair: it is a handful of ids.
-            var revoked = onConnect
-                ? await cacheDb.SetMembersAsync(key)
-                : await cache.GetOrCreateAsync(
-                    key,
-                    async token => await cacheDb.SetMembersAsync(key, token),
-                    RevokedSessionCacheOptions);
-
-            if (identities.Any(id => revoked.Contains(id.ToString())))
-                return true;
-
-            foreach (var id in identities)
-            {
-                var legacy = SessionRevocation.LegacyRevokedKey(userId, id);
-
-                var hit = onConnect
-                    ? await cacheDb.KeyExistsAsync(legacy)
-                    : await cache.GetOrCreateAsync(
-                        legacy,
-                        async token => await cacheDb.KeyExistsAsync(legacy, token),
-                        RevokedSessionCacheOptions);
-
-                if (hit)
-                    return true;
-            }
-
-            return SessionRevocation.IsBelowFloor(await FloorAsync(userId, onConnect), TicketIssuedAt());
-        }
-        catch (Exception e)
-        {
-            logger.LogError(e,
-                "Could not check the revocation of session {SessionId} for user {UserId}; {Decision} the {Phase}",
-                sid, userId, onConnect ? "refusing" : "allowing", onConnect ? "connection" : "call");
-
-            return onConnect;
-        }
-    }
-
-    /// <summary>The user's sign-out-everywhere watermark, or null.</summary>
-    /// <remarks>
-    /// Cached under its own key rather than folded into the revoked-set entry: the two have
-    /// different shapes and the same lifetime, and one entry per user per kind is what the
-    /// interceptor already keeps.
-    /// </remarks>
-    private async Task<DateTimeOffset?> FloorAsync(Guid userId, bool onConnect)
-    {
-        var key = SessionRevocation.FloorKey(userId);
-
-        // "" rather than null, because a cache entry that holds nothing is indistinguishable from a
-        // cache miss and would be re-read on every heartbeat of every connection.
-        var raw = onConnect
-            ? await cacheDb.StringGetAsync(key) ?? ""
-            : await cache.GetOrCreateAsync(
-                key,
-                async token => await cacheDb.StringGetAsync(key, token) ?? "",
-                RevokedSessionCacheOptions);
-
-        return SessionRevocation.ParseFloor(raw);
+        return ids;
     }
 
     /// <summary>When this ticket was minted, as it says itself.</summary>
@@ -383,6 +357,12 @@ public class AppHub(
 
     public async override Task OnDisconnectedAsync(Exception? exception)
     {
+        // Unconditional and first: the registry only ever holds connections that attached, so this is
+        // a no-op for a refused one, and it must run even on the path below that returns early. A
+        // handle left behind after the socket is gone is a sweep spent on nothing every period, for
+        // the life of the process.
+        registry.Detach(Context.ConnectionId);
+
         // Only if this connection ever attached — see AttachedItem. A refused connect is aborted by
         // SignalR through this same callback, and detaching there arms a grace reminder on a session
         // that never started.
@@ -729,11 +709,29 @@ public static class SignalRHubExtensions
     }
 
     /// <summary>
-    /// The receiving half: the ticket scheme a client authenticates the socket with, and the policy
-    /// the mapped hub requires. Only a role that clients connect to needs it.
+    /// The receiving half: the ticket scheme a client authenticates the socket with, the policy the
+    /// mapped hub requires, and the two background halves of revocation enforcement. Only a role that
+    /// clients connect to needs it.
     /// </summary>
+    /// <remarks>
+    /// <para>The registry and the two services that drive it belong here rather than in
+    /// <see cref="AddRealtimeBus"/>, and the split is the same one the two methods already make: a
+    /// silo publishes events and holds no connections, so a registry there would always be empty and
+    /// a subscriber there would have nothing to abort. Only a node that <em>maps</em> the hub can
+    /// close a socket. See <see cref="AppHub"/> for the three layers.</para>
+    ///
+    /// <para><c>TryAdd</c> throughout so a role that reaches this twice — through
+    /// <c>AppHubFeature</c> and through whatever required it — does not end up running two
+    /// subscribers on one subject, which would abort every connection twice and log it twice.</para>
+    /// </remarks>
     public static void AddAppHubEndpoint(this WebApplicationBuilder builder)
     {
+        builder.Services.TryAddSingleton<HubConnectionRegistry>();
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, SessionRevocationSubscriber>());
+        builder.Services.TryAddEnumerable(
+            ServiceDescriptor.Singleton<IHostedService, HubConnectionSweeper>());
+
         builder.Services.AddAuthentication()
            .AddScheme<AuthenticationSchemeOptions, TicketAuthHandler>("Ticket", _ => { });
 

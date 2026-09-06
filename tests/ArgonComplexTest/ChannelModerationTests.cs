@@ -1,4 +1,4 @@
-namespace ArgonComplexTest.Tests;
+﻿namespace ArgonComplexTest.Tests;
 
 using ArgonContracts;
 using ion.runtime;
@@ -83,7 +83,7 @@ public class ChannelModerationTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateChannelAsync(owner, spaceId, "before", ChannelType.Text, ct);
 
-        var result = await owner.Channels.UpdateChannel(spaceId, channelId, "after", "the new topic", null, ct);
+        var result = await owner.Channels.UpdateChannel(spaceId, channelId, "after", "the new topic", null, null, ct);
 
         Assert.That(result, Is.InstanceOf<SuccessUpdateChannel>(),
             $"Owner was refused: {(result as FailedUpdateChannel)?.error}");
@@ -107,8 +107,8 @@ public class ChannelModerationTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "keep-me", ChannelType.Text, ct);
 
         // Renaming from the settings sheet must not wipe the topic the user never touched.
-        await owner.Channels.UpdateChannel(spaceId, channelId, null, "a topic", null, ct);
-        await owner.Channels.UpdateChannel(spaceId, channelId, "renamed", null, null, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, null, "a topic", null, null, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, "renamed", null, null, null, ct);
 
         var channel = await ReadChannelAsync(owner, spaceId, channelId, ct);
 
@@ -129,7 +129,7 @@ public class ChannelModerationTests : TestBase
 
         await JoinAsync(owner, guest, spaceId, ct);
 
-        var result = await guest.Channels.UpdateChannel(spaceId, channelId, "hijacked", null, null, ct);
+        var result = await guest.Channels.UpdateChannel(spaceId, channelId, "hijacked", null, null, null, ct);
 
         Assert.That(result, Is.InstanceOf<FailedUpdateChannel>());
         Assert.That(((FailedUpdateChannel)result).error, Is.EqualTo(UpdateChannelError.INSUFFICIENT_PERMISSIONS));
@@ -147,7 +147,7 @@ public class ChannelModerationTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "named", ChannelType.Text, ct);
 
         // Whitespace counts as empty: a channel whose name renders as nothing cannot be clicked.
-        var result = await owner.Channels.UpdateChannel(spaceId, channelId, "   ", null, null, ct);
+        var result = await owner.Channels.UpdateChannel(spaceId, channelId, "   ", null, null, null, ct);
 
         Assert.That(result, Is.InstanceOf<FailedUpdateChannel>());
         Assert.That(((FailedUpdateChannel)result).error, Is.EqualTo(UpdateChannelError.NAME_EMPTY));
@@ -166,7 +166,7 @@ public class ChannelModerationTests : TestBase
         // still renders six of them starts producing values the server rejects.
         foreach (var seconds in new[] { 5, 15, 30, 60, 300 })
         {
-            var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, seconds, ct);
+            var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, seconds, null, ct);
             Assert.That(result, Is.InstanceOf<SuccessUpdateChannel>(), $"{seconds}s was refused");
 
             var channel = await ReadChannelAsync(owner, spaceId, channelId, ct);
@@ -175,7 +175,7 @@ public class ChannelModerationTests : TestBase
 
         // Off is the sixth, and it travels back as null rather than 0 so the client has one way of
         // spelling "no cooldown" instead of two.
-        var cleared = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 0, ct);
+        var cleared = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 0, null, ct);
         Assert.That(cleared, Is.InstanceOf<SuccessUpdateChannel>());
         Assert.That((await ReadChannelAsync(owner, spaceId, channelId, ct)).slowModeSeconds, Is.Null);
     }
@@ -187,7 +187,7 @@ public class ChannelModerationTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateChannelAsync(owner, spaceId, "slow", ChannelType.Text, ct);
 
-        var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 7, ct);
+        var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 7, null, ct);
 
         Assert.That(result, Is.InstanceOf<FailedUpdateChannel>());
         Assert.That(((FailedUpdateChannel)result).error, Is.EqualTo(UpdateChannelError.SLOW_MODE_NOT_ALLOWED));
@@ -200,7 +200,7 @@ public class ChannelModerationTests : TestBase
         var spaceId   = await CreateSpaceAsync(owner, ct);
         var channelId = await CreateChannelAsync(owner, spaceId, "the-room", ChannelType.Voice, ct);
 
-        var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 30, ct);
+        var result = await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 30, null, ct);
 
         Assert.That(result, Is.InstanceOf<FailedUpdateChannel>());
         Assert.That(((FailedUpdateChannel)result).error, Is.EqualTo(UpdateChannelError.NOT_A_TEXT_CHANNEL));
@@ -215,7 +215,7 @@ public class ChannelModerationTests : TestBase
         var channelId = await CreateChannelAsync(owner, spaceId, "slow-chat", ChannelType.Text, ct);
 
         await JoinAsync(owner, guest, spaceId, ct);
-        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, null, ct);
 
         await guest.Channels.SendMessage(spaceId, channelId, "first", NoEntities, NextRandomId(), null, ct);
 
@@ -239,7 +239,7 @@ public class ChannelModerationTests : TestBase
         // The owner archetype carries ManageMessages. Someone who can delete other people's messages
         // is not who the cooldown is aimed at, and throttling them would lock the moderator out of
         // the room they just slowed down.
-        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, null, ct);
 
         Assert.That(async () =>
         {
@@ -262,9 +262,9 @@ public class ChannelModerationTests : TestBase
 
         await JoinAsync(owner, guest, spaceId, ct);
 
-        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 300, null, ct);
         await guest.Channels.SendMessage(spaceId, channelId, "first", NoEntities, NextRandomId(), null, ct);
-        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 0, ct);
+        await owner.Channels.UpdateChannel(spaceId, channelId, null, null, 0, null, ct);
 
         // Clearing the cooldown has to take effect on the live channel, not only after the grain is
         // next activated — the activation caches the channel row that SendMessage reads.

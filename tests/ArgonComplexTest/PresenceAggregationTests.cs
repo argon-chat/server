@@ -1,6 +1,7 @@
 namespace ArgonComplexTest;
 
 using Argon.Features.Logic;
+using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using Argon.Services;
@@ -117,6 +118,24 @@ public class PresenceAggregationTests : TestBase
         Assert.Fail($"timed out after {LapseBudget.TotalSeconds:F0}s waiting for {what}");
     }
 
+    /// <summary>Re-folds the user's aggregate the only way the product does, and answers with it.</summary>
+    /// <remarks>
+    /// <para>Writing a session's status no longer recomputes <c>status:user:{u}:aggregated</c>: the
+    /// fold belongs to <see cref="IUserPresenceGrain"/>, one activation per user, because that
+    /// activation being the only one is the whole of what stops two of a user's sessions folding over
+    /// each other. So a fixture that drives the service directly has to ask for the fold the same way
+    /// the product does, at the same points the product does — after the write, never before it.</para>
+    ///
+    /// <para>The silent form deliberately: this fixture is about the fold, and the announcing form
+    /// would drag a relational spaces query and a hub publish into every one of these tests, for
+    /// randomly-generated users that are in no space and have no friends.</para>
+    /// </remarks>
+    private Task<UserStatus> RefoldAsync(Guid userId, CancellationToken ct = default)
+        => FactoryAsp.Services.GetRequiredService<IGrainFactory>()
+           .GetGrain<IUserPresenceGrain>(userId)
+           .RecalculateAggregatedStatusAsync(ct)
+           .AsTask();
+
     /// <summary>Forces a key to lapse now, and waits until Redis agrees it is gone.</summary>
     private async Task LapseAsync(string key, string what, CancellationToken ct)
     {
@@ -171,7 +190,7 @@ public class PresenceAggregationTests : TestBase
             await Presence.SetSessionStatusAsync(userId, sid, reported[i], ct);
         }
 
-        return await Presence.GetAggregatedStatusAsync(userId, ct);
+        return await RefoldAsync(userId, ct);
     }
 
     private static void Classify(
@@ -341,7 +360,7 @@ public class PresenceAggregationTests : TestBase
         await PresenceImpl.SetSessionOnlineAsync(userId, live, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(userId, live, UserStatus.Online, ct);
 
-        Assert.That(await Presence.GetAggregatedStatusAsync(userId, ct), Is.EqualTo(UserStatus.Online),
+        Assert.That(await RefoldAsync(userId, ct), Is.EqualTo(UserStatus.Online),
             "precondition: one connected session reporting Online");
 
         await LapseAsync(Keys.SessionStatus(userId, live), "the session's status key to lapse", ct);
@@ -356,8 +375,10 @@ public class PresenceAggregationTests : TestBase
         // A second device connects and goes again — the ordinary event that recalculates the fold.
         await PresenceImpl.SetSessionOnlineAsync(userId, other, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(userId, other, UserStatus.Online, ct);
+        await RefoldAsync(userId, ct);
         await Presence.RemoveSessionStatusAsync(userId, other, ct);
         await Presence.RemoveSessionAsync(userId, other, ct);
+        await RefoldAsync(userId, ct);
 
         var afterKeepAlive = await Presence.GetAggregatedStatusAsync(userId, ct);
         var statusRecreated = await Cache.KeyExistsAsync(Keys.SessionStatus(userId, live), ct);
@@ -366,6 +387,7 @@ public class PresenceAggregationTests : TestBase
         // The reconnect: what AttachConnectionAsync does, plus the grain re-asserting its status.
         await PresenceImpl.SetSessionOnlineAsync(userId, live, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(userId, live, UserStatus.Online, ct);
+        await RefoldAsync(userId, ct);
 
         var afterReconnect = await Presence.GetAggregatedStatusAsync(userId, ct);
 
@@ -410,18 +432,20 @@ public class PresenceAggregationTests : TestBase
         await PresenceImpl.SetSessionOnlineAsync(userId, sid, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(userId, sid, UserStatus.Online, ct);
 
-        Assert.That(await Presence.GetAggregatedStatusAsync(userId, ct), Is.EqualTo(UserStatus.Online),
+        Assert.That(await RefoldAsync(userId, ct), Is.EqualTo(UserStatus.Online),
             "precondition: the session is live and voting");
 
         // The tick stops. Both keys drain, and nothing re-arms them: both refreshers are EXPIREs.
         await LapseAsync(Keys.SessionStatus(userId, sid), "the session's status key to lapse", ct);
         await LapseAsync(Keys.Session(userId, sid), "the session's presence key to lapse", ct);
 
-        // Anything at all recalculating the fold — here, some other session of the same user ending.
+        // Anything at all recalculating the fold — here, some other session of the same user ending,
+        // and its grain asking for the re-aggregation that every ending asks for.
         await Presence.RemoveSessionStatusAsync(userId, $"never-existed-{Guid.NewGuid():N}", ct);
+        await RefoldAsync(userId, ct);
 
-        // Read the aggregate BEFORE IsUserOnlineAsync: that call prunes the index as a side effect,
-        // and the claim is that the fold is already right without the pruning having happened.
+        // The cached aggregate rather than another fold: the claim is that the one above already wrote
+        // the right answer, which is the value every reader in the product actually goes on to read.
         var aggregated = await Presence.GetAggregatedStatusAsync(userId, ct);
         var online     = await Presence.IsUserOnlineAsync(userId, ct);
 
@@ -475,7 +499,7 @@ public class PresenceAggregationTests : TestBase
 
         // And the state production actually reaches: the status key lapsed alongside the presence key.
         await LapseAsync(Keys.SessionStatus(userId, dead), "the session's status key to lapse", ct);
-        await Presence.RemoveSessionStatusAsync(userId, $"never-existed-{Guid.NewGuid():N}", ct);
+        await RefoldAsync(userId, ct);
 
         var aggregated = await Presence.GetAggregatedStatusAsync(userId, ct);
 
@@ -610,12 +634,14 @@ public class PresenceAggregationTests : TestBase
         await PresenceImpl.SetSessionOnlineAsync(userId, sid, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(userId, sid, UserStatus.Online, ct);
 
-        Assert.That(await Presence.GetAggregatedStatusAsync(userId, ct), Is.EqualTo(UserStatus.Online),
+        Assert.That(await RefoldAsync(userId, ct), Is.EqualTo(UserStatus.Online),
             "precondition: the user's only session is online");
 
-        // The order FinalizeOfflineAsync and EndSessionAsync both use.
+        // The order FinalizeOfflineAsync and EndSessionAsync both use, plus the re-aggregation both
+        // ask the presence grain for once the two keys are gone.
         await Presence.RemoveSessionStatusAsync(userId, sid, ct);
         await Presence.RemoveSessionAsync(userId, sid, ct);
+        await RefoldAsync(userId, ct);
 
         var aggregated = await Presence.GetAggregatedStatusAsync(userId, ct);
         var online     = await Presence.IsUserOnlineAsync(userId, ct);
@@ -1044,6 +1070,7 @@ public class PresenceAggregationTests : TestBase
 
         await PresenceImpl.SetSessionOnlineAsync(known, sid, SessionTtl, ct);
         await Presence.SetSessionStatusAsync(known, sid, UserStatus.Online, ct);
+        await RefoldAsync(known, ct);
 
         List<Guid> asked = [strangerA, strangerB, known, known];
 
@@ -1084,31 +1111,30 @@ public class PresenceAggregationTests : TestBase
     /// </summary>
     /// <remarks>
     /// <para><c>RecalculateAggregatedStatusAsync</c> is read-fold-write with nothing atomic about it,
-    /// and its two callers race whenever a user picks up a second device as the first one goes: the
-    /// new session's <c>SetSessionStatusAsync</c> adds itself to the index and folds, the old
-    /// session's <c>RemoveSessionStatusAsync</c> folds too, and if the removal's fold ran before the
-    /// arrival's index write but its own write lands last, the user is left cached as Offline while a
-    /// device is sitting there connected — and every observer is told so, because the grain above
+    /// and it used to be called from wherever a session status was written: the new session's
+    /// <c>SetSessionStatusAsync</c> added itself to the index and folded, the old session's
+    /// <c>RemoveSessionStatusAsync</c> folded too, and if the removal's fold ran before the arrival's
+    /// index write but its own write landed last, the user was left cached as Offline while a device
+    /// was sitting there connected — and every observer was told so, because the grain above
     /// broadcasts what the fold produced.</para>
     ///
     /// <para>Each iteration is a fresh user so no other session can mask the result; the assertion
     /// message carries the failure count, because a race that fires a few times in fifty is exactly
     /// as broken as one that fires every time and much easier to dismiss.</para>
     ///
-    /// <para><b>The contract this now guards (H7, fixed).</b> The fold moved into the store.
-    /// <c>UserPresenceService.RecalculateAggregatedStatusAsync</c>
-    /// (<c>src/Argon.Core/Features/Logic/IUserPresenceService.cs</c>) was <c>SMEMBERS</c>, a
-    /// <c>GET</c> per sid and then one <c>SET</c> of <c>status:user:{u}:aggregated</c> — three round
-    /// trips with nothing holding them together, called from whichever <c>[StatelessWorker]</c>
-    /// activation happened to be running, so two folds of one user overlapped freely and the one that
-    /// read first could write last. It is now a single <c>IArgonCacheDatabase.FoldRankedSetAsync</c>,
-    /// a Lua script that reads the index, reads every session's status and writes the aggregate
-    /// without anything getting between the three. Reads can no longer be reordered against writes,
-    /// so the last write is by construction the one that saw the most recent state — which is all
-    /// this test has ever asked for. The ladder is unchanged and is passed to the script as the
-    /// ranking; the fold still keeps the winner verbatim, so
-    /// <c>ASingleSessionsStatusIsTheWholeAggregate</c> and the two- and three-session matrices are
-    /// what prove the answers did not move while the mechanism did.</para>
+    /// <para><b>The contract this now guards (H7, fixed).</b> The fold has exactly one caller, and
+    /// that caller is a grain with one activation per user: <c>IUserPresenceGrain</c>. Orleans runs one
+    /// turn of it at a time, so two of a user's sessions can no longer be inside the fold together —
+    /// and, because a caller asks for the fold only after writing its own key, the last fold to run is
+    /// necessarily the one that saw every write. Three round trips with nothing holding them together
+    /// is still exactly what the fold is; what changed is that nothing else is running it.</para>
+    ///
+    /// <para>It spent one release as a Lua script instead (<c>IArgonCacheDatabase.FoldRankedSetAsync</c>),
+    /// which bought the same property at the store and cost a deployment: production's cache is
+    /// Dragonfly, the script reads keys it does not declare, and that is refused by default and served
+    /// under a global lock when allowed. The ladder is unchanged either way, and the fold still keeps
+    /// the winner verbatim, so <c>ASingleSessionsStatusIsTheWholeAggregate</c> and the two- and
+    /// three-session matrices are what prove the answers did not move while the mechanism did twice.</para>
     ///
     /// <para>Before it, this fired one iteration in fifty, on one run in five of the presence shard on
     /// a 32-core box and none at all on a quiet one — which is why it carried
@@ -1145,15 +1171,24 @@ public class PresenceAggregationTests : TestBase
 
             await PresenceImpl.SetSessionOnlineAsync(userId, oldSid, TimeSpan.FromSeconds(30), ct);
             await Presence.SetSessionStatusAsync(userId, oldSid, UserStatus.Online, ct);
+            await RefoldAsync(userId, ct);
 
             // The old device's session ends at the same moment the new device's starts. The new
             // session's presence write is inside the race on purpose: it is what puts the sid in the
             // index the other side is folding over, and pre-seeding it would hide the interleaving.
-            var leaving = Presence.RemoveSessionStatusAsync(userId, oldSid, ct);
+            // Each side asks for its own re-aggregation immediately after its own write, which is
+            // exactly what UserSessionGrain does on both paths.
+            var leaving = Task.Run(async () =>
+            {
+                await Presence.RemoveSessionStatusAsync(userId, oldSid, ct);
+                await RefoldAsync(userId, ct);
+            }, ct);
+
             var arriving = Task.Run(async () =>
             {
                 await PresenceImpl.SetSessionOnlineAsync(userId, newSid, TimeSpan.FromSeconds(30), ct);
                 await Presence.SetSessionStatusAsync(userId, newSid, UserStatus.Online, ct);
+                await RefoldAsync(userId, ct);
             }, ct);
 
             await Task.WhenAll(leaving, arriving);

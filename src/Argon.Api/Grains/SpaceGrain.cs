@@ -421,8 +421,11 @@ public class SpaceGrain(
     /// user. The record and the aggregate then disagree in the direction that suppresses the
     /// <em>next</em> transition for every space the user is in. Ordering it by hand is not available
     /// here; giving one owner the read, the record and the announcement is, so the seed is passed to
-    /// <c>UserGrain.AggregateAndBroadcastStatusAsync</c> and this grain writes no presence state at
-    /// all. The membership is committed before this runs (<see cref="AddMemberAsync"/> saves,
+    /// <see cref="IUserPresenceGrain.AggregateAndBroadcastStatusAsync(Guid[],CancellationToken)"/> —
+    /// one activation per user, turn by turn, which is where that ownership now actually lives — and
+    /// this grain writes no presence state at all. That grain publishes to space groups directly
+    /// rather than calling back into <c>ISpaceGrain</c>, which is what lets this await it from inside
+    /// this very turn without deadlocking on ourselves. The membership is committed before this runs (<see cref="AddMemberAsync"/> saves,
     /// <c>IServerRepository.CreateAsync</c> commits its transaction), which is what lets that call
     /// treat the seed as a space the user is already in.</para>
     ///
@@ -438,7 +441,7 @@ public class SpaceGrain(
     {
         await Fire(new JoinToServerUser(this.GetPrimaryKey(), userId));
 
-        await GrainFactory.GetGrain<IUserGrain>(userId)
+        await GrainFactory.GetGrain<IUserPresenceGrain>(userId)
            .AggregateAndBroadcastStatusAsync([this.GetPrimaryKey()]);
     }
 

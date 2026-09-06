@@ -1,6 +1,7 @@
 namespace Argon.Features.Auth;
 
 using Argon.Services;
+using Microsoft.Extensions.Caching.Hybrid;
 
 /// <summary>
 /// The facts shared between the grain that ends a session and the paths that have to stop honouring
@@ -233,4 +234,161 @@ public static class SessionRevocation
     /// </remarks>
     public static bool IsBelowFloor(DateTimeOffset? floor, DateTimeOffset? issuedAt)
         => floor is { } watermark && (issuedAt is not { } when || when <= watermark);
+
+    /// <summary>
+    /// How long a revocation may take to be honoured on a path that reads it through a cache.
+    /// </summary>
+    /// <remarks>
+    /// One entry shape for every such reader — <c>ArgonTransactionInterceptor</c>, <c>AppHub</c>, the
+    /// hub's own connection sweep — so the Ion path and the realtime path cannot disagree about when
+    /// a sign-out takes effect. Cached at all because the answer is "no" for essentially every call
+    /// ever made, and a heartbeat every fifteen seconds per connection is not worth a Redis round
+    /// trip each.
+    /// </remarks>
+    public static readonly HybridCacheEntryOptions CacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(15),
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
+    };
+
+    /// <summary>Everything one user's revocation state amounts to: the tombstoned ids, and the floor.</summary>
+    /// <remarks>
+    /// Read together because every gate needs both and they are two lookups rather than one — a
+    /// caller holding this can decide about any number of connections belonging to that user without
+    /// going back to the store, which is what makes a per-connection sweep affordable.
+    /// </remarks>
+    public readonly record struct RevocationState(string[] Revoked, DateTimeOffset? Floor)
+    {
+        /// <summary>Whether any of <paramref name="identities"/> is on the tombstone set.</summary>
+        /// <remarks>
+        /// Written as a loop rather than as <c>Any</c> because a lambda inside a struct may not
+        /// capture <c>this</c>, and copying the array out to satisfy that would be a copy per call.
+        /// </remarks>
+        public bool Names(IReadOnlyList<Guid> identities)
+        {
+            foreach (var identity in identities)
+            {
+                if (Revoked.Contains(identity.ToString()))
+                    return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// Whether a credential presenting these identities and this issue time is dead — the set and
+        /// the floor together, and everything a reader that skips the legacy keys can decide.
+        /// </summary>
+        public bool Ends(IReadOnlyList<Guid> identities, DateTimeOffset? issuedAt)
+            => Names(identities) || IsBelowFloor(Floor, issuedAt);
+    }
+
+    /// <summary>
+    /// Reads one user's tombstone set and floor.
+    /// </summary>
+    /// <param name="cache">
+    /// The shared cache, or null to read straight through. Null is for the paths where a
+    /// fifteen-second-stale "not revoked" is the wrong answer — accepting a new connection, starting
+    /// a session — because those happen once and a user watching for a sign-out is watching for them.
+    /// </param>
+    /// <remarks>
+    /// The empty string rather than null for a missing floor, because a cache entry holding nothing
+    /// is indistinguishable from a cache miss and would be re-read on every heartbeat of every
+    /// connection.
+    /// </remarks>
+    public static async Task<RevocationState> ReadStateAsync(
+        IArgonCacheDatabase store, HybridCache? cache, Guid userId, CancellationToken ct = default)
+    {
+        var revokedKey = RevokedKey(userId);
+        var floorKey   = FloorKey(userId);
+
+        // The whole set per user, not one entry per (user, session) pair: it is a handful of ids.
+        var revoked = cache is null
+            ? await store.SetMembersAsync(revokedKey, ct)
+            : await cache.GetOrCreateAsync(
+                revokedKey,
+                async token => await store.SetMembersAsync(revokedKey, token),
+                CacheOptions,
+                cancellationToken: ct);
+
+        var floor = cache is null
+            ? await store.StringGetAsync(floorKey, ct) ?? ""
+            : await cache.GetOrCreateAsync(
+                floorKey,
+                async token => await store.StringGetAsync(floorKey, token) ?? "",
+                CacheOptions,
+                cancellationToken: ct);
+
+        return new RevocationState(revoked, ParseFloor(floor));
+    }
+
+    /// <summary>Whether a revocation written under the pre-set key shape names this identity.</summary>
+    /// <inheritdoc cref="LegacyRevokedKey"/>
+    public static async Task<bool> IsLegacyRevokedAsync(
+        IArgonCacheDatabase store, HybridCache? cache, Guid userId, Guid identity, CancellationToken ct = default)
+    {
+        var key = LegacyRevokedKey(userId, identity);
+
+        return cache is null
+            ? await store.KeyExistsAsync(key, ct)
+            : await cache.GetOrCreateAsync(
+                key,
+                async token => await store.KeyExistsAsync(key, token),
+                CacheOptions,
+                cancellationToken: ct);
+    }
+
+    /// <summary>
+    /// The whole gate, in one call: is a credential presenting these identities still honoured?
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Three things are tested, not one.</b> The tombstone set, which is where both of a
+    /// session's ids are written when it is ended; the pre-set key shape, still read because every
+    /// revocation written before the set existed lives under it; and the floor, which is the only
+    /// handle a password change or a sign-out-everywhere has. See the remarks on this class for why
+    /// the presence sid alone can never be enough.</para>
+    ///
+    /// <para><paramref name="failClosed"/> is the whole of the policy difference between the callers.
+    /// A call on a socket that is already up fails <em>open</em> on a store error, because refusing
+    /// those during a Redis incident would sign the whole instance out — the trade
+    /// <c>ArgonTransactionInterceptor</c> makes and the reason it makes it. Accepting a new
+    /// connection fails <em>closed</em>: refusing one costs a client a retry and heals itself,
+    /// whereas admitting it hands a revoked device a fresh socket, every space group it used to be
+    /// on, and a re-created presence row — and an attacker can arrange the incident cheaply, since
+    /// the same instance carries presence, the replay buffers and the rate limiters.</para>
+    /// </remarks>
+    public static async Task<bool> IsRevokedAsync(
+        IArgonCacheDatabase store,
+        HybridCache?        cache,
+        Guid                userId,
+        IReadOnlyList<Guid> identities,
+        DateTimeOffset?     issuedAt,
+        bool                failClosed,
+        ILogger             logger,
+        CancellationToken   ct = default)
+    {
+        try
+        {
+            var state = await ReadStateAsync(store, cache, userId, ct);
+
+            if (state.Names(identities))
+                return true;
+
+            foreach (var identity in identities)
+            {
+                if (await IsLegacyRevokedAsync(store, cache, userId, identity, ct))
+                    return true;
+            }
+
+            return IsBelowFloor(state.Floor, issuedAt);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e,
+                "Could not check the revocation of session {SessionId} for user {UserId}; {Decision} the caller",
+                identities.Count > 0 ? identities[0] : Guid.Empty, userId, failClosed ? "refusing" : "allowing");
+
+            return failClosed;
+        }
+    }
 }

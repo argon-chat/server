@@ -99,6 +99,13 @@ public sealed class CoreRole : IArgonRole
         registry.AddToRef<ChannelGrain>();
         registry.AddToRef<UserGrain>();
         registry.AddToRef<UserSessionGrain>();
+
+        // One activation per user, and the only thing allowed to fold or to announce that user's
+        // presence. It has to be here rather than anywhere else because the sessions that drive it and
+        // the spaces it publishes to are here: everything it does is a Redis round trip and a hub
+        // publish, so a role boundary between it and UserSessionGrain would put a network hop on every
+        // heartbeat that changes anything. See IUserPresenceGrain for why it is not a stateless worker.
+        registry.AddToRef<UserPresenceGrain>();
         registry.AddToRef<BotGatewayGrain>();
         registry.AddToRef<ServerInviteGrain>();
         registry.AddToRef<InviteGrain>();

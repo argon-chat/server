@@ -1,5 +1,6 @@
 namespace Argon.Features.WebSession;
 
+using Argon.Core.Features.Transport;
 using Argon.Features.Auth;
 using Argon.Features.Jwt;
 using Argon.Services;
@@ -100,12 +101,13 @@ public static class WebSessionEndpoints
     /// whoever presented it.</para>
     /// </remarks>
     private static async Task<IResult> LogoutAsync(
-        HttpContext                 http,
-        ClassicJwtFlow              flow,
-        IArgonCacheDatabase         cache,
-        IOptions<WebSessionOptions> options,
-        ILoggerFactory              loggers,
-        CancellationToken           ct)
+        HttpContext                   http,
+        ClassicJwtFlow                flow,
+        IArgonCacheDatabase           cache,
+        ISessionRevocationBroadcaster revocations,
+        IOptions<WebSessionOptions>   options,
+        ILoggerFactory                loggers,
+        CancellationToken             ct)
     {
         var settings = options.Value;
 
@@ -130,9 +132,20 @@ public static class WebSessionEndpoints
                     // Empty is "nothing was carried" and AllBitsSet is what a development host hands
                     // every caller that sent no session header — neither names a device, and
                     // tombstoning either would sign out everyone who shares the placeholder.
-                    if (http.TryGetSessionId(out var presenceSessionId)
-                        && presenceSessionId != Guid.Empty && presenceSessionId != Guid.AllBitsSet)
-                        await cache.SetAddAsync(key, presenceSessionId.ToString(), ct);
+                    Guid? presence = http.TryGetSessionId(out var presenceSessionId)
+                                  && presenceSessionId != Guid.Empty && presenceSessionId != Guid.AllBitsSet
+                        ? presenceSessionId
+                        : null;
+
+                    if (presence is { } row)
+                        await cache.SetAddAsync(key, row.ToString(), ct);
+
+                    // And the tab's own socket, which the tombstone alone does not touch. The hub
+                    // authenticated it once, from a ticket minted before any of this existed, and a
+                    // tab that signs out and is left open makes no further calls — so nothing on the
+                    // realtime path would ever ask. The nodes holding it close it on this signal; see
+                    // AppHub's remarks for the two layers underneath. Never throws.
+                    await revocations.PublishAsync(userId, presence, [id], ct);
 
                     // EXPIRE, not GETEX — KeyExpireAsync is StringGetSetExpiry underneath and answers
                     // WRONGTYPE against the set just written. Here the throw was swallowed by the catch

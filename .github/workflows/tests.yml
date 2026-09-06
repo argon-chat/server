@@ -99,13 +99,21 @@ jobs:
             ${{ inputs.includeKnownBugs && '-IncludeKnownBugs' || '' }} `
             -Verbosity normal
 
+      # `always()`, and that is the whole point of the step: the Test step above throws on a red
+      # shard, so without it the one run whose .trx is worth reading is the one that uploads
+      # nothing. The .trx carries the per-test durations the partition is re-planned from
+      # (`test-shards.ps1 -FromTrx`) and the failure messages in a form that survives the job log
+      # being trimmed.
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
           name: test-results-${{ inputs.database }}-shard-${{ matrix.shard }}
           path: artifacts/test-results/**/*.trx
-          if-no-files-found: ignore
+          # `warn`, not `ignore`: on a shard that died before writing a .trx — a stack that never came
+          # up, a filter that matched nothing — silence looks exactly like a clean upload, and the
+          # question "where are the results?" is then asked of the wrong job.
+          if-no-files-found: warn
 
       # Raw Cobertura, not a report: the report is built once, from all the shards together, by the
       # job below. A per-shard report would be a per-shard number, and no shard covers enough of the

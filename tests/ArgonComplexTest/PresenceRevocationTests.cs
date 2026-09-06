@@ -1,9 +1,12 @@
 ﻿namespace ArgonComplexTest.Tests;
 
+using Argon.Features.Jwt;
+using Argon.Features.WebSession;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using ion.runtime.client;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 using System.Net.WebSockets;
 
 /// <summary>
@@ -831,6 +834,237 @@ public class PresenceRevocationTests : TestBase
             Assert.That(seen, Does.Not.Contain(UserStatus.Offline),
                 $"a member of the space was told the user went offline while another window of the same session was "
               + $"connected and heartbeating; the sequence it saw was [{string.Join(", ", seen)}]");
+        });
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // The socket itself, which the tombstone alone never touches.
+    // ---------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// A signed-out device that never says another word stops receiving the space's events, and its
+    /// socket is closed by the server rather than left for it to notice.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every other revocation test in this fixture makes the ended device <em>talk</em> —
+    /// heartbeat, go offline, subscribe — and every gate the product had was on exactly those paths:
+    /// the Ion interceptor, <c>AppHub</c>'s per-call check, the session grain. So the promise they
+    /// pin is only "a signed-out device cannot act". This one pins the other half, which is the half
+    /// a user means: a signed-out device cannot <em>listen</em>.</para>
+    ///
+    /// <para>The phone is deliberately silent from the moment it connects. Nothing asks it for a
+    /// heartbeat and it makes no hub call at all, which is both the cheapest thing an attacker
+    /// holding a copied data folder can arrange and the ordinary state of a client whose window is
+    /// backgrounded. It is a member of the space through its own account, so it is on the space group
+    /// and every broadcast reaches it — the first assertion proves exactly that, because a test whose
+    /// device was never receiving anything would pass for the wrong reason.</para>
+    ///
+    /// <para>The budget is <see cref="PresenceWaits.Settle"/> and covers both of the layers that can
+    /// close it: the NATS signal <c>SecurityGrain.EndSessionAsync</c> publishes, which arrives in
+    /// milliseconds, and <c>HubConnectionSweeper</c> underneath it, whose period is derived from
+    /// <c>PresenceTimingOptions.StaleConnectionAfter</c> and so shrinks with the host's compressed
+    /// clocks. Either is a correct answer; a socket still open after both is not.</para>
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task A_revoked_device_that_says_nothing_loses_its_feed_and_its_socket(
+        CancellationToken ct = default)
+    {
+        var observer = await CreateSessionAsync(ct);
+        var laptop   = await CreateSessionAsync(ct);
+
+        var spaceId = await CreateSpaceAsync(observer, "Silent Listener", ct);
+        await JoinAsync(observer, laptop, spaceId, ct);
+
+        var phone = await SecondDeviceAsync(laptop, ct);
+
+        await using var watcher  = await RealtimeClient.ConnectAsync(observer, ct);
+        await using var onLaptop = await RealtimeClient.ConnectAsync(laptop, ct);
+        await using var onPhone  = await RealtimeClient.ConnectAsync(phone, ct);
+
+        // The premise: while it is merely silent, the phone is on the space's stream and gets
+        // everything published to it. The event is the observer's own status change, so producing it
+        // costs the phone nothing and says nothing about the phone's session.
+        var beforeBaseline = onPhone.Mark();
+
+        await watcher.Heartbeat(UserStatus.DoNotDisturb, ct);
+
+        await onPhone.WaitForAsync<UserChangedStatus>(
+            e => e.userId == observer.UserId && e.status == UserStatus.DoNotDisturb,
+            PresenceWaits.Settle, beforeBaseline, ct);
+
+        var listed = await Poll.ForValueAsync(
+            async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
+            ids => ids.Contains(phone.SessionId), PresenceWaits.Settle, ct: ct);
+
+        Assert.That(listed, Does.Contain(phone.SessionId),
+            "the silent device never reached the devices screen, so there is no row to press the button on");
+
+        var beforeRevoke = onPhone.Mark();
+
+        var revoked = await laptop.Security.RevokeSession(phone.SessionId, ct);
+
+        // The whole point: nothing is asked of the phone between here and the assertion.
+        var closed = await onPhone.WaitForCloseAsync(PresenceWaits.Settle, ct);
+
+        // And a second broadcast, proven to have happened by a member that is still connected, so the
+        // absence below is an absence rather than a quiet space.
+        var beforeSecond = onLaptop.Mark();
+
+        await watcher.Heartbeat(UserStatus.Online, ct);
+
+        await onLaptop.WaitForAsync<UserChangedStatus>(
+            e => e.userId == observer.UserId && e.status == UserStatus.Online,
+            PresenceWaits.Settle, beforeSecond, ct);
+
+        await onPhone.AssertNoneWithinAsync<UserChangedStatus>(
+            e => e.userId == observer.UserId && e.status == UserStatus.Online,
+            PresenceWaits.NegativeWindow,
+            "a device that was signed out kept receiving the space's presence events without ever "
+          + "making a call the server could have refused",
+            beforeRevoke, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(revoked, Is.InstanceOf<SuccessRevokeSession>(),
+                $"signing the other device out reported failure: {(revoked as FailedRevokeSession)?.error}");
+
+            Assert.That(closed, Is.True,
+                $"the signed-out device's socket is still open and it never said anything the server could "
+              + $"have refused (connection state {onPhone.State})");
+
+            Assert.That(onLaptop.IsConnected, Is.True,
+                "signing the other device out closed the caller's own connection as well");
+        });
+    }
+
+    /// <summary>
+    /// "Sign out everywhere else" closes every other device's socket and leaves the caller's alone.
+    /// </summary>
+    /// <remarks>
+    /// <para>The presence half of this is already pinned by
+    /// <see cref="Revoking_every_other_session_spares_the_caller_and_lands_on_the_callers_own_status"/>;
+    /// what is asserted here is the transport. Both directions matter and they fail differently. A
+    /// socket left open is the defect — the two ended devices keep a full realtime feed until they
+    /// happen to speak, which for a backgrounded window is minutes and for a silenced client is
+    /// never. A caller's socket closed by its own button is the opposite mistake, and it is the one
+    /// that would be noticed immediately and blamed on something else: the user presses "sign out
+    /// everywhere else" and their own app drops.</para>
+    ///
+    /// <para>The caller is watched for the whole negative window rather than sampled once, because
+    /// the failure it guards against is a signal or a sweep that matches too broadly, and that would
+    /// arrive a moment <em>after</em> the two correct closures rather than with them.</para>
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task Revoking_every_other_session_closes_their_sockets_and_leaves_the_callers_open(
+        CancellationToken ct = default)
+    {
+        var laptop = await CreateSessionAsync(ct);
+        var phone  = await SecondDeviceAsync(laptop, ct);
+        var tablet = await SecondDeviceAsync(laptop, ct);
+
+        await using var onLaptop = await RealtimeClient.ConnectAsync(laptop, ct);
+        await using var onPhone  = await RealtimeClient.ConnectAsync(phone, ct);
+        await using var onTablet = await RealtimeClient.ConnectAsync(tablet, ct);
+
+        var allThree = await Poll.ForValueAsync(
+            async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
+            ids => ids.Contains(laptop.SessionId) && ids.Contains(phone.SessionId) && ids.Contains(tablet.SessionId),
+            PresenceWaits.Settle, ct: ct);
+
+        Assert.That(allThree, Has.Length.EqualTo(3),
+            $"the devices screen does not show the three connected devices: [{string.Join(", ", allThree)}]");
+
+        var revoked = await laptop.Security.RevokeAllSessions(ct);
+
+        var phoneClosed  = await onPhone.WaitForCloseAsync(PresenceWaits.Settle, ct);
+        var tabletClosed = await onTablet.WaitForCloseAsync(PresenceWaits.Settle, ct);
+
+        // Fixed window: the claim about the caller is that something does NOT happen to it, and an
+        // absence has no edge to poll for. It runs after the two closures above, which is when a
+        // signal matching too broadly would already have landed.
+        var callerDropped = await Poll.UntilAsync(
+            () => Task.FromResult(!onLaptop.IsConnected), PresenceWaits.NegativeWindow, ct: ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(revoked, Is.InstanceOf<SuccessRevokeSession>(),
+                $"signing out everywhere reported failure: {(revoked as FailedRevokeSession)?.error}");
+
+            Assert.That(phoneClosed, Is.True,
+                $"a device signed out by 'sign out everywhere else' kept its socket ({onPhone.State})");
+
+            Assert.That(tabletClosed, Is.True,
+                $"a device signed out by 'sign out everywhere else' kept its socket ({onTablet.State})");
+
+            Assert.That(callerDropped, Is.False,
+                "signing every other device out closed the caller's own connection, so the user's app "
+              + "drops the moment they audit their sessions");
+        });
+    }
+
+    /// <summary>
+    /// Signing a browser tab out closes that tab's realtime connection.
+    /// </summary>
+    /// <remarks>
+    /// <para>The web client's sign-out does not go through <c>ISecurityGrain.RevokeSessionAsync</c> —
+    /// that call is for ending some <em>other</em> device and refuses the caller's own session — so
+    /// <c>WebSessionEndpoints.LogoutAsync</c> writes the tombstones itself, and it therefore has to
+    /// announce them itself too. Without that, a tab that signed out and was left open kept a live
+    /// feed of every space it was on: the page makes no further hub calls after the sign-out, so
+    /// nothing on the realtime path would ever ask whether it still may.</para>
+    ///
+    /// <para>The session is a plain one from <see cref="TestBase.CreateSessionAsync"/> rather than
+    /// one minted through the Aegis exchange, because what is under test is the sign-out and not the
+    /// sign-in: the endpoint reads the presence sid off the request's own headers and the credential
+    /// sid out of the cookie, and both are supplied here exactly as a browser supplies them. The
+    /// machine id is the one the refresh token is minted for, since the refresh path checks the two
+    /// against each other and a mismatch would fail this for a reason it is not about.</para>
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task Logging_out_of_a_web_session_closes_that_tabs_socket(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var tab = await CreateSessionAsync(ct);
+
+        await using var onTab = await RealtimeClient.ConnectAsync(tab, ct);
+
+        var listed = await Poll.UntilAsync(
+            async () => (await tab.Security.GetSessions(ct)).Any(x => x.sessionId == tab.SessionId),
+            PresenceWaits.Settle, ct: ct);
+
+        Assert.That(listed, Is.True, "the tab never reached the devices screen, so it never held a session");
+
+        var settings  = scope.ServiceProvider.GetRequiredService<IOptions<WebSessionOptions>>().Value;
+        var machineId = Guid.CreateVersion7().ToString();
+
+        var refreshToken = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>()
+           .GenerateRefreshToken(tab.UserId, machineId, ["argon.app"], Guid.CreateVersion7());
+
+        var logout = new HttpRequestMessage(HttpMethod.Post, WebSessionEndpoints.LogoutPath);
+
+        logout.Headers.TryAddWithoutValidation("Cookie", $"{settings.CookieName}={refreshToken}");
+        // Sec-Fetch-Site is what WebSessionCookie.Read gates on: a cookie is only honoured on a
+        // request the site itself started.
+        logout.Headers.TryAddWithoutValidation("Sec-Fetch-Site", "same-origin");
+        logout.Headers.TryAddWithoutValidation("Sec-Carry", machineId);
+        // The presence sid — the row on the devices screen, and the id the tab's hub ticket carries.
+        // Both spellings, for the same reason DefaultHeaderInterceptor sends both.
+        logout.Headers.TryAddWithoutValidation("Sec-Ref", tab.SessionId.ToString());
+        logout.Headers.TryAddWithoutValidation("X-Ctt", tab.SessionId.ToString());
+
+        var response = await HttpClient.SendAsync(logout, ct);
+
+        var closed = await onTab.WaitForCloseAsync(PresenceWaits.Settle, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(response.StatusCode, Is.EqualTo(System.Net.HttpStatusCode.NoContent),
+                "the sign-out itself failed, so the socket below proves nothing");
+
+            Assert.That(closed, Is.True,
+                $"a browser tab that signed out kept its realtime connection ({onTab.State}); the page makes no "
+              + "further hub calls, so nothing else would ever have refused it");
         });
     }
 

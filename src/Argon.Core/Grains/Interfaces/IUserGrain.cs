@@ -22,14 +22,19 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(GetMyServersIds))]
     Task<List<Guid>> GetMyServersIds(CancellationToken ct = default);
 
+    /// <inheritdoc cref="IUserPresenceGrain.BroadcastPresenceAsync"/>
+    /// <remarks>
+    /// A forwarder to <see cref="IUserPresenceGrain"/>, which owns every presence fan-out for a user
+    /// and is the only thing that orders them. Kept on this interface because the Ion surface
+    /// (<c>UserInteractionImpl</c>) addresses the user grain and nothing about that address is wrong;
+    /// the work simply is not done here any more. Do not reimplement it — see
+    /// <see cref="IUserPresenceGrain"/> for what two activations doing this at once cost.
+    /// </remarks>
     [Alias(nameof(BroadcastPresenceAsync))]
     ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId);
 
-    // alwaysBroadcast=true: the user explicitly cleared their activity (client RemoveBroadcastPresence)
-    // — fan out the removal/representative even if this session's activity key already lapsed (TTL), so
-    // already-connected observers don't keep a stale activity forever. alwaysBroadcast=false: a session
-    // just ended — only fan out if it actually had an activity, to avoid spamming removals on every
-    // disconnect of activity-less users.
+    /// <inheritdoc cref="IUserPresenceGrain.RemoveBroadcastPresenceAsync"/>
+    /// <remarks>A forwarder to <see cref="IUserPresenceGrain"/>, as <see cref="BroadcastPresenceAsync"/> is.</remarks>
     [Alias(nameof(RemoveBroadcastPresenceAsync))]
     ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast);
 
@@ -58,39 +63,20 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(GetLimitationForUser))]
     ValueTask<LockedAuthStatus> GetLimitationForUser();
 
-    /// <summary>
-    /// Aggregates status from all active sessions and broadcasts the result to all servers.
-    /// Called by UserSessionGrain when session status changes.
-    /// </summary>
+    /// <inheritdoc cref="IUserPresenceGrain.AggregateAndBroadcastStatusAsync(CancellationToken)"/>
+    /// <remarks>
+    /// A forwarder to <see cref="IUserPresenceGrain"/>. This grain is a <c>[StatelessWorker]</c>, so
+    /// several activations of one user run at once — which is exactly what a presence fold and a
+    /// presence fan-out must not do, and is what left a switching user cached Offline and a room
+    /// holding a stale Offline event. Call the presence grain directly from new code; this member
+    /// exists so callers that already hold an <see cref="IUserGrain"/> reference do not have to
+    /// change, and it must never grow a body of its own.
+    /// </remarks>
     [Alias(nameof(AggregateAndBroadcastStatusAsync))]
     ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
 
-    /// <summary>
-    /// The same, plus spaces that must be told the aggregate whether or not it changed.
-    /// </summary>
-    /// <remarks>
-    /// <para>For a join. A space that has just gained a member has heard nothing about them ever, so
-    /// "nothing changed" is the wrong answer for it and the right answer for everybody else: the
-    /// per-user hysteresis record (<c>status:user:{u}:lastbroadcast</c>) exists to stop a re-asserted
-    /// status being fanned out to spaces that already have it, and a seed is precisely the case it
-    /// gets wrong.</para>
-    ///
-    /// <para>Why here rather than in <c>SpaceGrain.UserJoined</c>, which used to read the aggregate
-    /// and announce it itself: the same user's first heartbeat runs the ordinary fan-out through this
-    /// grain at the same instant, and the two racing over one Redis record produced a hysteresis entry
-    /// that disagreed with the aggregate — after which the next real transition was suppressed for
-    /// <em>every</em> space, not only the new one. One owner for the read, the record and the
-    /// announcement is what removes the interleaving rather than narrowing it.</para>
-    ///
-    /// <para>An Offline aggregate announces nothing at all, to the seeds included: a member who
-    /// accepted an invite without ever opening the app has no status to report, and the space has no
-    /// stale value to correct — see <c>SpaceGrain.UserJoined</c>.</para>
-    ///
-    /// <para>A seed is announced by publishing to the space's group directly rather than by calling
-    /// that space's grain, which is what lets a <c>SpaceGrain</c> await this from inside its own turn
-    /// without deadlocking on itself. Passing a space that is <em>not</em> the caller is still correct;
-    /// it simply skips a hop.</para>
-    /// </remarks>
+    /// <inheritdoc cref="IUserPresenceGrain.AggregateAndBroadcastStatusAsync(Guid[],CancellationToken)"/>
+    /// <remarks>A forwarder to <see cref="IUserPresenceGrain"/>, as the overload above is.</remarks>
     [Alias("AggregateAndBroadcastStatusAsyncSeeded")]
     ValueTask AggregateAndBroadcastStatusAsync(Guid[] seedSpaces, CancellationToken ct = default);
 

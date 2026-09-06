@@ -177,16 +177,5 @@ public class DeviceProofFreshnessTests
         public Task<bool>     SetAddAsync(string key, string member, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool>     SetRemoveAsync(string key, string member, CancellationToken ct = default) => Task.FromResult(true);
         public Task<string[]> SetMembersAsync(string key, CancellationToken ct = default) => Task.FromResult(Array.Empty<string>());
-
-        /// <summary>Not modelled: the sets above are stubs, so a fold over one would answer nonsense.</summary>
-        /// <remarks>
-        /// Throwing rather than answering the floor value, which is what a fold over an empty set
-        /// legitimately returns — a device-proof path that somehow reached this should say so loudly
-        /// instead of quietly reading "everybody is Offline".
-        /// </remarks>
-        public Task<string> FoldRankedSetAsync(
-            string setKey, string memberKeyPrefix, string memberKeySuffix, string destinationKey,
-            IReadOnlyList<string> ranking, string unknownAs, TimeSpan expiration, CancellationToken ct = default)
-            => throw new NotSupportedException("this fixture's cache does not model sets, so it cannot fold one");
     }
 }

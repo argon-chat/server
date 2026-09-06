@@ -11,10 +11,13 @@ using ArgonContracts;
 /// </summary>
 /// <remarks>
 /// <para>Every write in the presence path is a read-fold-write over Redis with no lock around it:
-/// <c>RecalculateAggregatedStatusAsync</c> folds a user's session index and stores the result,
-/// <c>MarkBroadcastIfChangedAsync</c> reads the hysteresis record and writes it back, and the grain
-/// that drives both — <see cref="Argon.Grains.IUserGrain"/> — is a <c>[StatelessWorker]</c>, so
-/// several activations of it can be inside those sequences for one user at once. Sequentially none
+/// <c>RecalculateAggregatedStatusAsync</c> folds a user's session index and stores the result, and
+/// <c>MarkBroadcastIfChangedAsync</c> reads the hysteresis record and writes it back. The grain that
+/// drives both used to be <see cref="Argon.Grains.IUserGrain"/>, a <c>[StatelessWorker]</c>, so
+/// several activations of it could be inside those sequences for one user at once — which is what
+/// these fixtures were written against and what they caught. It is <c>IUserPresenceGrain</c> now, one
+/// activation per user, and the assertions are unchanged: what serialises the sequences is not what
+/// this fixture is about, and a future change of mechanism has to satisfy exactly these. Sequentially none
 /// of that matters and every fixture in this campaign that acts one step at a time passes. The
 /// failures users report are the ones that need two actors: closing the laptop as the phone wakes
 /// up, a manual Do-Not-Disturb landing while the other device is still saying Online, a space full
@@ -80,14 +83,25 @@ public class PresenceRaceTests : TestBase
     /// <para>This is the shape of "I closed the laptop and picked up the phone", and it is the one
     /// case where the two halves of the presence fold genuinely overlap: <c>GoOfflineAsync</c> is
     /// deleting session A's status and re-folding while session B's start is adding its own and
-    /// re-folding too. Both folds end in a plain <c>StringSet</c> of
-    /// <c>status:user:{u}:aggregated</c>, so the one that reads first and writes last wins, and if
-    /// that is A's the account is stored Offline with a live, heartbeating session attached.</para>
+    /// re-folding too. Two things could go wrong, and both did.</para>
     ///
-    /// <para>Nothing recovers from that on its own, which is why it is worth twenty rounds rather
-    /// than one. B's later heartbeats carry the status it already has, so the grain never
-    /// recalculates; the refresh tick renews the TTL of the wrong value every 15 s. The account
-    /// stays Offline to every roster until the user changes status by hand.</para>
+    /// <para><b>The stored value.</b> Both folds end in a plain <c>StringSet</c> of
+    /// <c>status:user:{u}:aggregated</c>, so the one that read first could write last, and if that is
+    /// A's the account is stored Offline with a live, heartbeating session attached. Nothing recovers
+    /// from that on its own, which is why it is worth twenty rounds rather than one: B's later
+    /// heartbeats carry the status it already has, so nothing recalculates, and the refresh tick
+    /// renews the TTL of the wrong value for as long as the user stays connected. The account is
+    /// Offline to every roster until they change status by hand.</para>
+    ///
+    /// <para><b>And the last event, which is a separate claim and the one that failed last.</b> The
+    /// aggregate can be right, the snapshot can agree with it, and the last <c>UserChangedStatus</c>
+    /// the space received can still say Offline — because the two fan-outs ran on two
+    /// <c>[StatelessWorker]</c> activations of <c>UserGrain</c> and finished in whichever order the
+    /// scheduler chose. Every member of the space is left holding the loser. It reproduced once in
+    /// twenty on a two-core CI runner while the stored halves of the same round read Online, which is
+    /// exactly the failure a fix at the store cannot reach. Both halves are now one
+    /// <c>IUserPresenceGrain</c> turn: the fold and the publish happen in the same turn of the same
+    /// single activation, so "published last" and "saw the most recent state" are the same call.</para>
     ///
     /// <para>Counted rather than asserted per round: a race that reproduces one time in twenty is a
     /// different bug report from one that reproduces every time, and stopping at the first failure
@@ -574,9 +588,11 @@ public class PresenceRaceTests : TestBase
     /// exactly one event.
     /// </summary>
     /// <remarks>
-    /// <para>Unlike two windows of one session, this genuinely puts two <c>UserGrain</c> activations
-    /// into <c>AggregateAndBroadcastStatusAsync</c> for the same user at once, which is where the
-    /// hysteresis record has to collapse the pair into a single broadcast.</para>
+    /// <para>Unlike two windows of one session, this genuinely puts two session grains into
+    /// <c>AggregateAndBroadcastStatusAsync</c> for the same user at once. Their turns are serialised
+    /// by <c>IUserPresenceGrain</c> now rather than overlapping on a worker pool, so the pair arrives
+    /// as two turns rather than two threads — and the hysteresis record still has to collapse them
+    /// into a single broadcast, because serialised is not the same as deduplicated.</para>
     ///
     /// <para>A duplicate here is not cosmetic. The same fan-out writes the replay stream every
     /// reconnecting client reads, and it is one <c>SetUserStatus</c> per space per activation, so the
@@ -585,11 +601,13 @@ public class PresenceRaceTests : TestBase
     /// <para>The contract it guards (defect S19, fixed): <c>UserPresenceService.MarkBroadcastIfChangedAsync</c>
     /// (<c>src/Argon.Core/Features/Logic/IUserPresenceService.cs</c>) records the status and answers
     /// "was that a change?" in one atomic <c>SET … EX … GET</c> instead of a read, a comparison and a
-    /// write. Its only caller, <c>UserGrain.AggregateAndBroadcastStatusAsync</c>, runs on a
-    /// <c>[StatelessWorker]</c> grain, so two activations for one user do execute it at the same
-    /// instant when two of that user's sessions start together — and only the one whose write landed
-    /// first is told anything changed. This test used to see two identical
-    /// <c>UserChangedStatus(Online)</c> events four milliseconds apart in one space.</para>
+    /// write, so of N callers racing with the same status exactly one is told it changed. Its caller
+    /// used to be <c>UserGrain.AggregateAndBroadcastStatusAsync</c> on a <c>[StatelessWorker]</c>, and
+    /// two activations for one user did execute it at the same instant whenever two of that user's
+    /// sessions started together; this test used to see two identical <c>UserChangedStatus(Online)</c>
+    /// events four milliseconds apart in one space. The caller is <c>IUserPresenceGrain</c> now and
+    /// the two turns cannot overlap at all — but the atomic form stays, because a suppressor that is
+    /// only correct while its one caller is a single activation is a trap for the next caller.</para>
     /// </remarks>
     [Test, CancelAfter(1000 * 60 * 3)]
     public async Task Two_devices_of_one_account_connecting_at_once_announce_the_user_online_once(

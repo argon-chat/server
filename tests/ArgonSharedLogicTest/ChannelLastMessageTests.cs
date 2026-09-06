@@ -189,7 +189,7 @@ public class ChannelLastMessageTests
         var spaceId   = Guid.NewGuid();
         var channelId = Guid.NewGuid();
 
-        var quiet = new ArgonChannel(ChannelType.Text, spaceId, channelId, "general", null, null, "a0", 0, null);
+        var quiet = new ArgonChannel(ChannelType.Text, spaceId, channelId, "general", null, null, "a0", 0, null, null);
         var busy  = quiet with { lastMessageId = 9_000 };
 
         Assert.That(CachedChannel.VersionOf([new CachedChannel(busy, [])]),

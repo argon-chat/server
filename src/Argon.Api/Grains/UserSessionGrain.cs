@@ -368,7 +368,7 @@ public class UserSessionGrain(
         // joins the set. See EnsureStatusDeadlineTimer.
 
         if (preferred is not null)
-            await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+            await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
 
         // Device history is no longer written from here: this grain is reached through the hub, whose
         // request context carries the ids but neither the address nor the country, so every row it
@@ -460,7 +460,7 @@ public class UserSessionGrain(
         // Not this callback's token: disposing the timer below cancels it, and the announcement has to
         // outlive the deadline that triggered it.
         await presenceService.SetSessionStatusAsync(_userId, SessionId, UserStatus.Online);
-        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+        await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
 
         activation.State.PreferredStatus = UserStatus.Online;
 
@@ -532,8 +532,8 @@ public class UserSessionGrain(
         // straddled the TTL came back with its presence key rewritten and its status key gone for
         // good: the client reconnected, kept heartbeating the same status it always had, and the user
         // read Offline in every roster, every snapshot and every online count with no event to correct
-        // it. SetSessionStatusAsync also recomputes the aggregate, which is the key the readers
-        // actually fold.
+        // it. The presence grain re-folds `status:user:{u}:aggregated` on the way past, which is the
+        // key the readers actually read.
         if (activation.State.PreferredStatus is { } known)
             await ReassertStatusAsync(known);
 
@@ -572,41 +572,27 @@ public class UserSessionGrain(
     }
 
     /// <summary>
-    /// Writes this session's known status back, and announces it if the user's aggregate moved.
+    /// Asks the presence grain to write this session's known status back and correct observers.
     /// </summary>
     /// <remarks>
-    /// <para>The re-assert repairs the keys after a drop that straddled the TTL, and repairing keys
-    /// is only half of it: an observer who read the roster during the lapse cached Offline, and
-    /// nothing about a key coming back tells them otherwise. <c>SetSessionStatusAsync</c> recomputes
-    /// <c>status:user:{u}:aggregated</c> and stops there — it publishes nothing — so the correction
-    /// has to be asked for.</para>
+    /// <para>The re-assert repairs the keys after a drop that straddled the TTL, and repairing keys is
+    /// only half of it: an observer who read the roster during the lapse cached Offline, and nothing
+    /// about a key coming back tells them otherwise. So the correction has to be asked for — and past
+    /// the hysteresis, which is the part that made this silent rather than merely late.
+    /// <c>MarkBroadcastIfChangedAsync</c> suppresses a fan-out that matches the last one recorded, and
+    /// the record survives the lapse: it still says DoNotDisturb, so the broadcast that would have
+    /// corrected every observer is dropped as a duplicate of an event they never received.</para>
     ///
-    /// <para>And asked for <em>past the hysteresis</em>, which is the part that made this silent
-    /// rather than merely late. <c>MarkBroadcastIfChangedAsync</c> suppresses a fan-out that matches
-    /// the last one recorded, and the record survives the lapse: it still says DoNotDisturb, so the
-    /// broadcast that would have corrected every observer is dropped as a duplicate of an event they
-    /// never received. The record is forgotten first for exactly that reason — see
-    /// <see cref="IUserPresenceService.ForgetLastBroadcastAsync"/> — and only when the aggregate
-    /// actually moved, so the ordinary reconnect (keys intact, nothing changed) still costs nothing.</para>
+    /// <para><b>Which is a compare, and a compare is why the whole of it moved.</b> Read the aggregate,
+    /// write this session's status, fold, and act on whether the two differ — three steps this grain
+    /// used to run itself, with another session of the same user free to interleave between any two of
+    /// them. One turn of <see cref="IUserPresenceGrain.ReassertSessionStatusAsync"/> is the same
+    /// sequence with nothing able to get inside it.</para>
     /// </remarks>
-    private async Task ReassertStatusAsync(UserStatus known)
-    {
-        var before = await presenceService.GetAggregatedStatusAsync(_userId);
-
-        await presenceService.SetSessionStatusAsync(_userId, SessionId, known);
-
-        var after = await presenceService.GetAggregatedStatusAsync(_userId);
-
-        if (before == after)
-            return;
-
-        logger.LogInformation(
-            "Session {sid} of user {userId} re-asserted {status} on re-attach; the aggregate moved {before} -> " +
-            "{after}, so observers who read the lapse are corrected", SessionId, _userId, known, before, after);
-
-        await presenceService.ForgetLastBroadcastAsync(_userId);
-        await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
-    }
+    private Task ReassertStatusAsync(UserStatus known)
+        => grainFactory.GetGrain<IUserPresenceGrain>(_userId)
+           .ReassertSessionStatusAsync(SessionId, known)
+           .AsTask();
 
     /// <summary>Seeds the connecting client with its friends' presence, off this call's critical path.</summary>
     /// <remarks>
@@ -733,7 +719,7 @@ public class UserSessionGrain(
 
                 activation.State.PreferredStatus = named;
                 await presenceService.SetSessionStatusAsync(_userId, SessionId, named);
-                await grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync();
+                await grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync();
                 await presenceService.HeartbeatAsync(_userId, SessionId);
             }
         }
@@ -905,13 +891,13 @@ public class UserSessionGrain(
         });
 
         await BestEffortAsync("re-broadcast the aggregate",
-            () => grainFactory.GetGrain<IUserGrain>(_userId).AggregateAndBroadcastStatusAsync(ct).AsTask());
+            () => grainFactory.GetGrain<IUserPresenceGrain>(_userId).AggregateAndBroadcastStatusAsync(ct).AsTask());
 
         // Clear THIS session's activity (per-session): if another device still shows an activity it
         // stays, this session's drops out. alwaysBroadcast=false → no fan-out for activity-less sessions
         // (avoids a removal storm on every disconnect).
         await BestEffortAsync("clear the session's activity",
-            () => grainFactory.GetGrain<IUserGrain>(_userId).RemoveBroadcastPresenceAsync(SessionId, alwaysBroadcast: false).AsTask());
+            () => grainFactory.GetGrain<IUserPresenceGrain>(_userId).RemoveBroadcastPresenceAsync(SessionId, alwaysBroadcast: false).AsTask());
 
         // The user has no live session left anywhere, so they cannot be in a call either — defect
         // S15. Voice membership lives in ChannelGrain.Users and was emptied only by an explicit
@@ -957,6 +943,34 @@ public class UserSessionGrain(
             await this.UnregisterReminder(reminder);
     }
 
+    /// <summary>
+    /// The session's keep-alive, and the sweeper for the one thing about a session that can end
+    /// without anybody being told.
+    /// </summary>
+    /// <remarks>
+    /// <para>The keep-alive half is the obvious one: push the presence and status TTLs back to full
+    /// while a connection is attached, and stop doing so the moment none is, so the grace reminder can
+    /// finalize a session that is really gone.</para>
+    ///
+    /// <para>The sweep is the other half, and it is here because there is nowhere better. An activity
+    /// entry can end in two ways nobody hears: the key goes — evicted, or lapsed while this grain was
+    /// not ticking — or the client stops re-announcing and its lease runs out. Redis emits no event
+    /// for either, so the snapshot forgets the activity and everyone already in the room keeps
+    /// rendering it, for the rest of their client session; two people in one room then disagree about
+    /// whether a third is playing, permanently. The alternatives are a keyspace-notification
+    /// subscriber (a second connection per silo, notifications off by default, and delivery that is
+    /// best-effort by design) or a periodic scan of the keyspace (O(users) work to find O(0) of them
+    /// most minutes). This costs one Redis read per tick per session that has announced something and
+    /// zero for every session that has not, and it is already holding the sid, so it is the cheapest
+    /// place in the product that can notice at all. Pinned by
+    /// <c>PresenceActivityTests.An_activity_that_lapses_under_a_live_session_is_retracted_from_the_room</c>
+    /// and <c>...An_activity_nobody_re_announces_is_retracted_when_its_lease_runs_out</c>.</para>
+    ///
+    /// <para>The retraction is asked of the presence grain rather than done here, for the reason every
+    /// fan-out is: one activation per user publishes, in order. It is also what deletes the two keys,
+    /// so a retraction that fails leaves the lease intact and the next tick asks again — at-least-once
+    /// rather than at-most-once, and the second attempt is a no-op because the stamp is gone.</para>
+    /// </remarks>
     private async Task UserSessionTickAsync(CancellationToken arg)
     {
         await PruneStaleConnectionsAsync();
@@ -967,8 +981,21 @@ public class UserSessionGrain(
             return;
 
         this.DelayDeactivation(timings.DeactivationDelay);
-        await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
+        var lease = await presenceService.RefreshSessionStatusTtlAsync(_userId, SessionId, arg);
         await presenceService.HeartbeatAsync(_userId, SessionId, arg);
+
+        if (lease is not ActivityLeaseState.Expired)
+            return;
+
+        logger.LogInformation(
+            "Session {sid} of user {userId} is still live but its activity is not: retracting it from the rooms",
+            SessionId, _userId);
+
+        // alwaysBroadcast, because by this point the key may well be gone already — which is precisely
+        // one of the two cases being swept, and the case where "only announce if there was something"
+        // would announce nothing at all.
+        await grainFactory.GetGrain<IUserPresenceGrain>(_userId)
+           .RemoveBroadcastPresenceAsync(SessionId, alwaysBroadcast: true);
     }
 
     /// <summary>

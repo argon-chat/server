@@ -15,7 +15,7 @@ Two projects, split by what they need to run:
 ./scipts/run-tests.ps1 -Coverage -Threshold 50  # what CI runs
 ./scipts/run-tests.ps1 -Database cockroach      # against the production engine
 ./scipts/run-tests.ps1 -Filter 'FullyQualifiedName~SpaceTests'
-./scipts/run-tests.ps1 -IncludeKnownBugs        # the pinned-defect tests too; expected red
+./scipts/run-tests.ps1 -IncludeKnownBugs        # the pinned-defect tests too; red when any exist
 ./scipts/run-tests.ps1 -Reuse                   # keep containers between runs
 ```
 
@@ -52,15 +52,15 @@ kinds of shard:
 | Shard | What is in it | Why |
 | --- | --- | --- |
 | `topology` | the eight `[NonParallelizable]` fixtures, plus the unit suite | Four of them pin silo ports (RoleStartupTests from 21111, GrainMigrationTests 22111/22131, ReminderRoutingTests 22311/22331, RegionRegistryClusterTests 23111/23131) and four issue schema changes against the shared database. One process owns all of them, so exactly one process binds those ports — and this is the shard that keeps the suite's default 11111/30000. NUnit runs the non-parallel shift alone with nothing else in flight, so in a single-process run these eight are pure serial tail. |
-| `presence` | the eleven `Presence*Tests` | 606 s of the suite's 914 s of serial work, spent waiting on grain timers and Redis TTLs rather than on a CPU — so this shard runs eight workers rather than four, and eight waiting fixtures overlap for free. |
+| `presence` | the eleven `Presence*Tests` | 635 s of the suite's 949 s of serial work, spent waiting on grain timers and Redis TTLs rather than on a CPU — so this shard runs one worker per core, clamped to 2–8, rather than the assembly's four, and that many waiting fixtures overlap for free. |
 | `general-N` | everything else | Split by measured serial seconds, longest first, so the shards finish together. |
 
-Measured on this tree, PostgreSQL, no coverage, 32 cores: **369 s single-process → 181 s over four
-shards** (per shard: topology 178 s, presence 142 s, general-1 82 s, general-2 68 s). Same 620
-integration tests, same outcomes: 619 pass and the rest stand down, being CockroachDB-only and this
-being PostgreSQL. The 929-test unit suite rides along on `topology` inside that number, four seconds
+Measured on this tree, PostgreSQL, no coverage, 32 cores: **368 s single-process → 178 s over four
+shards** (per shard: topology 178 s, presence 156 s, general-1 82 s, general-2 66 s). Same 625
+integration tests, same outcomes: 624 pass and the one that stands down is CockroachDB-only and this
+is PostgreSQL. The 929-test unit suite rides along on `topology` inside that number, four seconds
 of it. The floor is the topology shard, and it is a container stack plus two fixtures that
-stand up silos of their own and therefore run alone: `RoleStartupTests` (69 s) and
+stand up silos of their own and therefore run alone: `RoleStartupTests` (68 s) and
 `GrainMigrationTests` (41 s). Shrink those and re-plan.
 
 Those numbers are far better than the ones this section used to carry (707 s single-process, 368-382 s
@@ -73,9 +73,30 @@ of what the host actually bound (`PresenceWaits`), so the same assertions would 
 at production values.
 
 The presence shard is also why `-Workers` exists: its fixtures spend their time waiting on clocks
-rather than on a CPU, so it asks for eight and packs 606 s of serial work into 142 s of wall. If you
-change it, measure both settings again — the four-worker figure this paragraph used to quote was
-taken before the presence clocks were compressed and no longer means anything.
+rather than on a CPU, so it asks for more than the assembly's four and packs 635 s of serial work
+into 156 s of wall. What it asks for is `clamp(ProcessorCount, 2, 8)` — eight on any box with eight
+cores or more, and however many a CI runner turns out to have.
+
+The clamp is there because "waiting overlaps for free" is a claim about the machine, not about the
+tests. Each waiting fixture still has a small non-waiting part — its Ion calls, its SignalR frames,
+the silo's own scheduler — and eight of them on a two-core runner that is already hosting a
+container stack and an Argon host do not wait in parallel, they queue. A fixture that gave an event
+ten seconds to arrive then fails with `RealtimeWaitTimeoutException` and reads exactly like a
+product bug, which is what a hard-coded eight cost CI. So: one per core, never below two (one worker
+serialises the whole 635 s this shard exists to overlap) and never above eight (measured; past that
+the waiting is not what the shard is short of).
+
+What the clamp costs where cores are not scarce is nothing, because it resolves to the same eight.
+What it costs where they are is wall clock: on this 32-core box the shard is 156 s at eight workers
+and 347 s at two, all 114 tests green both times. A shard that takes twice as long and answers the
+question beats one that is fast and reports a timeout as a defect.
+
+`-Workers N` overrides it for any shard, and every sharded run prints what it settled on — per
+shard, next to the fixture count, with the core count it was derived from — because the number is no
+longer the same on two machines and a shard that failed on timeouts is exactly when you want to read
+it back. `./scipts/test-shards.ps1 -Verify` prints the same column. If you change any of it, measure
+both settings again — the four-worker figure this paragraph used to quote was taken before the
+presence clocks were compressed and no longer means anything.
 
 `-Coverage` and a local `-Shards` fan-out are refused together, and the script says why: coverlet
 instruments the assemblies in the test output directory in place and restores them at the end of the
@@ -102,6 +123,13 @@ final `coverage` job merges every shard's Cobertura and applies the threshold. N
 covers enough of the product for a per-shard coverage number to mean anything, so the gate lives
 there and nowhere else.
 
+Each shard job uploads its `.trx` as `test-results-<db>-shard-<i>`, and the step is `if: always()`
+on purpose: the run step throws on a red shard, so without it the one run whose results are worth
+reading is the one that uploads nothing. That artifact is both the failure detail in a form that
+outlives a trimmed job log and the input `-FromTrx` wants, so a CI run is a valid thing to re-plan
+the partition from. A shard that produced no `.trx` at all warns rather than passing quietly — that
+means it died before running tests, and the question is for that job, not for this one.
+
 ## Tests that pin an open bug
 
 Some tests are red on purpose. The presence suite was written against the behaviour a user would
@@ -115,7 +143,7 @@ close it.
 
 **The runner excludes the category by default** — the single-process path, every shard, and CI — so a
 plain `./scipts/run-tests.ps1` on a healthy tree is green. `-IncludeKnownBugs` is how you see the
-pinned defects, and that run is expected to be red:
+pinned defects, and it is red whenever there are any — today there are none, so the two runs agree:
 
 ```pwsh
 ./scipts/run-tests.ps1 -IncludeKnownBugs             # everything, pinned defects included
@@ -138,21 +166,30 @@ Three rules keep the category honest:
 - It is for a defect that has been confirmed and left open on purpose — never for a test that is
   merely slow, awkward, or occasionally red for reasons of its own. Those get fixed.
 
-One test carries it today:
+**No test carries it today.** The category is kept for the next one, not because something is open:
+`-IncludeKnownBugs` currently reports exactly what a plain run does, 625 integration tests and 929
+unit tests, all green. The two tests that did carry it lost the category in the same change as their
+fix, which is rule two doing its job:
 
-| Test | What it pins |
-| --- | --- |
-| `PresenceActivityTests.An_activity_that_lapses_under_a_live_session_is_retracted_from_the_room` | The residual half of the activity-lifetime defect. The session tick now renews `activity:user:{u}:session:{sid}`, so an activity no longer lapses under a session that is still announcing it — but when one does lapse anyway, Redis emits no event and nothing sweeps, so the members already in the room keep rendering a game the snapshot has forgotten. Closing it needs a keyspace-expiry subscriber or a server-side sweep. |
-
-`PresenceAggregationTests.ADeviceSwitch_NeverLeavesAConnectedUserOffline` used to be the second, and
-its category came off with the fix rather than in a later tidy-up, which is rule two doing its job.
-The lost update it pinned was in `UserPresenceService.RecalculateAggregatedStatusAsync` — a
-read-fold-write with nothing atomic about it, so a fold that started before a newly arrived device
-was indexed could land last and leave a connected user cached Offline. The fold is now a single
-`IArgonCacheDatabase.FoldRankedSetAsync`, one Lua script that reads the index, reads every session's
-status and writes the aggregate with nothing able to get between the three, so the last write is by
-construction the one that saw the most recent state. The test is a plain `[Test]` again and runs in
-the gate.
+- `PresenceAggregationTests.ADeviceSwitch_NeverLeavesAConnectedUserOffline` pinned a lost update in
+  `UserPresenceService.RecalculateAggregatedStatusAsync` — a read-fold-write with nothing atomic
+  about it, so a fold that started before a newly arrived device was indexed could land last and
+  leave a connected user cached Offline. It spent one release fixed by a Lua script
+  (`IArgonCacheDatabase.FoldRankedSetAsync`), which made the fold atomic at the store and then had to
+  be undone: production's cache is Dragonfly, and Dragonfly refuses a script that reads keys it did
+  not declare. What serialises presence now is an Orleans grain — `UserPresenceGrain`, one activation
+  per user id, deliberately neither `[StatelessWorker]` nor `[Reentrant]` — so the fold, the
+  hysteresis decision and the fan-out for one user happen in one turn of one activation, cluster-wide,
+  with no script and no distributed lock. That also closes the half no amount of atomicity could:
+  two fan-outs for one user finishing in the wrong order, which
+  `PresenceRaceTests.Switching_device_never_leaves_the_account_offline_while_the_new_device_is_online`
+  reproduced about one round in twenty on a two-core box.
+- `PresenceActivityTests.An_activity_that_lapses_under_a_live_session_is_retracted_from_the_room`
+  pinned the residual half of the activity-lifetime defect: nothing announced a lapse, so the members
+  already in a room kept rendering a game the snapshot had forgotten. It is closed by a sweep rather
+  than by the keyspace-expiry subscriber it looked like it needed — the entry carries a lease stamp
+  beside it, and `UserSessionGrain.UserSessionTickAsync`, which already reads that stamp to decide
+  whether to renew, now asks the user's `IUserPresenceGrain` to retract an activity whose key is gone.
 
 ## How the integration suite is wired
 
@@ -196,7 +233,7 @@ Cockroach-specific DDL is exercised by the nightly `test-cockroach` job.
 | --- | --- | --- |
 | `ARGON_TEST_DB` | `postgres` | `postgres` or `cockroach`. |
 | `ARGON_TEST_DB_IMAGE` | per engine | Override the database image. |
-| `ARGON_TEST_REDIS_IMAGE` | `redis:7-alpine` | |
+| `ARGON_TEST_REDIS_IMAGE` | `redis:7-alpine` | The cache image. Point it at Dragonfly to run against what production actually has — see below. |
 | `ARGON_TEST_NATS_IMAGE` | `nats:2.10-alpine` | |
 | `ARGON_TEST_REUSE_CONTAINERS` | off | Keep containers alive between runs (needs `testcontainers.reuse.enable=true`). |
 | `ARGON_TEST_STARTUP_TIMEOUT` | `300` | Seconds to wait for the stack. |
@@ -205,6 +242,31 @@ Cockroach-specific DDL is exercised by the nightly `test-cockroach` job.
 
 `ARGON_TEST_LOGS=1 ARGON_TEST_LOG_LEVEL=Debug` is the first thing to reach for when an Ion call
 comes back as a bare `UPSTREAM_ERROR: Internal Server Error` — the useful exception is server-side.
+
+## Running against Dragonfly
+
+Production's cache is Dragonfly, not Redis, so anything that touches the cache is worth running
+against it before it is believed. One variable is the whole recipe — `RedisBuilder` in
+`Infrastructure/ArgonTestEnvironment.cs` starts whatever image `ARGON_TEST_REDIS_IMAGE` names
+(`Infrastructure/TestEnvironmentOptions.cs` holds the default), Dragonfly answers the same protocol
+on the same port and ships the `redis-cli` the Testcontainers module's wait strategy shells out to,
+and the first run pays for a ~200 MB pull:
+
+```pwsh
+$env:ARGON_TEST_REDIS_IMAGE = 'docker.dragonflydb.io/dragonflydb/dragonfly'
+./scipts/run-tests.ps1 -Shards 4          # or -Shard 2 -Shards 4 for presence alone
+```
+
+Measured on this tree it is indistinguishable from Redis: the same 178 s over four shards, the same
+625 integration and 929 unit tests green, no `WRONGTYPE`, no unknown command, no unsupported option.
+That is the point of the exercise rather than a formality — the aggregate fold spent a release as a
+Lua script and had to be undone precisely because Dragonfly refuses `EVAL` over keys the script does
+not declare (see "Tests that pin an open bug"), and what is left is exactly the surface a
+compatibility gap would show up on: `SET … GET` under
+`IArgonCacheDatabase.StringSetAndGetPreviousAsync`, `GETEX` under `KeyExpireAsync`, the
+`SADD`/`SREM`/`SMEMBERS` session index in `UserPresenceService`, and the `SCAN` that
+`UserPresenceMetricsService` sweeps `presence:user:*:session:*` with. Nothing in `src/` calls `EVAL`,
+`EVALSHA` or `ScriptEvaluate` any more, and a grep for those three is the cheap way to keep it so.
 
 ## Coverage
 

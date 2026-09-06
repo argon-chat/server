@@ -17,6 +17,32 @@ public static class UserPresenceFeature
     }
 }
 
+/// <summary>
+/// What one tick found of a session's activity lease, and therefore what the ticking grain owes the
+/// rooms the user is in.
+/// </summary>
+/// <remarks>
+/// Three answers rather than a bool because the two "nothing to renew" cases are not the same thing:
+/// a session that never announced anything owes the room nothing, while a session whose entry or
+/// whose lease has ended owes it a retraction. Collapsing them is how an activity came to survive its
+/// own key — see <see cref="IUserPresenceService.RefreshSessionStatusTtlAsync"/>.
+/// </remarks>
+public enum ActivityLeaseState
+{
+    /// <summary>This session has announced no activity, so there is nothing to renew or to retract.</summary>
+    Absent,
+
+    /// <summary>The entry is there and its lease is inside the window; both were pushed back to full.</summary>
+    Renewed,
+
+    /// <summary>
+    /// Over. The entry is gone or the lease has run out, and the caller owes the room one
+    /// <c>OnUserPresenceActivityRemoved</c> (or, if another device is still playing something, that
+    /// device's activity instead).
+    /// </summary>
+    Expired
+}
+
 public interface IUserPresenceService
 {
     Task                         HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default);
@@ -44,9 +70,22 @@ public interface IUserPresenceService
     Task<bool> RemoveActivityPresence(Guid userId, string sessionId);
 
     /// <summary>
-    /// Sets the preferred status for a specific session and recalculates the aggregated status.
-    /// Does NOT refresh the session status TTL - use RefreshSessionStatusTtlAsync for that.
+    /// Records the status one session reports, and nothing else.
     /// </summary>
+    /// <remarks>
+    /// <para>Does NOT refresh the session status TTL — use <see cref="RefreshSessionStatusTtlAsync"/>
+    /// for that — and, since the presence grain landed, does NOT recompute
+    /// <c>status:user:{u}:aggregated</c> either. <b>The caller owes the user's
+    /// <c>IUserPresenceGrain</c> a re-aggregation.</b></para>
+    ///
+    /// <para>It used to fold here, and folding here is what made the fold concurrent: this is called
+    /// from a session grain, a user has several of them, and two sessions moving at once produced two
+    /// overlapping read-fold-writes of one key. The atomic Lua fold that fixed it has had to go (it
+    /// reads keys it does not declare, which Dragonfly refuses by default and, when allowed, runs
+    /// under a global lock), so the mutual exclusion is Orleans' instead: one activation per user,
+    /// turn by turn, in <c>UserPresenceGrain</c>. That only holds while every fold goes through it —
+    /// hence a writer that writes and stops.</para>
+    /// </remarks>
     Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default);
 
     /// <summary>
@@ -84,19 +123,45 @@ public interface IUserPresenceService
     /// wire contract shared with the build being replaced — see
     /// <c>UserPresenceService.ActivityAnnouncedKey</c>.</para>
     ///
-    /// <para>A lapse announces nothing — Redis expiry has no event, and no
-    /// <c>OnUserPresenceActivityRemoved</c> can be emitted from one — so observers already holding
-    /// the activity keep showing it until something else corrects them. That is the whole reason the
-    /// window is generous rather than tight: it is a backstop for a client that will never speak
-    /// again, while the ordinary end of an activity remains the client's own removal, and the
-    /// ordinary repair of a missed one remains the client's re-announcement.</para>
+    /// <para><b>And the tick is the sweeper.</b> A lapse announces nothing on its own — Redis expiry
+    /// has no event — so observers already holding an activity used to keep showing it for the rest of
+    /// their client session while the snapshot had already forgotten it. Two people in one room then
+    /// disagreed about whether a third was playing, permanently. The session that owns the entry is
+    /// the one thing already running on a clock and already holding the sid, so it is the one that
+    /// notices: this answers <see cref="ActivityLeaseState.Expired"/> both when the entry has gone out
+    /// from under a live lease and when the lease itself has run out, and the caller then has the
+    /// user's <c>IUserPresenceGrain</c> retract it once. No keyspace subscriber, no global scan, and
+    /// the ordinary end of an activity is still the client's own removal.</para>
     /// </remarks>
-    Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default);
+    Task<ActivityLeaseState> RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default);
 
     /// <summary>
-    /// Removes the status for a specific session and recalculates the aggregated status.
+    /// Forgets the status one session reported, and nothing else.
     /// </summary>
+    /// <remarks>
+    /// The removal half of <see cref="SetSessionStatusAsync"/>, and it stopped recomputing the
+    /// aggregate for the same reason: the fold belongs to the user's <c>IUserPresenceGrain</c>, which
+    /// is the only place a user's folds are serialised against each other. A caller that deletes a
+    /// session's status and does not ask the grain to re-aggregate leaves the aggregate describing a
+    /// session that is gone.
+    /// </remarks>
     Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default);
+
+    /// <summary>
+    /// Folds every live session's status into <c>status:user:{u}:aggregated</c> and answers with what
+    /// it wrote.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Only <c>UserPresenceGrain</c> may call this.</b> It is a read-fold-write with nothing
+    /// atomic about it, and the thing that makes the last write the one that saw the most recent state
+    /// is that only one activation per user ever runs it — Orleans' turn-based execution, not a lock
+    /// and not a script. Any second caller re-opens the lost update this replaced (a device switch
+    /// leaving a connected user cached Offline until they change status by hand).</para>
+    ///
+    /// <para>Sessions whose presence key has gone contribute nothing and are pruned from the index on
+    /// the way past, exactly as every other reader of that index does.</para>
+    /// </remarks>
+    Task<UserStatus> RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Gets the cached aggregated status for a user. O(1) operation.
@@ -577,6 +642,7 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
         return existed;
     }
 
+    /// <inheritdoc cref="IUserPresenceService.SetSessionStatusAsync"/>
     public async Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default)
     {
         var key = SessionStatusKey(userId, sessionId);
@@ -584,10 +650,12 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
         // Ensure the session is in the live-session index so RecalculateAggregatedStatusAsync,
         // which folds over that index, always accounts for this session's status.
         await cache.SetAddAsync(SessionsSetKey(userId), sessionId, ct);
-        await RecalculateAggregatedStatusAsync(userId, ct);
+        // And no fold here. The caller re-aggregates through IUserPresenceGrain, which is the only
+        // place a user's folds are ordered against each other — see the interface remarks.
     }
 
-    public async Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
+    /// <inheritdoc cref="IUserPresenceService.RefreshSessionStatusTtlAsync"/>
+    public async Task<ActivityLeaseState> RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var key = SessionStatusKey(userId, sessionId);
         await cache.UpdateStringExpirationAsync(key, timings.SessionTtl, ct);
@@ -596,23 +664,35 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
         // The activity is renewed on a lease, not for the life of the session — see the remarks on
         // the interface member. One read per tick per session, of the stamp rather than of the
         // activity: an announcement with no stamp is not renewable, so the stamp alone decides, and
-        // it is the smaller of the two values.
-        if (ReadAnnouncedAt(await cache.StringGetAsync(ActivityAnnouncedKey(userId, sessionId), ct)) is not { } announcedAt
-         || DateTime.UtcNow - announcedAt >= timings.ActivityReassertWindow)
-            return;
+        // it is the smaller of the two values. A session that announced nothing pays exactly this one
+        // read and nothing below it, which is the overwhelming majority of ticks.
+        if (ReadAnnouncedAt(await cache.StringGetAsync(ActivityAnnouncedKey(userId, sessionId), ct)) is not { } announcedAt)
+            return ActivityLeaseState.Absent;
+
+        // The lease has run out: the client stopped re-announcing, so the entry stops being renewed
+        // exactly as it did before this renewal existed. What is new is that it is not left to lapse
+        // in silence — the caller retracts it, and the retraction is what clears the two keys, so a
+        // failed retraction is retried by the next tick rather than lost.
+        if (DateTime.UtcNow - announcedAt >= timings.ActivityReassertWindow)
+            return ActivityLeaseState.Expired;
+
+        // A live lease over nothing: the entry was evicted, or it lapsed while its session's grain was
+        // not ticking. The snapshot has already forgotten it (GetUserActivitiesAsync reads the key,
+        // not the stamp) and the room has not, which is the disagreement worth an event.
+        if (!await cache.KeyExistsAsync(ActivitySessionKey(userId, sessionId), ct))
+            return ActivityLeaseState.Expired;
 
         // Both halves, together: a lease whose signature lapsed before the thing it signs for would
         // stop renewing an activity that is still being announced.
         await cache.UpdateStringExpirationAsync(ActivitySessionKey(userId, sessionId), ActivityTTL, ct);
         await cache.UpdateStringExpirationAsync(ActivityAnnouncedKey(userId, sessionId), ActivityTTL, ct);
+
+        return ActivityLeaseState.Renewed;
     }
 
-    public async Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
-    {
-        var key = SessionStatusKey(userId, sessionId);
-        await cache.KeyDeleteAsync(key, ct);
-        await RecalculateAggregatedStatusAsync(userId, ct);
-    }
+    /// <inheritdoc cref="IUserPresenceService.RemoveSessionStatusAsync"/>
+    public Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
+        => cache.KeyDeleteAsync(SessionStatusKey(userId, sessionId), ct);
 
     /// <summary>
     /// O(1) read of cached aggregated status.
@@ -625,10 +705,7 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
         return status;
     }
 
-    /// <summary>
-    /// Recalculates aggregated status from all sessions and caches it.
-    /// Called only when session status changes.
-    /// </summary>
+    /// <inheritdoc cref="IUserPresenceService.RecalculateAggregatedStatusAsync"/>
     /// <remarks>
     /// <para>The fold keeps the highest-ranked session's status, and keeps it <em>verbatim</em>: the
     /// ladder is a precedence order, not a normalisation, so a device on TouchGrass surfaces as
@@ -638,71 +715,93 @@ public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTim
     ///
     /// <para>The ladder, strongest first — <c>DoNotDisturb</c> &gt; <c>Online</c> &gt; <c>InGame</c>
     /// &gt; <c>Listen</c> &gt; <c>TouchGrass</c> &gt; <c>Away</c> &gt; <c>Offline</c>. DND is the one
-    /// explicit "do not contact me" and no other device may mask it, so it still short-circuits the
-    /// loop; the middle of the ladder is ordered by how present the status claims the user is, and
+    /// explicit "do not contact me" and no other device may mask it, so it short-circuits the loop;
+    /// the middle of the ladder is ordered by how present the status claims the user is, and
     /// TouchGrass sits just above Away because it means the same thing said deliberately. Equal ranks
     /// keep the first session the index hands back, which is arbitrary but never wrong: the ranks are
-    /// distinct for every declared member, so a tie only happens between two undeclared ones.</para>
+    /// distinct for every declared member, so a tie only happens between two undeclared ones, and an
+    /// undeclared member ranks at the Online tier — <c>UserStatus</c> is an open enum, a peer on a
+    /// newer schema may report something this build has never heard of, and the only safe reading of
+    /// "a status I do not recognise" is "present".</para>
     ///
     /// <para><b>Defect S1.</b> The old fold was three <c>if</c>s (DND/Online/Away) over a seed of
     /// <see cref="UserStatus.Offline"/>: InGame, Listen and TouchGrass matched no branch, contributed
     /// nothing, and a user whose only connected device reported one of them was written to the
     /// aggregate as Offline — invisible in every roster, dropped from the online counts, announced
-    /// Offline to friends and skipped by the connect-time friends push, all while their client was
-    /// connected and saying otherwise. The <c>default</c> arm below is the half that keeps it fixed:
-    /// an open-enum value a newer peer sent ranks at the Online tier, so adding a member to the
-    /// contract can never again make anybody vanish. Pinned by
+    /// Offline to friends and skipped by the connect-time friends push. Pinned by
     /// <c>PresenceAggregationTests.ASingleSessionsStatusIsTheWholeAggregate</c> and its two- and
     /// three-session matrices.</para>
+    ///
+    /// <para><b>And why it is an ordinary application fold again.</b> It spent one release as a Lua
+    /// script (<c>IArgonCacheDatabase.FoldRankedSetAsync</c>) so that the read and the write could not
+    /// be interleaved by a second fold. That bought atomicity at the store and cost a deployment: the
+    /// script reads keys it does not declare, which Dragonfly — the cache production actually runs —
+    /// refuses by default and, with the flag that allows it, serves under a global lock, so every
+    /// presence fold in the cluster would have queued behind every other. The interleaving it was
+    /// guarding against is gone for a better reason now: the only caller is a per-user grain
+    /// activation, and Orleans runs one turn of it at a time.</para>
     /// </remarks>
-    private Task RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default)
-        // Fold over this user's live sessions (O(1) index) and read each session's TTL'd status
-        // string key — the source of truth — instead of SCANning the keyspace. A session whose
-        // status key has expired returns nothing and contributes nothing, exactly as the old SCAN
-        // (which only ever saw not-yet-expired keys). The prefix comes from the key builder itself
-        // with an empty sid, so the fold cannot start reading a key shape nothing writes.
-        => cache.FoldRankedSetAsync(
-            SessionsSetKey(userId),
-            SessionStatusKey(userId, string.Empty),
-            string.Empty,
-            AggregatedStatusKey(userId),
-            AggregationLadder,
-            UserStatus.Online.ToString(),
-            timings.SessionTtl,
-            ct);
+    public async Task<UserStatus> RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default)
+    {
+        var best = UserStatus.Offline;
+        var at   = Rank(UserStatus.Offline);
 
-    /// <summary>The aggregation ladder, weakest first. Higher wins; the first entry is the floor.</summary>
+        // Fold over this user's live sessions (O(1) index) and read each session's TTL'd status
+        // string key — the source of truth — instead of SCANning the keyspace.
+        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId), ct))
+        {
+            // A sid whose presence key has gone is a session that is over: its status key may still be
+            // in its last seconds, and counting it is how a dead device kept a user Online. Pruned on
+            // the way past, exactly as every other reader of this index does.
+            if (!await cache.KeyExistsAsync(SessionKey(userId, sessionId), ct))
+            {
+                await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId, ct);
+                continue;
+            }
+
+            var stored = await cache.StringGetAsync(SessionStatusKey(userId, sessionId), ct);
+
+            // Nothing stored means a session that is alive but has not said what it is yet (a hub
+            // attach before the first heartbeat). It contributes nothing rather than Offline.
+            if (string.IsNullOrEmpty(stored) || !Enum.TryParse<UserStatus>(stored, out var status))
+                continue;
+
+            var rank = Rank(status);
+
+            if (rank <= at)
+                continue;
+
+            at   = rank;
+            best = status;
+
+            if (status is UserStatus.DoNotDisturb)
+                break;
+        }
+
+        await cache.StringSetAsync(AggregatedStatusKey(userId), best.ToString(), timings.SessionTtl, ct);
+
+        return best;
+    }
+
+    /// <summary>Where one status sits on the aggregation ladder. Higher wins.</summary>
     /// <remarks>
-    /// <para>Written as the ranking the fold is handed rather than as a <c>switch</c> it evaluates,
-    /// because the fold does not run here any more — see
-    /// <see cref="RecalculateAggregatedStatusAsync"/> for why it had to move into the store. The order
-    /// is unchanged and so is every answer it gives.</para>
-    ///
-    /// <para>A value that is not on the ladder is ranked beside <c>Online</c>, which is the same
-    /// reading the old <c>default</c> arm gave it and exists for the same reason: <c>UserStatus</c> is
-    /// an open enum (<see cref="Ion_UserStatus_OpenEnum.IsKnown"/>), a peer on a newer schema may
-    /// report a member this build has never heard of, and the only safe reading of "some status I do
-    /// not recognise" is "present" — reading it as Offline is exactly how defect S1 made connected
-    /// users disappear. It also wins <em>as itself</em>: the ladder is a precedence order, not a
-    /// normalisation, so an unknown member is written to the aggregate verbatim and a client that
-    /// knows it renders it.</para>
-    ///
-    /// <para>The one behaviour that is not identical: the old fold required the stored value to parse
-    /// as the enum and skipped it otherwise, and a script cannot parse a C# enum, so content nothing
-    /// recognises now ranks as present instead of being ignored. That is a distinction without a case
-    /// — <see cref="SetSessionStatusAsync"/> is the only writer of these keys and it writes
-    /// <c>ToString()</c> of the enum, which parses by construction, undeclared members included.</para>
+    /// The <c>default</c> arm is load-bearing and is the half that keeps defect S1 fixed: an open-enum
+    /// value a newer peer sent ranks at the Online tier, so adding a member to the contract can never
+    /// again make anybody vanish. It also wins <em>as itself</em> — the ladder is a precedence order,
+    /// not a normalisation — so an unknown member is written to the aggregate verbatim and a client
+    /// that knows it renders it.
     /// </remarks>
-    private static readonly string[] AggregationLadder =
-    [
-        nameof(UserStatus.Offline),
-        nameof(UserStatus.Away),
-        nameof(UserStatus.TouchGrass),
-        nameof(UserStatus.Listen),
-        nameof(UserStatus.InGame),
-        nameof(UserStatus.Online),
-        nameof(UserStatus.DoNotDisturb)
-    ];
+    private static int Rank(UserStatus status) => status switch
+    {
+        UserStatus.Offline      => 0,
+        UserStatus.Away         => 1,
+        UserStatus.TouchGrass   => 2,
+        UserStatus.Listen       => 3,
+        UserStatus.InGame       => 4,
+        UserStatus.Online       => 5,
+        UserStatus.DoNotDisturb => 6,
+        _                       => 5
+    };
 
     private static string SessionStatusKey(Guid userId, string sessionId)
         => $"status:user:{userId}:session:{sessionId}";

@@ -17,7 +17,6 @@ public class UserGrain(
     IUserPresenceService presenceService,
     ILogger<IUserGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
-    IUserSessionNotifier notifier,
     IOptions<ClientAppsOptions> clientApps,
     AppHubServer appHubServer) : Grain, IUserGrain
 {
@@ -378,44 +377,14 @@ public class UserGrain(
         }
     }
 
-    public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
-    {
-        var userId = this.GetPrimaryKey();
-        // Store this session's activity (per-session, so other devices aren't clobbered), then broadcast
-        // the representative activity across all the user's sessions. The wire still carries one activity
-        // ("last"); the full per-session set lives server-side for when the contract grows.
-        await presenceService.BroadcastActivityPresence(presence, userId, sessionId);
-        var representative = await presenceService.GetUsersActivityPresence(userId) ?? presence;
+    /// <inheritdoc cref="IUserGrain.BroadcastPresenceAsync"/>
+    public ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
+        => GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey()).BroadcastPresenceAsync(presence, sessionId);
 
-        var servers = await GetMyServersIds();
-        await Task.WhenAll(servers.Select(server =>
-            GrainFactory
-               .GetGrain<ISpaceGrain>(server)
-               .SetUserPresence(userId, representative)));
-    }
-
-    public async ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast)
-    {
-        var userId      = this.GetPrimaryKey();
-        var hadActivity = await presenceService.RemoveActivityPresence(userId, sessionId);
-
-        // Skip the fan-out only on the session-ended path when this session had no activity. The
-        // explicit user-cleared path (alwaysBroadcast) must still broadcast even if the key already
-        // lapsed by TTL — otherwise observers keep showing a stale activity indefinitely.
-        if (!hadActivity && !alwaysBroadcast)
-            return;
-
-        logger.LogInformation("Clearing activity presence for {userId} session {sessionId} (hadActivity={hadActivity})",
-            userId, sessionId, hadActivity);
-
-        // Another device may still have an activity — fall back to it; otherwise clear.
-        var representative = await presenceService.GetUsersActivityPresence(userId);
-        var servers        = await GetMyServersIds();
-        await Task.WhenAll(servers.Select(server =>
-            representative is not null
-                ? GrainFactory.GetGrain<ISpaceGrain>(server).SetUserPresence(userId, representative)
-                : GrainFactory.GetGrain<ISpaceGrain>(server).RemoveUserPresence(userId)));
-    }
+    /// <inheritdoc cref="IUserGrain.RemoveBroadcastPresenceAsync"/>
+    public ValueTask RemoveBroadcastPresenceAsync(string sessionId, bool alwaysBroadcast)
+        => GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey())
+           .RemoveBroadcastPresenceAsync(sessionId, alwaysBroadcast);
 
     //public async ValueTask CreateSocialBound(SocialKind kind, string userData, string socialId)
     //{
@@ -656,75 +625,17 @@ public class UserGrain(
             await appHubServer.BroadcastSpace(new UserUpdated(spaceId, userDto), spaceId, ct);
     }
 
+    /// <inheritdoc cref="IUserGrain.AggregateAndBroadcastStatusAsync(CancellationToken)"/>
     public ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default)
-        => AggregateAndBroadcastStatusAsync([], ct);
+        => GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey()).AggregateAndBroadcastStatusAsync(ct);
 
-    public async ValueTask AggregateAndBroadcastStatusAsync(Guid[] seedSpaces, CancellationToken ct = default)
-    {
-        var userId = this.GetPrimaryKey();
-        var aggregatedStatus = await presenceService.GetAggregatedStatusAsync(userId, ct);
-
-        logger.LogDebug("Aggregated status for user {userId}: {status}", userId, aggregatedStatus);
-
-        // A seed with nothing to seed. Offline is announced as silence on a join — the space has never
-        // heard of this member, so there is no stale value to correct — and the hysteresis record is
-        // deliberately left alone: writing Offline into it here is what raced the fan-out below when
-        // this read lived in SpaceGrain.UserJoined.
-        if (seedSpaces.Length > 0 && aggregatedStatus is UserStatus.Offline)
-            return;
-
-        // Hysteresis: only fan out when the aggregate actually changed since our last broadcast.
-        // Connects/heartbeats/transient reconnects that re-compute the same status now cost nothing
-        // (no per-space SetUserStatus, no replay-stream append). All status broadcast paths funnel
-        // through here so the last-broadcast record stays consistent.
-        if (!await presenceService.MarkBroadcastIfChangedAsync(userId, aggregatedStatus, ct))
-        {
-            // Except for the seeds, which are not a transition at all: this space has been told
-            // nothing about this member and cannot be caught up by a record saying everyone already
-            // knows. Nothing else is announced and the record is not touched, so a join costs one
-            // event in one space rather than a fan-out to every space the user is in.
-            await SeedAsync(seedSpaces, userId, aggregatedStatus, ct);
-            return;
-        }
-
-        // The seeds are announced below rather than here — they are the one part of this fan-out that
-        // must not go through ISpaceGrain — so they come out of the grain call list.
-        var servers = await GetMyServersIds(ct);
-
-        await Task.WhenAll(servers
-           .Where(server => !seedSpaces.Contains(server))
-           .Select(server => GrainFactory
-               .GetGrain<ISpaceGrain>(server)
-               .SetUserStatus(userId, aggregatedStatus)));
-
-        await SeedAsync(seedSpaces, userId, aggregatedStatus, ct);
-
-        await BroadcastStatusToFriendsAsync(userId, aggregatedStatus, ct);
-    }
-
-    /// <summary>Announces the status straight to each seed space's group.</summary>
-    /// <remarks>
-    /// <para><b>Not through <c>ISpaceGrain.SetUserStatus</c>, and it cannot be.</b> The only caller
-    /// that passes seeds is <c>SpaceGrain.UserJoined</c>, which awaits this from inside its own turn —
-    /// so a grain call back into that space is a cycle into a non-reentrant activation, and Orleans
-    /// answers it with a thirty-second timeout and a failed join rather than with reentrancy (the
-    /// join arrives through <c>InviteGrain.AcceptAsync</c>, and the call-chain reentrancy the request
-    /// pipeline enables did not cover it).</para>
-    ///
-    /// <para>What it publishes is what <c>SetUserStatus</c> publishes — one <c>UserChangedStatus</c> to
-    /// the space's group, through the same <c>AppHubServer</c> that grain's <c>Fire</c> uses — so the
-    /// room cannot tell the difference. If <c>SetUserStatus</c> ever grows a second responsibility,
-    /// this is the line that has to grow with it.</para>
-    /// </remarks>
-    private async Task SeedAsync(Guid[] seedSpaces, Guid userId, UserStatus status, CancellationToken ct)
-    {
-        foreach (var spaceId in seedSpaces.Distinct())
-            await appHubServer.BroadcastSpace(
-                new UserChangedStatus(spaceId, userId, status, new IonArray<string>([""])), spaceId, ct);
-    }
+    /// <inheritdoc cref="IUserGrain.AggregateAndBroadcastStatusAsync(Guid[],CancellationToken)"/>
+    public ValueTask AggregateAndBroadcastStatusAsync(Guid[] seedSpaces, CancellationToken ct = default)
+        => GrainFactory.GetGrain<IUserPresenceGrain>(this.GetPrimaryKey())
+           .AggregateAndBroadcastStatusAsync(seedSpaces, ct);
 
     /// <summary>
-    /// The mirror of the fan-out below: a session that has just connected has missed every status
+    /// The mirror of the transition fan-out: a session that has just connected has missed every status
     /// event that fired before it existed, so friends who were already online would read as offline
     /// until they next changed anything.
     /// </summary>
@@ -791,65 +702,15 @@ public class UserGrain(
     }
 
     /// <summary>
-    /// How many friend-scoped publishes or session lookups are in flight at once.
+    /// How many friend-scoped publishes are in flight at once.
     /// </summary>
     /// <remarks>
-    /// Both friend fan-outs sit on paths a session grain is awaiting — a connect in one case, a
-    /// status transition in the other — so neither may be sequential; and both are per user, so
-    /// neither may be unbounded, or one very sociable account becomes a thundering herd of its own.
+    /// The seed sits on the connect path a session grain is awaiting, so it may not be sequential;
+    /// and it is per user, so it may not be unbounded, or one very sociable account becomes a
+    /// thundering herd of its own. Its twin on the transition side moved to
+    /// <c>UserPresenceGrain</c> with the fan-out, and carries the same number for the same reason.
     /// </remarks>
     private const int FriendFanOutConcurrency = 16;
-
-    /// <summary>
-    /// UserChangedStatus is only ever fired by SpaceGrain, to the members of that space - so a
-    /// friend you share no space with never learned that you came online, and their friends list
-    /// sat on whatever it last happened to cache (for someone just added: offline, forever).
-    /// </summary>
-    /// <remarks>
-    /// <para>Only reached when the aggregate actually changed - the hysteresis check above already
-    /// swallowed heartbeats and reconnects - so this costs one friend-id query and one notify per
-    /// real transition. A friend who is also a space member receives the event twice; deduplicating
-    /// would cost a membership join on every transition, and the client keys the update on the user
-    /// id alone, so the second one is a no-op.</para>
-    ///
-    /// <para>The session lookups are bounded rather than one <c>Task.WhenAll</c> over every friend:
-    /// each one is a Redis round trip per session of that friend, this sits on the path a session
-    /// grain awaits, and an account with a thousand friends should not open a thousand of them at
-    /// once. Ordering per recipient is unaffected — the lookups only decide who to address, and the
-    /// single notify below is what actually sends, one publish per distinct user.</para>
-    /// </remarks>
-    private async Task BroadcastStatusToFriendsAsync(Guid userId, UserStatus status, CancellationToken ct)
-    {
-        await using var ctx = await context.CreateDbContextAsync(ct);
-
-        var friendIds = await ctx.Friends
-           .AsNoTracking()
-           .Where(x => x.UserId == userId)
-           .Select(x => x.FriendId)
-           .ToListAsync(ct);
-
-        if (friendIds.Count == 0)
-            return;
-
-        var sessions = new List<UserSessionDescriptor>();
-
-        foreach (var chunk in friendIds.Chunk(FriendFanOutConcurrency))
-        {
-            var perFriend = await Task.WhenAll(
-                chunk.Select(friendId => sessionDiscovery.GetUserSessionsAsync(friendId, ct)));
-
-            sessions.AddRange(perFriend.SelectMany(x => x));
-        }
-
-        if (sessions.Count == 0)
-            return;
-
-        // There is no space this is about; the client reads userId and status and ignores the rest.
-        await notifier.NotifySessionsAsync(
-            sessions,
-            new UserChangedStatus(Guid.Empty, userId, status, new IonArray<string>([""])),
-            ct);
-    }
 
     private async ValueTask RecordViolationAsync(
         Guid userId, Guid fileId, FilePurpose purpose,

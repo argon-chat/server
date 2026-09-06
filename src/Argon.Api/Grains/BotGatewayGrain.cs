@@ -89,6 +89,13 @@ public sealed class BotGatewayGrain(
         // can discover this bot via IUserSessionDiscoveryService
         await presenceService.SetSessionOnlineAsync(BotUserId, BotSessionId);
         await presenceService.SetSessionStatusAsync(BotUserId, BotSessionId, UserStatus.Online);
+        // And fold it, because writing a session's status no longer does: the aggregate is what the
+        // roster snapshot and the online counts read, and the fold belongs to the user's presence
+        // grain, where a user's folds are ordered against each other. Deliberately the silent form —
+        // a bot announces itself with the direct SpaceGrain calls below, exactly once per transition
+        // (PresenceBotTests.Installing_a_connected_bot_into_a_second_space_announces_it_online_once),
+        // and routing it through the ordinary fan-out would add a second event to every room.
+        await GrainFactory.GetGrain<IUserPresenceGrain>(BotUserId).RecalculateAggregatedStatusAsync();
 
         // Set bot Online in all spaces
         foreach (var spaceId in spaceIds)
@@ -201,6 +208,10 @@ public sealed class BotGatewayGrain(
         // reads liveness.
         await presenceService.RemoveSessionStatusAsync(BotUserId, BotSessionId);
         await presenceService.RemoveSessionAsync(BotUserId, BotSessionId);
+        // The fold that used to ride inside RemoveSessionStatusAsync, asked for explicitly now. Same
+        // silent form as on connect, and for the same reason: the Offline the room hears is the direct
+        // SetUserStatus below, while this is what makes the snapshot agree with it.
+        await GrainFactory.GetGrain<IUserPresenceGrain>(BotUserId).RecalculateAggregatedStatusAsync();
 
         // Set bot Offline in all spaces
         foreach (var spaceId in _spaceIds)

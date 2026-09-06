@@ -25,6 +25,7 @@ public class SecurityGrain(
     IUserSessionNotifier notifier,
     IUserPresenceService presence,
     IArgonCacheDatabase cache,
+    ISessionRevocationBroadcaster revocations,
     IFido2 fido2,
     IOptions<ClientAppsOptions> clientApps,
     ILogger<SecurityGrain> logger) : Grain, ISecurityGrain
@@ -1037,18 +1038,37 @@ public class SecurityGrain(
         // its own: this is the one step of the four that is genuinely per-session, so a mapping that
         // cannot be read must not take the rest of the sign-out — or the sessions after it in
         // RevokeAllSessions — down with it.
+        var credentialSessionIds = new List<Guid>();
+
         try
         {
             // Not counted towards `tombstoned`: the answer is about the row the user pressed the
             // button on, and a credential shut out while its presence sid was not is a device the
             // hub and the interceptor would still admit.
             foreach (var credentialSessionId in await SessionRevocation.CredentialSessionsAsync(cache, UserId, sessionId, ct))
+            {
                 await cache.SetAddAsync(revokedKey, credentialSessionId, ct);
+
+                if (Guid.TryParse(credentialSessionId, out var parsed))
+                    credentialSessionIds.Add(parsed);
+            }
         }
         catch (Exception e)
         {
             logger.LogWarning(e, "Could not read the credential sessions of {SessionId} for user {UserId}", sessionId, UserId);
         }
+
+        // The tombstone is committed, so the sockets this session is holding can go. They are not
+        // ours to close — a hub connection can only be aborted on the node holding it, and this grain
+        // runs on a silo that holds none — so the ids go out on the bus and every node that maps the
+        // hub closes what it has. See AppHub's remarks for why this exists at all: without it a
+        // signed-out device that simply stops talking keeps receiving every broadcast until it says
+        // something, which for a client that has been deliberately silenced is never.
+        //
+        // Deliberately never throws, and deliberately not counted towards the answer: the tombstone
+        // is the truth and this is the courtesy. RevokeAllSessions comes through here once per
+        // session, so it needs nothing of its own.
+        await revocations.PublishAsync(UserId, sessionId, credentialSessionIds, ct);
 
         try
         {

@@ -387,15 +387,18 @@ public class PresenceActivityTests : TestBase
     /// neither, so they keep the badge for the rest of their client session. Two people in one room
     /// then disagree about whether a third is playing, permanently.</para>
     ///
-    /// <para><b>Open defect, still red (S16, residual half).</b> There is no Redis keyspace-expiry
-    /// subscriber anywhere in <c>src/</c>, so nothing observes the lapse and nothing emits the
-    /// retraction. Closing it needs either that subscriber or a server-side sweep that notices a live
-    /// session whose activity key has gone and fans the removal out. The earlier form of this test
-    /// asked instead for the newcomer to still SEE the activity, which no fix can satisfy — the
-    /// payload lived only in the deleted key and nothing else holds a copy — so it is the retraction
-    /// that is pinned here.</para>
+    /// <para><b>Closed (S16, residual half), by the sweep rather than by a subscriber.</b> There is
+    /// still no Redis keyspace-expiry listener anywhere in <c>src/</c>, and there does not need to be:
+    /// the entry carries a lease stamp beside it (<c>…:announced</c>), and the session's own tick —
+    /// which already runs on a clock, already holds the sid, and already reads that stamp to decide
+    /// whether to renew — now also reports the two ways a lease can be over. A live stamp over a
+    /// missing key is this test's case, and <c>UserSessionGrain.UserSessionTickAsync</c> answers it by
+    /// asking the user's <c>IUserPresenceGrain</c> to retract the activity once. The earlier form of
+    /// this test asked instead for the newcomer to still SEE the activity, which no fix can satisfy —
+    /// the payload lived only in the deleted key and nothing else holds a copy — so it is the
+    /// retraction that is pinned here, and the retraction is what arrives.</para>
     /// </remarks>
-    [Test, Category("KnownPresenceBug"), CancelAfter(1000 * 60 * 2)]
+    [Test, CancelAfter(1000 * 60 * 2)]
     public async Task An_activity_that_lapses_under_a_live_session_is_retracted_from_the_room(
         CancellationToken ct = default)
     {
@@ -434,8 +437,9 @@ public class PresenceActivityTests : TestBase
 
         var snapshot = await SnapshotOf(newcomer, spaceId, player.UserId, ct);
 
-        // Fixed window: proving that an event the product never emits does not arrive. Generous
-        // enough to cover a session tick and a grace reminder, either of which could carry a sweep.
+        // The sweep rides the session's refresh tick, so the budget is a tick and change; the window
+        // is kept at the old, far more generous figure because a passing wait spends nothing and the
+        // failure it has to survive is a loaded CI box rather than a slow product.
         var retraction = await watcher.FirstWithinAsync<OnUserPresenceActivityRemoved>(
             e => e.userId == player.UserId, PresenceWaits.GraceAndABit, beforeLapse, ct);
 
@@ -452,6 +456,97 @@ public class PresenceActivityTests : TestBase
               + "room keep rendering a game the snapshot no longer knows about, for the rest of their client "
               + "session, while anyone opening the space afterwards sees nothing");
         });
+    }
+
+    /// <summary>
+    /// An activity nobody re-announces is retracted from the room when its lease runs out — not left
+    /// to lapse in silence.
+    /// </summary>
+    /// <remarks>
+    /// <para>The other half of the sweep, and the half with no forced expiry in it: everything here is
+    /// the product's own clock. The client announces once and then goes quiet — which is what a client
+    /// that was killed outright looks like, or one whose <c>RemoveBroadcastPresence</c> was lost to a
+    /// token refresh or a dropped connection — while the session itself stays connected and keeps
+    /// heartbeating. The tick renews the entry for as long as the last announcement is inside
+    /// <see cref="PresenceTimingOptions.ActivityReassertWindow"/> and then stops, which is the lease
+    /// doing its job; what this pins is that stopping is announced.</para>
+    ///
+    /// <para>Left unannounced it is the same disagreement the forced-expiry test above is about,
+    /// arriving by the ordinary door rather than by an eviction: the snapshot forgets the game and
+    /// everyone already in the room keeps rendering it. And it is the commoner door — an eviction is
+    /// an incident, whereas a client that stops re-announcing is Tuesday.</para>
+    ///
+    /// <para>Both clients heartbeat throughout. The wait is longer than
+    /// <see cref="PresenceTimingOptions.StaleConnectionAfter"/>, and a <see cref="RealtimeClient"/>
+    /// sends nothing of its own, so a test that merely waited would be modelling two dead transports
+    /// and would be watching a session finalize rather than a lease expire.</para>
+    ///
+    /// <para>The second window is the "exactly once" half: the tick that retracts is one of many, and
+    /// a sweep that fired on every tick would be a removal storm rather than a fix. What makes it once
+    /// is that the retraction deletes the lease stamp, so the next tick has nothing to report.</para>
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 3)]
+    public async Task An_activity_nobody_re_announces_is_retracted_when_its_lease_runs_out(
+        CancellationToken ct = default)
+    {
+        var observer = await CreateSessionAsync(ct);
+        var player   = await CreateSessionAsync(ct);
+
+        var spaceId = await CreateSpaceAsync(observer, "Activity Lease", ct);
+        await JoinAsync(observer, player, spaceId, ct);
+
+        await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
+        await using var playing = await RealtimeClient.ConnectAsync(player, ct);
+
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Factorio");
+        await AnnounceAndAwaitAsync(player, watcher, activity, ct);
+
+        var key         = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
+        var beforeLease = watcher.Mark();
+
+        using var beating = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var playerBeats   = HeartbeatUntilAsync(playing, beating.Token);
+        var observerBeats = HeartbeatUntilAsync(watcher, beating.Token);
+
+        try
+        {
+            var retraction = await watcher.WaitForRecordAsync<OnUserPresenceActivityRemoved>(
+                e => e.userId == player.UserId, LeaseDeadline, beforeLease, ct);
+
+            var afterRetraction = watcher.Mark();
+
+            var sessionAlive = await probe.IsSessionAliveAsync(player.UserId, player.SessionId, ct);
+            var keyLeft      = await probe.Exists(key);
+            var stampLeft    = await probe.Exists(LeaseStampKey(player.UserId, player.SessionId));
+            var snapshot     = await SnapshotOf(observer, spaceId, player.UserId, ct);
+
+            // Fixed window, and the one place one is right: the claim is that no SECOND retraction
+            // follows, and an absence has no edge to poll for. Several ticks wide.
+            var again = await watcher.FirstWithinAsync<OnUserPresenceActivityRemoved>(
+                e => e.userId == player.UserId, PresenceWaits.NegativeWindow, afterRetraction, ct);
+
+            Assert.Multiple(() =>
+            {
+                Assert.That(retraction.SpaceId, Is.EqualTo(spaceId),
+                    "the retraction reached the wrong room");
+                Assert.That(sessionAlive, Is.True,
+                    "the announcing session was already gone, so this measured a disconnect rather than a lease");
+                Assert.That(playing.IsConnected, Is.True);
+                Assert.That(keyLeft, Is.False, "the retraction left the activity behind");
+                Assert.That(stampLeft, Is.False,
+                    "the lease stamp outlived the activity it signs for, so the next tick would retract again");
+                Assert.That(snapshot?.activity, Is.Null,
+                    $"the snapshot still carries the expired activity ({snapshot?.activity?.titleName})");
+                Assert.That(again, Is.Null,
+                    "the room was told a second time: the sweep fires per tick rather than per lease");
+            });
+        }
+        finally
+        {
+            await beating.CancelAsync();
+            await Task.WhenAll(playerBeats, observerBeats);
+        }
     }
 
     /// <summary>
@@ -932,6 +1027,26 @@ public class PresenceActivityTests : TestBase
         => (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
     /// <summary>
+    /// The lease stamp beside a session's activity — <c>UserPresenceService.ActivityAnnouncedKey</c>.
+    /// </summary>
+    /// <remarks>
+    /// Mirrored by hand rather than exposed, exactly as <see cref="PresenceProbe"/> mirrors the rest:
+    /// a test that reached for a key the service does not write would set up state with no effect,
+    /// and here that would read as the sweep never firing.
+    /// </remarks>
+    private static string LeaseStampKey(Guid userId, Guid sid)
+        => $"{PresenceProbe.ActivitySessionKey(userId, sid)}:announced";
+
+    /// <summary>How long a lease has to run out in, plus the tick that has to notice.</summary>
+    /// <remarks>
+    /// Derived rather than written down, like every other wait here: the window is configuration, the
+    /// sweep runs on the refresh tick, and <see cref="PresenceWaits.Settle"/> is the usual budget for
+    /// the fan-out that follows. The same expression would hold at the shipped fifteen minutes.
+    /// </remarks>
+    private static TimeSpan LeaseDeadline
+        => PresenceWaits.Timings.ActivityReassertWindow + PresenceWaits.OneTick + PresenceWaits.Settle;
+
+    /// <summary>
     /// Heartbeats a connected client until told to stop — the client that is still there.
     /// </summary>
     /// <remarks>
@@ -957,9 +1072,34 @@ public class PresenceActivityTests : TestBase
     }
 
     /// <summary>Announces an activity and returns once the watching observer has seen it.</summary>
-    private static async Task AnnounceAndAwaitAsync(TestUserSession player, RealtimeClient watcher,
+    /// <remarks>
+    /// <para>Both sides are established first, and both for the same reason: a SignalR handshake
+    /// completing is not the hub having finished with the connection.
+    /// <c>RealtimeClient.ConnectAsync</c> returns when <c>StartAsync</c> does, and
+    /// <c>AppHub.OnConnectedAsync</c> runs after that — a revocation read, a relational query for the
+    /// caller's spaces, one <c>AddToGroupAsync</c> per space, and only then
+    /// <c>AttachConnectionAsync</c>. A fan-out that lands inside that window reaches a client which is
+    /// connected and in no space group, and it is gone: the space stream is live, not replayed on
+    /// join.</para>
+    ///
+    /// <para>That is one of the two CI failures this helper was written into. The watcher had not
+    /// joined <c>spaces/{id}</c> when the announcement was published; ten seconds later it had the two
+    /// status events the session deadlines produced and nothing else, and no wait however long could
+    /// have helped, because the event it wanted had already been sent to a group it was not in. The
+    /// other is the announcer's own — see <see cref="RequireLiveDevicesAsync"/>.</para>
+    ///
+    /// <para>The live-session index is the observable both preconditions hang on, and for the watcher
+    /// it is a proxy rather than the thing itself: the hub joins every group <em>before</em> it
+    /// attaches, so a sid that has reached the index has necessarily been through the group joins that
+    /// precede it. Asserting nothing about the behaviour under test — a passing precondition costs one
+    /// Redis read.</para>
+    /// </remarks>
+    private async Task AnnounceAndAwaitAsync(TestUserSession player, RealtimeClient watcher,
         UserActivityPresence activity, CancellationToken ct)
     {
+        await RequireLiveDevicesAsync(watcher.UserId, ct, watcher.SessionId);
+        await RequireLiveDevicesAsync(player.UserId, ct, player.SessionId);
+
         var announced = watcher.Mark();
         await player.Users.BroadcastPresence(activity, ct);
 
@@ -1003,6 +1143,11 @@ public class PresenceActivityTests : TestBase
     /// that premise and asserts nothing about the behaviour under test — it is the reason those two
     /// tests used to fail perhaps one run in three on a loaded box, always with the first device's
     /// activity in the event the second device's announcement produced.</para>
+    ///
+    /// <para>It is also used for the observing side, where the index stands in for something with no
+    /// observable of its own: the hub joins a connection to its space groups <em>before</em> it
+    /// attaches the session, so a sid in the index has been through the group joins. See
+    /// <see cref="AnnounceAndAwaitAsync"/>.</para>
     /// </remarks>
     private async Task RequireLiveDevicesAsync(Guid userId, CancellationToken ct, params Guid[] sids)
     {
