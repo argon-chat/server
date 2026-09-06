@@ -57,15 +57,19 @@ public sealed class ArgonTransactionInterceptor(
         if (allowAnonymous && context.InterfaceName == typeof(IIdentityInteraction))
             await EnforceAnonymousIpRateLimitAsync(context, httpContext, ct);
 
-        Guid? user   = null;
-        Guid? device = null;
+        Guid?           user       = null;
+        Guid?           device     = null;
+        Guid?           credential = null;
+        DateTimeOffset? mintedAt   = null;
 
         if (!allowAnonymous)
         {
             var authorized = await Authorize(httpContext);
 
-            user   = authorized?.id;
-            device = authorized?.deviceId;
+            user       = authorized?.Token.id;
+            device     = authorized?.Token.deviceId;
+            credential = authorized?.Credential.SessionId;
+            mintedAt   = authorized?.Credential.MintedAt;
         }
 
         if (!allowAnonymous && user is null)
@@ -90,13 +94,33 @@ public sealed class ArgonTransactionInterceptor(
         else
             SetRequestContext(context, httpContext, user, severity);
 
+        // The half of the caller's identity they did not choose. Everything downstream reads the
+        // session id out of the ArgonSecure cookie, which the client writes; this is the id the
+        // server minted into the credential the request is actually authenticated by, and it is what
+        // lets PickTicket stamp a hub ticket a rotated cookie cannot shake off. See
+        // SessionRevocation's remarks for why both halves are needed.
+        if (credential is { } credentialSessionId)
+            ArgonRequestContext.Current.Props[SessionRevocation.CredentialSessionProperty] = credentialSessionId.ToString();
+
         // A session the user ended from another device must stop being honoured here, not merely lose
         // its transport: the refresh token it was issued with is stateless and outlives any access
         // token, so without this check GetMyAuthorization would keep re-minting for a session that was
         // revoked. Placed after the context is set because the sid comes out of the same cookie.
+        //
+        // Both ids, not just the cookie's. The cookie's is the caller's to write, so a signed-out
+        // device that generates a fresh scid presented an id nobody had tombstoned and every Ion RPC
+        // in the product went on answering it — reading messages, listing spaces, sending. The
+        // credential id above came out of the signature on the token this request is authenticated
+        // by, and SecurityGrain.EndSessionAsync tombstones it alongside the row on the screen.
+        //
+        // And the floor beside them, because neither id reaches a credential nobody registered under
+        // either — which is every token a password change is aimed at. Without it the one Ion call
+        // that matters most, PickTicket, kept minting hub tickets stamped with a current iat from a
+        // week-old access token: the hub's floor check saw a fresh ticket, the session grain saw a
+        // fresh SessionStartTime, and a sign-out-everywhere ended nothing but the refresh.
         if (user is not null &&
-            ArgonRequestContext.Current.SessionId is { } sessionId &&
-            await IsSessionRevokedAsync(context.ServiceProvider, user.Value, sessionId, ct))
+            await IsSessionRevokedAsync(
+                context.ServiceProvider, user.Value, [ArgonRequestContext.Current.SessionId, credential], mintedAt, ct))
             throw new IonRequestException(new IonProtocolError("NO_AUTH", "Unauthorized"));
 
         // Record the user's current app locale (normalized to BCP-47) for this session, so the Bot API
@@ -180,7 +204,20 @@ public sealed class ArgonTransactionInterceptor(
         }
     }
 
-    private async Task<TokenUserData?> Authorize(HttpContext httpContext)
+    /// <summary>What the request's bearer token established: who is calling, and under which credential.</summary>
+    private sealed record AuthorizedCaller(TokenUserData Token, AccessTokenCredential Credential);
+
+    /// <summary>
+    /// The two things a validated access token says about the session behind it: which one, and when
+    /// it was minted.
+    /// </summary>
+    /// <remarks>
+    /// Both are needed by the same gate and both come out of the same parse, so they travel together
+    /// rather than as two lookups over the same token — see <see cref="CredentialOf"/>.
+    /// </remarks>
+    private readonly record struct AccessTokenCredential(Guid? SessionId, DateTimeOffset? MintedAt);
+
+    private async Task<AuthorizedCaller?> Authorize(HttpContext httpContext)
     {
         if (!httpContext.Request.Headers.TryGetValue("Authorization", out var auth) || string.IsNullOrWhiteSpace(auth))
             throw new UnauthorizedAccessException("Authorization header missing");
@@ -192,9 +229,71 @@ public sealed class ArgonTransactionInterceptor(
 
         var authResult = await validationParameters.AuthorizeByToken(token, httpContext.GetMachineId());
 
-        if (authResult.IsSuccess)
-            return authResult.Value;
-        return null;
+        if (!authResult.IsSuccess)
+            return null;
+
+        return new AuthorizedCaller(authResult.Value, CredentialOf(token));
+    }
+
+    /// <summary>The <c>sid</c> and the mint time of an access token that has just been validated.</summary>
+    /// <remarks>
+    /// <para>Read here rather than handed back by <c>TokenAuthorization</c>, which answers with a
+    /// <c>TokenUserData</c> that has no room for either. The token string is the one
+    /// <c>AuthorizeByToken</c> just verified — signature, audience, lifetime, machine binding — so
+    /// reading two more claims off it costs a parse and proves nothing new; the safety comes from the
+    /// call above having succeeded, and this must never be called before it does.</para>
+    ///
+    /// <para>The session id is null for a token minted before the claim existed, which is every access
+    /// token still in flight from before this deploy and every one minted by the sign-in path rather
+    /// than by a refresh. Callers therefore treat it as a bonus identity rather than a required one.</para>
+    ///
+    /// <para><b>The mint time is <c>nbf</c> as often as <c>iat</c>, and that is not sloppiness.</b>
+    /// <c>ClassicJwtFlow.GenerateAccessToken</c> hands <c>JwtSecurityToken</c> a <c>notBefore</c> and
+    /// no issued-at, and the token library writes <c>iat</c> only when it is given one — so an access
+    /// token carries <c>nbf</c> = the moment it was minted and no <c>iat</c> at all, while the refresh
+    /// token and the hub ticket, which are compared against the same floor, write <c>iat</c>
+    /// explicitly. Reading only <c>iat</c> here would place every access token ever minted as
+    /// "undatable", which <see cref="SessionRevocation.IsBelowFloor"/> reads as older than any floor:
+    /// one password change would lock the account out of the whole Ion surface permanently, including
+    /// the tokens it signs in with afterwards. The smaller of the two is taken for the same reason the
+    /// hub takes the smallest <c>iat</c> — the oldest reading is the conservative one against a
+    /// watermark, and it keeps working unchanged on the day the mint starts writing <c>iat</c>.</para>
+    /// </remarks>
+    private AccessTokenCredential CredentialOf(string token)
+    {
+        try
+        {
+            var claims = new System.IdentityModel.Tokens.Jwt.JwtSecurityTokenHandler().ReadJwtToken(token).Claims;
+
+            Guid? session = null;
+            long? minted  = null;
+
+            foreach (var claim in claims)
+            {
+                switch (claim.Type)
+                {
+                    case "sid" when Guid.TryParse(claim.Value, out var parsed):
+                        session = parsed;
+                        break;
+                    case "iat" or "nbf" when long.TryParse(claim.Value, out var seconds):
+                        if (minted is null || seconds < minted)
+                            minted = seconds;
+                        break;
+                }
+            }
+
+            return new AccessTokenCredential(
+                session, minted is { } value ? DateTimeOffset.FromUnixTimeSeconds(value) : null);
+        }
+        catch (Exception e)
+        {
+            // A token that validated but will not re-parse is a contradiction worth a line in the
+            // log; it is not a reason to refuse a request the validator already accepted. It does
+            // lose against a floor, because a credential nobody can place in time is treated as older
+            // than any watermark — the same reading the refresh path and the hub take.
+            logger.LogWarning(e, "Could not read the credential session id off an already-validated access token");
+            return default;
+        }
     }
 
     private static readonly HybridCacheEntryOptions BannedDeviceCacheOptions = new()
@@ -254,34 +353,61 @@ public sealed class ArgonTransactionInterceptor(
         LocalCacheExpiration = TimeSpan.FromSeconds(5),
     };
 
+    /// <param name="sessionIds">
+    /// Every id this caller can be recognised by — the presence sid out of the cookie and the
+    /// credential sid out of the token, either of which may be absent. Nulls are skipped, and a
+    /// caller with none of them can still be refused by the floor, which is the point of the floor.
+    /// </param>
+    /// <param name="mintedAt">
+    /// When the access token this request is authenticated by was minted, for the comparison against
+    /// the user's sign-out-everywhere watermark. Null means "cannot be placed in time", which
+    /// <see cref="SessionRevocation.IsBelowFloor"/> reads as older than any floor.
+    /// </param>
     private static async Task<bool> IsSessionRevokedAsync(
-        IServiceProvider sp, Guid userId, Guid sessionId, CancellationToken ct)
+        IServiceProvider sp, Guid userId, IReadOnlyList<Guid?> sessionIds, DateTimeOffset? mintedAt, CancellationToken ct)
     {
+        var identities = sessionIds.Where(x => x is not null).Select(x => x!.Value).Distinct().ToList();
+
         var key = SessionRevocation.RevokedKey(userId);
 
         try
         {
-            // The whole set is fetched and cached per user rather than probing one member per
-            // request: it is a handful of ids, and the alternative is a distinct cache entry for
-            // every (user, session) pair that ever asks.
-            var revoked = await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
-                key,
-                async token => await sp.GetRequiredService<IArgonCacheDatabase>().SetMembersAsync(key, token),
-                RevokedSessionCacheOptions,
-                cancellationToken: ct);
+            // The targeted half first: it answers "this device was signed out" for the overwhelming
+            // majority of the revocations anyone actually performs, and it is one cache entry.
+            if (identities.Count > 0)
+            {
+                // The whole set is fetched and cached per user rather than probing one member per
+                // request: it is a handful of ids, and the alternative is a distinct cache entry for
+                // every (user, session) pair that ever asks.
+                var revoked = await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+                    key,
+                    async token => await sp.GetRequiredService<IArgonCacheDatabase>().SetMembersAsync(key, token),
+                    RevokedSessionCacheOptions,
+                    cancellationToken: ct);
 
-            if (revoked.Contains(sessionId.ToString()))
-                return true;
+                if (identities.Any(id => revoked.Contains(id.ToString())))
+                    return true;
 
-            // And the pre-set key shape, for the same reason as in IdentityInteraction: a revocation
-            // written before this deploy must not be forgotten by it.
-            var legacy = SessionRevocation.LegacyRevokedKey(userId, sessionId);
+                // And the pre-set key shape, for the same reason as in IdentityInteraction: a revocation
+                // written before this deploy must not be forgotten by it.
+                foreach (var id in identities)
+                {
+                    var legacy = SessionRevocation.LegacyRevokedKey(userId, id);
 
-            return await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
-                legacy,
-                async token => await sp.GetRequiredService<IArgonCacheDatabase>().KeyExistsAsync(legacy, token),
-                BannedDeviceCacheOptions,
-                cancellationToken: ct);
+                    if (await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+                            legacy,
+                            async token => await sp.GetRequiredService<IArgonCacheDatabase>().KeyExistsAsync(legacy, token),
+                            BannedDeviceCacheOptions,
+                            cancellationToken: ct))
+                        return true;
+                }
+            }
+
+            // The backstop, and it runs whether or not this caller had an id to look up: a password
+            // change writes no per-session tombstone at all (SecurityGrain.ChangePasswordAsync), so
+            // the floor is the only thing standing between a sign-out-everywhere and an access token
+            // that is good for another week.
+            return SessionRevocation.IsBelowFloor(await FloorAsync(sp, userId, ct), mintedAt);
         }
         catch (Exception)
         {
@@ -290,6 +416,30 @@ public sealed class ArgonTransactionInterceptor(
             // until the cache is answering again.
             return false;
         }
+    }
+
+    /// <summary>The user's sign-out-everywhere watermark, or null.</summary>
+    /// <remarks>
+    /// Cached under its own key with the revoked set's lifetime, exactly as <c>AppHub</c> reads it:
+    /// the two have different shapes and the same staleness budget, and one entry per user per kind
+    /// is cheaper than a distinct entry for every pair that ever asks. Fifteen seconds of staleness is
+    /// the same trade the tombstone above makes — a sign-out takes effect, not necessarily on the very
+    /// next packet — and unlike the hub there is no once-only moment here to read uncached for.
+    ///
+    /// <para>Empty string rather than null, because a cache entry that holds nothing is
+    /// indistinguishable from a miss and would put a Redis GET on every authenticated RPC.</para>
+    /// </remarks>
+    private static async Task<DateTimeOffset?> FloorAsync(IServiceProvider sp, Guid userId, CancellationToken ct)
+    {
+        var key = SessionRevocation.FloorKey(userId);
+
+        var raw = await sp.GetRequiredService<HybridCache>().GetOrCreateAsync(
+            key,
+            async token => await sp.GetRequiredService<IArgonCacheDatabase>().StringGetAsync(key, token) ?? "",
+            RevokedSessionCacheOptions,
+            cancellationToken: ct);
+
+        return SessionRevocation.ParseFloor(raw);
     }
 
     private static async Task<LockdownSeverity> ResolveLockdownSeverityAsync(

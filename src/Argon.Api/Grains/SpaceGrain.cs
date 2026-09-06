@@ -126,6 +126,23 @@ public class SpaceGrain(
         return server;
     }
 
+    /// <summary>
+    /// The activity a member may be shown with, given the status they are being shown with: none,
+    /// if that status is Offline.
+    /// </summary>
+    /// <remarks>
+    /// The same rule as <c>SpaceReadGrain.Coherent</c>, which carries the full reasoning for defect
+    /// S18 — status and activity are independent Redis reads on clocks five minutes apart, so after
+    /// an ungraceful drop the aggregate reads Offline while the activity key is still there, and a
+    /// projection that hands both back says "Offline, playing Portal 2", a state the client's own
+    /// rules say cannot exist. It is duplicated rather than shared because the two grains sit in
+    /// different projections of the same data and neither owns the other; it lives here as well
+    /// because <see cref="GetMember"/> is a third door onto the same tuple (the profile card), and
+    /// fixing the roster while leaving the card contradicting it is not fixing anything.
+    /// </remarks>
+    private static UserActivityPresence? Coherent(UserStatus status, UserActivityPresence? activity)
+        => status is UserStatus.Offline ? null : activity;
+
     public async Task<RealtimeServerMember> GetMember(Guid userId)
     {
         await using var ctx = await context.CreateDbContextAsync();
@@ -142,7 +159,7 @@ public class SpaceGrain(
         var status   = await userPresence.GetAggregatedStatusAsync(x.UserId);
         var presence = await userPresence.GetUsersActivityPresence(x.UserId);
 
-        return new RealtimeServerMember(x.ToDto(), status, presence);
+        return new RealtimeServerMember(x.ToDto(), status, Coherent(status, presence));
     }
 
     public async Task SetUserPresence(Guid userId, UserActivityPresence presence)
@@ -378,26 +395,51 @@ public class SpaceGrain(
     /// <para>Nothing corrected it afterwards. A heartbeat re-asserting the same status is a no-op in
     /// <c>UserSessionGrain.HeartBeatAsync</c>, and even a forced one is swallowed by
     /// <c>MarkBroadcastIfChangedAsync</c>, whose record still holds the status the user really has.
-    /// Which is also why this does not delegate to <c>UserGrain.AggregateAndBroadcastStatusAsync</c>:
-    /// that path is guarded by the same per-user hysteresis record and would fan out nothing, and the
-    /// space that just gained a member would be told nothing. A join is not a transition — it is a
-    /// seed for one new audience — so it reads the aggregate directly, announces it to this space
-    /// only, and neither consults nor rewrites the hysteresis record the next real transition needs.</para>
+    /// A join is not a transition — it is a seed for one new audience — so the announcement it needs
+    /// is one the per-user hysteresis must not be allowed to suppress.</para>
     ///
     /// <para>Offline is announced as silence rather than as <c>UserChangedStatus(Offline)</c>: the
     /// space has never heard of this member, so there is no stale value to correct, and an explicit
     /// Offline would be one more event for every member of the space to process on every join.</para>
+    ///
+    /// <para><b>Offline is not always offline.</b> Since the S3 change, a hub attach takes the "alive"
+    /// half only — <c>UserSessionGrain.EnsureSessionStartedAsync(null)</c> writes the presence key
+    /// but no <c>status:user:{u}:session:{sid}</c>, and therefore no aggregate — so a genuinely
+    /// connected client reads Offline for the few seconds between attaching and its first heartbeat
+    /// (or the grain's status deadline). A user who cold-starts and immediately accepts an invite or
+    /// creates a space lands exactly in that window, and there is no honest status to announce for
+    /// them: <c>Online</c> would be the S4 phantom all over again for a DND user, and it is not this
+    /// grain's business to guess.</para>
+    ///
+    /// <para><b>Why this delegates rather than reading the aggregate itself.</b> It used to do both —
+    /// read <c>status:user:{u}:aggregated</c>, announce it to this space, and, when it read Offline
+    /// under a live session, write <c>lastbroadcast = Offline</c> so the first real status would count
+    /// as a change. That last write raced the thing it was there to enable: <c>UserGrain</c> is a
+    /// <c>[StatelessWorker]</c>, the joiner's first heartbeat runs the ordinary fan-out on another
+    /// activation in the same second, and the two orders interleave — heartbeat writes the aggregate
+    /// Online and fans out, then this write lands and leaves the record claiming Offline for an Online
+    /// user. The record and the aggregate then disagree in the direction that suppresses the
+    /// <em>next</em> transition for every space the user is in. Ordering it by hand is not available
+    /// here; giving one owner the read, the record and the announcement is, so the seed is passed to
+    /// <c>UserGrain.AggregateAndBroadcastStatusAsync</c> and this grain writes no presence state at
+    /// all. The membership is committed before this runs (<see cref="AddMemberAsync"/> saves,
+    /// <c>IServerRepository.CreateAsync</c> commits its transaction), which is what lets that call
+    /// treat the seed as a space the user is already in.</para>
+    ///
+    /// <para>What is left open, stated plainly: a session that is alive but statusless at the moment
+    /// of the join is announced nothing, and if its first status happens to equal the one the
+    /// hysteresis record still holds from an earlier connection, the fan-out that would have carried
+    /// it here is suppressed — so the new space shows the member grey until an observer's client
+    /// reloads <c>GetMemberPresence</c>. The window is the statusless one the status deadline bounds
+    /// to seconds, and the cure for the rest of it belongs to the hysteresis record's own lifetime
+    /// rather than to a write from here.</para>
     /// </remarks>
     public async ValueTask UserJoined(Guid userId)
     {
         await Fire(new JoinToServerUser(this.GetPrimaryKey(), userId));
 
-        var status = await userPresence.GetAggregatedStatusAsync(userId);
-
-        if (status is UserStatus.Offline)
-            return;
-
-        await SetUserStatus(userId, status);
+        await GrainFactory.GetGrain<IUserGrain>(userId)
+           .AggregateAndBroadcastStatusAsync([this.GetPrimaryKey()]);
     }
 
     /// <summary>

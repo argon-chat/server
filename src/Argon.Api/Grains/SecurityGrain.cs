@@ -877,7 +877,12 @@ public class SecurityGrain(
             if (!sessions.Any(x => Guid.TryParse(x.SessionId, out var id) && id == sessionId))
                 return new FailedRevokeSession(SessionError.NOT_FOUND);
 
-            await EndSessionAsync(sessionId, ct);
+            // The tombstone is what actually revokes, so its failure is the one failure that has to
+            // reach the caller — the rest of EndSessionAsync is presence tidying that a retry or a
+            // TTL will settle on its own.
+            if (!await EndSessionAsync(sessionId, ct))
+                return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
+
             await NotifySecurityDetailsChangedAsync(ct);
 
             return new SuccessRevokeSession();
@@ -889,20 +894,49 @@ public class SecurityGrain(
         }
     }
 
+    /// <summary>
+    /// Ends every session of this user except the caller's own.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Every session is attempted, whatever the ones before it did.</b> The loop used to be
+    /// wrapped in a single try/catch, so one transient store error on device two left devices three,
+    /// four and five fully signed in with ten-year refresh tokens — and reported total failure, which
+    /// tells the user the opposite of what happened (defect S8).</para>
+    ///
+    /// <para>The result is still binary, because the ion contract has no shape for "n of m": both
+    /// members of <c>IRevokeSessionResult</c> are all-or-nothing. So a partial outcome is reported as
+    /// <c>INTERNAL_ERROR</c> — the pessimistic reading, and the honest one, since some device is
+    /// still signed in and the user needs to know that pressing the button again is worth doing. The
+    /// count of each goes to the log, which is the only place that can currently carry it; a contract
+    /// that could say "these three are still signed in" is what would let the screen do better.</para>
+    /// </remarks>
     public async Task<IRevokeSessionResult> RevokeAllSessionsAsync(Guid currentSessionId, CancellationToken ct = default)
     {
         try
         {
             var sessions = await sessionDiscovery.GetUserSessionsAsync(UserId, ct);
             var revoked  = 0;
+            var failed   = 0;
 
             foreach (var session in sessions)
             {
                 if (!Guid.TryParse(session.SessionId, out var sessionId) || sessionId == currentSessionId)
                     continue;
 
-                await EndSessionAsync(sessionId, ct);
-                revoked++;
+                try
+                {
+                    if (await EndSessionAsync(sessionId, ct))
+                        revoked++;
+                    else
+                        failed++;
+                }
+                catch (Exception e)
+                {
+                    // Per session, so the devices after this one in the list still get their turn.
+                    failed++;
+                    logger.LogError(e, "Failed to revoke session {SessionId} for user {UserId} during sign-out-everywhere",
+                        sessionId, UserId);
+                }
             }
 
             // No revocation floor here, on purpose. A floor is a timestamp and cannot make an
@@ -922,7 +956,14 @@ public class SecurityGrain(
             if (revoked > 0)
                 await NotifySecurityDetailsChangedAsync(ct);
 
-            return new SuccessRevokeSession();
+            if (failed == 0)
+                return new SuccessRevokeSession();
+
+            logger.LogError(
+                "Signed {Revoked} session(s) out for user {UserId} but {Failed} could not be tombstoned and are still signed in",
+                revoked, UserId, failed);
+
+            return new FailedRevokeSession(SessionError.INTERNAL_ERROR);
         }
         catch (Exception e)
         {
@@ -945,15 +986,52 @@ public class SecurityGrain(
     /// <see cref="SessionRevocation.CredentialsKey"/> for why they cannot, and
     /// <c>PresenceRevocationTests.Revoking_a_device_stops_its_refresh_token_from_minting</c> for what
     /// it cost while only one of them was written (S7).</para>
+    ///
+    /// <para><b>Every step is guarded and the method never throws</b>, so one failing device cannot
+    /// spare the ones after it in <see cref="RevokeAllSessionsAsync"/>. What it answers instead is
+    /// whether the <em>tombstone</em> was written, because that is the step the other three cannot
+    /// stand in for: presence lapses on a two-minute TTL and a grain call can be retried, but a
+    /// credential with no tombstone keeps minting for ten years. A caller that reports success on a
+    /// false here is telling the user a device was signed out when it was not.</para>
     /// </remarks>
-    private async Task EndSessionAsync(Guid sessionId, CancellationToken ct)
+    /// <returns>Whether the revocation tombstone is committed.</returns>
+    private async Task<bool> EndSessionAsync(Guid sessionId, CancellationToken ct)
     {
+        // Guid.AllBitsSet is not a device. It is what a Development host hands a caller that presents
+        // no session id of its own (HttpContextExtensions.GetSessionId), so tombstoning it would not
+        // end one session — it would end every session of this account that has ever arrived without
+        // one, and every future one too, since the tombstone is kept for the refresh token's ten-year
+        // lifetime and nothing removes it. A local sign-out is not a reason to lock an account out
+        // permanently, so this refuses rather than writes, and says so: the answer is false, which
+        // the callers report as a sign-out that did not happen. (S22 — the placeholder is now the last
+        // resort in GetSessionId, so a client that sends Sec-Ref never reaches this at all.)
+        if (sessionId == Guid.AllBitsSet)
+        {
+            logger.LogWarning(
+                "Refused to tombstone the development placeholder session id for user {UserId}: it names no device",
+                UserId);
+
+            return false;
+        }
+
         // One set per user, not one key per revoked session: a key per session would be retained for
         // the refresh token's whole lifetime and never reused, so the store would grow by one entry
         // for every device anyone has ever signed out and drop none of them.
         var revokedKey = SessionRevocation.RevokedKey(UserId);
+        var tombstoned = false;
 
-        await cache.SetAddAsync(revokedKey, sessionId.ToString(), ct);
+        try
+        {
+            await cache.SetAddAsync(revokedKey, sessionId.ToString(), ct);
+            tombstoned = true;
+        }
+        catch (Exception e)
+        {
+            // Reported rather than thrown, and the rest of the sign-out still runs: taking this
+            // device's presence down is worth doing even when the credential could not be shut out,
+            // and the answer above is what stops the caller calling that a success.
+            logger.LogError(e, "Could not tombstone session {SessionId} for user {UserId}", sessionId, UserId);
+        }
 
         // The credential this device is holding, if the sign-in or a refresh recorded it. Guarded on
         // its own: this is the one step of the four that is genuinely per-session, so a mapping that
@@ -961,6 +1039,9 @@ public class SecurityGrain(
         // RevokeAllSessions — down with it.
         try
         {
+            // Not counted towards `tombstoned`: the answer is about the row the user pressed the
+            // button on, and a credential shut out while its presence sid was not is a device the
+            // hub and the interceptor would still admit.
             foreach (var credentialSessionId in await SessionRevocation.CredentialSessionsAsync(cache, UserId, sessionId, ct))
                 await cache.SetAddAsync(revokedKey, credentialSessionId, ct);
         }
@@ -1000,8 +1081,21 @@ public class SecurityGrain(
             logger.LogWarning(e, "Could not take session {SessionId} offline for user {UserId}", sessionId, UserId);
         }
 
-        await presence.RemoveSessionAsync(UserId, sessionId.ToString(), ct);
-        await presence.RemoveSessionStatusAsync(UserId, sessionId.ToString(), ct);
+        try
+        {
+            await presence.RemoveSessionAsync(UserId, sessionId.ToString(), ct);
+            await presence.RemoveSessionStatusAsync(UserId, sessionId.ToString(), ct);
+        }
+        catch (Exception e)
+        {
+            // The last of the four, and the least load-bearing: both keys carry a two-minute TTL and
+            // nothing refreshes them for a session that is now tombstoned, so the row leaves the
+            // screen on its own. Letting it throw was what took the sessions after this one in
+            // RevokeAllSessions down with it (S8).
+            logger.LogWarning(e, "Could not clear the presence of session {SessionId} for user {UserId}", sessionId, UserId);
+        }
+
+        return tombstoned;
     }
 
     private async Task NotifySecurityDetailsChangedAsync(CancellationToken ct = default)

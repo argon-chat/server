@@ -71,6 +71,25 @@ public interface IUserPresenceService
     /// (<see cref="RemoveActivityPresence"/>, which the grain's offline path already calls and which
     /// does announce the removal). Pinned by
     /// <c>PresenceAggregationTests.AnActivityIsRefreshedByTheSessionThatKeepsAnnouncingIt</c>.</para>
+    ///
+    /// <para><b>And the bound on it.</b> Renewing unconditionally traded one permanent state for
+    /// another: the only eraser is the client's explicit <c>RemoveBroadcastPresence</c>, and a client
+    /// that is killed outright — or whose removal is lost to a token refresh or a dropped connection
+    /// — never sends it, so the tick kept a finished game pinned to the user for the rest of the
+    /// session. The renewal is therefore a lease: a sidecar key beside the activity carries the
+    /// moment its session last announced it, the client re-announces a live activity roughly every
+    /// five minutes, and this renews only while that stamp is inside
+    /// <see cref="PresenceTimingOptions.ActivityReassertWindow"/>. Past it the key lapses exactly as
+    /// it did before. Beside the activity rather than inside it because the activity's value is a
+    /// wire contract shared with the build being replaced — see
+    /// <c>UserPresenceService.ActivityAnnouncedKey</c>.</para>
+    ///
+    /// <para>A lapse announces nothing — Redis expiry has no event, and no
+    /// <c>OnUserPresenceActivityRemoved</c> can be emitted from one — so observers already holding
+    /// the activity keep showing it until something else corrects them. That is the whole reason the
+    /// window is generous rather than tight: it is a backstop for a client that will never speak
+    /// again, while the ordinary end of an activity remains the client's own removal, and the
+    /// ordinary repair of a missed one remains the client's re-announcement.</para>
     /// </remarks>
     Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default);
 
@@ -104,6 +123,25 @@ public interface IUserPresenceService
     /// exactly one is told it changed (defect S19).
     /// </summary>
     Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default);
+
+    /// <summary>
+    /// Forgets what was last broadcast for a user, so the next fan-out is treated as a change.
+    /// </summary>
+    /// <remarks>
+    /// <para>The hysteresis record is a duplicate suppressor, and a duplicate suppressor is only
+    /// correct while it describes what observers are actually holding. There is one way for those to
+    /// come apart: the status keys lapse and are re-created — a socket that drops for longer than
+    /// <see cref="PresenceTimingOptions.SessionTtl"/> and comes back inside the grace. Anyone who
+    /// read the roster in that window cached Offline; the re-assert on re-attach repairs the keys and
+    /// recomputes the aggregate, and the record still says DoNotDisturb, so the corrective broadcast
+    /// is suppressed as a duplicate of something nobody received. Those observers show the user grey
+    /// for the rest of their client session.</para>
+    ///
+    /// <para>So the repair path clears the record first and then broadcasts. Deliberately a separate
+    /// call rather than a <c>force</c> flag on the fan-out: the caller that knows a lapse happened is
+    /// the session grain, and everything else must keep being suppressed exactly as it is.</para>
+    /// </remarks>
+    Task ForgetLastBroadcastAsync(Guid userId, CancellationToken ct = default);
 
     /// <summary>
     /// Records who a session belongs to, so it can be named on the devices screen.
@@ -190,9 +228,26 @@ public sealed record UserSessionMeta(
     }
 }
 
-public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceService
+public class UserPresenceService(IArgonCacheDatabase cache, IOptions<PresenceTimingOptions> timingOptions) : IUserPresenceService
 {
-    public static readonly TimeSpan DefaultTTL = TimeSpan.FromSeconds(120);
+    /// <summary>
+    /// The lifetime every presence and status key is written with, read from configuration.
+    /// </summary>
+    /// <remarks>
+    /// Snapshotted once per singleton rather than dereferenced per call: these are the clocks the
+    /// whole subsystem runs on, and a value that could change under a fold would make "the aggregate
+    /// and the session key expire together" untrue for the duration of a reload.
+    /// </remarks>
+    private readonly PresenceTimingOptions timings = timingOptions.Value;
+
+    /// <summary>The shipped session lifetime, for callers that still want a constant.</summary>
+    /// <remarks>
+    /// Kept, and kept equal to the default of <see cref="PresenceTimingOptions.SessionTtl"/> by
+    /// construction, so nothing that read it before reads a different number now. Live code must not:
+    /// a host that shortened the TTL — the integration suite does — would find this still saying two
+    /// minutes.
+    /// </remarks>
+    public static readonly TimeSpan DefaultTTL = new PresenceTimingOptions().SessionTtl;
 
     private static string SessionKey(Guid userId, string sessionId)
         => $"presence:user:{userId}:session:{sessionId}";
@@ -208,13 +263,35 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string ActivitySessionKey(Guid userId, string sessionId)
         => $"activity:user:{userId}:session:{sessionId}";
 
+    /// <summary>When the session last announced the activity beside it — the lease's signature.</summary>
+    /// <remarks>
+    /// <para>A sidecar key rather than a field in the value, and the reason is deployment. The stamp
+    /// bounds the tick's renewal (see <see cref="RefreshSessionStatusTtlAsync"/>) and it was first
+    /// written by wrapping the activity in an envelope — <c>{"Presence":{…},"AnnouncedAt":"…"}</c> —
+    /// which the build being replaced cannot read. Newtonsoft does not fail on it either: it binds
+    /// <c>UserActivityPresence</c>'s positional constructor with defaults and hands back a non-null
+    /// record with a null <c>titleName</c>, for a field the schema declares non-nullable. Through a
+    /// rolling deploy every old node would then have served a phantom activity for half its roster,
+    /// with the client re-announcing every few minutes to keep the supply up, and a canary would not
+    /// have seen it because the damage is on the nodes that were not upgraded.</para>
+    ///
+    /// <para>So the activity key keeps the exact shape it has always had — a bare
+    /// <c>UserActivityPresence</c>, readable by any build in either direction — and the new
+    /// information lives beside it under a key an old build never looks at. The two are written,
+    /// renewed and deleted together, and a stamp with no activity (or an activity with no stamp,
+    /// which is every entry written before this) simply means "not renewable": the entry lapses on
+    /// its own TTL exactly as it did before, and the client's next announcement writes both.</para>
+    /// </remarks>
+    private static string ActivityAnnouncedKey(Guid userId, string sessionId)
+        => $"{ActivitySessionKey(userId, sessionId)}:announced";
+
     /// <summary>How long an activity survives with nothing renewing it.</summary>
     /// <remarks>
     /// A safety net rather than the activity's lifetime — see
     /// <see cref="RefreshSessionStatusTtlAsync"/>. It only decides how long an orphaned entry lingers
     /// after its session stopped keeping it alive, so it is generous on purpose.
     /// </remarks>
-    private static readonly TimeSpan ActivityTTL = TimeSpan.FromMinutes(10);
+    private TimeSpan ActivityTTL => timings.ActivityTtl;
 
     // Who the session is, and when it was last heard from. Split in two because the two halves are
     // written by different things at wildly different rates: the name is a constant established once
@@ -226,13 +303,13 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string SessionSeenKey(Guid userId, string sessionId)
         => $"session:seen:{userId}:{sessionId}";
 
-    // Outlives the 120s presence TTL so a session that briefly drops off and heartbeats back keeps
-    // its name instead of reappearing anonymous. Nothing reads it for a session that is not also in
-    // the live index, so a stale one is invisible rather than wrong.
-    private static readonly TimeSpan SessionMetaTTL = TimeSpan.FromHours(24);
+    // Outlives the presence TTL so a session that briefly drops off and heartbeats back keeps its
+    // name instead of reappearing anonymous. Nothing reads it for a session that is not also in the
+    // live index, so a stale one is invisible rather than wrong.
+    private TimeSpan SessionMetaTTL => timings.SessionMetaTtl;
 
     public Task SetSessionOnlineAsync(Guid userId, string sessionId, CancellationToken ct = default)
-        => SetSessionOnlineAsync(userId, sessionId, DefaultTTL, ct);
+        => SetSessionOnlineAsync(userId, sessionId, timings.SessionTtl, ct);
 
     public async Task SetSessionOnlineAsync(Guid userId, string sessionId, TimeSpan ttl, CancellationToken ct = default)
     {
@@ -327,7 +404,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 
     public async Task HeartbeatAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
-        await UpdateSessionAsync(userId, sessionId, DefaultTTL, ct);
+        await UpdateSessionAsync(userId, sessionId, timings.SessionTtl, ct);
         // Unconditional SET rather than an EXPIRE like the presence key above: this one is allowed to
         // be created by a heartbeat. A session that predates the meta record — or a bot session, which
         // never goes through the ticket exchange — still gets a truthful last-seen, and stays a row
@@ -380,8 +457,49 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         return sessionIds;
     }
 
-    public Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, string sessionId)
-        => cache.StringSetAsync(ActivitySessionKey(userId, sessionId), JsonConvert.SerializeObject(presence), ActivityTTL);
+    /// <summary>Records what a session is doing, and that it said so just now.</summary>
+    /// <remarks>
+    /// Two keys, written in the order a reader can survive: the activity first, so that a failure
+    /// between the two leaves an entry that is readable and un-renewable rather than a lease with
+    /// nothing under it. See <see cref="ActivityAnnouncedKey"/> for why the stamp is not part of the
+    /// value.
+    /// </remarks>
+    public async Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, string sessionId)
+    {
+        await cache.StringSetAsync(
+            ActivitySessionKey(userId, sessionId), JsonConvert.SerializeObject(presence), ActivityTTL);
+
+        await cache.StringSetAsync(
+            ActivityAnnouncedKey(userId, sessionId), DateTime.UtcNow.ToString("O"), ActivityTTL);
+    }
+
+    /// <summary>Reads a stored activity, or null when the entry is gone or unreadable.</summary>
+    private static UserActivityPresence? ReadActivity(string? json)
+    {
+        if (string.IsNullOrEmpty(json))
+            return null;
+
+        try
+        {
+            return JsonConvert.DeserializeObject<UserActivityPresence>(json);
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>When the session behind an activity last announced it, or null if nothing says.</summary>
+    /// <remarks>
+    /// Null covers both "written by a build that had no stamp" and "the stamp lapsed first", and both
+    /// mean the same thing to the only caller: not renewable.
+    /// </remarks>
+    private static DateTime? ReadAnnouncedAt(string? stamp)
+        => string.IsNullOrEmpty(stamp)
+            ? null
+            : DateTime.TryParse(stamp, null, System.Globalization.DateTimeStyles.RoundtripKind, out var when)
+                ? when.ToUniversalTime()
+                : null;
 
     /// <summary>
     /// Every live session's activity for the user.
@@ -417,11 +535,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
                 continue;
             }
 
-            var json = await cache.StringGetAsync(ActivitySessionKey(userId, sessionId));
-            if (string.IsNullOrEmpty(json))
-                continue;
-            var activity = JsonConvert.DeserializeObject<UserActivityPresence>(json);
-            if (activity is not null)
+            if (ReadActivity(await cache.StringGetAsync(ActivitySessionKey(userId, sessionId))) is { } activity)
                 activities.Add(activity);
         }
 
@@ -455,13 +569,18 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var existed = !string.IsNullOrEmpty(await cache.StringGetAsync(key));
         if (existed)
             await cache.KeyDeleteAsync(key);
+
+        // Unconditionally, whatever the activity key held: the stamp is what would let a tick renew
+        // an entry, and one left behind after a clear is a lease signed for something that is gone.
+        await cache.KeyDeleteAsync(ActivityAnnouncedKey(userId, sessionId));
+
         return existed;
     }
 
     public async Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default)
     {
         var key = SessionStatusKey(userId, sessionId);
-        await cache.StringSetAsync(key, status.ToString(), DefaultTTL, ct);
+        await cache.StringSetAsync(key, status.ToString(), timings.SessionTtl, ct);
         // Ensure the session is in the live-session index so RecalculateAggregatedStatusAsync,
         // which folds over that index, always accounts for this session's status.
         await cache.SetAddAsync(SessionsSetKey(userId), sessionId, ct);
@@ -471,9 +590,21 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     public async Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default)
     {
         var key = SessionStatusKey(userId, sessionId);
-        await cache.UpdateStringExpirationAsync(key, DefaultTTL, ct);
-        await cache.UpdateStringExpirationAsync(AggregatedStatusKey(userId), DefaultTTL, ct);
+        await cache.UpdateStringExpirationAsync(key, timings.SessionTtl, ct);
+        await cache.UpdateStringExpirationAsync(AggregatedStatusKey(userId), timings.SessionTtl, ct);
+
+        // The activity is renewed on a lease, not for the life of the session — see the remarks on
+        // the interface member. One read per tick per session, of the stamp rather than of the
+        // activity: an announcement with no stamp is not renewable, so the stamp alone decides, and
+        // it is the smaller of the two values.
+        if (ReadAnnouncedAt(await cache.StringGetAsync(ActivityAnnouncedKey(userId, sessionId), ct)) is not { } announcedAt
+         || DateTime.UtcNow - announcedAt >= timings.ActivityReassertWindow)
+            return;
+
+        // Both halves, together: a lease whose signature lapsed before the thing it signs for would
+        // stop renewing an activity that is still being announced.
         await cache.UpdateStringExpirationAsync(ActivitySessionKey(userId, sessionId), ActivityTTL, ct);
+        await cache.UpdateStringExpirationAsync(ActivityAnnouncedKey(userId, sessionId), ActivityTTL, ct);
     }
 
     public async Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
@@ -524,50 +655,54 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     /// <c>PresenceAggregationTests.ASingleSessionsStatusIsTheWholeAggregate</c> and its two- and
     /// three-session matrices.</para>
     /// </remarks>
-    private async Task RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default)
-    {
-        var aggregatedStatus = UserStatus.Offline;
-
+    private Task RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default)
         // Fold over this user's live sessions (O(1) index) and read each session's TTL'd status
         // string key — the source of truth — instead of SCANning the keyspace. A session whose
-        // status key has expired returns null and contributes nothing, exactly as the old SCAN
-        // (which only ever saw not-yet-expired keys).
-        foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId), ct))
-        {
-            var statusStr = await cache.StringGetAsync(SessionStatusKey(userId, sessionId), ct);
-            if (string.IsNullOrEmpty(statusStr) || !Enum.TryParse<UserStatus>(statusStr, out var status))
-                continue;
+        // status key has expired returns nothing and contributes nothing, exactly as the old SCAN
+        // (which only ever saw not-yet-expired keys). The prefix comes from the key builder itself
+        // with an empty sid, so the fold cannot start reading a key shape nothing writes.
+        => cache.FoldRankedSetAsync(
+            SessionsSetKey(userId),
+            SessionStatusKey(userId, string.Empty),
+            string.Empty,
+            AggregatedStatusKey(userId),
+            AggregationLadder,
+            UserStatus.Online.ToString(),
+            timings.SessionTtl,
+            ct);
 
-            if (Precedence(status) > Precedence(aggregatedStatus))
-                aggregatedStatus = status;
-
-            if (aggregatedStatus == UserStatus.DoNotDisturb)
-                break; // nothing outranks DND, so the rest of the fold cannot change the answer
-        }
-
-        // Cache the aggregated status with same TTL
-        await cache.StringSetAsync(AggregatedStatusKey(userId), aggregatedStatus.ToString(), DefaultTTL, ct);
-    }
-
-    /// <summary>Where a status sits on the aggregation ladder; higher wins. See the fold's remarks.</summary>
+    /// <summary>The aggregation ladder, weakest first. Higher wins; the first entry is the floor.</summary>
     /// <remarks>
-    /// The <c>default</c> arm is deliberately the Online tier rather than the floor: <c>UserStatus</c>
-    /// is an open enum (<see cref="Ion_UserStatus_OpenEnum.IsKnown"/>), a peer on a newer schema may
+    /// <para>Written as the ranking the fold is handed rather than as a <c>switch</c> it evaluates,
+    /// because the fold does not run here any more — see
+    /// <see cref="RecalculateAggregatedStatusAsync"/> for why it had to move into the store. The order
+    /// is unchanged and so is every answer it gives.</para>
+    ///
+    /// <para>A value that is not on the ladder is ranked beside <c>Online</c>, which is the same
+    /// reading the old <c>default</c> arm gave it and exists for the same reason: <c>UserStatus</c> is
+    /// an open enum (<see cref="Ion_UserStatus_OpenEnum.IsKnown"/>), a peer on a newer schema may
     /// report a member this build has never heard of, and the only safe reading of "some status I do
     /// not recognise" is "present" — reading it as Offline is exactly how defect S1 made connected
-    /// users disappear.
+    /// users disappear. It also wins <em>as itself</em>: the ladder is a precedence order, not a
+    /// normalisation, so an unknown member is written to the aggregate verbatim and a client that
+    /// knows it renders it.</para>
+    ///
+    /// <para>The one behaviour that is not identical: the old fold required the stored value to parse
+    /// as the enum and skipped it otherwise, and a script cannot parse a C# enum, so content nothing
+    /// recognises now ranks as present instead of being ignored. That is a distinction without a case
+    /// — <see cref="SetSessionStatusAsync"/> is the only writer of these keys and it writes
+    /// <c>ToString()</c> of the enum, which parses by construction, undeclared members included.</para>
     /// </remarks>
-    private static int Precedence(UserStatus status) => status switch
-    {
-        UserStatus.Offline      => 0,
-        UserStatus.Away         => 1,
-        UserStatus.TouchGrass   => 2,
-        UserStatus.Listen       => 3,
-        UserStatus.InGame       => 4,
-        UserStatus.Online       => 5,
-        UserStatus.DoNotDisturb => 6,
-        _                       => 5
-    };
+    private static readonly string[] AggregationLadder =
+    [
+        nameof(UserStatus.Offline),
+        nameof(UserStatus.Away),
+        nameof(UserStatus.TouchGrass),
+        nameof(UserStatus.Listen),
+        nameof(UserStatus.InGame),
+        nameof(UserStatus.Online),
+        nameof(UserStatus.DoNotDisturb)
+    ];
 
     private static string SessionStatusKey(Guid userId, string sessionId)
         => $"status:user:{userId}:session:{sessionId}";
@@ -584,7 +719,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     private static string LastBroadcastStatusKey(Guid userId)
         => $"status:user:{userId}:lastbroadcast";
 
-    private static readonly TimeSpan LastBroadcastTTL = TimeSpan.FromMinutes(30);
+    private TimeSpan LastBroadcastTTL => timings.LastBroadcastTtl;
 
     /// <summary>
     /// Records the status as broadcast and says whether that was a change, in one atomic step.
@@ -617,6 +752,10 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
             || !Enum.TryParse<UserStatus>(prev, out var prevStatus)
             || prevStatus != status;
     }
+
+    /// <inheritdoc cref="IUserPresenceService.ForgetLastBroadcastAsync"/>
+    public Task ForgetLastBroadcastAsync(Guid userId, CancellationToken ct = default)
+        => cache.KeyDeleteAsync(LastBroadcastStatusKey(userId), ct);
 
     public async Task<Dictionary<Guid, UserStatus>> BatchGetAggregatedStatusAsync(List<Guid> userIds, CancellationToken ct = default)
     {

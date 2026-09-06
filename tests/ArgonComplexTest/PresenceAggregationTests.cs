@@ -1,6 +1,7 @@
 namespace ArgonComplexTest;
 
 using Argon.Features.Logic;
+using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 using Argon.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -66,7 +67,8 @@ public class PresenceAggregationTests : TestBase
 
     /// <summary>
     /// The concrete service, for its TTL-taking <c>SetSessionOnlineAsync</c> overload — the interface
-    /// only offers the 120 s default, and a test that waited that out would be a test nobody runs.
+    /// only offers the configured <see cref="PresenceTimingOptions.SessionTtl"/>, and this fixture
+    /// forces its lapses rather than waiting any TTL out at all.
     /// </summary>
     private UserPresenceService PresenceImpl => (UserPresenceService)Presence;
 
@@ -789,7 +791,9 @@ public class PresenceAggregationTests : TestBase
             Assert.That(change, Is.True);
             Assert.That(again, Is.False);
             Assert.That(back, Is.True, "returning to a previous status is still a change");
-            Assert.That(ttl, Is.Not.Null.And.GreaterThan(TimeSpan.FromMinutes(29)),
+            Assert.That(ttl, Is.Not.Null.And.GreaterThan(PresenceWaits.Timings.LastBroadcastTtl - PresenceWaits.Slack),
+                "the record is not being written with its configured lifetime");
+            Assert.That(ttl, Is.Not.Null.And.GreaterThan(PresenceWaits.SessionTtl),
                 "the record has to outlive a session TTL or it stops suppressing anything");
         });
     }
@@ -974,11 +978,11 @@ public class PresenceAggregationTests : TestBase
     /// on how the key got close to expiry.</para>
     ///
     /// <para>The contract it guards (defect S16, fixed): the session keep-alive owns the activity's
-    /// lifetime. <c>RefreshSessionStatusTtlAsync</c> — the call the session grain's 15 s tick and the
-    /// bot gateway's both make — now re-arms <c>activity:user:{u}:session:{sid}</c> alongside the
-    /// status keys, so ten minutes stopped being how long a game may last and became how long an
-    /// orphaned entry lingers after its session stopped ticking. It is an <c>EXPIRE</c>, so a
-    /// cleared activity is never resurrected by a later tick.</para>
+    /// lifetime. <c>RefreshSessionStatusTtlAsync</c> — the call the session grain's tick and the bot
+    /// gateway's both make — now re-arms <c>activity:user:{u}:session:{sid}</c> alongside the status
+    /// keys, so <see cref="PresenceTimingOptions.ActivityTtl"/> stopped being how long a game may
+    /// last and became how long an orphaned entry lingers after its session stopped ticking. It is an
+    /// <c>EXPIRE</c>, so a cleared activity is never resurrected by a later tick.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task AnActivityIsRefreshedByTheSessionThatKeepsAnnouncingIt(CancellationToken ct = default)
@@ -995,8 +999,9 @@ public class PresenceAggregationTests : TestBase
 
         var fresh = await TtlOfAsync(key);
 
-        // Stand where ten minutes of play would leave it.
-        await Cache.UpdateStringExpirationAsync(key, TimeSpan.FromSeconds(30), ct);
+        // Stand where a long game would leave it: down to a tick's worth of life, with nothing but
+        // the keep-alive below to put it back.
+        await Cache.UpdateStringExpirationAsync(key, PresenceWaits.OneTick, ct);
 
         // Everything a live session does over the following seconds.
         await Presence.HeartbeatAsync(userId, sid, ct);
@@ -1008,9 +1013,9 @@ public class PresenceAggregationTests : TestBase
 
         Assert.Multiple(() =>
         {
-            Assert.That(fresh, Is.Not.Null.And.GreaterThan(TimeSpan.FromMinutes(9)),
-                "a new activity starts with the documented ten minutes");
-            Assert.That(afterKeepAlive, Is.Not.Null.And.GreaterThan(TimeSpan.FromMinutes(9)),
+            Assert.That(fresh, Is.Not.Null.And.GreaterThan(PresenceWaits.FreshActivityTtlFloor),
+                "a new activity does not start with its configured lifetime");
+            Assert.That(afterKeepAlive, Is.Not.Null.And.GreaterThan(PresenceWaits.FreshActivityTtlFloor),
                 "and a session that is still alive and still in the same game must carry its activity with it — "
               + "an activity that expires under a running game shows the user as doing nothing");
         });
@@ -1089,6 +1094,31 @@ public class PresenceAggregationTests : TestBase
     /// <para>Each iteration is a fresh user so no other session can mask the result; the assertion
     /// message carries the failure count, because a race that fires a few times in fifty is exactly
     /// as broken as one that fires every time and much easier to dismiss.</para>
+    ///
+    /// <para><b>The contract this now guards (H7, fixed).</b> The fold moved into the store.
+    /// <c>UserPresenceService.RecalculateAggregatedStatusAsync</c>
+    /// (<c>src/Argon.Core/Features/Logic/IUserPresenceService.cs</c>) was <c>SMEMBERS</c>, a
+    /// <c>GET</c> per sid and then one <c>SET</c> of <c>status:user:{u}:aggregated</c> — three round
+    /// trips with nothing holding them together, called from whichever <c>[StatelessWorker]</c>
+    /// activation happened to be running, so two folds of one user overlapped freely and the one that
+    /// read first could write last. It is now a single <c>IArgonCacheDatabase.FoldRankedSetAsync</c>,
+    /// a Lua script that reads the index, reads every session's status and writes the aggregate
+    /// without anything getting between the three. Reads can no longer be reordered against writes,
+    /// so the last write is by construction the one that saw the most recent state — which is all
+    /// this test has ever asked for. The ladder is unchanged and is passed to the script as the
+    /// ranking; the fold still keeps the winner verbatim, so
+    /// <c>ASingleSessionsStatusIsTheWholeAggregate</c> and the two- and three-session matrices are
+    /// what prove the answers did not move while the mechanism did.</para>
+    ///
+    /// <para>Before it, this fired one iteration in fifty, on one run in five of the presence shard on
+    /// a 32-core box and none at all on a quiet one — which is why it carried
+    /// <c>Category("KnownPresenceBug")</c> and why the category comes off here rather than in some
+    /// later tidy-up. The same property is also covered end to end by
+    /// <c>PresenceRaceTests.Switching_device_never_leaves_the_account_offline_while_the_new_device_is_online</c>
+    /// and <c>PresenceSessionGrainTests.Switching_device_never_leaves_the_user_reading_offline</c>;
+    /// this is the one that reaches the race directly. Note it is the same shape as, but not the same
+    /// site as, the duplicate-broadcast question in <c>MarkBroadcastIfChangedAsync</c> — that one was
+    /// closed separately, by the same argument, with <c>SET … GET</c>.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task ADeviceSwitch_NeverLeavesAConnectedUserOffline(CancellationToken ct = default)

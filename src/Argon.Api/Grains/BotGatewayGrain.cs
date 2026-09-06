@@ -94,6 +94,13 @@ public sealed class BotGatewayGrain(
         foreach (var spaceId in spaceIds)
             _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
 
+        // Disposed before it is replaced: ConnectAsync runs once per stream, not once per bot (see
+        // _openStreams), so a second stream opening while the first is alive used to overwrite the
+        // field and leak the previous timer — DisconnectAsync then disposed only the tracked one and
+        // the orphan kept ticking for the life of the activation. Harmless today because
+        // BotPresenceTickAsync short-circuits on !_isConnected, which is exactly the kind of
+        // accident-of-the-moment this class should not depend on.
+        _heartbeatTimer?.Dispose();
         _heartbeatTimer = this.RegisterGrainTimer(
             BotPresenceTickAsync,
             new GrainTimerCreationOptions(TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30)));
@@ -466,8 +473,34 @@ public sealed class BotGatewayGrain(
             _lastSequences.Select(kv => $"{kv.Key:N}:{kv.Value}")));
     }
 
+    /// <summary>
+    /// Ends the bot's presence when the grain goes away — unless it is only moving.
+    /// </summary>
+    /// <remarks>
+    /// <para>Migration is not a disconnect, it is the same gateway on another silo, and
+    /// <see cref="DisconnectAsync"/> is now a real teardown: since S23 it deletes
+    /// <c>presence:user:{bot}:session:bot_…</c> outright (not just the status key) and announces
+    /// <c>UserChangedStatus(Offline)</c> to every space the bot is in. Running that on a rebalance
+    /// took a perfectly healthy bot offline in every roster and routed <c>CallGrain</c> to void
+    /// until its SSE stream happened to be re-established — silo housekeeping that nobody would
+    /// connect to a bot going dark. <c>UserSessionGrain.OnDeactivateAsync</c> spells out the same
+    /// reasoning for human sessions and returns early on the same reason code; this is that guard.</para>
+    ///
+    /// <para>Nothing is lost by skipping the teardown here: the presence key carries a TTL that the
+    /// tick on the new activation renews, and the NATS consumers are durable, so the target picks
+    /// the stream up where this one left it.</para>
+    /// </remarks>
     public override async Task OnDeactivateAsync(DeactivationReason reason, CancellationToken cancellationToken)
     {
+        if (reason.ReasonCode == DeactivationReasonCode.Migrating)
+        {
+            _heartbeatTimer?.Dispose();
+            _heartbeatTimer = null;
+
+            await base.OnDeactivateAsync(reason, cancellationToken);
+            return;
+        }
+
         if (_isConnected)
         {
             // Whatever streams were still open die with the grain, so this is the last one out.

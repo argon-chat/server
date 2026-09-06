@@ -122,6 +122,18 @@ public static class WebSessionEndpoints
 
                     await cache.SetAddAsync(key, id.ToString(), ct);
 
+                    // Both halves of the identity, as everywhere else a session is ended. The cookie's
+                    // sid is the server-minted credential one, which stops the refresh; the presence
+                    // sid is what the hub gate and the interceptor look up, and without it the tab
+                    // that just signed out kept its realtime feed until the socket happened to drop.
+                    // See SessionRevocation's remarks for why one is never enough.
+                    // Empty is "nothing was carried" and AllBitsSet is what a development host hands
+                    // every caller that sent no session header — neither names a device, and
+                    // tombstoning either would sign out everyone who shares the placeholder.
+                    if (http.TryGetSessionId(out var presenceSessionId)
+                        && presenceSessionId != Guid.Empty && presenceSessionId != Guid.AllBitsSet)
+                        await cache.SetAddAsync(key, presenceSessionId.ToString(), ct);
+
                     // EXPIRE, not GETEX — KeyExpireAsync is StringGetSetExpiry underneath and answers
                     // WRONGTYPE against the set just written. Here the throw was swallowed by the catch
                     // below, so web logout worked but left the tombstone with no TTL at all; the same

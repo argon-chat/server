@@ -56,14 +56,12 @@ public class DefaultHeaderInterceptor : IIonInterceptor
     public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
     {
         context.RequestItems.Add("Sec-Ref", _sessionId.ToString());
-        // X-Ctt carries the same value, and without it the session id this client claims is thrown
-        // away. HttpContextExtensions.GetSessionId checks the ArgonSecure cookie, then — on a
-        // Development host, which is what WebApplicationFactory boots — returns Guid.AllBitsSet for
-        // any caller that did not send X-Ctt, never reaching the Sec-Ref fallback below it. Every
-        // client in the test process would therefore be one session: one session grain per user, one
-        // row on the devices screen, and no way to express two devices of one account at all. The
-        // header changes nothing anywhere else — it is read in that one branch and nowhere in
-        // production — so sending it makes the suite behave the way a deployed server does.
+        // X-Ctt names the session explicitly for a Development host (which is what
+        // WebApplicationFactory boots). HttpContextExtensions.GetSessionId used to return
+        // Guid.AllBitsSet there for any caller without it — never reaching Sec-Ref — so every client
+        // in the process collapsed into one session. That branch now falls through to Sec-Ref, so
+        // the header is belt-and-braces: it is read only there and nowhere in production, and it
+        // keeps the suite honest even if the fallback order ever regresses.
         context.RequestItems.Add("X-Ctt", _sessionId.ToString());
         context.RequestItems.Add("Sec-Ner", "1");
         context.RequestItems.Add("Sec-Carry", _machineId.ToString());

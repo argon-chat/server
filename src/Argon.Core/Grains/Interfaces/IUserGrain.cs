@@ -66,6 +66,35 @@ public interface IUserGrain : IGrainWithGuidKey
     ValueTask AggregateAndBroadcastStatusAsync(CancellationToken ct = default);
 
     /// <summary>
+    /// The same, plus spaces that must be told the aggregate whether or not it changed.
+    /// </summary>
+    /// <remarks>
+    /// <para>For a join. A space that has just gained a member has heard nothing about them ever, so
+    /// "nothing changed" is the wrong answer for it and the right answer for everybody else: the
+    /// per-user hysteresis record (<c>status:user:{u}:lastbroadcast</c>) exists to stop a re-asserted
+    /// status being fanned out to spaces that already have it, and a seed is precisely the case it
+    /// gets wrong.</para>
+    ///
+    /// <para>Why here rather than in <c>SpaceGrain.UserJoined</c>, which used to read the aggregate
+    /// and announce it itself: the same user's first heartbeat runs the ordinary fan-out through this
+    /// grain at the same instant, and the two racing over one Redis record produced a hysteresis entry
+    /// that disagreed with the aggregate — after which the next real transition was suppressed for
+    /// <em>every</em> space, not only the new one. One owner for the read, the record and the
+    /// announcement is what removes the interleaving rather than narrowing it.</para>
+    ///
+    /// <para>An Offline aggregate announces nothing at all, to the seeds included: a member who
+    /// accepted an invite without ever opening the app has no status to report, and the space has no
+    /// stale value to correct — see <c>SpaceGrain.UserJoined</c>.</para>
+    ///
+    /// <para>A seed is announced by publishing to the space's group directly rather than by calling
+    /// that space's grain, which is what lets a <c>SpaceGrain</c> await this from inside its own turn
+    /// without deadlocking on itself. Passing a space that is <em>not</em> the caller is still correct;
+    /// it simply skips a hop.</para>
+    /// </remarks>
+    [Alias("AggregateAndBroadcastStatusAsyncSeeded")]
+    ValueTask AggregateAndBroadcastStatusAsync(Guid[] seedSpaces, CancellationToken ct = default);
+
+    /// <summary>
     /// Sends this user's sessions the current status of each of their friends.
     /// Called by UserSessionGrain when a session starts: presence events only travel forward in
     /// time, so a fresh session knows nothing about friends who came online before it connected.
@@ -94,15 +123,27 @@ public interface IUserGrain : IGrainWithGuidKey
     ValueTask LeaveAllVoiceAsync(CancellationToken ct = default);
 
     /// <summary>
-    /// The space a channel belongs to, but only when this user is a member of that space — otherwise
-    /// <c>null</c>.
+    /// The space a channel belongs to, but only when this user may actually see that channel —
+    /// otherwise <c>null</c>.
     /// </summary>
     /// <remarks>
-    /// The channel half of the hub's subscribe gate (defect S11). <c>AppHub.SubscribeToChannel</c>
+    /// <para>The channel half of the hub's subscribe gate (defect S11). <c>AppHub.SubscribeToChannel</c>
     /// joined <c>channels/{id}</c> for any id an authenticated caller named, so a stranger who knew a
-    /// channel id received everything published to it. The space is the authority on membership and
+    /// channel id received everything published to it. The space is the authority and
     /// <c>IChannelGrain</c> exposes no space accessor, so the lookup lives here where the DbContext
-    /// does — one indexed read, at most once per channel the client opens.
+    /// does — one indexed read, at most once per channel the client opens.</para>
+    ///
+    /// <para><b>Membership is necessary and not sufficient</b>, despite the name this method has kept:
+    /// it answers with the space id only when the caller is a member <em>and</em> holds
+    /// <c>ArgonEntitlement.ViewChannel</c> on that channel, resolved through the same
+    /// <c>EntitlementEvaluator.ApplyPermissionOverwrites</c> path
+    /// <c>SpaceReadGrain.VisibleChannelsAsync</c> filters the channel list with. Space membership
+    /// alone let any member of a space subscribe to its moderators-only channel and read every
+    /// message posted in it live, while the same channel was correctly missing from their roster. The
+    /// two answers now come from the same rule, deliberately, so they cannot drift apart.</para>
+    ///
+    /// <para>Null covers all three refusals — no such channel, not a member, not permitted — because
+    /// telling them apart tells a caller which channels exist and who can see them.</para>
     /// </remarks>
     [Alias(nameof(ResolveChannelSpaceIfMemberAsync))]
     Task<Guid?> ResolveChannelSpaceIfMemberAsync(Guid channelId, CancellationToken ct = default);

@@ -31,6 +31,21 @@ using ion.runtime.client;
 /// interceptor, because the sid is minted client-side: two <see cref="RealtimeClient"/>s over one
 /// <see cref="TestUserSession"/> are two windows of one session and would exercise nothing about the
 /// per-session activity keys this fixture is here to check.</para>
+///
+/// <para>Every wait for an event that <em>must</em> arrive is <see cref="PresenceWaits.Settle"/>,
+/// never <see cref="PresenceWaits.NegativeWindow"/>. The two are not interchangeable even though
+/// both are a few seconds: the negative window is a length of time to watch for something that
+/// should not happen, and using it for something that should makes the assertion "this arrived
+/// within four seconds" rather than "this arrived". Announcing an activity from a second device is
+/// an Ion RPC, a relational read for the announcer's spaces, a grain hop per space and a SignalR
+/// fan-out, all of it against cold activations on a loaded box, so the budget wants to be generous;
+/// a passing wait spends nothing, so it costs the suite no time at all.</para>
+///
+/// <para>A longer budget is not, however, what made the two-device tests stop flaking, and it is
+/// worth saying so here because the symptom invites the wrong fix. They failed because the second
+/// device announced before its hub attach had put it in the live-session index, so the event they
+/// were waiting for was never going to arrive however long they waited — see
+/// <see cref="RequireLiveDevicesAsync"/>, which is what establishes that premise now.</para>
 /// </remarks>
 [TestFixture]
 public class PresenceActivityTests : TestBase
@@ -68,11 +83,11 @@ public class PresenceActivityTests : TestBase
         await player.Users.BroadcastPresence(activity, ct);
 
         var record  = await watcher.WaitForRecordAsync<OnUserPresenceActivityChanged>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), announced, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, announced, ct);
         var changed = (OnUserPresenceActivityChanged)record.Event;
 
         var snapshot = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found?.titleName == activity.titleName, TimeSpan.FromSeconds(10), ct);
+            found => found?.titleName == activity.titleName, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -119,10 +134,10 @@ public class PresenceActivityTests : TestBase
         await player.Users.RemoveBroadcastPresence(ct);
 
         var removed = await watcher.WaitForRecordAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), beforeRemoval, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeRemoval, ct);
 
         var snapshot = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found is null, TimeSpan.FromSeconds(10), ct);
+            found => found is null, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -134,31 +149,32 @@ public class PresenceActivityTests : TestBase
     }
 
     /// <summary>
-    /// The ten-minute activity key is kept alive for as long as the session that announced it is
-    /// alive and heartbeating.
+    /// The activity key is kept alive for as long as the session that announced it is alive and
+    /// heartbeating.
     /// </summary>
     /// <remarks>
     /// <para>A session that is still connected, still ticking and still playing the same game is the
     /// most ordinary state this system has, and the activity's lifetime has to survive it. The desktop
     /// client dedupes identical presence and never re-sends, so nothing outside the server will
     /// refresh this key on its behalf; if the server does not, the activity dies under a running game.
-    /// The TTL is sampled at the broadcast and again forty seconds later — long enough for two of the
-    /// grain's fifteen-second ticks and several client heartbeats.</para>
+    /// The TTL is sampled at the broadcast and again three refresh periods later — long enough for
+    /// several of the grain's ticks and several client heartbeats.</para>
     ///
     /// <para>The contract (defect S16, fixed): the session's keep-alive owns the activity's lifetime.
-    /// <c>UserPresenceService.RefreshSessionStatusTtlAsync</c> — the call the session grain's 15 s tick
-    /// and the bot gateway's 30 s tick both make — re-arms <c>activity:user:{u}:session:{sid}</c>
-    /// alongside the status keys, so ten minutes stopped being how long a game may last and became how
-    /// long an orphaned entry lingers after its session stopped ticking.</para>
+    /// <c>UserPresenceService.RefreshSessionStatusTtlAsync</c> — the call the session grain's tick and
+    /// the bot gateway's both make — re-arms <c>activity:user:{u}:session:{sid}</c> alongside the
+    /// status keys, so <see cref="PresenceTimingOptions.ActivityTtl"/> stopped being how long a game
+    /// may last and became how long an orphaned entry lingers after its session stopped ticking.</para>
     ///
-    /// <para>The threshold below follows that cadence rather than the sample: a key re-armed to its
-    /// full ten minutes on every 15 s tick reads somewhere in 585–600 s whenever it is looked at, so
-    /// ≥ 580 s is "renewed within the last tick, with slack for a loaded worker". It is not a weakened
-    /// assertion — a build that never renews reads 560 s at this sample point and fails by twenty
-    /// seconds. An earlier ≥ 590 s here demanded renewal within the last ten seconds, which a
-    /// fifteen-second tick cannot promise, and missed by 45 ms deterministically.</para>
+    /// <para>The threshold follows that cadence rather than the sample: a key re-armed to its full
+    /// lifetime on every tick is never more than a tick below full whenever it is looked at, so
+    /// <see cref="PresenceWaits.FreshActivityTtlFloor"/> — two ticks below full — is "renewed within
+    /// the last tick, with slack for a loaded worker". It is not a weakened assertion: a build that
+    /// never renews has lost the whole sampling window off the TTL by this point and fails by a
+    /// margin of one more tick. Allowing only one tick would demand a renewal the tick itself cannot
+    /// promise, which is how an earlier form of this missed by 45 ms deterministically.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(1000 * 60 * 3)]
+    [Test, CancelAfter(120_000)]
     public async Task An_activity_keeps_its_lifetime_refreshed_while_the_session_lives(CancellationToken ct = default)
     {
         var observer = await CreateSessionAsync(ct);
@@ -178,11 +194,13 @@ public class PresenceActivityTests : TestBase
 
         // A fixed wait on purpose: the claim is that a value does NOT decay while the session lives,
         // and there is no state change to poll for. The client heartbeat cadence is the real one.
-        var alive = Stopwatch.StartNew();
-        while (alive.Elapsed < TimeSpan.FromSeconds(40))
+        var alive  = Stopwatch.StartNew();
+        var living = PresenceWaits.Ticks(3);
+
+        while (alive.Elapsed < living)
         {
             await playing.Heartbeat(UserStatus.Online, ct);
-            await Task.Delay(TimeSpan.FromSeconds(10), ct);
+            await Task.Delay(PresenceWaits.Tick, ct);
         }
 
         var ttlAfterLiving = await probe.TtlOf(key);
@@ -193,14 +211,160 @@ public class PresenceActivityTests : TestBase
             Assert.That(stillAlive, Is.True,
                 "the session died during the test, so the TTL says nothing about a live session");
             Assert.That(ttlAtBroadcast, Is.Not.Null, "no activity key was written by BroadcastPresence");
-            Assert.That(ttlAtBroadcast!.Value.TotalSeconds, Is.GreaterThan(580).And.LessThanOrEqualTo(601),
-                "the activity key was not written with the documented ten-minute lifetime");
+            Assert.That(ttlAtBroadcast!.Value,
+                Is.GreaterThan(PresenceWaits.FreshActivityTtlFloor)
+                   .And.LessThanOrEqualTo(PresenceWaits.ActivityTtl + PresenceWaits.Immediately),
+                "the activity key was not written with the configured activity lifetime");
             Assert.That(ttlAfterLiving, Is.Not.Null, "the activity key vanished while the session was alive");
-            Assert.That(ttlAfterLiving!.Value.TotalSeconds, Is.GreaterThanOrEqualTo(580),
+            Assert.That(ttlAfterLiving!.Value, Is.GreaterThanOrEqualTo(PresenceWaits.FreshActivityTtlFloor),
                 $"the activity's lifetime is draining under a live, heartbeating session " +
                 $"({ttlAtBroadcast.Value.TotalSeconds:F0}s at the broadcast, {ttlAfterLiving.Value.TotalSeconds:F0}s " +
                 $"{alive.Elapsed.TotalSeconds:F0}s later) — the session keep-alive is no longer renewing it, so the " +
                 "activity dies on the clock under a running game");
+        });
+    }
+
+    /// <summary>
+    /// An activity the client keeps announcing outlives the lifetime it was written with.
+    /// </summary>
+    /// <remarks>
+    /// <para>The renewal above is bounded — <see cref="PresenceTimingOptions.ActivityReassertWindow"/>
+    /// — and this is the half of that bound which must keep working: a client that is still there
+    /// re-announces a live activity every few minutes, and every announcement re-signs the lease, so
+    /// the entry never reaches the far side of its own <see cref="PresenceTimingOptions.ActivityTtl"/>.
+    /// Nothing shorter than the TTL can prove it: a sample taken inside the lifetime the entry was
+    /// written with cannot distinguish a renewal from the original write, which is exactly why the
+    /// test above (three ticks of samples) says nothing about the bound.</para>
+    ///
+    /// <para>The re-announcement cadence is the shipped ratio, a third of the window, and the
+    /// heartbeat is the ordinary one — the tick is what renews, so a session that stopped being heard
+    /// from would take the activity down with it and the failure would name the wrong thing.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task An_activity_that_keeps_being_announced_outlives_its_own_lifetime(CancellationToken ct = default)
+    {
+        var observer = await CreateSessionAsync(ct);
+        var player   = await CreateSessionAsync(ct);
+
+        var spaceId = await CreateSpaceAsync(observer, "Activity Lease Held", ct);
+        await JoinAsync(observer, player, spaceId, ct);
+
+        await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
+        await using var playing = await RealtimeClient.ConnectAsync(player, ct);
+
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Outer Wilds");
+        await AnnounceAndAwaitAsync(player, watcher, activity, ct);
+
+        var key      = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
+        var reassert = PresenceWaits.Timings.ActivityReassertWindow / 3;
+
+        // Fixed on purpose: the claim is that something does NOT expire, and there is no edge to poll
+        // for. Long enough that a key nothing renewed is certainly gone.
+        var alive          = Stopwatch.StartNew();
+        var lastReasserted = TimeSpan.Zero;
+
+        while (alive.Elapsed < PresenceWaits.PastActivityTtl)
+        {
+            await playing.Heartbeat(UserStatus.Online, ct);
+
+            if (alive.Elapsed - lastReasserted >= reassert)
+            {
+                await player.Users.BroadcastPresence(activity, ct);
+                lastReasserted = alive.Elapsed;
+            }
+
+            await Task.Delay(PresenceWaits.Tick, ct);
+        }
+
+        var stillThere   = await probe.Exists(key);
+        var ttl          = await probe.TtlOf(key);
+        var sessionAlive = await probe.IsSessionAliveAsync(player.UserId, player.SessionId, ct);
+        var snapshot     = await SnapshotOf(observer, spaceId, player.UserId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sessionAlive, Is.True,
+                "the announcing session died during the test, so its activity was allowed to go and this says "
+              + "nothing about the lease");
+            Assert.That(stillThere, Is.True,
+                $"an activity re-announced every {reassert} is gone {alive.Elapsed.TotalSeconds:F0}s later, past its "
+              + $"{PresenceWaits.ActivityTtl} lifetime: the lease the session tick renews on is not being re-signed "
+              + "by the client's announcements, so a game outlives its badge");
+            Assert.That(ttl, Is.Not.Null.And.GreaterThanOrEqualTo(PresenceWaits.FreshActivityTtlFloor),
+                $"the activity survived but is draining ({ttl}), so it is living on one write rather than on a lease");
+            Assert.That(snapshot?.activity?.titleName, Is.EqualTo(activity.titleName),
+                "the space snapshot lost the activity of a session that never stopped announcing it");
+        });
+    }
+
+    /// <summary>
+    /// An activity nobody re-announces lapses once the window closes — the client that died does not
+    /// keep playing for ever.
+    /// </summary>
+    /// <remarks>
+    /// <para>The other half of the bound, and the failure it was introduced to prevent. Renewing the
+    /// activity for the life of the session cured a game that lapsed under a running client and made
+    /// its mirror image permanent: the only thing that erases an activity is the client's explicit
+    /// <c>RemoveBroadcastPresence</c>, and a client that is killed outright — or whose removal is lost
+    /// to a token refresh or a dropped connection — never sends it, so the tick renewed a finished
+    /// game for the rest of the session, hours after it closed.</para>
+    ///
+    /// <para>Both bounds are asserted, because only the pair distinguishes the fix from either thing
+    /// it sits between: the entry must survive past its own <see cref="PresenceTimingOptions.ActivityTtl"/>
+    /// (the renewal really was running while the lease held, so this is not the un-renewed behaviour
+    /// with a new name) and must be gone within the window plus a lifetime (the renewal really did
+    /// stop). The session is kept alive and heartbeating throughout: the only thing that stops is the
+    /// announcement, which is precisely what a killed client stops doing.</para>
+    /// </remarks>
+    [Test, CancelAfter(150_000)]
+    public async Task An_activity_nobody_re_announces_lapses_once_the_window_closes(CancellationToken ct = default)
+    {
+        var observer = await CreateSessionAsync(ct);
+        var player   = await CreateSessionAsync(ct);
+
+        var spaceId = await CreateSpaceAsync(observer, "Activity Lease Lapsed", ct);
+        await JoinAsync(observer, player, spaceId, ct);
+
+        await using var watcher = await RealtimeClient.ConnectAsync(observer, ct);
+        await using var playing = await RealtimeClient.ConnectAsync(player, ct);
+
+        var activity = new UserActivityPresence(ActivityPresenceKind.GAME, StartedNow(), "Subnautica");
+        await AnnounceAndAwaitAsync(player, watcher, activity, ct);
+
+        var key       = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
+        var window    = PresenceWaits.Timings.ActivityReassertWindow;
+        var announced = Stopwatch.StartNew();
+
+        // The game closes without saying so. The client is still there — still connected, still
+        // heartbeating — which is the whole point: nothing but the announcement stops.
+        using var stopBeating = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var beating = HeartbeatUntilAsync(playing, stopBeating.Token);
+
+        var lapsed = await Poll.UntilAsync(
+            async () => !await probe.Exists(key),
+            window + PresenceWaits.PastActivityTtl,
+            ct: ct);
+
+        var lapsedAfter  = announced.Elapsed;
+        var sessionAlive = await probe.IsSessionAliveAsync(player.UserId, player.SessionId, ct);
+
+        await stopBeating.CancelAsync();
+        await beating;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(sessionAlive, Is.True,
+                "the session died before the lease did, so what expired here was a session's activity rather than "
+              + "an unattended one");
+            Assert.That(lapsed, Is.True,
+                $"an activity nobody has announced for {lapsedAfter.TotalSeconds:F0}s — past the {window} re-assert "
+              + $"window and a further {PresenceWaits.ActivityTtl} lifetime — is still being renewed by the session "
+              + "tick. A client that was killed mid-game leaves the user playing it for the rest of the session");
+            Assert.That(lapsedAfter, Is.GreaterThan(PresenceWaits.ActivityTtl),
+                $"the activity lapsed after {lapsedAfter.TotalSeconds:F0}s, inside its own "
+              + $"{PresenceWaits.ActivityTtl} lifetime: nothing renewed it at all, which is the defect the lease "
+              + "replaced rather than the bound on it");
         });
     }
 
@@ -251,14 +415,14 @@ public class PresenceActivityTests : TestBase
         var key         = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
         var beforeLapse = watcher.Mark();
 
-        // Shortened and then polled for absence, and retried: the session's 15 s tick re-arms this key
-        // now that S16 is fixed, so a shortening that lands just before a tick is undone once. Each
-        // attempt gives the one-second TTL five seconds to actually lapse.
+        // Shortened and then polled for absence, and retried: the session's tick re-arms this key now
+        // that S16 is fixed, so a shortening that lands just before a tick is undone once. Each
+        // attempt gives the shortened TTL a tick and more to actually lapse.
         var lapsed = false;
         for (var attempt = 0; attempt < 3 && !lapsed; attempt++)
         {
-            await probe.ForceExpire(key, TimeSpan.FromSeconds(1));
-            lapsed = await Poll.UntilAsync(async () => !await probe.Exists(key), TimeSpan.FromSeconds(5), ct: ct);
+            await probe.ForceExpire(key, PresenceWaits.Immediately);
+            lapsed = await Poll.UntilAsync(async () => !await probe.Exists(key), PresenceWaits.OneTick, ct: ct);
         }
 
         Assert.That(lapsed, Is.True, "the activity key would not expire, so this test cannot say anything");
@@ -273,7 +437,7 @@ public class PresenceActivityTests : TestBase
         // Fixed window: proving that an event the product never emits does not arrive. Generous
         // enough to cover a session tick and a grace reminder, either of which could carry a sweep.
         var retraction = await watcher.FirstWithinAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(20), beforeLapse, ct);
+            e => e.userId == player.UserId, PresenceWaits.GraceAndABit, beforeLapse, ct);
 
         Assert.Multiple(() =>
         {
@@ -317,6 +481,8 @@ public class PresenceActivityTests : TestBase
         Assert.That(phone.SessionId, Is.Not.EqualTo(player.SessionId),
             "the second device claims the same sid as the first, so this is one session, not two");
 
+        await RequireLiveDevicesAsync(player.UserId, ct, player.SessionId, phone.SessionId);
+
         var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio");
         var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne");
 
@@ -327,10 +493,10 @@ public class PresenceActivityTests : TestBase
 
         var representative = await watcher.WaitForAsync<OnUserPresenceActivityChanged>(
             e => e.userId == player.UserId && e.presence.startTimestampSeconds == music.startTimestampSeconds,
-            TimeSpan.FromSeconds(5), beforeMusic, ct);
+            PresenceWaits.Settle, beforeMusic, ct);
 
         var snapshot = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found?.titleName == music.titleName, TimeSpan.FromSeconds(10), ct);
+            found => found?.titleName == music.titleName, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -365,6 +531,8 @@ public class PresenceActivityTests : TestBase
         await using var desktop = await RealtimeClient.ConnectAsync(player, ct);
         await using var mobile  = await RealtimeClient.ConnectAsync(phone, ct);
 
+        await RequireLiveDevicesAsync(player.UserId, ct, player.SessionId, phone.SessionId);
+
         var game  = new UserActivityPresence(ActivityPresenceKind.GAME, 100, "Factorio");
         var music = new UserActivityPresence(ActivityPresenceKind.LISTEN, 200, "Rammstein - Sonne");
 
@@ -374,14 +542,14 @@ public class PresenceActivityTests : TestBase
         await phone.Users.BroadcastPresence(music, ct);
         await watcher.WaitForAsync<OnUserPresenceActivityChanged>(
             e => e.userId == player.UserId && e.presence.startTimestampSeconds == music.startTimestampSeconds,
-            TimeSpan.FromSeconds(5), beforeMusic, ct);
+            PresenceWaits.Settle, beforeMusic, ct);
 
         var beforeMusicStops = watcher.Mark();
         await phone.Users.RemoveBroadcastPresence(ct);
 
         var fellBack = await watcher.WaitForAsync<OnUserPresenceActivityChanged>(
             e => e.userId == player.UserId && e.presence.startTimestampSeconds == game.startTimestampSeconds,
-            TimeSpan.FromSeconds(5), beforeMusicStops, ct);
+            PresenceWaits.Settle, beforeMusicStops, ct);
 
         // Cheap and free of extra wall clock: the fall-back event has already arrived, so anything
         // that told the observer to drop the activity entirely is by now in the recorded log.
@@ -390,7 +558,7 @@ public class PresenceActivityTests : TestBase
            .ToList();
 
         var afterFallback = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found?.titleName == game.titleName, TimeSpan.FromSeconds(10), ct);
+            found => found?.titleName == game.titleName, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -405,10 +573,10 @@ public class PresenceActivityTests : TestBase
         await desktop.GoOffline(ct);
 
         var removed = await watcher.WaitForRecordAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), beforeDesktopLeaves, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeDesktopLeaves, ct);
 
         var afterEverything = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found is null, TimeSpan.FromSeconds(10), ct);
+            found => found is null, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -445,10 +613,10 @@ public class PresenceActivityTests : TestBase
         await playing.GoOffline(ct);
 
         await watcher.WaitForAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), beforeGoodbye, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeGoodbye, ct);
 
         var snapshot = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found is null, TimeSpan.FromSeconds(10), ct);
+            found => found is null, PresenceWaits.Settle, ct);
 
         var keyLeft = await probe.Exists(PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId));
 
@@ -471,12 +639,12 @@ public class PresenceActivityTests : TestBase
     /// lifetimes (two minutes against ten), so a drop is exactly where they can come apart, and the
     /// direction that hurts is the activity surviving the presence.</para>
     ///
-    /// <para>The grace cannot be hurried — an Orleans reminder has a one-minute floor — but the
-    /// presence key can be shortened so that the first reminder tick already finds the session dead
-    /// and finalizes it. That is why this test is <c>Slow</c>: roughly a minute of it is the product's
-    /// own clock.</para>
+    /// <para>The grace cannot be hurried — an Orleans reminder is floored at
+    /// <see cref="PresenceTimingOptions.ReminderFloor"/> — but the presence key can be shortened so
+    /// that the first reminder tick already finds the session dead and finalizes it. What is left is
+    /// the product's own clock, and the whole of what this test spends.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(1000 * 60 * 4)]
+    [Test, CancelAfter(120_000)]
     public async Task An_ungraceful_drop_takes_the_activity_no_later_than_the_presence(CancellationToken ct = default)
     {
         var observer = await CreateSessionAsync(ct);
@@ -497,21 +665,21 @@ public class PresenceActivityTests : TestBase
         // Nothing refreshes a detached session's presence key, so shortening it is safe and makes the
         // first grace tick find the session already gone instead of waiting out the full TTL.
         await probe.ForceExpire(PresenceProbe.PresenceSessionKey(player.UserId, player.SessionId),
-            TimeSpan.FromSeconds(2));
+            PresenceWaits.Immediately);
 
         var offline = await watcher.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == player.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(150), beforeDrop, ct);
+            PresenceWaits.GraceAndABit, beforeDrop, ct);
 
         var removed = await watcher.WaitForRecordAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(30), beforeDrop, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeDrop, ct);
 
         var snapshot = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found is null, TimeSpan.FromSeconds(10), ct);
+            found => found is null, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
-            Assert.That(removed.ReceivedAt, Is.LessThanOrEqualTo(offline.ReceivedAt + TimeSpan.FromSeconds(2)),
+            Assert.That(removed.ReceivedAt, Is.LessThanOrEqualTo(offline.ReceivedAt + PresenceWaits.Slack),
                 $"the activity outlived the presence: Offline at {offline.ReceivedAt:HH:mm:ss.fff}, " +
                 $"activity removed at {removed.ReceivedAt:HH:mm:ss.fff}");
             Assert.That(snapshot, Is.Null,
@@ -553,7 +721,7 @@ public class PresenceActivityTests : TestBase
         // A fixed window because the claim is that nothing happens; five seconds covers the detach,
         // the re-attach and any fan-out either of them could have triggered.
         var removal = await watcher.FirstWithinAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), beforeDrop, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeDrop, ct);
 
         var snapshot = await SnapshotOf(observer, spaceId, player.UserId, ct);
 
@@ -591,16 +759,16 @@ public class PresenceActivityTests : TestBase
         await AnnounceAndAwaitAsync(player, watcher, activity, ct);
 
         var key = PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId);
-        Assert.That(await probe.ForceExpire(key, TimeSpan.FromSeconds(1)), Is.True);
+        Assert.That(await probe.ForceExpire(key, PresenceWaits.Immediately), Is.True);
 
-        var lapsed = await Poll.UntilAsync(async () => !await probe.Exists(key), TimeSpan.FromSeconds(10), ct: ct);
+        var lapsed = await Poll.UntilAsync(async () => !await probe.Exists(key), PresenceWaits.Settle, ct: ct);
         Assert.That(lapsed, Is.True, "the activity key would not expire");
 
         var beforeClear = watcher.Mark();
         await player.Users.RemoveBroadcastPresence(ct);
 
         var removed = await watcher.WaitForRecordAsync<OnUserPresenceActivityRemoved>(
-            e => e.userId == player.UserId, TimeSpan.FromSeconds(5), beforeClear, ct);
+            e => e.userId == player.UserId, PresenceWaits.Settle, beforeClear, ct);
 
         Assert.That(removed.SpaceId, Is.EqualTo(spaceId),
             "the removal was announced to a different space than the one the user is in");
@@ -654,7 +822,7 @@ public class PresenceActivityTests : TestBase
 
         var announced = await watcher.FirstWithinAsync<OnUserPresenceActivityChanged>(
             e => e.userId == player.UserId && e.presence.titleName == activity.titleName,
-            TimeSpan.FromSeconds(10), beforeAnnounce, ct);
+            PresenceWaits.Settle, beforeAnnounce, ct);
 
         var snapshotBeforeConnect = await SnapshotOf(observer, spaceId, player.UserId, ct);
 
@@ -664,10 +832,10 @@ public class PresenceActivityTests : TestBase
 
         await Poll.UntilAsync(
             async () => (await SnapshotOf(observer, spaceId, player.UserId, ct))?.status != UserStatus.Offline,
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var snapshotAfterConnect = await WaitForSnapshotActivityAsync(observer, spaceId, player.UserId,
-            found => found?.titleName == activity.titleName, TimeSpan.FromSeconds(15), ct);
+            found => found?.titleName == activity.titleName, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -731,15 +899,16 @@ public class PresenceActivityTests : TestBase
         await playing.AbortAsync(ct: ct);
 
         // Everything that says "this session is here" is brought forward to the far side of its TTL;
-        // the activity key, with its ten minutes, is left exactly as the product wrote it.
-        await probe.ForceExpire(PresenceProbe.PresenceSessionKey(player.UserId, player.SessionId), TimeSpan.FromSeconds(1));
-        await probe.ForceExpire(PresenceProbe.SessionStatusKey(player.UserId, player.SessionId), TimeSpan.FromSeconds(1));
-        await probe.ForceExpire(PresenceProbe.AggregatedStatusKey(player.UserId), TimeSpan.FromSeconds(1));
+        // the activity key, whose lifetime is the longer of the two, is left exactly as the product
+        // wrote it — the gap between the two clocks is the window under test.
+        await probe.ForceExpire(PresenceProbe.PresenceSessionKey(player.UserId, player.SessionId), PresenceWaits.Immediately);
+        await probe.ForceExpire(PresenceProbe.SessionStatusKey(player.UserId, player.SessionId), PresenceWaits.Immediately);
+        await probe.ForceExpire(PresenceProbe.AggregatedStatusKey(player.UserId), PresenceWaits.Immediately);
 
         var snapshot = await Poll.ForValueAsync(
             () => SnapshotOf(observer, spaceId, player.UserId, ct),
             found => found?.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var activityKeyAlive = await probe.Exists(PresenceProbe.ActivitySessionKey(player.UserId, player.SessionId));
 
@@ -762,6 +931,31 @@ public class PresenceActivityTests : TestBase
     private static ulong StartedNow()
         => (ulong)DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
+    /// <summary>
+    /// Heartbeats a connected client until told to stop — the client that is still there.
+    /// </summary>
+    /// <remarks>
+    /// Needed by anything that waits longer than
+    /// <see cref="PresenceTimingOptions.StaleConnectionAfter"/>: the session counts a connection only
+    /// while it is heard from, and <see cref="RealtimeClient"/> sends nothing of its own, so a test
+    /// that merely waits is modelling a dead transport rather than a quiet one.
+    /// </remarks>
+    private static async Task HeartbeatUntilAsync(RealtimeClient client, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await client.Heartbeat(UserStatus.Online, ct);
+                await Task.Delay(PresenceWaits.Tick, ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The only way out.
+        }
+    }
+
     /// <summary>Announces an activity and returns once the watching observer has seen it.</summary>
     private static async Task AnnounceAndAwaitAsync(TestUserSession player, RealtimeClient watcher,
         UserActivityPresence activity, CancellationToken ct)
@@ -771,7 +965,7 @@ public class PresenceActivityTests : TestBase
 
         await watcher.WaitForAsync<OnUserPresenceActivityChanged>(
             e => e.userId == player.UserId && e.presence.titleName == activity.titleName,
-            TimeSpan.FromSeconds(10), announced, ct);
+            PresenceWaits.Settle, announced, ct);
     }
 
     private static async Task<MemberPresence?> SnapshotOf(TestUserSession reader, Guid spaceId, Guid userId,
@@ -787,6 +981,42 @@ public class PresenceActivityTests : TestBase
         => Poll.ForValueAsync(
             async () => (await SnapshotOf(reader, spaceId, userId, ct))?.activity,
             accept, timeout, ct: ct);
+
+    /// <summary>
+    /// Blocks until every named device of an account is in the live-session index, which is what the
+    /// activity fold reads.
+    /// </summary>
+    /// <remarks>
+    /// <para><see cref="RealtimeClient.ConnectAsync"/> returns when the SignalR handshake completes,
+    /// and the hub's <c>OnConnectedAsync</c> — which is what calls <c>AttachConnectionAsync</c> and
+    /// so writes the session's presence key and its entry in <c>presence:user:{u}:sessions</c> — runs
+    /// after that. A device that announces an activity inside that window is not in the index yet,
+    /// and <c>UserPresenceService.GetUserActivitiesAsync</c> folds over exactly that index: the
+    /// announcement is stored under its own key but contributes nothing to the representative, so
+    /// observers are told the OTHER device's older activity and nothing ever corrects them — no
+    /// re-broadcast happens when the attach lands.</para>
+    ///
+    /// <para>That is the accepted read-side contract (the fold counts live sessions only; the same
+    /// property is pinned green by
+    /// <c>PresenceAggregationTests.AnActivityForASessionOutsideTheIndex_IsInvisibleToReadersAndStillClearable</c>),
+    /// so a two-device test has to establish its own premise rather than assume it. This waits for
+    /// that premise and asserts nothing about the behaviour under test — it is the reason those two
+    /// tests used to fail perhaps one run in three on a loaded box, always with the first device's
+    /// activity in the event the second device's announcement produced.</para>
+    /// </remarks>
+    private async Task RequireLiveDevicesAsync(Guid userId, CancellationToken ct, params Guid[] sids)
+    {
+        var wanted = sids.Select(sid => sid.ToString()).ToArray();
+
+        var live = await Poll.ForValueAsync(
+            () => probe.ActiveSessionIdsAsync(userId, ct),
+            ids => wanted.All(ids.Contains),
+            PresenceWaits.Settle, ct: ct);
+
+        Assert.That(live, Is.SupersetOf(wanted),
+            "a device's hub attach never reached the live-session index, so the activity fold could not have "
+          + "seen anything that device announced");
+    }
 
     /// <summary>
     /// A second device of an account that already has one: a fresh client, a fresh sid and its own

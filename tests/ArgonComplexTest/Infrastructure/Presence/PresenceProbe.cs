@@ -78,6 +78,18 @@ public sealed class PresenceProbe
     /// <summary>The raw connection, for TTLs and for forcing an expiry.</summary>
     public IDatabase Redis { get; }
 
+    /// <summary>
+    /// The presence clocks the host is running on — TTLs, tick, grace, deadlines.
+    /// </summary>
+    /// <remarks>
+    /// The integration host runs the shipped presence code against compressed timings
+    /// (<see cref="TestPresenceTimings"/>), so a fixture that wrote "wait 35 seconds" would be
+    /// asserting against a number nothing uses. Every wait is derived from this instead — see
+    /// <see cref="PresenceWaits"/>, which holds the derivations themselves; this property is here for
+    /// the raw values a test wants to name directly, such as the TTL a key was written with.
+    /// </remarks>
+    public PresenceTimingOptions Timings => PresenceWaits.Timings;
+
     // ---------------------------------------------------------------------------------------------
     // Grains
     // ---------------------------------------------------------------------------------------------

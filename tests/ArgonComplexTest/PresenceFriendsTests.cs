@@ -61,7 +61,7 @@ public class PresenceFriendsTests : TestBase
 
         // Alice has to actually be online before Bob connects, otherwise the push has nothing to
         // carry and a green run would prove nothing.
-        Assert.That(await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.Online), "Alice never reached Online, so there is nothing to push to Bob");
 
         var beforeBob = aliceClient.Mark();
@@ -70,11 +70,11 @@ public class PresenceFriendsTests : TestBase
 
         var toAlice = await aliceClient.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeBob, ct);
+            PresenceWaits.Settle, beforeBob, ct);
 
         var toBob = await bobClient.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == alice.UserId,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -118,8 +118,8 @@ public class PresenceFriendsTests : TestBase
         await dndClient.Heartbeat(UserStatus.DoNotDisturb, ct);
         await awayClient.Heartbeat(UserStatus.Away, ct);
 
-        var dndAggregate  = await probe.WaitForAggregatedStatusAsync(dnd.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct);
-        var awayAggregate = await probe.WaitForAggregatedStatusAsync(away.UserId, UserStatus.Away, TimeSpan.FromSeconds(10), ct);
+        var dndAggregate  = await probe.WaitForAggregatedStatusAsync(dnd.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct);
+        var awayAggregate = await probe.WaitForAggregatedStatusAsync(away.UserId, UserStatus.Away, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -132,9 +132,9 @@ public class PresenceFriendsTests : TestBase
         await using var arriverClient = await RealtimeClient.ConnectAsync(arriver, ct);
 
         var pushedDnd = await arriverClient.WaitForRecordAsync<UserChangedStatus>(
-            e => e.userId == dnd.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == dnd.UserId, PresenceWaits.Settle, ct: ct);
         var pushedAway = await arriverClient.WaitForRecordAsync<UserChangedStatus>(
-            e => e.userId == away.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == away.UserId, PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -178,7 +178,7 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         // Measure from a quiet boundary, not from the first Online: Bob's session start is not
         // guaranteed to be one broadcast (see the helper), and this test is about the transitions
@@ -193,7 +193,7 @@ public class PresenceFriendsTests : TestBase
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeTransitions, ct);
+            PresenceWaits.Settle, beforeTransitions, ct);
 
         var seen = aliceClient.EventsOfType<UserChangedStatus>(beforeTransitions)
            .Where(e => e.userId == bob.UserId)
@@ -224,14 +224,14 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         var beforeOffline = aliceClient.Mark();
         await bobClient.GoOffline(ct);
 
         var offline = await aliceClient.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(5), beforeOffline, ct);
+            PresenceWaits.Converge, beforeOffline, ct);
 
         Assert.That(offline.Stream, Is.EqualTo(RealtimeStream.ForSelf),
             "the offline reached the friend through some other channel than the friends stream");
@@ -259,7 +259,7 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         var beforeDrop = aliceClient.Mark();
         await bobClient.AbortAsync(ct: ct);
@@ -270,7 +270,7 @@ public class PresenceFriendsTests : TestBase
         // edge to poll for.
         await aliceClient.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(10),
+            PresenceWaits.NegativeWindow,
             "a friend's transport drop must ride out the disconnect grace instead of emptying the friends list",
             beforeDrop, ct);
     }
@@ -284,12 +284,12 @@ public class PresenceFriendsTests : TestBase
     /// "no offline inside the grace" is also satisfied by a system that never sends one at all, which
     /// would leave a dead client on every friends list until the observer restarts.</para>
     ///
-    /// <para>Slow by construction. Nothing can pull an Orleans reminder forward and the floor is one
-    /// minute, so the presence key is force-expired through the probe — legitimate here because the
-    /// session is already detached and nothing is refreshing it — and the next reminder tick does the
-    /// rest.</para>
+    /// <para>Nothing can pull an Orleans reminder forward — its period is floored at
+    /// <see cref="PresenceTimingOptions.ReminderFloor"/> — so the presence key is force-expired
+    /// through the probe, legitimate here because the session is already detached and nothing is
+    /// refreshing it, and the next reminder tick does the rest.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(1000 * 60 * 4)]
+    [Test, CancelAfter(120_000)]
     public async Task A_friends_dead_connection_becomes_offline_once_the_grace_expires(CancellationToken ct = default)
     {
         var alice = await CreateSessionAsync(ct);
@@ -301,19 +301,19 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         var beforeDrop   = aliceClient.Mark();
         var presenceKey  = PresenceProbe.PresenceSessionKey(bob.UserId, bob.SessionId);
 
         await bobClient.AbortAsync(ct: ct);
 
-        Assert.That(await probe.ForceExpire(presenceKey, TimeSpan.FromSeconds(2)), Is.True,
+        Assert.That(await probe.ForceExpire(presenceKey, PresenceWaits.Immediately), Is.True,
             $"no presence key to expire for the session that just dropped ({presenceKey})");
 
         var offline = await aliceClient.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(150), beforeDrop, ct);
+            PresenceWaits.GraceAndABit, beforeDrop, ct);
 
         var aggregate = await probe.AggregatedStatusAsync(bob.UserId, ct);
 
@@ -344,8 +344,8 @@ public class PresenceFriendsTests : TestBase
         await using var aliceClient = await RealtimeClient.ConnectAsync(alice, ct);
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
-        var aliceAggregate = await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct);
-        var bobAggregate   = await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct);
+        var aliceAggregate = await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
+        var bobAggregate   = await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -359,10 +359,10 @@ public class PresenceFriendsTests : TestBase
 
         var toAliceTask = aliceClient.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeFriendship.alice, ct);
+            PresenceWaits.Settle, beforeFriendship.alice, ct);
         var toBobTask = bobClient.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == alice.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeFriendship.bob, ct);
+            PresenceWaits.Settle, beforeFriendship.bob, ct);
 
         var toAlice = await toAliceTask;
         var toBob   = await toBobTask;
@@ -397,7 +397,7 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         await alice.Friends.RemoveFriend(bob.UserId, ct);
 
@@ -406,13 +406,13 @@ public class PresenceFriendsTests : TestBase
 
         // The change really happened — otherwise the silence below would prove nothing about the
         // friends path.
-        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.DoNotDisturb), "the ex-friend's status never changed, so there was nothing to leak");
 
         // Fixed window: proving an absence.
         await aliceClient.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId,
-            TimeSpan.FromSeconds(10),
+            PresenceWaits.NegativeWindow,
             "a removed friend's status is still being delivered to the person who removed them",
             afterRemoval, ct);
     }
@@ -449,7 +449,7 @@ public class PresenceFriendsTests : TestBase
         await using var aliceClient = await RealtimeClient.ConnectAsync(alice, ct);
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
-        Assert.That(await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(alice.UserId, UserStatus.Online, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.Online));
 
         await alice.Friends.BlockUser(bob.UserId, ct);
@@ -459,7 +459,7 @@ public class PresenceFriendsTests : TestBase
 
         var viaSpace = await bobClient.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == alice.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), afterBlock, ct);
+            PresenceWaits.Settle, afterBlock, ct);
 
         Assert.That(viaSpace.Stream, Is.EqualTo(RealtimeStream.BroadcastSpace),
             "a co-member's status has to keep reaching the space group; blocking is not leaving the space");
@@ -469,7 +469,7 @@ public class PresenceFriendsTests : TestBase
         // personal stream would be the friends fan-out still running for a dissolved friendship.
         await AssertNoRecordWithinAsync(bobClient,
             r => r.Stream == RealtimeStream.ForSelf && r.Event is UserChangedStatus e && e.userId == alice.UserId,
-            TimeSpan.FromSeconds(5),
+            PresenceWaits.NegativeWindow,
             "a blocked user is still being fed the blocker's status on the friends stream",
             afterBlock, ct);
     }
@@ -508,13 +508,13 @@ public class PresenceFriendsTests : TestBase
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         var beforeTouchGrass = aliceClient.Mark();
         await bobClient.Heartbeat(UserStatus.TouchGrass, ct);
 
         var transition = await aliceClient.FirstWithinAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId, TimeSpan.FromSeconds(10), beforeTouchGrass, ct);
+            e => e.userId == bob.UserId, PresenceWaits.Settle, beforeTouchGrass, ct);
 
         // A second session of Alice's: a session start, and therefore the friend-presence push that a
         // client relies on to seed its list.
@@ -522,7 +522,7 @@ public class PresenceFriendsTests : TestBase
         await using var aliceSecond = await RealtimeClient.ConnectAsync(secondSession, ct);
 
         var pushed    = await aliceSecond.FirstWithinAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId, PresenceWaits.Settle, ct: ct);
         var aggregate = await probe.AggregatedStatusAsync(bob.UserId, ct);
 
         Assert.Multiple(() =>
@@ -570,7 +570,7 @@ public class PresenceFriendsTests : TestBase
         await using var bobPhone    = await RealtimeClient.ConnectAsync(bob, ct);
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
-            e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
         var bobDesktopSession = await SecondSessionOfAsync(bob, bobMachine, ct);
         await using var bobDesktop = await RealtimeClient.ConnectAsync(bobDesktopSession, ct);
@@ -580,7 +580,7 @@ public class PresenceFriendsTests : TestBase
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), beforeDnd, ct);
+            PresenceWaits.Settle, beforeDnd, ct);
 
         Assert.That(await probe.AggregatedStatusAsync(bob.UserId, ct), Is.EqualTo(UserStatus.DoNotDisturb),
             "one device on Do Not Disturb has to outrank the other device's Online");
@@ -590,7 +590,7 @@ public class PresenceFriendsTests : TestBase
 
         await aliceClient.WaitForAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeSignOut, ct);
+            PresenceWaits.Settle, beforeSignOut, ct);
 
         Assert.That(await probe.AggregatedStatusAsync(bob.UserId, ct), Is.EqualTo(UserStatus.Online),
             "the Do Not Disturb device is gone; what is left is an Online one");
@@ -627,7 +627,7 @@ public class PresenceFriendsTests : TestBase
 
         await using var bobClient = await RealtimeClient.ConnectAsync(bob, ct);
 
-        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.Online));
 
         await using (var firstConnection = await RealtimeClient.ConnectAsync(alice, ct))
@@ -635,7 +635,7 @@ public class PresenceFriendsTests : TestBase
             // The cold start works — that is the control, and it is what makes the failure below a
             // statement about the reconnect rather than about the push in general.
             await firstConnection.WaitForAsync<UserChangedStatus>(
-                e => e.userId == bob.UserId && e.status == UserStatus.Online, TimeSpan.FromSeconds(10), ct: ct);
+                e => e.userId == bob.UserId && e.status == UserStatus.Online, PresenceWaits.Settle, ct: ct);
 
             await firstConnection.AbortAsync(ct: ct);
         }
@@ -647,7 +647,7 @@ public class PresenceFriendsTests : TestBase
 
         var relearned = await reconnected.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status != UserStatus.Offline,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(relearned, Is.Not.Null,
             "a client that reconnected inside the grace window was told nothing about a friend who is online, " +
@@ -689,22 +689,22 @@ public class PresenceFriendsTests : TestBase
         await using var carolClient = await RealtimeClient.ConnectAsync(carol, ct);
         await using var bobClient   = await RealtimeClient.ConnectAsync(bob, ct);
 
-        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.Online, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.Online));
 
         var beforeChange = (alice: aliceClient.Mark(), carol: carolClient.Mark());
 
         await bobClient.Heartbeat(UserStatus.DoNotDisturb, ct);
 
-        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct),
+        Assert.That(await probe.WaitForAggregatedStatusAsync(bob.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct),
             Is.EqualTo(UserStatus.DoNotDisturb), "the friend's status never changed, so there was nothing to fan out");
 
         var toAliceTask = aliceClient.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), beforeChange.alice, ct);
+            PresenceWaits.Settle, beforeChange.alice, ct);
         var toCarolTask = carolClient.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == bob.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), beforeChange.carol, ct);
+            PresenceWaits.Settle, beforeChange.carol, ct);
 
         var toAlice = await toAliceTask;
         var toCarol = await toCarolTask;
@@ -835,14 +835,14 @@ public class PresenceFriendsTests : TestBase
     /// <para>This waits the connect fan-out out instead of relaxing anything: the sequence asserted
     /// afterwards is still exact and still ordered, and a duplicated or reordered <em>transition</em>
     /// still fails. The quiet period is deliberately far longer than the gap between two racing copies
-    /// of one broadcast (tens of milliseconds) and far shorter than the grain's 15 s refresh tick, so
-    /// it cannot swallow a real event: nothing else is due on this connection in between.</para>
+    /// of one broadcast (tens of milliseconds) and shorter than the grain's refresh tick, so it cannot
+    /// swallow a real event: nothing else is due on this connection in between.</para>
     /// </remarks>
     private static async Task<int> MarkAfterConnectStormSettlesAsync(
         RealtimeClient client, CancellationToken ct)
     {
         var quiet    = TimeSpan.FromMilliseconds(500);
-        var deadline = DateTimeOffset.UtcNow + TimeSpan.FromSeconds(10);
+        var deadline = DateTimeOffset.UtcNow + PresenceWaits.Settle;
 
         while (true)
         {

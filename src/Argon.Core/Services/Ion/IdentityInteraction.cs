@@ -138,15 +138,13 @@ public class IdentityInteraction(
                     return true;
             }
 
-            var floor = await cache.StringGetAsync(SessionRevocation.FloorKey(userId), ct);
+            // Through the shared reading of the watermark rather than a local one, so this path and
+            // AppHub's ticket gate cannot come to different conclusions about the same value — a
+            // sign-out-everywhere that stops the refresh but not the socket is not a sign-out.
+            var floor = SessionRevocation.ParseFloor(
+                await cache.StringGetAsync(SessionRevocation.FloorKey(userId), ct));
 
-            if (string.IsNullOrEmpty(floor) || !long.TryParse(floor, out var seconds))
-                return false;
-
-            // No iat means the token predates the claim and cannot be placed in time. Treating it as
-            // older than any floor is the safe reading: a floor is only ever written by someone
-            // asking to be signed out everywhere.
-            return issuedAt is not { } when || when <= DateTimeOffset.FromUnixTimeSeconds(seconds);
+            return SessionRevocation.IsBelowFloor(floor, issuedAt);
         }
         catch (Exception e)
         {
@@ -309,8 +307,21 @@ public class IdentityInteraction(
             // The proven device travels on the access token, so every subsequent request knows which
             // machine is asking without asking the database again — which is what makes a hardware
             // ban enforceable per request rather than only at refresh.
-            var newIssued = flow.GenerateAccessToken(userId, machineId, scopes,
-                provenDevice is { } device ? [new System.Security.Claims.Claim("did", device.ToString())] : null);
+            //
+            // So does the credential session id, and for the same shape of reason. Every gate that
+            // is not the refresh path used to see only the presence sid, which the caller writes and
+            // can therefore rotate; carrying the server-minted id forward onto the short-lived token
+            // gives the hub and the interceptor an identity the caller cannot choose. See
+            // SessionRevocation's remarks for the whole model. Null when this token was minted before
+            // the sid claim existed, which is the case the credential mapping still covers.
+            var carried = new List<System.Security.Claims.Claim>(2);
+
+            if (provenDevice is { } device)
+                carried.Add(new System.Security.Claims.Claim("did", device.ToString()));
+            if (tokenSessionId is { } carriedSession)
+                carried.Add(new System.Security.Claims.Claim("sid", carriedSession.ToString()));
+
+            var newIssued = flow.GenerateAccessToken(userId, machineId, scopes, carried);
 
             return new GoodAuthStatus(newIssued);
         }

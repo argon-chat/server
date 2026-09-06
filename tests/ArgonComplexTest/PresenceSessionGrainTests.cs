@@ -3,7 +3,9 @@ namespace ArgonComplexTest.Tests;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using ArgonContracts;
+using Argon.Features.Auth;
 using Argon.Features.Logic;
+using ArgonComplexTest.Infrastructure.Presence;
 using Argon.Grains.Interfaces;
 using Argon.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -44,11 +46,11 @@ public class PresenceSessionGrainTests : TestBase
     /// <summary>The Cache profile's logical database — see <c>ArgonServerTargetHost</c>.</summary>
     private const int CacheDb = 0;
 
-    /// <summary>Presence and status keys both live 120 s; see <c>UserPresenceService.DefaultTTL</c>.</summary>
-    private static readonly TimeSpan PresenceTtl = TimeSpan.FromSeconds(120);
-
-    /// <summary>The session grain's refresh tick.</summary>
-    private static readonly TimeSpan RefreshTick = TimeSpan.FromSeconds(15);
+    // Presence and status keys live PresenceTimingOptions.SessionTtl and are renewed every
+    // RefreshPeriod. Neither is restated here: the integration host runs the shipped presence code
+    // against compressed clocks (TestPresenceTimings), so a constant in this file would be a number
+    // nothing uses. Every wait below is a ratio of those two, spelled out in PresenceWaits, which is
+    // what makes this fixture mean the same thing at either scale.
 
     /// <summary>
     /// Sessions this fixture started, so a test that ends red does not leave a grain ticking against
@@ -152,7 +154,7 @@ public class PresenceSessionGrainTests : TestBase
 
         await PollAsync(
             async () => (index = await SessionIndexAsync(userId)).Length > 0,
-            TimeSpan.FromSeconds(10),
+            PresenceWaits.Settle,
             ct: ct);
 
         Assert.That(index, Has.Length.EqualTo(1),
@@ -226,7 +228,7 @@ public class PresenceSessionGrainTests : TestBase
         await grain.AttachConnectionAsync(connectionId);
         await grain.HeartBeatAsync(connectionId, status);
 
-        var reached = await AwaitAggregateAsync(userId, status, TimeSpan.FromSeconds(10), ct);
+        var reached = await AwaitAggregateAsync(userId, status, PresenceWaits.Settle, ct);
 
         Assert.That(reached, Is.EqualTo(status),
             $"setup: session {sid} of user {userId} never reached {status} (aggregate is {reached})");
@@ -264,6 +266,32 @@ public class PresenceSessionGrainTests : TestBase
         return ((SuccessCreateSpace)result).space.spaceId;
     }
 
+    // ── revocation, as the product writes it ─────────────────────────────────────────────────────
+
+    private IArgonCacheDatabase Cache
+        => FactoryAsp.Services.GetRequiredService<IArgonCacheDatabase>();
+
+    /// <summary>
+    /// Tombstones one session id for a user — the first thing <c>SecurityGrain.EndSessionAsync</c>
+    /// does, written through the product's own key builder.
+    /// </summary>
+    /// <remarks>
+    /// The grain gate is driven directly rather than through <c>ISecurityInteraction.RevokeSession</c>
+    /// because that call refuses a sid it cannot find on the devices screen, and two of the three
+    /// cases below are about ids that were never a row: a credential id the server minted, and a
+    /// session that has not connected yet. The tombstone is the same either way.
+    /// </remarks>
+    private Task TombstoneAsync(Guid userId, string sessionId)
+        => Cache.SetAddAsync(SessionRevocation.RevokedKey(userId), sessionId);
+
+    /// <summary>
+    /// Records a credential session id against a presence session, as the sign-in and refresh paths do.
+    /// </summary>
+    private Task RememberCredentialAsync(Guid userId, string presenceSessionId, Guid credentialSessionId)
+        => Cache.SetAddAsync(
+            SessionRevocation.CredentialsKey(userId, Guid.Parse(presenceSessionId)),
+            credentialSessionId.ToString());
+
     private Task<List<MemberPresence>> RosterPresenceAsync(Guid spaceId, Guid callerId)
         => AsCallerAsync(callerId, () => GetGrainFactory().GetGrain<ISpaceReadGrain>(spaceId).GetPresence());
 
@@ -294,9 +322,10 @@ public class PresenceSessionGrainTests : TestBase
 
         await grain.DetachConnectionAsync("c1");
 
-        // A fixed wait, not a poll: the assertion is that nothing happens. Three seconds is longer
-        // than any synchronous path off DetachConnectionAsync and far short of the 1 min grace.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        // A fixed wait, not a poll: the assertion is that nothing happens. Longer than any
+        // synchronous path off DetachConnectionAsync, and well inside the session TTL — which is what
+        // the grace reminder waits for before it finalizes anything, so nothing here can go offline.
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var graceAggregate = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
         var graceOnline    = await Presence.IsUserOnlineAsync(user.UserId, ct);
@@ -307,8 +336,8 @@ public class PresenceSessionGrainTests : TestBase
         var wentOffline = await PollAsync(
             async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Offline
                      && !await Presence.IsUserOnlineAsync(user.UserId, ct),
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromMilliseconds(50),
+            PresenceWaits.Immediately,
+            PresenceWaits.PollStep,
             ct);
 
         var leftAlive    = await Presence.IsSessionAliveAsync(user.UserId, sid, ct);
@@ -430,7 +459,7 @@ public class PresenceSessionGrainTests : TestBase
             // gives a correct implementation every chance to land the value before it is read.
             await PollAsync(
                 async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == status,
-                TimeSpan.FromSeconds(3),
+                PresenceWaits.Converge,
                 ct: ct);
 
             observed.Add((status,
@@ -443,7 +472,7 @@ public class PresenceSessionGrainTests : TestBase
         await PollAsync(
             async () => (await RosterPresenceAsync(spaceId, user.UserId))
                .FirstOrDefault(x => x.userId == user.UserId)?.status != UserStatus.Offline,
-            TimeSpan.FromSeconds(4),
+            PresenceWaits.Settle,
             ct: ct);
 
         var roster = (await RosterPresenceAsync(spaceId, user.UserId)).FirstOrDefault(x => x.userId == user.UserId);
@@ -495,20 +524,21 @@ public class PresenceSessionGrainTests : TestBase
         await grain.AttachConnectionAsync("c2");
         await grain.DetachConnectionAsync("c1");
 
-        // Fixed waits throughout: every assertion here is that a state did NOT move.
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        // Fixed waits throughout: every assertion here is that a state did NOT move, and each is a
+        // negative window rather than a poll for that reason.
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var afterFirstClose = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
         var aliveFirstClose = await Presence.IsSessionAliveAsync(user.UserId, sid, ct);
 
         await grain.DetachConnectionAsync("c2");
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var duringGrace      = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
         var onlineDuringGrace = await Presence.IsUserOnlineAsync(user.UserId, ct);
 
         await grain.AttachConnectionAsync("c3");
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var afterReconnect = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
         var onlineAfter    = await Presence.IsUserOnlineAsync(user.UserId, ct);
@@ -683,14 +713,16 @@ public class PresenceSessionGrainTests : TestBase
         foreach (var status in sent)
             await grain.HeartBeatAsync("c1", status);
 
-        // The bucket refills one token every two seconds; the client re-asserts its status on its own
-        // ~15 s heartbeat, and this is that heartbeat arriving after the burst.
+        // The bucket refills one token every two seconds — a rate the grain owns and this campaign
+        // does not make configurable, so this wait is genuinely three seconds and not a ratio of
+        // anything. The client re-asserts its status on its own periodic heartbeat, and the call
+        // below is that heartbeat arriving after the burst.
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
         await grain.HeartBeatAsync("c1", sent[^1]);
 
         var converged = await PollAsync(
             async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == sent[^1],
-            TimeSpan.FromSeconds(5),
+            PresenceWaits.Settle,
             ct: ct);
 
         var final = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
@@ -725,7 +757,7 @@ public class PresenceSessionGrainTests : TestBase
     /// remaining device's Online has to surface immediately, because "I closed the app that was set
     /// to DND" is exactly the moment a user expects to become reachable again.
     /// </remarks>
-    [Test, CancelAfter(180_000)]
+    [Test, CancelAfter(120_000)]
     public async Task The_aggregate_of_two_devices_follows_DND_over_Online_over_Away(CancellationToken ct = default)
     {
         var user = await CreateSessionAsync(ct);
@@ -739,15 +771,15 @@ public class PresenceSessionGrainTests : TestBase
         await dnd.AttachConnectionAsync("b");
         await dnd.HeartBeatAsync("b", UserStatus.DoNotDisturb);
 
-        var withDnd = await AwaitAggregateAsync(user.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct);
+        var withDnd = await AwaitAggregateAsync(user.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct);
 
         // The DND device signs out ⇒ the Online device's status takes over at once.
         await dnd.GoOfflineAsync();
 
         var releasedImmediately = await PollAsync(
             async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Online,
-            TimeSpan.FromSeconds(1),
-            TimeSpan.FromMilliseconds(50),
+            PresenceWaits.Immediately,
+            PresenceWaits.PollStep,
             ct);
         var afterRelease = await Presence.GetAggregatedStatusAsync(user.UserId, ct);
 
@@ -762,7 +794,7 @@ public class PresenceSessionGrainTests : TestBase
         await second.AttachConnectionAsync("b");
         await second.HeartBeatAsync("b", UserStatus.Online);
 
-        var awayPlusOnline = await AwaitAggregateAsync(user.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct);
+        var awayPlusOnline = await AwaitAggregateAsync(user.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
 
         await second.GoOfflineAsync();
         await SessionGrain(user.UserId, awaySid).GoOfflineAsync();
@@ -776,7 +808,7 @@ public class PresenceSessionGrainTests : TestBase
         await other.AttachConnectionAsync("b");
         await other.HeartBeatAsync("b", UserStatus.Away);
 
-        var bothAway = await AwaitAggregateAsync(user.UserId, UserStatus.Away, TimeSpan.FromSeconds(10), ct);
+        var bothAway = await AwaitAggregateAsync(user.UserId, UserStatus.Away, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {
@@ -803,10 +835,11 @@ public class PresenceSessionGrainTests : TestBase
     /// right there, Online — reads as Do-Not-Disturb to everyone.</para>
     ///
     /// <para>The presence key is force-expired rather than waited out, which is what the device's
-    /// absence would have done to it 120 s later; everything after that is the product's own timing.
-    /// Slow by construction: the grace reminder's period is one minute, which is Orleans' floor.</para>
+    /// absence would have done to it one session TTL later; everything after that is the product's
+    /// own timing — the grace reminder, whose period is <see cref="PresenceTimingOptions.GracePeriod"/>
+    /// bounded below by Orleans' own reminder floor.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task A_DND_device_that_dies_ungracefully_stops_holding_the_user_at_DND(CancellationToken ct = default)
     {
         var user = await CreateSessionAsync(ct);
@@ -820,21 +853,22 @@ public class PresenceSessionGrainTests : TestBase
         await doomed.AttachConnectionAsync("doomed");
         await doomed.HeartBeatAsync("doomed", UserStatus.DoNotDisturb);
 
-        var held = await AwaitAggregateAsync(user.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct);
+        var held = await AwaitAggregateAsync(user.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct);
         Assert.That(held, Is.EqualTo(UserStatus.DoNotDisturb), "setup: the DND device never took the aggregate");
 
         // The device is gone. The transport notices and detaches; nothing else is called.
         await doomed.DetachConnectionAsync("doomed");
 
-        // And its presence key lapses, which is what would have happened on its own 120 s later.
-        await ForceExpireAsync(PresenceKey(user.UserId, doomedSid), TimeSpan.FromSeconds(1));
+        // And its presence key lapses, which is what would have happened on its own one session TTL
+        // later. Only the deadline moves; every other behaviour is the product's.
+        await ForceExpireAsync(PresenceKey(user.UserId, doomedSid), PresenceWaits.Immediately);
 
         var clock = Stopwatch.StartNew();
 
         var released = await PollAsync(
             async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Online,
-            TimeSpan.FromSeconds(150),
-            TimeSpan.FromSeconds(2),
+            PresenceWaits.OfflineDeadline,
+            PresenceWaits.Slack,
             ct);
 
         var elapsed = clock.Elapsed;
@@ -875,9 +909,10 @@ public class PresenceSessionGrainTests : TestBase
     ///
     /// <para>The control session is the H16 case in its own right — a plain long-lived session with
     /// heartbeats and no status changes — and it is here because "the TTL is low" only means something
-    /// next to a session that was never disturbed. The last phase pulls both users' keys in to 25 s
-    /// instead of idling to the 120 s mark: a live 15 s tick restores them well inside that, a dead
-    /// one does not, and the test costs 90 s rather than 190.</para>
+    /// next to a session that was never disturbed. The last phase pulls both users' keys in to just
+    /// over one tick instead of idling to the TTL cliff: a live tick restores them to the full TTL
+    /// well inside that, a dead one lets them lapse, and the whole cliff is reached in two ticks
+    /// rather than in a session TTL.</para>
     ///
     /// <para><b>The contract this now guards (defect S2, fixed).</b> The refresh tick is a function of
     /// "this session has live connections", not of "this session has just started".
@@ -893,7 +928,7 @@ public class PresenceSessionGrainTests : TestBase
     /// presence key is alive, <c>IsUserOnlineAsync</c> says true and the user is sitting in the app
     /// heartbeating.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task A_session_that_reconnects_within_grace_keeps_renewing_like_one_that_never_dropped(CancellationToken ct = default)
     {
         var subject = await CreateSessionAsync(ct);
@@ -910,37 +945,39 @@ public class PresenceSessionGrainTests : TestBase
 
         // One full tick has to have run before the drop, or "the timer was lost on reconnect" and
         // "the timer never started" would be the same observation.
-        await Task.Delay(RefreshTick + TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.OneTick, ct);
 
         // The drop and the reconnect, inside the grace window.
         await subjectGrain.DetachConnectionAsync("c1");
         await subjectGrain.AttachConnectionAsync("c2");
         await subjectGrain.HeartBeatAsync("c2", UserStatus.Online);
-        await Task.Delay(TimeSpan.FromSeconds(1), ct);
+        await Task.Delay(PresenceWaits.Immediately, ct);
         await subjectGrain.HeartBeatAsync("c2", UserStatus.Online);
 
         // Two ticks' worth of quiet. A session whose timer survived has renewed both keys inside the
-        // last 15 s; one whose timer was lost has not touched them since before the drop. Fixed,
+        // last tick; one whose timer was lost has not touched them since before the drop. Fixed,
         // because the assertion is about a renewal that must have happened, not one to wait for.
-        await Task.Delay(TimeSpan.FromSeconds(35), ct);
+        await Task.Delay(PresenceWaits.TwoTicks, ct);
 
         var subjectStatusTtl = await TtlOfAsync(StatusKey(subject.UserId, subjectSid));
         var subjectAggTtl    = await TtlOfAsync(AggregatedKey(subject.UserId));
         var controlStatusTtl = await TtlOfAsync(StatusKey(control.UserId, controlSid));
         var controlAggTtl    = await TtlOfAsync(AggregatedKey(control.UserId));
 
-        // Fresh means renewed inside the last tick. Allowing 20 s of slack against a 15 s period keeps
-        // a scheduler hiccup from reading as a lost timer.
-        var fresh = PresenceTtl - TimeSpan.FromSeconds(20);
+        // Fresh means renewed inside the last tick or two. Two ticks of tolerance rather than one
+        // keeps a scheduler hiccup from reading as a lost timer; a timer that stopped loses every one.
+        var fresh = PresenceWaits.FreshTtlFloor;
 
-        // Reach the 120 s cliff early: pull every status key in to just over one tick. A session whose
-        // tick is alive puts them back to the full 120 s before they lapse.
-        await ForceExpireAsync(StatusKey(subject.UserId, subjectSid), TimeSpan.FromSeconds(25));
-        await ForceExpireAsync(AggregatedKey(subject.UserId), TimeSpan.FromSeconds(25));
-        await ForceExpireAsync(StatusKey(control.UserId, controlSid), TimeSpan.FromSeconds(25));
-        await ForceExpireAsync(AggregatedKey(control.UserId), TimeSpan.FromSeconds(25));
+        // Reach the TTL cliff early: pull every status key in to just over one tick. A session whose
+        // tick is alive puts them back to the full TTL before they lapse.
+        var cliff = PresenceWaits.OneTick;
 
-        await Task.Delay(TimeSpan.FromSeconds(35), ct);
+        await ForceExpireAsync(StatusKey(subject.UserId, subjectSid), cliff);
+        await ForceExpireAsync(AggregatedKey(subject.UserId), cliff);
+        await ForceExpireAsync(StatusKey(control.UserId, controlSid), cliff);
+        await ForceExpireAsync(AggregatedKey(control.UserId), cliff);
+
+        await Task.Delay(PresenceWaits.TwoTicks, ct);
 
         var subjectAggregate = await Presence.GetAggregatedStatusAsync(subject.UserId, ct);
         var subjectOnline    = await Presence.IsUserOnlineAsync(subject.UserId, ct);
@@ -958,7 +995,7 @@ public class PresenceSessionGrainTests : TestBase
             Assert.That(controlAggTtl, Is.Not.Null.And.GreaterThan(fresh),
                 $"an undisturbed session is not renewing the aggregated key (ttl {controlAggTtl})");
             Assert.That(controlAggregate, Is.EqualTo(UserStatus.Online),
-                "an undisturbed, heartbeating session dropped to Offline past the 120 s mark");
+                "an undisturbed, heartbeating session dropped to Offline past the TTL cliff");
 
             // H2: the session that dropped and came back.
             Assert.That(subjectStatusTtl, Is.Not.Null.And.GreaterThan(fresh),
@@ -968,7 +1005,7 @@ public class PresenceSessionGrainTests : TestBase
                 $"after a detach/attach cycle nothing renews status:user:*:aggregated (ttl {subjectAggTtl}, control {controlAggTtl})");
 
             Assert.That(subjectAggregate, Is.EqualTo(UserStatus.Online),
-                $"a connected, heartbeating session reads as {subjectAggregate} past the 120 s mark "
+                $"a connected, heartbeating session reads as {subjectAggregate} past the TTL cliff "
               + $"(its presence key is still alive: {subjectAlive}, IsUserOnline: {subjectOnline}) — "
               + "every roster and snapshot shows this user offline while they are sitting in the app");
             Assert.That(roster?.status, Is.EqualTo(UserStatus.Online),
@@ -1008,28 +1045,63 @@ public class PresenceSessionGrainTests : TestBase
     /// the connection set. That bounds an Ion keep-alive at one 120 s TTL rather than for ever: with
     /// no attached transport the tick no-ops, so this test's draining presence key and the grace that
     /// finally finalizes the session are both the designed behaviour, not an accident of timing.</para>
+    ///
+    /// <para><b>And the other half, which is where the bound comes from.</b> A keep-alive may not
+    /// <em>start</em> a session either. <c>TouchAsync</c> used to run the whole start path for a sid
+    /// that had never connected — presence key, live-session index, a row on the user's own devices
+    /// screen — so one RPC from anything holding a token minted a device that does not exist, that
+    /// nobody can detach and that no grace will ever be armed for. It answers false for an unstarted
+    /// session now, which is what the first step below pins; the TTL evidence after it is about a
+    /// session a real transport did start.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task An_Ion_dispatched_heartbeat_does_not_keep_a_disconnected_session_online(CancellationToken ct = default)
     {
-        var user = await CreateSessionAsync(ct);
+        var user   = await CreateSessionAsync(ct);
+        var events = user.Client.ForService<IEventBus>(FactoryAsp.Services);
 
-        // The Ion path, which heartbeats the session grain with the sid itself as the connection id.
-        await user.Client.ForService<IEventBus>(FactoryAsp.Services)
-           .Dispatch(new HeartBeatEvent(UserStatus.Online), ct);
+        // Nothing has ever connected as this user. The Ion keep-alive must refuse rather than invent a
+        // session: the RPC fails (EventBusImpl turns the grain's "no" into a dropped connection) and,
+        // more to the point, nothing is written.
+        string? refusal = null;
 
-        var sid = await ServerSideSidAsync(user.UserId, ct);
-        started.Add((user.UserId, sid));
+        try
+        {
+            await events.Dispatch(new HeartBeatEvent(UserStatus.Online), ct);
+        }
+        catch (Exception e)
+        {
+            refusal = $"{e.GetType().Name}: {e.Message}";
+        }
 
-        TestContext.Out.WriteLine($"client sid {user.SessionId}, server-side sid {sid}");
+        var indexAfterRefusal = await SessionIndexAsync(user.UserId);
 
-        var grain = SessionGrain(user.UserId, sid);
+        Assert.That(indexAfterRefusal, Is.Empty,
+            "an Ion heartbeat started a session with no transport behind it: a live row nothing can ever detach, "
+          + $"on the user's own devices screen, for as long as the caller keeps calling (the RPC {(refusal is null
+              ? "was accepted" : $"failed with {refusal}")})");
 
-        // A real transport on the same session, the way the hub attaches one.
+        // A real transport starts the session, the way the hub does. Addressed by the sid the Ion side
+        // will resolve for this client, because the two have to be the same session for the rest of
+        // this test to mean anything — ServerSideSidAsync below is what proves they are.
+        var sid   = user.SessionId.ToString();
+        var grain = OwnedSession(user.UserId, sid);
+
         await grain.AttachConnectionAsync("transport-1");
 
-        var startedOnline = await AwaitAggregateAsync(user.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct);
+        var startedOnline = await AwaitAggregateAsync(user.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
         Assert.That(startedOnline, Is.EqualTo(UserStatus.Online), "setup: the session never came online");
+
+        var serverSideSid = await ServerSideSidAsync(user.UserId, ct);
+
+        TestContext.Out.WriteLine($"client sid {user.SessionId}, server-side sid {serverSideSid}");
+
+        Assert.That(serverSideSid, Is.EqualTo(sid),
+            "the server resolved a different sid for this client than the one it sent, so the Dispatch below would "
+          + "reach a session this test never started — see ServerSideSidAsync");
+
+        // Now the Ion path, which heartbeats the session grain with no connection id at all.
+        await events.Dispatch(new HeartBeatEvent(UserStatus.Online), ct);
 
         // The device really disconnects.
         await grain.DetachConnectionAsync("transport-1");
@@ -1037,22 +1109,22 @@ public class PresenceSessionGrainTests : TestBase
         var ttlAtDrop = await TtlOfAsync(PresenceKey(user.UserId, sid));
 
         // Two ticks and more. A fixed wait because the assertion is that nothing renewed the key.
-        await Task.Delay(TimeSpan.FromSeconds(35), ct);
+        await Task.Delay(PresenceWaits.TwoTicks, ct);
 
         var ttlAfter = await TtlOfAsync(PresenceKey(user.UserId, sid));
 
-        // A draining key is at most (120 - 35) s. A renewed one is back near 120.
+        // A draining key has lost those two ticks off its TTL. A renewed one is back at the full TTL.
         Assert.That(ttlAfter, Is.Not.Null, "the presence key vanished outright; the grace should have owned this");
-        Assert.That(ttlAfter!.Value, Is.LessThanOrEqualTo(TimeSpan.FromSeconds(90)),
-            $"35 s after the last real connection dropped, the presence key is still being renewed "
+        Assert.That(ttlAfter!.Value, Is.LessThanOrEqualTo(PresenceWaits.DrainedTtlCeiling),
+            $"two ticks after the last real connection dropped, the presence key is still being renewed "
           + $"(ttl {ttlAfter} vs {ttlAtDrop} at the drop). The Dispatch pseudo-connection is never detached, "
           + "so the grain still counts a live connection, arms no grace and keeps the user online for ever");
 
         var wentOffline = await PollAsync(
             async () => !await Presence.IsUserOnlineAsync(user.UserId, ct)
                      && await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Offline,
-            TimeSpan.FromSeconds(150),
-            TimeSpan.FromSeconds(2),
+            PresenceWaits.OfflineDeadline,
+            PresenceWaits.Slack,
             ct);
 
         Assert.That(wentOffline, Is.True,
@@ -1080,7 +1152,7 @@ public class PresenceSessionGrainTests : TestBase
     /// sids and reports how many left the aggregate wrong. One failure is a real failure — this is a
     /// state a user can land in and not get out of.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task Switching_device_never_leaves_the_user_reading_offline(CancellationToken ct = default)
     {
         const int rounds = 30;
@@ -1101,7 +1173,7 @@ public class PresenceSessionGrainTests : TestBase
 
             var ready = await PollAsync(
                 async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Online,
-                TimeSpan.FromSeconds(5),
+                PresenceWaits.Settle,
                 ct: ct);
 
             Assert.That(ready, Is.True, $"setup: round {round} never got the leaving session online");
@@ -1119,7 +1191,7 @@ public class PresenceSessionGrainTests : TestBase
             // nothing recomputes the aggregate after this point.
             var stillOnline = await PollAsync(
                 async () => await Presence.GetAggregatedStatusAsync(user.UserId, ct) == UserStatus.Online,
-                TimeSpan.FromSeconds(3),
+                PresenceWaits.Converge,
                 ct: ct);
 
             if (!stillOnline)
@@ -1190,6 +1262,245 @@ public class PresenceSessionGrainTests : TestBase
                 "a connected session is missing from the devices screen — the user cannot sign it out");
             Assert.That(afterSignOut, Does.Not.Contain(connectedSid),
                 "a session that signed out is still listed as a live device");
+        });
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════════════════════════
+    //  The liveness floor under the connection set
+    // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// A connection nobody has heard from stops counting, and takes the session offline through the
+    /// grace exactly as a reported disconnect would.
+    /// </summary>
+    /// <remarks>
+    /// <para>Connection ids go into the session's set on an attach and come out on a detach, and the
+    /// detach is the half that is not guaranteed: <c>AppHub.OnDisconnectedAsync</c> is a callback that
+    /// can fault on its grain call or never run at all when a node goes down under it, and nothing
+    /// else in the product removes an id. What that leaves is self-sustaining in the worst direction —
+    /// the session's tick renews the presence key and re-extends the activation for as long as the set
+    /// is non-empty, and a per-connection sign-out finds it non-empty and declines to finalize — so
+    /// one lost callback pinned a user Online to every roster, with a device row they could not get
+    /// rid of, until the silo restarted.</para>
+    ///
+    /// <para>So this test never detaches anything. It attaches a connection, lets it speak once, and
+    /// then goes quiet in exactly the way a dead transport does. The evidence is in two parts because
+    /// they fail differently: the presence key ceasing to be renewed says the connection was actually
+    /// dropped rather than merely ignored, and the user reaching Offline says the drop was routed
+    /// through the same grace a detach uses instead of being a second, quieter way to be online for
+    /// ever. Both are read against the host's own configured floor
+    /// (<c>PresenceTimingOptions.StaleConnectionAfter</c>) rather than against a number written here,
+    /// like every other wait in this fixture.</para>
+    ///
+    /// <para><b>And a control, because the floor cuts both ways.</b> A second account is attached
+    /// beside the ghost and speaks on a cadence inside the floor — the shape of a client whose page is
+    /// backgrounded and whose timers the browser has throttled to a crawl, which is the most ordinary
+    /// state a web client has. It must be untouched by the sweep: still attached, still renewing, still
+    /// Online. Without it this test is one-sided, and a floor low enough to pass it — or a sweep that
+    /// reads "quiet" as "gone" too eagerly — would take every minimized window offline mid-session
+    /// while its socket is open, which is a far worse bug than the ghost connection the floor is for.
+    /// A separate account rather than a second session of the same one, so that the ghost's own
+    /// account really does reach Offline rather than being held up by its control.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_connection_that_stops_being_heard_from_is_dropped_like_one_that_detached(
+        CancellationToken ct = default)
+    {
+        var ghostUser = await CreateSessionAsync(ct);
+        var liveUser  = await CreateSessionAsync(ct);
+
+        var floor = PresenceWaits.Timings.StaleConnectionAfter;
+
+        var ghostSid = NewSid();
+        var liveSid  = NewSid();
+
+        var ghost = OwnedSession(ghostUser.UserId, ghostSid);
+        var live  = OwnedSession(liveUser.UserId, liveSid);
+
+        await ghost.AttachConnectionAsync("ghost");
+        await ghost.HeartBeatAsync("ghost", UserStatus.Online);
+
+        await live.AttachConnectionAsync("live");
+        await live.HeartBeatAsync("live", UserStatus.Online);
+
+        var ghostOnline = await AwaitAggregateAsync(ghostUser.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
+        var liveOnline  = await AwaitAggregateAsync(liveUser.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(ghostOnline, Is.EqualTo(UserStatus.Online), "setup: the ghost session never came online");
+            Assert.That(liveOnline, Is.EqualTo(UserStatus.Online), "setup: the control session never came online");
+        });
+
+        // The control keeps speaking at half the floor: often enough to hold its lease, rarely enough
+        // that it is the lease being renewed rather than the ordinary fifteen-second cadence.
+        using var stopControl = CancellationTokenSource.CreateLinkedTokenSource(ct);
+
+        var beating = KeepAliveAsync(live, "live", floor / 2, stopControl.Token);
+
+        // The ghost's transport dies here. No detach, no sign-out, no further heartbeat — the
+        // connection id is all that is left of it, which is the whole defect.
+        var quiet = Stopwatch.StartNew();
+
+        // The floor plus a whole TTL: the session has to notice the silence AND stop renewing before
+        // the key can drain to a reading that says nothing renewed it.
+        var stoppedRenewing = await PollAsync(
+            async () => await TtlOfAsync(PresenceKey(ghostUser.UserId, ghostSid)) is { } ttl
+                     && ttl <= PresenceWaits.DrainedTtlCeiling,
+            floor + PresenceWaits.PastTtl,
+            ct: ct);
+
+        var noticedAfter = quiet.Elapsed;
+
+        var wentOffline = await PollAsync(
+            async () => !await Presence.IsUserOnlineAsync(ghostUser.UserId, ct)
+                     && await Presence.GetAggregatedStatusAsync(ghostUser.UserId, ct) == UserStatus.Offline,
+            PresenceWaits.OfflineDeadline,
+            ct: ct);
+
+        var index = await SessionIndexAsync(ghostUser.UserId);
+
+        // Read while the control is still beating, so the readings describe a live session rather than
+        // one this test stopped a moment ago.
+        var controlTtl       = await TtlOfAsync(PresenceKey(liveUser.UserId, liveSid));
+        var controlAggregate = await Presence.GetAggregatedStatusAsync(liveUser.UserId, ct);
+        var controlIndex     = await SessionIndexAsync(liveUser.UserId);
+
+        await stopControl.CancelAsync();
+        await beating;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(stoppedRenewing, Is.True,
+                $"{noticedAfter.TotalSeconds:F0}s after its last heartbeat — past the {floor} floor — the session "
+              + "was still renewing its presence key for a connection nothing has heard from. A connection id that "
+              + "outlives its transport keeps the user online for ever, because nothing else ever removes one");
+            Assert.That(wentOffline, Is.True,
+                "the stale connection was dropped but the session never finalized: dropping the last connection has "
+              + "to arm the grace exactly like a detach, or the user is left present with no session to end");
+            Assert.That(index, Does.Not.Contain(ghostSid),
+                "the finalized session is still in the live-session index, so its status keeps being folded in");
+
+            Assert.That(controlAggregate, Is.EqualTo(UserStatus.Online),
+                $"a session heard from every {floor / 2} — inside the {floor} floor — was taken offline by the "
+              + "stale-connection sweep. That is a client sitting in a backgrounded tab with its socket open, "
+              + "announced Offline to every space and every friend");
+            Assert.That(controlTtl, Is.Not.Null.And.GreaterThanOrEqualTo(PresenceWaits.FreshTtlFloor),
+                $"the control session's presence key stopped being renewed (ttl {controlTtl}), so its connection was "
+              + "swept out from under it and the grace is already counting");
+            Assert.That(controlIndex, Does.Contain(liveSid),
+                "the control session left the live-session index while it was still speaking");
+        });
+
+        TestContext.Out.WriteLine($"stale connection dropped within {noticedAfter.TotalSeconds:F1}s of a {floor} floor");
+    }
+
+    /// <summary>
+    /// Heartbeats one session on a fixed cadence until told to stop — a client that is still there.
+    /// </summary>
+    /// <remarks>
+    /// The cancellation is the only ending: a failure inside the loop would otherwise be an unobserved
+    /// exception on a background task, which NUnit reports against whichever test happens to be
+    /// running when the finalizer runs.
+    /// </remarks>
+    private static async Task KeepAliveAsync(
+        IUserSessionGrain session, string connectionId, TimeSpan every, CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested)
+            {
+                await Task.Delay(every, ct);
+                await session.HeartBeatAsync(connectionId, UserStatus.Online);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The only way out.
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════════════════════════
+    //  S6 — a signed-out session, at the grain
+    // ═════════════════════════════════════════════════════════════════════════════════════════════
+
+    /// <summary>
+    /// An attach on a signed-out session is refused, and says so, whichever of the session's two ids
+    /// the sign-out named.
+    /// </summary>
+    /// <remarks>
+    /// <para>The hub gates on the revocation set before it joins a single group, and this is the
+    /// second line behind it: the hub's answer can be a few seconds old, and the grain re-reads
+    /// uncached. What made that second line worth little was that it was mute — <c>AttachConnection
+    /// Async</c> returned nothing, so the grain refused the session while the connection stayed open
+    /// on every one of the user's space groups, receiving messages, presence and typing until the
+    /// client's next heartbeat noticed. The refusal is now an answer the hub aborts the connection on,
+    /// and this fixture pins the answer; <c>PresenceRevocationTests</c> pins what the socket does with
+    /// it.</para>
+    ///
+    /// <para><b>Three cases, because a session has two ids and a user has a floor.</b> The presence
+    /// sid is the row on the devices screen and the caller writes it, so a gate that tests only it is
+    /// escaped by generating a new one before reconnecting; the credential sid is minted server-side
+    /// inside the token, and <c>SecurityGrain.EndSessionAsync</c> tombstones every one recorded
+    /// against the row through <c>SessionRevocation.CredentialsKey</c>. The third case is the one the
+    /// gate could not reach at all: a session that was already running when the button was pressed
+    /// short-circuits the start path, so it was asked nothing when its next window attached.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_signed_out_session_is_refused_when_it_tries_to_attach(CancellationToken ct = default)
+    {
+        var user = await CreateSessionAsync(ct);
+
+        // (a) The row the user pressed the button on.
+        var revokedSid = NewSid();
+        await TombstoneAsync(user.UserId, revokedSid);
+
+        var refusedOutright = await OwnedSession(user.UserId, revokedSid).AttachConnectionAsync("c1");
+
+        // (b) The same device having rotated its presence sid: the label is brand new and nothing has
+        // ever tombstoned it, but the credential it is holding was signed out.
+        var rotatedSid   = NewSid();
+        var credentialId = Guid.CreateVersion7();
+
+        await RememberCredentialAsync(user.UserId, rotatedSid, credentialId);
+        await TombstoneAsync(user.UserId, credentialId.ToString());
+
+        var refusedByCredential = await OwnedSession(user.UserId, rotatedSid).AttachConnectionAsync("c1");
+
+        // (c) A session that was live when the sign-out landed, opening a second window.
+        var liveSid = NewSid();
+        var live    = await StartSessionAsync(user.UserId, liveSid, "c1", UserStatus.Online, ct);
+
+        await TombstoneAsync(user.UserId, liveSid);
+
+        var refusedAfterTheFact = await live.AttachConnectionAsync("c2");
+
+        var revokedAlive = await Presence.IsSessionAliveAsync(user.UserId, revokedSid, ct);
+        var rotatedAlive = await Presence.IsSessionAliveAsync(user.UserId, rotatedSid, ct);
+        var liveAlive    = await Presence.IsSessionAliveAsync(user.UserId, liveSid, ct);
+        var index        = await SessionIndexAsync(user.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(refusedOutright, Is.False,
+                "a session whose sid is tombstoned was allowed to attach, so the hub is told nothing and the "
+              + "connection stays open on every space group it just joined");
+            Assert.That(refusedByCredential, Is.False,
+                "a signed-out device came back by minting a fresh presence sid: the gate has to test the "
+              + "server-minted credential ids recorded against the session, not only the label the caller chose");
+            Assert.That(refusedAfterTheFact, Is.False,
+                "a session that was already running when it was signed out accepted another connection — the "
+              + "started-session path skips the start gate, so nothing asked");
+
+            Assert.That(revokedAlive, Is.False, "the refused session wrote a presence key anyway");
+            Assert.That(rotatedAlive, Is.False, "the rotated-sid session wrote a presence key anyway");
+            Assert.That(liveAlive, Is.False,
+                "the revoked session kept its presence key: a refused attach on a live session has to end it, "
+              + "not merely decline to add a connection");
+
+            Assert.That(index, Does.Not.Contain(revokedSid), "a refused session is in the live-session index");
+            Assert.That(index, Does.Not.Contain(rotatedSid), "a refused session is in the live-session index");
+            Assert.That(index, Does.Not.Contain(liveSid), "the ended session is still in the live-session index");
         });
     }
 }

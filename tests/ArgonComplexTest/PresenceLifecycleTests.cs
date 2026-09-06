@@ -17,17 +17,20 @@ using System.Net.WebSockets;
 /// <para>Every other presence fixture in this campaign works in seconds, because it drives a grain
 /// or a Redis key directly. That is the right way to pin a fold or a TTL, and it is the wrong way to
 /// find out what a member of a space actually sees, because the parts of this system that decide
-/// that are exactly the parts with clocks in them: the 15 s refresh tick, the 30 s heartbeat
-/// debounce, the 120 s presence TTL, the disconnect-grace reminder whose period Orleans will not let
-/// be shorter than a minute, and the two-minute <c>DelayDeactivation</c> that keeps the session
-/// grain alive between them. A test that does not spend that time cannot see them interact.</para>
+/// that are exactly the parts with clocks in them: the refresh tick, the heartbeat debounce, the
+/// presence TTL, the disconnect-grace reminder whose period Orleans floors, and the
+/// <c>DelayDeactivation</c> that keeps the session grain alive between them. A test that does not
+/// spend that time cannot see them interact.</para>
 ///
-/// <para>So the fixture is deliberately slow, and it buys back the time by overlapping: the control
-/// session for the reconnect scenario runs inside the same wall clock as the session under test
-/// rather than in a test of its own, and the "reconnect after the grace already finalized" case is
-/// the tail of the ungraceful-drop case, because that is the only way to reach the state it needs.
-/// Each test spends real seconds only where an <em>absence</em> is being asserted — no Offline for
-/// twenty seconds, no flap for thirty — and polls with a deadline everywhere else.</para>
+/// <para>Every wait below is therefore written as a ratio of those clocks rather than as a number of
+/// seconds — see <see cref="PresenceWaits"/> — which is what lets the integration host run the same
+/// assertions against compressed timings (<see cref="TestPresenceTimings"/>) in a fraction of the
+/// wall time without weakening one of them. The fixture also buys back time by overlapping: the
+/// control session for the reconnect scenario runs inside the same wall clock as the session under
+/// test rather than in a test of its own, and the "reconnect after the grace already finalized" case
+/// is the tail of the ungraceful-drop case, because that is the only way to reach the state it
+/// needs. Real time is spent only where an <em>absence</em> is being asserted — no Offline while the
+/// grace runs, no flap while a window survives — and polls with a deadline everywhere else.</para>
 ///
 /// <para>What the whole fixture is really guarding is one property: a user's status as observers see
 /// it on the wire, and their status as the snapshot APIs report it, never disagree for longer than
@@ -58,18 +61,18 @@ public class PresenceLifecycleTests : TestBase
     /// naming a session nobody is on the other end of.</para>
     ///
     /// <para>The grace is accelerated by expiring the session's presence key rather than by waiting
-    /// out its 120 s TTL, because the reminder that finalizes is what the test is about and its tick
-    /// cannot be pulled forward — the key going early only decides which tick is the one that
-    /// finalizes. The single-Offline assertion then keeps a fifteen-second tail: a duplicate
-    /// broadcast from a second reminder tick or a second activation would arrive there, and counting
-    /// immediately after the first event would miss it.</para>
+    /// out its TTL, because the reminder that finalizes is what the test is about and its tick cannot
+    /// be pulled forward — the key going early only decides which tick is the one that finalizes. The
+    /// single-Offline assertion then keeps a tail: a duplicate broadcast from a second reminder tick
+    /// or a second activation would arrive there, and counting immediately after the first event
+    /// would miss it.</para>
     ///
     /// <para>The reconnect at the end is the case the grace does not cover: the session was really
     /// finalized, so this is a new session on an old sid, and the user has to come back Online
     /// exactly once — not twice, and not silently, which would leave everyone who saw the Offline
     /// with a permanently dead-looking member.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task An_ungraceful_drop_goes_offline_exactly_once_after_the_grace_and_a_later_reconnect_returns_online(
         CancellationToken ct = default)
     {
@@ -87,7 +90,7 @@ public class PresenceLifecycleTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
         var presenceKey = PresenceProbe.PresenceSessionKey(joiner.UserId, joiner.SessionId);
 
@@ -104,11 +107,12 @@ public class PresenceLifecycleTests : TestBase
         await member.AbortAsync(ct: ct);
 
         // A fixed window on purpose: the assertion is that nothing happens, and an absence has no
-        // edge to poll for. Twenty seconds is comfortably inside the grace and well past the 15 s
-        // tick that would have noticed the connection is gone.
+        // edge to poll for. Two ticks is comfortably inside the presence TTL — which is what the
+        // grace reminder waits for before it finalizes anything — and well past the tick that would
+        // have noticed the connection is gone.
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(20),
+            PresenceWaits.NegativeWindow,
             "a dead socket must ride out the disconnect grace instead of announcing the user offline",
             beforeDrop, ct);
 
@@ -118,20 +122,23 @@ public class PresenceLifecycleTests : TestBase
             "the member went offline in the space snapshot while still inside the grace window");
 
         // Nothing can pull an Orleans reminder tick forward, but the tick only finalizes once the
-        // presence key has lapsed — so expiring the key early decides which of the minute ticks is
-        // the one that ends the session, and turns a 120 s wait into a 60 s one.
-        Assert.That(await probe.ForceExpire(presenceKey, TimeSpan.FromSeconds(1)), Is.True,
+        // presence key has lapsed — so expiring the key early decides which of the grace ticks is the
+        // one that ends the session, and removes the session TTL from the wait.
+        Assert.That(await probe.ForceExpire(presenceKey, PresenceWaits.Immediately), Is.True,
             "the presence key was already gone, so the drop was not treated as a grace at all");
+
+        // The key is gone, so what is left is one grace period plus the reminder floor that bounds it.
+        var offlineBudget = PresenceWaits.GraceAndABit;
 
         var offline = await watcher.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(130), beforeDrop, ct);
+            offlineBudget, beforeDrop, ct);
 
         var offlineAfter = (offline.ReceivedAt - droppedAt).TotalSeconds;
 
         // A duplicate would come from a second reminder tick or a second activation finalizing again,
-        // both a minute apart, so the tail has to be spent rather than sampled.
-        await Task.Delay(TimeSpan.FromSeconds(15), ct);
+        // so the tail has to be spent rather than sampled.
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var offlines = watcher.EventsOfType<UserChangedStatus>(beforeDrop)
            .Count(e => e.userId == joiner.UserId && e.status == UserStatus.Offline);
@@ -145,7 +152,7 @@ public class PresenceLifecycleTests : TestBase
         {
             Assert.That(offline.Stream, Is.EqualTo(RealtimeStream.BroadcastSpace),
                 "the offline reached the observer on the wrong stream");
-            Assert.That(offlineAfter, Is.LessThan(130),
+            Assert.That(offlineAfter, Is.LessThan((PresenceWaits.SessionTtl + offlineBudget).TotalSeconds),
                 "the offline took longer than the grace it was meant to be finalizing");
             Assert.That(offlines, Is.EqualTo(1),
                 $"the drop produced {offlines} Offline broadcasts instead of one. {watcher.Dump(beforeDrop)}");
@@ -170,11 +177,11 @@ public class PresenceLifecycleTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(20), beforeRevival, ct);
+            PresenceWaits.Settle, beforeRevival, ct);
 
         // Long enough for a second broadcast from the reconnect path or from the first heartbeat
         // behind it, both of which land within a couple of seconds.
-        await Task.Delay(TimeSpan.FromSeconds(10), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var revivalEvents = watcher.EventsOfType<UserChangedStatus>(beforeRevival)
            .Where(e => e.userId == joiner.UserId)
@@ -210,13 +217,13 @@ public class PresenceLifecycleTests : TestBase
     /// lapse two minutes later. The observer's event stream and the space snapshot disagree, and only
     /// the snapshot is wrong, so a client that reloads a space is the one that sees it.</para>
     ///
-    /// <para>Two minutes is not a number the test can shorten. The status keys carry a 120 s TTL, the
-    /// only thing that renews them is the session grain's 15 s tick, and the question being asked is
+    /// <para>A whole session TTL is not a wait the test can skip. The status keys carry that TTL, the
+    /// only thing that renews them is the session grain's tick, and the question being asked is
     /// whether that tick is still running — so the answer only exists once the TTL that was standing
-    /// when the tick stopped has run out. The three snapshot reads at 30 s, 90 s and 130 s after the
-    /// reconnect are placed either side of that edge deliberately: a failure only at 130 s says the
-    /// renewal stopped, while a failure at 30 s would say something far worse happened at the
-    /// reconnect itself.</para>
+    /// when the tick stopped has run out. The three snapshot reads, at a quarter and three quarters of
+    /// the TTL and then past the cliff, are placed either side of that edge deliberately: a failure
+    /// only at the last says the renewal stopped, while a failure at the first would say something
+    /// far worse happened at the reconnect itself.</para>
     ///
     /// <para>The control session is here because a bare "it went Offline after two minutes" is not
     /// evidence on its own — a broken environment, a paused container or a stalled reminder service
@@ -224,10 +231,10 @@ public class PresenceLifecycleTests : TestBase
     /// status on the same schedule, never drops, and is read at the end of the same window. If the
     /// control is Online with fresh TTLs and the subject is not, the difference is the detach.</para>
     ///
-    /// <para>The control is also the whole of the long-lived-session case: 150 s is past the 120 s
-    /// presence TTL and past the 2 min <c>DelayDeactivation</c>, so a session that is still Online
-    /// there with TTLs refreshed inside the last tick has proved that the timer, the deactivation
-    /// delay and the TTL renewal all survive a quiet session that never changes anything.</para>
+    /// <para>The control is also the whole of the long-lived-session case: the read happens past the
+    /// presence TTL and past the <c>DelayDeactivation</c>, so a session that is still Online there
+    /// with TTLs refreshed inside the last tick has proved that the timer, the deactivation delay and
+    /// the TTL renewal all survive a quiet session that never changes anything.</para>
     ///
     /// <para><b>The contract this now guards (defect S2, fixed).</b> The 15 s tick belongs to "this
     /// session has live connections", not to "this session has just started".
@@ -252,7 +259,7 @@ public class PresenceLifecycleTests : TestBase
     /// sees the disagreement — which is what makes this a test worth keeping rather than a timing
     /// curiosity.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task A_session_that_reconnects_within_the_grace_keeps_refreshing_its_status_like_one_that_never_dropped(
         CancellationToken ct = default)
     {
@@ -277,14 +284,14 @@ public class PresenceLifecycleTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == subject.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == control.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
-        // Established for twenty seconds before the drop, so at least one refresh tick has run and the
-        // session is unambiguously a settled one rather than one still in its first moments.
-        await Task.Delay(TimeSpan.FromSeconds(20), ct);
+        // Established for a tick before the drop, so at least one refresh has run and the session is
+        // unambiguously a settled one rather than one still in its first moments.
+        await Task.Delay(PresenceWaits.OneTick, ct);
 
         await dropperBeats.DisposeAsync();
 
@@ -293,21 +300,26 @@ public class PresenceLifecycleTests : TestBase
         await dropper.DisposeAsync();
 
         // Well inside the grace — this is the reconnect the grace exists to make invisible.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.InsideGrace, ct);
 
         await using var rejoined      = await RealtimeClient.ConnectAsync(subject, ct);
         await using var rejoinedBeats = Heartbeats.Start(rejoined, UserStatus.Online);
 
         var reconnectedAt = Stopwatch.StartNew();
 
-        await DelayUntilAsync(reconnectedAt, TimeSpan.FromSeconds(30), ct);
-        var at30 = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
+        // A quarter of a TTL in, three quarters in, and past the cliff. The first two say the
+        // reconnect itself was clean; only the third can see a renewal that stopped.
+        var quarterTtl      = PresenceWaits.SessionTtl / 4;
+        var threeQuarterTtl = PresenceWaits.SessionTtl * 3 / 4;
 
-        await DelayUntilAsync(reconnectedAt, TimeSpan.FromSeconds(90), ct);
-        var at90 = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
+        await DelayUntilAsync(reconnectedAt, quarterTtl, ct);
+        var atQuarterTtl = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
 
-        await DelayUntilAsync(reconnectedAt, TimeSpan.FromSeconds(130), ct);
-        var at130 = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
+        await DelayUntilAsync(reconnectedAt, threeQuarterTtl, ct);
+        var atThreeQuarterTtl = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
+
+        await DelayUntilAsync(reconnectedAt, PresenceWaits.PastTtl, ct);
+        var pastTheCliff = await SnapshotStatusAsync(observer, spaceId, subject.UserId, UserStatus.Online, ct);
 
         var subjectStatusTtl     = await probe.TtlOf(PresenceProbe.SessionStatusKey(subject.UserId, subject.SessionId));
         var subjectAggregatedTtl = await probe.TtlOf(PresenceProbe.AggregatedStatusKey(subject.UserId));
@@ -331,12 +343,14 @@ public class PresenceLifecycleTests : TestBase
             Assert.That(offlineEvents, Is.Empty,
                 $"a session that reconnected inside the grace was broadcast Offline. {watcher.Dump(beforeDrop)}");
 
-            Assert.That(at30, Is.EqualTo(UserStatus.Online),
-                "30 s after the reconnect the space snapshot already disagrees with the connected, heartbeating client");
-            Assert.That(at90, Is.EqualTo(UserStatus.Online),
-                "90 s after the reconnect the space snapshot disagrees with the connected, heartbeating client");
-            Assert.That(at130, Is.EqualTo(UserStatus.Online),
-                $"130 s after reconnecting, a client that is connected and heartbeating Online reads {at130} in the "
+            Assert.That(atQuarterTtl, Is.EqualTo(UserStatus.Online),
+                $"{quarterTtl.TotalSeconds:F0} s after the reconnect — a quarter of a session TTL — the space "
+              + "snapshot already disagrees with the connected, heartbeating client");
+            Assert.That(atThreeQuarterTtl, Is.EqualTo(UserStatus.Online),
+                $"{threeQuarterTtl.TotalSeconds:F0} s after the reconnect the space snapshot disagrees with the "
+              + "connected, heartbeating client");
+            Assert.That(pastTheCliff, Is.EqualTo(UserStatus.Online),
+                $"past the TTL cliff after reconnecting, a client that is connected and heartbeating Online reads {pastTheCliff} in the "
               + $"space snapshot. status TTL={Describe(subjectStatusTtl)}, aggregated TTL={Describe(subjectAggregatedTtl)}, "
               + $"presence TTL={Describe(subjectPresenceTtl)} — the presence key is being renewed and the status keys "
               + "are not, which is the refresh timer that DetachConnectionAsync disposed and nothing re-armed");
@@ -351,10 +365,10 @@ public class PresenceLifecycleTests : TestBase
             Assert.That(controlStatus, Is.EqualTo(UserStatus.Online),
                 $"the control session, connected and heartbeating for {controlUptime.TotalSeconds:F0} s without dropping, "
               + "is not Online — the environment, not the detach, is what this test is measuring");
-            Assert.That(controlStatusTtl?.TotalSeconds ?? -1, Is.GreaterThan(100),
+            Assert.That(controlStatusTtl?.TotalSeconds ?? -1, Is.GreaterThan(PresenceWaits.FreshTtlFloor.TotalSeconds),
                 $"the control session's status TTL is {Describe(controlStatusTtl)} after {controlUptime.TotalSeconds:F0} s; "
-              + "a 15 s tick renewing a 120 s TTL never leaves it below 100 s");
-            Assert.That(controlAggregatedTtl?.TotalSeconds ?? -1, Is.GreaterThan(100),
+              + "a live tick renewing the TTL never leaves it more than two ticks below full");
+            Assert.That(controlAggregatedTtl?.TotalSeconds ?? -1, Is.GreaterThan(PresenceWaits.FreshTtlFloor.TotalSeconds),
                 $"the control user's aggregated TTL is {Describe(controlAggregatedTtl)} after {controlUptime.TotalSeconds:F0} s");
         });
     }
@@ -382,7 +396,7 @@ public class PresenceLifecycleTests : TestBase
     /// screen are all keyed on. Registering a second account would not do: the whole scenario is one
     /// user's aggregate over two of their devices.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task A_dnd_device_that_dies_ungracefully_releases_its_status_after_the_grace_and_never_through_offline(
         CancellationToken ct = default)
     {
@@ -407,7 +421,7 @@ public class PresenceLifecycleTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == deviceA.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(20), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(await probe.AggregatedStatusAsync(deviceA.UserId, ct), Is.EqualTo(UserStatus.DoNotDisturb),
             "the stored aggregate never reached DoNotDisturb, so there is nothing for the drop to release");
@@ -421,7 +435,7 @@ public class PresenceLifecycleTests : TestBase
         // account's status must not move at all — not to Online, and certainly not to Offline.
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == deviceA.UserId,
-            TimeSpan.FromSeconds(20),
+            PresenceWaits.NegativeWindow,
             "a device dropping must not move the account's status while its grace is still running",
             beforeDrop, ct);
 
@@ -429,15 +443,15 @@ public class PresenceLifecycleTests : TestBase
 
         var phonePresenceKey = PresenceProbe.PresenceSessionKey(deviceB.UserId, deviceB.SessionId);
 
-        Assert.That(await probe.ForceExpire(phonePresenceKey, TimeSpan.FromSeconds(1)), Is.True,
+        Assert.That(await probe.ForceExpire(phonePresenceKey, PresenceWaits.Immediately), Is.True,
             "the dropped device's presence key was already gone, so its grace was never armed");
 
         var released = await watcher.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == deviceA.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(130), beforeDrop, ct);
+            PresenceWaits.GraceAndABit, beforeDrop, ct);
 
         // A late Offline — the finalize folding over an index it emptied first — would arrive here.
-        await Task.Delay(TimeSpan.FromSeconds(10), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var statuses = watcher.EventsOfType<UserChangedStatus>(beforeDrop)
            .Where(e => e.userId == deviceA.UserId)
@@ -480,14 +494,13 @@ public class PresenceLifecycleTests : TestBase
     /// seconds later, which is what an observer's roster, notification badges and "who is here" list
     /// all react to.</para>
     ///
-    /// <para>The surviving window beats every five seconds rather than the client's usual fifteen.
-    /// That is still an honest client — the contract is a heartbeat at least that often, and the real
-    /// one also beats immediately on connect — and it puts the resurrection well inside the thirty
-    /// second window instead of leaving the test unable to say whether the Online was coming.</para>
+    /// <para>The surviving window beats twice as often as the client's usual period. That is still an
+    /// honest client — the contract is a heartbeat at least that often, and the real one also beats
+    /// immediately on connect — and it puts the resurrection well inside the window instead of leaving
+    /// the test unable to say whether the Online was coming.</para>
     ///
-    /// <para>Thirty seconds is spent rather than polled because the whole claim is an absence, and it
-    /// is long enough to cover both a debounced heartbeat (30 s) and two of the surviving window's
-    /// beats.</para>
+    /// <para>The window is spent rather than polled because the whole claim is an absence, and it is
+    /// sized to cover a debounced heartbeat and several of the surviving window's beats.</para>
     ///
     /// <para><b>The contract this now guards (defect S9, fixed).</b> Signing out is scoped to the
     /// connection that asked for it. <c>AppHub.GoOffline</c> now passes <c>Context.ConnectionId</c>
@@ -507,7 +520,7 @@ public class PresenceLifecycleTests : TestBase
     /// keeps its old session-wide meaning on purpose — <c>SecurityGrain.EndSessionAsync</c> means
     /// exactly that by signing a device out.</para>
     /// </remarks>
-    [Test, Category("Slow"), CancelAfter(300_000)]
+    [Test, CancelAfter(120_000)]
     public async Task A_window_signing_out_beside_a_live_window_of_the_same_session_does_not_flap_the_user(
         CancellationToken ct = default)
     {
@@ -529,7 +542,7 @@ public class PresenceLifecycleTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
         Assert.Multiple(() =>
         {
@@ -543,8 +556,8 @@ public class PresenceLifecycleTests : TestBase
 
         await windowA.GoOffline(ct);
 
-        await using (Heartbeats.Start(windowB, UserStatus.Online, TimeSpan.FromSeconds(5)))
-            await Task.Delay(TimeSpan.FromSeconds(30), ct);
+        await using (Heartbeats.Start(windowB, UserStatus.Online, PresenceWaits.Tick / 2))
+            await Task.Delay(PresenceWaits.PastHeartbeatDebounce, ct);
 
         var statuses = watcher.EventsOfType<UserChangedStatus>(beforeSignOut)
            .Where(e => e.userId == joiner.UserId)
@@ -585,7 +598,7 @@ public class PresenceLifecycleTests : TestBase
             async () => (await reader.Servers.GetMemberPresence(spaceId, ct))
                .Values.FirstOrDefault(m => m.userId == userId)?.status,
             status => status == expected,
-            TimeSpan.FromSeconds(3), ct: ct);
+            PresenceWaits.Converge, ct: ct);
 
     /// <summary>Waits until <paramref name="since"/> reads at least <paramref name="mark"/>.</summary>
     private static Task DelayUntilAsync(Stopwatch since, TimeSpan mark, CancellationToken ct)
@@ -685,7 +698,7 @@ public class PresenceLifecycleTests : TestBase
     }
 
     /// <summary>
-    /// The desktop client's heartbeat loop: one immediately, then one every fifteen seconds, for as
+    /// The desktop client's heartbeat loop: one immediately, then one every refresh period, for as
     /// long as the connection lives.
     /// </summary>
     /// <remarks>
@@ -699,6 +712,10 @@ public class PresenceLifecycleTests : TestBase
     /// exception on it would surface as an unobserved task fault with no relation to the assertion
     /// that failed. Tests read <see cref="Failures"/> instead, which turns "the client could not talk
     /// to the hub" into a stated reason rather than a mysterious red.</para>
+    ///
+    /// <para>The default period is the session grain's own refresh tick, which is what the desktop
+    /// client uses, so a beat lands in every window the server expects one in at whatever scale the
+    /// host is configured for.</para>
     /// </remarks>
     private sealed class Heartbeats : IAsyncDisposable
     {
@@ -711,7 +728,7 @@ public class PresenceLifecycleTests : TestBase
         public static Heartbeats Start(RealtimeClient client, UserStatus status, TimeSpan? period = null)
         {
             var pump = new Heartbeats();
-            pump.loop = pump.RunAsync(client, status, period ?? TimeSpan.FromSeconds(15));
+            pump.loop = pump.RunAsync(client, status, period ?? PresenceWaits.Tick);
             return pump;
         }
 

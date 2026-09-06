@@ -28,9 +28,62 @@ using Argon.Services;
 /// of the pipeline uses arrives in the <c>ArgonSecure</c> cookie, which the caller writes, so a
 /// revocation matched against that is sidestepped by not sending it; the signed <c>sid</c> cannot
 /// be. That is why the refresh path checks for itself rather than trusting the interceptor.</para>
+///
+/// <para><b>The identity model, in full, because every gate in the product depends on getting it
+/// right.</b> A session has <em>two</em> ids and they live in different id spaces:</para>
+///
+/// <list type="bullet">
+/// <item><description><b>The presence sid</b> — <c>HttpContextExtensions.GetSessionId()</c>: the
+/// <c>scid</c> field of the <c>ArgonSecure</c> cookie, or the <c>Sec-Ref</c>/<c>X-Ctt</c> header.
+/// <b>The caller writes it.</b> It names a row on the devices screen, it keys the presence records
+/// and the session grain, and an installed client mints a fresh one on every launch. It is a
+/// <em>label</em>, not a credential, and a gate that keys on it alone is escaped by sending a
+/// different one.</description></item>
+/// <item><description><b>The credential sid</b> — the <c>sid</c> claim <c>ClassicJwtFlow</c> writes
+/// into the refresh token (and, since the same claim now rides the access token minted from it,
+/// into every request that presents one). <b>The server mints it</b> and it is inside a signature,
+/// so a caller can neither choose it nor omit it while still being served.</description></item>
+/// </list>
+///
+/// <para>So the rule is: <b>a revocation is written under both ids and every gate tests both.</b>
+/// <see cref="CredentialsKey"/> is the bridge that makes the first half possible —
+/// <c>SecurityGrain.EndSessionAsync</c> tombstones the presence sid the user pressed the button on
+/// <em>and</em> every credential sid recorded against it. The second half is why the hub ticket
+/// carries <c>csid</c> claims beside its <c>sid</c>: without them a signed-out device escaped simply
+/// by generating a new <c>scid</c> before reconnecting, since the only id the hub could see was the
+/// one the caller had just chosen.</para>
+///
+/// <para>And because neither id can reach a credential that was never registered under either,
+/// <see cref="FloorKey"/> is the backstop: <em>anything</em> issued at or before the watermark is
+/// dead, whatever it calls itself. The refresh token and the hub ticket both carry an <c>iat</c>
+/// for exactly that comparison, and a credential that carries none is read as older than any floor
+/// — see <see cref="IsBelowFloor"/>.</para>
 /// </remarks>
 public static class SessionRevocation
 {
+    /// <summary>
+    /// Where the request pipeline leaves the credential session id it read off the caller's access
+    /// token, for the handful of places downstream that need the unforgeable half of the identity.
+    /// </summary>
+    /// <remarks>
+    /// A property bag entry rather than a field on <c>ArgonRequestContextData</c>: the context is
+    /// also built from an ion ticket and from a console token, neither of which has an access token
+    /// to read, and a required field would make those two lie about having one. Absent means "this
+    /// path could not establish it", which every reader has to tolerate anyway — see
+    /// <c>EventBusImpl.PickTicket</c>, which unions it with <see cref="CredentialsKey"/>.
+    /// </remarks>
+    public const string CredentialSessionProperty = "csid";
+
+    /// <summary>
+    /// The hub-ticket claim carrying one server-minted credential session id.
+    /// </summary>
+    /// <remarks>
+    /// Repeated, not joined: a ticket carries one claim per credential the device is known to hold,
+    /// and <c>AppHub</c> tests every one of them against the tombstone set. <c>EventBusImpl.PickTicket</c>
+    /// is the only writer.
+    /// </remarks>
+    public const string CredentialTicketClaim = "csid";
+
     /// <summary>
     /// How long a refresh token is good for, and therefore how long a revocation of it must be kept.
     /// </summary>
@@ -154,4 +207,30 @@ public static class SessionRevocation
     public static async Task<string[]> CredentialSessionsAsync(
         IArgonCacheDatabase cache, Guid userId, Guid presenceSessionId, CancellationToken ct = default)
         => await cache.SetMembersAsync(CredentialsKey(userId, presenceSessionId), ct);
+
+    /// <summary>
+    /// Reads the stored watermark: everything this user was issued at or before it is dead.
+    /// </summary>
+    /// <remarks>
+    /// One parser for every gate, so the hub, the refresh path and anything added later cannot
+    /// disagree about what an unparseable value means. Null is "no floor was ever written" and is
+    /// also what a corrupt value reads as — a watermark nobody can place in time cannot be used to
+    /// end sessions, and refusing every request on it would turn one bad write into a total lockout.
+    /// </remarks>
+    public static DateTimeOffset? ParseFloor(string? raw)
+        => !string.IsNullOrEmpty(raw) && long.TryParse(raw, out var seconds)
+            ? DateTimeOffset.FromUnixTimeSeconds(seconds)
+            : null;
+
+    /// <summary>
+    /// Whether a credential issued at <paramref name="issuedAt"/> is below the user's floor.
+    /// </summary>
+    /// <remarks>
+    /// A missing <paramref name="issuedAt"/> is treated as older than any floor, exactly as
+    /// <c>IdentityInteraction.IsRefreshRevokedAsync</c> treats a refresh token minted before the
+    /// claim existed: a credential that cannot be placed in time cannot be shown to be newer than a
+    /// sign-out-everywhere, and the person who wrote the floor asked for everything to stop.
+    /// </remarks>
+    public static bool IsBelowFloor(DateTimeOffset? floor, DateTimeOffset? issuedAt)
+        => floor is { } watermark && (issuedAt is not { } when || when <= watermark);
 }

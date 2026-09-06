@@ -72,7 +72,7 @@ public class PresenceRevocationTests : TestBase
 
         var listed = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(phone.SessionId), TimeSpan.FromSeconds(15), ct: ct);
+            ids => ids.Contains(phone.SessionId), PresenceWaits.Settle, ct: ct);
 
         Assert.That(listed, Does.Contain(phone.SessionId),
             "the second device is not on the devices screen, so there is no row to press the button on");
@@ -97,9 +97,9 @@ public class PresenceRevocationTests : TestBase
     /// Redis can.</para>
     ///
     /// <para>The heartbeats are the whole point of the test. A signed-out client does not know it has
-    /// been signed out; the desktop client sends a heartbeat every fifteen seconds regardless, and
-    /// the question is whether the server treats those as noise from a dead session or as the
-    /// arrival of a live one.</para>
+    /// been signed out; the desktop client keeps beating on its own period regardless, and the
+    /// question is whether the server treats those as noise from a dead session or as the arrival of
+    /// a live one.</para>
     ///
     /// <para><b>The contract this now guards (defects S5 and S6, both fixed).</b> Two independent
     /// failures met here and the test needed both closed. S5: <c>SecurityGrain.EndSessionAsync</c>
@@ -119,11 +119,12 @@ public class PresenceRevocationTests : TestBase
     /// watching for has not taken effect. Both layers are here on purpose: the hub gate is what cuts
     /// the feed, the grain gate is what makes "a revoked sid can never hold presence" true for every
     /// caller including the Ion path. The heartbeats in this test are the whole point — a signed-out
-    /// client does not know it has been signed out and keeps beating every fifteen seconds — and the
+    /// client does not know it has been signed out and keeps beating on its own period — and the
     /// two devices hold different statuses so that the aggregate falling back to Away is a direct
-    /// readout of which sessions the server still counts.</para>
+    /// readout of which sessions the server still counts. The heartbeat interval is the session
+    /// grain's own refresh period, which is what the desktop client beats on.</para>
     /// </remarks>
-    [Test, CancelAfter(1000 * 60 * 5), Category("Slow")]
+    [Test, CancelAfter(120_000)]
     public async Task Revoking_a_device_ends_its_presence_and_its_heartbeats_do_not_bring_it_back(
         CancellationToken ct = default)
     {
@@ -144,13 +145,13 @@ public class PresenceRevocationTests : TestBase
 
         var laptopStatus = await Poll.ForValueAsync(
             () => probe.SessionStatusAsync(laptop.UserId, laptop.SessionId),
-            status => status == UserStatus.Away, TimeSpan.FromSeconds(15), ct: ct);
+            status => status == UserStatus.Away, PresenceWaits.Settle, ct: ct);
 
         Assert.That(laptopStatus, Is.EqualTo(UserStatus.Away),
             "the surviving device never took the Away it was told to hold, so the aggregate below proves nothing");
 
         var bothOnline = await probe.WaitForAggregatedStatusAsync(
-            laptop.UserId, UserStatus.Online, TimeSpan.FromSeconds(15), ct);
+            laptop.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
 
         Assert.That(bothOnline, Is.EqualTo(UserStatus.Online),
             "with an Online device attached the user has to read Online whatever the other device is set to");
@@ -174,17 +175,17 @@ public class PresenceRevocationTests : TestBase
         // left is Away, so Away is what the space is owed.
         var awayEvent = await watcher.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == laptop.UserId && e.status == UserStatus.Away,
-            TimeSpan.FromSeconds(20), beforeRevoke, ct);
+            PresenceWaits.Settle, beforeRevoke, ct);
 
         var goneFromScreen = await Poll.UntilAsync(
             async () => !(await laptop.Security.GetSessions(ct)).Any(x => x.sessionId == phone.SessionId),
-            TimeSpan.FromSeconds(20), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var presenceRightAfter = await probe.Exists(presenceKey);
 
         // A signed-out client has no way of knowing it was signed out, so it keeps doing what it
-        // always does. Three heartbeats fifteen seconds apart is exactly what the desktop client
-        // would send over the next forty seconds.
+        // always does. Three heartbeats one refresh period apart is exactly what the desktop client
+        // would send over the next three ticks.
         var heartbeatFailures = new List<string>();
 
         for (var i = 0; i < 3; i++)
@@ -198,7 +199,7 @@ public class PresenceRevocationTests : TestBase
                 heartbeatFailures.Add($"#{i}: {e.GetType().Name}: {e.Message}");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(15), ct);
+            await Task.Delay(PresenceWaits.Tick, ct);
         }
 
         var listedAfter    = (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray();
@@ -288,7 +289,7 @@ public class PresenceRevocationTests : TestBase
 
         var listed = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(phone.SessionId), TimeSpan.FromSeconds(15), ct: ct);
+            ids => ids.Contains(phone.SessionId), PresenceWaits.Settle, ct: ct);
 
         Assert.That(listed, Does.Contain(phone.SessionId), "the second device never reached the devices screen");
 
@@ -307,7 +308,7 @@ public class PresenceRevocationTests : TestBase
         var endedProperly = await Poll.UntilAsync(
             async () => !await probe.Exists(presenceKey)
                      && !(await laptop.Security.GetSessions(ct)).Any(x => x.sessionId == phone.SessionId),
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(endedProperly, Is.True,
             "the session did not end even when the revocation's own steps were applied to it, so the test below "
@@ -326,7 +327,7 @@ public class PresenceRevocationTests : TestBase
 
         // Fixed wait: the claim is that the heartbeat changes nothing, and an absence has no edge to
         // poll for. A resurrection happens inside the heartbeat call itself, so this is generous.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var backOnScreen  = (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray();
         var presenceAlive = await probe.Exists(presenceKey);
@@ -382,16 +383,17 @@ public class PresenceRevocationTests : TestBase
 
         var listed = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(phone.SessionId), TimeSpan.FromSeconds(15), ct: ct);
+            ids => ids.Contains(phone.SessionId), PresenceWaits.Settle, ct: ct);
 
         Assert.That(listed, Does.Contain(phone.SessionId), "the second device never reached the devices screen");
 
         var revoked = await laptop.Security.RevokeSession(phone.SessionId, ct);
 
-        // Spending the whole twenty seconds is the point when the connection is not closed: the
-        // claim under test is that a revoked device stops being able to talk, and only an elapsed
-        // window can show that it never stopped.
-        var closed = await onPhone.WaitForCloseAsync(TimeSpan.FromSeconds(20), ct);
+        // Spending the whole window is the point when the connection is not closed: the claim under
+        // test is that a revoked device stops being able to talk, and only an elapsed window can show
+        // that it never stopped. Two ticks, because that is the scale everything the session does is
+        // paced by.
+        var closed = await onPhone.WaitForCloseAsync(PresenceWaits.TwoTicks, ct);
 
         string? heartbeatError  = null;
         string? goOfflineError  = null;
@@ -476,7 +478,7 @@ public class PresenceRevocationTests : TestBase
 
         var listed = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(phone.SessionId), TimeSpan.FromSeconds(15), ct: ct);
+            ids => ids.Contains(phone.SessionId), PresenceWaits.Settle, ct: ct);
 
         Assert.That(listed, Does.Contain(phone.SessionId), "the second device never reached the devices screen");
 
@@ -558,7 +560,7 @@ public class PresenceRevocationTests : TestBase
 
         var laptopStatus = await Poll.ForValueAsync(
             () => probe.SessionStatusAsync(laptop.UserId, laptop.SessionId),
-            status => status == UserStatus.Away, TimeSpan.FromSeconds(15), ct: ct);
+            status => status == UserStatus.Away, PresenceWaits.Settle, ct: ct);
 
         Assert.That(laptopStatus, Is.EqualTo(UserStatus.Away),
             "the surviving device never took the Away it was told to hold");
@@ -566,7 +568,7 @@ public class PresenceRevocationTests : TestBase
         var allThree = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
             ids => ids.Contains(laptop.SessionId) && ids.Contains(phone.SessionId) && ids.Contains(tablet.SessionId),
-            TimeSpan.FromSeconds(20), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(allThree, Has.Length.EqualTo(3),
             $"the devices screen does not show the three connected devices: [{string.Join(", ", allThree)}]");
@@ -578,10 +580,10 @@ public class PresenceRevocationTests : TestBase
         var onlyTheCaller = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
             ids => ids.Length == 1 && ids[0] == laptop.SessionId,
-            TimeSpan.FromSeconds(20), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var settled = await probe.WaitForAggregatedStatusAsync(
-            laptop.UserId, UserStatus.Away, TimeSpan.FromSeconds(20), ct);
+            laptop.UserId, UserStatus.Away, PresenceWaits.Settle, ct);
 
         var offlineEvents = watcher.EventsOfType<UserChangedStatus>(beforeRevoke)
            .Where(e => e.userId == laptop.UserId && e.status == UserStatus.Offline)
@@ -602,7 +604,7 @@ public class PresenceRevocationTests : TestBase
         }
 
         // Fixed wait: the claim is that nothing comes back, and an absence has no edge to poll for.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var afterHeartbeats = (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray();
 
@@ -652,7 +654,7 @@ public class PresenceRevocationTests : TestBase
 
         var listed = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct)).Select(x => x.sessionId).ToArray(),
-            ids => ids.Contains(laptop.SessionId), TimeSpan.FromSeconds(15), ct: ct);
+            ids => ids.Contains(laptop.SessionId), PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -677,10 +679,11 @@ public class PresenceRevocationTests : TestBase
 
         var gone = await Poll.UntilAsync(
             async () => !(await laptop.Security.GetSessions(ct)).Any(x => x.sessionId == laptop.SessionId),
-            TimeSpan.FromSeconds(2), ct: ct);
+            PresenceWaits.Immediately, ct: ct);
 
         Assert.That(gone, Is.True,
-            "a device that said goodbye is still listed as signed in two seconds later");
+            "a device that said goodbye is still listed as signed in a moment later — a deliberate "
+          + "sign-out has no grace and must be immediate");
     }
 
     /// <summary>
@@ -707,15 +710,15 @@ public class PresenceRevocationTests : TestBase
         var firstSeen = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct))
                .FirstOrDefault(x => x.sessionId == laptop.SessionId)?.lastSeenAt,
-            seen => seen is not null, TimeSpan.FromSeconds(15), ct: ct);
+            seen => seen is not null, PresenceWaits.Settle, ct: ct);
 
         Assert.That(firstSeen, Is.Not.Null, "the connected device never reached the devices screen");
 
-        // The session's own 15 s tick is what moves this; twenty-five seconds is one tick plus room.
+        // The session's own tick is what moves this, so the budget is two of them.
         var advanced = await Poll.ForValueAsync(
             async () => (await laptop.Security.GetSessions(ct))
                .FirstOrDefault(x => x.sessionId == laptop.SessionId)?.lastSeenAt,
-            seen => seen > firstSeen, TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(1), ct);
+            seen => seen > firstSeen, PresenceWaits.TwoTicks, PresenceWaits.Immediately, ct);
 
         Assert.That(advanced, Is.Not.Null, "the device fell off the devices screen while it was still connected");
 
@@ -733,8 +736,9 @@ public class PresenceRevocationTests : TestBase
             "an ungraceful drop took the row off the screen immediately, so the disconnect grace did not happen");
 
         // Fixed wait: the claim is that a value does NOT change, and there is no edge to poll for.
-        // Longer than the 15 s tick so a tick that should not have fired would have fired by now.
-        await Task.Delay(TimeSpan.FromSeconds(25), ct);
+        // Two ticks, so a tick that should not have fired would have fired by now — and still well
+        // inside the presence TTL, which is what keeps the row on the screen at all.
+        await Task.Delay(PresenceWaits.TwoTicks, ct);
 
         var afterDeath = (await laptop.Security.GetSessions(ct))
            .FirstOrDefault(x => x.sessionId == laptop.SessionId);
@@ -801,17 +805,18 @@ public class PresenceRevocationTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == member.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
         var beforeLogout = watcher.Mark();
 
         await firstWindow.GoOffline(ct);
 
-        // The surviving window carries on exactly as a connected client does.
+        // The surviving window carries on exactly as a connected client does, for long enough that a
+        // resurrection from a debounced heartbeat would have had its chance.
         for (var i = 0; i < 6; i++)
         {
             await secondWindow.Heartbeat(UserStatus.Online, ct);
-            await Task.Delay(TimeSpan.FromSeconds(3), ct);
+            await Task.Delay(PresenceWaits.Tick, ct);
         }
 
         var seen = watcher.EventsOfType<UserChangedStatus>(beforeLogout)

@@ -45,7 +45,13 @@ public class PresenceVoiceAndCountsTests : TestBase
     private PresenceProbe probe = null!;
 
     /// <summary>How long an intended reaction to a session ending is given before it counts as absent.</summary>
-    private static readonly TimeSpan ReactionWindow = TimeSpan.FromSeconds(5);
+    /// <remarks>
+    /// Derived from the host's presence clocks rather than fixed, like every other wait in this
+    /// campaign: the reaction is fanned out by the same finalize that ended the session, so the
+    /// window only has to outlast a broadcast — but it is expressed as a negative window
+    /// (<see cref="PresenceWaits.NegativeWindow"/>) because a missing reaction is what it reports.
+    /// </remarks>
+    private static TimeSpan ReactionWindow => PresenceWaits.NegativeWindow;
 
     [OneTimeSetUp]
     public async Task OpenProbeAsync()
@@ -79,12 +85,12 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         var joined = await watcher.WaitForRecordAsync<JoinedToChannelUser>(
             e => e.channelId == channelId && e.userId == speaker.UserId,
-            TimeSpan.FromSeconds(10), beforeJoin, ct);
+            PresenceWaits.Settle, beforeJoin, ct);
 
         var occupants = await Poll.ForValueAsync(
             () => VoiceOccupantsAsync(owner, spaceId, channelId, ct),
             users => users.Contains(speaker.UserId),
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -136,7 +142,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         await JoinVoiceAsync(speaker, spaceId, channelId, ct);
         await watcher.WaitForAsync<JoinedToChannelUser>(
-            e => e.channelId == channelId && e.userId == speaker.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.channelId == channelId && e.userId == speaker.UserId, PresenceWaits.Settle, ct: ct);
 
         var beforeOffline = watcher.Mark();
         await voice.GoOffline(ct);
@@ -198,7 +204,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         await JoinVoiceAsync(speaker, spaceId, channelId, ct);
         await watcher.WaitForAsync<JoinedToChannelUser>(
-            e => e.channelId == channelId && e.userId == speaker.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.channelId == channelId && e.userId == speaker.UserId, PresenceWaits.Settle, ct: ct);
 
         var phone = await SignInAgainAsync(speaker, ct);
 
@@ -206,7 +212,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         // be listed before the revocation means anything.
         var listed = await Poll.ForValueAsync(
             async () => (await phone.Security.GetSessions(ct)).Values.Any(s => s.sessionId == speaker.SessionId),
-            found => found, TimeSpan.FromSeconds(10), ct: ct);
+            found => found, PresenceWaits.Settle, ct: ct);
 
         Assert.That(listed, Is.True,
             "the session that is in the voice channel is not on the devices screen, so there is nothing to revoke");
@@ -257,14 +263,14 @@ public class PresenceVoiceAndCountsTests : TestBase
     /// common case in production, where laptops close and phones lose signal and nobody presses
     /// sign-out, so it is the road most ghosts used to arrive by.</para>
     ///
-    /// <para>Slow by construction. Orleans will not schedule a reminder sooner than a minute, and
-    /// nothing in the harness can pull one forward, so the grace costs its full minute of wall clock.
-    /// What can be accelerated is the other half of the condition: the presence key is force-expired
-    /// once the transport is gone (nothing refreshes it after the detach), so the first reminder tick
-    /// finalizes instead of the third. The finalize is observed through the <c>Offline</c> the space
-    /// receives, which is the event that says the session is over.</para>
+    /// <para>Orleans will not schedule a reminder below its own floor and nothing in the harness can
+    /// pull one forward, so the grace costs its full period of wall clock. What can be accelerated is
+    /// the other half of the condition: the presence key is force-expired once the transport is gone
+    /// (nothing refreshes it after the detach), so the first reminder tick finalizes instead of the
+    /// third. The finalize is observed through the <c>Offline</c> the space receives, which is the
+    /// event that says the session is over.</para>
     /// </remarks>
-    [Test, CancelAfter(1000 * 60 * 4), Category("Slow")]
+    [Test, CancelAfter(120_000)]
     public async Task An_ungraceful_drop_takes_the_user_out_of_voice_once_the_grace_finalizes(CancellationToken ct = default)
     {
         var owner   = await CreateSessionAsync(ct);
@@ -279,30 +285,30 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         await JoinVoiceAsync(speaker, spaceId, channelId, ct);
         await watcher.WaitForAsync<JoinedToChannelUser>(
-            e => e.channelId == channelId && e.userId == speaker.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.channelId == channelId && e.userId == speaker.UserId, PresenceWaits.Settle, ct: ct);
 
         var beforeDrop = watcher.Mark();
         await voice.AbortAsync(ct: ct);
 
         // Fixed, and only as a precondition: there is no hook that observes the server finishing
         // OnDisconnectedAsync (see harnessGaps), and force-expiring the presence key before the
-        // detach lands would race the 15 s refresh tick that is still armed until it does.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        // detach lands would race the refresh tick that is still armed until it does.
+        await Task.Delay(PresenceWaits.Converge, ct);
 
         var presenceKey = PresenceProbe.PresenceSessionKey(speaker.UserId, speaker.SessionId);
-        await probe.ForceExpire(presenceKey, TimeSpan.FromSeconds(1));
+        await probe.ForceExpire(presenceKey, PresenceWaits.Immediately);
 
         var lapsed = await Poll.UntilAsync(async () => !await probe.Exists(presenceKey),
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(lapsed, Is.True,
             "the presence key of a session with no transport is still being refreshed, so the grace can never finalize");
 
-        // The grace reminder cannot fire before its first minute; the Offline broadcast is the
+        // The grace reminder cannot fire before its first period; the Offline broadcast is the
         // finalize itself, so this waits on the event rather than on the clock.
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == speaker.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(150), beforeDrop, ct);
+            PresenceWaits.GraceAndABit, beforeDrop, ct);
 
         var afterFinalize = watcher.Mark();
 
@@ -350,7 +356,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         await JoinVoiceAsync(desktop, spaceId, channelId, ct);
         await watcher.WaitForAsync<JoinedToChannelUser>(
-            e => e.channelId == channelId && e.userId == desktop.UserId, TimeSpan.FromSeconds(10), ct: ct);
+            e => e.channelId == channelId && e.userId == desktop.UserId, PresenceWaits.Settle, ct: ct);
 
         var beforePhoneLeaves = watcher.Mark();
         await phoneClient.GoOffline(ct);
@@ -393,7 +399,7 @@ public class PresenceVoiceAndCountsTests : TestBase
 
         var stats = await Poll.ForValueAsync(
             () => OnlineCountAsync(scene.Owner, scene.SpaceId, ct),
-            count => count == 3, TimeSpan.FromSeconds(15), ct: ct);
+            count => count == 3, PresenceWaits.Settle, ct: ct);
 
         var preview    = await PreviewOnlineCountAsync(scene.Owner, scene.Code, ct);
         var notOffline = await NotOfflineCountAsync(scene.Owner, scene.SpaceId, ct);
@@ -437,7 +443,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         await using var scene = await BuildCountedSpaceAsync(ct);
 
         await Poll.UntilAsync(async () => await OnlineCountAsync(scene.Owner, scene.SpaceId, ct) == 3,
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         await scene.AwayClient.Heartbeat(UserStatus.TouchGrass, ct);
 
@@ -445,7 +451,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         // converged; the assertion below reports whatever it actually settled on.
         var stats = await Poll.ForValueAsync(
             () => OnlineCountAsync(scene.Owner, scene.SpaceId, ct),
-            count => count == 3, TimeSpan.FromSeconds(10), ct: ct);
+            count => count == 3, PresenceWaits.Settle, ct: ct);
 
         var preview    = await PreviewOnlineCountAsync(scene.Owner, scene.Code, ct);
         var notOffline = await NotOfflineCountAsync(scene.Owner, scene.SpaceId, ct);
@@ -470,7 +476,7 @@ public class PresenceVoiceAndCountsTests : TestBase
     /// <remarks>
     /// The counterpart to the test above: the count has to move when presence genuinely ends, and it
     /// has to move at once. A deliberate <c>GoOffline</c> skips the disconnect grace entirely, so
-    /// three seconds is generous.
+    /// the short convergence budget is generous.
     /// </remarks>
     [Test, CancelAfter(1000 * 60 * 3)]
     public async Task A_member_signing_out_drops_out_of_the_count_at_once(CancellationToken ct = default)
@@ -478,17 +484,17 @@ public class PresenceVoiceAndCountsTests : TestBase
         await using var scene = await BuildCountedSpaceAsync(ct);
 
         await Poll.UntilAsync(async () => await OnlineCountAsync(scene.Owner, scene.SpaceId, ct) == 3,
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         await scene.DndClient.GoOffline(ct);
 
         var stats = await Poll.ForValueAsync(
             () => OnlineCountAsync(scene.Owner, scene.SpaceId, ct),
-            count => count == 2, TimeSpan.FromSeconds(3), ct: ct);
+            count => count == 2, PresenceWaits.Converge, ct: ct);
 
         var notOffline = await Poll.ForValueAsync(
             () => NotOfflineCountAsync(scene.Owner, scene.SpaceId, ct),
-            count => count == 2, TimeSpan.FromSeconds(5), ct: ct);
+            count => count == 2, PresenceWaits.Converge, ct: ct);
 
         var preview = await PreviewOnlineCountAsync(scene.Owner, scene.Code, ct);
 
@@ -545,7 +551,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         // depend on the very broadcast it is judging.
         var inRoster = await Poll.UntilAsync(
             async () => (await owner.Servers.GetMemberPresence(spaceId, ct)).Values.Any(m => m.userId == ghost.UserId),
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(inRoster, Is.True, "the new member never appeared in the space roster, so the join did not land");
 
@@ -602,12 +608,12 @@ public class PresenceVoiceAndCountsTests : TestBase
     /// <c>status:user:{u}:session</c> and <c>status:user:{u}:aggregated</c> lapsed 120 s after the
     /// reconnect while the heartbeat kept renewing the <em>presence</em> key — <c>IsUserOnline</c>
     /// said yes, and both counters, the member list and the friends push all read the member as
-    /// Offline while they sat there connected. Slow: the failure is a TTL lapsing, so it cannot
-    /// appear sooner than 120 s after the last refresh, and the test heartbeats every 10 s throughout
-    /// exactly as the desktop client does — a session that stopped heartbeating would deactivate and
-    /// self-heal on the next activation, which is not the case under test.</para>
+    /// Offline while they sat there connected. The failure is a TTL lapsing, so it cannot appear
+    /// sooner than one session TTL after the last refresh, and the test heartbeats on the client's own
+    /// period throughout — a session that stopped heartbeating would deactivate and self-heal on the
+    /// next activation, which is not the case under test.</para>
     /// </remarks>
-    [Test, CancelAfter(1000 * 60 * 5), Category("Slow")]
+    [Test, CancelAfter(120_000)]
     public async Task A_member_who_reconnected_inside_the_grace_is_still_counted(CancellationToken ct = default)
     {
         var owner  = await CreateSessionAsync(ct);
@@ -621,7 +627,7 @@ public class PresenceVoiceAndCountsTests : TestBase
         await using var client  = await RealtimeClient.ConnectAsync(member, ct);
 
         var settled = await Poll.ForValueAsync(
-            () => OnlineCountAsync(owner, spaceId, ct), count => count == 2, TimeSpan.FromSeconds(15), ct: ct);
+            () => OnlineCountAsync(owner, spaceId, ct), count => count == 2, PresenceWaits.Settle, ct: ct);
 
         Assert.That(settled, Is.EqualTo(2), "the two connected members were never both counted");
 
@@ -630,23 +636,23 @@ public class PresenceVoiceAndCountsTests : TestBase
         // Fixed, and only as a precondition: nothing observes the server finishing
         // OnDisconnectedAsync, and reconnecting before the detach lands would leave the session with a
         // connection the whole time — which is the case this test is NOT about.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.Converge, ct);
 
         await client.RestartAsync(ct);
         Assert.That(client.IsConnected, Is.True, "the reconnect inside the grace did not come back up");
 
         using var beating  = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var       heartbeat = HeartbeatEvery(client, TimeSpan.FromSeconds(10), beating.Token);
+        var       heartbeat = HeartbeatEvery(client, PresenceWaits.Tick, beating.Token);
 
         try
         {
-            // The status keys carry a 120 s TTL and were last renewed at most one tick before the
-            // drop, so a lapse can show up from about 105 s in. Polling for the count to break means
-            // an implementation that renews correctly is not made to wait for the whole window before
-            // it is asserted on — it simply reads 2 the entire time.
+            // The status keys carry the session TTL and were last renewed at most one tick before the
+            // drop, so a lapse shows up from a tick short of the cliff. The poll waits for the count
+            // to BREAK, so a correct implementation spends the whole window — which is why the window
+            // is exactly "past the cliff" and not a second more.
             var count = await Poll.ForValueAsync(
                 () => OnlineCountAsync(owner, spaceId, ct),
-                value => value != 2, TimeSpan.FromSeconds(150), TimeSpan.FromSeconds(2), ct);
+                value => value != 2, PresenceWaits.PastTtl, PresenceWaits.Slack, ct);
 
             var preview    = await PreviewOnlineCountAsync(owner, code, ct);
             var notOffline = await NotOfflineCountAsync(owner, spaceId, ct);
@@ -829,9 +835,9 @@ public class PresenceVoiceAndCountsTests : TestBase
         await awayClient.Heartbeat(UserStatus.Away, ct);
         await dndClient.Heartbeat(UserStatus.DoNotDisturb, ct);
 
-        var awayStatus = await probe.WaitForAggregatedStatusAsync(away.UserId, UserStatus.Away, TimeSpan.FromSeconds(15), ct);
-        var dndStatus  = await probe.WaitForAggregatedStatusAsync(dnd.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(15), ct);
-        var ownerStatus = await probe.WaitForAggregatedStatusAsync(owner.UserId, UserStatus.Online, TimeSpan.FromSeconds(15), ct);
+        var awayStatus = await probe.WaitForAggregatedStatusAsync(away.UserId, UserStatus.Away, PresenceWaits.Settle, ct);
+        var dndStatus  = await probe.WaitForAggregatedStatusAsync(dnd.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct);
+        var ownerStatus = await probe.WaitForAggregatedStatusAsync(owner.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
 
         Assert.Multiple(() =>
         {

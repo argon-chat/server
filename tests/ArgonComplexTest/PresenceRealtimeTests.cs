@@ -62,8 +62,9 @@ public class PresenceRealtimeTests : TestBase
     /// sequence <c>Online -&gt; DoNotDisturb</c> this test used to record is therefore impossible
     /// rather than merely unlikely.</para>
     ///
-    /// <para>"Not named yet" is not allowed to become "never named": a five-second deadline in the
-    /// grain assumes Online and announces it if a connected session has still said nothing, so a
+    /// <para>"Not named yet" is not allowed to become "never named": a deadline in the grain
+    /// (<see cref="PresenceTimingOptions.StatusDeadline"/>) assumes Online and announces it if a
+    /// connected session has still said nothing, so a
     /// client that connects and never heartbeats is visible rather than invisible. The last
     /// assertion below — that the returning session produced <em>some</em> status event — is what
     /// holds that end of the contract.</para>
@@ -85,19 +86,19 @@ public class PresenceRealtimeTests : TestBase
             await firstRun.Heartbeat(UserStatus.DoNotDisturb, ct);
             await watcher.WaitForAsync<UserChangedStatus>(
                 e => e.userId == dndUser.UserId && e.status == UserStatus.DoNotDisturb,
-                TimeSpan.FromSeconds(10), ct: ct);
+                PresenceWaits.Settle, ct: ct);
 
             await firstRun.GoOffline(ct);
         }
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == dndUser.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         // The session grain self-destroys on GoOffline. Give the deactivation a moment to land, so
         // the reconnect below really is a fresh session start rather than a re-attach to the old
         // activation — the two take different paths and only the first one is the case under test.
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        await Task.Delay(PresenceWaits.Slack, ct);
 
         var beforeReturn = watcher.Mark();
 
@@ -105,9 +106,10 @@ public class PresenceRealtimeTests : TestBase
         await secondRun.Heartbeat(UserStatus.DoNotDisturb, ct);
 
         // A fixed window on purpose: the claim is that a particular event never arrives, and an
-        // absence has no edge to poll for. Everything the space was told about this user in the
-        // first five seconds of their return is then read back and judged as a whole.
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        // absence has no edge to poll for. The window covers the statusless deadline, which is where
+        // an unwanted Online would come from; everything the space was told about this user inside it
+        // is then read back and judged as a whole.
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var announced = StatusesFor(watcher, dndUser.UserId, spaceId, beforeReturn);
         var sequence  = string.Join(" -> ", announced.Select(e => e.status));
@@ -115,7 +117,7 @@ public class PresenceRealtimeTests : TestBase
         var snapshot = await Poll.ForValueAsync(
             () => SnapshotStatusAsync(observer, spaceId, dndUser.UserId, ct),
             status => status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -170,7 +172,7 @@ public class PresenceRealtimeTests : TestBase
         await member.Heartbeat(UserStatus.DoNotDisturb, ct);
 
         var settled = await probe.WaitForAggregatedStatusAsync(
-            joiner.UserId, UserStatus.DoNotDisturb, TimeSpan.FromSeconds(10), ct);
+            joiner.UserId, UserStatus.DoNotDisturb, PresenceWaits.Settle, ct);
         Assert.That(settled, Is.EqualTo(UserStatus.DoNotDisturb),
             $"the joiner never reached DND (home space {homeSpace}), so the join case cannot be judged");
 
@@ -180,14 +182,14 @@ public class PresenceRealtimeTests : TestBase
         await JoinAsync(observer, joiner, newSpace, ct);
 
         // Fixed window: the assertion is about which events arrive, including the ones that must not.
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var onJoin = StatusesFor(watcher, joiner.UserId, newSpace, beforeJoin);
 
         // A client that re-asserts its unchanged status is the only repair mechanism this design has.
         var beforeRepair = watcher.Mark();
         await member.Heartbeat(UserStatus.DoNotDisturb, ct);
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var afterRepair = StatusesFor(watcher, joiner.UserId, newSpace, beforeRepair);
         var streamNow   = StatusesFor(watcher, joiner.UserId, newSpace, beforeJoin).LastOrDefault()?.status;
@@ -247,7 +249,7 @@ public class PresenceRealtimeTests : TestBase
         await JoinAsync(observer, offline, spaceId, ct);
 
         // Fixed window: proving an event does not arrive.
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var announced = StatusesFor(watcher, offline.UserId, spaceId, beforeJoin);
         var snapshot  = await SnapshotStatusAsync(observer, spaceId, offline.UserId, ct);
@@ -288,7 +290,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeFirstWindow, ct);
+            PresenceWaits.Settle, beforeFirstWindow, ct);
 
         // A second window of the SAME session: same sid, same session grain, a second connection id.
         var beforeSecondWindow = watcher.Mark();
@@ -299,7 +301,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == user.UserId,
-            TimeSpan.FromSeconds(3),
+            PresenceWaits.NegativeWindow,
             "opening a second window of a session that is already online is not a status change",
             beforeSecondWindow, ct);
 
@@ -309,7 +311,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == user.UserId,
-            TimeSpan.FromSeconds(4),
+            PresenceWaits.NegativeWindow,
             "closing one window while another is open must not change the user's status",
             beforeFirstClose, ct);
 
@@ -319,7 +321,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == user.UserId,
-            TimeSpan.FromSeconds(4),
+            PresenceWaits.NegativeWindow,
             "the last window closing must ride out the disconnect grace, not announce an offline",
             beforeLastClose, ct);
 
@@ -329,7 +331,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == user.UserId,
-            TimeSpan.FromSeconds(4),
+            PresenceWaits.NegativeWindow,
             "reconnecting inside the grace window must be invisible to the space: the session never " +
             "went offline, so there is no coming back online to announce",
             beforeReturn, ct);
@@ -386,13 +388,13 @@ public class PresenceRealtimeTests : TestBase
         await member.Heartbeat(UserStatus.DoNotDisturb, ct);
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var beforeOfflineBeat = watcher.Mark();
         await member.Heartbeat(UserStatus.Offline, ct);
 
         // Fixed window: the primary claim is that an event does not arrive.
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var afterwards = StatusesFor(watcher, user.UserId, spaceId, beforeOfflineBeat);
         var sequence   = string.Join(" -> ", afterwards.Select(e => e.status));
@@ -436,7 +438,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var beforeBurst = watcher.Mark();
 
@@ -451,22 +453,23 @@ public class PresenceRealtimeTests : TestBase
         foreach (var status in burst)
             await member.Heartbeat(status, ct);
 
-        // Not a wait for a state change: a wait for a rate limiter. The bucket refills at 0.5/s and
-        // the sixth change was thrown away, so the client's next heartbeat has to land after the
-        // refill for the final status to be able to propagate at all.
+        // Not a wait for a state change: a wait for a rate limiter. The bucket refills at 0.5/s — a
+        // rate the grain owns and this campaign does not make configurable, so this really is three
+        // seconds and not a ratio of anything — and the sixth change was thrown away, so the client's
+        // next heartbeat has to land after the refill for the final status to propagate at all.
         await Task.Delay(TimeSpan.FromSeconds(3), ct);
         await member.Heartbeat(UserStatus.DoNotDisturb, ct);
 
         var delivered = await Poll.ForValueAsync(
             () => Task.FromResult(StatusesFor(watcher, user.UserId, spaceId, beforeBurst).LastOrDefault()?.status),
             status => status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var seen     = StatusesFor(watcher, user.UserId, spaceId, beforeBurst).Select(e => e.status).ToList();
         var snapshot = await Poll.ForValueAsync(
             () => SnapshotStatusAsync(observer, spaceId, user.UserId, ct),
             status => status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -526,11 +529,11 @@ public class PresenceRealtimeTests : TestBase
                 stream   = StatusesFor(watcher, user.UserId, spaceId).LastOrDefault()?.status ?? UserStatus.Offline;
                 snapshot = await SnapshotStatusAsync(observer, spaceId, user.UserId, ct);
                 return stream == snapshot;
-            }, TimeSpan.FromSeconds(8), TimeSpan.FromMilliseconds(250), ct);
+            }, PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             // Re-read after the dust settles: an event arriving after agreement was reached breaks it
             // just as badly, and only a second look finds that.
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            await Task.Delay(PresenceWaits.Slack, ct);
 
             stream   = StatusesFor(watcher, user.UserId, spaceId).LastOrDefault()?.status ?? UserStatus.Offline;
             snapshot = await SnapshotStatusAsync(observer, spaceId, user.UserId, ct);
@@ -622,16 +625,16 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeMember, ct);
+            PresenceWaits.Settle, beforeMember, ct);
 
         await member.Heartbeat(UserStatus.Away, ct);
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.Away,
-            TimeSpan.FromSeconds(10), beforeMember, ct);
+            PresenceWaits.Settle, beforeMember, ct);
 
         await outsider.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == user.UserId,
-            TimeSpan.FromSeconds(4),
+            PresenceWaits.NegativeWindow,
             "a client that is not a member of the space received a member's status",
             strangerMark, ct);
 
@@ -678,7 +681,7 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         await using var outsider = await RealtimeClient.ConnectAsync(stranger, ct);
 
@@ -699,10 +702,10 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var leaked = await outsider.FirstWithinAsync<UserChangedStatus>(
-            e => e.spaceId == spaceId, TimeSpan.FromSeconds(4), strangerMark, ct);
+            e => e.spaceId == spaceId, PresenceWaits.NegativeWindow, strangerMark, ct);
 
         Assert.That(leaked, Is.Null,
             $"a non-member subscribed itself onto a space stream and is now watching its members' " +
@@ -742,11 +745,11 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.spaceId == second && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
         // Both fan-outs are issued together, so once the later space has been served the earlier one
         // has been too; a short settle covers the ordering rather than the delivery.
-        await Task.Delay(TimeSpan.FromSeconds(2), ct);
+        await Task.Delay(PresenceWaits.Slack, ct);
 
         var onConnect = StatusesFor(watcher, user.UserId, first, beforeConnect)
            .Concat(StatusesFor(watcher, user.UserId, second, beforeConnect)).ToList();
@@ -756,13 +759,13 @@ public class PresenceRealtimeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.spaceId == first && e.status == UserStatus.Away,
-            TimeSpan.FromSeconds(10), beforeAway, ct);
+            PresenceWaits.Settle, beforeAway, ct);
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == user.UserId && e.spaceId == second && e.status == UserStatus.Away,
-            TimeSpan.FromSeconds(10), beforeAway, ct);
+            PresenceWaits.Settle, beforeAway, ct);
 
         // Fixed window: the remaining claim is that no further copy of the transition arrives.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         var inFirst  = StatusesFor(watcher, user.UserId, first, beforeAway);
         var inSecond = StatusesFor(watcher, user.UserId, second, beforeAway);

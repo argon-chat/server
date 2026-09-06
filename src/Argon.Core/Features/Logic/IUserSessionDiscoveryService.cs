@@ -104,6 +104,11 @@ public sealed class UserStreamNotifier(
     ILogger<UserStreamNotifier> logger) : IUserSessionNotifier
 {
     /// <summary>
+    /// How many recipients this notifier is willing to publish to at once.
+    /// </summary>
+    private const int MaxConcurrentRecipients = 8;
+
+    /// <summary>
     /// Delivers one event to every user the session list names — all of them, not the first one.
     /// </summary>
     /// <remarks>
@@ -122,8 +127,29 @@ public sealed class UserStreamNotifier(
     /// <para>The fan-out belongs here rather than at the friends call site: the signature takes a
     /// list of sessions belonging to arbitrary users and every caller reads it as a fan-out. The
     /// send is per user (<c>ForUser</c> already reaches all of that user's connections), hence the
-    /// <c>Distinct()</c> — a two-device friend must not be notified twice. The try/catch is inside
-    /// the loop on purpose: one unreachable user must not silence the rest of the list.</para>
+    /// <c>Distinct()</c> — a two-device friend must not be notified twice. The try/catch is per
+    /// recipient on purpose: one unreachable user must not silence the rest of the list.</para>
+    ///
+    /// <para>Concurrent rather than sequential, and that is the second half of S13. Every recipient
+    /// costs a replay-stream append, a SignalR backplane publish and a NATS publish, and the whole
+    /// chain runs inside <c>UserSessionGrain</c>'s heartbeat turn (heartbeat →
+    /// <c>AggregateAndBroadcastStatusAsync</c> → <c>BroadcastStatusToFriendsAsync</c>) on a grain
+    /// that is not <c>[Reentrant]</c>. Awaiting N of those one after another held the session grain
+    /// for the length of the slowest chain — attaches, detaches and the other window's heartbeats
+    /// all queue behind it — and, worse, made the fan-out abandonable half way: the hysteresis
+    /// record is written by <c>MarkBroadcastIfChangedAsync</c> <em>before</em> the first send, so a
+    /// call cancelled at recipient 250 of 300 leaves the remaining 50 holding the old status with
+    /// nothing that will ever re-emit it. Overlapping the sends shortens that window by the
+    /// concurrency factor; the per-recipient catch keeps a single failure local.</para>
+    ///
+    /// <para>Bounded, not unbounded: one user's friends list is the fan-out width, so an unbounded
+    /// <c>WhenAll</c> would put an arbitrary number of simultaneous Redis and backplane writes
+    /// behind one heartbeat. <see cref="MaxConcurrentRecipients"/> is the compromise — enough to
+    /// turn a serial p99 into a batched one, small enough that a popular account cannot flood the
+    /// connection multiplexer on its own. The gate is deliberately not given <paramref name="ct"/>:
+    /// it is held only for the duration of one publish, and cancellation is meant to surface from
+    /// the publish itself, where the existing catch turns it into one log line per recipient instead
+    /// of an exception escaping into the grain call that asked for the fan-out.</para>
     /// </remarks>
     public async Task NotifySessionsAsync<T>(
         IReadOnlyList<UserSessionDescriptor> sessions,
@@ -132,20 +158,52 @@ public sealed class UserStreamNotifier(
     {
         if (sessions.Count == 0)
             return;
+
+        var recipients = sessions.Select(x => x.UserId).Distinct().ToList();
+
         await using var scope = serviceProvider.CreateAsyncScope();
 
         var hubServer = scope.ServiceProvider.GetRequiredService<AppHubServer>();
 
-        foreach (var userId in sessions.Select(x => x.UserId).Distinct())
+        // The overwhelming majority of calls are one user's own sessions (CallGrain,
+        // FriendsGrain.NotifyAsync, PushFriendPresenceAsync, the security-details fan-out): no gate,
+        // no task array, no allocation for them.
+        if (recipients.Count == 1)
         {
+            await PublishAsync(hubServer, payload, recipients[0], ct);
+            return;
+        }
+
+        using var gate = new SemaphoreSlim(MaxConcurrentRecipients, MaxConcurrentRecipients);
+
+        await Task.WhenAll(recipients.Select(async userId =>
+        {
+            await gate.WaitAsync(CancellationToken.None);
             try
             {
-                await hubServer.ForUser(payload, userId, ct);
+                await PublishAsync(hubServer, payload, userId, ct);
             }
-            catch (Exception ex)
+            finally
             {
-                logger.LogError(ex, "Failed to publish event for user {UserId}", userId);
+                gate.Release();
             }
+        }));
+    }
+
+    /// <summary>
+    /// One recipient's publish, which never throws — see the remarks on
+    /// <see cref="NotifySessionsAsync{T}"/> for why the failure of one must not end the fan-out.
+    /// </summary>
+    private async Task PublishAsync<T>(AppHubServer hubServer, T payload, Guid userId, CancellationToken ct)
+        where T : IArgonEvent
+    {
+        try
+        {
+            await hubServer.ForUser(payload, userId, ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to publish event for user {UserId}", userId);
         }
     }
 }

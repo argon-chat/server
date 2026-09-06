@@ -132,6 +132,33 @@ public static class HttpContextExtensions
                 ? locale.ToString()
                 : null;
 
+        /// <summary>
+        /// The session id this caller claims: the <c>scid</c> field of the <c>ArgonSecure</c> cookie,
+        /// or the legacy headers behind it.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>The caller writes every one of these.</b> The server mints the cookie only for
+        /// browsers (<c>WebSessionCookies</c>); an installed client writes its own and regenerates it
+        /// on every launch. So this value is a <em>label</em> — the row on the devices screen, the key
+        /// the presence records and the session grain hang off — and never a credential.</para>
+        ///
+        /// <para>Which means: <b>nothing may be authorised, and nothing may be revoked, on this value
+        /// alone.</b> A gate keyed on it is escaped by sending a different one, which is exactly how a
+        /// signed-out device used to walk back in. The unforgeable half is the <c>sid</c> claim inside
+        /// the token — see <see cref="Features.Auth.SessionRevocation"/> for the identity model and for
+        /// how the two are tombstoned together.</para>
+        ///
+        /// <para><b>The development placeholder is the last resort, not the second</b> (defect S22).
+        /// It used to be returned as soon as the cookie was missing and the <c>X-Ctt</c> escape hatch
+        /// was not used, so a dev-host client that correctly sent <c>Sec-Ref</c> had it discarded and
+        /// every session of a user collapsed into one id: one session grain, one presence key, one row
+        /// on the devices screen — and, since the revocation wave, one entry in the tombstone set that
+        /// the Ion gate, the hub gate and the session grain all key on. Signing one "device" out on a
+        /// dev stand signed out every session of that account and, because a tombstone is kept for the
+        /// refresh token's ten-year lifetime, every future one. So the order is now the same shape
+        /// <see cref="GetMachineId"/> was already fixed to: what the caller presented wins, and the
+        /// constant only stands in for a caller that presented nothing.</para>
+        /// </remarks>
         public Guid GetSessionId()
         {
             if (ctx.Request.Cookies.TryGetValue("ArgonSecure", out var argonSecure) && !string.IsNullOrWhiteSpace(argonSecure))
@@ -143,13 +170,12 @@ public static class HttpContextExtensions
 
             var env = ctx.RequestServices.GetRequiredService<IHostEnvironment>();
 
-            if (env.IsDevelopment())
-            {
-                if (ctx.Request.Headers.TryGetValue("X-Ctt", out var xCtt) && !string.IsNullOrWhiteSpace(xCtt)
-                    && Guid.TryParse(xCtt.ToString(), out var devSid))
-                    return devSid;
-                return Guid.AllBitsSet;
-            }
+            // The dev-host escape hatch, ahead of the headers because that is exactly what it is for:
+            // naming the session by hand on a stand that has no ArgonSecure cookie to write one into.
+            if (env.IsDevelopment()
+                && ctx.Request.Headers.TryGetValue("X-Ctt", out var xCtt) && !string.IsNullOrWhiteSpace(xCtt)
+                && Guid.TryParse(xCtt.ToString(), out var devSid))
+                return devSid;
 
             // Priority 2: Legacy headers (fallback for compatibility)
             if (ctx.Request.Headers.TryGetValue("Sec-Ref", out var secRef) && !string.IsNullOrWhiteSpace(secRef))
@@ -165,6 +191,12 @@ public static class HttpContextExtensions
                     return legacySid;
                 throw new InvalidOperationException("SessionId invalid");
             }
+
+            // Nothing identified the session. Locally that is ordinary — there is no ArgonSecure
+            // cookie on a dev host — so stand one in rather than failing every request. What it must
+            // never do is stand in for a caller that did identify itself; see the remark above.
+            if (env.IsDevelopment())
+                return Guid.AllBitsSet;
 
             throw new InvalidOperationException("SessionId is not defined");
         }

@@ -92,10 +92,31 @@ public sealed class PresenceFeature : IArgonFeature
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("user presence tracking")
             .Requires<CacheFeature>()
-            .Requires<RealtimeBusFeature>();
+            .Requires<RealtimeBusFeature>()
+            .Options<PresenceTimingOptions>(PresenceTimingOptions.SectionName);
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddUserPresenceFeature();
+    {
+        ctx.Builder.AddUserPresenceFeature();
+
+        // The one presence clock that belongs to Orleans, set from the one place that describes it.
+        //
+        // UserSessionGrain arms its disconnect grace as a reminder, and RegisterOrUpdateReminder
+        // throws below ReminderOptions.MinimumReminderPeriod — a minute out of the box. So the real
+        // floor under Presence:GracePeriod has always been this value, and PresenceTimingOptions
+        // mirrored it as ReminderFloor and validated the grace against the mirror. A mirror nothing
+        // writes through is a claim, not a rule: an operator who lowered both, exactly as that
+        // option's own documentation invites, passed --validate-config and then met Orleans' real
+        // floor on the first disconnect — an ArgumentException out of a grain, on a callback, after
+        // which no session on that silo was ever finalized offline again.
+        //
+        // Applying it here makes the mirror the original: Validate's `GracePeriod >= ReminderFloor`
+        // now describes the number Orleans will enforce, because this is what set it.
+        var timings = ctx.Options<PresenceTimingOptions>();
+
+        ctx.Services.Configure<Orleans.Hosting.ReminderOptions>(
+            o => o.MinimumReminderPeriod = timings.ReminderFloor);
+    }
 }
 
 public sealed class NotificationsFeature : IArgonFeature

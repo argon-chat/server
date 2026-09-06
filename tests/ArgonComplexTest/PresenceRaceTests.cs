@@ -135,7 +135,7 @@ public class PresenceRaceTests : TestBase
                 async () => (await probe.AggregatedStatusAsync(actor.UserId, ct)) == UserStatus.Online
                          && watcher.EventsOfType<UserChangedStatus>(roundMark)
                                .Any(e => e.userId == actor.UserId && e.status == UserStatus.Online),
-                TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(100), ct);
+                PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             if (!baseline)
             {
@@ -163,7 +163,7 @@ public class PresenceRaceTests : TestBase
                 async () => (await probe.AggregatedStatusAsync(actor.UserId, ct)) == UserStatus.Online
                          && (await SnapshotStatusAsync(observer, spaceId, actor.UserId, ct)) == UserStatus.Online
                          && LastStatusFor(watcher, actor.UserId, roundMark) == UserStatus.Online,
-                TimeSpan.FromSeconds(3), TimeSpan.FromMilliseconds(150), ct);
+                PresenceWaits.Converge, PresenceWaits.PollStep, ct);
 
             // A transient Offline in the middle of a switch is a visible blink for everyone in the
             // space even when the end state is right, so it is counted and reported — it is not what
@@ -187,7 +187,7 @@ public class PresenceRaceTests : TestBase
 
             var clean = await Poll.UntilAsync(
                 async () => (await probe.AggregatedStatusAsync(actor.UserId, ct)) == UserStatus.Offline,
-                TimeSpan.FromSeconds(10), TimeSpan.FromMilliseconds(100), ct);
+                PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             if (!clean)
                 setupFailures.Add($"round {round}: the account did not return to Offline before the next round");
@@ -257,7 +257,7 @@ public class PresenceRaceTests : TestBase
         var bothOnline = await Poll.UntilAsync(
             async () => (await probe.SessionStatusAsync(actor.UserId, sidA)) == UserStatus.Online
                      && (await probe.SessionStatusAsync(actor.UserId, sidB)) == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(bothOnline, Is.True, "the two devices did not both come up before the toggling started");
 
@@ -287,7 +287,7 @@ public class PresenceRaceTests : TestBase
                 return (await probe.SessionStatusAsync(actor.UserId, sidA)) == finalDesk
                     && (await probe.SessionStatusAsync(actor.UserId, sidB)) == finalPhone;
             },
-            TimeSpan.FromSeconds(25), TimeSpan.FromSeconds(1), ct);
+            TimeSpan.FromSeconds(25), PresenceWaits.Immediately, ct);
 
         Assert.That(converged, Is.True,
             $"the two devices never settled on the statuses they last sent (desk wanted {finalDesk}, has " +
@@ -296,15 +296,15 @@ public class PresenceRaceTests : TestBase
 
         var aggregate = await Poll.ForValueAsync(
             () => probe.AggregatedStatusAsync(actor.UserId, ct),
-            status => status == expected, TimeSpan.FromSeconds(5), ct: ct);
+            status => status == expected, PresenceWaits.Settle, ct: ct);
 
         var snapshot = await Poll.ForValueAsync(
             () => SnapshotStatusAsync(observer, spaceId, actor.UserId, ct),
-            status => status == expected, TimeSpan.FromSeconds(5), ct: ct);
+            status => status == expected, PresenceWaits.Settle, ct: ct);
 
         var lastEvent = await Poll.ForValueAsync(
             () => Task.FromResult(LastStatusFor(watcher, actor.UserId)),
-            status => status == expected, TimeSpan.FromSeconds(5), ct: ct);
+            status => status == expected, PresenceWaits.Settle, ct: ct);
 
         var seen = string.Join(", ", watcher.EventsOfType<UserChangedStatus>(mark)
            .Where(e => e.userId == actor.UserId)
@@ -372,12 +372,12 @@ public class PresenceRaceTests : TestBase
 
             var announced = await Poll.UntilAsync(
                 () => Task.FromResult(members.All(m => OnlineCountFor(watcher, m.UserId, mark) >= 1)),
-                TimeSpan.FromSeconds(15), TimeSpan.FromMilliseconds(200), ct);
+                PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             // A duplicate arrives after the first, never before it, so the only way to assert its
-            // absence is to spend a window waiting for one. Two seconds is many times the observed
-            // fan-out latency of this harness.
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            // absence is to spend a window waiting for one. Many times the observed fan-out latency
+            // of this harness.
+            await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
             var missing    = members.Where(m => OnlineCountFor(watcher, m.UserId, mark) == 0).ToList();
             var duplicated = members.Where(m => OnlineCountFor(watcher, m.UserId, mark) > 1).ToList();
@@ -387,7 +387,7 @@ public class PresenceRaceTests : TestBase
                    .Where(m => members.Any(x => x.UserId == m.userId))
                    .ToList(),
                 rows => rows.Count == crowd && rows.All(r => r.status == UserStatus.Online),
-                TimeSpan.FromSeconds(10), ct: ct);
+                PresenceWaits.Settle, ct: ct);
 
             var offlineInSnapshot = presence.Where(p => p.status != UserStatus.Online).ToList();
 
@@ -395,7 +395,7 @@ public class PresenceRaceTests : TestBase
             {
                 Assert.That(announced, Is.True,
                     $"only {members.Count(m => OnlineCountFor(watcher, m.UserId, mark) >= 1)} of {crowd} members " +
-                    $"were announced online within 15 s of connecting together");
+                    $"were announced online before the settle budget ran out");
 
                 Assert.That(missing, Is.Empty,
                     $"{missing.Count} of {crowd} members connected and were never announced online to the space: " +
@@ -466,7 +466,7 @@ public class PresenceRaceTests : TestBase
                     var rows = (await observer.Servers.GetMemberPresence(spaceId, ct)).Values;
                     return members.All(m => rows.FirstOrDefault(r => r.userId == m.UserId)?.status == UserStatus.Online);
                 },
-                TimeSpan.FromSeconds(20), TimeSpan.FromMilliseconds(200), ct);
+                PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             Assert.That(allOnline, Is.True, "the crowd was not fully online before it was asked to leave");
 
@@ -476,10 +476,10 @@ public class PresenceRaceTests : TestBase
 
             var announced = await Poll.UntilAsync(
                 () => Task.FromResult(members.All(m => OfflineCountFor(watcher, m.UserId, mark) >= 1)),
-                TimeSpan.FromSeconds(15), TimeSpan.FromMilliseconds(200), ct);
+                PresenceWaits.Settle, PresenceWaits.PollStep, ct);
 
             // Same reasoning as the arrival test: a duplicate can only be proven absent by waiting.
-            await Task.Delay(TimeSpan.FromSeconds(2), ct);
+            await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
             var missing    = members.Where(m => OfflineCountFor(watcher, m.UserId, mark) == 0).ToList();
             var duplicated = members.Where(m => OfflineCountFor(watcher, m.UserId, mark) > 1).ToList();
@@ -488,13 +488,13 @@ public class PresenceRaceTests : TestBase
                 async () => (await observer.Servers.GetMemberPresence(spaceId, ct)).Values
                    .Where(r => members.Any(m => m.UserId == r.userId) && r.status != UserStatus.Offline)
                    .ToList(),
-                rows => rows.Count == 0, TimeSpan.FromSeconds(10), ct: ct);
+                rows => rows.Count == 0, PresenceWaits.Settle, ct: ct);
 
             Assert.Multiple(() =>
             {
                 Assert.That(announced, Is.True,
                     $"only {members.Count(m => OfflineCountFor(watcher, m.UserId, mark) >= 1)} of {crowd} members " +
-                    "were announced offline within 15 s of leaving together");
+                    "were announced offline before the settle budget ran out");
 
                 Assert.That(missing, Is.Empty,
                     $"{missing.Count} of {crowd} members said goodbye and the space was never told: " +
@@ -551,11 +551,11 @@ public class PresenceRaceTests : TestBase
 
             await watcher.WaitForAsync<UserChangedStatus>(
                 e => e.userId == actor.UserId && e.status == UserStatus.Online,
-                TimeSpan.FromSeconds(15), mark, ct);
+                PresenceWaits.Settle, mark, ct);
 
-            // The duplicate, if there is one, is milliseconds behind the first; five seconds is the
-            // window in which its absence is worth asserting.
-            await Task.Delay(TimeSpan.FromSeconds(5), ct);
+            // The duplicate, if there is one, is milliseconds behind the first; a negative window is
+            // what its absence is worth asserting over.
+            await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
             Assert.That(OnlineCountFor(watcher, actor.UserId, mark), Is.EqualTo(1),
                 "two windows of one session opening together announced the user online more than once — every " +
@@ -617,10 +617,10 @@ public class PresenceRaceTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == actor.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), mark, ct);
+            PresenceWaits.Settle, mark, ct);
 
         // Fixed by design: the assertion is that a second Online does NOT arrive.
-        await Task.Delay(TimeSpan.FromSeconds(5), ct);
+        await Task.Delay(PresenceWaits.NegativeWindow, ct);
 
         Assert.That(OnlineCountFor(watcher, actor.UserId, mark), Is.EqualTo(1),
             "one account going from offline to online on two devices at once announced the transition more than " +

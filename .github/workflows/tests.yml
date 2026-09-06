@@ -3,6 +3,11 @@ name: Tests
 # Reusable test job. Callers pick the database engine and whether to enforce the coverage gate,
 # so PRs get a fast PostgreSQL run with a threshold while nightly builds can additionally replay
 # the same suite against CockroachDB — the engine production runs on.
+#
+# The integration suite is sharded: `shards` runner jobs, each running one slice of the fixtures in
+# a container stack of its own (see the notes in scipts/run-tests.ps1 and scipts/test-shards.ps1).
+# Coverage is collected per shard and merged by the `coverage` job, which is where the threshold is
+# applied — no single job sees the whole picture.
 on:
   workflow_call:
     inputs:
@@ -18,11 +23,46 @@ on:
         description: 'Minimum line coverage %. 0 disables the gate.'
         type: number
         default: 0
+      shards:
+        description: >-
+          How many concurrent shards the integration suite is split into. Must match a partition
+          scipts/test-shards.ps1 can produce — it fails loudly otherwise, rather than silently
+          skipping fixtures. 1 runs the whole suite in one job, the way this workflow used to.
+        type: number
+        default: 4
+      includeKnownBugs:
+        description: >-
+          Also run the tests categorised KnownPresenceBug — the ones that are red on purpose because
+          they pin a confirmed, still-open defect (tests/README.md, "Tests that pin an open bug").
+          Off everywhere that gates: those tests are findings, not regressions, and a gate that goes
+          red on them teaches people to ignore it. Turn it on for a run whose job is to report which
+          pinned defects are still open — and expect that run to be red while any of them are.
+        type: boolean
+        default: false
 
 jobs:
-  test:
-    name: test (${{ inputs.database }})
+  # The matrix has to be a literal list and GitHub has no range expression, so one tiny job turns
+  # the `shards` input into `[1, 2, ... n]`. Cheaper than duplicating the count in two places and
+  # letting them drift.
+  plan:
+    name: plan (${{ inputs.database }})
     runs-on: ubuntu-latest
+    outputs:
+      shards: ${{ steps.list.outputs.shards }}
+    steps:
+      - id: list
+        run: echo "shards=[$(seq -s, 1 ${{ inputs.shards }})]" >> "$GITHUB_OUTPUT"
+
+  test:
+    name: test (${{ inputs.database }}, shard ${{ matrix.shard }}/${{ inputs.shards }})
+    needs: plan
+    runs-on: ubuntu-latest
+    strategy:
+      # One shard failing says nothing about the others, and a partial result is worth having: a
+      # cancelled sibling would look like a passing sibling in the summary.
+      fail-fast: false
+      matrix:
+        shard: ${{ fromJSON(needs.plan.outputs.shards) }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -53,20 +93,73 @@ jobs:
         run: |
           ./scipts/run-tests.ps1 `
             -Database ${{ inputs.database }} `
+            -Shard ${{ matrix.shard }} `
+            -Shards ${{ inputs.shards }} `
             ${{ inputs.coverage && '-Coverage' || '' }} `
-            -Threshold ${{ inputs.threshold }} `
+            ${{ inputs.includeKnownBugs && '-IncludeKnownBugs' || '' }} `
             -Verbosity normal
 
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: test-results-${{ inputs.database }}
+          name: test-results-${{ inputs.database }}-shard-${{ matrix.shard }}
           path: artifacts/test-results/**/*.trx
           if-no-files-found: ignore
 
-      - name: Upload coverage report
+      # Raw Cobertura, not a report: the report is built once, from all the shards together, by the
+      # job below. A per-shard report would be a per-shard number, and no shard covers enough of the
+      # product for that number to mean anything.
+      - name: Upload coverage data
         if: always() && inputs.coverage
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data-${{ inputs.database }}-shard-${{ matrix.shard }}
+          path: artifacts/test-results/**/coverage.cobertura.xml
+          if-no-files-found: ignore
+
+  coverage:
+    name: coverage (${{ inputs.database }})
+    needs: test
+    # `always()` so the gate still reports on a run where one shard was red: a failing shard usually
+    # still produced coverage, and knowing both numbers beats knowing neither. `needs.test.result`
+    # is checked at the end so this job cannot turn a red suite green.
+    if: always() && inputs.coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj') }}
+
+      - name: Restore tools
+        run: dotnet tool restore
+
+      - name: Download coverage from every shard
+        uses: actions/download-artifact@v7
+        with:
+          pattern: coverage-data-${{ inputs.database }}-shard-*
+          path: shard-coverage
+
+      # The script globs coverage.cobertura.xml recursively, so the artifact directory tree is fed to
+      # it as-is. This is also the step that fails the run when the merged line coverage is short.
+      - name: Merge coverage and apply the threshold
+        shell: pwsh
+        run: ./scipts/run-tests.ps1 -MergeCoverageFrom shard-coverage -Threshold ${{ inputs.threshold }}
+
+      - name: Upload coverage report
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: coverage-${{ inputs.database }}
@@ -74,8 +167,14 @@ jobs:
           if-no-files-found: ignore
 
       - name: Coverage summary
-        if: always() && inputs.coverage
+        if: always()
         shell: pwsh
         run: |
           $summary = 'artifacts/coverage/SummaryGithub.md'
           if (Test-Path $summary) { Get-Content $summary >> $env:GITHUB_STEP_SUMMARY }
+
+      - name: Fail if any shard failed
+        if: needs.test.result != 'success'
+        run: |
+          echo "At least one test shard failed - see the shard jobs above." >&2
+          exit 1

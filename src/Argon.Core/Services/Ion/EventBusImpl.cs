@@ -12,6 +12,7 @@ public class EventBusImpl(
     ILogger<IEventBus> logger,
     IConfiguration configuration,
     IUserPresenceService presence,
+    IArgonCacheDatabase cache,
     IOptions<ClientAppsOptions> clientApps) : IEventBus
 {
     public IAsyncEnumerable<IArgonEvent> ForServer(Guid spaceId, CancellationToken ct = default)
@@ -69,7 +70,16 @@ public class EventBusImpl(
             new(JwtRegisteredClaimNames.Sub, userId.ToString()),
             new("sid", sid.ToString()),
             new("mid", machineId),
+            // Written explicitly so the hub can place the ticket in time against the
+            // sign-out-everywhere floor. A ticket is good for a day and an established socket is
+            // never re-authenticated, so without this a password change leaves the compromised
+            // client a full realtime feed for as long as its ticket lives.
+            new(JwtRegisteredClaimNames.Iat, now.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
         };
+
+        foreach (var credentialSessionId in await CredentialIdentitiesAsync(userId, sid, ct))
+            claims.Add(new Claim(SessionRevocation.CredentialTicketClaim, credentialSessionId));
+
         var token = new JwtSecurityToken(
             issuer: "ticket.argon.gl",
             audience: "ticket.argon.gl",
@@ -103,6 +113,50 @@ public class EventBusImpl(
         }
 
         return jwt;
+    }
+
+    /// <summary>
+    /// The server-minted ids this connection is to be judged by, beside the <c>sid</c> the caller
+    /// chose.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect: revocation used to key on the presence sid alone, and the presence sid is
+    /// whatever the client put in its <c>ArgonSecure</c> cookie. So a device that had been signed out
+    /// reconnected under a fresh <c>scid</c> and every gate — the hub's, the grain's — looked up an
+    /// id that had never been tombstoned and waved it through. Putting the credential id in the
+    /// ticket makes the identity the hub tests one the caller cannot pick. See
+    /// <see cref="SessionRevocation"/> for the whole model.</para>
+    ///
+    /// <para>Two sources, unioned, because neither covers the other. The request context carries the
+    /// <c>sid</c> claim of the access token this very call presented — unforgeable, and present even
+    /// for a caller that has just rotated its cookie. The credential mapping carries every id ever
+    /// recorded against <em>this</em> presence sid, which is what an older client still gets, since
+    /// its access token was minted before the claim existed. More ids can only mean more gates
+    /// matching: a caller cannot escape by adding one, and cannot remove the one it did not write.</para>
+    ///
+    /// <para>Best effort on the store: a ticket is how a client connects at all, and a Redis blip
+    /// must not become an outage. The cost of losing the mapping half is that revocation falls back
+    /// to the token half, which is the stronger of the two anyway.</para>
+    /// </remarks>
+    private async Task<IReadOnlyCollection<string>> CredentialIdentitiesAsync(Guid userId, Guid sid, CancellationToken ct)
+    {
+        var identities = new HashSet<string>(StringComparer.Ordinal);
+
+        if (this.GetRequestContext().Props.TryGetValue(SessionRevocation.CredentialSessionProperty, out var fromToken)
+            && !string.IsNullOrWhiteSpace(fromToken))
+            identities.Add(fromToken);
+
+        try
+        {
+            foreach (var recorded in await SessionRevocation.CredentialSessionsAsync(cache, userId, sid, ct))
+                identities.Add(recorded);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not read the credential sessions of {SessionId} for {UserId}", sid, userId);
+        }
+
+        return identities;
     }
 
     private async static IAsyncEnumerable<IArgonEvent> MergeStreams(
@@ -254,9 +308,12 @@ public class EventBusImpl(
                 await sessionGrain.OnTypingStopEmit(stopTyping.channelId);
                 break;
             case HeartBeatEvent heartbeat:
-                // false now also covers "there is no session for this sid" — a heartbeat is a
-                // keep-alive for a transport somebody else opened, and letting this RPC start one
-                // would create presence for a session with no connections at all.
+                // false means the sid has been signed out — and only that. TouchAsync still STARTS a
+                // session that does not exist yet, presence key and all, so this RPC can mint a live
+                // row with no transport behind it; what S10 removed is the immortality, not the
+                // creation, because the pseudo-connection no longer joins the connection set and the
+                // presence key therefore drains on its own TTL once the caller stops calling. Making
+                // it refuse an unstarted session belongs in UserSessionGrain, not here.
                 if (!await sessionGrain.TouchAsync(heartbeat.status))
                     throw new InvalidOperationException("Session expired, dropping connection");
                 break;

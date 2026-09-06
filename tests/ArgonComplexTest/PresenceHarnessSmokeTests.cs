@@ -1,5 +1,6 @@
 namespace ArgonComplexTest.Tests;
 
+using Argon.Features.Logic;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
 
@@ -37,6 +38,50 @@ public class PresenceHarnessSmokeTests : TestBase
         => probe = await PresenceProbe.CreateAsync();
 
     /// <summary>
+    /// The host is running on the compressed presence clocks, and Orleans' reminder floor was lowered
+    /// with them.
+    /// </summary>
+    /// <remarks>
+    /// <para>Every wait in this campaign is a ratio of <see cref="PresenceTimingOptions"/> as the host
+    /// bound it, so a setting that failed to reach configuration would not break anything loudly — it
+    /// would quietly turn every fixture back into the minutes-long version of itself, and the first
+    /// symptom would be a timeout somewhere unrelated. This is the assertion that names the cause
+    /// instead.</para>
+    ///
+    /// <para>The reminder floor is the half that is easiest to lose, because it is not ours: the grace
+    /// is registered as an Orleans reminder and <c>RegisterOrUpdateReminder</c> rejects a period below
+    /// <c>ReminderOptions.MinimumReminderPeriod</c>, a minute out of the box. The test host lowers it
+    /// through a <c>Configure&lt;ReminderOptions&gt;</c> that has to land after the silo builder's own
+    /// configuration to take effect — so it is read back from the running container here rather than
+    /// assumed, and checked against the mirror the options class carries for it.</para>
+    /// </remarks>
+    [Test, CancelAfter(30_000)]
+    public void The_host_runs_on_the_compressed_presence_clocks()
+    {
+        var timings = probe.Timings;
+        var floor   = PresenceWaits.OrleansReminderFloor;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(timings.SessionTtl, Is.LessThan(TimeSpan.FromMinutes(1)),
+                "the Presence section did not reach the host: every fixture below is waiting out the "
+              + "shipped two-minute session TTL instead of the compressed one");
+            Assert.That(timings.RefreshPeriod * 3, Is.LessThan(timings.SessionTtl),
+                "the refresh tick does not fit three times inside the session TTL, so a missed tick "
+              + "can take a connected session offline and the TTL assertions below are unsound");
+            Assert.That(floor, Is.LessThanOrEqualTo(timings.GracePeriod),
+                $"Orleans' reminder floor is {floor} but the grace period is {timings.GracePeriod}: "
+              + "RegisterOrUpdateReminder would throw on every disconnect");
+            Assert.That(timings.ReminderFloor, Is.EqualTo(floor),
+                $"PresenceTimingOptions.ReminderFloor says {timings.ReminderFloor} while Orleans is "
+              + $"actually running at {floor}; the mirror has drifted and every grace wait derived "
+              + "from it is the wrong length");
+            Assert.That(timings.ActivityTtl, Is.GreaterThanOrEqualTo(timings.SessionTtl),
+                "an activity would lapse under a session that is still announcing it");
+        });
+    }
+
+    /// <summary>
     /// One observer watches a fellow member connect, change status and leave: Online on connect,
     /// DoNotDisturb on the heartbeat that carries it, Offline the moment the client says so — and
     /// the space snapshot agrees with the stream throughout.
@@ -69,7 +114,7 @@ public class PresenceHarnessSmokeTests : TestBase
 
         var online = await watcher.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeJoinerConnects, ct);
+            PresenceWaits.Settle, beforeJoinerConnects, ct);
 
         Assert.Multiple(() =>
         {
@@ -86,7 +131,7 @@ public class PresenceHarnessSmokeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), beforeDnd, ct);
+            PresenceWaits.Settle, beforeDnd, ct);
 
         // The snapshot a client loads a space with must say the same thing the stream did. Polled
         // rather than read once because SpaceReadGrain.GetPresence is cached for a second.
@@ -94,7 +139,7 @@ public class PresenceHarnessSmokeTests : TestBase
             async () => (await observer.Servers.GetMemberPresence(spaceId, ct))
                .Values.FirstOrDefault(m => m.userId == joiner.UserId)?.status,
             status => status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.That(snapshot, Is.EqualTo(UserStatus.DoNotDisturb),
             "GetMemberPresence disagrees with the status the space was just told over the stream");
@@ -108,12 +153,12 @@ public class PresenceHarnessSmokeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(5), beforeOffline, ct);
+            PresenceWaits.Converge, beforeOffline, ct);
 
         var stillOnline = await Poll.ForValueAsync(
             () => probe.IsUserOnlineAsync(joiner.UserId, ct),
             value => !value,
-            TimeSpan.FromSeconds(5), ct: ct);
+            PresenceWaits.Converge, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -158,7 +203,7 @@ public class PresenceHarnessSmokeTests : TestBase
 
         await watcher.WaitForAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), beforeJoinerConnects, ct);
+            PresenceWaits.Settle, beforeJoinerConnects, ct);
 
         var presenceKey = PresenceProbe.PresenceSessionKey(joiner.UserId, joiner.SessionId);
 
@@ -176,16 +221,17 @@ public class PresenceHarnessSmokeTests : TestBase
 
         await watcher.AssertNoneWithinAsync<UserChangedStatus>(
             e => e.userId == joiner.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(5),
+            PresenceWaits.NegativeWindow,
             "a transport drop must ride out the disconnect grace instead of announcing the user offline",
             beforeDrop, ct);
 
         var ttlFirst = await probe.TtlOf(presenceKey);
 
-        // Nothing refreshes a detached session's presence key, so three seconds of wall clock is
-        // three seconds off the TTL. A TTL that held still would mean the session still believes it
-        // has a live connection.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        // Nothing refreshes a detached session's presence key, so wall clock spent here comes
+        // straight off the TTL. A TTL that held still would mean the session still believes it has a
+        // live connection. Short, because the whole window since the drop has to stay inside the TTL
+        // for the key to still be there to read.
+        await Task.Delay(PresenceWaits.Slack, ct);
 
         var ttlSecond = await probe.TtlOf(presenceKey);
 
@@ -226,7 +272,7 @@ public class PresenceHarnessSmokeTests : TestBase
         // established as online before the latecomer connects — otherwise a green run would prove
         // nothing about the stream.
         var friendStatus = await probe.WaitForAggregatedStatusAsync(
-            alreadyOnline.UserId, UserStatus.Online, TimeSpan.FromSeconds(10), ct);
+            alreadyOnline.UserId, UserStatus.Online, PresenceWaits.Settle, ct);
 
         Assert.That(friendStatus, Is.EqualTo(UserStatus.Online),
             "the already-connected friend never reached Online, so there is nothing to push");
@@ -235,7 +281,7 @@ public class PresenceHarnessSmokeTests : TestBase
 
         var pushed = await arriving.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == alreadyOnline.UserId && e.spaceId == Guid.Empty && e.status != UserStatus.Offline,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {

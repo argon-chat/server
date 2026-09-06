@@ -42,6 +42,27 @@ public class PresenceBotTests : TestBase
     private TestUserSession  owner = null!;
     private Guid             spaceId;
 
+    /// <summary>
+    /// How long a closed bot stream may take to read as offline before a member would call it broken.
+    /// </summary>
+    /// <remarks>
+    /// Not derived from <see cref="PresenceWaits"/>, unlike everything else in this campaign, and
+    /// deliberately: a bot disconnect is not paced by any presence clock. The gateway tears the
+    /// session down inside the SSE close, so this is a promptness requirement on that path — the
+    /// value is what a person watching a member list would tolerate, not a multiple of a TTL.
+    /// </remarks>
+    private static readonly TimeSpan PromptOffline = TimeSpan.FromSeconds(5);
+
+    /// <summary>
+    /// The window a "no second event follows" claim is asserted over.
+    /// </summary>
+    /// <remarks>
+    /// Bounded by <c>BotGatewayGrain</c>'s own presence tick rather than by the session grain's, and
+    /// that tick is not part of the presence timing options — so this stays a wall-clock window,
+    /// chosen to sit well inside it.
+    /// </remarks>
+    private static readonly TimeSpan NoSecondEventWindow = TimeSpan.FromSeconds(3);
+
     [OneTimeSetUp]
     public async Task PrepareAsync()
     {
@@ -75,13 +96,13 @@ public class PresenceBotTests : TestBase
 
         var announced = await observer.WaitForRecordAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), mark, ct);
+            PresenceWaits.Settle, mark, ct);
 
         var snapshot = await Poll.ForValueAsync(
             async () => (await owner.Servers.GetMemberPresence(spaceId, ct))
                .Values.FirstOrDefault(m => m.userId == bot.UserId)?.status,
             status => status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var online   = await probe.IsUserOnlineAsync(bot.UserId, ct);
         var sessions = await probe.ActiveSessionIdsAsync(bot.UserId, ct);
@@ -138,7 +159,7 @@ public class PresenceBotTests : TestBase
 
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeConnect, ct);
+            PresenceWaits.Settle, beforeConnect, ct);
 
         var beforeClose = observer.Mark();
         var clock       = Stopwatch.StartNew();
@@ -147,18 +168,18 @@ public class PresenceBotTests : TestBase
 
         var offline = await observer.FirstWithinAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(5), beforeClose, ct);
+            PromptOffline, beforeClose, ct);
         var offlineAfter = clock.Elapsed;
 
-        // Both readings are polled to the same five-second deadline the event got: the claim is that
-        // a closed stream takes the bot offline promptly, not eventually.
+        // Both readings are polled to the same deadline the event got: the claim is that a closed
+        // stream takes the bot offline promptly, not eventually.
         var stillOnline = await Poll.ForValueAsync(
             () => probe.IsUserOnlineAsync(bot.UserId, ct),
-            value => !value, TimeSpan.FromSeconds(5), ct: ct);
+            value => !value, PromptOffline, ct: ct);
 
         var liveSessions = await Poll.ForValueAsync(
             () => probe.ActiveSessionIdsAsync(bot.UserId, ct),
-            list => list.Count == 0, TimeSpan.FromSeconds(5), ct: ct);
+            list => list.Count == 0, PromptOffline, ct: ct);
 
         var presenceKey = PresenceProbe.PresenceSessionKey(bot.UserId, bot.SessionId);
         var presenceTtl = await probe.TtlOf(presenceKey);
@@ -170,8 +191,8 @@ public class PresenceBotTests : TestBase
         {
             Assert.That(offline, Is.Not.Null,
                 $"the space was never told the bot went offline after its stream closed.{observer.Dump(beforeClose)}");
-            Assert.That(offlineAfter, Is.LessThan(TimeSpan.FromSeconds(5)),
-                "the Offline broadcast took longer than the five seconds a member would tolerate");
+            Assert.That(offlineAfter, Is.LessThan(PromptOffline),
+                "the Offline broadcast took longer than a member watching the list would tolerate");
             Assert.That(statusLives, Is.False,
                 "the bot's session status key outlived its stream");
             Assert.That(aggregated, Is.EqualTo(UserStatus.Offline),
@@ -207,25 +228,25 @@ public class PresenceBotTests : TestBase
         var first = await BotEventStream.OpenAsync(HttpClient, bot.Token, ct);
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeFirstConnect, ct);
+            PresenceWaits.Settle, beforeFirstConnect, ct);
 
         var beforeClose = observer.Mark();
         await first.CloseAsync();
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(10), beforeClose, ct);
+            PresenceWaits.Settle, beforeClose, ct);
 
         var beforeReconnect = observer.Mark();
         await using var second = await BotEventStream.OpenAsync(HttpClient, bot.Token, ct);
 
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeReconnect, ct);
+            PresenceWaits.Settle, beforeReconnect, ct);
 
         // A fixed wait, deliberately: the assertion is that a *second* Online does not arrive, and an
-        // absence has no edge to poll for. Three seconds is far inside the gateway's 30 s presence
-        // tick, so nothing legitimate can land in it.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        // absence has no edge to poll for. Far inside the gateway's own presence tick, so nothing
+        // legitimate can land in it.
+        await Task.Delay(NoSecondEventWindow, ct);
 
         var onlines = observer.EventsOfType<UserChangedStatus>(beforeReconnect)
            .Where(e => e.userId == bot.UserId && e.status == UserStatus.Online)
@@ -235,7 +256,7 @@ public class PresenceBotTests : TestBase
             async () => (await owner.Servers.GetMemberPresence(spaceId, ct))
                .Values.FirstOrDefault(m => m.userId == bot.UserId)?.status,
             status => status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {
@@ -276,7 +297,7 @@ public class PresenceBotTests : TestBase
         await humanClient.Heartbeat(UserStatus.DoNotDisturb, ct);
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == human.UserId && e.status == UserStatus.DoNotDisturb,
-            TimeSpan.FromSeconds(15), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         var humanBroadcastBefore = await probe.LastBroadcastAsync(human.UserId);
         var beforeFlap           = observer.Mark();
@@ -284,19 +305,19 @@ public class PresenceBotTests : TestBase
         var first = await BotEventStream.OpenAsync(HttpClient, bot.Token, ct);
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeFlap, ct);
+            PresenceWaits.Settle, beforeFlap, ct);
 
         var beforeBotClose = observer.Mark();
         await first.CloseAsync();
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Offline,
-            TimeSpan.FromSeconds(10), beforeBotClose, ct);
+            PresenceWaits.Settle, beforeBotClose, ct);
 
         var beforeBotReconnect = observer.Mark();
         await using var second = await BotEventStream.OpenAsync(HttpClient, bot.Token, ct);
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online,
-            TimeSpan.FromSeconds(15), beforeBotReconnect, ct);
+            PresenceWaits.Settle, beforeBotReconnect, ct);
 
         var humanEvents = observer.EventsOfType<UserChangedStatus>(beforeFlap)
            .Where(e => e.userId == human.UserId)
@@ -360,11 +381,11 @@ public class PresenceBotTests : TestBase
 
         await observer.WaitForAsync<UserChangedStatus>(
             e => e.userId == bot.UserId && e.status == UserStatus.Online && e.spaceId == secondSpaceId,
-            TimeSpan.FromSeconds(15), beforeInstall, ct);
+            PresenceWaits.Settle, beforeInstall, ct);
 
         // Fixed wait for the same reason as in the reconnect test: the claim is that no second event
-        // follows, and three seconds is well inside the gateway's 30 s tick.
-        await Task.Delay(TimeSpan.FromSeconds(3), ct);
+        // follows, and the window sits well inside the gateway's own tick.
+        await Task.Delay(NoSecondEventWindow, ct);
 
         var announcements = observer.RecordsOfType<UserChangedStatus>(beforeInstall)
            .Where(r => r.SpaceId == secondSpaceId
@@ -376,7 +397,7 @@ public class PresenceBotTests : TestBase
             async () => (await owner.Servers.GetMemberPresence(secondSpaceId, ct))
                .Values.FirstOrDefault(m => m.userId == bot.UserId)?.status,
             status => status == UserStatus.Online,
-            TimeSpan.FromSeconds(10), ct: ct);
+            PresenceWaits.Settle, ct: ct);
 
         Assert.Multiple(() =>
         {

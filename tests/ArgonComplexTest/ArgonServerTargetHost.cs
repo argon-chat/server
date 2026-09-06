@@ -4,11 +4,13 @@ using Argon.Core.Features.Integrations.Xsolla;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
 using ArgonComplexTest.Infrastructure;
+using ArgonComplexTest.Infrastructure.Presence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Orleans.Hosting;
 
 /// <param name="DatabaseProvider">
 /// Decides whether the migration pipeline emits CockroachDB-only DDL. Getting this wrong against a
@@ -54,6 +56,24 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         {
             services.AddSingleton<FakeXsollaService>();
             services.AddSingleton<IXsollaService>(sp => sp.GetRequiredService<FakeXsollaService>());
+
+            // The one presence clock that is not ours. UserSessionGrain arms its grace as an Orleans
+            // reminder, and Orleans refuses to register one below ReminderOptions.MinimumReminderPeriod
+            // — a minute out of the box. PresenceFeature now applies Presence:ReminderFloor to that
+            // option itself, so the MinimumReminderPeriod line below is belt-and-braces rather than
+            // the thing that makes the compressed grace work; it stays because
+            // PresenceHarnessSmokeTests.The_host_runs_on_the_compressed_presence_clocks reads the
+            // value back and the two must agree whichever path set it.
+            //
+            // RefreshReminderListPeriod is five minutes by default: that is how long a silo may take
+            // to notice a reminder some other silo wrote. One silo runs in this suite so it should
+            // never matter, but a five-minute worst case inside a two-minute test budget is not worth
+            // the ambiguity in a failure.
+            services.Configure<ReminderOptions>(o =>
+            {
+                o.MinimumReminderPeriod     = TestPresenceTimings.ReminderFloor;
+                o.RefreshReminderListPeriod = TimeSpan.FromSeconds(5);
+            });
         });
 
         // Server-side logs are off by default — a full run would bury the test output — but an Ion
@@ -125,6 +145,17 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
 
         // Nothing answers at that URL; see RoleHost for why the SFU check is kept off the startup probe.
         builder.UseSetting("Probes:Dependencies:Overrides:sfu:Startup", "Degrade");
+
+        // Presence timings. The product's are sized for a person on a laptop — a two-minute session
+        // TTL, a fifteen-second tick, a one-minute grace — and every presence fixture asserts what
+        // happens on the far side of one of them, so at shipped values the suite spends over twenty
+        // minutes doing nothing but waiting. These are the same numbers an order of magnitude down,
+        // and the fixtures derive every wait from them (PresenceProbe.Timings), so what is asserted is
+        // unchanged: the ratios the assertions rest on — a tick fits several times in a TTL, the
+        // grace outlasts the TTL, the activity outlives both — are the ones PresenceTimingOptions
+        // validates, and they hold here too.
+        foreach (var (setting, value) in TestPresenceTimings.Settings)
+            builder.UseSetting(setting, value);
 
         builder.UseSetting("Xsolla:ProjectId", "1");
         builder.UseSetting("Xsolla:MerchantId", "1");
