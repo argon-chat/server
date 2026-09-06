@@ -54,15 +54,26 @@ public class ChannelInteractionImpl(IngressServiceClient ingressService, IConfig
            .UpdateChannelGroup(groupId, name, description, null, ct);
 
     public async Task<IUpdateChannelResult> UpdateChannel(Guid spaceId, Guid channelId, string? name, string? description, int? slowModeSeconds,
-        CancellationToken ct = default)
+        int? bitrate, CancellationToken ct = default)
     {
         var result = await this
            .GetGrain<IChannelGrain>(channelId)
-           .UpdateChannelSettings(name, description, slowModeSeconds, ct);
+           .UpdateChannelSettings(name, description, slowModeSeconds, bitrate, ct);
 
         return result.IsSuccess
             ? new SuccessUpdateChannel(result.Value.ToDto())
             : new FailedUpdateChannel(result.Error);
+    }
+
+    public async Task<IDuplicateChannelResult> DuplicateChannel(Guid spaceId, Guid channelId, CancellationToken ct = default)
+    {
+        var result = await this
+           .GetGrain<ISpaceGrain>(spaceId)
+           .DuplicateChannel(channelId, ct);
+
+        return result.IsSuccess
+            ? new SuccessDuplicateChannel(result.Value.ToDto())
+            : new FailedDuplicateChannel(result.Error);
     }
 
     public async Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(Guid spaceId, Guid channelId, int expireMinutes, int maxUses,

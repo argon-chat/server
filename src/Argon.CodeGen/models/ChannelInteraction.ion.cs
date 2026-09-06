@@ -23,7 +23,7 @@ public sealed record RealtimeChannel(ArgonChannel channel, IonArray<RealtimeChan
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid? groupId, string? fractionalIndex, i8 lastMessageId, i4? slowModeSeconds);
+public sealed record ArgonChannel(ChannelType type, guid spaceId, guid channelId, string name, string? description, guid? groupId, string? fractionalIndex, i8 lastMessageId, i4? slowModeSeconds, i4? bitrate);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -252,6 +252,8 @@ public enum UpdateChannelError : u2
     DESCRIPTION_TOO_LONG = 5,
     SLOW_MODE_NOT_ALLOWED = 6,
     NOT_A_TEXT_CHANNEL = 7,
+    BITRATE_OUT_OF_RANGE = 8,
+    NOT_A_VOICE_CHANNEL = 9,
 }
 
 /// <summary>Open-enum helpers for <see cref="UpdateChannelError"/>.</summary>
@@ -266,7 +268,7 @@ public static class Ion_UpdateChannelError_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this UpdateChannelError value)
-        => value == UpdateChannelError.NONE || value == UpdateChannelError.CHANNEL_NOT_FOUND || value == UpdateChannelError.INSUFFICIENT_PERMISSIONS || value == UpdateChannelError.NAME_EMPTY || value == UpdateChannelError.NAME_TOO_LONG || value == UpdateChannelError.DESCRIPTION_TOO_LONG || value == UpdateChannelError.SLOW_MODE_NOT_ALLOWED || value == UpdateChannelError.NOT_A_TEXT_CHANNEL;
+        => value == UpdateChannelError.NONE || value == UpdateChannelError.CHANNEL_NOT_FOUND || value == UpdateChannelError.INSUFFICIENT_PERMISSIONS || value == UpdateChannelError.NAME_EMPTY || value == UpdateChannelError.NAME_TOO_LONG || value == UpdateChannelError.DESCRIPTION_TOO_LONG || value == UpdateChannelError.SLOW_MODE_NOT_ALLOWED || value == UpdateChannelError.NOT_A_TEXT_CHANNEL || value == UpdateChannelError.BITRATE_OUT_OF_RANGE || value == UpdateChannelError.NOT_A_VOICE_CHANNEL;
 
     /// <summary>
     /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
@@ -274,6 +276,39 @@ public static class Ion_UpdateChannelError_OpenEnum
     /// </summary>
     /// <remarks>This is the exact number that will be written back out.</remarks>
     public static u2? UnknownValue(this UpdateChannelError value)
+        => value.IsKnown() ? null : (u2)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum DuplicateChannelError : u2
+{
+    NONE = 0,
+    CHANNEL_NOT_FOUND = 1,
+    INSUFFICIENT_PERMISSIONS = 2,
+    INTERNAL_ERROR = 3,
+}
+
+/// <summary>Open-enum helpers for <see cref="DuplicateChannelError"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_DuplicateChannelError_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this DuplicateChannelError value)
+        => value == DuplicateChannelError.NONE || value == DuplicateChannelError.CHANNEL_NOT_FOUND || value == DuplicateChannelError.INSUFFICIENT_PERMISSIONS || value == DuplicateChannelError.INTERNAL_ERROR;
+
+    /// <summary>
+    /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u2? UnknownValue(this DuplicateChannelError value)
         => value.IsKnown() ? null : (u2)value;
 }
 
@@ -928,7 +963,8 @@ public interface IChannelInteraction : IIonService
     Task DeleteChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<IonArray<RealtimeChannel>> GetChannels(guid spaceId, guid channelId, CancellationToken ct = default);
     Task UpdateChannelGroup(guid spaceId, guid channelId, guid groupId, string? name, string? description, CancellationToken ct = default);
-    Task<IUpdateChannelResult> UpdateChannel(guid spaceId, guid channelId, string? name, string? description, i4? slowModeSeconds, CancellationToken ct = default);
+    Task<IUpdateChannelResult> UpdateChannel(guid spaceId, guid channelId, string? name, string? description, i4? slowModeSeconds, i4? bitrate, CancellationToken ct = default);
+    Task<IDuplicateChannelResult> DuplicateChannel(guid spaceId, guid channelId, CancellationToken ct = default);
     Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(guid spaceId, guid channelId, i4 expireMinutes, i4 maxUses, CancellationToken ct = default);
     Task<IonArray<ArgonMessage>> QueryMessages(guid spaceId, guid channelId, i8? from, i4 limit, CancellationToken ct = default);
     Task<i8> SendMessage(guid spaceId, guid channelId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
@@ -2263,6 +2299,130 @@ public sealed class Ion_FailedUpdateChannel_Formatter : IonFormatter<FailedUpdat
     {
         writer.WriteStartArray(1);
         IonFormatterStorage<UpdateChannelError>.Write(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public interface IDuplicateChannelResult : IIonUnion<IDuplicateChannelResult>
+{
+    string UnionKey { get; }
+    uint UnionIndex { get; }
+    
+    
+    internal bool IsSuccessDuplicateChannel => this is SuccessDuplicateChannel;
+
+    internal bool IsFailedDuplicateChannel => this is FailedDuplicateChannel;
+
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record SuccessDuplicateChannel(ArgonChannel channel) : IDuplicateChannelResult
+{
+    public string UnionKey => nameof(SuccessDuplicateChannel);
+    public uint UnionIndex => 0;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record FailedDuplicateChannel(DuplicateChannelError error) : IDuplicateChannelResult
+{
+    public string UnionKey => nameof(FailedDuplicateChannel);
+    public uint UnionIndex => 1;
+}
+
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_IDuplicateChannelResult_Formatter : IonFormatter<IDuplicateChannelResult>
+{
+    public IDuplicateChannelResult Read(CborReader reader)
+    {
+        var unionIndex = reader.ReadStartUnion("IDuplicateChannelResult", 2u);
+        IDuplicateChannelResult result;
+        if (false) {}
+        
+        else if (unionIndex == 0)
+            result = IonFormatterStorage<SuccessDuplicateChannel>.Read(reader);
+
+        else if (unionIndex == 1)
+            result = IonFormatterStorage<FailedDuplicateChannel>.Read(reader);
+
+        else
+            throw new IonInvalidUnionIndexException("IDuplicateChannelResult", unionIndex, 2u);
+        reader.ReadEndUnion();
+        return result;
+    }
+
+    public void Write(CborWriter writer, IDuplicateChannelResult value)
+    {
+        writer.WriteStartArray(2);
+        writer.WriteUInt32(value.UnionIndex);
+
+        if (false) {}
+        
+        else if (value is SuccessDuplicateChannel n_0)
+        {
+            if (n_0.UnionIndex != 0)
+                throw new InvalidOperationException();
+            IonFormatterStorage<SuccessDuplicateChannel>.Write(writer, n_0);
+        }
+
+        else if (value is FailedDuplicateChannel n_1)
+        {
+            if (n_1.UnionIndex != 1)
+                throw new InvalidOperationException();
+            IonFormatterStorage<FailedDuplicateChannel>.Write(writer, n_1);
+        }
+    
+        else
+            throw new InvalidOperationException(
+                $"Ion union 'IDuplicateChannelResult' has no case {value.UnionIndex}; this revision declares 2 case(s)");
+        writer.WriteEndArray();    
+    }
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_SuccessDuplicateChannel_Formatter : IonFormatter<SuccessDuplicateChannel>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public SuccessDuplicateChannel Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "SuccessDuplicateChannel");
+        var __channel = IonFormatterStorage<ArgonChannel>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__channel);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, SuccessDuplicateChannel value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<ArgonChannel>.Write(writer, value.channel);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_FailedDuplicateChannel_Formatter : IonFormatter<FailedDuplicateChannel>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public FailedDuplicateChannel Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "FailedDuplicateChannel");
+        var __error = IonFormatterStorage<DuplicateChannelError>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, FailedDuplicateChannel value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<DuplicateChannelError>.Write(writer, value.error);
         writer.WriteEndArray();
     }
 }

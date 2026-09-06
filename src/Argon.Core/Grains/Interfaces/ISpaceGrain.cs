@@ -45,6 +45,13 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(DeleteChannel))]
     Task DeleteChannel(Guid channelId);
 
+    /// <summary>
+    /// A copy of <paramref name="channelId"/> placed right after it in the same group: same type,
+    /// name, topic, cooldown, bitrate and permission overwrites, none of the messages.
+    /// </summary>
+    [Alias(nameof(DuplicateChannel))]
+    Task<Either<ChannelEntity, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default);
+
     [Alias(nameof(SetUserStatus))]
     Task SetUserStatus(Guid userId, UserStatus status);
 

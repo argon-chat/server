@@ -36,6 +36,8 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         typeof(IChannelInteraction).GetMethod(nameof(UpdateChannelGroup), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UpdateChannel_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(UpdateChannel), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DuplicateChannel_Ref = new(() =>
+        typeof(IChannelInteraction).GetMethod(nameof(DuplicateChannel), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CreateVoiceInviteCode_Ref = new(() =>
         typeof(IChannelInteraction).GetMethod(nameof(CreateVoiceInviteCode), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> QueryMessages_Ref = new(() =>
@@ -241,13 +243,13 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         await req.CallAsync(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-    public async Task<IUpdateChannelResult> UpdateChannel(guid __spaceid, guid __channelid, string? __name, string? __description, i4? __slowmodeseconds, CancellationToken ct = default)
+    public async Task<IUpdateChannelResult> UpdateChannel(guid __spaceid, guid __channelid, string? __name, string? __description, i4? __slowmodeseconds, i4? __bitrate, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IChannelInteraction), UpdateChannel_Ref.Value);
     
         var writer = new CborWriter();
         
-        const int argsSize = 5;
+        const int argsSize = 6;
     
         writer.WriteStartArray(argsSize);
         
@@ -256,10 +258,29 @@ public sealed class Ion_ChannelInteraction_ClientImpl(IonClientContext context) 
         IonFormatterStorage<string>.WriteNullable(writer, __name);
         IonFormatterStorage<string>.WriteNullable(writer, __description);
         IonFormatterStorage<i4>.WriteNullable(writer, __slowmodeseconds);
+        IonFormatterStorage<i4>.WriteNullable(writer, __bitrate);
         
         writer.WriteEndArray();
     
         return await req.CallAsync<IUpdateChannelResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IDuplicateChannelResult> DuplicateChannel(guid __spaceid, guid __channelid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IChannelInteraction), DuplicateChannel_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<guid>.Write(writer, __channelid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IDuplicateChannelResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<ICreateVoiceInviteResult> CreateVoiceInviteCode(guid __spaceid, guid __channelid, i4 __expireminutes, i4 __maxuses, CancellationToken ct = default)

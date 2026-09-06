@@ -308,12 +308,10 @@ public class EventBusImpl(
                 await sessionGrain.OnTypingStopEmit(stopTyping.channelId);
                 break;
             case HeartBeatEvent heartbeat:
-                // false means the sid has been signed out — and only that. TouchAsync still STARTS a
-                // session that does not exist yet, presence key and all, so this RPC can mint a live
-                // row with no transport behind it; what S10 removed is the immortality, not the
-                // creation, because the pseudo-connection no longer joins the connection set and the
-                // presence key therefore drains on its own TTL once the caller stops calling. Making
-                // it refuse an unstarted session belongs in UserSessionGrain, not here.
+                // false means either the sid has been signed out or the session has not started:
+                // TouchAsync keeps a session alive but never mints one, so this RPC cannot create a
+                // live row with no transport behind it (S10 removed the immortality; the grain-side
+                // refusal removed the creation). Either way the caller is told to drop.
                 if (!await sessionGrain.TouchAsync(heartbeat.status))
                     throw new InvalidOperationException("Session expired, dropping connection");
                 break;

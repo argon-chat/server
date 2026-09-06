@@ -860,6 +860,88 @@ public class SpaceGrain(
         await Fire(new ChannelRemoved(spaceId, channelId));
     }
 
+    public async Task<Either<ChannelEntity, DuplicateChannelError>> DuplicateChannel(Guid channelId, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var callerId = this.GetUserId();
+        var spaceId  = this.GetPrimaryKey();
+
+        if (!await entitlementChecker.HasAccessAsync(ctx, spaceId, callerId, ArgonEntitlement.ManageChannels))
+            return DuplicateChannelError.INSUFFICIENT_PERMISSIONS;
+
+        var source = await ctx.Set<ChannelEntity>()
+           .Include(c => c.EntitlementOverwrites)
+           .FirstOrDefaultAsync(c => c.Id == channelId && c.SpaceId == spaceId, ct);
+        if (source is null)
+            return DuplicateChannelError.CHANNEL_NOT_FOUND;
+
+        // Right after the original, so the copy lands where the eye expects it rather than at the
+        // bottom of the group. A group holds a handful of channels, so ordering them in memory is
+        // cheaper than expressing "the next one" in SQL.
+        var siblings = await ctx.Set<ChannelEntity>()
+           .Where(c => c.SpaceId == spaceId && c.ChannelGroupId == source.ChannelGroupId)
+           .OrderBy(c => c.FractionalIndex)
+           .Select(c => new { c.Id, c.FractionalIndex })
+           .ToListAsync(ct);
+
+        var position    = siblings.FindIndex(c => c.Id == source.Id);
+        var sourceIndex = ParseIndex(source.FractionalIndex);
+        var nextIndex   = position >= 0 && position + 1 < siblings.Count ? ParseIndex(siblings[position + 1].FractionalIndex) : null;
+
+        FractionalIndex fractionalIndex;
+        try
+        {
+            fractionalIndex = FractionalIndex.Between(sourceIndex, nextIndex);
+        }
+        catch (InvalidOperationException)
+        {
+            // No room left between the two: fall back to the end of the group rather than fail.
+            var last = ParseIndex(siblings.LastOrDefault()?.FractionalIndex);
+            fractionalIndex = last is { } l ? FractionalIndex.After(l) : FractionalIndex.Min();
+        }
+
+        var copy = new ChannelEntity
+        {
+            Id                    = ArgonId.NewIn(spaceId),
+            Name                  = source.Name,
+            CreatorId             = callerId,
+            Description           = source.Description,
+            ChannelType           = source.ChannelType,
+            SpaceId               = spaceId,
+            ChannelGroupId        = source.ChannelGroupId,
+            FractionalIndex       = fractionalIndex.Value,
+            SlowMode              = source.SlowMode,
+            Bitrate               = source.Bitrate,
+            DoNotRestrictBoosters = source.DoNotRestrictBoosters,
+        };
+
+        // The overwrites are what make a duplicate worth having over "add channel": a private room
+        // copied without them would be public until somebody noticed.
+        foreach (var o in source.EntitlementOverwrites)
+        {
+            copy.EntitlementOverwrites.Add(new ChannelEntitlementOverwriteEntity
+            {
+                ChannelId     = copy.Id,
+                Scope         = o.Scope,
+                ArchetypeId   = o.ArchetypeId,
+                SpaceMemberId = o.SpaceMemberId,
+                Allow         = o.Allow,
+                Deny          = o.Deny,
+                CreatorId     = callerId,
+            });
+        }
+
+        await ctx.Set<ChannelEntity>().AddAsync(copy, ct);
+        await ctx.SaveChangesAsync(ct);
+        await Invalidate();
+        await Fire(new ChannelCreated(spaceId, copy.ToDto()), ct);
+        return copy;
+
+        static FractionalIndex? ParseIndex(string? value)
+            => string.IsNullOrEmpty(value) ? null : FractionalIndex.Parse(value);
+    }
+
     private static FilePurpose MapPurpose(SpaceFileKind kind)
         => kind switch
         {

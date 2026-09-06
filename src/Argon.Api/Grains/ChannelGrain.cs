@@ -608,7 +608,7 @@ public class ChannelGrain(
     }
 
     public async Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
-        CancellationToken ct = default)
+        int? bitrate, CancellationToken ct = default)
     {
         var callerId  = this.GetUserId();
         var channelId = this.GetPrimaryKey();
@@ -635,6 +635,15 @@ public class ChannelGrain(
                 return UpdateChannelError.NOT_A_TEXT_CHANNEL;
             if (!ChannelEntity.AllowedSlowModeSeconds.Contains(seconds))
                 return UpdateChannelError.SLOW_MODE_NOT_ALLOWED;
+        }
+
+        if (bitrate is { } kbps)
+        {
+            if (_self.ChannelType != ChannelType.Voice)
+                return UpdateChannelError.NOT_A_VOICE_CHANNEL;
+            // 0 clears back to the default; anything else has to sit inside the range.
+            if (kbps != 0 && (kbps < ChannelEntity.MinBitrateKbps || kbps > ChannelEntity.MaxBitrateKbps))
+                return UpdateChannelError.BITRATE_OUT_OF_RANGE;
         }
 
         await using var ctx = await context.CreateDbContextAsync(ct);
@@ -666,6 +675,16 @@ public class ChannelGrain(
             {
                 channel.SlowMode = value;
                 changed.Add(nameof(ArgonChannel.slowModeSeconds));
+            }
+        }
+
+        if (bitrate is { } rate)
+        {
+            var value = rate == 0 ? (int?)null : rate;
+            if (value != channel.Bitrate)
+            {
+                channel.Bitrate = value;
+                changed.Add(nameof(ArgonChannel.bitrate));
             }
         }
 

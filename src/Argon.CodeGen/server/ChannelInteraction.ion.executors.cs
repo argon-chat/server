@@ -165,7 +165,7 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
     {
         var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
     
-        const int argumentSize = 5;
+        const int argumentSize = 6;
     
         var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.UpdateChannel");
     
@@ -174,12 +174,31 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
         var __name = reader.ReadNullable<string>();
         var __description = reader.ReadNullable<string>();
         var __slowmodeseconds = reader.ReadNullable<i4>();
+        var __bitrate = reader.ReadNullable<i4>();
     
         reader.ReadEndArrayAndSkip(arraySize - argumentSize);
     
-        var result = await service.UpdateChannel(__spaceid, __channelid, __name, __description, __slowmodeseconds);
+        var result = await service.UpdateChannel(__spaceid, __channelid, __name, __description, __slowmodeseconds, __bitrate);
         
         IonFormatterStorage<IUpdateChannelResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DuplicateChannel_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IChannelInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "ChannelInteraction.DuplicateChannel");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __channelid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.DuplicateChannel(__spaceid, __channelid);
+        
+        IonFormatterStorage<IDuplicateChannelResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CreateVoiceInviteCode_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
@@ -631,6 +650,8 @@ public sealed class Ion_ChannelInteraction_ServiceExecutor(AsyncServiceScope sco
             return UpdateChannelGroup_Execute(reader, writer, ct);
         if (methodName.Equals("UpdateChannel", StringComparison.InvariantCultureIgnoreCase))
             return UpdateChannel_Execute(reader, writer, ct);
+        if (methodName.Equals("DuplicateChannel", StringComparison.InvariantCultureIgnoreCase))
+            return DuplicateChannel_Execute(reader, writer, ct);
         if (methodName.Equals("CreateVoiceInviteCode", StringComparison.InvariantCultureIgnoreCase))
             return CreateVoiceInviteCode_Execute(reader, writer, ct);
         if (methodName.Equals("QueryMessages", StringComparison.InvariantCultureIgnoreCase))

@@ -24,6 +24,13 @@ public record ChannelEntity :
     public bool      DoNotRestrictBoosters { get; set; }
 
     /// <summary>
+    /// Voice only: the audio bitrate members publish at, in kbps. Null is "the client's default";
+    /// a zero is never stored, the same way <see cref="SlowMode"/> treats "off". The server only
+    /// keeps and validates it — the client applies it when it joins the room.
+    /// </summary>
+    public int? Bitrate { get; set; }
+
+    /// <summary>
     /// Dead. Nothing writes this column any more — the channel's high-water mark lives in
     /// <see cref="Argon.Core.Entities.Data.ChannelLastMessageEntity"/>.
     /// </summary>
@@ -53,6 +60,12 @@ public record ChannelEntity :
     /// so the picker on one client can never render a value another client cannot.</summary>
     public static readonly int[] AllowedSlowModeSeconds = [0, 5, 15, 30, 60, 300];
 
+    /// <summary>Bitrate is a range rather than a picker: the useful value depends on the room's
+    /// bandwidth, not on a design choice. 8 kbps is where Opus speech is still intelligible; 320 is
+    /// well past transparent for stereo music.</summary>
+    public const int MinBitrateKbps = 8;
+    public const int MaxBitrateKbps = 320;
+
     /// <summary>
     /// The channel as the wire sees it.
     /// </summary>
@@ -71,7 +84,8 @@ public record ChannelEntity :
             string.IsNullOrEmpty(self.FractionalIndex) ? null : self.FractionalIndex, self.LastMessageId,
             // A zero interval is never stored — "off" travels as null so the client has one
             // representation of "no cooldown" instead of two.
-            self.SlowMode is { } window && window > TimeSpan.Zero ? (int)window.TotalSeconds : null);
+            self.SlowMode is { } window && window > TimeSpan.Zero ? (int)window.TotalSeconds : null,
+            self.Bitrate is { } kbps && kbps > 0 ? kbps : null);
 
     public void Configure(EntityTypeBuilder<ChannelEntity> builder)
     {

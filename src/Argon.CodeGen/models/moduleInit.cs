@@ -69,6 +69,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<JoinToChannelError>.Value = new Ion_JoinToChannelError_Formatter();
       IonFormatterStorage<EntityType>.Value = new Ion_EntityType_Formatter();
       IonFormatterStorage<UpdateChannelError>.Value = new Ion_UpdateChannelError_Formatter();
+      IonFormatterStorage<DuplicateChannelError>.Value = new Ion_DuplicateChannelError_Formatter();
       IonFormatterStorage<VoiceInviteError>.Value = new Ion_VoiceInviteError_Formatter();
       IonFormatterStorage<DeleteMessageError>.Value = new Ion_DeleteMessageError_Formatter();
       IonFormatterStorage<ControlType>.Value = new Ion_ControlType_Formatter();
@@ -91,6 +92,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<ChannelMemberState>.Value = new Ion_ChannelMemberState_Formatter();
       IonFormatterStorage<IMessageEntity>.Value = new Ion_IMessageEntity_Formatter();
       IonFormatterStorage<IUpdateChannelResult>.Value = new Ion_IUpdateChannelResult_Formatter();
+      IonFormatterStorage<IDuplicateChannelResult>.Value = new Ion_IDuplicateChannelResult_Formatter();
       IonFormatterStorage<ICreateVoiceInviteResult>.Value = new Ion_ICreateVoiceInviteResult_Formatter();
       IonFormatterStorage<IDeleteMessageResult>.Value = new Ion_IDeleteMessageResult_Formatter();
       IonFormatterStorage<IInvokeSlashCommandResult>.Value = new Ion_IInvokeSlashCommandResult_Formatter();
@@ -301,6 +303,8 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<MessageEntityLinkPreview>.Value = new Ion_MessageEntityLinkPreview_Formatter();
       IonFormatterStorage<SuccessUpdateChannel>.Value = new Ion_SuccessUpdateChannel_Formatter();
       IonFormatterStorage<FailedUpdateChannel>.Value = new Ion_FailedUpdateChannel_Formatter();
+      IonFormatterStorage<SuccessDuplicateChannel>.Value = new Ion_SuccessDuplicateChannel_Formatter();
+      IonFormatterStorage<FailedDuplicateChannel>.Value = new Ion_FailedDuplicateChannel_Formatter();
       IonFormatterStorage<SuccessCreateVoiceInvite>.Value = new Ion_SuccessCreateVoiceInvite_Formatter();
       IonFormatterStorage<FailedCreateVoiceInvite>.Value = new Ion_FailedCreateVoiceInvite_Formatter();
       IonFormatterStorage<SuccessDeleteMessage>.Value = new Ion_SuccessDeleteMessage_Formatter();

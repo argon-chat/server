@@ -24,13 +24,13 @@ public interface IChannelGrain : IGrainWithGuidKey
 
     /// <summary>
     /// Partial update behind the ion <c>UpdateChannel</c>: every argument is optional and null means
-    /// "leave alone". <paramref name="slowModeSeconds"/> is the exception — 0 clears the cooldown —
-    /// which is why it cannot be folded into <see cref="ChannelInput"/>, whose fields are all
-    /// mandatory replacements.
+    /// "leave alone". <paramref name="slowModeSeconds"/> and <paramref name="bitrate"/> are the
+    /// exceptions — 0 clears them — which is why they cannot be folded into <see cref="ChannelInput"/>,
+    /// whose fields are all mandatory replacements.
     /// </summary>
     [Alias("UpdateChannelSettings")]
     Task<Either<ChannelEntity, UpdateChannelError>> UpdateChannelSettings(string? name, string? description, int? slowModeSeconds,
-        CancellationToken ct = default);
+        int? bitrate, CancellationToken ct = default);
 
     /// <summary>
     /// Soft-deletes a message. Authors may always retract their own; anyone else needs

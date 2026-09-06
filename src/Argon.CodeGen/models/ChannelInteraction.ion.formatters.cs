@@ -71,7 +71,7 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonChannel Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(9, "ArgonChannel");
+        var arraySize = reader.ReadStartMessage(10, "ArgonChannel");
         var __type = IonFormatterStorage<ChannelType>.Read(reader);
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __channelid = IonFormatterStorage<guid>.Read(reader);
@@ -81,14 +81,15 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         var __fractionalindex = reader.ReadNullable<string>();
         var __lastmessageid = IonFormatterStorage<i8>.Read(reader);
         var __slowmodeseconds = reader.ReadNullable<i4>();
-        reader.ReadEndArrayAndSkip(arraySize - 9);
-        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex, __lastmessageid, __slowmodeseconds);
+        var __bitrate = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__type, __spaceid, __channelid, __name, __description, __groupid, __fractionalindex, __lastmessageid, __slowmodeseconds, __bitrate);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonChannel value)
     {
-        writer.WriteStartArray(9);
+        writer.WriteStartArray(10);
         IonFormatterStorage<ChannelType>.Write(writer, value.type);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
@@ -98,6 +99,7 @@ public sealed class Ion_ArgonChannel_Formatter : IonFormatter<ArgonChannel>
         IonFormatterStorage<string>.WriteNullable(writer, value.fractionalIndex);
         IonFormatterStorage<i8>.Write(writer, value.lastMessageId);
         IonFormatterStorage<i4>.WriteNullable(writer, value.slowModeSeconds);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.bitrate);
         writer.WriteEndArray();
     }
 }
@@ -867,6 +869,23 @@ public sealed class Ion_UpdateChannelError_Formatter : IonFormatter<UpdateChanne
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, UpdateChannelError value)
+    {
+        var casted = (u2)value;
+        IonFormatterStorage<u2>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_DuplicateChannelError_Formatter : IonFormatter<DuplicateChannelError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public DuplicateChannelError Read(CborReader reader)
+    {
+         return (DuplicateChannelError)(IonFormatterStorage<u2>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, DuplicateChannelError value)
     {
         var casted = (u2)value;
         IonFormatterStorage<u2>.Write(writer, casted);
