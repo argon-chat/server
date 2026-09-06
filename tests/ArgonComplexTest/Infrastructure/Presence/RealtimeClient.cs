@@ -226,8 +226,39 @@ public sealed class RealtimeClient : IAsyncDisposable
             (payload, channelId) => self.Record(RealtimeStream.BroadcastChannel, Guid.Empty, channelId, null, payload));
 
         await connection.StartAsync(ct);
+        await self.WaitForAttachAsync(ct);
 
         return self;
+    }
+
+    /// <summary>
+    /// Returns once the server has finished <c>AppHub.OnConnectedAsync</c> for this connection.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>StartAsync</c> resolves when the handshake completes, which is before the hub has
+    /// joined the connection to its <c>spaces/{id}</c> groups and attached the session grain. A test
+    /// that provokes a broadcast right after connecting therefore raced the group join and, on a
+    /// slow runner, lost: the event was published to a group the observer was not yet in, and no
+    /// wait could ever find it (CI shard 2/4, <c>A_dnd_member_joining_a_space_...</c>, and earlier
+    /// the two-device activity tests, which each worked around it locally).</para>
+    ///
+    /// <para>SignalR dispatches no client invocation until <c>OnConnectedAsync</c> has returned, so
+    /// awaiting any hub method is the barrier. <c>UnSubscribeToChannel(Guid.Empty)</c> is the one
+    /// with no effect: it removes the connection from a group it was never in and touches nothing
+    /// else. A connection the hub refused (a revoked session) is aborted inside
+    /// <c>OnConnectedAsync</c>; the invocation then fails and is swallowed here, leaving the client
+    /// in the Disconnected state the caller goes on to assert.</para>
+    /// </remarks>
+    private async Task WaitForAttachAsync(CancellationToken ct)
+    {
+        try
+        {
+            await connection.InvokeAsync("UnSubscribeToChannel", Guid.Empty, ct);
+        }
+        catch (Exception) when (connection.State != HubConnectionState.Connected)
+        {
+            // Refused by the hub — the state is the answer, not this call.
+        }
     }
 
     private void Record(RealtimeStream channel, Guid spaceId, Guid channelId, string? entryId, byte[] payload)
@@ -479,8 +510,11 @@ public sealed class RealtimeClient : IAsyncDisposable
     /// Reusing the client rather than building a new one keeps the recorded event log continuous
     /// across the gap, which is what lets a test say "and no status event fired in between".
     /// </remarks>
-    public Task RestartAsync(CancellationToken ct = default)
-        => connection.StartAsync(ct);
+    public async Task RestartAsync(CancellationToken ct = default)
+    {
+        await connection.StartAsync(ct);
+        await WaitForAttachAsync(ct);
+    }
 
     /// <summary>Waits for the connection to reach <see cref="HubConnectionState.Disconnected"/>.</summary>
     public Task<bool> WaitForCloseAsync(TimeSpan timeout, CancellationToken ct = default)
