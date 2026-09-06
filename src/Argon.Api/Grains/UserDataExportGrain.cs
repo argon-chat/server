@@ -2,9 +2,11 @@ namespace Argon.Grains;
 
 using System.IO.Compression;
 using Argon.Core.Entities.Data;
+using Argon.Features.Logic;
 using Argon.Features.Storage;
 using Instruments;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using Orleans.Providers;
 using Persistence.States;
 
@@ -15,13 +17,20 @@ public class UserDataExportGrain(
     IExportS3Service exportS3,
     IS3StorageService storageService,
     IGrainFactory grainFactory,
+    IOptions<DataExportOptions> options,
     ILogger<UserDataExportGrain> logger) : Grain, IUserDataExportGrain
 {
     private IDisposable? _processTimer;
-    private static readonly TimeSpan ProcessInterval = TimeSpan.FromSeconds(30);
-    private static readonly TimeSpan RateLimitPeriod = TimeSpan.FromDays(30);
-    private static readonly TimeSpan ArchiveTtl      = TimeSpan.FromHours(48);
-    private const int MessageBatchSize = 200;
+
+    // The four clocks and the batch ceiling were static readonly fields here. They are one options
+    // section now (DataExportOptions), with the same defaults to the second; see that class for why.
+    private DataExportOptions Options => options.Value;
+
+    private TimeSpan ProcessInterval  => Options.ProcessInterval;
+    private TimeSpan FirstTickDelay   => Options.FirstTickDelay;
+    private TimeSpan RateLimitPeriod  => Options.RateLimitPeriod;
+    private TimeSpan ArchiveTtl       => Options.ArchiveTtl;
+    private int      MessageBatchSize => Options.MessageBatchSize;
 
     private Guid UserId => this.GetPrimaryKey();
 
@@ -162,7 +171,7 @@ public class UserDataExportGrain(
         _processTimer = this.RegisterGrainTimer(
             static async (grain, _) => await grain.ProcessTickAsync(),
             this,
-            TimeSpan.FromSeconds(1), // first tick fast
+            FirstTickDelay, // first tick fast
             ProcessInterval);
     }
 

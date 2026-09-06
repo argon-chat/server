@@ -14,6 +14,31 @@
 
 namespace ArgonContracts;
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserIgnore_Formatter : IonFormatter<UserIgnore>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserIgnore Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "UserIgnore");
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __ignoredid = IonFormatterStorage<guid>.Read(reader);
+        var __ignoredat = IonFormatterStorage<datetime>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__userid, __ignoredid, __ignoredat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserIgnore value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<guid>.Write(writer, value.ignoredId);
+        IonFormatterStorage<datetime>.Write(writer, value.ignoredAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_UserBlock_Formatter : IonFormatter<UserBlock>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

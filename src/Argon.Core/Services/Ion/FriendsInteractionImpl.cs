@@ -39,4 +39,13 @@ public class FriendsInteractionImpl : IFriendsInteraction
 
     public async Task UnblockUser(Guid userId, CancellationToken ct = default)
         => await this.GetGrain<IFriendsGrain>(Guid.CreateVersion7()).UnblockUserAsync(userId, ct);
+
+    public async Task<IonArray<UserIgnore>> GetIgnoreList(int limit, int offset, CancellationToken ct = default)
+        => await this.GetGrain<IFriendsGrain>(Guid.CreateVersion7()).GetIgnoreListAsync(limit, offset, ct);
+
+    public async Task IgnoreUser(Guid userId, CancellationToken ct = default)
+        => await this.GetGrain<IFriendsGrain>(Guid.CreateVersion7()).IgnoreUserAsync(userId, ct);
+
+    public async Task UnignoreUser(Guid userId, CancellationToken ct = default)
+        => await this.GetGrain<IFriendsGrain>(Guid.CreateVersion7()).UnignoreUserAsync(userId, ct);
 }

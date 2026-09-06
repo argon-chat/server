@@ -3938,6 +3938,12 @@ public interface IArgonEvent : IIonUnion<IArgonEvent>
 
     internal bool IsMessageUpdated => this is MessageUpdated;
 
+    internal bool IsUserIgnoredEvent => this is UserIgnoredEvent;
+
+    internal bool IsUserUnignoredEvent => this is UserUnignoredEvent;
+
+    internal bool IsChatDeletedEvent => this is ChatDeletedEvent;
+
 }
 
 
@@ -4396,6 +4402,27 @@ public sealed record MessageUpdated(guid spaceId, guid channelId, ArgonMessage m
     public uint UnionIndex => 64;
 }
 
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserIgnoredEvent(guid ignoredId) : IArgonEvent
+{
+    public string UnionKey => nameof(UserIgnoredEvent);
+    public uint UnionIndex => 65;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserUnignoredEvent(guid ignoredId) : IArgonEvent
+{
+    public string UnionKey => nameof(UserUnignoredEvent);
+    public uint UnionIndex => 66;
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record ChatDeletedEvent(guid peerId) : IArgonEvent
+{
+    public string UnionKey => nameof(ChatDeletedEvent);
+    public uint UnionIndex => 67;
+}
+
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -4403,7 +4430,7 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
 {
     public IArgonEvent Read(CborReader reader)
     {
-        var unionIndex = reader.ReadStartUnion("IArgonEvent", 65u);
+        var unionIndex = reader.ReadStartUnion("IArgonEvent", 68u);
         IArgonEvent result;
         if (false) {}
         
@@ -4602,8 +4629,17 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
         else if (unionIndex == 64)
             result = IonFormatterStorage<MessageUpdated>.Read(reader);
 
+        else if (unionIndex == 65)
+            result = IonFormatterStorage<UserIgnoredEvent>.Read(reader);
+
+        else if (unionIndex == 66)
+            result = IonFormatterStorage<UserUnignoredEvent>.Read(reader);
+
+        else if (unionIndex == 67)
+            result = IonFormatterStorage<ChatDeletedEvent>.Read(reader);
+
         else
-            throw new IonInvalidUnionIndexException("IArgonEvent", unionIndex, 65u);
+            throw new IonInvalidUnionIndexException("IArgonEvent", unionIndex, 68u);
         reader.ReadEndUnion();
         return result;
     }
@@ -5069,10 +5105,31 @@ public sealed class Ion_IArgonEvent_Formatter : IonFormatter<IArgonEvent>
                 throw new InvalidOperationException();
             IonFormatterStorage<MessageUpdated>.Write(writer, n_64);
         }
+
+        else if (value is UserIgnoredEvent n_65)
+        {
+            if (n_65.UnionIndex != 65)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserIgnoredEvent>.Write(writer, n_65);
+        }
+
+        else if (value is UserUnignoredEvent n_66)
+        {
+            if (n_66.UnionIndex != 66)
+                throw new InvalidOperationException();
+            IonFormatterStorage<UserUnignoredEvent>.Write(writer, n_66);
+        }
+
+        else if (value is ChatDeletedEvent n_67)
+        {
+            if (n_67.UnionIndex != 67)
+                throw new InvalidOperationException();
+            IonFormatterStorage<ChatDeletedEvent>.Write(writer, n_67);
+        }
     
         else
             throw new InvalidOperationException(
-                $"Ion union 'IArgonEvent' has no case {value.UnionIndex}; this revision declares 65 case(s)");
+                $"Ion union 'IArgonEvent' has no case {value.UnionIndex}; this revision declares 68 case(s)");
         writer.WriteEndArray();    
     }
 }
@@ -6647,6 +6704,69 @@ public sealed class Ion_MessageUpdated_Formatter : IonFormatter<MessageUpdated>
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<guid>.Write(writer, value.channelId);
         IonFormatterStorage<ArgonMessage>.Write(writer, value.message);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserIgnoredEvent_Formatter : IonFormatter<UserIgnoredEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserIgnoredEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "UserIgnoredEvent");
+        var __ignoredid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__ignoredid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserIgnoredEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.ignoredId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserUnignoredEvent_Formatter : IonFormatter<UserUnignoredEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserUnignoredEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "UserUnignoredEvent");
+        var __ignoredid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__ignoredid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserUnignoredEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.ignoredId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_ChatDeletedEvent_Formatter : IonFormatter<ChatDeletedEvent>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public ChatDeletedEvent Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "ChatDeletedEvent");
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__peerid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, ChatDeletedEvent value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<guid>.Write(writer, value.peerId);
         writer.WriteEndArray();
     }
 }

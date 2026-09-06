@@ -40,6 +40,12 @@ public sealed class Ion_FriendsInteraction_ClientImpl(IonClientContext context) 
         typeof(IFriendsInteraction).GetMethod(nameof(BlockUser), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> UnblockUser_Ref = new(() =>
         typeof(IFriendsInteraction).GetMethod(nameof(UnblockUser), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetIgnoreList_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(GetIgnoreList), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> IgnoreUser_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(IgnoreUser), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> UnignoreUser_Ref = new(() =>
+        typeof(IFriendsInteraction).GetMethod(nameof(UnignoreUser), BindingFlags.Public | BindingFlags.Instance)!);
 
 
     
@@ -234,6 +240,58 @@ public sealed class Ion_FriendsInteraction_ClientImpl(IonClientContext context) 
 
         await req.CallAsync(writer.Encode(), ct: ct);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IonArray<UserIgnore>> GetIgnoreList(i4 __limit, i4 __offset, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), GetIgnoreList_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsyncWithArray<UserIgnore>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task IgnoreUser(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), IgnoreUser_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnignoreUser(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IFriendsInteraction), UnignoreUser_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
 
 }
 
@@ -249,6 +307,8 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
         typeof(IUserChatInteractions).GetMethod(nameof(UnpinChat), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> MarkChatRead_Ref = new(() =>
         typeof(IUserChatInteractions).GetMethod(nameof(MarkChatRead), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> DeleteChat_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(DeleteChat), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendDirectMessage_Ref = new(() =>
         typeof(IUserChatInteractions).GetMethod(nameof(SendDirectMessage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> QueryDirectMessages_Ref = new(() =>
@@ -312,6 +372,23 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
     public async Task MarkChatRead(guid __peerid, CancellationToken ct = default)
     {
         var req = new IonRequest(context, typeof(IUserChatInteractions), MarkChatRead_Ref.Value);
+
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        
+        writer.WriteEndArray();
+
+        await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteChat(guid __peerid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), DeleteChat_Ref.Value);
 
         var writer = new CborWriter();
         

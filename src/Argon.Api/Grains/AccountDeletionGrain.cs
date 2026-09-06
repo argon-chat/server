@@ -25,11 +25,20 @@ public class AccountDeletionGrain(
     ILogger<AccountDeletionGrain> logger) : Grain, IAccountDeletionGrain
 {
     private IDisposable? _checkTimer;
-    private static readonly TimeSpan CheckInterval = TimeSpan.FromHours(6);
     private const int FileBatchSize = 50;
 
     private Guid UserId => this.GetPrimaryKey();
     private AccountDeletionOptions Options => options.Value;
+
+    /// <summary>
+    /// The poll that sends reminders and executes an elapsed grace.
+    /// </summary>
+    /// <remarks>
+    /// Six hours by default, exactly as the constant it replaces; a host may lower it, and
+    /// <see cref="AccountDeletionOptions.Validate"/> refuses a value wide enough to step over the
+    /// closest reminder.
+    /// </remarks>
+    private TimeSpan CheckInterval => Options.CheckInterval;
 
     public override Task OnActivateAsync(CancellationToken cancellationToken)
     {
@@ -128,7 +137,7 @@ public class AccountDeletionGrain(
 
         // Schedule deletion
         var now = DateTimeOffset.UtcNow;
-        var executionAt = now.AddDays(Options.GracePeriodDays);
+        var executionAt = now + Options.EffectiveGracePeriod;
 
         state.State.Status = AccountDeletionStatus.Scheduled;
         state.State.ScheduledAt = now;
@@ -204,7 +213,7 @@ public class AccountDeletionGrain(
 
         // Schedule deletion
         var now = DateTimeOffset.UtcNow;
-        var executionAt = now.AddDays(Options.GracePeriodDays);
+        var executionAt = now + Options.EffectiveGracePeriod;
 
         state.State.Status = AccountDeletionStatus.Scheduled;
         state.State.ScheduledAt = now;
@@ -315,16 +324,24 @@ public class AccountDeletionGrain(
         var executionAt = state.State.ExecutionAt!.Value;
         var remaining = executionAt - now;
 
-        // Check and send reminders
-        foreach (var reminderDay in Options.ReminderDays)
+        // Check and send reminders. Each threshold is remembered by
+        // AccountDeletionOptions.ReminderKey rather than by its day count: a whole number of days
+        // maps to itself, so state written by a production host reads back unchanged, while a host
+        // whose grace is measured in seconds still gets one distinct key per threshold instead of
+        // two thresholds that both floor to zero and collapse into one reminder.
+        foreach (var before in Options.EffectiveReminders)
         {
-            if (remaining.TotalDays <= reminderDay && !state.State.RemindersSent.Contains(reminderDay))
+            var reminderKey = AccountDeletionOptions.ReminderKey(before);
+
+            if (remaining <= before && !state.State.RemindersSent.Contains(reminderKey))
             {
-                state.State.RemindersSent.Add(reminderDay);
+                state.State.RemindersSent.Add(reminderKey);
                 await state.WriteStateAsync();
 
+                var daysBefore = (int)before.TotalDays;
+
                 AccountDeletionInstrument.DeletionRemindersSent.Add(1,
-                    new KeyValuePair<string, object?>("days_before", reminderDay));
+                    new KeyValuePair<string, object?>("days_before", daysBefore));
 
                 if (!string.IsNullOrEmpty(state.State.OriginalEmail))
                 {
@@ -332,12 +349,12 @@ public class AccountDeletionGrain(
                     await emailManager.SendDeletionReminderAsync(
                         state.State.OriginalEmail,
                         state.State.OriginalDisplayName ?? "User",
-                        reminderDay);
+                        daysBefore);
                 }
 
                 logger.LogInformation(
-                    "Deletion reminder sent for user {UserId}, {Days} days remaining",
-                    UserId, reminderDay);
+                    "Deletion reminder sent for user {UserId}, {Remaining} remaining",
+                    UserId, before);
             }
         }
 

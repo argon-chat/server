@@ -15,6 +15,10 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record UserIgnore(guid userId, guid ignoredId, datetime ignoredAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record UserBlock(guid userId, guid blockedId, datetime blockedAt);
 
 
@@ -85,6 +89,9 @@ public interface IFriendsInteraction : IIonService
     Task CancelFriendRequest(guid toUserId, CancellationToken ct = default);
     Task BlockUser(guid userId, CancellationToken ct = default);
     Task UnblockUser(guid userId, CancellationToken ct = default);
+    Task<IonArray<UserIgnore>> GetIgnoreList(i4 limit, i4 offset, CancellationToken ct = default);
+    Task IgnoreUser(guid userId, CancellationToken ct = default);
+    Task UnignoreUser(guid userId, CancellationToken ct = default);
 }
 
 
@@ -95,6 +102,7 @@ public interface IUserChatInteractions : IIonService
     Task PinChat(guid peerId, CancellationToken ct = default);
     Task UnpinChat(guid peerId, CancellationToken ct = default);
     Task MarkChatRead(guid peerId, CancellationToken ct = default);
+    Task DeleteChat(guid peerId, CancellationToken ct = default);
     Task<i8> SendDirectMessage(guid receiverId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task<IonArray<DirectMessage>> QueryDirectMessages(guid peerId, i8? from, i4 limit, CancellationToken ct = default);
 }

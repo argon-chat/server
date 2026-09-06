@@ -70,6 +70,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 #region Friends
 
     public DbSet<UserBlockEntity>     UserBlocklist => Set<UserBlockEntity>();
+    public DbSet<UserIgnoreEntity>    UserIgnorelist => Set<UserIgnoreEntity>();
 
     // Which machines an account has signed in from, and which machines are barred. See
     // DeviceIdentityService for how a login is attributed to one.

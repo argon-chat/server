@@ -17,6 +17,13 @@ public interface IUserChatGrain : IGrainWithGuidKey
     [Alias(nameof(MarkChatReadAsync))]
     Task MarkChatReadAsync(Guid peerId, CancellationToken ct = default);
 
+    /// <summary>
+    /// Hides the conversation on the caller's side only: the row is archived, nothing is destroyed,
+    /// and the next message either side sends brings it back.
+    /// </summary>
+    [Alias(nameof(DeleteChatAsync))]
+    Task DeleteChatAsync(Guid peerId, CancellationToken ct = default);
+
     [Alias(nameof(UpdateChatAsync))]
     Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);
 

@@ -35,7 +35,6 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
         builder.ConfigureAppConfiguration(configuration =>
         {
             configuration.AddInMemoryCollection(TestServerConfiguration.ReportSystem);
-            configuration.AddInMemoryCollection(TestServerConfiguration.AccountDeletion);
             configuration.AddInMemoryCollection(TestServerConfiguration.Messages);
         });
 
@@ -64,6 +63,15 @@ public sealed class RoleHost(ArgonTestHostSettings settings, ArgonRoleId role, i
         // the policy at registration — so an in-memory collection would be ignored and the shipped
         // five-attempts-a-minute would 429 the fixture halfway through.
         foreach (var (key, value) in TestServerConfiguration.Aegis)
+            builder.UseSetting(key, value);
+
+        // The same treatment for the account-lifecycle clocks, and for the same reason: these are
+        // UseSetting pairs now rather than an in-memory collection, so a role booted here runs on the
+        // values the functional host runs on and validates them at start-up exactly as it would.
+        foreach (var (key, value) in TestServerConfiguration.AccountDeletion)
+            builder.UseSetting(key, value);
+
+        foreach (var (key, value) in TestServerConfiguration.DataExport)
             builder.UseSetting(key, value);
 
         // Each role gets its own silo port and cluster, so several can be booted in one run without

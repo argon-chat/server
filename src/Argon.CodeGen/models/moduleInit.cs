@@ -107,6 +107,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<IArgonEvent>.Value = new Ion_IArgonEvent_Formatter();
       IonFormatterStorage<IArgonClientEvent>.Value = new Ion_IArgonClientEvent_Formatter();
       IonFormatterStorage<FeatureFlagData>.Value = new Ion_FeatureFlagData_Formatter();
+      IonFormatterStorage<UserIgnore>.Value = new Ion_UserIgnore_Formatter();
       IonFormatterStorage<UserBlock>.Value = new Ion_UserBlock_Formatter();
       IonFormatterStorage<FriendRequest>.Value = new Ion_FriendRequest_Formatter();
       IonFormatterStorage<Friendship>.Value = new Ion_Friendship_Formatter();
@@ -392,6 +393,9 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<SpaceDeletionScheduled>.Value = new Ion_SpaceDeletionScheduled_Formatter();
       IonFormatterStorage<SpaceDeletionCancelled>.Value = new Ion_SpaceDeletionCancelled_Formatter();
       IonFormatterStorage<MessageUpdated>.Value = new Ion_MessageUpdated_Formatter();
+      IonFormatterStorage<UserIgnoredEvent>.Value = new Ion_UserIgnoredEvent_Formatter();
+      IonFormatterStorage<UserUnignoredEvent>.Value = new Ion_UserUnignoredEvent_Formatter();
+      IonFormatterStorage<ChatDeletedEvent>.Value = new Ion_ChatDeletedEvent_Formatter();
       IonFormatterStorage<IAmTypingEvent>.Value = new Ion_IAmTypingEvent_Formatter();
       IonFormatterStorage<IAmStopTypingEvent>.Value = new Ion_IAmStopTypingEvent_Formatter();
       IonFormatterStorage<HeartBeatEvent>.Value = new Ion_HeartBeatEvent_Formatter();

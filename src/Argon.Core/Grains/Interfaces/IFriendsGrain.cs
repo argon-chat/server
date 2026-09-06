@@ -34,4 +34,17 @@ public interface IFriendsGrain : IGrainWithGuidKey
 
     [Alias(nameof(UnblockUserAsync))]
     Task UnblockUserAsync(Guid userId, CancellationToken ct = default);
+
+    [Alias(nameof(GetIgnoreListAsync))]
+    Task<List<UserIgnore>> GetIgnoreListAsync(int limit, int offset, CancellationToken ct = default);
+
+    /// <summary>
+    /// The quiet alternative to a block: nothing is torn down and the other side is not told —
+    /// their messages simply stop counting as unread (see <c>UserChatGrain.SendDirectMessageAsync</c>).
+    /// </summary>
+    [Alias(nameof(IgnoreUserAsync))]
+    Task IgnoreUserAsync(Guid userId, CancellationToken ct = default);
+
+    [Alias(nameof(UnignoreUserAsync))]
+    Task UnignoreUserAsync(Guid userId, CancellationToken ct = default);
 }

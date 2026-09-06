@@ -1,6 +1,7 @@
 namespace ArgonComplexTest.Tests;
 
 using Argon.Grains.Interfaces;
+using ArgonComplexTest.Infrastructure.Account;
 using ArgonContracts;
 using Microsoft.Extensions.DependencyInjection;
 
@@ -71,13 +72,24 @@ public class AccountLifecycleTests : TestBase
 
         var grain = GetGrainFactory().GetGrain<IAccountDeletionGrain>(userId);
 
-        var requested = await grain.RequestDeletionAsync(password);
+        var requestedAt = DateTimeOffset.UtcNow;
+        var requested   = await grain.RequestDeletionAsync(password);
+
+        // Against the host's own grace rather than a literal: the integration host runs the deletion
+        // clocks compressed (see TestServerConfiguration.AccountDeletion), so a hard-coded "more than
+        // 29 days" would have stopped meaning anything the moment that changed — and would have
+        // passed for the wrong reason at any grace longer than it.
+        var grace = AccountTimings.Grace;
+
         Assert.Multiple(() =>
         {
             Assert.That(requested.Success, Is.True, requested.Error?.ToString());
             Assert.That(requested.ScheduledDeletionAt, Is.Not.Null);
-            Assert.That(requested.ScheduledDeletionAt, Is.GreaterThan(DateTimeOffset.UtcNow.AddDays(29)),
-                "AccountDeletion:GracePeriodDays is 30 in the test configuration");
+            Assert.That(requested.ScheduledDeletionAt, Is.GreaterThanOrEqualTo(requestedAt + grace),
+                $"the deletion is scheduled a full grace period ({grace}) after the request");
+            Assert.That(requested.ScheduledDeletionAt,
+                Is.LessThanOrEqualTo(DateTimeOffset.UtcNow + grace),
+                $"and no further out than that — the grace is {grace}, not a multiple of it");
         });
 
         Assert.That((await grain.GetDeletionStatusAsync()).Status, Is.EqualTo(AccountDeletionStatusKind.Scheduled));

@@ -19,8 +19,61 @@ public class EmailManager(
     IOptions<SmtpConfig> smtpOptions, 
     ILogger<EmailManager> logger, 
     EMailFormStorage formStorage,
+    IEnumerable<IEmailSink> emailSinks,
     ITestCodeStore? testCodeStore = null) : Grain, IEmailManager
 {
+    /// <summary>
+    /// The observer a test host registered, or nothing.
+    /// </summary>
+    /// <remarks>
+    /// Injected as a sequence rather than as an optional <c>IEmailSink?</c>, and the difference is
+    /// not style. An optional parameter is resolvable by <c>ActivatorUtilities</c> but not by the
+    /// container on its own, and <c>RoleStartupTests.A_silo_role_can_construct_every_grain_it_hosts</c>
+    /// asks the container: every constructor parameter of every grain a role hosts has to resolve to
+    /// something, which is the check that catches a grain quietly unbuildable on the one role that
+    /// hosts it. A sequence always resolves — empty when nothing is registered — so the hook stays
+    /// genuinely absent in production without registering a null object there, and without the check
+    /// having to be taught about defaults.
+    /// </remarks>
+    private readonly IEmailSink? emailSink = emailSinks.FirstOrDefault();
+
+    /// <summary>
+    /// Hands one outgoing message to <see cref="IEmailSink"/>, when a host registered one.
+    /// </summary>
+    /// <remarks>
+    /// <para>Called at the top of every <c>Send*</c> method, ahead of the disabled-SMTP early return
+    /// and ahead of the MX validation inside <see cref="SendAsync"/> - both of which are taken in any
+    /// host without a mail server, which is every host a test runs in. Recording after either would
+    /// record nothing.</para>
+    ///
+    /// <para>The body is a factory rather than a string because the send path renders the template
+    /// <em>after</em> the enabled check, and rendering it here unconditionally would move that work
+    /// onto a production host that is about to discard it. With no sink registered the delegate is
+    /// never invoked and this is a null check.</para>
+    ///
+    /// <para>A template that throws is reported as a marker rather than propagated: the sink is
+    /// observation, and observation must not be able to fail a send that would otherwise have gone
+    /// out.</para>
+    /// </remarks>
+    private void Observe(string to, string kind, string subject, Func<string> body)
+    {
+        if (emailSink is null)
+            return;
+
+        string rendered;
+
+        try
+        {
+            rendered = body();
+        }
+        catch (Exception e)
+        {
+            rendered = $"<!-- template render failed: {e.Message} -->";
+        }
+
+        emailSink.Record(to, kind, subject, rendered);
+    }
+
     private MimeMessage CreateMessage(string to, string subject, string bodyHtml)
     {
         var message = new MimeMessage();
@@ -68,12 +121,21 @@ public class EmailManager(
 
     public Task SendEmailAsync(string email, string subject, string message, string template = "none")
     {
+        Observe(email, EmailKinds.Generic, subject, () => message);
+
         var msg = CreateMessage(email, subject, message);
         return SendAsync(email, msg);
     }
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
     {
+        Observe(email, EmailKinds.OtpCode, "Your Argon verification code",
+            () => formStorage.Render("otp", new Dictionary<string, string>
+            {
+                { "otp", otpCode },
+                { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[OTP CODE]: {Email}, code: {OtpCode}", email, otpCode);
@@ -98,6 +160,9 @@ public class EmailManager(
 
     public async Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity)
     {
+        Observe(email, EmailKinds.ResetCode, "Your Argon reset password code",
+            () => formStorage.Render("reset_pass", new Dictionary<string, string> { { "reset_code", otpCode } }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[OTP RESET CODE]: {Email}, code: {OtpCode}", email, otpCode);
@@ -127,6 +192,13 @@ public class EmailManager(
     [OneWay]
     public async Task SendDeleteNoticeAsync(string email, string displayName, DateTimeOffset deletionTime)
     {
+        Observe(email, EmailKinds.DeleteNotice, "Account Deletion Notice",
+            () => formStorage.Render("deletion_notice", new Dictionary<string, string>
+            {
+                { "deletion_date", deletionTime.ToString("D") },
+                { "displayName", displayName }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
@@ -158,6 +230,14 @@ public class EmailManager(
     [OneWay]
     public async Task SendMagicLinkAsync(string email, string link, string appName, TimeSpan validity)
     {
+        Observe(email, EmailKinds.MagicLink, $"Sign in to {appName}",
+            () => formStorage.Render("magic_link", new Dictionary<string, string>
+            {
+                { "link", link },
+                { "app_name", appName },
+                { "validity", $"{(int)Math.Floor(validity.TotalMinutes):D}" }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[MAGIC LINK]: {Email}, link: {Link}", email, link);
@@ -186,6 +266,14 @@ public class EmailManager(
     [OneWay]
     public async Task SendRegistrationInviteAsync(string email, string link, string appName, TimeSpan validity)
     {
+        Observe(email, EmailKinds.RegistrationInvite, $"You have been invited to {appName}",
+            () => formStorage.Render("invite_register", new Dictionary<string, string>
+            {
+                { "link", link },
+                { "app_name", appName },
+                { "validity", $"{(int)Math.Floor(validity.TotalHours):D}" }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[INVITE REGISTER]: {Email}, link: {Link}", email, link);
@@ -213,6 +301,8 @@ public class EmailManager(
 
     public async Task<string> SendRawAsync(string to, string subject, string html, string? from, string? replyTo)
     {
+        Observe(to, EmailKinds.Raw, subject, () => html);
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[RAW EMAIL]: to={To}, subject={Subject}", to, subject);
@@ -338,6 +428,9 @@ public class EmailManager(
     [OneWay]
     public async Task SendNotificationResetPasswordAsync(string email)
     {
+        Observe(email, EmailKinds.PasswordChanged, "Your Argon password changed",
+            () => formStorage.Render("pass_changed", new Dictionary<string, string>()));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
@@ -360,6 +453,9 @@ public class EmailManager(
     [OneWay]
     public async Task SendExportStartedAsync(string email, string displayName)
     {
+        Observe(email, EmailKinds.ExportStarted, "Your data export has started",
+            () => formStorage.Render("export_started", new Dictionary<string, string> { { "displayName", displayName } }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[EXPORT STARTED]: {Email}", email);
@@ -386,6 +482,13 @@ public class EmailManager(
     [OneWay]
     public async Task SendExportReadyAsync(string email, string displayName, string downloadUrl)
     {
+        Observe(email, EmailKinds.ExportReady, "Your data export is ready",
+            () => formStorage.Render("export_ready", new Dictionary<string, string>
+            {
+                { "displayName", displayName },
+                { "downloadUrl", downloadUrl }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[EXPORT READY]: {Email}, url: {Url}", email, downloadUrl);
@@ -413,6 +516,13 @@ public class EmailManager(
     [OneWay]
     public async Task SendDeletionScheduledAsync(string email, string displayName, DateTimeOffset deletionDate)
     {
+        Observe(email, EmailKinds.DeletionScheduled, "Account Deletion Scheduled",
+            () => formStorage.Render("deletion_scheduled", new Dictionary<string, string>
+            {
+                { "displayName", displayName },
+                { "deletion_date", deletionDate.ToString("D") }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION SCHEDULED]: {Email}, date: {Date}", email, deletionDate);
@@ -439,6 +549,13 @@ public class EmailManager(
     [OneWay]
     public async Task SendDeletionReminderAsync(string email, string displayName, int daysRemaining)
     {
+        Observe(email, EmailKinds.DeletionReminder, $"Account Deletion in {daysRemaining} Day(s)",
+            () => formStorage.Render("deletion_reminder", new Dictionary<string, string>
+            {
+                { "displayName", displayName },
+                { "days_remaining", daysRemaining.ToString() }
+            }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION REMINDER]: {Email}, days: {Days}", email, daysRemaining);
@@ -465,6 +582,9 @@ public class EmailManager(
     [OneWay]
     public async Task SendDeletionCompletedAsync(string email, string displayName)
     {
+        Observe(email, EmailKinds.DeletionCompleted, "Your Account Has Been Deleted",
+            () => formStorage.Render("deletion_completed", new Dictionary<string, string> { { "displayName", displayName } }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION COMPLETED]: {Email}", email);
@@ -490,6 +610,9 @@ public class EmailManager(
     [OneWay]
     public async Task SendDeletionCancelledAsync(string email, string displayName)
     {
+        Observe(email, EmailKinds.DeletionCancelled, "Account Deletion Cancelled",
+            () => formStorage.Render("deletion_cancelled", new Dictionary<string, string> { { "displayName", displayName } }));
+
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION CANCELLED]: {Email}", email);

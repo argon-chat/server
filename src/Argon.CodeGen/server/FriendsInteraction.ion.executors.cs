@@ -196,6 +196,54 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
     
         await service.UnblockUser(__userid);
     }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetIgnoreList_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.GetIgnoreList");
+    
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetIgnoreList(__limit, __offset);
+        
+        IonFormatterStorage<UserIgnore>.WriteArray(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task IgnoreUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.IgnoreUser");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.IgnoreUser(__userid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task UnignoreUser_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IFriendsInteraction>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "FriendsInteraction.UnignoreUser");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.UnignoreUser(__userid);
+    }
 
     
     
@@ -225,6 +273,12 @@ public sealed class Ion_FriendsInteraction_ServiceExecutor(AsyncServiceScope sco
             return BlockUser_Execute(reader, writer, ct);
         if (methodName.Equals("UnblockUser", StringComparison.InvariantCultureIgnoreCase))
             return UnblockUser_Execute(reader, writer, ct);
+        if (methodName.Equals("GetIgnoreList", StringComparison.InvariantCultureIgnoreCase))
+            return GetIgnoreList_Execute(reader, writer, ct);
+        if (methodName.Equals("IgnoreUser", StringComparison.InvariantCultureIgnoreCase))
+            return IgnoreUser_Execute(reader, writer, ct);
+        if (methodName.Equals("UnignoreUser", StringComparison.InvariantCultureIgnoreCase))
+            return UnignoreUser_Execute(reader, writer, ct);
 
         
         throw new InvalidOperationException("no method defined");
@@ -304,6 +358,21 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
         await service.MarkChatRead(__peerid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task DeleteChat_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.DeleteChat");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        await service.DeleteChat(__peerid);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task SendDirectMessage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
@@ -358,6 +427,8 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
             return UnpinChat_Execute(reader, writer, ct);
         if (methodName.Equals("MarkChatRead", StringComparison.InvariantCultureIgnoreCase))
             return MarkChatRead_Execute(reader, writer, ct);
+        if (methodName.Equals("DeleteChat", StringComparison.InvariantCultureIgnoreCase))
+            return DeleteChat_Execute(reader, writer, ct);
         if (methodName.Equals("SendDirectMessage", StringComparison.InvariantCultureIgnoreCase))
             return SendDirectMessage_Execute(reader, writer, ct);
         if (methodName.Equals("QueryDirectMessages", StringComparison.InvariantCultureIgnoreCase))

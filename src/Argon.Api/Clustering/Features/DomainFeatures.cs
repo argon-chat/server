@@ -258,11 +258,26 @@ public sealed class GeoIpFeature : IArgonFeature
         => ctx.Builder.AddGeoIpSupport();
 }
 
+/// <summary>
+/// The two account-lifecycle jobs a person can start on themselves: scheduled deletion and the GDPR
+/// export.
+/// </summary>
+/// <remarks>
+/// One feature and two sections rather than two features, because the pair is one deployment
+/// decision — both grains live on <c>jobs</c>, both are driven by a grain timer, and a role that has
+/// one and not the other does not exist. Declaring the export's section here is what binds it: a
+/// role hosting <c>UserDataExportGrain</c> without a feature that names <c>DataExport</c> would
+/// activate it on a default-constructed instance and run the shipped clocks no matter what the
+/// deployment wrote, which is precisely the failure <c>RoleOptionsDeclarationTests</c> exists to
+/// refuse.
+/// </remarks>
 public sealed class AccountDeletionFeature : IArgonFeature
 {
     public static void Describe(IFeatureDescriptor d)
-        => d.Requires<DatabaseFeature>()
-            .Options<AccountDeletionOptions>(AccountDeletionOptions.SectionName);
+        => d.Describing("scheduled account deletion and GDPR data export")
+            .Requires<DatabaseFeature>()
+            .Options<AccountDeletionOptions>(AccountDeletionOptions.SectionName)
+            .Options<DataExportOptions>(DataExportOptions.SectionName);
 
     // Nothing to register: the framework binds and validates what this feature declares.
 }

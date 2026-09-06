@@ -17,6 +17,9 @@ public class UserChatInteractionImpl : IUserChatInteractions
     public async Task MarkChatRead(Guid peerId, CancellationToken ct = default)
         => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).MarkChatReadAsync(peerId, ct);
 
+    public async Task DeleteChat(Guid peerId, CancellationToken ct = default)
+        => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).DeleteChatAsync(peerId, ct);
+
     public async Task<long> SendDirectMessage(Guid receiverId, string text, IonArray<IMessageEntity> entities, long randomId, long? replyTo, CancellationToken ct = default)
         => await this.GetGrain<IUserChatGrain>(Guid.CreateVersion7()).SendDirectMessageAsync(receiverId, text, entities.Values.ToList(), randomId, replyTo, ct);
 

@@ -3,7 +3,9 @@ namespace ArgonComplexTest;
 using Argon.Core.Features.Integrations.Xsolla;
 using Argon.Features.Clustering;
 using Argon.Features.EF;
+using Argon.Features.Testing;
 using ArgonComplexTest.Infrastructure;
+using ArgonComplexTest.Infrastructure.Account;
 using ArgonComplexTest.Infrastructure.Presence;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -48,7 +50,6 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
             // than as service overrides so the production wiring — including the start-up option
             // validators — is what the tests actually exercise.
             configuration.AddInMemoryCollection(TestServerConfiguration.ReportSystem);
-            configuration.AddInMemoryCollection(TestServerConfiguration.AccountDeletion);
             configuration.AddInMemoryCollection(TestServerConfiguration.Messages);
         });
 
@@ -56,6 +57,15 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         {
             services.AddSingleton<FakeXsollaService>();
             services.AddSingleton<IXsollaService>(sp => sp.GetRequiredService<FakeXsollaService>());
+
+            // Somewhere for outgoing mail to land. There is no SMTP server in the suite and every
+            // test address is under .local, which resolves to nothing, so EmailManager drops each
+            // message after a log line — and the whole user-visible output of a scheduled deletion,
+            // a reminder, a cancellation and a finished export is exactly that message. Registered
+            // here and nowhere else: EmailManager takes IEnumerable<IEmailSink>, which resolves to
+            // an empty sequence on every shipped role, so nothing observes mail in production.
+            services.AddSingleton<RecordingEmailSink>();
+            services.AddSingleton<IEmailSink>(sp => sp.GetRequiredService<RecordingEmailSink>());
 
             // The one presence clock that is not ours. UserSessionGrain arms its grace as an Orleans
             // reminder, and Orleans refuses to register one below ReminderOptions.MinimumReminderPeriod
@@ -155,6 +165,18 @@ public class ArgonServerTargetHost(ArgonTestHostSettings settings) : WebApplicat
         // grace outlasts the TTL, the activity outlives both — are the ones PresenceTimingOptions
         // validates, and they hold here too.
         foreach (var (setting, value) in TestPresenceTimings.Settings)
+            builder.UseSetting(setting, value);
+
+        // Account-lifecycle timings, on the same argument and by the same mechanism: a thirty-day
+        // grace with reminders a week and a day out cannot be waited on by any test, and a
+        // thirty-day export rate limit cannot be waited past at all. UseSetting rather than the
+        // in-memory collection these used to arrive in — see TestServerConfiguration.AccountDeletion
+        // for why, and note that the old collection set GracePeriodDays, which takes precedence over
+        // the duration form and would pin the host back to thirty days if it were still applied.
+        foreach (var (setting, value) in TestServerConfiguration.AccountDeletion)
+            builder.UseSetting(setting, value);
+
+        foreach (var (setting, value) in TestServerConfiguration.DataExport)
             builder.UseSetting(setting, value);
 
         builder.UseSetting("Xsolla:ProjectId", "1");

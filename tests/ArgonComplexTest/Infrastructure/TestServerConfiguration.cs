@@ -1,5 +1,7 @@
 namespace ArgonComplexTest.Infrastructure;
 
+using Argon.Features.Logic;
+
 /// <summary>
 /// Configuration the test host injects on top of the application's own defaults.
 /// <para>
@@ -162,11 +164,85 @@ public static class TestServerConfiguration
         ["Aegis:AvatarBaseUrl"]            = "https://api.test.local"
     };
 
-    /// <summary>Account deletion needs a grace period configured before it will schedule anything.</summary>
-    public static IEnumerable<KeyValuePair<string, string?>> AccountDeletion { get; } = new Dictionary<string, string?>
+    /// <summary>
+    /// The account-lifecycle clocks the integration host runs on, and the keys that set them.
+    /// </summary>
+    /// <remarks>
+    /// <para>Deletion and export are almost entirely a story about time: a grace that elapses, two
+    /// reminders that fall due inside it, a poll that is the only thing that notices either, an
+    /// archive that expires, a rate limit that opens again. Every one of those is worth a test and
+    /// none can be observed faster than the clock pacing it, and the shipped clocks are a thirty-day
+    /// grace with reminders a week and a day out — so at product values a single reminder test is a
+    /// twenty-three-day wait and the whole campaign is unrunnable, not merely slow.</para>
+    ///
+    /// <para>So the host runs the same code on the same wiring with the numbers compressed, and the
+    /// fixtures never write a number of their own: they read the bound options back off the host
+    /// (<c>AccountTimings</c>) and express every wait as a ratio — half the grace, one poll, the
+    /// grace plus a poll. Those ratios hold at both scales, which is why the same assertion passes
+    /// for the same reason in eight seconds that it would have in thirty days. What keeps the choice
+    /// honest is that <c>AccountDeletionOptions.Validate</c> and <c>DataExportOptions.Validate</c>
+    /// run against this section at start-up like any other: a set of values that breaks the
+    /// subsystem's own invariants — a poll wider than the closest reminder, an archive that expires
+    /// inside a tick — fails the host rather than producing a suite that quietly tests something
+    /// else.</para>
+    ///
+    /// <para><c>UseSetting</c> pairs rather than an in-memory collection, for the reason
+    /// <see cref="RoleHost"/> spells out: a feature reading its options while the container is built
+    /// does so before <c>WebApplicationFactory</c> applies its configuration callbacks. Durations are
+    /// written <c>hh:mm:ss</c> because the binder reads a bare number as a count of days.</para>
+    ///
+    /// <para>The day-shaped names (<c>GracePeriodDays</c>, <c>ReminderDays</c>) are deliberately
+    /// <em>not</em> set here even though the host used to set them to the shipped values: they take
+    /// precedence over the duration forms by design, so setting one would silently pin the host back
+    /// to thirty days.</para>
+    /// </remarks>
+    public static IEnumerable<(string Setting, string Value)> AccountDeletion
     {
-        ["AccountDeletion:GracePeriodDays"]     = "30",
-        ["AccountDeletion:ReminderDays:0"]      = "7",
-        ["AccountDeletion:ReminderDays:1"]      = "1"
-    };
+        get
+        {
+            const string section = AccountDeletionOptions.SectionName;
+
+            // Eight seconds of grace with reminders at six and three. Two reminders rather than one
+            // because "exactly one mail per threshold, in order, never twice" is the assertion, and a
+            // single threshold cannot show ordering. Three seconds apart so a poll can land between
+            // them; the grace clears the second by five, which is the room a test needs to observe
+            // the reminder before the account it belongs to is gone.
+            yield return ($"{section}:{nameof(AccountDeletionOptions.GracePeriod)}", "00:00:08");
+            yield return ($"{section}:{nameof(AccountDeletionOptions.ReminderBefore)}:0", "00:00:06");
+            yield return ($"{section}:{nameof(AccountDeletionOptions.ReminderBefore)}:1", "00:00:03");
+
+            // The poll. Under the closest reminder, as Validate requires — the fixtures call
+            // CheckAndExecuteAsync by hand, but the grain's own timer runs regardless and a period
+            // that could step over a threshold would make "sent exactly once" depend on which of the
+            // two callers got there first.
+            yield return ($"{section}:{nameof(AccountDeletionOptions.CheckInterval)}", "00:00:02");
+        }
+    }
+
+    /// <summary>The GDPR export's clocks and batch ceiling, compressed on the same argument.</summary>
+    /// <remarks>
+    /// <para>The tick is a second, so an export that takes a dozen steps finishes inside a dozen
+    /// seconds instead of six minutes. The rate limit is twenty seconds rather than thirty days, so
+    /// the fixture that asserts a second request is refused <em>and then accepted</em> can wait the
+    /// window out. The archive lives forty seconds — longer than the rate limit on purpose, so an
+    /// expiry test and a rate-limit test do not have to be the same test.</para>
+    ///
+    /// <para>The batch size is the one value here that is not a clock, and it is compressed for the
+    /// same reason: at two hundred, "a channel with more messages than one batch exports the first
+    /// batch and moves on" needs two hundred and one seeded messages per case. At five it needs six,
+    /// and it is the same branch.</para>
+    /// </remarks>
+    public static IEnumerable<(string Setting, string Value)> DataExport
+    {
+        get
+        {
+            const string section = DataExportOptions.SectionName;
+
+            yield return ($"{section}:{nameof(DataExportOptions.ProcessInterval)}", "00:00:01");
+            yield return ($"{section}:{nameof(DataExportOptions.FirstTickDelay)}", "00:00:01");
+            yield return ($"{section}:{nameof(DataExportOptions.RateLimitPeriod)}", "00:00:20");
+            yield return ($"{section}:{nameof(DataExportOptions.ArchiveTtl)}", "00:00:40");
+            yield return ($"{section}:{nameof(DataExportOptions.MessageBatchSize)}", "5");
+        }
+    }
 }

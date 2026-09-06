@@ -160,6 +160,43 @@ public class UserChatGrain(
     }
 
     /// <summary>
+    /// Hides the conversation on this side only. The messages are the peer's as much as mine, so
+    /// nothing is destroyed: the row is archived, and the next message either side sends brings it
+    /// back (<see cref="UpdateUserConversationAsync"/> clears the flag).
+    /// </summary>
+    public async Task DeleteChatAsync(Guid peerId, CancellationToken ct = default)
+    {
+        // The echo chat is the fixture every list has; it cannot be removed.
+        if (peerId == UserEntity.EchoUser)
+            return;
+
+        logger.LogInformation("DeleteChat: {Me} -> {Peer}", Me, peerId);
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        await ExecuteInTransactionAsync(ctx, async () =>
+        {
+            var conversationId = ConversationEntity.GenerateConversationId(Me, peerId);
+
+            var record = await ctx.UserConversations
+                .FirstOrDefaultAsync(x => x.UserId == Me && x.ConversationId == conversationId, ct);
+
+            if (record is null)
+                return;
+
+            record.IsArchived  = true;
+            record.IsPinned    = false;
+            record.PinnedAt    = null;
+            record.UnreadCount = 0;
+            ctx.UserConversations.Update(record);
+
+            await ctx.SaveChangesAsync(ct);
+        }, ct);
+
+        await NotifyAsync(Me, new ChatDeletedEvent(peerId));
+    }
+
+    /// <summary>
     /// The card for a link in a direct message, settled before the insert: the client's stub is
     /// reduced to its URL, the crawler gets the send budget, and the stub is filled or dropped. No
     /// deferred path here — direct messages have no MessageUpdated counterpart yet, so a page the
@@ -238,8 +275,13 @@ public class UserChatGrain(
                 // Update sender's chat (no unread increment)
                 await UpdateUserConversationAsync(ctx, senderId, receiverId, conversation, previewText, now, false, ct);
 
-                // Update receiver's chat (increment unread)
-                await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, true, ct);
+                // An ignored sender still gets through — the chat stays honest on both sides — but
+                // they do not raise the receiver's unread count.
+                var ignoredByReceiver = await ctx.UserIgnorelist
+                    .AnyAsync(x => x.UserId == receiverId && x.IgnoredId == senderId, ct);
+
+                // Update receiver's chat (increment unread unless they ignore the sender)
+                await UpdateUserConversationAsync(ctx, receiverId, senderId, conversation, previewText, now, !ignoredByReceiver, ct);
 
                 await ctx.SaveChangesAsync(ct);
                 await transaction.CommitAsync(ct);
@@ -382,6 +424,8 @@ public class UserChatGrain(
         {
             record.LastMessageAt = timestamp;
             record.LastMessageText = previewText;
+            // A deleted (archived) chat comes back with the next message, on either side.
+            record.IsArchived = false;
 
             if (incrementUnread)
             {

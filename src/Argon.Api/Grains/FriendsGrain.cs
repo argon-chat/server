@@ -502,6 +502,73 @@ public class FriendsGrain(
         logger.LogInformation("Successfully unblocked user: {User} -> {Blocked}", meUserId, userId);
     }
 
+    public async Task<List<UserIgnore>> GetIgnoreListAsync(int limit, int offset, CancellationToken ct = default)
+    {
+        var             meUserId = this.GetUserId();
+        await using var ctx      = await context.CreateDbContextAsync(ct);
+
+        var result = await ctx.UserIgnorelist
+           .AsNoTracking()
+           .Where(x => x.UserId == meUserId)
+           .OrderByDescending(x => x.CreatedAt)
+           .Skip(offset)
+           .Take(limit)
+           .ToListAsync(ct);
+        return result.Select(x => x.ToDto()).ToList();
+    }
+
+    public async Task IgnoreUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var meUserId = this.GetUserId();
+        if (userId == meUserId)
+        {
+            logger.LogWarning("User {UserId} attempted to ignore themselves", meUserId);
+            return;
+        }
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var exists = await ctx.UserIgnorelist
+           .AnyAsync(x => x.UserId == meUserId && x.IgnoredId == userId, ct);
+
+        if (!exists)
+        {
+            ctx.UserIgnorelist.Add(new UserIgnoreEntity
+            {
+                UserId    = meUserId,
+                IgnoredId = userId,
+                CreatedAt = DateTimeOffset.UtcNow
+            });
+            await ctx.SaveChangesAsync(ct);
+        }
+
+        // Sent even when the row already existed, so a second window that missed the first
+        // request still ends up agreeing with this one.
+        await NotifyAsync(meUserId, new UserIgnoredEvent(userId));
+
+        logger.LogInformation("Ignoring user: {User} -> {Ignored}", meUserId, userId);
+    }
+
+    public async Task UnignoreUserAsync(Guid userId, CancellationToken ct = default)
+    {
+        var meUserId = this.GetUserId();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var row = await ctx.UserIgnorelist
+           .FirstOrDefaultAsync(x => x.UserId == meUserId && x.IgnoredId == userId, ct);
+
+        if (row is not null)
+        {
+            ctx.UserIgnorelist.Remove(row);
+            await ctx.SaveChangesAsync(ct);
+        }
+
+        await NotifyAsync(meUserId, new UserUnignoredEvent(userId));
+
+        logger.LogInformation("Stopped ignoring user: {User} -> {Ignored}", meUserId, userId);
+    }
+
     private async static Task ExecuteInTransactionAsync(
         ApplicationDbContext ctx,
         Func<Task> action,
