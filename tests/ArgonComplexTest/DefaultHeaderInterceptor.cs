@@ -30,6 +30,19 @@ public class DefaultHeaderInterceptor : IIonInterceptor
         => _machineId = machineId;
 
     /// <summary>
+    /// The session id this client claims, verbatim as it goes out in <c>Sec-Ref</c>.
+    /// </summary>
+    /// <remarks>
+    /// This is the <c>sid</c> the whole presence system is keyed on. The Ion side reads it back as
+    /// <c>this.GetSessionId()</c>, <c>EventBus.PickTicket</c> stamps it into the hub ticket as the
+    /// <c>sid</c> claim, and <c>AppHub</c> turns it into the session grain key
+    /// <c>"{userId}:{sid}"</c>. A presence test that wants to read the Redis keys behind a session —
+    /// <c>presence:user:{u}:session:{sid}</c> and friends — has no other way of learning which sid
+    /// its own client is, and guessing is not an option because the value is minted here.
+    /// </remarks>
+    public Guid SessionId => _sessionId;
+
+    /// <summary>
     /// The device id this client claims, verbatim as it goes out in <c>Sec-Carry</c>.
     /// </summary>
     /// <remarks>
@@ -43,6 +56,15 @@ public class DefaultHeaderInterceptor : IIonInterceptor
     public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
     {
         context.RequestItems.Add("Sec-Ref", _sessionId.ToString());
+        // X-Ctt carries the same value, and without it the session id this client claims is thrown
+        // away. HttpContextExtensions.GetSessionId checks the ArgonSecure cookie, then — on a
+        // Development host, which is what WebApplicationFactory boots — returns Guid.AllBitsSet for
+        // any caller that did not send X-Ctt, never reaching the Sec-Ref fallback below it. Every
+        // client in the test process would therefore be one session: one session grain per user, one
+        // row on the devices screen, and no way to express two devices of one account at all. The
+        // header changes nothing anywhere else — it is read in that one branch and nowhere in
+        // production — so sending it makes the suite behave the way a deployed server does.
+        context.RequestItems.Add("X-Ctt", _sessionId.ToString());
         context.RequestItems.Add("Sec-Ner", "1");
         context.RequestItems.Add("Sec-Carry", _machineId.ToString());
 

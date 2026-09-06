@@ -73,6 +73,17 @@ public class QrLoginMachineBindingTests
         public Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
             => Task.FromResult(string.Empty);
 
+        /// <summary>The atomic <c>SET … GET</c>, atomic here because the whole pair is under a lock.</summary>
+        public Task<string?> StringSetAndGetPreviousAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default)
+        {
+            lock (_values)
+            {
+                _values.TryGetValue(key, out var previous);
+                _values[key] = value;
+                return Task.FromResult<string?>(previous);
+            }
+        }
+
         public async IAsyncEnumerable<string> ScanKeysAsync(
             string pattern,
             [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct = default)

@@ -50,8 +50,28 @@ public interface IUserPresenceService
     Task SetSessionStatusAsync(Guid userId, string sessionId, UserStatus status, CancellationToken ct = default);
 
     /// <summary>
-    /// Refreshes TTL for session status without recalculating aggregated status.
+    /// Refreshes the TTLs a session owns — its status, the user's aggregate, and its activity —
+    /// without recalculating the aggregated status.
     /// </summary>
+    /// <remarks>
+    /// <para>This is the session keep-alive: the session grain's 15 s tick calls it, and so does the
+    /// bot gateway's. Everything it touches is an <c>EXPIRE</c>, so it renews what is there and
+    /// revives nothing that has gone — including the activity, where that is precisely the property
+    /// wanted (a user who cleared their game has no key left, and the tick must not put one back).
+    /// </para>
+    ///
+    /// <para><b>Defect S16.</b> The activity key used to be written once with ten minutes and
+    /// renewed by nothing at all — not this call, not the heartbeat, not the client, which dedupes
+    /// identical presence and so never re-sends. Ten minutes into the same game the key lapsed under
+    /// a session that had never stopped announcing it: a member arriving in the space saw no
+    /// activity while everyone already there kept showing it for ever, since an expiry emits no
+    /// <c>OnUserPresenceActivityRemoved</c>. Renewing it here makes the activity's lifetime the
+    /// session's lifetime — the TTL demoted to a safety net for entries whose session died without
+    /// finalizing, while the ordinary end of an activity stays the explicit delete
+    /// (<see cref="RemoveActivityPresence"/>, which the grain's offline path already calls and which
+    /// does announce the removal). Pinned by
+    /// <c>PresenceAggregationTests.AnActivityIsRefreshedByTheSessionThatKeepsAnnouncingIt</c>.</para>
+    /// </remarks>
     Task RefreshSessionStatusTtlAsync(Guid userId, string sessionId, CancellationToken ct = default);
 
     /// <summary>
@@ -80,6 +100,8 @@ public interface IUserPresenceService
     /// Lets the aggregator suppress redundant presence broadcasts — a reconnect/heartbeat that nets
     /// the same aggregate produces no fan-out and no replay-stream write. NOT a substitute for the
     /// multi-session flap fix (the aggregate genuinely changes there); this only kills duplicates.
+    /// The record and the answer are one atomic write, so of N callers racing with the same status
+    /// exactly one is told it changed (defect S19).
     /// </summary>
     Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default);
 
@@ -185,6 +207,14 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     // One activity entry per session (sid), so multiple devices don't overwrite each other.
     private static string ActivitySessionKey(Guid userId, string sessionId)
         => $"activity:user:{userId}:session:{sessionId}";
+
+    /// <summary>How long an activity survives with nothing renewing it.</summary>
+    /// <remarks>
+    /// A safety net rather than the activity's lifetime — see
+    /// <see cref="RefreshSessionStatusTtlAsync"/>. It only decides how long an orphaned entry lingers
+    /// after its session stopped keeping it alive, so it is generous on purpose.
+    /// </remarks>
+    private static readonly TimeSpan ActivityTTL = TimeSpan.FromMinutes(10);
 
     // Who the session is, and when it was last heard from. Split in two because the two halves are
     // written by different things at wildly different rates: the name is a constant established once
@@ -351,8 +381,29 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     }
 
     public Task BroadcastActivityPresence(UserActivityPresence presence, Guid userId, string sessionId)
-        => cache.StringSetAsync(ActivitySessionKey(userId, sessionId), JsonConvert.SerializeObject(presence), TimeSpan.FromMinutes(10));
+        => cache.StringSetAsync(ActivitySessionKey(userId, sessionId), JsonConvert.SerializeObject(presence), ActivityTTL);
 
+    /// <summary>
+    /// Every live session's activity for the user.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Defect S18.</b> The fold used to walk the session index and read activity keys
+    /// without ever asking whether the session was still alive, so an activity outlived the session
+    /// announcing it: <c>presence:…:session:{sid}</c> and <c>status:…:session:{sid}</c> lapse on a
+    /// two-minute clock while the activity key has ten minutes, and in the window between the two
+    /// <c>SpaceReadGrain.GetPresence</c> handed clients a <c>MemberPresence</c> reading "Offline,
+    /// playing Portal 2" — the state the product actually holds for up to a grace period after any
+    /// ungraceful drop, and for ever when the session's grain never gets to run its grace. Checking
+    /// the presence key here fixes the representative activity too, so a dead session can no longer
+    /// be the one activity the single-activity wire shows. Pinned by
+    /// <c>PresenceActivityTests.An_offline_member_is_never_shown_with_an_activity</c>.</para>
+    ///
+    /// <para>The stale sid is pruned from the index on the way past, exactly as
+    /// <see cref="GetActiveSessionIdsAsync"/> and <see cref="IsUserOnlineAsync"/> already do — the
+    /// index is a mirror of the presence keys and every reader that notices a divergence repairs it.
+    /// That is one extra round trip per indexed session, on the same reads that already do one per
+    /// session; it buys a snapshot that cannot contradict itself.</para>
+    /// </remarks>
     public async Task<List<UserActivityPresence>> GetUserActivitiesAsync(Guid userId)
     {
         // Fold over the user's live sessions (same O(1) index used for status) and read each session's
@@ -360,6 +411,12 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var activities = new List<UserActivityPresence>();
         foreach (var sessionId in await cache.SetMembersAsync(SessionsSetKey(userId)))
         {
+            if (!await cache.KeyExistsAsync(SessionKey(userId, sessionId)))
+            {
+                await cache.SetRemoveAsync(SessionsSetKey(userId), sessionId); // prune stale
+                continue;
+            }
+
             var json = await cache.StringGetAsync(ActivitySessionKey(userId, sessionId));
             if (string.IsNullOrEmpty(json))
                 continue;
@@ -416,6 +473,7 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
         var key = SessionStatusKey(userId, sessionId);
         await cache.UpdateStringExpirationAsync(key, DefaultTTL, ct);
         await cache.UpdateStringExpirationAsync(AggregatedStatusKey(userId), DefaultTTL, ct);
+        await cache.UpdateStringExpirationAsync(ActivitySessionKey(userId, sessionId), ActivityTTL, ct);
     }
 
     public async Task RemoveSessionStatusAsync(Guid userId, string sessionId, CancellationToken ct = default)
@@ -440,6 +498,32 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
     /// Recalculates aggregated status from all sessions and caches it.
     /// Called only when session status changes.
     /// </summary>
+    /// <remarks>
+    /// <para>The fold keeps the highest-ranked session's status, and keeps it <em>verbatim</em>: the
+    /// ladder is a precedence order, not a normalisation, so a device on TouchGrass surfaces as
+    /// TouchGrass rather than as "the nearest status the fold happens to recognise". The wire carries
+    /// all seven members and the client has a label and a colour for each; flattening them here would
+    /// leave that rendering permanently dead.</para>
+    ///
+    /// <para>The ladder, strongest first — <c>DoNotDisturb</c> &gt; <c>Online</c> &gt; <c>InGame</c>
+    /// &gt; <c>Listen</c> &gt; <c>TouchGrass</c> &gt; <c>Away</c> &gt; <c>Offline</c>. DND is the one
+    /// explicit "do not contact me" and no other device may mask it, so it still short-circuits the
+    /// loop; the middle of the ladder is ordered by how present the status claims the user is, and
+    /// TouchGrass sits just above Away because it means the same thing said deliberately. Equal ranks
+    /// keep the first session the index hands back, which is arbitrary but never wrong: the ranks are
+    /// distinct for every declared member, so a tie only happens between two undeclared ones.</para>
+    ///
+    /// <para><b>Defect S1.</b> The old fold was three <c>if</c>s (DND/Online/Away) over a seed of
+    /// <see cref="UserStatus.Offline"/>: InGame, Listen and TouchGrass matched no branch, contributed
+    /// nothing, and a user whose only connected device reported one of them was written to the
+    /// aggregate as Offline — invisible in every roster, dropped from the online counts, announced
+    /// Offline to friends and skipped by the connect-time friends push, all while their client was
+    /// connected and saying otherwise. The <c>default</c> arm below is the half that keeps it fixed:
+    /// an open-enum value a newer peer sent ranks at the Online tier, so adding a member to the
+    /// contract can never again make anybody vanish. Pinned by
+    /// <c>PresenceAggregationTests.ASingleSessionsStatusIsTheWholeAggregate</c> and its two- and
+    /// three-session matrices.</para>
+    /// </remarks>
     private async Task RecalculateAggregatedStatusAsync(Guid userId, CancellationToken ct = default)
     {
         var aggregatedStatus = UserStatus.Offline;
@@ -454,23 +538,36 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
             if (string.IsNullOrEmpty(statusStr) || !Enum.TryParse<UserStatus>(statusStr, out var status))
                 continue;
 
-            // Priority: DoNotDisturb > Online > Away > Offline
-            if (status == UserStatus.DoNotDisturb)
-            {
-                aggregatedStatus = UserStatus.DoNotDisturb;
-                break; // DND always wins, no need to check further
-            }
+            if (Precedence(status) > Precedence(aggregatedStatus))
+                aggregatedStatus = status;
 
-            if (status == UserStatus.Online)
-                aggregatedStatus = UserStatus.Online;
-
-            if (status == UserStatus.Away && aggregatedStatus == UserStatus.Offline)
-                aggregatedStatus = UserStatus.Away;
+            if (aggregatedStatus == UserStatus.DoNotDisturb)
+                break; // nothing outranks DND, so the rest of the fold cannot change the answer
         }
 
         // Cache the aggregated status with same TTL
         await cache.StringSetAsync(AggregatedStatusKey(userId), aggregatedStatus.ToString(), DefaultTTL, ct);
     }
+
+    /// <summary>Where a status sits on the aggregation ladder; higher wins. See the fold's remarks.</summary>
+    /// <remarks>
+    /// The <c>default</c> arm is deliberately the Online tier rather than the floor: <c>UserStatus</c>
+    /// is an open enum (<see cref="Ion_UserStatus_OpenEnum.IsKnown"/>), a peer on a newer schema may
+    /// report a member this build has never heard of, and the only safe reading of "some status I do
+    /// not recognise" is "present" — reading it as Offline is exactly how defect S1 made connected
+    /// users disappear.
+    /// </remarks>
+    private static int Precedence(UserStatus status) => status switch
+    {
+        UserStatus.Offline      => 0,
+        UserStatus.Away         => 1,
+        UserStatus.TouchGrass   => 2,
+        UserStatus.Listen       => 3,
+        UserStatus.InGame       => 4,
+        UserStatus.Online       => 5,
+        UserStatus.DoNotDisturb => 6,
+        _                       => 5
+    };
 
     private static string SessionStatusKey(Guid userId, string sessionId)
         => $"status:user:{userId}:session:{sessionId}";
@@ -489,15 +586,36 @@ public class UserPresenceService(IArgonCacheDatabase cache) : IUserPresenceServi
 
     private static readonly TimeSpan LastBroadcastTTL = TimeSpan.FromMinutes(30);
 
+    /// <summary>
+    /// Records the status as broadcast and says whether that was a change, in one atomic step.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Defect S19.</b> This used to be a <c>GET</c>, a comparison, and a <c>SET</c> —
+    /// three separate round trips with nothing atomic between them. <c>UserGrain</c> is a
+    /// <c>[StatelessWorker]</c>, so two activations of one user run this at the same instant whenever
+    /// two of that user's sessions start together; both read "nothing broadcast yet", both returned
+    /// true, and both fanned the same <c>UserChangedStatus</c> out to every space and every friend,
+    /// writing the replay stream twice. Measured at 390 true out of 400 concurrent callers.</para>
+    ///
+    /// <para>The write itself now answers the question: <c>SET … EX … GET</c> returns the value this
+    /// call replaced, so exactly one of N callers can see the transition and the rest see their own
+    /// value already there. Pinned by
+    /// <c>PresenceAggregationTests.MarkBroadcastIfChanged_UnderConcurrency_AnnouncesOnce</c> and, end
+    /// to end, by <c>PresenceRaceTests.Two_devices_of_one_account_connecting_at_once_announce_the_user_online_once</c>.</para>
+    ///
+    /// <para>One deliberate difference from the old shape: a repeat writes the record again rather
+    /// than leaving it untouched, which re-arms its 30 min lifetime. That is the better half of the
+    /// trade — a status being re-asserted is evidence the record is still describing something live —
+    /// and the alternative (a conditional write) is the race this method just stopped having.</para>
+    /// </remarks>
     public async Task<bool> MarkBroadcastIfChangedAsync(Guid userId, UserStatus status, CancellationToken ct = default)
     {
         var key  = LastBroadcastStatusKey(userId);
-        var prev = await cache.StringGetAsync(key, ct);
-        if (!string.IsNullOrEmpty(prev) && Enum.TryParse<UserStatus>(prev, out var prevStatus) && prevStatus == status)
-            return false;
+        var prev = await cache.StringSetAndGetPreviousAsync(key, status.ToString(), LastBroadcastTTL, ct);
 
-        await cache.StringSetAsync(key, status.ToString(), LastBroadcastTTL, ct);
-        return true;
+        return string.IsNullOrEmpty(prev)
+            || !Enum.TryParse<UserStatus>(prev, out var prevStatus)
+            || prevStatus != status;
     }
 
     public async Task<Dictionary<Guid, UserStatus>> BatchGetAggregatedStatusAsync(List<Guid> userIds, CancellationToken ct = default)

@@ -117,6 +117,17 @@ public class RedisArgonCacheDatabase(
     public async Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
         => (await ExecWithRetry(db => db.StringGetSetExpiryAsync(key, window)))!;
 
+    /// <summary>
+    /// <c>SET key value EX … GET</c> — one command, so the previous value is the one this write
+    /// replaced and no concurrent caller can see it too.
+    /// </summary>
+    /// <remarks>
+    /// The server has spoken <c>GETEX</c> since <see cref="KeyExpireAsync"/> was written, so the
+    /// 6.2-era <c>SET … GET</c> this uses needs nothing newer than what is already deployed.
+    /// </remarks>
+    public async Task<string?> StringSetAndGetPreviousAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default)
+        => await ExecWithRetry(db => db.StringSetAndGetAsync(key, value, expiration));
+
     public async IAsyncEnumerable<string> ScanKeysAsync(string pattern, [EnumeratorCancellation] CancellationToken ct = default)
     {
         await using var scope  = pool.Rent();

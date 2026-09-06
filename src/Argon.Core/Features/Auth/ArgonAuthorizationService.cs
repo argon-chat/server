@@ -787,12 +787,39 @@ public class ArgonAuthorizationService(
         }
     }
 
-    // The hardware-key thumbprint travels in the request context: this runs inside a grain call, and
-    // the proof was checked before the call was made, on the Ion side where the HTTP request lives.
-    // Null for every caller that offered no proof, which leaves the token bound to the machine id
-    // alone — what every session looked like before hardware keys existed.
+    /// <summary>
+    /// Mints the session a sign-in hands back, and records which device is holding it.
+    /// </summary>
+    /// <remarks>
+    /// <para>The hardware-key thumbprint travels in the request context: this runs inside a grain call,
+    /// and the proof was checked before the call was made, on the Ion side where the HTTP request
+    /// lives. Null for every caller that offered no proof, which leaves the token bound to the machine
+    /// id alone — what every session looked like before hardware keys existed.</para>
+    ///
+    /// <para>The credential session id is minted here rather than left to
+    /// <c>UserManagerService.GenerateJwt</c>'s three-argument overload, for the one reason that
+    /// overload hides it: this is one of only two moments where the server holds both the id the
+    /// refresh token will carry and the id the devices screen will show, and unless the pair is
+    /// written down here, signing that device out later can only ever end its presence (S7 — see
+    /// <see cref="SessionRevocation.CredentialsKey"/>, pinned by
+    /// <c>PresenceRevocationTests.Revoking_a_device_stops_its_refresh_token_from_minting</c>).</para>
+    /// </remarks>
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user, string machineId)
-        => await managerService.GenerateJwt(user.Id, machineId, ["argon.app"], CallerContext.DeviceThumbprint);
+    {
+        var credentialSessionId = ArgonId.New();
+
+        var issued = await managerService.GenerateJwt(
+            user.Id, machineId, ["argon.app"], credentialSessionId, CallerContext.DeviceThumbprint);
+
+        // Read straight out of the Orleans request context rather than through the Grain extension:
+        // this is a plain service that happens to run inside a grain call, which is the same reason
+        // CallerContext exists above.
+        await SessionRevocation.RememberCredentialSessionAsync(
+            cacheDatabase, logger, user.Id,
+            RequestContext.Get("$caller_session_id") as Guid?, credentialSessionId);
+
+        return issued;
+    }
 
     private async Task<SuccessAuthorize> GenerateJwt(UserEntity user)
         => await managerService.GenerateJwt(user.Id, ["argon.app"]);

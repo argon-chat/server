@@ -103,6 +103,28 @@ public sealed class UserStreamNotifier(
     IServiceProvider serviceProvider,
     ILogger<UserStreamNotifier> logger) : IUserSessionNotifier
 {
+    /// <summary>
+    /// Delivers one event to every user the session list names — all of them, not the first one.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect S13, pinned by
+    /// <c>PresenceFriendsTests.A_status_change_reaches_every_online_friend</c>. This method used to
+    /// read <c>sessions[0].UserId</c> and send exactly once. That is invisible for the callers this
+    /// was written for — <c>CallGrain</c>, <c>FriendsGrain.NotifyAsync</c>,
+    /// <c>PushFriendPresenceAsync</c> and the security-details fan-out all hand over one user's own
+    /// sessions, where the first element is the only answer there is. But
+    /// <c>UserGrain.BroadcastStatusToFriendsAsync</c> flattens the sessions of <em>every</em> friend
+    /// into one list, so a status change reached exactly one friend, chosen by whatever order the
+    /// friends query happened to return, and every other friend kept a stale status until that user
+    /// moved again. <c>AppHubServer.ForUser</c> also writes the replay entry only for the user it
+    /// sends to, so the skipped friends could not recover the event through <c>Resume()</c> either.</para>
+    ///
+    /// <para>The fan-out belongs here rather than at the friends call site: the signature takes a
+    /// list of sessions belonging to arbitrary users and every caller reads it as a fan-out. The
+    /// send is per user (<c>ForUser</c> already reaches all of that user's connections), hence the
+    /// <c>Distinct()</c> — a two-device friend must not be notified twice. The try/catch is inside
+    /// the loop on purpose: one unreachable user must not silence the rest of the list.</para>
+    /// </remarks>
     public async Task NotifySessionsAsync<T>(
         IReadOnlyList<UserSessionDescriptor> sessions,
         T payload,
@@ -113,15 +135,17 @@ public sealed class UserStreamNotifier(
         await using var scope = serviceProvider.CreateAsyncScope();
 
         var hubServer = scope.ServiceProvider.GetRequiredService<AppHubServer>();
-        var userId    = sessions[0].UserId;
 
-        try
+        foreach (var userId in sessions.Select(x => x.UserId).Distinct())
         {
-            await hubServer.ForUser(payload, userId, ct);
-        }
-        catch (Exception ex)
-        {
-            logger.LogError(ex, "Failed to publish event for user {UserId}", userId);
+            try
+            {
+                await hubServer.ForUser(payload, userId, ct);
+            }
+            catch (Exception ex)
+            {
+                logger.LogError(ex, "Failed to publish event for user {UserId}", userId);
+            }
         }
     }
 }

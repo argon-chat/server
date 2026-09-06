@@ -115,12 +115,40 @@ public sealed class SpaceReadGrain(
                 var statuses   = await state.userPresence.BatchGetAggregatedStatusAsync(ids);
                 var activities = await state.userPresence.BatchGetUsersActivityPresence(ids);
 
-                return ids.Select(id => new MemberPresence(id,
-                    statuses.TryGetValue(id, out var status) ? status : UserStatus.Offline,
-                    activities.TryGetValue(id, out var activity) ? activity : null)).ToList();
+                return ids.Select(id =>
+                {
+                    var status = statuses.TryGetValue(id, out var s) ? s : UserStatus.Offline;
+                    return new MemberPresence(id, status,
+                        Coherent(status, activities.TryGetValue(id, out var activity) ? activity : null));
+                }).ToList();
             },
             PresenceOptions, [ISpaceReadCache.SpaceTag(spaceId)]);
     }
+
+    /// <summary>
+    /// The activity a member may be shown with, given the status they are being shown with: none, if
+    /// that status is Offline.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect S18, pinned by
+    /// <c>PresenceActivityTests.An_offline_member_is_never_shown_with_an_activity</c>. Status and
+    /// activity are two independent Redis reads whose keys lapse on clocks five minutes apart: the
+    /// per-session status key and the aggregate live 120 s and are refreshed by the session tick,
+    /// while the activity key lives ten minutes and nothing refreshes it. After any ungraceful drop
+    /// there is therefore a window — one grace period normally, and unbounded when the grace never
+    /// runs — in which the aggregate reads Offline and the activity is still there, and this
+    /// projection handed both back in one tuple: "Offline, playing Portal 2". The client's own rule
+    /// says that state cannot exist (<c>updateUserStatus</c> clears the activity on an Offline
+    /// event), but it renders the snapshot as given.</para>
+    ///
+    /// <para>This is the projection's half of the fix and it is deliberately belt-and-braces: the
+    /// root cause is that the activity fold does not check the sessions it folds over are alive.
+    /// Clearing it here costs nothing and means the space snapshot cannot be self-contradictory
+    /// whatever the store returns — including for the users whose activity outlives them for other
+    /// reasons.</para>
+    /// </remarks>
+    private static UserActivityPresence? Coherent(UserStatus status, UserActivityPresence? activity)
+        => status is UserStatus.Offline ? null : activity;
 
     public async Task<List<RealtimeServerMember>> GetMembers()
     {
@@ -133,10 +161,12 @@ public sealed class SpaceReadGrain(
         var statuses   = await userPresence.BatchGetAggregatedStatusAsync(ids);
         var activities = await userPresence.BatchGetUsersActivityPresence(ids);
 
-        return members.Value.Select(x => new RealtimeServerMember(
-            x,
-            statuses.TryGetValue(x.userId, out var s) ? s : UserStatus.Offline,
-            activities.TryGetValue(x.userId, out var presence) ? presence : null)).ToList();
+        return members.Value.Select(x =>
+        {
+            var status = statuses.TryGetValue(x.userId, out var s) ? s : UserStatus.Offline;
+            return new RealtimeServerMember(x, status,
+                Coherent(status, activities.TryGetValue(x.userId, out var presence) ? presence : null));
+        }).ToList();
     }
 
     public async Task<List<RealtimeChannel>> GetChannels()

@@ -66,6 +66,19 @@ public sealed record QrLoginRecord
     /// </summary>
     public string? DeviceThumbprint { get; init; }
 
+    /// <summary>
+    /// The presence session id (<c>scid</c>) of the machine that asked for the code, or null.
+    /// </summary>
+    /// <remarks>
+    /// The token is minted in the <em>phone's</em> request, so the phone's session id is the only one
+    /// in scope at approval time — and it is the wrong one entirely: what the devices screen will show
+    /// for the new session is the desktop's. Carried on the record for the same reason
+    /// <see cref="MachineId"/> is, so the session the approval mints can be tied back to the device it
+    /// is actually for (S7 — see <see cref="SessionRevocation.CredentialsKey"/>). Optional so records
+    /// written before the field existed still read back.
+    /// </remarks>
+    public Guid? SessionId { get; init; }
+
     public required DateTime      CreatedAt    { get; init; }
     public required DateTime      ExpiresAt    { get; init; }
     public          QrLoginStatus Status       { get; set; }
@@ -135,6 +148,7 @@ public sealed class QrLoginService(
             Region           = ctx.Location.HasCountry ? ctx.Location.Country : ctx.Region,
             MachineId        = ctx.MachineId,
             DeviceThumbprint = deviceThumbprint,
+            SessionId        = ctx.SessionId,
             CreatedAt        = now,
             ExpiresAt        = now + RequestTtl,
             Status           = QrLoginStatus.Pending,
@@ -222,7 +236,18 @@ public sealed class QrLoginService(
             // machine cookie, so a token minted here is only usable from that browser even if the
             // record leaked in the seconds it exists. Where the desktop proved a hardware key when it
             // asked, the refresh token is bound to that key as well.
-            var issued = await userManager.GenerateJwt(userId, record.MachineId, ["argon.app"], record.DeviceThumbprint);
+            //
+            // The credential session id is minted here rather than inside GenerateJwt so the pair
+            // (desktop's presence sid, refresh token's sid) can be written down — without it the row
+            // this sign-in puts on the devices screen has no way to reach the credential behind it,
+            // and signing it out later would end only its presence (S7).
+            var credentialSessionId = ArgonId.New();
+
+            var issued = await userManager.GenerateJwt(
+                userId, record.MachineId, ["argon.app"], credentialSessionId, record.DeviceThumbprint);
+
+            await SessionRevocation.RememberCredentialSessionAsync(
+                cache, logger, userId, record.SessionId, credentialSessionId, ct);
 
             record.Status       = QrLoginStatus.Approved;
             record.UserId       = userId;

@@ -179,8 +179,21 @@ public sealed class BotGatewayGrain(
         _heartbeatTimer?.Dispose();
         _heartbeatTimer = null;
 
-        // Remove presence session so session discovery no longer finds the bot
+        // Remove presence session so session discovery no longer finds the bot.
+        //
+        // Both calls, and that is defect S23 (pinned by
+        // PresenceBotTests.A_bot_whose_stream_closes_stops_being_online_everywhere): this used to
+        // remove only the status key, which is the half that feeds the aggregate and the roster. The
+        // presence key ConnectAsync wrote with SetSessionOnlineAsync is the half session discovery
+        // actually reads, and nothing else deletes it — the 30 s tick that refreshed it is disposed
+        // just above — so it sat out its 120 s TTL and IsUserOnlineAsync/GetActiveSessionIdsAsync
+        // kept answering "alive" for a bot whose stream had ended. CallGrain rang a gateway that was
+        // gone instead of routing to void, and every notifier fan-out sent to nobody. Pairing the two
+        // is exactly what the human teardown paths do (UserSessionGrain.FinalizeOfflineAsync,
+        // SecurityGrain.EndSessionAsync); order does not matter here because nothing between them
+        // reads liveness.
         await presenceService.RemoveSessionStatusAsync(BotUserId, BotSessionId);
+        await presenceService.RemoveSessionAsync(BotUserId, BotSessionId);
 
         // Set bot Offline in all spaces
         foreach (var spaceId in _spaceIds)
@@ -198,6 +211,21 @@ public sealed class BotGatewayGrain(
 
     public Task<bool> IsConnectedAsync() => Task.FromResult(_isConnected);
 
+    /// <summary>
+    /// Starts consuming a space the bot was just installed into. It does not announce the bot's
+    /// status: the install already did.
+    /// </summary>
+    /// <remarks>
+    /// Second half of defect S4, pinned by
+    /// <c>PresenceBotTests.Installing_a_connected_bot_into_a_second_space_announces_it_online_once</c>.
+    /// The only caller is <c>SpaceGrain.InstallBot</c>, which reaches here a few lines after
+    /// <c>AddMemberAsync</c> → <c>SpaceGrain.UserJoined</c>, and <c>UserJoined</c> now announces the
+    /// joiner's real aggregated status — Online for a connected bot, since <c>ConnectAsync</c> wrote
+    /// the status key and the 30 s tick keeps the aggregate alive. Announcing again here was a second
+    /// identical <c>UserChangedStatus</c> milliseconds behind the first, and every connected member
+    /// of the space paid for it with a repaint on every install. The join is the one place that
+    /// announces, because it is the one place that runs whether or not the gateway is up.
+    /// </remarks>
     public async Task SubscribeToSpace(Guid spaceId)
     {
         if (!_isConnected)
@@ -208,8 +236,6 @@ public sealed class BotGatewayGrain(
 
         _spaceIds.Add(spaceId);
         await CreateConsumerForSpace(spaceId);
-
-        _ = GrainFactory.GetGrain<ISpaceGrain>(spaceId).SetUserStatus(BotUserId, UserStatus.Online);
     }
 
     public async Task UnsubscribeFromSpace(Guid spaceId)

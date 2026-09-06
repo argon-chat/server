@@ -237,8 +237,12 @@ public class EventBusImpl(
 
     private async static ValueTask DispatchTree(IArgonClientEvent ev, IClusterClient client, Guid userId, Guid sessionId, CancellationToken ct = default)
     {
-        // Session grain is keyed "{userId}:{sid}". This legacy Ion path has no transport ConnectionId,
-        // so it uses the sid itself as the connection id (one pseudo-connection per session).
+        // Session grain is keyed "{userId}:{sid}". This legacy Ion path has no transport ConnectionId
+        // and — crucially — no transport lifetime either, so it must not put anything into the live
+        // connection set: it used to pass the sid itself as a pseudo-connection, which nothing ever
+        // detached, so after every real socket dropped the grain still counted one attached
+        // connection, armed no grace, and kept the user online until the silo restarted (S10).
+        // TouchAsync is the connection-less form of the same keep-alive.
         var sessionGrain = client.GetGrain<IUserSessionGrain>($"{userId}:{sessionId}");
 
         switch (ev)
@@ -250,7 +254,10 @@ public class EventBusImpl(
                 await sessionGrain.OnTypingStopEmit(stopTyping.channelId);
                 break;
             case HeartBeatEvent heartbeat:
-                if (!await sessionGrain.HeartBeatAsync(sessionId.ToString(), heartbeat.status))
+                // false now also covers "there is no session for this sid" — a heartbeat is a
+                // keep-alive for a transport somebody else opened, and letting this RPC start one
+                // would create presence for a session with no connections at all.
+                if (!await sessionGrain.TouchAsync(heartbeat.status))
                     throw new InvalidOperationException("Session expired, dropping connection");
                 break;
             case SubscribeToMySpaces:

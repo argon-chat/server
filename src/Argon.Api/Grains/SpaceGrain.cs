@@ -357,12 +357,60 @@ public class SpaceGrain(
     }
 
 
+    /// <summary>
+    /// Tells the space a member arrived, and seeds the new audience with that member's real status —
+    /// nothing at all when they are offline.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect S4, pinned by
+    /// <c>PresenceRealtimeTests.A_joiner_with_no_connection_is_not_announced_online</c>,
+    /// <c>PresenceRealtimeTests.A_dnd_member_joining_a_space_is_announced_as_dnd_and_a_later_heartbeat_repairs_it</c>
+    /// and <c>PresenceVoiceAndCountsTests.A_member_who_never_connected_is_neither_counted_nor_announced</c>.
+    /// This used to be a flat <c>SetUserStatus(userId, UserStatus.Online)</c>. It runs on every
+    /// membership creation — invite accept, space creation, bot install — and the joiner is not
+    /// necessarily the actor and not necessarily connected at all, so the space was told a status
+    /// its owner had never asserted: a Do-Not-Disturb user was announced as available to the room
+    /// they had just entered, and someone who accepted an invite without ever opening the app was
+    /// announced Online for good. It also contradicted this very grain in the same second, since
+    /// <see cref="GetMember"/>, <c>GetSpaceStats</c> and the <c>SpaceReadGrain</c> snapshot all read
+    /// the aggregate — header and roster disagreed permanently.</para>
+    ///
+    /// <para>Nothing corrected it afterwards. A heartbeat re-asserting the same status is a no-op in
+    /// <c>UserSessionGrain.HeartBeatAsync</c>, and even a forced one is swallowed by
+    /// <c>MarkBroadcastIfChangedAsync</c>, whose record still holds the status the user really has.
+    /// Which is also why this does not delegate to <c>UserGrain.AggregateAndBroadcastStatusAsync</c>:
+    /// that path is guarded by the same per-user hysteresis record and would fan out nothing, and the
+    /// space that just gained a member would be told nothing. A join is not a transition — it is a
+    /// seed for one new audience — so it reads the aggregate directly, announces it to this space
+    /// only, and neither consults nor rewrites the hysteresis record the next real transition needs.</para>
+    ///
+    /// <para>Offline is announced as silence rather than as <c>UserChangedStatus(Offline)</c>: the
+    /// space has never heard of this member, so there is no stale value to correct, and an explicit
+    /// Offline would be one more event for every member of the space to process on every join.</para>
+    /// </remarks>
     public async ValueTask UserJoined(Guid userId)
     {
         await Fire(new JoinToServerUser(this.GetPrimaryKey(), userId));
-        await SetUserStatus(userId, UserStatus.Online);
+
+        var status = await userPresence.GetAggregatedStatusAsync(userId);
+
+        if (status is UserStatus.Offline)
+            return;
+
+        await SetUserStatus(userId, status);
     }
 
+    /// <summary>
+    /// Announces a member's status to this space, unconditionally.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately without a per-space "what were they last told" comparison. Its other callers —
+    /// the <c>UserGrain</c> fan-out, which has already passed the per-user hysteresis, and
+    /// <c>BotGatewayGrain</c>, whose ticks re-assert Online precisely to repair a space activation
+    /// that lost its push state — rely on it firing every time they ask. The duplicate-suppression
+    /// that belongs to the join path lives in <see cref="UserJoined"/> and at the bot-install call
+    /// site instead.
+    /// </remarks>
     public async Task SetUserStatus(Guid userId, UserStatus status)
     {
         await Fire(new UserChangedStatus(this.GetPrimaryKey(), userId, status, new IonArray<string>([""])));

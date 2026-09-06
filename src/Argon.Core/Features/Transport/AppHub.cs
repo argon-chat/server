@@ -1,5 +1,6 @@
 namespace Argon.Core.Features.Transport;
 
+using Argon.Features.Auth;
 using Argon.Features.BotApi;
 using Argon.Features.Clustering;
 using Argon.Features.Env;
@@ -7,6 +8,7 @@ using Argon.Services;
 using ion.runtime;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.Extensions.Caching.Hybrid;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.Net.Http.Headers;
@@ -17,11 +19,25 @@ using System.Security.Claims;
 using System.Text.Encodings.Web;
 
 [Authorize(AuthenticationSchemes = "Ticket", Policy = "ticket")]
-public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
+public class AppHub(
+    IGrainFactory factory,
+    IRealtimeReplayBuffer replay,
+    HybridCache cache,
+    IArgonCacheDatabase cacheDb) : Hub
 {
     public async override Task OnConnectedAsync()
     {
         EnsureBeforeCall(true);
+
+        // A ticket is minted once and an established socket is never re-authenticated, so a device
+        // that was signed out an hour ago can still open a brand new connection with the ticket it
+        // already holds. Checked before any group is joined or the session grain is touched (S6).
+        if (await IsSessionRevokedAsync())
+        {
+            Context.Abort();
+            return;
+        }
+
         var spaceIds = await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds();
         await Task.WhenAll(spaceIds.Select(x => Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{x}")));
         // Session grain is keyed by the stable sid (not this ephemeral ConnectionId); a reconnect of the
@@ -41,6 +57,7 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     public async Task<ResumeAck> Resume(string? userCursor, Dictionary<string, string>? spaceCursors)
     {
         EnsureBeforeCall(true);
+        await EnsureSessionIsLiveAsync();
 
         var needFullResync = false;
 
@@ -81,6 +98,82 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
     // Stable session-grain key "{userId}:{sid}". sid is the per-launch ticket claim, so reconnects of
     // the same client resolve to the same session grain.
     private string SessionGrainKey => $"{UserId}:{Context.User!.FindFirstValue("sid")}";
+
+    /// <summary>
+    /// How long a revocation may take to be honoured on this path.
+    /// </summary>
+    /// <remarks>
+    /// The same numbers <c>ArgonTransactionInterceptor</c> uses for the same key, so the Ion path and
+    /// the hub cannot disagree about when a sign-out takes effect. Cached at all because the answer
+    /// is "no" for essentially every call ever made, and a heartbeat every fifteen seconds per
+    /// connection is not worth one Redis round trip each.
+    /// </remarks>
+    private static readonly HybridCacheEntryOptions RevokedSessionCacheOptions = new()
+    {
+        Expiration           = TimeSpan.FromSeconds(15),
+        LocalCacheExpiration = TimeSpan.FromSeconds(5),
+    };
+
+    /// <summary>Whether the sid this connection authenticated with has been signed out.</summary>
+    /// <remarks>
+    /// <para>Defect S6. The ticket carries a signed <c>sid</c> and is good for as long as it lives;
+    /// nothing on an established SignalR connection ever looks at it again, and no hub method
+    /// consulted <c>SessionRevocation.RevokedKey</c>. So a revoked device kept receiving every
+    /// broadcast and its next <c>Heartbeat</c> — fifteen seconds away — re-created the session's
+    /// presence keys and put the row back on the devices screen.</para>
+    ///
+    /// <para>Deliberately a copy of the read in <c>ArgonTransactionInterceptor.IsSessionRevokedAsync</c>
+    /// rather than a call to it: that one is a private static on the interceptor and reaching it from
+    /// here would mean exporting it, which is a change to a file this work does not own. Same key,
+    /// same cache entry, same options, same legacy fallback and the same <em>fail-open</em> — a store
+    /// incident must not disconnect the whole instance. The load-bearing check is in
+    /// <c>UserSessionGrain</c>, which reads the set uncached on a session start; this one is what
+    /// stops the traffic.</para>
+    /// </remarks>
+    private async Task<bool> IsSessionRevokedAsync()
+    {
+        if (!Guid.TryParse(Context.User?.FindFirstValue("sid"), out var sid))
+            return false;
+        if (!Guid.TryParse(Context.UserIdentifier, out var userId))
+            return false;
+
+        var key = SessionRevocation.RevokedKey(userId);
+
+        try
+        {
+            // The whole set per user, not one entry per (user, session) pair: it is a handful of ids.
+            var revoked = await cache.GetOrCreateAsync(
+                key,
+                async token => await cacheDb.SetMembersAsync(key, token),
+                RevokedSessionCacheOptions);
+
+            if (revoked.Contains(sid.ToString()))
+                return true;
+
+            var legacy = SessionRevocation.LegacyRevokedKey(userId, sid);
+
+            return await cache.GetOrCreateAsync(
+                legacy,
+                async token => await cacheDb.KeyExistsAsync(legacy, token),
+                RevokedSessionCacheOptions);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Refuses the call, and the connection, when this session has been signed out.</summary>
+    private async Task EnsureSessionIsLiveAsync()
+    {
+        if (!await IsSessionRevokedAsync())
+            return;
+
+        // Both, because they answer different halves: the abort stops a silent connection that makes
+        // no further calls from receiving anything, the exception tells the caller why this one failed.
+        Context.Abort();
+        throw new HubException("this session has been signed out");
+    }
 
     private void EnsureBeforeCall(bool isAllowAbort = false)
     {
@@ -124,27 +217,89 @@ public class AppHub(IGrainFactory factory, IRealtimeReplayBuffer replay) : Hub
            .DetachConnectionAsync(Context.ConnectionId);
     }
 
+    /// <summary>Puts this connection on a space's broadcast group — if the caller is a member of it.</summary>
+    /// <remarks>
+    /// <para>Defect S11. This was <c>AddToGroupAsync</c> and nothing else, so any authenticated
+    /// client that knew a space id could put itself on that space's stream and watch everything
+    /// published to it — presence, typing, roster changes, messages. Space ids are not secrets: they
+    /// travel through invite previews and shared links. <c>OnConnectedAsync</c> is careful to join
+    /// only the caller's own spaces and <c>Resume</c> is careful to replay only spaces they are still
+    /// in; this method undid both.</para>
+    ///
+    /// <para>Gated on the same source of truth those two already use. Refusing outright is safe for
+    /// the shipped desktop client, which defines this call and never makes it.</para>
+    /// </remarks>
     public async Task SubscribeToSpace(Guid spaceId)
-        => await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+    {
+        EnsureBeforeCall(true);
+        await EnsureSessionIsLiveAsync();
 
+        if (!(await factory.GetGrain<IUserGrain>(UserId).GetMyServersIds()).Contains(spaceId))
+            throw new HubException("not a member of this space");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
+    }
+
+    /// <summary>Takes this connection off a space's broadcast group.</summary>
+    /// <remarks>
+    /// Ungated and idempotent by construction, and both on purpose: leaving a group you are not in is
+    /// a no-op in SignalR, and a caller asking to receive <em>less</em> never needs permission — a
+    /// membership check here would only be a way for a lost membership to strand a subscription.
+    /// </remarks>
     public async Task UnSubscribeToSpace(Guid spaceId)
         => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"spaces/{spaceId}");
 
-    // Channel-scoped subscription: the client joins only the channel it currently has open, so
-    // channel content (messages/typing/reactions) is delivered to viewers instead of the whole space.
+    /// <summary>
+    /// Channel-scoped subscription: the client joins only the channel it currently has open, so
+    /// channel content (messages/typing/reactions) is delivered to viewers instead of the whole space.
+    /// </summary>
+    /// <remarks>
+    /// The damaging half of S11 — a channel group carries message content — and the one the desktop
+    /// client really calls, so it has to keep succeeding for real members. <c>IChannelGrain</c>
+    /// exposes no space accessor, so the channel's owning space and the caller's membership of it are
+    /// resolved together by <see cref="IUserGrain.ResolveChannelSpaceIfMemberAsync"/>. This gates on
+    /// space membership only; a per-channel entitlement check belongs with the private-channel
+    /// routing work and is not folded in here.
+    /// </remarks>
     public async Task SubscribeToChannel(Guid channelId)
-        => await Groups.AddToGroupAsync(Context.ConnectionId, $"channels/{channelId}");
+    {
+        EnsureBeforeCall(true);
+        await EnsureSessionIsLiveAsync();
 
+        if (await factory.GetGrain<IUserGrain>(UserId).ResolveChannelSpaceIfMemberAsync(channelId) is null)
+            throw new HubException("not a member of this channel's space");
+
+        await Groups.AddToGroupAsync(Context.ConnectionId, $"channels/{channelId}");
+    }
+
+    /// <inheritdoc cref="UnSubscribeToSpace"/>
     public async Task UnSubscribeToChannel(Guid channelId)
         => await Groups.RemoveFromGroupAsync(Context.ConnectionId, $"channels/{channelId}");
 
     public async Task Heartbeat(UserStatus status)
-        => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).HeartBeatAsync(Context.ConnectionId, status);
+    {
+        await EnsureSessionIsLiveAsync();
+
+        // The grain answers false when it refuses to (re)start a signed-out session, which is the
+        // layer that catches a revocation the cached gate above has not seen yet. Treated exactly
+        // like the gate: the call fails and the connection goes.
+        if (await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).HeartBeatAsync(Context.ConnectionId, status))
+            return;
+
+        Context.Abort();
+        throw new HubException("this session has been signed out");
+    }
 
     // Explicit, intentional offline — the client calls this on logout/quit/account-switch so others see
-    // them go offline immediately instead of lingering for the disconnect grace window.
+    // them go offline immediately instead of lingering for the disconnect grace window. Scoped to THIS
+    // connection: another window of the same session staying open means the user has not gone
+    // anywhere, and finalizing the whole session there published an Offline the survivor's next
+    // heartbeat immediately undid (S9).
     public async Task GoOffline()
-        => await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).GoOfflineAsync();
+    {
+        await EnsureSessionIsLiveAsync();
+        await factory.GetGrain<IUserSessionGrain>(SessionGrainKey).GoOfflineAsync(Context.ConnectionId);
+    }
 
     /// <summary>
     /// Typing, addressed by the space the channel belongs to as well as the channel.

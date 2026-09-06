@@ -121,7 +121,12 @@ public static class WebSessionEndpoints
                     var key = SessionRevocation.RevokedKey(userId);
 
                     await cache.SetAddAsync(key, id.ToString(), ct);
-                    await cache.KeyExpireAsync(key, SessionRevocation.Window, ct);
+
+                    // EXPIRE, not GETEX — KeyExpireAsync is StringGetSetExpiry underneath and answers
+                    // WRONGTYPE against the set just written. Here the throw was swallowed by the catch
+                    // below, so web logout worked but left the tombstone with no TTL at all; the same
+                    // pair in SecurityGrain.EndSessionAsync failed loudly instead (S5).
+                    await cache.UpdateStringExpirationAsync(key, SessionRevocation.Window, ct);
                 }
             }
             catch (Exception e)

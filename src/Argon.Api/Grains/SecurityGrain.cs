@@ -935,10 +935,16 @@ public class SecurityGrain(
     /// Ends one session three times over, because none of the three is sufficient alone.
     /// </summary>
     /// <remarks>
-    /// The tombstone is what actually shuts the credentials out (see <see cref="SessionRevocation"/>);
+    /// <para>The tombstone is what actually shuts the credentials out (see <see cref="SessionRevocation"/>);
     /// <c>GoOfflineAsync</c> is what makes it immediate, since a connected client would otherwise keep
     /// receiving events off a transport that was authenticated before the tombstone existed; and
-    /// removing the presence key is what stops the row reappearing on the screen a moment later.
+    /// removing the presence key is what stops the row reappearing on the screen a moment later.</para>
+    ///
+    /// <para>The tombstone is written under <em>both</em> of the session's ids, because the screen and
+    /// the refresh path do not mean the same thing by "session id" — see
+    /// <see cref="SessionRevocation.CredentialsKey"/> for why they cannot, and
+    /// <c>PresenceRevocationTests.Revoking_a_device_stops_its_refresh_token_from_minting</c> for what
+    /// it cost while only one of them was written (S7).</para>
     /// </remarks>
     private async Task EndSessionAsync(Guid sessionId, CancellationToken ct)
     {
@@ -948,7 +954,40 @@ public class SecurityGrain(
         var revokedKey = SessionRevocation.RevokedKey(UserId);
 
         await cache.SetAddAsync(revokedKey, sessionId.ToString(), ct);
-        await cache.KeyExpireAsync(revokedKey, SessionRevocation.Window, ct);
+
+        // The credential this device is holding, if the sign-in or a refresh recorded it. Guarded on
+        // its own: this is the one step of the four that is genuinely per-session, so a mapping that
+        // cannot be read must not take the rest of the sign-out — or the sessions after it in
+        // RevokeAllSessions — down with it.
+        try
+        {
+            foreach (var credentialSessionId in await SessionRevocation.CredentialSessionsAsync(cache, UserId, sessionId, ct))
+                await cache.SetAddAsync(revokedKey, credentialSessionId, ct);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not read the credential sessions of {SessionId} for user {UserId}", sessionId, UserId);
+        }
+
+        try
+        {
+            // EXPIRE, not GETEX. IArgonCacheDatabase.KeyExpireAsync is StringGetSetExpiry underneath,
+            // so asking it to put a TTL on the set above answers WRONGTYPE and throws — which is how
+            // "sign this device out" came to fail with INTERNAL_ERROR in the only case that matters
+            // (S5, pinned by PresenceRevocationTests.Signing_another_device_out_succeeds).
+            // UpdateStringExpirationAsync is the type-agnostic one despite its name.
+            await cache.UpdateStringExpirationAsync(revokedKey, SessionRevocation.Window, ct);
+        }
+        catch (Exception e)
+        {
+            // Retention, not revocation: the tombstone is already committed above, and a key that
+            // outlives its window is a bookkeeping problem. Letting it throw is what turned one
+            // mistyped call into a sign-out that reported failure and left the device online — no step
+            // that only tidies up may stand between the tombstone and the three below it. (The
+            // single-instance cache does not implement this at all, which is the same failure by a
+            // different route.)
+            logger.LogWarning(e, "Could not set the retention on the revocation tombstone for user {UserId}", UserId);
+        }
 
         try
         {

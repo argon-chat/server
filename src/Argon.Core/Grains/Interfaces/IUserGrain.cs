@@ -73,6 +73,40 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(PushFriendPresenceAsync))]
     ValueTask PushFriendPresenceAsync(CancellationToken ct = default);
 
+    /// <summary>
+    /// Takes this user out of every voice channel they are still listed in.
+    /// </summary>
+    /// <remarks>
+    /// <para>Called by <c>UserSessionGrain.FinalizeOfflineAsync</c> when the user's LAST session ends
+    /// — sign-out, revocation or the disconnect grace expiring. Voice membership lives in
+    /// <c>ChannelGrain.Users</c> and was emptied only by an explicit <c>DisconnectFromVoiceChannel</c>,
+    /// a moderator kick or the LiveKit participant-left webhook, so a client that quit or crashed left
+    /// an occupant in the room for everyone else, and <c>ChannelGrain</c> pins its own activation for
+    /// a day while any occupant remains (defect S15, pinned by
+    /// <c>PresenceVoiceAndCountsTests.A_last_session_going_offline_takes_the_user_out_of_voice</c>).</para>
+    ///
+    /// <para>O(1) per space, not a scan: <c>SpaceGrain.GetUserVoiceSlotAsync</c> is the reverse index
+    /// that <c>ChannelGrain.Join</c> already maintains. Going through <c>ChannelGrain.Leave</c> rather
+    /// than editing state directly is what makes observers hear <c>LeavedFromChannelUser</c> and what
+    /// settles the voice XP, exactly as a deliberate hang-up does.</para>
+    /// </remarks>
+    [Alias(nameof(LeaveAllVoiceAsync))]
+    ValueTask LeaveAllVoiceAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// The space a channel belongs to, but only when this user is a member of that space — otherwise
+    /// <c>null</c>.
+    /// </summary>
+    /// <remarks>
+    /// The channel half of the hub's subscribe gate (defect S11). <c>AppHub.SubscribeToChannel</c>
+    /// joined <c>channels/{id}</c> for any id an authenticated caller named, so a stranger who knew a
+    /// channel id received everything published to it. The space is the authority on membership and
+    /// <c>IChannelGrain</c> exposes no space accessor, so the lookup lives here where the DbContext
+    /// does — one indexed read, at most once per channel the client opens.
+    /// </remarks>
+    [Alias(nameof(ResolveChannelSpaceIfMemberAsync))]
+    Task<Guid?> ResolveChannelSpaceIfMemberAsync(Guid channelId, CancellationToken ct = default);
+
     [Alias(nameof(ResetPremiumProfileAsync))]
     ValueTask ResetPremiumProfileAsync(CancellationToken ct = default);
 

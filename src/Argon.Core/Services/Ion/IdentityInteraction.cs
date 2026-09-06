@@ -294,6 +294,18 @@ public class IdentityInteraction(
             if (limitation.lockdownReason is not null)
                 return limitation;
 
+            // The second of the two moments the server sees both halves of a session's identity, and
+            // the one that keeps the pair current: the desktop mints a fresh scid on every launch while
+            // the refresh token's sid is fixed at sign-in, so without re-recording it here the devices
+            // screen would lose its handle on the credential the first time the app restarted. Written
+            // after the revocation check above, so an already-ended session never re-registers itself
+            // under a new row (S7 — see SessionRevocation.CredentialsKey).
+            if (tokenSessionId is { } credentialSessionId && http.HttpContext is { } request)
+                await SessionRevocation.RememberCredentialSessionAsync(
+                    cache, logger, userId,
+                    request.TryGetSessionId(out var presenceSessionId) ? presenceSessionId : null,
+                    credentialSessionId, ct);
+
             // The proven device travels on the access token, so every subsequent request knows which
             // machine is asking without asking the database again — which is what makes a hardware
             // ban enforceable per request rather than only at refresh.

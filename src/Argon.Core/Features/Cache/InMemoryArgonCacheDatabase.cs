@@ -48,6 +48,34 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
     public Task<string> KeyExpireAsync(string key, TimeSpan window, CancellationToken ct = default)
         => throw new NotImplementedException();
 
+    /// <summary>
+    /// The single-instance stand-in for <c>SET … GET</c>: read and write under one gate.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="IDistributedCache"/> has no compare-and-set of any kind, so the atomicity the
+    /// contract promises is bought with a process-wide gate instead. That is the same guarantee here
+    /// as Redis gives with one command — single-instance mode is one process by definition — and the
+    /// method is called once per presence broadcast, so serialising it costs nothing measurable.
+    /// Without it, defect S19 (every racing broadcaster believing it made the change) would simply
+    /// move into this implementation.
+    /// </remarks>
+    public async Task<string?> StringSetAndGetPreviousAsync(string key, string value, TimeSpan expiration, CancellationToken ct = default)
+    {
+        await setAndGetGate.WaitAsync(ct);
+        try
+        {
+            var previous = await cache.GetStringAsync(key, ct);
+            await StringSetAsync(key, value, expiration, ct);
+            return previous;
+        }
+        finally
+        {
+            setAndGetGate.Release();
+        }
+    }
+
+    private static readonly SemaphoreSlim setAndGetGate = new(1, 1);
+
     public Task<IAsyncDisposable> SubscribeToExpired(Func<string, Task> onKeyExpired, CancellationToken ct = default)
         => throw new NotImplementedException();
 

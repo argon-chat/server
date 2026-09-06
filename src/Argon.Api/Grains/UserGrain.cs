@@ -221,6 +221,47 @@ public class UserGrain(
            .ToListAsync(cancellationToken: ct);
     }
 
+    /// <inheritdoc cref="IUserGrain.ResolveChannelSpaceIfMemberAsync"/>
+    public async Task<Guid?> ResolveChannelSpaceIfMemberAsync(Guid channelId, CancellationToken ct = default)
+    {
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var userId = this.GetPrimaryKey();
+
+        // One query, not two: an unknown channel and a channel in somebody else's space are the same
+        // answer to the caller, and asking separately would leak which of the two it was.
+        return await ctx.Channels
+           .AsNoTracking()
+           .Where(c => c.Id == channelId && c.Space!.Users.Any(m => m.UserId == userId))
+           .Select(c => (Guid?)c.SpaceId)
+           .FirstOrDefaultAsync(ct);
+    }
+
+    /// <inheritdoc cref="IUserGrain.LeaveAllVoiceAsync"/>
+    public async ValueTask LeaveAllVoiceAsync(CancellationToken ct = default)
+    {
+        var userId = this.GetPrimaryKey();
+
+        foreach (var spaceId in await GetMyServersIds(ct))
+        {
+            try
+            {
+                if (await GrainFactory.GetGrain<ISpaceGrain>(spaceId).GetUserVoiceSlotAsync(userId) is not { } slot)
+                    continue;
+
+                logger.LogInformation("Taking user {userId} out of voice channel {channelId} in space {spaceId}: no live session left",
+                    userId, slot.ChannelId, spaceId);
+
+                await GrainFactory.GetGrain<IChannelGrain>(slot.ChannelId).Leave(userId);
+            }
+            catch (Exception e)
+            {
+                // One unreachable space must not strand the user in the calls held by the others.
+                logger.LogWarning(e, "Could not take user {userId} out of voice in space {spaceId}", userId, spaceId);
+            }
+        }
+    }
+
     public async ValueTask BroadcastPresenceAsync(UserActivityPresence presence, string sessionId)
     {
         var userId = this.GetPrimaryKey();

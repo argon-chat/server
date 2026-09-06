@@ -32,6 +32,16 @@ public abstract class TestBase
     /// <summary>The device id this fixture's client sends — see <see cref="DefaultHeaderInterceptor.MachineId"/>.</summary>
     protected string MachineId => _interceptor.MachineId;
 
+    /// <summary>
+    /// The sid this fixture's ambient client sends — see <see cref="DefaultHeaderInterceptor.SessionId"/>.
+    /// </summary>
+    /// <remarks>
+    /// The presence keys and the session grain are keyed on it, so a test acting as the fixture's
+    /// own identity needs it to look at what the server recorded. Tests holding a
+    /// <see cref="TestUserSession"/> read <see cref="TestUserSession.SessionId"/> instead.
+    /// </remarks>
+    protected Guid SessionId => _interceptor.SessionId;
+
     protected ArgonServerTargetHost FactoryAsp => ArgonTestEnvironment.Instance.Host;
     protected HttpClient            HttpClient => ArgonTestEnvironment.Instance.HttpClient;
     protected IonClient             IonClient  = null!;
@@ -175,7 +185,7 @@ public abstract class TestBase
 
         interceptor.SetToken(sr.token);
 
-        var session = new TestUserSession(client, FactoryAsp.Services, creds, sr.token);
+        var session = new TestUserSession(client, FactoryAsp.Services, creds, sr.token, interceptor.SessionId);
         session.UserId = (await session.Users.GetMe(ct)).userId;
         return session;
     }
@@ -329,12 +339,28 @@ public sealed class TestUserSession(
     IonClient client,
     IServiceProvider services,
     NewUserCredentialsInputForTest credentials,
-    string token)
+    string token,
+    Guid sessionId)
 {
     public IonClient                      Client      { get; } = client;
     public NewUserCredentialsInputForTest Credentials { get; } = credentials;
     public string                         Token       { get; } = token;
     public Guid                           UserId      { get; internal set; }
+
+    /// <summary>
+    /// The sid this session's client sends in <c>Sec-Ref</c>, and therefore the one the server keys
+    /// its presence on.
+    /// </summary>
+    /// <remarks>
+    /// The hub ticket carries it as the <c>sid</c> claim and <c>AppHub</c> builds the session grain
+    /// key <c>"{UserId}:{SessionId}"</c> from it, so this is what a presence test addresses when it
+    /// wants the grain, the <c>presence:user:{u}:session:{sid}</c> key or the devices-screen record
+    /// belonging to <em>this</em> client rather than to some other session of the same user.
+    /// </remarks>
+    public Guid SessionId { get; } = sessionId;
+
+    /// <summary>The grain key <c>AppHub</c> derives for this session: <c>"{UserId}:{SessionId}"</c>.</summary>
+    public string SessionGrainKey => $"{UserId}:{SessionId}";
 
     public IUserInteraction      Users     => Client.ForService<IUserInteraction>(services);
     public IServerInteraction    Servers   => Client.ForService<IServerInteraction>(services);
@@ -347,4 +373,10 @@ public sealed class TestUserSession(
     public IPrivacyInteraction   Privacy   => Client.ForService<IPrivacyInteraction>(services);
     public IUserChatInteractions Chats     => Client.ForService<IUserChatInteractions>(services);
     public IReportInteraction    Reports   => Client.ForService<IReportInteraction>(services);
+
+    /// <summary>
+    /// The realtime RPC surface: <c>PickTicket</c> (what a hub connection authenticates with) and
+    /// <c>Dispatch</c> (the live client-event channel).
+    /// </summary>
+    public IEventBus Bus => Client.ForService<IEventBus>(services);
 }
