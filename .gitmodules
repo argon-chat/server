@@ -7,3 +7,10 @@
 [submodule "src/Argon.IonAdmin"]
 	path = src/Argon.IonAdmin
 	url = https://github.com/argon-chat/Argon.IonAdmin.git
+[submodule "docs/internal"]
+	path = docs/internal
+	url = https://github.com/argon-chat/server_docs.git
+	# Private (Argon team only). `update = none` makes every plain `git submodule update --init`
+	# and `git clone --recurse-submodules` skip it; team members opt in with
+	# `git submodule update --init --checkout docs/internal`.
+	update = none

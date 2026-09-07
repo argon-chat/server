@@ -59,4 +59,5 @@ public static class EmailKinds
     public const string DeletionCompleted       = "deletion-completed";
     public const string ExportStarted           = "export-started";
     public const string ExportReady             = "export-ready";
+    public const string ExportFailed            = "export-failed";
 }

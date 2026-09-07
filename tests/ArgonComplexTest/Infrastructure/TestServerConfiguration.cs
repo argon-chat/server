@@ -216,6 +216,18 @@ public static class TestServerConfiguration
             // that could step over a threshold would make "sent exactly once" depend on which of the
             // two callers got there first.
             yield return ($"{section}:{nameof(AccountDeletionOptions.CheckInterval)}", "00:00:02");
+
+            // How long the operator queue keeps a decision whose erasure has run — a week in
+            // production, thirty seconds here. It is the one value in this block that is sized
+            // against the suite rather than against the product's own arithmetic, because it is the
+            // only one another fixture can consume: the queue is one cluster-wide singleton and every
+            // fixture that drives AutoDeleteSchedulerGrain reconciles it, so a completed entry's
+            // window is being spent by the neighbours as well as by the test reading it. Thirty
+            // seconds is two orders of magnitude above the gap it has to cover (an erasure finishing,
+            // then a console page being read — under a second unloaded, a few seconds on a runner
+            // hosting four shards and a container stack) and still short enough that a test can wait
+            // the far side of it out, which one does.
+            yield return ($"{section}:{nameof(AccountDeletionOptions.DecisionRetention)}", "00:00:30");
         }
     }
 

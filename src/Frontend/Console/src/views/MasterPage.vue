@@ -139,6 +139,16 @@ const confirmGDRPExport = async () => {
         toast({ title: "Rate limit reached", description: "Please wait before requesting another export.", variant: "destructive" })
         isExportProgress.value = false
         break
+      // A reason, not a fault: the export is refused for as long as the deletion stands, and cancelling
+      // it lifts the refusal. Falling through to `default` told the person to try again later, which was
+      // advice that could never work — the refusal outlives any amount of waiting.
+      case RequestExportGDRPStatus.AccountDeletionScheduled:
+        toast({
+          title: "Account scheduled for deletion",
+          description: "Cancel the scheduled deletion to request a copy of your data.",
+        })
+        isExportProgress.value = false
+        break
       default:
         toast({ title: "Unexpected error", description: "Could not process export request. Try again later.", variant: "destructive" })
         isExportProgress.value = false

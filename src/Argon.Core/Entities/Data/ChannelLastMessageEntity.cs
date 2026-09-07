@@ -14,7 +14,7 @@ using Microsoft.EntityFrameworkCore.Metadata.Builders;
 /// on every write. One table could have the cheap read or the cheap write, not both, and the
 /// placement audit resolved the conflict by demoting the whole table — treating the symptom. The
 /// audit also named this fix and it was skipped; see
-/// <c>docs/architecture/table-placement-reconciler.md</c> §5b, the <c>Channels</c> row: <i>"Take
+/// <c>docs/internal/architecture/table-placement-reconciler.md</c> §5b, the <c>Channels</c> row: <i>"Take
 /// LastMessageId off this table. It is a hot counter on a cold row."</i></para>
 ///
 /// <para><b>Nothing else may join this table.</b> The whole value of the split is that writing this

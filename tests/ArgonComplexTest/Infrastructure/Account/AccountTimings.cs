@@ -69,6 +69,17 @@ public static class AccountTimings
     /// </remarks>
     public static TimeSpan ExecutionBudget => TimeSpan.FromSeconds(30);
 
+    /// <summary>How long the operator queue keeps a decision whose erasure has finished.</summary>
+    public static TimeSpan DecisionRetention => Deletion.DecisionRetention;
+
+    /// <summary>Long enough for a completed entry's retention window to have certainly run out.</summary>
+    /// <remarks>
+    /// The window is enforced inside <c>AccountDeletionQueueGrain</c>, so nothing can retire the entry
+    /// early and the only wait a test needs is this one — plus a reconciliation, which is what actually
+    /// does the retiring and which the test drives itself rather than waiting for a neighbour's sweep.
+    /// </remarks>
+    public static TimeSpan RetentionAndABit => DecisionRetention + Slack;
+
     /// <summary>
     /// A wait that is meaningfully short of the grace, for asserting that nothing happened yet.
     /// </summary>

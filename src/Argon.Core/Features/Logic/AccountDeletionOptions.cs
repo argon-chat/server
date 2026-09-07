@@ -41,8 +41,14 @@ public sealed class AccountDeletionOptions : IValidatableFeatureOptions
     /// <summary>What ships when neither spelling of the reminders is configured.</summary>
     public static readonly TimeSpan[] DefaultReminders = [TimeSpan.FromDays(7), TimeSpan.FromDays(1)];
 
-    /// <summary>Six hours, the period of the grain timer that polls a scheduled deletion.</summary>
+    /// <summary>Six hours, the period of the reminder that polls a scheduled deletion.</summary>
     public static readonly TimeSpan DefaultCheckInterval = TimeSpan.FromHours(6);
+
+    /// <summary>Twelve months, the default life of a refusal.</summary>
+    public static readonly TimeSpan DefaultDeclineHoldsFor = TimeSpan.FromDays(365);
+
+    /// <summary>Seven days, the default life of a played-out decision on the operator queue.</summary>
+    public static readonly TimeSpan DefaultDecisionRetention = TimeSpan.FromDays(7);
 
     /// <summary>
     ///     Whether automatic deletion of inactive accounts is enabled.
@@ -101,6 +107,68 @@ public sealed class AccountDeletionOptions : IValidatableFeatureOptions
     /// through "due", and the mail that was the entire point of a grace period is never sent.
     /// </remarks>
     public TimeSpan CheckInterval { get; set; } = TimeSpan.FromHours(6);
+
+    /// <summary>
+    /// How long a cancelled deletion keeps the inactivity sweeper away from the same account.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect CON-4. The console can take a person's answer to the inactivity notice and, until
+    /// this existed, could not act on it: the scan decides from
+    /// <c>max(DeviceHistories.LastLoginTime) ?? Users.CreatedAt</c>, which no console action writes,
+    /// so a cancellation was undone within twenty-four hours, every time, for ever.</para>
+    ///
+    /// <para>A whole inactivity threshold rather than a short cooldown, because that is what the
+    /// person thinks they said. Declining the notice means "I am here"; the next honest moment to ask
+    /// again is one full period of silence later, which is the same interval the scan used to select
+    /// them in the first place.</para>
+    /// </remarks>
+    public TimeSpan DeclineHoldsFor { get; set; } = TimeSpan.FromDays(365);
+
+    /// <summary>
+    /// How long the operator queue keeps a decision whose deletion has played out, before retiring it.
+    /// </summary>
+    /// <remarks>
+    /// <para>The queue is a projection of the daily scan, and an erasure that runs takes its account
+    /// out of the scan's reach for ever — the row is anonymised, so nothing will ever propose it
+    /// again. Without a window of its own, the entry recording who approved that erasure was retired
+    /// by the first reconciliation after the deletion finished: the operator who pressed Approve
+    /// watched the row vanish from their console the moment their decision took effect, which is the
+    /// one moment they are looking for it. An audit view that loses a row exactly when the
+    /// irreversible thing happens is not an audit view.</para>
+    ///
+    /// <para>A week rather than a day or a year. It has to outlast a weekend and the working day
+    /// after it, because that is the span in which somebody asks "did that go through, and who said
+    /// yes"; it must not outlast the memory of the decision, because the queue is a worklist first
+    /// and a completed row is work that is over. The audit log keeps the decision permanently and is
+    /// where a question older than this belongs.</para>
+    ///
+    /// <para>Applies only to a decision that <em>played out</em>: an erasure the runtime finished.
+    /// An approval whose deletion is still scheduled, running or stranded is kept by the deletion
+    /// itself and has never depended on this, and one the account holder cancelled inside the grace
+    /// is retired at once — see <c>AccountDeletionQueueGrain.ReclassifyAsync</c> for why a cancelled
+    /// approval must not linger as a badge saying the account is gone.</para>
+    /// </remarks>
+    public TimeSpan DecisionRetention { get; set; } = TimeSpan.FromDays(7);
+
+    /// <summary>
+    /// How many consecutive failures a deletion may take before it is left alone; progress resets it.
+    /// </summary>
+    /// <remarks>
+    /// Defect ACC-15. An execution that lost its silo now resumes from its cursor, and one that threw
+    /// now retries from it — which without a bound would be a failing erasure re-running its remaining
+    /// steps on every poll for the rest of the deployment's life. Past the bound the state stays
+    /// <c>Failed</c> with its reason, which is the state an operator can see and act on.
+    ///
+    /// <para>Consecutive, because that is what "cannot make progress" means. Defect R10:
+    /// <c>AccountDeletionGrain</c> used to raise the counter on entry, so a grace that elapsed during
+    /// a rolling deploy arrived at its third poll with two attempts already spent on two lost
+    /// activations that had thrown nothing, and the first ordinary transient error stranded an
+    /// account that was already anonymised. <c>AccountDeletionGrain.ExecuteDeletionAsync</c> now
+    /// raises it only in its <c>catch</c> and <c>RunStepAsync</c> clears it whenever a step records
+    /// itself, so a long erasure that keeps advancing is never starved of attempts and one that
+    /// cannot get past the same step still stops here.</para>
+    /// </remarks>
+    public int MaxExecutionAttempts { get; set; } = 3;
 
     /// <summary>The grace period actually in force, after the precedence rule.</summary>
     public TimeSpan EffectiveGracePeriod
@@ -188,5 +256,20 @@ public sealed class AccountDeletionOptions : IValidatableFeatureOptions
         report.Require(CheckInterval < grace, nameof(CheckInterval),
             $"is {CheckInterval}, at or above the {grace} grace period; the first poll after the " +
             "request would already be past the execution time, so the grace would not exist");
+
+        report.Require(DeclineHoldsFor > TimeSpan.Zero, nameof(DeclineHoldsFor),
+            $"is {DeclineHoldsFor}; zero or negative means a person's refusal of an automatic " +
+            "deletion expires the instant they give it, which is the defect this setting exists to " +
+            "close rather than a way to switch it off");
+
+        report.Require(DecisionRetention > TimeSpan.Zero, nameof(DecisionRetention),
+            $"is {DecisionRetention}; zero or negative retires a played-out decision on the first " +
+            "reconciliation after the erasure it authorised finishes, which is the moment an operator " +
+            "goes looking for it — the defect this setting exists to close rather than a way to " +
+            "switch it off");
+
+        report.Require(MaxExecutionAttempts >= 1, nameof(MaxExecutionAttempts),
+            $"is {MaxExecutionAttempts}; an execution has to be allowed to run at least once, and " +
+            "zero or less would leave every scheduled deletion permanently unexecuted");
     }
 }

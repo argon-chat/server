@@ -419,6 +419,22 @@ public sealed record DeviceAccountList(IonArray<DeviceAccount> accounts);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AccountDeletionQueuePage(IonArray<AccountDeletionQueueEntry> entries, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AccountDeletionQueueEntry(guid userId, string username, string displayName, string email, datetime lastActivityAt, i4 thresholdMonths, string reason, datetime enqueuedAt, AccountDeletionQueueEntryState state, guid? decidedByOperatorId, string? decidedByOperatorEmail, datetime? decidedAt, datetime? scheduledDeletionAt, datetime? strandedSince, datetime? completedAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record StrandedAccountDeletion(guid userId, string username, string displayName, string email, guid? approvedByOperatorId, string? approvedByOperatorEmail, datetime? approvedAt, datetime? scheduledDeletionAt, datetime? strandedSince, string? failureReason, i4 executionAttempts);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record StrandedAccountDeletionPage(IonArray<StrandedAccountDeletion> entries, i4 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public enum SearchMatchKind : u4
 {
     None = 0,
@@ -657,6 +673,39 @@ public static class Ion_ReportActionKind_OpenEnum
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum AccountDeletionQueueEntryState : u4
+{
+    PENDING = 0,
+    APPROVED = 1,
+    STRANDED = 2,
+    COMPLETED = 3,
+}
+
+/// <summary>Open-enum helpers for <see cref="AccountDeletionQueueEntryState"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AccountDeletionQueueEntryState_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AccountDeletionQueueEntryState value)
+        => value == AccountDeletionQueueEntryState.PENDING || value == AccountDeletionQueueEntryState.APPROVED || value == AccountDeletionQueueEntryState.STRANDED || value == AccountDeletionQueueEntryState.COMPLETED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AccountDeletionQueueEntryState value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IAdminConsole : IIonService
 {
     Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default);
@@ -732,6 +781,11 @@ public interface IAdminConsole : IIonService
     Task<FeatureFlagActionResult> DeleteFeatureFlag(string flagId, CancellationToken ct = default);
     Task<FeatureFlagActionResult> SetFeatureFlagOverride(SetFeatureFlagOverrideInput input, CancellationToken ct = default);
     Task<FeatureFlagActionResult> DeleteFeatureFlagOverride(guid overrideId, CancellationToken ct = default);
+    Task<AccountDeletionQueuePage> GetAccountDeletionQueue(i4 offset, i4 limit, CancellationToken ct = default);
+    Task<UserActionResult> ApproveAccountDeletion(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> RejectAccountDeletion(guid userId, CancellationToken ct = default);
+    Task<StrandedAccountDeletionPage> GetStrandedAccountDeletions(i4 offset, i4 limit, CancellationToken ct = default);
+    Task<UserActionResult> ResumeAccountDeletion(guid userId, CancellationToken ct = default);
     Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default);
     Task<TenantActionResult> CreateTenant(CreateTenantInput input, CancellationToken ct = default);
     Task<TenantActionResult> UpdateTenant(UpdateTenantInput input, CancellationToken ct = default);

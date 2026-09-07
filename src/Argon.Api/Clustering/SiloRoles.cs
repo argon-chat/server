@@ -292,6 +292,12 @@ public sealed class JobsRole : IArgonRole
         registry.AddToRef<AccountDeletionGrain>();
         registry.AddToRef<AutoDeleteSchedulerGrain>();
 
+        // The operator queue the scan feeds. Beside the scheduler that writes it and the deletion grain an
+        // approval calls, because the whole path is one reconcile plus one guarded request and putting a
+        // role boundary in the middle of it would buy nothing. The admin console reads it from the client
+        // side, which is a hop it already takes for every other grain it touches.
+        registry.AddToRef<AccountDeletionQueueGrain>();
+
         // The PostgreSQL half of Job:Expiration. It belongs on the role that already runs batch work on
         // a reminder rather than on one serving traffic: a sweep is a scan and a series of deletes, and
         // the whole point of putting it behind a single well-known key is that it happens in one place

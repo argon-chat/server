@@ -81,6 +81,14 @@ public static class CdnRedirectFeature
             ? $"private, max-age={cdn.RedirectCacheSeconds}"
             : "no-store";
 
+        // The CORS middleware writes Access-Control-Allow-Origin only when the request carried an
+        // Origin, and a plain <img> carries none — yet its 302 sits in the browser cache for
+        // RedirectCacheSeconds and is then handed to a later crossorigin="anonymous" load of the same
+        // URL (the in-game overlay draws avatars onto a canvas), which fails on the missing header.
+        // The policy on this route is "any origin" regardless, so the header goes out every time.
+        if (!ctx.Response.Headers.ContainsKey("Access-Control-Allow-Origin"))
+            ctx.Response.Headers["Access-Control-Allow-Origin"] = "*";
+
         return Results.Redirect(target, permanent: false);
     }
 }

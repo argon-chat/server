@@ -40,7 +40,11 @@ enum RequestExportGDRPStatus {
     Unknown,
     Ok,
     Already,
-    RateLimit
+    RateLimit,
+    // The account is scheduled for erasure, already executing or gone: the export front door is
+    // shut so a fresh copy of everything about to be erased is never built. Appended rather than
+    // slotted in, because the case index is the wire tag.
+    AccountDeletionScheduled
 }
 
 enum DeletionStatusKind {

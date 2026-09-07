@@ -309,6 +309,10 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
         typeof(IUserChatInteractions).GetMethod(nameof(MarkChatRead), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteChat_Ref = new(() =>
         typeof(IUserChatInteractions).GetMethod(nameof(DeleteChat), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> BeginUploadAttachment_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(BeginUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> CompleteUploadAttachment_Ref = new(() =>
+        typeof(IUserChatInteractions).GetMethod(nameof(CompleteUploadAttachment), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> SendDirectMessage_Ref = new(() =>
         typeof(IUserChatInteractions).GetMethod(nameof(SendDirectMessage), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> QueryDirectMessages_Ref = new(() =>
@@ -401,6 +405,41 @@ public sealed class Ion_UserChatInteractions_ClientImpl(IonClientContext context
         writer.WriteEndArray();
 
         await req.CallAsync(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<IUploadFileResult> BeginUploadAttachment(guid __peerid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), BeginUploadAttachment_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<IUploadFileResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AttachmentInfo> CompleteUploadAttachment(guid __peerid, guid __blobid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IUserChatInteractions), CompleteUploadAttachment_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __peerid);
+        IonFormatterStorage<guid>.Write(writer, __blobid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AttachmentInfo>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<i8> SendDirectMessage(guid __receiverid, string __text, IonArray<IMessageEntity> __entities, i8 __randomid, i8? __replyto, CancellationToken ct = default)

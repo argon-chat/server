@@ -1,9 +1,12 @@
 namespace Argon.Grains;
 
+using Argon.Api.Grains.Interfaces;
 using Argon.Core.Features.Logic;
 using Argon.Core.Grains.Interfaces;
 using Argon.Core.Services;
 using Argon.Features.Integrations.Crawler;
+using Argon.Features.Storage;
+using Argon.Grains.Interfaces;
 using Orleans.Concurrency;
 using Core.Entities.Data;
 
@@ -194,6 +197,39 @@ public class UserChatGrain(
         }, ct);
 
         await NotifyAsync(Me, new ChatDeletedEvent(peerId));
+    }
+
+    public async ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachmentAsync(Guid peerId, CancellationToken ct = default)
+    {
+        try
+        {
+            var userId = Me;
+            await using var ctx = await context.CreateDbContextAsync(ct);
+
+            // The same wall that stops the message the file is for.
+            var blocked = await ctx.UserBlocklist.AnyAsync(x => x.UserId == peerId && x.BlockedId == userId, ct);
+            if (blocked)
+                return UploadFileError.NOT_AUTHORIZED;
+
+            var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
+            var response = await fileGrain.RequestUploadAsync(
+                new FileUploadRequest(FilePurpose.DirectAttachment, "", 0), ct);
+            return new UploadTicket(response.BlobId, response.Url, response.Fields, response.TtlSeconds);
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Failed to begin upload attachment for direct chat {Me} -> {Peer}", Me, peerId);
+            return UploadFileError.INTERNAL_ERROR;
+        }
+    }
+
+    public async ValueTask<AttachmentInfo> CompleteUploadAttachmentAsync(Guid blobId, CancellationToken ct = default)
+    {
+        var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(Me);
+        var fileInfo  = await fileGrain.FinalizeUploadAsync(blobId, ct);
+
+        return new AttachmentInfo(fileInfo.FileId, fileInfo.FileName ?? "", fileInfo.FileSize, fileInfo.ContentType ?? "",
+            fileInfo.DownloadUrl);
     }
 
     /// <summary>

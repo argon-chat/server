@@ -63,9 +63,19 @@ public class UserGrain(
             user.DisplayNameChangedAt = DateTimeOffset.UtcNow;
         }
 
-        // Avatar update
+        // Avatar update, and the ownership test is the point of it. Defect R1: this used to assign
+        // whatever the client sent. The value is a file id (or the S3 key ending in one), so an
+        // account could point its avatar at a file somebody else uploaded — which then made that
+        // stranger's file part of this account's erasure, since AnonymizeUserAsync releases the
+        // avatar by id. Refused here rather than only in FileStorageGrain because a foreign avatar is
+        // a broken profile even when nothing releases it: the file's owner can delete it underneath.
         if (!string.IsNullOrEmpty(input.avatarId))
+        {
+            if (!await OwnsFileAsync(ctx, userId, input.avatarId, ct))
+                return UpdateMeError.INVALID_PRESET_ID;
+
             user.AvatarFileId = input.avatarId;
+        }
 
         // Premium profile fields
         if (input.backgroundId.HasValue)
@@ -109,6 +119,38 @@ public class UserGrain(
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
 
         return new UpdateProfileResult(userDto, profileDto);
+    }
+
+    /// <summary>
+    /// Whether the avatar id a profile edit is asking for names a finalised file this account owns.
+    /// </summary>
+    /// <remarks>
+    /// <para>The stored value is an S3 key, and with <c>StorageOptions.FlatAvatarKeys</c> the key is
+    /// the bare file id — so the id is the last path segment either way, which is exactly how
+    /// <see cref="UpdateAvatarFileId"/> reads the previous value back when it releases it.</para>
+    ///
+    /// <para><c>Finalized</c> is required because an unfinalised row is a signed upload URL nobody has
+    /// used yet: it has no reference counter, no bytes behind it, and setting it as an avatar would
+    /// leave the account pointing at a key the store has never heard of. <c>IgnoreQueryFilters</c> for
+    /// the same reason <c>FileStorageGrain</c> uses it — ownership is a fact about the row, not about
+    /// whether something has soft-deleted it.</para>
+    ///
+    /// <para>The refusal is reported as <c>INVALID_PRESET_ID</c>, the enum's existing "an id in this
+    /// input does not name something you may use". A member of its own would be the honest answer and
+    /// costs a schema change to <c>UserInteraction.ion</c> and every client generated from it; the
+    /// contract this fix owes is that a foreign avatar id is <em>refused</em>, and it is.</para>
+    /// </remarks>
+    private static async Task<bool> OwnsFileAsync(ApplicationDbContext ctx, Guid userId, string avatarId, CancellationToken ct)
+    {
+        var lastSegment = avatarId.Contains('/') ? avatarId.Split('/')[^1] : avatarId;
+
+        if (!Guid.TryParse(lastSegment, out var fileId))
+            return false;
+
+        return await ctx.Files
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .AnyAsync(f => f.Id == fileId && f.OwnerId == userId && f.Finalized, ct);
     }
 
     public async ValueTask ResetPremiumProfileAsync(CancellationToken ct = default)
@@ -180,6 +222,35 @@ public class UserGrain(
            .FirstAsync();
 
         return UserEntity.Map(row.User, row.IsVerified);
+    }
+
+    /// <inheritdoc cref="IUserGrain.GetIdentityIncludingDeleted"/>
+    /// <remarks>
+    /// <para>The same projection as <see cref="GetAsArgonUser"/> — only <c>IsVerified</c> is needed
+    /// off the bot, so the TPT join is never materialised — with two deliberate differences, and both
+    /// of them are the point of the method (defect ACC-06, pinned by
+    /// <c>AccountPeripheralTests.A_deleted_peer_still_resolves_to_the_tombstone_identity</c>).</para>
+    ///
+    /// <para><c>IgnoreQueryFilters</c>, so the global <c>!IsDeleted</c> filter does not hide an account
+    /// that deletion anonymised in place; and <c>FirstOrDefaultAsync</c>, so an id nobody ever had is
+    /// an answer rather than an <c>InvalidOperationException</c> travelling out of an RPC as
+    /// <c>UPSTREAM_ERROR</c>. What comes back for a deleted account is the tombstone
+    /// <c>AccountDeletionGrain.AnonymizeUserAsync</c> wrote, carrying <c>UserFlag.DELETED</c> — the
+    /// same thing <c>SpaceGrain.PrefetchUser</c> answers for that account, which is what the two
+    /// surfaces disagreeing about was.</para>
+    /// </remarks>
+    public async Task<ArgonUser?> GetIdentityIncludingDeleted()
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var row = await ctx.Users
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .Where(u => u.Id == this.GetPrimaryKey())
+           .Select(u => new { User = u, IsVerified = u.BotEntity != null && u.BotEntity.IsVerified })
+           .FirstOrDefaultAsync();
+
+        return row is null ? null : UserEntity.Map(row.User, row.IsVerified);
     }
 
     public async Task<ArgonUserProfile> GetMyProfile()

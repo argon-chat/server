@@ -1295,6 +1295,93 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<FeatureFlagActionResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetAccountDeletionQueue_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetAccountDeletionQueue");
+    
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetAccountDeletionQueue(__offset, __limit);
+        
+        IonFormatterStorage<AccountDeletionQueuePage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ApproveAccountDeletion_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ApproveAccountDeletion");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ApproveAccountDeletion(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RejectAccountDeletion_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RejectAccountDeletion");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RejectAccountDeletion(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetStrandedAccountDeletions_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetStrandedAccountDeletions");
+    
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetStrandedAccountDeletions(__offset, __limit);
+        
+        IonFormatterStorage<StrandedAccountDeletionPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ResumeAccountDeletion_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ResumeAccountDeletion");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ResumeAccountDeletion(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetTenantDirectory_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1533,6 +1620,16 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return SetFeatureFlagOverride_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteFeatureFlagOverride", StringComparison.InvariantCultureIgnoreCase))
             return DeleteFeatureFlagOverride_Execute(reader, writer, ct);
+        if (methodName.Equals("GetAccountDeletionQueue", StringComparison.InvariantCultureIgnoreCase))
+            return GetAccountDeletionQueue_Execute(reader, writer, ct);
+        if (methodName.Equals("ApproveAccountDeletion", StringComparison.InvariantCultureIgnoreCase))
+            return ApproveAccountDeletion_Execute(reader, writer, ct);
+        if (methodName.Equals("RejectAccountDeletion", StringComparison.InvariantCultureIgnoreCase))
+            return RejectAccountDeletion_Execute(reader, writer, ct);
+        if (methodName.Equals("GetStrandedAccountDeletions", StringComparison.InvariantCultureIgnoreCase))
+            return GetStrandedAccountDeletions_Execute(reader, writer, ct);
+        if (methodName.Equals("ResumeAccountDeletion", StringComparison.InvariantCultureIgnoreCase))
+            return ResumeAccountDeletion_Execute(reader, writer, ct);
         if (methodName.Equals("GetTenantDirectory", StringComparison.InvariantCultureIgnoreCase))
             return GetTenantDirectory_Execute(reader, writer, ct);
         if (methodName.Equals("CreateTenant", StringComparison.InvariantCultureIgnoreCase))

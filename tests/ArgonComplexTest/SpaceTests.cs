@@ -223,6 +223,74 @@ public class SpaceTests : TestBase
         Assert.That((previewResult as FailedPreview)!.error, Is.EqualTo(AcceptInviteError.EXPIRED));
     }
 
+    /// <summary>
+    /// Announcing a departure is announcing only: it touches no membership row.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why an announce-only entry point exists at all (finding F4).</b>
+    /// <c>SpaceGrain.RemoveMemberAsync</c> commits the soft-delete, then invalidates the roster cache,
+    /// then fires <c>LeavedFromServerUser</c>, and it returns silently when the row is already gone so
+    /// that a resumed account erasure cannot fan the same departure out twice. Those two properties
+    /// together make one failure unrecoverable: a throw between the commit and the fire leaves a
+    /// membership that is gone and members who were never told, and every later attempt is the
+    /// deliberate no-op. <c>AccountDeletionGrain</c> records what it owes and replays it through
+    /// <c>ISpaceGrain.AnnounceMemberLeftAsync</c>.</para>
+    ///
+    /// <para><b>What this test guards is the "only".</b> The caller is an erasure whose row is already
+    /// removed, so the method must not read one, must not require one, and above all must not remove
+    /// one — a leave path that quietly deleted the membership as a side effect of announcing would be
+    /// a way to take somebody off a roster with none of <c>RemoveMemberAsync</c>'s ordering. So it is
+    /// called here for a member who is still very much in the space, and the row is what is asserted
+    /// on: the membership survives it untouched. The event fan-out is pinned where it matters, on the
+    /// erasure path, by
+    /// <c>AccountDeletionTests.A_departure_the_space_committed_without_announcing_is_replayed_by_the_next_attempt</c>.</para>
+    /// </remarks>
+    [Test, CancelAfter(1000 * 60 * 5)]
+    public async Task AnnounceMemberLeft_TellsTheSpaceAndLeavesTheMembershipRowAlone(CancellationToken ct = default)
+    {
+        var owner  = await CreateSessionAsync(ct);
+        var member = await CreateSessionAsync(ct);
+
+        var created = await owner.Users.CreateSpace(
+            new CreateServerRequest("Announce Space", "Announce Description", string.Empty), ct);
+
+        Assert.That(created, Is.InstanceOf<SuccessCreateSpace>(),
+            $"could not create the space: {(created as FailedCreateSpace)?.error}");
+
+        var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
+        var invite  = await owner.Servers.CreateInviteCode(spaceId, 60, 0, ct);
+        var joined  = await member.Users.JoinToSpace(invite, ct);
+
+        Assert.That(joined, Is.InstanceOf<SuccessJoin>(),
+            $"the member could not join: {(joined as FailedJoin)?.error}");
+
+        await GetGrainFactory().GetGrain<Argon.Grains.Interfaces.ISpaceGrain>(spaceId)
+           .AnnounceMemberLeftAsync(member.UserId);
+
+        var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();
+        await using var db = await factory.CreateDbContextAsync(ct);
+
+        var membership = await db.UsersToServerRelations
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .FirstOrDefaultAsync(m => m.SpaceId == spaceId && m.UserId == member.UserId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(membership, Is.Not.Null,
+                "announcing a departure deleted the membership row; it is announce-only precisely " +
+                "because its caller's row is already gone");
+            Assert.That(membership!.IsDeleted, Is.False,
+                "announcing a departure soft-deleted the membership, which is a way off a roster that " +
+                "skips every ordering RemoveMemberAsync exists to enforce");
+        });
+
+        var roster = (await owner.Servers.GetMembers(spaceId, ct)).Values.Select(m => m.member.userId).ToArray();
+
+        Assert.That(roster, Does.Contain(member.UserId),
+            "the member is gone from the roster, so the announcement removed them after all");
+    }
+
     private async Task<string> CreateRawInviteAsync(Guid spaceId, Guid creatorId, DateTimeOffset expireAt, CancellationToken ct)
     {
         var factory = FactoryAsp.Services.GetRequiredService<IDbContextFactory<Argon.Entities.ApplicationDbContext>>();

@@ -2706,6 +2706,370 @@ public class AdminConsoleImpl(
             c.ResolvedAt,
             c.AppliedAction);
 
+    #region Inactivity deletion queue
+
+    // The console's half of the account-retention rework. The daily sweep used to call
+    // RequestAutoDeleteAsync itself and erase dormant accounts on a timer; it now writes candidates into
+    // IAccountDeletionQueueGrain and the decision is made here, by a person, with an audit line behind it.
+    // Nothing in this section deletes anything: approving forwards to the same guarded grain call a
+    // person's own deletion request goes through, so lockdown, an active subscription, an owned space and
+    // a standing refusal all still bar it.
+
+    private IAccountDeletionQueueGrain DeletionQueue
+        => grainFactory.GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId);
+
+    /// <summary>
+    /// One page of the queue, joined against the accounts it names.
+    /// </summary>
+    /// <remarks>
+    /// <para>The grain stores ids and the scan's arithmetic and nothing else — a name or an address
+    /// written into grain state would be a copy that goes stale and a second place personal data lives.
+    /// The display fields are read here, on the way out.</para>
+    ///
+    /// <para><b>Read past the soft-delete filter, and no row is ever dropped.</b> Defect R21: every
+    /// <c>ArgonEntity</c> carries the global <c>!IsDeleted</c> filter, and step three of an erasure sets
+    /// exactly that flag — so an approved account disappeared from this page the moment its deletion
+    /// started running, which is the window the entry exists for. The page rendered nine rows over a
+    /// total of ten, paging drifted by the number of erasures in flight, and an operator looking for the
+    /// outcome of their own approval found nothing at all. A row whose account cannot be read is now
+    /// rendered with blanks rather than skipped: an entry with no user behind it is a fact an operator
+    /// should see, not one to hide, and <c>TotalCount</c> stays the queue's own count because the page no
+    /// longer disagrees with it.</para>
+    /// </remarks>
+    public async Task<AccountDeletionQueuePage> GetAccountDeletionQueue(int offset, int limit, CancellationToken ct = default)
+    {
+        var snapshot = await DeletionQueue.ListAsync(offset, limit);
+
+        if (snapshot.Entries.Count == 0)
+            return new AccountDeletionQueuePage(
+                new IonArray<AccountDeletionQueueEntry>([]), snapshot.TotalCount, snapshot.Offset, snapshot.Limit);
+
+        var accounts = await ReadQueuedAccountsAsync(snapshot.Entries.Select(entry => entry.UserId).ToList(), ct);
+
+        var entries = snapshot.Entries
+           .Select(entry =>
+            {
+                var account = accounts.GetValueOrDefault(entry.UserId);
+
+                return new AccountDeletionQueueEntry(
+                    entry.UserId,
+                    account?.Username ?? "",
+                    account?.DisplayName ?? "",
+                    account?.Email ?? "",
+                    entry.LastActivityAt,
+                    entry.ThresholdMonths,
+                    entry.Reason,
+                    entry.EnqueuedAt,
+                    StateOf(entry.State),
+                    entry.DecidedByOperatorId,
+                    entry.DecidedByOperatorEmail,
+                    entry.DecidedAt,
+                    entry.ScheduledDeletionAt,
+                    entry.StrandedSince,
+                    entry.CompletedAt);
+            })
+           .ToList();
+
+        return new AccountDeletionQueuePage(
+            new IonArray<AccountDeletionQueueEntry>(entries), snapshot.TotalCount, snapshot.Offset, snapshot.Limit);
+    }
+
+    /// <summary>How one entry's state reaches an operator's screen.</summary>
+    /// <remarks>
+    /// <para>Defect F9. This used to be <c>Pending ? PENDING : APPROVED</c>, and the wire enum had no
+    /// third member to map to, so a <see cref="QueuedAccountDeletionState.Stranded"/> entry — an
+    /// erasure that started, gave up with steps left undone, and will be picked up by nobody — was
+    /// rendered as an ordinary approval. <see cref="IAccountDeletionQueueGrain.ListAsync"/> takes care
+    /// to sort those into the middle band precisely because they are work owed rather than work in
+    /// progress, and the mapping then flattened the distinction away: an operator scanning the queue
+    /// read "Approved" against erasures that had been stuck for days, with a non-null
+    /// <c>strandedSince</c> as the only sign, and never opened the stranded page.</para>
+    ///
+    /// <para><c>AccountDeletionQueueEntryState</c> gained <c>STRANDED</c> for this. Appending to an ion
+    /// enum is the safe direction — a reader that does not declare the member decodes it verbatim
+    /// through the generated open-enum helpers rather than rejecting the message — and the operator
+    /// console is regenerated with the schema in any case. An exhaustive switch here rather than a
+    /// second ternary, so the next state the grain-side enum grows is a compile-time question and not
+    /// another silent APPROVED.</para>
+    ///
+    /// <para>Which is what happened next: <c>COMPLETED</c>, the state an entry reaches when the erasure
+    /// it authorised has run and it is being kept for <c>AccountDeletion:DecisionRetention</c> as the
+    /// record of a decision that took effect. It is the same argument as F9 one step further along the
+    /// lifecycle — an "Approved" badge over a finished erasure reads as one still inside its grace
+    /// period, where the account holder can yet call it off — and it is the badge that makes the
+    /// retention window legible, since the row is on the page for a reason an operator can otherwise
+    /// only guess at.</para>
+    /// </remarks>
+    private static AccountDeletionQueueEntryState StateOf(QueuedAccountDeletionState state)
+        => state switch
+        {
+            QueuedAccountDeletionState.Pending   => AccountDeletionQueueEntryState.PENDING,
+            QueuedAccountDeletionState.Approved  => AccountDeletionQueueEntryState.APPROVED,
+            QueuedAccountDeletionState.Stranded  => AccountDeletionQueueEntryState.STRANDED,
+            QueuedAccountDeletionState.Completed => AccountDeletionQueueEntryState.COMPLETED,
+            _                                    => throw new ArgumentOutOfRangeException(
+                nameof(state), state, "the deletion queue grew a state the console has no badge for")
+        };
+
+    /// <summary>
+    /// The erasures that gave up half way, with the identity of the account each one left behind.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect R5. An erasure that spends its attempts unregisters its own poll and is never armed
+    /// again, and everything that could have shown that state used to erase it: the account holder cannot
+    /// sign in to ask (their password digest and address are gone by step three), the scan will never
+    /// propose an anonymised row again, and the queue retired the entry as soon as the deletion stopped
+    /// running. This is the page that keeps it, and <see cref="ResumeAccountDeletion"/> is the button on
+    /// it.</para>
+    ///
+    /// <para>Every account here is a tombstone by definition, so the join reads past the soft-delete
+    /// filter — the same reason <see cref="GetAccountDeletionQueue"/> does — and what it renders is
+    /// "Deleted Account" and a <c>deleted_…</c> username. That is the point rather than a wart: the row
+    /// exists to say which account is in this state, and its id is the handle.</para>
+    /// </remarks>
+    public async Task<StrandedAccountDeletionPage> GetStrandedAccountDeletions(int offset, int limit, CancellationToken ct = default)
+    {
+        var snapshot = await DeletionQueue.ListStrandedAsync(offset, limit);
+
+        if (snapshot.Entries.Count == 0)
+            return new StrandedAccountDeletionPage(
+                new IonArray<StrandedAccountDeletion>([]), snapshot.TotalCount, snapshot.Offset, snapshot.Limit);
+
+        var accounts = await ReadQueuedAccountsAsync(snapshot.Entries.Select(entry => entry.UserId).ToList(), ct);
+
+        var entries = snapshot.Entries
+           .Select(entry =>
+            {
+                var account = accounts.GetValueOrDefault(entry.UserId);
+
+                return new StrandedAccountDeletion(
+                    entry.UserId,
+                    account?.Username ?? "",
+                    account?.DisplayName ?? "",
+                    account?.Email ?? "",
+                    entry.DecidedByOperatorId,
+                    entry.DecidedByOperatorEmail,
+                    entry.DecidedAt,
+                    entry.ScheduledDeletionAt,
+                    entry.StrandedSince,
+                    entry.FailureReason,
+                    entry.ExecutionAttempts);
+            })
+           .ToList();
+
+        return new StrandedAccountDeletionPage(
+            new IonArray<StrandedAccountDeletion>(entries), snapshot.TotalCount, snapshot.Offset, snapshot.Limit);
+    }
+
+    /// <summary>The display fields of the accounts a queue page names, erased ones included.</summary>
+    private async Task<Dictionary<Guid, QueuedAccountIdentity>> ReadQueuedAccountsAsync(List<Guid> ids, CancellationToken ct)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        return await db.Users
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .Where(u => ids.Contains(u.Id))
+           .Select(u => new QueuedAccountIdentity(u.Id, u.Username, u.DisplayName, u.Email))
+           .ToDictionaryAsync(u => u.Id, ct);
+    }
+
+    private sealed record QueuedAccountIdentity(Guid Id, string Username, string DisplayName, string Email);
+
+    /// <summary>
+    /// Approves one queued account: the deletion is scheduled and the account is told by e-mail.
+    /// </summary>
+    /// <remarks>
+    /// The refusal the deletion grain can still give is passed back verbatim rather than flattened into
+    /// "failed": between the sweep that proposed the account and this click it may have been put under
+    /// lockdown, bought a subscription or been left owning a space, and which of those it is decides what
+    /// an operator does next.
+    /// </remarks>
+    public async Task<UserActionResult> ApproveAccountDeletion(Guid userId, CancellationToken ct = default)
+    {
+        // Written before the irreversible act, so the intent survives whatever happens next — defect R7.
+        // The audit log is where an operator review looks, and it used to be written only after the queue
+        // had already scheduled the erasure and mailed the account, only on the success path, and inside
+        // the try whose catch reports a failure. An audit store that was briefly unavailable therefore
+        // erased the one record of who ordered the deletion, and a refusal — an operator repeatedly
+        // trying to approve a locked or space-owning account — was never recorded at all.
+        await AuditQuietlyAsync("ApproveAccountDeletion", userId, "Outcome=attempted");
+
+        try
+        {
+            var caller   = OperatorRequestContext.Current;
+            var decision = await DeletionQueue.ApproveAsync(userId, caller.OperatorId, caller.Email);
+
+            if (!decision.Success)
+            {
+                await AuditQuietlyAsync("ApproveAccountDeletion", userId,
+                    $"Outcome=refused; Error={decision.Error}; RequestError={decision.RequestError}");
+
+                return new UserActionResult(false, decision.Error switch
+                {
+                    AccountDeletionQueueDecisionError.NotQueued =>
+                        "That account is not in the deletion queue",
+                    AccountDeletionQueueDecisionError.AlreadyDecided =>
+                        "That account has already been approved",
+                    AccountDeletionQueueDecisionError.RefusedByDeletionGrain =>
+                        $"Deletion refused: {decision.RequestError}",
+                    _ => "Could not approve the deletion"
+                });
+            }
+
+            // Outside the result-bearing path on purpose — defect R27. By here the deletion is scheduled,
+            // the entry is Approved and the account has its notice mail; an audit write that throws must
+            // not turn that into "failed" on the operator's screen, because their next click answers
+            // "already approved" and they are left with two contradictory truths about an erasure that is
+            // going to happen either way.
+            await AuditQuietlyAsync("ApproveAccountDeletion", userId,
+                $"Outcome=scheduled; ScheduledFor={decision.ScheduledDeletionAt:O}");
+
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to approve the queued deletion of {UserId}", userId);
+
+            await AuditQuietlyAsync("ApproveAccountDeletion", userId, $"Outcome=error; {ex.Message}");
+
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Writes an audit line and never lets its failure become the caller's.
+    /// </summary>
+    /// <remarks>
+    /// The audit store being unavailable is exactly the moment you least want to lose a record, and also
+    /// the moment when reporting its failure is most misleading: the operator's action either happened or
+    /// it did not, and that is what the result has to say. A write that cannot land is logged at Critical
+    /// — the application log is the last copy of it.
+    /// </remarks>
+    private async Task AuditQuietlyAsync(string action, Guid userId, string details)
+    {
+        try
+        {
+            await auditService.LogAsync(action, "User", userId.ToString(), details);
+        }
+        catch (Exception ex)
+        {
+            logger.LogCritical(ex,
+                "Could not write the operator audit line for {Action} on {UserId} ({Details}); "
+              + "this log line is the only remaining record of it", action, userId, details);
+        }
+    }
+
+    /// <summary>
+    /// Rejects one queued account: the entry goes, and the sweep leaves that account alone for a full
+    /// inactivity period.
+    /// </summary>
+    /// <remarks>
+    /// The hold is the point. An entry is a projection of the last sweep, so a rejection that only removed
+    /// it would last until the next pass and the same account would be proposed again tomorrow — which is
+    /// defect CON-4 (a refusal the system cannot remember) with an operator in the account holder's place.
+    /// </remarks>
+    public async Task<UserActionResult> RejectAccountDeletion(Guid userId, CancellationToken ct = default)
+    {
+        try
+        {
+            var caller   = OperatorRequestContext.Current;
+            var decision = await DeletionQueue.RejectAsync(userId, caller.OperatorId, caller.Email);
+
+            if (!decision.Success)
+            {
+                await AuditQuietlyAsync("RejectAccountDeletion", userId,
+                    $"Outcome=refused; Error={decision.Error}");
+
+                return new UserActionResult(false, decision.Error switch
+                {
+                    AccountDeletionQueueDecisionError.NotQueued =>
+                        "That account is not in the deletion queue",
+                    AccountDeletionQueueDecisionError.AlreadyDecided =>
+                        "That deletion is already scheduled; it can only be cancelled by the account holder",
+                    _ => "Could not reject the deletion"
+                });
+            }
+
+            await AuditQuietlyAsync("RejectAccountDeletion", userId, "Outcome=declined");
+
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to reject the queued deletion of {UserId}", userId);
+
+            await AuditQuietlyAsync("RejectAccountDeletion", userId, $"Outcome=error; {ex.Message}");
+
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Picks a stranded erasure back up: the deletion resumes from the step it reached.
+    /// </summary>
+    /// <remarks>
+    /// <para>The operator half of defect R5. The work itself is deliberately not awaited here — an
+    /// erasure is minutes of database work and one grain call per space and per file, so
+    /// <see cref="IAccountDeletionGrain.ResumeAsync"/> clears the attempt count, arms the poll to fire at
+    /// once and answers with the status to render. Nothing is repeated: the deletion resumes from its own
+    /// record of the steps it has already done, which matters because a released file reference cannot be
+    /// released a second time.</para>
+    ///
+    /// <para>Audited attempt-and-outcome like an approval, and for the same reason: it finishes an
+    /// irreversible act on somebody's account. It is not restricted to accounts the queue knows about —
+    /// a person's own deletion request can strand in exactly the same way and has no queue entry at all,
+    /// and refusing to let an operator reach that account would leave the only case nobody can see.</para>
+    ///
+    /// <para>The queue is told afterwards so the stranded page settles immediately instead of at the next
+    /// daily pass; a queue that will not answer costs a stale row for a day and nothing else, so it never
+    /// turns a resumed deletion into a reported failure.</para>
+    /// </remarks>
+    public async Task<UserActionResult> ResumeAccountDeletion(Guid userId, CancellationToken ct = default)
+    {
+        await AuditQuietlyAsync("ResumeAccountDeletion", userId, "Outcome=attempted");
+
+        try
+        {
+            var status = await grainFactory.GetGrain<IAccountDeletionGrain>(userId).ResumeAsync();
+
+            if (status.Status is AccountDeletionStatusKind.None or AccountDeletionStatusKind.Completed)
+            {
+                await AuditQuietlyAsync("ResumeAccountDeletion", userId, $"Outcome=nothingToResume; Status={status.Status}");
+
+                return new UserActionResult(false, status.Status is AccountDeletionStatusKind.Completed
+                    ? "That account's deletion has already finished"
+                    : "That account has no deletion to resume");
+            }
+
+            await AuditQuietlyAsync("ResumeAccountDeletion", userId,
+                $"Outcome=resumed; Status={status.Status}; Attempts={status.ExecutionAttempts}; "
+              + $"LastError={status.FailureReason}");
+
+            try
+            {
+                await DeletionQueue.RefreshAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Resumed the deletion of {UserId} but could not refresh its queue entry; the next scan will", userId);
+            }
+
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Failed to resume the stranded deletion of {UserId}", userId);
+
+            await AuditQuietlyAsync("ResumeAccountDeletion", userId, $"Outcome=error; {ex.Message}");
+
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    #endregion
+
     #region Feature Flags
 
     public async Task<FeatureFlagList> GetFeatureFlags(CancellationToken ct = default)

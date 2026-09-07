@@ -103,6 +103,8 @@ public interface IUserChatInteractions : IIonService
     Task UnpinChat(guid peerId, CancellationToken ct = default);
     Task MarkChatRead(guid peerId, CancellationToken ct = default);
     Task DeleteChat(guid peerId, CancellationToken ct = default);
+    Task<IUploadFileResult> BeginUploadAttachment(guid peerId, CancellationToken ct = default);
+    Task<AttachmentInfo> CompleteUploadAttachment(guid peerId, guid blobId, CancellationToken ct = default);
     Task<i8> SendDirectMessage(guid receiverId, string text, IonArray<IMessageEntity> entities, i8 randomId, i8? replyTo, CancellationToken ct = default);
     Task<IonArray<DirectMessage>> QueryDirectMessages(guid peerId, i8? from, i4 limit, CancellationToken ct = default);
 }

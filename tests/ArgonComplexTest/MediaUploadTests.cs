@@ -278,6 +278,81 @@ public class MediaUploadTests : TestBase
         });
     }
 
+    // ── reference counts ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A file's reference count moves only for the account that owns the file.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The contract, and it is a security one.</b> <c>POST /api/files/{fileId}/decrement</c>
+    /// and its <c>/increment</c> twin take a file id off the route from any authenticated caller and
+    /// reach <c>IFileStorageGrain</c> keyed by that caller. Nothing on the path compared the id with
+    /// <c>Files.OwnerId</c>, so one call took a stranger's file from the single reference
+    /// <c>FinalizeUploadAsync</c> gives it to zero — and <c>FileGcService.SweepOrphanFilesAsync</c>
+    /// then deleted the S3 object and the row. A release from somebody who holds nothing must do
+    /// nothing.</para>
+    ///
+    /// <para>The clamp that used to be the whole of this method's defence stops the count going
+    /// <em>negative</em> and cannot help here at all: 1 → 0 is a perfectly ordinary-looking release,
+    /// and it is the one that destroys the file.</para>
+    ///
+    /// <para>Driven through the grain rather than over HTTP because the controller is a three-line
+    /// pass-through whose only decision is which key to use — the caller's — and that is exactly what
+    /// the two grain keys below stand for. The owner's own release is asserted afterwards so the test
+    /// cannot pass by refusing everybody.</para>
+    /// </remarks>
+    [Test, CancelAfter(300_000)]
+    public async Task A_file_reference_moves_only_for_the_account_that_owns_the_file(CancellationToken ct = default)
+    {
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+
+        var owner    = await CreateSessionAsync(ct);
+        var stranger = await CreateSessionAsync(ct);
+
+        var ticket = await Begin(() => owner.Users.BeginUploadAvatar(ct));
+
+        await Upload(ticket, Png);
+        await owner.Users.CompleteUploadAvatar(ticket.blobId, ct);
+
+        var me = await owner.Users.GetMe(ct);
+
+        Assert.That(me.avatarFileId, Is.Not.Null.And.Not.Empty,
+            "the upload finalised and the account has no avatar, so there is no counter to move");
+
+        var fileId  = Guid.Parse(me.avatarFileId!);
+        var counter = scope.ServiceProvider.GetRequiredService<IReferenceCountService>();
+        var grains  = GetGrainFactory();
+
+        Assert.That(await counter.GetRefCountAsync(fileId, ct), Is.EqualTo(1),
+            "a finalised upload starts at exactly one reference");
+
+        await grains.GetGrain<IFileStorageGrain>(stranger.UserId).DecrementRefAsync(fileId, ct);
+
+        var afterStrangerReleased = await counter.GetRefCountAsync(fileId, ct);
+
+        await grains.GetGrain<IFileStorageGrain>(stranger.UserId).IncrementRefAsync(fileId, ct);
+
+        var afterStrangerRetained = await counter.GetRefCountAsync(fileId, ct);
+
+        await grains.GetGrain<IFileStorageGrain>(owner.UserId).DecrementRefAsync(fileId, ct);
+
+        var afterOwnerReleased = await counter.GetRefCountAsync(fileId, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterStrangerReleased, Is.EqualTo(1),
+                "a caller who does not own the file released its last reference, so the next garbage "
+              + "collection deletes somebody else's object and row");
+
+            Assert.That(afterStrangerRetained, Is.EqualTo(1),
+                "a caller who does not own the file added a reference to it, which pins bytes nobody "
+              + "can reach against the owner's storage for ever");
+
+            Assert.That(afterOwnerReleased, Is.Zero,
+                "the owner's own release stopped working, so nothing is ever collectable again");
+        });
+    }
+
     // ── addressing ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>

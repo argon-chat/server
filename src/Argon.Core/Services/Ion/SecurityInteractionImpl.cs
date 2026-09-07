@@ -58,10 +58,11 @@ public class SecurityInteractionImpl : ISecurityInteraction
 
         return new FailedRequestDataExport(result.Error switch
         {
-            ExportRequestError.AlreadyInProgress => DataExportError.ALREADY_IN_PROGRESS,
-            ExportRequestError.RateLimited       => DataExportError.RATE_LIMITED,
-            ExportRequestError.NotConfigured     => DataExportError.NOT_CONFIGURED,
-            _                                    => DataExportError.NONE
+            ExportRequestError.AlreadyInProgress       => DataExportError.ALREADY_IN_PROGRESS,
+            ExportRequestError.RateLimited             => DataExportError.RATE_LIMITED,
+            ExportRequestError.NotConfigured           => DataExportError.NOT_CONFIGURED,
+            ExportRequestError.AccountDeletionScheduled => DataExportError.ACCOUNT_DELETION_SCHEDULED,
+            _                                          => DataExportError.NONE
         });
     }
 
@@ -69,9 +70,15 @@ public class SecurityInteractionImpl : ISecurityInteraction
     /// Progress of the caller's export.
     /// </summary>
     /// <remarks>
-    /// <c>FailureReason</c> is deliberately not carried across. It is written for an operator
+    /// <para><c>FailureReason</c> is deliberately not carried across. It is written for an operator
     /// reading logs and can name storage paths and internal services; the client only needs to know
-    /// that it failed and that asking again is allowed.
+    /// that it failed and that asking again is allowed.</para>
+    ///
+    /// <para><c>totalItemsEstimate</c> used to be carried across too. It was assigned zero once per
+    /// request and never computed, so every export reported "N of 0" to any client that trusted the
+    /// name; it is gone from the contract rather than made honest (defect X8), because the step
+    /// total is only knowable once the conversation and channel cursors are seeded - several ticks
+    /// after the point a progress bar would have wanted it.</para>
     /// </remarks>
     public async Task<DataExportStatus> GetDataExportStatus(CancellationToken ct = default)
     {
@@ -92,8 +99,7 @@ public class SecurityInteractionImpl : ISecurityInteraction
             status.StartedAt,
             status.CompletedAt,
             status.DownloadUrl,
-            status.ItemsProcessed,
-            status.TotalItemsEstimate);
+            status.ItemsProcessed);
     }
 
     public async Task CancelDataExport(CancellationToken ct = default)

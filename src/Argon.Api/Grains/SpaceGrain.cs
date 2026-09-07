@@ -172,6 +172,60 @@ public class SpaceGrain(
     public Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null)
         => AddMemberAsync(this.GetUserId(), joinedViaInviteId);
 
+    /// <inheritdoc cref="ISpaceGrain.RemoveMemberAsync"/>
+    /// <remarks>
+    /// <para>The three halves of a departure, in the order the join path does them in reverse: commit
+    /// the row, drop what is cached about the roster, then say so. <see cref="Invalidate"/> is the
+    /// signalling variant, so the entry goes on every silo rather than only on this one — a roster is
+    /// answered by <c>SpaceReadGrain</c> from whichever activation the caller lands on.</para>
+    ///
+    /// <para><c>LeavedFromServerUser</c> is the event the product already defines for this and
+    /// <c>BotEventPublisher</c> already maps to <c>BotEventType.MemberLeave</c>, so firing it is what
+    /// finally gives bots the member-leave their own API promises. Nothing fired it before this
+    /// method existed, because there was no leave-space path at all.</para>
+    ///
+    /// <para>Silent when the row is already gone: the caller is an erasure that may be resumed or
+    /// retried (see <c>AccountDeletionGrainState.StepsDone</c>), and a second announcement of the same
+    /// departure would be a roster event observers have no way to reconcile.</para>
+    /// </remarks>
+    public async Task RemoveMemberAsync(Guid userId)
+    {
+        await using var ctx = await context.CreateDbContextAsync();
+
+        var spaceId = this.GetPrimaryKey();
+
+        var removed = await ctx.UsersToServerRelations
+           .Where(x => x.SpaceId == spaceId && x.UserId == userId && !x.IsDeleted)
+           .ExecuteUpdateAsync(set => set
+               .SetProperty(x => x.IsDeleted, true)
+               .SetProperty(x => x.DeletedAt, DateTimeOffset.UtcNow)
+               .SetProperty(x => x.UpdatedAt, DateTimeOffset.UtcNow));
+
+        if (removed == 0)
+            return;
+
+        await Invalidate();
+        await Fire(new LeavedFromServerUser(spaceId, userId));
+    }
+
+    /// <inheritdoc cref="ISpaceGrain.AnnounceMemberLeftAsync"/>
+    /// <remarks>
+    /// The last two thirds of <see cref="RemoveMemberAsync"/> and nothing else — deliberately no row
+    /// read, not even to check that the membership is really gone. The caller is an erasure replaying
+    /// an announcement it knows it owes, and a guard here would refuse exactly the case this exists
+    /// for: a membership whose soft-delete committed in the attempt whose announcement threw.
+    /// </remarks>
+    public async Task AnnounceMemberLeftAsync(Guid userId)
+    {
+        var spaceId = this.GetPrimaryKey();
+
+        await Invalidate();
+        await Fire(new LeavedFromServerUser(spaceId, userId));
+
+        logger.LogInformation(
+            "Re-announced the departure of user {UserId} from space {SpaceId}", userId, spaceId);
+    }
+
     private async Task<bool> AddMemberAsync(Guid userId, ulong? joinedViaInviteId = null)
     {
         await using var ctx = await context.CreateDbContextAsync();

@@ -11,8 +11,8 @@ Backend server for [Argon](https://argon.gl) — voice communication platform.
 ## Quick Start
 
 ```bash
-# Clone
-git clone https://github.com/argon-chat/server.git
+# Clone with the public submodules (Ion contracts, bot API docs)
+git clone --recurse-submodules https://github.com/argon-chat/server.git
 cd server
 
 # Start dependencies
@@ -26,6 +26,29 @@ dotnet build
 cd src/Argon.Api
 dotnet run
 ```
+
+## Submodules
+
+| Path | What | Who can clone it |
+| --- | --- | --- |
+| `src/Argon.Ion` | Ion contracts of the client-facing API | everyone |
+| `src/Argon.IonAdmin` | Ion contracts of the admin console | everyone |
+| `docs/bot-api-docs` | Bot API documentation site | everyone |
+| `docs/internal` | Internal architecture and release notes | Argon team only (private) |
+
+`docs/internal` is marked `update = none` in `.gitmodules`, so `git clone --recurse-submodules`
+and `git submodule update --init --recursive` skip it and nothing else needs it to build or test.
+CI initialises the three public submodules by name and never touches it.
+
+Argon team members opt in once per clone (the `none` setting is copied into `.git/config` by
+`git submodule init`, so it has to be overridden there, not only on the command line):
+
+```bash
+git config submodule.docs/internal.update checkout
+git submodule update --init docs/internal
+```
+
+From then on `git submodule update --recursive` keeps it in step with the others.
 
 ## Project Structure
 

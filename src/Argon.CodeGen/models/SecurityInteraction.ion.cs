@@ -31,7 +31,7 @@ public sealed record AutoDeletePeriod(i4? months, bool enabled);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record DataExportStatus(DataExportStatusKind status, guid? exportId, datetime? startedAt, datetime? completedAt, string? downloadUrl, i4 itemsProcessed, i4 totalItemsEstimate);
+public sealed record DataExportStatus(DataExportStatusKind status, guid? exportId, datetime? startedAt, datetime? completedAt, string? downloadUrl, i4 itemsProcessed);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -324,6 +324,7 @@ public enum DataExportError : u2
     ALREADY_IN_PROGRESS = 1,
     RATE_LIMITED = 2,
     NOT_CONFIGURED = 3,
+    ACCOUNT_DELETION_SCHEDULED = 4,
 }
 
 /// <summary>Open-enum helpers for <see cref="DataExportError"/>.</summary>
@@ -338,7 +339,7 @@ public static class Ion_DataExportError_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this DataExportError value)
-        => value == DataExportError.NONE || value == DataExportError.ALREADY_IN_PROGRESS || value == DataExportError.RATE_LIMITED || value == DataExportError.NOT_CONFIGURED;
+        => value == DataExportError.NONE || value == DataExportError.ALREADY_IN_PROGRESS || value == DataExportError.RATE_LIMITED || value == DataExportError.NOT_CONFIGURED || value == DataExportError.ACCOUNT_DELETION_SCHEDULED;
 
     /// <summary>
     /// The raw <c>u2</c> the peer sent when <paramref name="value"/> names no

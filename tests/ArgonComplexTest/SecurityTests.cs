@@ -392,21 +392,43 @@ public class SecurityTests : TestBase
         Assert.That(period.months, Is.EqualTo(24));
     }
 
+    /// <summary>
+    /// No period means the account has switched inactivity deletion off.
+    /// </summary>
+    /// <remarks>
+    /// This used to assert the opposite — <c>INVALID_PERIOD</c>, "auto-delete cannot be disabled" — and
+    /// the product decision behind the retention rework replaced that contract (defect CON-2). The off
+    /// state was already described by the nullable <c>months</c> in the Ion signature, the <c>enabled</c>
+    /// flag on <c>AutoDeletePeriod</c>, the entity's own "Null means disabled" comment and the desktop
+    /// client's "Disabled" menu item; only the write path refused it, so the menu item raised an error
+    /// toast and snapped back. <c>AutoDeleteSchedulerGrain</c> reads <c>Enabled</c> alongside
+    /// <c>Months</c> and never proposes a disabled account — the two halves had to land together, since
+    /// granting the switch alone would have made turning auto-delete off get the account swept sooner.
+    /// The fuller round trip, including turning it back on, is
+    /// <c>AccountConsoleTests.SetAutoDeletePeriod_WithNoPeriod_TurnsAutoDeleteOff</c>.
+    /// </remarks>
     [Test, CancelAfter(1000 * 60 * 5), Order(42)]
-    public async Task SetAutoDeletePeriod_WithNull_ReturnsFailed(CancellationToken ct = default)
+    public async Task SetAutoDeletePeriod_WithNull_TurnsAutoDeleteOff(CancellationToken ct = default)
     {
         await using var scope = FactoryAsp.Services.CreateAsyncScope();
 
         var token = await RegisterAndGetTokenAsync(ct);
         SetAuthToken(token);
 
-        // Trying to disable auto-delete should fail
         var result = await GetSecurityService(scope.ServiceProvider)
             .SetAutoDeletePeriod(null, ct);
 
-        Assert.That(result, Is.InstanceOf<FailedSetAutoDelete>());
-        var failed = result as FailedSetAutoDelete;
-        Assert.That(failed!.error, Is.EqualTo(AutoDeleteError.INVALID_PERIOD));
+        Assert.That(result, Is.InstanceOf<SuccessSetAutoDelete>(),
+            $"no period is the off switch: {(result as FailedSetAutoDelete)?.error}");
+
+        var period = await GetSecurityService(scope.ServiceProvider).GetAutoDeletePeriod(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(period.enabled, Is.False, "the switch has to have two positions to be a switch");
+            Assert.That(period.months, Is.Null,
+                "a period left on a disabled row is a number the account is not subject to");
+        });
     }
 
     [Test, CancelAfter(1000 * 60 * 5), Order(43)]

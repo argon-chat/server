@@ -53,18 +53,23 @@ kinds of shard:
 | --- | --- | --- |
 | `topology` | the eight `[NonParallelizable]` fixtures, plus the unit suite | Four of them pin silo ports (RoleStartupTests from 21111, GrainMigrationTests 22111/22131, ReminderRoutingTests 22311/22331, RegionRegistryClusterTests 23111/23131) and four issue schema changes against the shared database. One process owns all of them, so exactly one process binds those ports — and this is the shard that keeps the suite's default 11111/30000. NUnit runs the non-parallel shift alone with nothing else in flight, so in a single-process run these eight are pure serial tail. |
 | `presence` | the eleven `Presence*Tests` | 635 s of the suite's 949 s of serial work, spent waiting on grain timers and Redis TTLs rather than on a CPU — so this shard runs one worker per core, clamped to 2–8, rather than the assembly's four, and that many waiting fixtures overlap for free. |
-| `general-N` | everything else | Split by measured serial seconds, longest first, so the shards finish together. |
+| `general-N` | everything else | Split by measured serial seconds, longest first, so the shards finish together. The five account fixtures added on 2026-09-06/07 are hand-placed on top of that split rather than regenerated into it — the comment above `$generalShards` says why. |
 
-Measured on this tree, PostgreSQL, no coverage, 32 cores: **368 s single-process → 178 s over four
-shards** (per shard: topology 178 s, presence 156 s, general-1 82 s, general-2 66 s). Same 625
-integration tests, same outcomes: 624 pass and the one that stands down is CockroachDB-only and this
-is PostgreSQL. The 929-test unit suite rides along on `topology` inside that number, four seconds
-of it. The floor is the topology shard, and it is a container stack plus two fixtures that
-stand up silos of their own and therefore run alone: `RoleStartupTests` (68 s) and
-`GrainMigrationTests` (41 s). Shrink those and re-plan.
+Measured on this tree, PostgreSQL, no coverage, 32 cores: **250 s over four shards** (per shard:
+general-2 250 s, topology 180 s, presence 160 s, general-1 130 s) for 703 integration tests, of which
+701 pass, one stands down because it is CockroachDB-only and this is PostgreSQL, and one is red only
+when all four shards run at once — see "A test that is red only under four shards" below. The
+947-test unit suite rides along on `topology` inside that number, five seconds of it.
 
-Those numbers are far better than the ones this section used to carry (707 s single-process, 368-382 s
-sharded, with presence alone at 1 614 s of serial work), and almost all of the difference is one change: the
+The floor moved with the account campaign. It used to be `topology` — a container stack plus
+`RoleStartupTests` (68 s) and `GrainMigrationTests` (41 s), two fixtures that stand up silos of their
+own and therefore run alone — and it is now `general-2`, because `DataExportArchiveTests` alone is
+182 s of serial work there, nearly all of it waiting out export ticks and a 40 s archive TTL. Shrink
+that fixture, or split it across the two general shards, and re-plan.
+
+Even with that fixture in it the suite is far faster than it was before the presence clocks were
+compressed (707 s single-process, 368-382 s sharded, with presence alone at 1 614 s of serial work),
+and almost all of that difference is one change: the
 presence fixtures no longer wait out shipped clocks. `PresenceTimingOptions` makes the session TTL,
 the refresh tick, the grace and the rest configuration, and the integration host sets them a factor
 of ten down (`TestPresenceTimings`). It is ordinary configuration bound by the ordinary options
@@ -130,20 +135,71 @@ outlives a trimmed job log and the input `-FromTrx` wants, so a CI run is a vali
 the partition from. A shard that produced no `.trx` at all warns rather than passing quietly — that
 means it died before running tests, and the question is for that job, not for this one.
 
+## A test that was red only under four shards (closed)
+
+`AdminConsoleTests.The_queue_still_shows_an_approval_once_its_erasure_has_run` used to fail in a full
+`-Shards 4` run — twice on 2026-09-07, with and without `-IncludeKnownBugs` — and pass everywhere
+quieter: 318/318 running `-Shard 3 -Shards 4` on its own, and twice in one process filtered to the
+account fixtures. It was never a `KnownPresenceBug`, because nothing about the product was open in
+the sense that category means. It is kept here because the shape recurs: a test whose window is
+bounded by a neighbour's timer, in a cluster singleton the whole assembly shares.
+
+The account-deletion queue is one Orleans singleton. `AccountDeletionQueueGrain.ReclassifyAsync`
+retired a decided entry the moment its deletion reached `Completed` — deliberately, with the
+reasoning written out beside it: the decision has played out and the worklist is for work.
+`AccountConsoleTests` drives `IAutoDeleteSchedulerGrain.RunScanAsync()` seven times, and every scan
+reconciles that singleton. So the test's window — the account is anonymised, the entry is not yet
+retired — was bounded by the next neighbouring scan, and nothing in the test controlled when that
+landed. Under four concurrent shard processes the console page read came back one to two seconds
+after the erasure finished and lost the race: the shard log has the erasure completing at
+03:09:32.834 and `Account deletion queue reconciled: 0 enqueued, 3 retired, 0 held` at 03:09:33.440,
+before the page was read.
+
+**Closed in the product, on 2026-09-07, by giving a played-out decision a retention window.** Of the
+two ways out this section used to list, the other one — re-point the test at an erasure that fails
+after step 3 `Anonymize`, where the entry stays `Approved`/`Stranded` with the account already
+anonymised — would have pinned the join (defect R21) while leaving the promise the test's name makes
+untrue: an operator had between one second and one day to read the outcome of their own approval
+before the row vanished, and which of the two they got depended on when a daily sweep happened to
+land. A guarantee that thin is not a guarantee, and a suite that is green only because no neighbour
+swept is measuring the neighbours.
+
+So `AccountDeletionOptions.DecisionRetention` (seven days shipped, `00:00:30` on the integration host
+via `TestServerConfiguration.AccountDeletion`) is now how long a completed entry stays on the queue,
+measured from `CompletedAt` — the moment the queue saw the erasure finish — and no reconciliation
+from any fixture can retire it earlier. The entry becomes `QueuedAccountDeletionState.Completed`
+rather than staying `Approved`, and the ion enum `AccountDeletionQueueEntryState` gained `COMPLETED`
+to match, on defect F9's argument one step further along the lifecycle: an "Approved" badge over a
+finished erasure reads as one still inside its grace period, where the account holder can yet call it
+off. The test now drives a sweep of its own before reading the page — so a reconciliation is part of
+what it asserts rather than a hazard it hopes to dodge — and then waits the window out and drives
+another, which pins the other half: retention is a reprieve, not a second permanent queue.
+
+That last wait is why `AdminConsoleTests` costs about half a minute more than it did, all of it in
+this one test. Re-plan the general shards from a `.trx` (`-FromTrx`) after the next full run if they
+have drifted apart.
+
 ## Tests that pin an open bug
 
 Some tests are red on purpose. The presence suite was written against the behaviour a user would
 expect rather than against the behaviour the server has, so a red test there is a finding — and a
 finding is worth keeping in the tree, running, and readable, rather than deleted or quietly
-weakened until it passes.
+weakened until it passes. The account-lifecycle suite (`AccountDeletionTests`,
+`DataExportArchiveTests`, `AccountConsoleTests`) was written the same way and for the same reason.
 
-Such a test carries `[Category("KnownPresenceBug")]` and a `<remarks>` paragraph naming the defect
+Such a test carries `[Category("KnownPresenceBug")]` — the category is the suite's marker for "pinned
+open bug" whatever the subject, presence or not — and a `<remarks>` paragraph naming the defect
 precisely: the file and method it lives in, what happens, what should happen instead, and what would
-close it.
+close it. A remark that says the campaign adjudicated the claim a *design question* rather than a
+defect means the same thing for the runner and something different for a reader: the mechanism is
+real, the behaviour it demands is a product decision nobody has taken yet, and the test goes green
+the day that decision is made and implemented.
 
 **The runner excludes the category by default** — the single-process path, every shard, and CI — so a
 plain `./scipts/run-tests.ps1` on a healthy tree is green. `-IncludeKnownBugs` is how you see the
-pinned defects, and it is red whenever there are any — today there are none, so the two runs agree:
+pinned defects, and it is red whenever there are any. As of 2026-09-07 there are four, all in
+`AccountDeletionTests` and `AccountConsoleTests`, so the two runs no longer agree — the default one
+carries none of them and the `-IncludeKnownBugs` one ends on those four:
 
 ```pwsh
 ./scipts/run-tests.ps1 -IncludeKnownBugs             # everything, pinned defects included
@@ -166,10 +222,37 @@ Three rules keep the category honest:
 - It is for a defect that has been confirmed and left open on purpose — never for a test that is
   merely slow, awkward, or occasionally red for reasons of its own. Those get fixed.
 
-**No test carries it today.** The category is kept for the next one, not because something is open:
-`-IncludeKnownBugs` currently reports exactly what a plain run does, 625 integration tests and 929
-unit tests, all green. The two tests that did carry it lost the category in the same change as their
-fix, which is rule two doing its job:
+**Four tests carry it today**, and every one of them is an adjudicated design question rather than an
+agreed defect: the mechanism each describes was reproduced and confirmed, and the review then declined
+to call the behaviour wrong until somebody decides what the right behaviour is.
+
+- `AccountDeletionTests.A_space_already_scheduled_for_deletion_does_not_bar_the_owner` (campaign
+  verdict `ACC-12`). The account guard in `AccountDeletionGrain.RequestDeletionAsync` is a plain "do
+  you own any non-deleted space", and `SpaceDeletionGrain` leaves `SpaceEntity.IsDeleted` false for the
+  whole of its own grace, so following the console's own instruction — delete your spaces first —
+  stacks a space grace in front of the account grace. The review kept the bar, on the grounds that it
+  is what prevents an unrecoverable orphaned space, and moved the fault to the console copy promising a
+  transfer the product does not have and to the missing payload on `OwnsSpaces`.
+- `AccountDeletionTests.A_second_request_keeps_and_reports_the_original_execution_date` (`ACC-13`) and
+  `AccountConsoleTests.RequestDeleteAccount_WhenAlreadyScheduled_StillSaysWhenTheDeletionWillRun`
+  (`CON-1`). The grain fills in `ScheduledDeletionAt` on the `AlreadyScheduled` refusal;
+  `AccountConsoleService.RequestDeleteAccount` maps every failure through one expression that hard-codes
+  both timestamps to null, so the date is discarded before the console sees it. Carrying it through only
+  helps a client that refetches, and today's console learns the deadline from `GetMe` at page load and
+  disables the button — an enhancement, said the review, not a correctness fix.
+- `AccountDeletionTests.A_request_after_completion_says_the_account_is_already_gone` (`ACC-14`).
+  `RequestDeletionAsync` collapses `Executing` and `Completed` into `AlreadyScheduled`, so an account
+  that has already been erased is told its deletion is still pending and still cancellable. A finer
+  refusal is an additive contract decision — an `AlreadyDeleted` arm on `DeleteAccountError` and
+  `CancelDeleteError`, regenerated with `ionc` — rather than something to change quietly.
+
+So the two runs differ by exactly those four: a default sharded run is 703 integration tests (701 pass,
+one stands down as CockroachDB-only) plus 947 unit tests, and `-IncludeKnownBugs` is 707 integration
+tests with those four red. Both counts carry the one further red described under "A test that is red
+only under four shards", which is a test-side ordering hazard and belongs to neither list.
+
+The presence campaign's two pins are the other half of the record — both lost the category in the same
+change as their fix, which is rule two doing its job:
 
 - `PresenceAggregationTests.ADeviceSwitch_NeverLeavesAConnectedUserOffline` pinned a lost update in
   `UserPresenceService.RecalculateAggregatedStatusAsync` — a read-fold-write with nothing atomic

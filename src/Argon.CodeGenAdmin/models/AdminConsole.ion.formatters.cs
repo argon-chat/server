@@ -3187,6 +3187,150 @@ public sealed class Ion_DeviceAccountList_Formatter : IonFormatter<DeviceAccount
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AccountDeletionQueuePage_Formatter : IonFormatter<AccountDeletionQueuePage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AccountDeletionQueuePage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "AccountDeletionQueuePage");
+        var __entries = IonFormatterStorage<AccountDeletionQueueEntry>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__entries, __totalcount, __offset, __limit);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AccountDeletionQueuePage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<AccountDeletionQueueEntry>.WriteArray(writer, value.entries);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AccountDeletionQueueEntry_Formatter : IonFormatter<AccountDeletionQueueEntry>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AccountDeletionQueueEntry Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(15, "AccountDeletionQueueEntry");
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __email = IonFormatterStorage<string>.Read(reader);
+        var __lastactivityat = IonFormatterStorage<datetime>.Read(reader);
+        var __thresholdmonths = IonFormatterStorage<i4>.Read(reader);
+        var __reason = IonFormatterStorage<string>.Read(reader);
+        var __enqueuedat = IonFormatterStorage<datetime>.Read(reader);
+        var __state = IonFormatterStorage<AccountDeletionQueueEntryState>.Read(reader);
+        var __decidedbyoperatorid = reader.ReadNullable<guid>();
+        var __decidedbyoperatoremail = reader.ReadNullable<string>();
+        var __decidedat = reader.ReadNullable<datetime>();
+        var __scheduleddeletionat = reader.ReadNullable<datetime>();
+        var __strandedsince = reader.ReadNullable<datetime>();
+        var __completedat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 15);
+        return new(__userid, __username, __displayname, __email, __lastactivityat, __thresholdmonths, __reason, __enqueuedat, __state, __decidedbyoperatorid, __decidedbyoperatoremail, __decidedat, __scheduleddeletionat, __strandedsince, __completedat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AccountDeletionQueueEntry value)
+    {
+        writer.WriteStartArray(15);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.Write(writer, value.email);
+        IonFormatterStorage<datetime>.Write(writer, value.lastActivityAt);
+        IonFormatterStorage<i4>.Write(writer, value.thresholdMonths);
+        IonFormatterStorage<string>.Write(writer, value.reason);
+        IonFormatterStorage<datetime>.Write(writer, value.enqueuedAt);
+        IonFormatterStorage<AccountDeletionQueueEntryState>.Write(writer, value.state);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.decidedByOperatorId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.decidedByOperatorEmail);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.decidedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.scheduledDeletionAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.strandedSince);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.completedAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_StrandedAccountDeletion_Formatter : IonFormatter<StrandedAccountDeletion>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public StrandedAccountDeletion Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(11, "StrandedAccountDeletion");
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __email = IonFormatterStorage<string>.Read(reader);
+        var __approvedbyoperatorid = reader.ReadNullable<guid>();
+        var __approvedbyoperatoremail = reader.ReadNullable<string>();
+        var __approvedat = reader.ReadNullable<datetime>();
+        var __scheduleddeletionat = reader.ReadNullable<datetime>();
+        var __strandedsince = reader.ReadNullable<datetime>();
+        var __failurereason = reader.ReadNullable<string>();
+        var __executionattempts = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 11);
+        return new(__userid, __username, __displayname, __email, __approvedbyoperatorid, __approvedbyoperatoremail, __approvedat, __scheduleddeletionat, __strandedsince, __failurereason, __executionattempts);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, StrandedAccountDeletion value)
+    {
+        writer.WriteStartArray(11);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.Write(writer, value.email);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.approvedByOperatorId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.approvedByOperatorEmail);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.approvedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.scheduledDeletionAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.strandedSince);
+        IonFormatterStorage<string>.WriteNullable(writer, value.failureReason);
+        IonFormatterStorage<i4>.Write(writer, value.executionAttempts);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_StrandedAccountDeletionPage_Formatter : IonFormatter<StrandedAccountDeletionPage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public StrandedAccountDeletionPage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "StrandedAccountDeletionPage");
+        var __entries = IonFormatterStorage<StrandedAccountDeletion>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__entries, __totalcount, __offset, __limit);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, StrandedAccountDeletionPage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<StrandedAccountDeletion>.WriteArray(writer, value.entries);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3299,6 +3443,23 @@ public sealed class Ion_ReportActionKind_Formatter : IonFormatter<ReportActionKi
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ReportActionKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AccountDeletionQueueEntryState_Formatter : IonFormatter<AccountDeletionQueueEntryState>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AccountDeletionQueueEntryState Read(CborReader reader)
+    {
+         return (AccountDeletionQueueEntryState)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AccountDeletionQueueEntryState value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

@@ -16,7 +16,7 @@ namespace Argon.Api.Features.Orleans.Client;
 /// registry for the local cluster client and nothing else — it is not evidence that the states are
 /// surplus. Do not trim the members that look unreachable, and do not "simplify" the registry's
 /// filters to match: replacing both with the region registry is stage 5 of
-/// <c>docs/architecture/multi-region.md</c>, and a half-collapsed enum makes that swap look smaller
+/// <c>docs/internal/architecture/multi-region.md</c>, and a half-collapsed enum makes that swap look smaller
 /// than it is.</para>
 /// </remarks>
 public enum ArgonDataCenterStatus

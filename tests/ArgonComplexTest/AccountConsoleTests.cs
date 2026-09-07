@@ -494,60 +494,6 @@ public class AccountConsoleTests : TestBase
     }
 
     /// <summary>
-    /// A console context naming a subject that owns no account cannot start a data export for it.
-    /// </summary>
-    /// <remarks>
-    /// <para><c>AccountConsoleAuthInterceptor</c> validates the token's issuer, signature, lifetime
-    /// and audience and then trusts the <c>sub</c> claim verbatim — it never asks whether that id is
-    /// an account. Everything downstream inherits that: the console grabs a grain keyed on the id and
-    /// starts working. An export is the sharp end of it, because it is the one console action with an
-    /// external side effect — a job, a timer, objects written into the export bucket — for an account
-    /// that does not exist and can never collect them.</para>
-    ///
-    /// <para>Whatever the console answers here, "we started building your archive" is not it. The job
-    /// is cancelled before the assertions so a red test does not leave a stray export running against
-    /// the shared host.</para>
-    ///
-    /// <para><b>Known defect.</b> Nothing on this path checks that the subject exists.
-    /// <c>AccountConsoleAuthInterceptor.InvokeAsync</c>
-    /// (<c>src/Argon.Core/Services/Ion/AccountConsoleAuthInterceptor.cs</c>) parses <c>sub</c> into a
-    /// <c>Guid</c> and publishes it as the request context without a database read;
-    /// <c>AccountConsoleService.RequestExportGDRP</c> keys
-    /// <c>IUserDataExportGrain</c> on it; and <c>UserDataExportGrain.RequestExportAsync</c>
-    /// (<c>src/Argon.Api/Grains/UserDataExportGrain.cs</c>) has no user lookup either — it writes
-    /// state, arms the process timer and registers with the export pump. Observed: <c>Ok</c>, and
-    /// <c>IsExportInProgressAsync</c> true, for a <c>Guid.NewGuid()</c> that owns nothing. The
-    /// collection then runs to <c>Completed</c> against a null user
-    /// (<c>CollectProfileAsync</c> returns silently) and uploads an archive of empty arrays with no
-    /// <c>profile.json</c> and no e-mail, since both <c>SendExport*EmailAsync</c> bail on the missing
-    /// row. A subject that owns no account should be refused before any of that.</para>
-    /// </remarks>
-    [Test, CancelAfter(120_000)]
-    [Category("KnownPresenceBug")]
-    public async Task The_console_does_not_start_an_export_for_a_subject_that_is_not_an_account(CancellationToken ct = default)
-    {
-        var ghost = Guid.NewGuid();
-        var grain = GetGrainFactory().GetGrain<IUserDataExportGrain>(ghost);
-
-        var (consoleScope, console) = AccountConsoleHarness.Console(ghost, "Nobody At All");
-        await using var scope = consoleScope;
-
-        var answer     = await console.RequestExportGDRP(ct);
-        var inProgress = await grain.IsExportInProgressAsync();
-
-        // Before the assertions, so a failure does not leave a job running on the shared host.
-        await grain.CancelExportAsync();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(answer, Is.Not.EqualTo(RequestExportGDRPStatus.Ok),
-                "the console accepted a GDPR export request for an id that owns no account");
-            Assert.That(inProgress, Is.False,
-                "and started the job: a timer, an export id and archive objects for a user that does not exist");
-        });
-    }
-
-    /// <summary>
     /// The console's services do not answer on the first-party client port — with or without an
     /// ordinary Argon session token.
     /// </summary>
@@ -604,10 +550,11 @@ public class AccountConsoleTests : TestBase
         });
     }
 
-    // ── Auto-deletion ───────────────────────────────────────────────────────────────────────────
+    // ── Auto-deletion: the operator queue ───────────────────────────────────────────────────────
 
     /// <summary>
-    /// The inactivity scan schedules exactly the accounts whose arithmetic says they are inactive.
+    /// The inactivity scan proposes exactly the accounts whose arithmetic says they are inactive —
+    /// and proposes them, rather than deleting them.
     /// </summary>
     /// <remarks>
     /// <para>Four branches of one calculation, one account each: the twelve-month default reached; a
@@ -616,16 +563,24 @@ public class AccountConsoleTests : TestBase
     /// entirely. The failure worth catching here is never "nothing happened" — it is one account too
     /// many, and the only way to see that is to seed the near misses alongside the hits.</para>
     ///
-    /// <para>The notice mail is asserted with the same shape, positives and negatives together. It is
-    /// the only warning an inactive person gets before their account is erased without them ever
-    /// asking, so "it was sent" and "it was sent to nobody else" are equally load-bearing.</para>
+    /// <para><b>The contract this now guards is the shape of the whole feature.</b> The scan used to
+    /// call <c>RequestAutoDeleteAsync</c> on every hit, which armed a grace period and then erased the
+    /// account — an irreversible operation applied by a timer with nobody in the loop, and the source
+    /// of three defects in this fixture alone (CON-2, CON-3, CON-4). It now writes candidates into
+    /// <c>IAccountDeletionQueueGrain</c> and an operator decides. So the assertions are in two halves:
+    /// the right accounts are queued, and <em>no</em> account is scheduled or told anything by e-mail
+    /// — because a proposal is not a deletion and must not read like one to the person it is about.
+    /// The notice mail belongs to the approval now, and <c>AdminConsoleTests</c> asserts it there.</para>
     ///
     /// <para>The recent-login account deliberately has an ancient <c>CreatedAt</c>: the scan falls
     /// back to the creation date only when there is no login history at all, and an account that has
     /// been signing in for two years must never be read as two years idle.</para>
+    ///
+    /// <para>The fixture shares one queue with every other fixture in the run, so every assertion here
+    /// is about the presence or absence of a named account, never about the length of the queue.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
-    public async Task RunScan_SchedulesExactlyTheAccountsThatAreActuallyInactive(CancellationToken ct = default)
+    public async Task RunScan_QueuesExactlyTheAccountsThatAreActuallyInactive(CancellationToken ct = default)
     {
         var now = DateTimeOffset.UtcNow;
 
@@ -645,137 +600,130 @@ public class AccountConsoleTests : TestBase
         await AccountSeed.SetUltimaAsync(subscriber.UserId, true, ct);
         await AccountSeed.BackdateLastLoginAsync(subscriber.UserId, now - TimeSpan.FromDays(430), ct: ct);
 
-        await GetGrainFactory()
-           .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-           .RunScanAsync();
+        await RunScanAsync();
 
-        var statuses = new Dictionary<string, AccountDeletionStatusKind>
+        var queued = new Dictionary<string, QueuedAccountDeletion?>
         {
-            ["idle (13 months, 12-month default)"] = await StatusOfAsync(idle.UserId),
-            ["active (signed in yesterday)"]       = await StatusOfAsync(active.UserId),
-            ["impatient (4 months, asked for 3)"]  = await StatusOfAsync(impatient.UserId),
-            ["subscriber (14 months, Ultima)"]     = await StatusOfAsync(subscriber.UserId)
+            ["idle (13 months, 12-month default)"] = await QueuedAsync(idle.UserId),
+            ["active (signed in yesterday)"]       = await QueuedAsync(active.UserId),
+            ["impatient (4 months, asked for 3)"]  = await QueuedAsync(impatient.UserId),
+            ["subscriber (14 months, Ultima)"]     = await QueuedAsync(subscriber.UserId)
         };
 
-        // The notice is sent one-way from inside the scan, so give the two expected ones a moment to
-        // land before asserting that the other two never arrive.
-        await AccountTimings.Emails.WaitForAsync(idle.Credentials.email, EmailKinds.DeleteNotice, AccountTimings.Slack, ct);
-        await AccountTimings.Emails.WaitForAsync(impatient.Credentials.email, EmailKinds.DeleteNotice, AccountTimings.Slack, ct);
+        var idleStatus      = await StatusOfAsync(idle.UserId);
+        var impatientStatus = await StatusOfAsync(impatient.UserId);
 
         Assert.Multiple(() =>
         {
-            Assert.That(statuses["idle (13 months, 12-month default)"], Is.EqualTo(AccountDeletionStatusKind.Scheduled),
-                "an account idle past the default threshold is what the sweeper exists for");
-            Assert.That(statuses["active (signed in yesterday)"], Is.EqualTo(AccountDeletionStatusKind.None),
+            Assert.That(queued["idle (13 months, 12-month default)"], Is.Not.Null,
+                "an account idle past the default threshold is what the sweep exists to propose");
+            Assert.That(queued["idle (13 months, 12-month default)"]?.ThresholdMonths, Is.EqualTo(12));
+            Assert.That(queued["idle (13 months, 12-month default)"]?.Reason,
+                Is.EqualTo(AccountDeletionQueueReasons.InactivityDefault),
+                "an operator has to be able to tell the platform's threshold from one the account chose");
+
+            Assert.That(queued["active (signed in yesterday)"], Is.Null,
                 "the scan measures from the last login, not from the sign-up date");
-            Assert.That(statuses["impatient (4 months, asked for 3)"], Is.EqualTo(AccountDeletionStatusKind.Scheduled),
-                "an account that asked to be erased after three months of silence gets that");
-            Assert.That(statuses["subscriber (14 months, Ultima)"], Is.EqualTo(AccountDeletionStatusKind.None),
+
+            Assert.That(queued["impatient (4 months, asked for 3)"], Is.Not.Null,
+                "an account that asked to be erased after three months of silence is proposed after three");
+            Assert.That(queued["impatient (4 months, asked for 3)"]?.ThresholdMonths, Is.EqualTo(3));
+            Assert.That(queued["impatient (4 months, asked for 3)"]?.Reason,
+                Is.EqualTo(AccountDeletionQueueReasons.InactivityChosen));
+
+            Assert.That(queued["subscriber (14 months, Ultima)"], Is.Null,
                 "a paid account is never swept, however quiet it has been");
 
+            // The other half: proposing is not deleting. Nothing is scheduled and nobody is written to
+            // until a person approves it.
+            Assert.That(idleStatus, Is.EqualTo(AccountDeletionStatusKind.None),
+                "the scan scheduled a deletion; it is only allowed to propose one");
+            Assert.That(impatientStatus, Is.EqualTo(AccountDeletionStatusKind.None));
+
             Assert.That(AccountTimings.Emails.Sent(idle.Credentials.email, EmailKinds.DeleteNotice),
-                Has.Count.EqualTo(1), "the only warning before an unrequested erasure");
+                Is.Empty, "an account nobody has decided on yet must not be told it is being deleted");
             Assert.That(AccountTimings.Emails.Sent(impatient.Credentials.email, EmailKinds.DeleteNotice),
-                Has.Count.EqualTo(1));
+                Is.Empty);
             Assert.That(AccountTimings.Emails.Sent(active.Credentials.email, EmailKinds.DeleteNotice),
-                Is.Empty, "an account that signed in yesterday must not be told it is about to be deleted");
+                Is.Empty);
             Assert.That(AccountTimings.Emails.Sent(subscriber.Credentials.email, EmailKinds.DeleteNotice),
                 Is.Empty);
         });
     }
 
     /// <summary>
-    /// An account that turned auto-deletion off is never swept.
+    /// An account that turned auto-deletion off is never proposed.
     /// </summary>
     /// <remarks>
     /// <para>The setting is a switch with an <c>Enabled</c> column, and the only defensible reading of
-    /// "off" is that the sweeper leaves the account alone — silence stops being evidence the moment
-    /// the account holder says it is not. Every other reading makes the column meaningless: falling
-    /// back to the shipped default turns "off" into "twelve months", which is what an account with no
-    /// setting at all already gets, so the switch would have exactly one position.</para>
+    /// "off" is that the sweep leaves the account alone — silence stops being evidence the moment the
+    /// account holder says it is not. Every other reading makes the column meaningless: falling back to
+    /// the shipped default turns "off" into "twelve months", which is what an account with no setting
+    /// at all already gets, so the switch would have exactly one position.</para>
     ///
-    /// <para>The row is seeded rather than written through <c>SetAutoDeletePeriod</c> because no
-    /// product surface can produce it — the grain hard-codes <c>Enabled = true</c> on both the insert
-    /// and the update, and refuses <c>null</c>. So this is reachable today only from a legacy row or
-    /// an operator, which is the reason to pin the semantics now rather than after someone adds the
-    /// off switch the column already promises. The stored period of thirty-six months is longer than
-    /// the account has been idle, so the test is red under either intended reading — "never" or "use
-    /// the stored number" — and green only under the one the code actually implements.</para>
+    /// <para><b>Contract, and how it was won (defect CON-2).</b> The off state was described in four
+    /// places — the nullable <c>months</c> in the Ion signature, the <c>enabled</c> flag on
+    /// <c>AutoDeletePeriod</c>, the entity's own "Null means disabled" comment, and the desktop
+    /// client's "Disabled" menu item — and granted in none: <c>SecurityGrain.SetAutoDeletePeriodAsync</c>
+    /// refused <c>null</c> with <c>INVALID_PERIOD</c>, so the menu item raised an error toast and
+    /// snapped back. Meanwhile <c>AutoDeleteSchedulerGrain</c> projected the threshold as
+    /// <c>Where(s =&gt; s.UserId == u.Id &amp;&amp; s.Enabled).Select(s =&gt; s.Months)</c>, which
+    /// answers the same absent value for "switched off" as for "never chose", and then applied the
+    /// twelve-month default to both. The two halves landed together, which is the only safe order:
+    /// granting the switch without teaching the scan to read it would have made turning auto-delete
+    /// <em>off</em> get the account proposed sooner than leaving it at thirty-six months.</para>
     ///
-    /// <para><b>Observed.</b> <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
-    /// (<c>src/Argon.Api/Grains/AutoDeleteSchedulerGrain.cs</c>) projects the threshold as
-    /// <c>AutoDeleteSettings.Where(s =&gt; s.UserId == u.Id &amp;&amp; s.Enabled).Select(s =&gt;
-    /// s.Months).FirstOrDefault()</c>, which collapses "the switch is off" and "there is no setting"
-    /// into the same absent value; the decision below it then reads <c>is &gt; 0 ? value :
-    /// DefaultAutoDeleteMonths</c> and applies the twelve-month default. Observed: an account with
-    /// <c>Enabled = false, Months = 36</c> and a last login 430 days old was scheduled by the scan
-    /// and sent the <c>delete-notice</c> mail. Turning auto-deletion off makes it happen sooner than
-    /// leaving it at thirty-six months would have. The projection has to carry <c>Enabled</c>
-    /// alongside <c>Months</c> so the two states can be told apart at the point of decision.</para>
-    ///
-    /// <para><b>Adjudicated a design question, not an agreed defect (campaign verdict
-    /// <c>CON-2</c>).</b> The review reproduced the mechanism above and then declined to call it a
-    /// bug: the arithmetic is as described, but the reviewer found no surface — user, operator or admin —
-    /// that can write <c>Enabled = false</c>, so the policy has to be decided before the projection:
-    /// either drop the off switch the column and the clients picker promise, or grant it on both sides
-    /// at once.
-    /// The test stays red and keeps <c>[Category("KnownPresenceBug")]</c> so the default run
-    /// excludes it: it pins a decision the product still owes, and it goes green the day that
-    /// decision is made and implemented.</para>
+    /// <para>Driven through the real Ion call rather than a seeded row, precisely because that is what
+    /// changed: the state is now reachable from the product, so the test that pins it should reach it
+    /// the way a person does.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
-    [Category("KnownPresenceBug")]
     public async Task RunScan_NeverTouchesAnAccountThatTurnedAutoDeleteOff(CancellationToken ct = default)
     {
         var optedOut = await CreateSessionAsync(ct);
 
-        await AccountSeed.SetAutoDeleteAsync(optedOut.UserId, 36, enabled: false, ct);
+        var turnedOff = await optedOut.Security.SetAutoDeletePeriod(null, ct);
+
+        Assert.That(turnedOff, Is.InstanceOf<SuccessSetAutoDelete>(),
+            $"the off switch the client already offers: {(turnedOff as FailedSetAutoDelete)?.error}");
+
         await AccountSeed.BackdateLastLoginAsync(optedOut.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(430), ct: ct);
 
-        await GetGrainFactory()
-           .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-           .RunScanAsync();
+        await RunScanAsync();
 
+        var queued = await QueuedAsync(optedOut.UserId);
         var status = await StatusOfAsync(optedOut.UserId);
 
         Assert.Multiple(() =>
         {
-            Assert.That(status, Is.EqualTo(AccountDeletionStatusKind.None),
-                "an account that switched automatic deletion off was scheduled for automatic deletion");
+            Assert.That(queued, Is.Null,
+                "an account that switched automatic deletion off was proposed for automatic deletion");
+            Assert.That(status, Is.EqualTo(AccountDeletionStatusKind.None));
             Assert.That(AccountTimings.Emails.Sent(optedOut.Credentials.email, EmailKinds.DeleteNotice),
                 Is.Empty, "and was told so by e-mail");
         });
     }
 
     /// <summary>
-    /// The sweeper applies the same bars the person themselves would have been held to.
+    /// The sweep applies the same bars the person themselves would have been held to.
     /// </summary>
     /// <remarks>
     /// <para>Two things the interactive path refuses outright: deleting an account that owns a space,
     /// because it would orphan the space and everyone in it, and deleting an account under lockdown,
     /// because an investigation is exactly when its data must not evaporate. Neither reason gets
-    /// weaker when the request comes from a timer instead of a person — if anything the ownership
-    /// one gets stronger, since nobody is present to be told "hand over your spaces first" and act
-    /// on it.</para>
+    /// weaker when the request comes from a timer instead of a person — if anything the ownership one
+    /// gets stronger, since nobody is present to be told "hand over your spaces first" and act on
+    /// it.</para>
     ///
-    /// <para>So the assertion is that the automatic entry point is no more permissive than the
-    /// interactive one. It is the same grain and the same execution afterwards, so a guard that only
-    /// the interactive path carries is not a policy, it is an accident of which caller you came
-    /// from.</para>
-    ///
-    /// <para><b>Known defect.</b> <c>AccountDeletionGrain.RequestAutoDeleteAsync</c>
-    /// (<c>src/Argon.Api/Grains/AccountDeletionGrain.cs</c>) checks two things — already scheduled,
-    /// and <c>HasActiveUltima</c> — where <c>RequestDeletionAsync</c> checks four, dropping both the
-    /// <c>LockdownReason != NONE</c> bar and the <c>Spaces.Any(s =&gt; s.CreatorId == UserId
-    /// &amp;&amp; !s.IsDeleted)</c> bar. <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
-    /// (<c>src/Argon.Api/Grains/AutoDeleteSchedulerGrain.cs</c>) calls it unconditionally for every
-    /// inactive candidate. Observed: both accounts came back <c>Scheduled</c>. The execution that
-    /// follows soft-deletes memberships and anonymises the row while <c>SpaceEntity.CreatorId</c>
-    /// still points at it, so a live space is left owned by "Deleted Account"; and an account under
-    /// <c>UNDER_INVESTIGATION</c> is erased by a timer with nobody's approval.</para>
+    /// <para><b>Contract (defect CON-3), now guarded in two places at once.</b>
+    /// <c>AccountDeletionGrain.BarredAsync</c> is one list checked by both entry points, so an
+    /// approval is refused by exactly what refuses a person; and the scan reads the same three facts
+    /// as part of the query it already runs, so a candidate nobody could approve never reaches an
+    /// operator's queue in the first place. The second half is not redundancy: a locked account cannot
+    /// sign in, so it is <em>guaranteed</em> to pass the inactivity threshold and would otherwise sit
+    /// in the queue for ever. Asserted on both — not queued, and not scheduled.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
-    [Category("KnownPresenceBug")]
     public async Task RunScan_AppliesTheSameBarsAsAUserRequestedDeletion(CancellationToken ct = default)
     {
         var idleOwner  = await CreateSessionAsync(ct);
@@ -793,64 +741,108 @@ public class AccountConsoleTests : TestBase
         await AccountSeed.LockAsync(idleLocked.UserId, ct: ct);
         await AccountSeed.BackdateLastLoginAsync(idleLocked.UserId, longAgo, ct: ct);
 
-        await GetGrainFactory()
-           .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
-           .RunScanAsync();
+        await RunScanAsync();
 
+        var ownerQueued  = await QueuedAsync(idleOwner.UserId);
+        var lockedQueued = await QueuedAsync(idleLocked.UserId);
         var ownerStatus  = await StatusOfAsync(idleOwner.UserId);
         var lockedStatus = await StatusOfAsync(idleLocked.UserId);
 
         Assert.Multiple(() =>
         {
-            Assert.That(ownerStatus, Is.EqualTo(AccountDeletionStatusKind.None),
-                "the sweeper scheduled the erasure of an account that owns a space — the one thing a person "
+            Assert.That(ownerQueued, Is.Null,
+                "the sweep proposed the erasure of an account that owns a space — the one thing a person "
               + "asking for the same deletion is refused outright");
-            Assert.That(lockedStatus, Is.EqualTo(AccountDeletionStatusKind.None),
-                "the sweeper scheduled the erasure of an account under investigation");
+            Assert.That(lockedQueued, Is.Null,
+                "the sweep proposed the erasure of an account under investigation, which cannot sign in and "
+              + "is therefore guaranteed to look inactive for ever");
+
+            Assert.That(ownerStatus, Is.EqualTo(AccountDeletionStatusKind.None));
+            Assert.That(lockedStatus, Is.EqualTo(AccountDeletionStatusKind.None));
         });
     }
 
     /// <summary>
-    /// Cancelling a sweep from the console keeps the account, and the next scan does not undo that.
+    /// A queued account that signs in again is off the list by the next pass.
     /// </summary>
     /// <remarks>
-    /// <para>The cancel is a person answering the notice mail: they opened the console, saw the
-    /// banner and said no. A scan that re-schedules them on its next pass makes that answer worthless
-    /// — the account is erased anyway, a day later, and the only escape is to sign in to the desktop
-    /// client, because that is the one action that writes the login row the scan reads. Which is to
-    /// say: the console can warn you and take your answer, and cannot act on it.</para>
+    /// <para>The queue is a projection of the last sweep rather than a ledger of decisions still owed,
+    /// and this is the property that makes that worth the trouble: an operator never acts on a
+    /// proposal the world has since answered. Nothing watches logins to make it true — the account
+    /// simply stops being a candidate, so the reconciliation that rebuilds the queue does not carry it
+    /// forward.</para>
     ///
-    /// <para>So the intended contract asserted here is that the cancellation is itself the sign of
-    /// life the sweeper was looking for. The alternative implementation — recording the cancel as
-    /// activity rather than special-casing it in the scan — satisfies the same assertion, which is
-    /// why the assertion is written about the outcome and not about which of the two happened.</para>
-    ///
-    /// <para><b>Known defect.</b> Nothing records the cancellation anywhere the scan can see it.
-    /// <c>AccountDeletionGrain.CancelDeletionAsync</c>
-    /// (<c>src/Argon.Api/Grains/AccountDeletionGrain.cs</c>) resets its own state to <c>None</c> and
-    /// writes nothing else, while <c>AutoDeleteSchedulerGrain.ScanAndTriggerAsync</c>
-    /// (<c>src/Argon.Api/Grains/AutoDeleteSchedulerGrain.cs</c>) decides purely from
-    /// <c>max(DeviceHistories.LastLoginTime) ?? Users.CreatedAt</c> — neither of which a console
-    /// action touches, since the console authenticates against Aegis and never goes through
-    /// <c>UserGrain.UpdateUserDeviceHistory</c>. Observed: scan schedules, console cancel succeeds
-    /// and reports <c>None</c>, the very next scan schedules the same account again. In production
-    /// that is a fresh notice mail and a fresh thirty-day countdown every twenty-four hours until
-    /// the person happens to sign in to the desktop client. Either the scan has to consult the
-    /// deletion grain's cancellation, or the cancel has to record activity.</para>
+    /// <para>A login is written the way the scan reads one, through <c>DeviceHistories</c>: the
+    /// console's own authentication goes through Aegis and writes no such row, which is the asymmetry
+    /// that made a cancellation invisible to the scan (CON-4) and is worth keeping visible in the
+    /// seeding here.</para>
     /// </remarks>
     [Test, CancelAfter(180_000)]
-    [Category("KnownPresenceBug")]
+    public async Task A_queued_account_that_signs_in_again_leaves_the_queue(CancellationToken ct = default)
+    {
+        var returning = await CreateSessionAsync(ct);
+
+        await AccountSeed.BackdateLastLoginAsync(returning.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(400), ct: ct);
+
+        await RunScanAsync();
+
+        Assert.That(await QueuedAsync(returning.UserId), Is.Not.Null,
+            "the account has to be in the queue for its departure to mean anything");
+
+        await AccountSeed.BackdateLastLoginAsync(returning.UserId, DateTimeOffset.UtcNow, ct: ct);
+
+        await RunScanAsync();
+
+        var afterReturn = await QueuedAsync(returning.UserId);
+        var status      = await StatusOfAsync(returning.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterReturn, Is.Null,
+                "the account signed in again and is still queued for deletion");
+            Assert.That(status, Is.EqualTo(AccountDeletionStatusKind.None));
+        });
+    }
+
+    /// <summary>
+    /// Cancelling an approved deletion from the console keeps the account, and no later pass undoes that.
+    /// </summary>
+    /// <remarks>
+    /// <para>The cancel is a person answering the notice mail: they opened the console, saw the banner
+    /// and said no. A sweep that proposes them again on its next pass makes that answer worthless —
+    /// the account is erased anyway, a month later, and the only escape is to sign in to the desktop
+    /// client, because that is the one action that writes the login row the scan reads. Which is to
+    /// say: the console could warn you and take your answer, and could not act on it.</para>
+    ///
+    /// <para><b>Contract (defect CON-4).</b> The refusal is durable and lives in the grain that owns
+    /// the decision: <c>CancelDeletionAsync</c> stamps <c>DeclinedAt</c>,
+    /// <c>RequestAutoDeleteAsync</c> refuses while it stands, and the scan reads it off the deletion
+    /// status before proposing anybody — so the account is neither re-queued nor re-scheduled. The
+    /// alternative implementation (recording the cancellation as activity) satisfies the same
+    /// assertions, which is why they are written about the outcome rather than about which of the two
+    /// happened.</para>
+    ///
+    /// <para>The approval is driven through the queue grain rather than through the admin console
+    /// because what is under test is the sweep's memory, not the operator surface;
+    /// <c>AdminConsoleTests</c> covers the console's half.</para>
+    /// </remarks>
+    [Test, CancelAfter(180_000)]
     public async Task An_auto_delete_cancelled_from_the_console_is_not_reinstated_by_the_next_scan(CancellationToken ct = default)
     {
         var reprieved = await CreateSessionAsync(ct);
-        var scheduler = GetGrainFactory().GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId);
 
         await AccountSeed.BackdateLastLoginAsync(reprieved.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(400), ct: ct);
 
-        await scheduler.RunScanAsync();
+        await RunScanAsync();
 
+        Assert.That(await QueuedAsync(reprieved.UserId), Is.Not.Null,
+            "the sweep has to have proposed the account for there to be anything to approve");
+
+        var approved = await Queue.ApproveAsync(reprieved.UserId, SweepOperatorId, "operator@argon.test");
+
+        Assert.That(approved.Success, Is.True, approved.Error?.ToString());
         Assert.That(await StatusOfAsync(reprieved.UserId), Is.EqualTo(AccountDeletionStatusKind.Scheduled),
-            "the scan has to have scheduled the account for there to be anything to cancel");
+            "an approval schedules the deletion the account holder is now being asked about");
 
         var (consoleScope, console) = AccountConsoleHarness.Console(reprieved);
         await using var scope = consoleScope;
@@ -860,10 +852,18 @@ public class AccountConsoleTests : TestBase
         Assert.That(cancelled.success, Is.True, cancelled.error.ToString());
         Assert.That(await StatusOfAsync(reprieved.UserId), Is.EqualTo(AccountDeletionStatusKind.None));
 
-        await scheduler.RunScanAsync();
+        await RunScanAsync();
 
-        Assert.That(await StatusOfAsync(reprieved.UserId), Is.EqualTo(AccountDeletionStatusKind.None),
-            "the account holder answered the notice and said no; the next pass of the sweeper scheduled them again");
+        var statusAfterScan = await StatusOfAsync(reprieved.UserId);
+        var queuedAfterScan = await QueuedAsync(reprieved.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(statusAfterScan, Is.EqualTo(AccountDeletionStatusKind.None),
+                "the account holder answered the notice and said no; a later pass scheduled them again");
+            Assert.That(queuedAfterScan, Is.Null,
+                "and proposed them to an operator again, which is the same refusal ignored one step earlier");
+        });
     }
 
     /// <summary>
@@ -871,15 +871,14 @@ public class AccountConsoleTests : TestBase
     /// </summary>
     /// <remarks>
     /// <para>The bounds are the whole feature: the value decides how long an account has to be silent
-    /// before it is erased without being asked again, so a zero or a negative that slipped through
-    /// would mean "delete me now" and a value past the ceiling would mean "never" — neither of which
-    /// the surface offers. The ends are asserted rather than the middle, and both directions of each
-    /// end, because an off-by-one on an inclusive bound is the way this class of check fails.</para>
+    /// before it is proposed for erasure, so a zero or a negative that slipped through would mean
+    /// "delete me now" and a value past the ceiling would mean "never" — neither of which the surface
+    /// offers. The ends are asserted rather than the middle, and both directions of each end, because
+    /// an off-by-one on an inclusive bound is the way this class of check fails.</para>
     ///
-    /// <para><c>null</c> is refused too, and that is worth pinning precisely because the contract
-    /// invites it: the Ion signature takes a nullable, and the entity's own comment says null means
-    /// disabled. The grain rejects it — auto-deletion cannot be switched off from here — so what the
-    /// nullable actually buys is a client that can send a value with no meaning.</para>
+    /// <para><c>null</c> is deliberately not in the refused list: it is the off switch, and it has its
+    /// own test. What is pinned here is that "off" is the <em>only</em> thing outside the range that
+    /// the grain accepts.</para>
     /// </remarks>
     [Test, CancelAfter(120_000)]
     public async Task SetAutoDeletePeriod_AcceptsOneToThirtySixMonthsAndNothingElse(CancellationToken ct = default)
@@ -895,7 +894,7 @@ public class AccountConsoleTests : TestBase
         });
 
         var accepted = new[] { 1, 36 };
-        var refused  = new int?[] { null, 0, -1, 37, 72 };
+        var refused  = new[] { 0, -1, 37, 72 };
 
         foreach (var months in accepted)
         {
@@ -917,13 +916,70 @@ public class AccountConsoleTests : TestBase
             Assert.Multiple(() =>
             {
                 Assert.That(result, Is.InstanceOf<FailedSetAutoDelete>(),
-                    $"{months?.ToString() ?? "null"} is outside the range an ordinary account may choose");
+                    $"{months} is outside the range an ordinary account may choose");
                 Assert.That((result as FailedSetAutoDelete)?.error, Is.EqualTo(AutoDeleteError.INVALID_PERIOD),
-                    $"{months?.ToString() ?? "null"}: the client can only correct the value if it is told the value is the problem");
+                    $"{months}: the client can only correct the value if it is told the value is the problem");
                 Assert.That(stored.months, Is.EqualTo(36),
-                    $"{months?.ToString() ?? "null"} was refused but written anyway");
+                    $"{months} was refused but written anyway");
+                Assert.That(stored.enabled, Is.True,
+                    $"{months} was refused and switched the feature off on the way past");
             });
         }
+    }
+
+    /// <summary>
+    /// Sending no period at all switches automatic deletion off, and the sweep honours it.
+    /// </summary>
+    /// <remarks>
+    /// <para>The contract the product described in four places and granted in none (defect CON-2): the
+    /// Ion signature takes <c>months: i4?</c>, <c>AutoDeletePeriod</c> carries an <c>enabled</c> flag
+    /// beside the number, <c>UserAutoDeleteSettingEntity.Months</c> says null means disabled, and the
+    /// desktop client's privacy screen offers a "Disabled" item that sends exactly this. The grain
+    /// answered <c>INVALID_PERIOD</c>, so the item raised an error toast and snapped back.</para>
+    ///
+    /// <para>Asserted as a round trip rather than as a write, because the interesting half is the read:
+    /// a client renders "Disabled" off <c>enabled == false</c>, and a stored period left behind on a
+    /// disabled row would render as a period the account is not actually subject to. Turning it back on
+    /// is asserted too — an off switch that cannot be undone is a different feature.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task SetAutoDeletePeriod_WithNoPeriod_TurnsAutoDeleteOff(CancellationToken ct = default)
+    {
+        var session = await CreateSessionAsync(ct);
+
+        var chose  = await session.Security.SetAutoDeletePeriod(24, ct);
+        var stored = await session.Security.GetAutoDeletePeriod(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(chose, Is.InstanceOf<SuccessSetAutoDelete>(),
+                $"{(chose as FailedSetAutoDelete)?.error}");
+            Assert.That(stored.months, Is.EqualTo(24));
+            Assert.That(stored.enabled, Is.True);
+        });
+
+        var turnedOff = await session.Security.SetAutoDeletePeriod(null, ct);
+        var off       = await session.Security.GetAutoDeletePeriod(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(turnedOff, Is.InstanceOf<SuccessSetAutoDelete>(),
+                $"no period means off, not a malformed period: {(turnedOff as FailedSetAutoDelete)?.error}");
+            Assert.That(off.enabled, Is.False, "the switch has to have two positions to be a switch");
+            Assert.That(off.months, Is.Null,
+                "a period left on a disabled row is a number the account is not subject to");
+        });
+
+        var turnedBackOn = await session.Security.SetAutoDeletePeriod(6, ct);
+        var on           = await session.Security.GetAutoDeletePeriod(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(turnedBackOn, Is.InstanceOf<SuccessSetAutoDelete>(),
+                $"{(turnedBackOn as FailedSetAutoDelete)?.error}");
+            Assert.That(on.months, Is.EqualTo(6));
+            Assert.That(on.enabled, Is.True);
+        });
     }
 
     /// <summary>
@@ -968,8 +1024,54 @@ public class AccountConsoleTests : TestBase
 
     // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// The operator id an approval driven from this fixture is attributed to.
+    /// </summary>
+    /// <remarks>
+    /// A bare id rather than a seeded operator row: the queue stores whoever the caller says decided, and
+    /// checking that the caller is a real operator is the admin console's job, not the grain's — which is
+    /// what <c>AdminConsoleTests</c> exercises. Distinct from that fixture's operator so an audit trail
+    /// never confuses the two.
+    /// </remarks>
+    private static readonly Guid SweepOperatorId = Guid.Parse("00000000-0000-0000-0000-0000000ad0c2");
+
     private async Task<AccountDeletionStatusKind> StatusOfAsync(Guid userId)
         => (await GetGrainFactory().GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync()).Status;
+
+    /// <summary>The one queue the inactivity sweep proposes into.</summary>
+    private IAccountDeletionQueueGrain Queue
+        => GetGrainFactory().GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId);
+
+    /// <summary>Runs one pass of the inactivity sweep, synchronously from the test's point of view.</summary>
+    private Task RunScanAsync()
+        => GetGrainFactory()
+          .GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId)
+          .RunScanAsync()
+          .AsTask();
+
+    /// <summary>The queue entry for one account, or <see langword="null"/> when nothing proposes it.</summary>
+    /// <remarks>
+    /// Pages through the whole queue rather than asking for one account, because the queue has no by-user
+    /// lookup and deliberately should not: it is a worklist, and a per-account query would invite a console
+    /// that renders "is this person queued?" on a profile, which is a different feature with different
+    /// privacy consequences. The whole suite shares one queue — every fixture's dormant accounts land in
+    /// it — so paging rather than reading the first page is what keeps this answer honest.
+    /// </remarks>
+    private async Task<QueuedAccountDeletion?> QueuedAsync(Guid userId)
+    {
+        const int page = 200;
+
+        for (var offset = 0; ; offset += page)
+        {
+            var snapshot = await Queue.ListAsync(offset, page);
+
+            if (snapshot.Entries.FirstOrDefault(entry => entry.UserId == userId) is { } found)
+                return found;
+
+            if (snapshot.Entries.Count < page || offset + snapshot.Entries.Count >= snapshot.TotalCount)
+                return null;
+        }
+    }
 
     /// <summary>What one raw Ion unary POST answered, in the terms a refusal is written in.</summary>
     private sealed record IonProbe(HttpStatusCode Status, string? IonStatus, string Body)

@@ -373,6 +373,41 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
         await service.DeleteChat(__peerid);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task BeginUploadAttachment_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.BeginUploadAttachment");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.BeginUploadAttachment(__peerid);
+        
+        IonFormatterStorage<IUploadFileResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task CompleteUploadAttachment_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "UserChatInteractions.CompleteUploadAttachment");
+    
+        var __peerid = IonFormatterStorage<guid>.Read(reader);
+        var __blobid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.CompleteUploadAttachment(__peerid, __blobid);
+        
+        IonFormatterStorage<AttachmentInfo>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task SendDirectMessage_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IUserChatInteractions>();
@@ -429,6 +464,10 @@ public sealed class Ion_UserChatInteractions_ServiceExecutor(AsyncServiceScope s
             return MarkChatRead_Execute(reader, writer, ct);
         if (methodName.Equals("DeleteChat", StringComparison.InvariantCultureIgnoreCase))
             return DeleteChat_Execute(reader, writer, ct);
+        if (methodName.Equals("BeginUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
+            return BeginUploadAttachment_Execute(reader, writer, ct);
+        if (methodName.Equals("CompleteUploadAttachment", StringComparison.InvariantCultureIgnoreCase))
+            return CompleteUploadAttachment_Execute(reader, writer, ct);
         if (methodName.Equals("SendDirectMessage", StringComparison.InvariantCultureIgnoreCase))
             return SendDirectMessage_Execute(reader, writer, ct);
         if (methodName.Equals("QueryDirectMessages", StringComparison.InvariantCultureIgnoreCase))

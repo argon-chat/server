@@ -149,29 +149,27 @@ public sealed class Ion_DataExportStatus_Formatter : IonFormatter<DataExportStat
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public DataExportStatus Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(7, "DataExportStatus");
+        var arraySize = reader.ReadStartMessage(6, "DataExportStatus");
         var __status = IonFormatterStorage<DataExportStatusKind>.Read(reader);
         var __exportid = reader.ReadNullable<guid>();
         var __startedat = reader.ReadNullable<datetime>();
         var __completedat = reader.ReadNullable<datetime>();
         var __downloadurl = reader.ReadNullable<string>();
         var __itemsprocessed = IonFormatterStorage<i4>.Read(reader);
-        var __totalitemsestimate = IonFormatterStorage<i4>.Read(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__status, __exportid, __startedat, __completedat, __downloadurl, __itemsprocessed, __totalitemsestimate);
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__status, __exportid, __startedat, __completedat, __downloadurl, __itemsprocessed);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, DataExportStatus value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(6);
         IonFormatterStorage<DataExportStatusKind>.Write(writer, value.status);
         IonFormatterStorage<guid>.WriteNullable(writer, value.exportId);
         IonFormatterStorage<datetime>.WriteNullable(writer, value.startedAt);
         IonFormatterStorage<datetime>.WriteNullable(writer, value.completedAt);
         IonFormatterStorage<string>.WriteNullable(writer, value.downloadUrl);
         IonFormatterStorage<i4>.Write(writer, value.itemsProcessed);
-        IonFormatterStorage<i4>.Write(writer, value.totalItemsEstimate);
         writer.WriteEndArray();
     }
 }

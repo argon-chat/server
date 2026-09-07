@@ -34,7 +34,7 @@ using Microsoft.Extensions.DependencyInjection;
 /// amount of correct model configuration changes that; only <c>ALTER TABLE … SET LOCALITY</c>, issued
 /// at runtime against the live catalogue, does. Run these the day the reconciler is allowed to apply
 /// and they should go green without any other change. See
-/// <c>docs/architecture/table-placement-reconciler.md</c>.</para>
+/// <c>docs/internal/architecture/table-placement-reconciler.md</c>.</para>
 ///
 /// <para><b>Read the failure, not just the colour.</b> Right-reason red is an assertion diff: the
 /// statement came back, and it carries <c>LOCALITY REGIONAL BY TABLE IN PRIMARY REGION</c> — what a

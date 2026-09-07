@@ -42,6 +42,16 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendExportReadyAsync)), OneWay]
     Task SendExportReadyAsync(string email, string displayName, string downloadUrl);
 
+    /// <summary>The third outcome of an export, and the one that had no mail (defect X7).</summary>
+    /// <remarks>
+    /// Started and ready were the whole conversation, so an export that threw part-way left the
+    /// person who asked for their data waiting on a promise the product had put in writing. No
+    /// failure reason travels with it: what a person can act on is that it did not work and that
+    /// asking again is allowed.
+    /// </remarks>
+    [Alias(nameof(SendExportFailedAsync)), OneWay]
+    Task SendExportFailedAsync(string email, string displayName);
+
     [Alias(nameof(SendDeletionScheduledAsync)), OneWay]
     Task SendDeletionScheduledAsync(string email, string displayName, DateTimeOffset deletionDate);
 

@@ -131,6 +131,27 @@ public class UserInteractionImpl(
     public async Task<ArgonUserProfile> GetMyProfile(CancellationToken ct = default)
         => await this.GetGrain<IUserGrain>(this.GetUserId()).GetMyProfile();
 
+    /// <summary>
+    /// Resolves a person the caller has standing to know, by id alone.
+    /// </summary>
+    /// <remarks>
+    /// <para>Reads through <see cref="IUserGrain.GetIdentityIncludingDeleted"/> rather than
+    /// <c>GetMe</c> — defect ACC-06, pinned by
+    /// <c>AccountPeripheralTests.A_deleted_peer_still_resolves_to_the_tombstone_identity</c>.
+    /// <c>GetMe</c> is a self-read and runs under the global soft-delete filter with
+    /// <c>FirstAsync</c>, so an account a deletion anonymised in place did not come back here as
+    /// "not found" — it threw, and the caller got <c>UPSTREAM_ERROR</c>. This is the only route a
+    /// client has to a user id its local cache does not hold, so that landed on precisely the DM peer
+    /// of a deleted account: a conversation that still reads, with nobody at the top of it, and a
+    /// failing request re-fired on every render because a throw is never remembered as an answer.</para>
+    ///
+    /// <para>A deleted account now resolves to the tombstone the deletion wrote — "Deleted Account",
+    /// no avatar, <c>UserFlag.DELETED</c> — which is what <c>ServerInteraction.PrefetchUser</c> has
+    /// always answered for the same person, so the two surfaces stop disagreeing. <c>NOT_FOUND</c>
+    /// below is reachable now and means what it says: no row with that id. It is deliberately not the
+    /// answer for a deleted account, because the client treats a refusal as settled and mutes the id
+    /// for the rest of the session.</para>
+    /// </remarks>
     public async Task<ILookupUserResult> LookupUser(Guid userId, CancellationToken ct = default)
     {
         var callerId = this.GetUserId();
@@ -138,11 +159,11 @@ public class UserInteractionImpl(
         if (!await CanReachAsync(callerId, userId, ct))
             return new FailedLookupUser(LookupError.NO_ANCHOR);
 
-        var user = await this.GetGrain<IUserGrain>(userId).GetMe();
+        var user = await this.GetGrain<IUserGrain>(userId).GetIdentityIncludingDeleted();
 
         return user is null
             ? new FailedLookupUser(LookupError.NOT_FOUND)
-            : new SuccessLookupUser(user.ToDto());
+            : new SuccessLookupUser(user);
     }
 
     public async Task<ILookupProfileResult> LookupProfile(Guid userId, CancellationToken ct = default)

@@ -9,18 +9,18 @@ using Argon.Features.Clustering;
 /// <para>These were four <c>static readonly</c> fields and a <c>const</c> at the top of
 /// <c>UserDataExportGrain</c>, and like the presence timings they are a system rather than five
 /// independent numbers: the archive has to outlive at least one tick of the pump that produced it,
-/// the fast first tick has to be no slower than the steady one it precedes, and the batch size
-/// decides how much of a busy channel a person actually receives. Written down as constants those
+/// the fast first tick has to be no slower than the steady one it precedes, and the page size
+/// decides how much of a busy channel one tick of that pump reads. Written down as constants those
 /// relationships were invisible; written down here <see cref="Validate"/> is what enforces them.</para>
 ///
 /// <para><b>The defaults are exactly the constants that shipped</b> — thirty seconds a tick, one
 /// second to the first, a thirty-day rate limit, a forty-eight-hour archive, two hundred messages a
-/// batch — and nothing in a deployment is expected to change them. They are configuration for the
+/// page — and nothing in a deployment is expected to change them. They are configuration for the
 /// integration suite, which asserts what an export does across a tick boundary, what a second request
 /// inside the rate-limit window answers, what the status says once the archive has expired, and what
-/// happens to the messages past the end of a batch. Against shipped values the last of those is
+/// happens to the messages past the end of a page. Against shipped values the last of those is
 /// untestable at all (two hundred and one messages per channel, per case) and the rest cost days;
-/// against a one-second tick and a five-message batch they cost seconds and assert the same thing,
+/// against a one-second tick and a five-message page they cost seconds and assert the same thing,
 /// because every one of them is written as a ratio of these values rather than as a wall-clock
 /// number.</para>
 /// </remarks>
@@ -71,13 +71,15 @@ public sealed class DataExportOptions : IValidatableFeatureOptions
     /// </remarks>
     public TimeSpan ArchiveTtl { get; set; } = TimeSpan.FromHours(48);
 
-    /// <summary>How many of the caller's messages one channel or conversation contributes.</summary>
+    /// <summary>How many of the caller's messages one channel contributes per tick.</summary>
     /// <remarks>
-    /// A ceiling rather than a page size: the collector takes this many and moves on, so it is
-    /// literally how much of a busy channel a person receives. That is a product decision and a
-    /// defensible one at two hundred; it is here because it is also the single number that makes the
-    /// truncation testable — six messages against a batch of five say everything two hundred and one
-    /// against two hundred would.
+    /// A page size, and only that. It used to be a ceiling — the collector took this many messages
+    /// from a channel and advanced for good, so a person received their two hundred oldest messages
+    /// there and nothing they had written since, silently (defect X2). The cursor carries a message
+    /// offset now and the pages are merged into one file per channel, so this number decides how
+    /// much work one tick does and nothing about what the archive contains. It stays configurable
+    /// because it is also the number that makes the paging testable: six messages against a page of
+    /// five say everything two hundred and one against two hundred would.
     /// </remarks>
     public int MessageBatchSize { get; set; } = 200;
 
@@ -104,8 +106,8 @@ public sealed class DataExportOptions : IValidatableFeatureOptions
                 "negative means the thing it paces either never happens or happens continuously");
 
         report.Require(MessageBatchSize > 0, nameof(MessageBatchSize),
-            $"is {MessageBatchSize}; the archive would carry a channels folder with no messages in " +
-            "it, which is an export that silently omits the data it exists to hand over");
+            $"is {MessageBatchSize}; a page of no messages never advances the offset the channel " +
+            "collector pages by, so an export would walk one channel forever and never assemble");
 
         // The first tick is meant to be the fast one. Longer than the steady period it precedes, it
         // is not an optimisation any more, it is a delay in front of every export.

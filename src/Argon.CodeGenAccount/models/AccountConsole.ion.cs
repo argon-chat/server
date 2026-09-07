@@ -103,6 +103,7 @@ public enum RequestExportGDRPStatus : u4
     Ok = 1,
     Already = 2,
     RateLimit = 3,
+    AccountDeletionScheduled = 4,
 }
 
 /// <summary>Open-enum helpers for <see cref="RequestExportGDRPStatus"/>.</summary>
@@ -117,7 +118,7 @@ public static class Ion_RequestExportGDRPStatus_OpenEnum
 {
     /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
     public static bool IsKnown(this RequestExportGDRPStatus value)
-        => value == RequestExportGDRPStatus.Unknown || value == RequestExportGDRPStatus.Ok || value == RequestExportGDRPStatus.Already || value == RequestExportGDRPStatus.RateLimit;
+        => value == RequestExportGDRPStatus.Unknown || value == RequestExportGDRPStatus.Ok || value == RequestExportGDRPStatus.Already || value == RequestExportGDRPStatus.RateLimit || value == RequestExportGDRPStatus.AccountDeletionScheduled;
 
     /// <summary>
     /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no

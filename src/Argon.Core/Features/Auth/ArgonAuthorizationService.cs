@@ -44,12 +44,43 @@ public class ArgonAuthorizationService(
         Expiration           = TimeSpan.FromMinutes(1),
         LocalCacheExpiration = TimeSpan.FromMinutes(1)
     };
+
+    /// <summary>
+    /// The e-mail-and-password door, and the only one this product has.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect ACC-16, pinned by
+    /// <c>AccountPeripheralTests.Signing_in_without_an_email_is_refused_rather_than_answered_with_a_500</c>.
+    /// <c>email</c> is optional on the wire — <c>UserCredentialsInput</c> declares it nullable and the
+    /// formatter reads it as such — and until commit 97d08aa6 a missing one simply matched nothing and
+    /// came back as <c>BAD_CREDENTIALS</c>. That commit moved the query onto the normalised column for
+    /// case-insensitivity and, on the two overloads that take the nullable input, dereferenced it
+    /// inside the expression tree, so an omitted field became a <c>NullReferenceException</c> on an
+    /// unauthenticated path: <c>UPSTREAM_ERROR</c> over Ion, <c>500 server_error</c> over
+    /// <c>/api/auth/oauth/authorize</c>, no attempt counted, and — because
+    /// <c>IdentityInteraction.Authorize</c> skips the per-e-mail throttle when there is no e-mail to
+    /// throttle on — cheap to repeat. An optional field the schema publishes must not be a crash.</para>
+    ///
+    /// <para>The refusal goes through the existing "no such user" branch on purpose, so the attempt is
+    /// recorded with the same <c>bad_credentials</c> tags any other miss would carry. Normalising
+    /// before the query, as <c>Register</c> already does, also keeps EF from evaluating
+    /// <c>ToLowerInvariant()</c> as a query-parameter expression.</para>
+    ///
+    /// <para><c>username</c> and <c>phone</c> stay unread, and that is not an oversight being left in
+    /// place: sign-in by username has never existed here, neither client offers it, and adding one
+    /// would widen the account-enumeration surface. They are optional fields this door ignores; they
+    /// simply must not crash it.</para>
+    /// </remarks>
     public async Task<Either<SuccessAuthorize, AuthorizationError>> Authorize(UserCredentialsInput input, string userIp, string machineId)
     {
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == input.email.ToLowerInvariant());
+        var normalizedEmail = string.IsNullOrWhiteSpace(input.email) ? null : input.email.ToLowerInvariant();
+
+        var user = normalizedEmail is null
+            ? null
+            : await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
 
         if (user is null)
         {
@@ -101,12 +132,24 @@ public class ArgonAuthorizationService(
         return result;
     }
 
+    /// <summary>
+    /// The same door, for the OIDC side of the house.
+    /// </summary>
+    /// <remarks>
+    /// The same door for the OIDC side, and the same defect ACC-16 guard: the OAuth token endpoint
+    /// hands this whatever the request body carried, so an omitted <c>email</c> answered
+    /// <c>500 server_error</c> from <c>AuthController</c>'s catch instead of refusing the grant.
+    /// </remarks>
     public async Task<Either<SuccessAuthorize, AuthorizationError>> ExternalAuthorize(UserCredentialsInput input)
     {
         var             sw = Stopwatch.StartNew();
         await using var db = await dbFactory.CreateDbContextAsync();
 
-        var user = await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == input.email.ToLowerInvariant());
+        var normalizedEmail = string.IsNullOrWhiteSpace(input.email) ? null : input.email.ToLowerInvariant();
+
+        var user = normalizedEmail is null
+            ? null
+            : await db.Users.FirstOrDefaultAsync(u => u.NormalizedEmail == normalizedEmail);
 
         if (user is null)
         {

@@ -105,14 +105,28 @@ $presenceFixtures = @(
 # to regenerate). The order inside a shard is meaningless — NUnit schedules fixtures itself — but the
 # grouping is not: it is what makes the shards finish within a few seconds of each other.
 #
-# As measured, these two are 90 s of serial work each against the presence shard's 606 s and
-# topology's 128 s of strictly serial work, so what balances them does not show in the wall clock
-# today — 67 s and 51 s of wall against topology's 178 s. They are split anyway, and regenerated
+# As measured, these two were 90 s of serial work each against the presence shard's 606 s and
+# topology's 128 s of strictly serial work, so what balances them did not show in the wall clock
+# then — 67 s and 51 s of wall against topology's 178 s. They are split anyway, and regenerated
 # rather than hand-tuned, because the day the two slow shards stop dominating is the day this
 # matters. The previous split had drifted to 108 s against 73 s, which is what regenerating is for.
+#
+# The five account fixtures added on 2026-09-06/07 (the GDPR export / account deletion / console
+# campaign) are the day that started to matter: measured in one process they cost 182 s
+# (DataExportArchiveTests, which waits out export ticks and a 40 s archive TTL), 68 s
+# (AccountDeletionTests), 41 s (AccountConsoleTests), 37 s (AccountHarnessSmokeTests) and under a
+# second (AccountPeripheralTests, which only reads contract shapes). Hand-placed rather than
+# regenerated — DataExportArchiveTests alone into the second shard, the other four into the first —
+# which keeps the two general shards near each other and keeps every fixture that drives
+# AutoDeleteSchedulerGrain's whole-table scan inside one stack. Regenerate with -FromTrx after the
+# next full sharded run.
 $generalShards = @(
-    @(   # 90 s serial
+    @(   # ~237 s serial
+        'AccountConsoleTests'
+        'AccountDeletionTests'
+        'AccountHarnessSmokeTests'
         'AccountLifecycleTests'
+        'AccountPeripheralTests'
         'AdminConsoleTests'
         'AdminModerationWorkflowTests'
         'ArchetypeTests'
@@ -133,12 +147,13 @@ $generalShards = @(
         'SpaceSnapshotTests'
         'SpaceTests'
     ),
-    @(   # 90 s serial
+    @(   # ~272 s serial
         'AegisOAuthTests'
         'AegisRoleTests'
         'BotApiTests'
         'ChannelBadgeTests'
         'ClusterTopologyTests'
+        'DataExportArchiveTests'
         'MessageTests'
         'OtpTests'
         'ProfileLookupTests'

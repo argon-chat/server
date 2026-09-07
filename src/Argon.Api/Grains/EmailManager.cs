@@ -491,7 +491,12 @@ public class EmailManager(
 
         if (!smtpOptions.Value.Enabled)
         {
-            logger.LogWarning("[EXPORT READY]: {Email}, url: {Url}", email, downloadUrl);
+            // The address only. The presigned GET is an unauthenticated capability over the whole
+            // archive — profile.json carries the e-mail, phone and date of birth, devices.json up to a
+            // hundred IP addresses, and every message the person wrote — good for the archive's full
+            // TTL, and log read access is a wider group than object-store read access (defect R8).
+            // Nothing operational is lost: the owner reads the same link from GetDataExportStatus.
+            logger.LogWarning("[EXPORT READY]: {Email}", email);
             return;
         }
 
@@ -510,6 +515,35 @@ public class EmailManager(
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed to send export ready email to '{email}'", email);
+        }
+    }
+
+    [OneWay]
+    public async Task SendExportFailedAsync(string email, string displayName)
+    {
+        Observe(email, EmailKinds.ExportFailed, "Your data export could not be completed",
+            () => formStorage.Render("export_failed", new Dictionary<string, string> { { "displayName", displayName } }));
+
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("[EXPORT FAILED]: {Email}", email);
+            return;
+        }
+
+        var form = formStorage.Render("export_failed", new Dictionary<string, string>
+        {
+            { "displayName", displayName }
+        });
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var msg = CreateMessage(email, "Your data export could not be completed", form);
+            await SendAsync(email, msg, cts.Token);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send export failed email to '{email}'", email);
         }
     }
 

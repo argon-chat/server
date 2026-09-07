@@ -45,7 +45,17 @@ public enum ExportRequestError
 {
     AlreadyInProgress,
     RateLimited,
-    NotConfigured
+    NotConfigured,
+
+    /// <summary>The account is scheduled for erasure, executing it, or already erased.</summary>
+    /// <remarks>
+    /// The export front door is shut for an account on its way out (defect ACC-11): building a
+    /// fresh, downloadable copy of everything that is about to be erased — one that outlives the
+    /// account by the archive's lifetime — is the opposite of what the erasure was asked for.
+    /// Cancelling the deletion lifts the refusal, which is what the console tells the person.
+    /// Pinned by <c>AccountDeletionTests.An_export_cannot_be_started_for_an_account_under_deletion</c>.
+    /// </remarks>
+    AccountDeletionScheduled
 }
 
 [GenerateSerializer, Immutable]
@@ -57,7 +67,8 @@ public sealed record ExportStatusDto
     [Id(3)] public DateTimeOffset? CompletedAt { get; init; }
     [Id(4)] public string? DownloadUrl { get; init; }
     [Id(5)] public int ItemsProcessed { get; init; }
-    [Id(6)] public int TotalItemsEstimate { get; init; }
+    // Id 6 was TotalItemsEstimate, always zero and carried to the client as a denominator nothing
+    // could divide by; dropped from the wire and from here with defect X8. The ordinal is retired.
     [Id(7)] public string? FailureReason { get; init; }
 }
 

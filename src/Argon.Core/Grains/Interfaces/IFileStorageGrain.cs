@@ -45,14 +45,24 @@ public interface IFileStorageGrain : IGrainWithGuidKey
     Task<FileInfoResponse> FinalizeUploadAsync(Guid blobId, CancellationToken ct = default);
 
     /// <summary>
-    ///     Increment reference count for a file (e.g. attached to a message).
+    ///     Increment reference count for a file the caller owns (e.g. attached to a message).
     /// </summary>
+    /// <remarks>Owner-scoped, exactly as <see cref="DecrementRefAsync"/> is — see its remarks.</remarks>
     [Alias(nameof(IncrementRefAsync))]
     Task IncrementRefAsync(Guid fileId, CancellationToken ct = default);
 
     /// <summary>
-    ///     Decrement reference count for a file (e.g. message deleted).
+    ///     Decrement reference count for a file the caller owns (e.g. message deleted).
     /// </summary>
+    /// <remarks>
+    ///     <b>Both counters are scoped to the file's owner, and the grain key is who that is.</b>
+    ///     <c>FileStorageController</c> puts <c>POST /api/files/{fileId}/increment|decrement</c> in
+    ///     front of these with the caller's id as the grain key and the file id straight off the
+    ///     route, so without the scope any authenticated caller could take any file to zero
+    ///     references and have <c>FileGcService</c> delete it (defect R1). A call naming a file the
+    ///     caller does not own does nothing and is logged; it is not an error, because the honest
+    ///     answer to "release this" from somebody who holds nothing is that nothing happened.
+    /// </remarks>
     [Alias(nameof(DecrementRefAsync))]
     Task DecrementRefAsync(Guid fileId, CancellationToken ct = default);
 

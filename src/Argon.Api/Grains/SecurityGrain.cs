@@ -603,23 +603,45 @@ public class SecurityGrain(
         }
     }
 
+    /// <summary>
+    /// Sets — or, with no period at all, switches off — the account's inactivity deletion.
+    /// </summary>
+    /// <remarks>
+    /// <para><b><c>null</c> means off, and used to mean <c>INVALID_PERIOD</c>.</b> Four places in the
+    /// product describe an off state: the Ion signature takes a nullable, <c>AutoDeletePeriod</c> carries an
+    /// <c>enabled</c> flag beside the months, <c>UserAutoDeleteSettingEntity.Months</c> says in as many
+    /// words that null means disabled, and the desktop client's privacy screen offers a "Disabled" item and
+    /// sends exactly this. Only the write path disagreed, so the item was dead: it raised an error toast and
+    /// snapped back. Defect CON-2, pinned by
+    /// <c>AccountConsoleTests.SetAutoDeletePeriod_WithNoPeriod_TurnsAutoDeleteOff</c>.</para>
+    ///
+    /// <para><b>Granting the off switch is only half a change, and the dangerous half on its own.</b> The
+    /// inactivity scan used to read the setting as
+    /// <c>Where(s =&gt; s.UserId == u.Id &amp;&amp; s.Enabled).Select(s =&gt; s.Months)</c>, which answers
+    /// the same absent value for "switched off" and "never chose", and then fell back to the twelve-month
+    /// platform default — so an account that turned auto-delete off would have been proposed for deletion
+    /// <em>sooner</em> than one that left it at thirty-six months. <c>AutoDeleteSchedulerGrain</c> reads
+    /// <c>Enabled</c> alongside <c>Months</c> and skips a disabled row outright; the two land together and
+    /// must stay together.</para>
+    ///
+    /// <para><c>Months</c> is cleared rather than kept, so the row says the same thing the entity's own
+    /// comment says and <c>GetAutoDeletePeriodAsync</c> answers <c>(null, false)</c> — which is what the
+    /// client renders as "Disabled". Turning it back on is a period like any other.</para>
+    /// </remarks>
     public async Task<ISetAutoDeleteResult> SetAutoDeletePeriodAsync(int? months, CancellationToken ct = default)
     {
         try
         {
-            // null is not allowed - auto-delete cannot be disabled
-            if (!months.HasValue)
-                return new FailedSetAutoDelete(AutoDeleteError.INVALID_PERIOD);
-
             await using var db = await dbFactory.CreateDbContextAsync(ct);
             var user = await db.Users.AsNoTracking().FirstOrDefaultAsync(u => u.Id == UserId, ct);
 
             // Premium users can set up to 72 months, regular users up to 36
             var maxMonths = user?.HasActiveUltima == true ? 72 : 36;
 
-            if (months.Value < 1 || months.Value > maxMonths)
+            if (months is { } chosen && (chosen < 1 || chosen > maxMonths))
                 return new FailedSetAutoDelete(AutoDeleteError.INVALID_PERIOD);
 
+            var enabled = months.HasValue;
             var setting = await db.AutoDeleteSettings.FirstOrDefaultAsync(s => s.UserId == UserId, ct);
 
             if (setting is null)
@@ -628,8 +650,8 @@ public class SecurityGrain(
                 {
                     Id = ArgonId.New(),
                     UserId = UserId,
-                    Months = months.Value,
-                    Enabled = true,
+                    Months = months,
+                    Enabled = enabled,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
                 };
@@ -637,8 +659,8 @@ public class SecurityGrain(
             }
             else
             {
-                setting.Months = months.Value;
-                setting.Enabled = true;
+                setting.Months = months;
+                setting.Enabled = enabled;
                 setting.UpdatedAt = DateTimeOffset.UtcNow;
             }
 
@@ -655,6 +677,15 @@ public class SecurityGrain(
         }
     }
 
+    /// <summary>
+    /// What the account chose, or the platform default it has never moved off.
+    /// </summary>
+    /// <remarks>
+    /// Three answers rather than two, since <see cref="SetAutoDeletePeriodAsync"/> learned to switch the
+    /// feature off: no row means the shipped twelve months, a row with <c>Enabled</c> means the period the
+    /// account chose, and a row without it means <c>(null, false)</c> — off, which the clients render as
+    /// "Disabled" and the inactivity scan reads as "never propose this account".
+    /// </remarks>
     public async Task<AutoDeletePeriod> GetAutoDeletePeriodAsync(CancellationToken ct = default)
     {
         try

@@ -67,6 +67,57 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(DoJoinUserAsync))]
     Task<bool> DoJoinUserAsync(ulong? joinedViaInviteId = null);
 
+    /// <summary>
+    /// Takes <paramref name="userId"/> off this space's roster: soft-deletes the membership,
+    /// invalidates the cached roster and announces the departure.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect ACC-03, pinned by
+    /// <c>AccountDeletionTests.The_spaces_are_told_the_member_left_and_stop_listing_them</c>. Account
+    /// erasure removed memberships with a bare <c>ExecuteUpdateAsync</c> from its own
+    /// <c>DbContext</c> — no invalidation and no event — while every roster mutation inside
+    /// <c>SpaceGrain</c> calls <c>Invalidate()</c>, so <c>SpaceReadGrain</c> went on serving the
+    /// erased member out of a snapshot whose distributed expiry is two minutes and no client was ever
+    /// told to drop them. This is where that mutation belongs: one type owns the roster, its cache and
+    /// its announcements, and a caller outside the space cannot get two of the three right and miss
+    /// the last one.</para>
+    ///
+    /// <para>Idempotent by design — a membership already soft-deleted is not announced again — so a
+    /// resumed or retried erasure cannot fan the same departure out twice.</para>
+    /// </remarks>
+    [Alias(nameof(RemoveMemberAsync))]
+    Task RemoveMemberAsync(Guid userId);
+
+    /// <summary>
+    /// Says that <paramref name="userId"/> has left, for a membership whose row is already gone:
+    /// invalidates the cached roster and fires <c>LeavedFromServerUser</c>, and touches no row.
+    /// </summary>
+    /// <remarks>
+    /// <para>The recovery half of <see cref="RemoveMemberAsync"/>, and it exists because that method's
+    /// idempotence has a cost. It commits the soft-delete, then invalidates, then announces; if the
+    /// distributed cache or the message bus is briefly unavailable the row is already gone when the
+    /// throw happens, and every later attempt sees <c>removed == 0</c> and returns silently by design.
+    /// The departure is then never announced: no bot gets its <c>MemberLeave</c>, and every client
+    /// holding that space keeps the erased member until it happens to bootstrap the space again. That
+    /// is defect ACC-03 surviving on the error path (finding R22), and <c>AccountDeletionGrain</c> is
+    /// the caller that meets it — an erasure walks every space the account was in, so a ten-second
+    /// NATS outage across forty spaces strands whichever ones threw after committing.</para>
+    ///
+    /// <para>So the erasure records the space ids it could not announce
+    /// (<c>AccountDeletionGrainState.PendingDepartureAnnouncements</c>) and replays them through here
+    /// on its next attempt. Separate from <see cref="RemoveMemberAsync"/> rather than a flag on it,
+    /// because the two have opposite safety rules: that one must never announce a departure twice, and
+    /// this one must announce one whose row is already gone. Only a caller that knows it owes an
+    /// announcement may ask for it, and nothing else in the product calls this.</para>
+    ///
+    /// <para>Announcing a departure for somebody who never left is harmless in the direction that
+    /// matters — a client that does not hold the member drops nothing, and the roster is re-read from
+    /// the database — but it is still a roster event observers cannot reconcile, which is why this is
+    /// not the general leave path.</para>
+    /// </remarks>
+    [Alias(nameof(AnnounceMemberLeftAsync))]
+    Task AnnounceMemberLeftAsync(Guid userId);
+
     [Alias(nameof(SetBoostStripHidden))]
     Task SetBoostStripHidden(bool hidden);
 

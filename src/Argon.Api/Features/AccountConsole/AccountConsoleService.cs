@@ -79,9 +79,12 @@ public sealed class AccountConsoleService : IAccountConsole
 
         return result.Error switch
         {
-            ExportRequestError.AlreadyInProgress => RequestExportGDRPStatus.Already,
-            ExportRequestError.RateLimited       => RequestExportGDRPStatus.RateLimit,
-            _                                    => RequestExportGDRPStatus.Unknown
+            ExportRequestError.AlreadyInProgress        => RequestExportGDRPStatus.Already,
+            ExportRequestError.RateLimited              => RequestExportGDRPStatus.RateLimit,
+            // The console renders this one as a reason and not as a fault: the export is refused for
+            // as long as the deletion stands, and cancelling the deletion lifts it (defect ACC-11).
+            ExportRequestError.AccountDeletionScheduled => RequestExportGDRPStatus.AccountDeletionScheduled,
+            _                                           => RequestExportGDRPStatus.Unknown
         };
     }
 

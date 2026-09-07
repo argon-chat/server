@@ -11,7 +11,7 @@ using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 
 /// <summary>
-/// The report system. See <c>docs/architecture/report-system.md</c> for the design and the threat
+/// The report system. See <c>docs/internal/architecture/report-system.md</c> for the design and the threat
 /// model; the short version is at the top of <see cref="ReportSystemOptions"/>.
 /// </summary>
 /// <remarks>

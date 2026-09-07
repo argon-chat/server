@@ -121,6 +121,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<DeviceList>.Value = new Ion_DeviceList_Formatter();
       IonFormatterStorage<DeviceAccount>.Value = new Ion_DeviceAccount_Formatter();
       IonFormatterStorage<DeviceAccountList>.Value = new Ion_DeviceAccountList_Formatter();
+      IonFormatterStorage<AccountDeletionQueuePage>.Value = new Ion_AccountDeletionQueuePage_Formatter();
+      IonFormatterStorage<AccountDeletionQueueEntry>.Value = new Ion_AccountDeletionQueueEntry_Formatter();
+      IonFormatterStorage<StrandedAccountDeletion>.Value = new Ion_StrandedAccountDeletion_Formatter();
+      IonFormatterStorage<StrandedAccountDeletionPage>.Value = new Ion_StrandedAccountDeletionPage_Formatter();
       IonFormatterStorage<SearchMatchKind>.Value = new Ion_SearchMatchKind_Formatter();
       IonFormatterStorage<DeviceTypeKind>.Value = new Ion_DeviceTypeKind_Formatter();
       IonFormatterStorage<ItemScenarioKind>.Value = new Ion_ItemScenarioKind_Formatter();
@@ -128,6 +132,7 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AdminDevAppType>.Value = new Ion_AdminDevAppType_Formatter();
       IonFormatterStorage<SpaceSearchMatchKind>.Value = new Ion_SpaceSearchMatchKind_Formatter();
       IonFormatterStorage<ReportActionKind>.Value = new Ion_ReportActionKind_Formatter();
+      IonFormatterStorage<AccountDeletionQueueEntryState>.Value = new Ion_AccountDeletionQueueEntryState_Formatter();
       IonExecutorMetadataStorage.AddExecutor<Ion_AdminConsole_ServiceExecutor>("IAdminConsole");
       IonExecutorMetadataStorage.AddClient<Ion_AdminConsole_ClientImpl>("IAdminConsole");
 

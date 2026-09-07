@@ -215,16 +215,109 @@ public class FileStorageGrain(
             file.Purpose, downloadUrl, file.S3Key);
     }
 
+    /// <inheritdoc cref="IFileStorageGrain.IncrementRefAsync"/>
     public async Task IncrementRefAsync(Guid fileId, CancellationToken ct = default)
     {
+        if (!await OwnedByCallerAsync(fileId, "retain", ct))
+            return;
+
         await refCount.IncrementAsync(fileId, 1, ct);
         StorageInstruments.RefIncrements.Add(1);
     }
 
+    /// <summary>
+    /// Releases one reference to a file this account owns, never taking the count below zero.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The ownership test is the security half and it is not a formality.</b> Defect R1:
+    /// <c>POST /api/files/{fileId}/decrement</c> takes any file id from any authenticated caller, and
+    /// the grain it reaches is keyed by the caller while the id is not checked against anything. One
+    /// call took a stranger's file from its single reference to zero, and
+    /// <c>FileGcService.SweepOrphanFilesAsync</c> — <c>RefCount &lt;= 0</c> past a grace period —
+    /// then deleted the S3 object and the row. Clamping at zero, which is all this method used to do,
+    /// stops the count going negative and does nothing whatever about 1 → 0. So the release is scoped
+    /// to the file's owner instead: a reference nobody can show they hold is not released.</para>
+    ///
+    /// <para><b>No holder argument, because every caller in the tree is the owner.</b> A file's
+    /// <c>OwnerId</c> is the account that asked for the upload URL (<see cref="RequestUploadAsync"/>),
+    /// including a space avatar or a channel attachment — those are space-<em>scoped</em>, not
+    /// space-owned — so <c>SpaceGrain.CompleteUploadSpaceFile</c>, <c>UserGrain</c>'s moderation
+    /// rejection and its avatar replacement, and <c>AccountDeletionGrain</c>'s walk over the files an
+    /// account owns all release their own. The one call that deliberately reached somebody else's file
+    /// is <c>AccountDeletionGrain.AnonymizeUserAsync</c>'s targeted avatar release, which existed only
+    /// because <c>UserGrain.UpdateProfileAsync</c> would take an <c>avatarId</c> belonging to another
+    /// account; that is now refused at the source, and this refuses the release itself.</para>
+    ///
+    /// <para>A refusal is a no-op with a warning rather than an exception: the callers that could hit
+    /// it are erasure steps whose exception budget is spent on real failures, and the endpoint answers
+    /// the same either way, so throwing would only turn "the file is not yours" into a probe for
+    /// whether a file id exists.</para>
+    ///
+    /// <para>The clamp stays, for the case ownership cannot decide: a file the owner releases twice.
+    /// (Defect ACC-08, pinned by
+    /// <c>AccountPeripheralTests.Releasing_a_file_twice_leaves_its_reference_count_at_zero</c> —
+    /// <c>AccountDeletionGrain</c> released the avatar by id and then walked every file the account
+    /// owns, the avatar included.) It is a compensation rather than a guard because the count is only
+    /// knowable after the fact: <c>ReferenceCountService</c> takes the row <c>FOR UPDATE</c> and
+    /// returns what it wrote, so reading first and deciding after would be the race this is meant to
+    /// survive. The compensation puts back exactly the one reference this call took — not the whole
+    /// overshoot — so concurrent releases each undo their own and the row converges on zero instead of
+    /// being pushed back up by whichever one saw the deepest negative.</para>
+    /// </remarks>
     public async Task DecrementRefAsync(Guid fileId, CancellationToken ct = default)
     {
-        await refCount.DecrementAsync(fileId, 1, ct);
+        if (!await OwnedByCallerAsync(fileId, "release", ct))
+            return;
+
+        var remaining = await refCount.DecrementAsync(fileId, 1, ct);
         StorageInstruments.RefDecrements.Add(1);
+
+        if (remaining >= 0)
+            return;
+
+        logger.LogWarning(
+            "Reference release took file {FileId} to {RefCount}; clamping back to zero. "
+          + "Something released a reference it did not hold.", fileId, remaining);
+
+        await refCount.IncrementAsync(fileId, 1, ct);
+    }
+
+    /// <summary>
+    /// Whether the file exists and belongs to the account this grain is keyed by.
+    /// </summary>
+    /// <remarks>
+    /// <para>Reads with <c>IgnoreQueryFilters</c> on purpose. A soft-deleted row is still a file whose
+    /// owner may release its reference — the count is the only thing that tells
+    /// <c>FileGcService</c> the bytes are collectable, so hiding the row from its owner would leave
+    /// the object in the store for ever — and <c>AccountDeletionGrain</c> reads the same table the
+    /// same way when it decides which files an erasure has to release.</para>
+    ///
+    /// <para>A file with no row at all is refused too: there is nothing to own, and the alternative is
+    /// <c>ReferenceCountService</c> throwing <c>KeyNotFoundException</c> at a caller that only wanted
+    /// to say "I am done with this".</para>
+    /// </remarks>
+    private async Task<bool> OwnedByCallerAsync(Guid fileId, string operation, CancellationToken ct)
+    {
+        var userId = this.GetPrimaryKey();
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+
+        var owner = await db.Files
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .Where(f => f.Id == fileId)
+           .Select(f => (Guid?)f.OwnerId)
+           .FirstOrDefaultAsync(ct);
+
+        if (owner == userId)
+            return true;
+
+        logger.LogWarning(
+            "Refused to {Operation} a reference to file {FileId} for user {UserId}: the file belongs "
+          + "to {OwnerId}. A reference count may only be moved by the account that owns the file.",
+            operation, fileId, userId, owner);
+
+        return false;
     }
 
     public async Task<FileInfoResponse?> GetFileInfoAsync(Guid fileId, CancellationToken ct = default)
@@ -273,7 +366,9 @@ public class FileStorageGrain(
             case FilePurpose.Video:
                 return _limits.VideoMaxBytes;
 
+            // A direct chat has no space to be boosted, so only the base limit and Ultima apply.
             case FilePurpose.ChannelAttachment:
+            case FilePurpose.DirectAttachment:
             {
                 var limit = _limits.AttachmentBaseMaxBytes;
 

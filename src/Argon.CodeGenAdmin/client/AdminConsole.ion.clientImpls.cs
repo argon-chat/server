@@ -164,6 +164,16 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(SetFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> DeleteFeatureFlagOverride_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(DeleteFeatureFlagOverride), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetAccountDeletionQueue_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetAccountDeletionQueue), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ApproveAccountDeletion_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ApproveAccountDeletion), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> RejectAccountDeletion_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(RejectAccountDeletion), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetStrandedAccountDeletions_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetStrandedAccountDeletions), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> ResumeAccountDeletion_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(ResumeAccountDeletion), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetTenantDirectory_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetTenantDirectory), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CreateTenant_Ref = new(() =>
@@ -1453,6 +1463,93 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<FeatureFlagActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AccountDeletionQueuePage> GetAccountDeletionQueue(i4 __offset, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetAccountDeletionQueue_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AccountDeletionQueuePage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ApproveAccountDeletion(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ApproveAccountDeletion_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> RejectAccountDeletion(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), RejectAccountDeletion_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<StrandedAccountDeletionPage> GetStrandedAccountDeletions(i4 __offset, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetStrandedAccountDeletions_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<StrandedAccountDeletionPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> ResumeAccountDeletion(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), ResumeAccountDeletion_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default)

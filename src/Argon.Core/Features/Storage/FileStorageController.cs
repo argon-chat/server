@@ -56,6 +56,12 @@ public class FileStorageController(IClusterClient client) : ControllerBase
         return Ok(new { url });
     }
 
+    // The two reference endpoints take a file id from the route and reach the grain keyed by the
+    // caller, which is the whole of what identifies the holder — so the grain, not this controller, is
+    // where the id is checked against Files.OwnerId (defect R1: any caller could take any file to zero
+    // references and have the GC delete it). A call naming somebody else's file answers 204 and does
+    // nothing, deliberately: the same answer for "not yours" and "already released" is what stops this
+    // being a probe for which file ids exist.
     [HttpPost("{fileId:guid}/increment")]
     public async Task<IActionResult> IncrementRef([FromRoute] Guid fileId, CancellationToken ct)
     {

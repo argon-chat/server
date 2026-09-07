@@ -13,6 +13,38 @@ public interface IUserGrain : IGrainWithGuidKey
     [Alias(nameof(GetAsArgonUser))]
     Task<ArgonUser> GetAsArgonUser();
 
+    /// <summary>
+    /// This user's public identity as anyone else sees it, resolved even when the account has been
+    /// deleted. <see langword="null"/> only when no row with that id has ever existed.
+    /// </summary>
+    /// <remarks>
+    /// <para>Defect ACC-06, pinned by
+    /// <c>AccountPeripheralTests.A_deleted_peer_still_resolves_to_the_tombstone_identity</c> and by
+    /// <c>AccountDeletionTests.The_social_graph_forgets_the_deleted_account</c>. <see cref="GetMe"/>
+    /// reads under the global <c>!IsDeleted</c> filter every <c>ArgonEntity</c> carries, and it reads
+    /// with <c>FirstAsync</c> — so for an account an executed deletion anonymised in place it does not
+    /// answer "gone", it throws, and <c>UserInteraction.LookupUser</c> handed the caller an
+    /// <c>UPSTREAM_ERROR</c>. That call is the client's only id-only route to a person its local cache
+    /// does not hold, which is exactly the situation of a DM peer on a fresh install, so the chat
+    /// window of a surviving conversation had nothing to put at the top of it.</para>
+    ///
+    /// <para>Kept as a separate method rather than widening <see cref="GetMe"/> or
+    /// <see cref="GetAsArgonUser"/>, because both of those are read for their filtering:
+    /// <see cref="GetMe"/> is a self-read and would hand a deleted account its own row back, and
+    /// <see cref="GetAsArgonUser"/>'s throw is what <c>XsollaWebHookController</c>, Ultima gifting and
+    /// <c>BotUserCache</c> use as an existence check — a gift must not land on an erased account. The
+    /// name says which of the two this is, so a future caller has to choose on purpose.</para>
+    ///
+    /// <para>Deletion already writes the tombstone this returns — display name "Deleted Account", a
+    /// randomised <c>deleted_…</c> username, no avatar — and <c>UserEntity.GetFlags</c> raises
+    /// <c>UserFlag.DELETED</c> from the same row, which is how a client tells a tombstone from a
+    /// person. Nothing identifying survives on the DTO: <c>ArgonUser</c> is id, username, display
+    /// name, avatar and flags. It is the shape <c>SpaceGrain.PrefetchUser</c> has always used, so the
+    /// two ways of looking at the same deleted account now agree.</para>
+    /// </remarks>
+    [Alias(nameof(GetIdentityIncludingDeleted))]
+    Task<ArgonUser?> GetIdentityIncludingDeleted();
+
     [Alias(nameof(GetMyProfile))]
     Task<ArgonUserProfile> GetMyProfile();
 

@@ -167,9 +167,10 @@ export enum RequestExportGDRPStatus
   Ok = 1,
   Already = 2,
   RateLimit = 3,
+  AccountDeletionScheduled = 4,
 }
 
-const declaredRequestExportGDRPStatus: ReadonlySet<unknown> = new Set<unknown>([RequestExportGDRPStatus.Unknown, RequestExportGDRPStatus.Ok, RequestExportGDRPStatus.Already, RequestExportGDRPStatus.RateLimit]);
+const declaredRequestExportGDRPStatus: ReadonlySet<unknown> = new Set<unknown>([RequestExportGDRPStatus.Unknown, RequestExportGDRPStatus.Ok, RequestExportGDRPStatus.Already, RequestExportGDRPStatus.RateLimit, RequestExportGDRPStatus.AccountDeletionScheduled]);
 
 /**
  * Open-enum helpers for {@link RequestExportGDRPStatus}.

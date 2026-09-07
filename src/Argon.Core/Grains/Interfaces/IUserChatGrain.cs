@@ -1,5 +1,6 @@
 namespace Argon.Core.Grains.Interfaces;
 
+using Argon.Grains.Interfaces;
 using Entities.Data;
 
 [Alias(nameof(IUserChatGrain))]
@@ -23,6 +24,16 @@ public interface IUserChatGrain : IGrainWithGuidKey
     /// </summary>
     [Alias(nameof(DeleteChatAsync))]
     Task DeleteChatAsync(Guid peerId, CancellationToken ct = default);
+
+    /// <summary>
+    /// A ticket to put a file into the chat with <paramref name="peerId"/>. Nothing to be entitled
+    /// to in a direct chat; a block from the other side is the one thing that refuses it.
+    /// </summary>
+    [Alias(nameof(BeginUploadAttachmentAsync))]
+    ValueTask<Either<UploadTicket, UploadFileError>> BeginUploadAttachmentAsync(Guid peerId, CancellationToken ct = default);
+
+    [Alias(nameof(CompleteUploadAttachmentAsync))]
+    ValueTask<AttachmentInfo> CompleteUploadAttachmentAsync(Guid blobId, CancellationToken ct = default);
 
     [Alias(nameof(UpdateChatAsync))]
     Task UpdateChatAsync(Guid peerId, string? previewText, DateTimeOffset timestamp, CancellationToken ct = default);

@@ -115,7 +115,8 @@
         "Unknown": "0",
         "Ok": "1",
         "Already": "2",
-        "RateLimit": "3"
+        "RateLimit": "3",
+        "AccountDeletionScheduled": "4"
       },
       "baseType": "u4"
     },

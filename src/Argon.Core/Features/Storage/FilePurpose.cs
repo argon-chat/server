@@ -10,7 +10,9 @@ public enum FilePurpose
     Banner          = 5,
     Video           = 6,
     Gif             = 7,
-    InviteImage     = 8
+    InviteImage     = 8,
+    /// <summary>A file sent in a direct chat. User-scoped: there is no space or channel to file it under.</summary>
+    DirectAttachment = 9
 }
 
 public static class FilePurposeExtensions
@@ -38,6 +40,7 @@ public static class FilePurposeExtensions
         FilePurpose.Video             => "video",
         FilePurpose.Gif               => "gifs",
         FilePurpose.InviteImage       => "invite",
+        FilePurpose.DirectAttachment  => "dm",
         _                             => "misc"
     };
 
