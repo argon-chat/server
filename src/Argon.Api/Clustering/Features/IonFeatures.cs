@@ -75,18 +75,26 @@ public sealed class IonProtocolFeature : IArgonFeature
 public sealed class AdminConsoleFeature : IArgonFeature
 {
     /// <remarks>
-    /// <c>PresenceFeature</c> because <c>AdminConsoleImpl</c> takes <c>IUserSessionNotifier</c> in its
-    /// constructor — it pushes the consequences of an operator action to the sessions they land on —
+    /// <para><c>PresenceFeature</c> because <c>AdminConsoleImpl</c> takes <c>IUserSessionNotifier</c> in
+    /// its constructor — it pushes the consequences of an operator action to the sessions they land on —
     /// and presence is the only thing that registers one. Without it the console could not be built
     /// at all, and the role advertised the port regardless: the first operator call resolved the
     /// service and got a container error. It is a client role hosting no grains, so the fixture that
-    /// walks every hosted grain's constructor had nothing here to walk.
+    /// walks every hosted grain's constructor had nothing here to walk.</para>
+    ///
+    /// <para><c>EmailJournalFeature</c> for the same reason, and it happened again: the console grew a
+    /// dependency on <c>IEmailJournal</c> for the page that shows what the platform mailed, the feature
+    /// was added to the roles that <em>send</em> mail, and the admin role — which only reads the journal
+    /// — got none. Every method on the console failed with a container error, not just the new one,
+    /// because the failure is in building the service rather than in calling it. Anything the console's
+    /// constructor takes has to be named here.</para>
     /// </remarks>
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("IAdminConsole on a port of its own")
             .Requires<OperatorAuthFeature>()
             .Requires<IonEndpointsFeature>()
             .Requires<PresenceFeature>()
+            .Requires<EmailJournalFeature>()
             .After<RoutingFeature>()
             .Options<AdminConsoleOptions>("AdminConsole");
 

@@ -133,6 +133,41 @@ public class RoleOptionsDeclarationTests
     }
 
     /// <summary>
+    /// Every service a role registers can actually be built on that role.
+    /// </summary>
+    /// <remarks>
+    /// <para>Registering a service and being able to construct it are different things, and the gap is
+    /// invisible until somebody calls it: the container resolves on first use, so a missing dependency
+    /// is a 500 at request time on a role that started clean and advertised its port.</para>
+    ///
+    /// <para>It has happened twice on <c>AdminConsoleImpl</c>, both times the same way — the console
+    /// grew a constructor parameter, the feature that registers the service was not told, and the role
+    /// hosting it had no feature registering that dependency. The second time took every method on the
+    /// admin console down, not just the new one, because the failure is in building the service rather
+    /// than in calling it. Ion services are the blind spot the grain fixtures leave: a client role hosts
+    /// no grains, so nothing walked their constructors.</para>
+    /// </remarks>
+    [TestCaseSource(nameof(Roles))]
+    public void Every_service_a_role_registers_can_be_built_on_it(RoleDescriptor role)
+    {
+        var canBuild = ActivatableOn(role);
+
+        var unbuildable = role.Features.Ordered
+           .SelectMany(feature => Registrations.RegistrationsOf(feature.FeatureType)
+               .Select(type => (Feature: feature.Name, Type: type)))
+           .Where(pair => !canBuild(pair.Type))
+           .Select(pair => $"{pair.Type.Name} (registered by '{pair.Feature}')")
+           .Distinct()
+           .OrderBy(text => text)
+           .ToArray();
+
+        Assert.That(unbuildable, Is.Empty,
+            $"role '{role.Id.Value}' registers services it cannot construct — the container resolves on "
+          + "first use, so this is a 500 at request time on a role that started clean: "
+          + string.Join(", ", unbuildable));
+    }
+
+    /// <summary>
     /// Whether this role could actually build a type some framework adopted by convention.
     /// </summary>
     /// <remarks>

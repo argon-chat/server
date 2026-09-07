@@ -923,8 +923,15 @@ public class AdminConsoleTests : TestBase
         await AccountTimings.Emails.WaitForAsync(
             target.Credentials.email, EmailKinds.DeleteNotice, AccountTimings.Slack, ct);
 
-        var mine = await admin.GetEmailJournal(target.UserId, 0, 50, ct);
-        var all  = await admin.GetEmailJournal(null, 0, 50, ct);
+        // Polled rather than read once: the send is one-way and the sink fires as the message is
+        // composed, so the test's own wait above returns before the journal — which resolves the
+        // address to an account and writes two keys — has finished with it.
+        var mine = await Poll.ForValueAsync(
+            () => admin.GetEmailJournal(target.UserId, 0, 50, ct),
+            page => page.entries.Values.Any(row => row.kind == EmailKinds.DeleteNotice),
+            AccountTimings.Slack, ct: ct);
+
+        var all = await admin.GetEmailJournal(null, 0, 50, ct);
 
         var entry = mine.entries.Values.FirstOrDefault(row => row.kind == EmailKinds.DeleteNotice);
 
