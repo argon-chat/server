@@ -1,5 +1,7 @@
 namespace Argon.Grains.Interfaces;
 
+using Orleans.Concurrency;
+
 /// <summary>
 /// The list of accounts the inactivity sweep proposes for deletion, waiting for an operator to say yes.
 /// </summary>
@@ -203,6 +205,22 @@ public interface IAccountDeletionQueueGrain : IGrainWithGuidKey
     /// <see cref="ReconcileAsync"/> — where the holds live — would then propose nothing but held accounts
     /// and leave the queue permanently empty.
     /// </remarks>
+    /// <summary>
+    /// Records that an account's deletion started, changed state, or ended.
+    /// </summary>
+    /// <remarks>
+    /// Called by the deletion grain itself, for every deletion however it was started — including the
+    /// ones this queue never proposed. It is what makes "which accounts are being deleted right now" a
+    /// question the console can answer at all: the state lives in one grain per account and nothing
+    /// else lists them.
+    /// </remarks>
+    [Alias(nameof(TrackDeletionAsync))]
+    ValueTask TrackDeletionAsync(Guid userId, AccountDeletionStatusKind status, DateTimeOffset? executionAt, bool selfRequested);
+
+    /// <summary>The deletions currently under way, newest first by when they will run.</summary>
+    [Alias(nameof(ListInFlightAsync)), AlwaysInterleave]
+    ValueTask<InFlightDeletionsSnapshot> ListInFlightAsync(int offset, int limit);
+
     [Alias(nameof(GetDeclineHoldsAsync))]
     ValueTask<List<Guid>> GetDeclineHoldsAsync();
 }
@@ -401,4 +419,30 @@ public enum AccountDeletionQueueDecisionError
     /// says which bar stood.
     /// </summary>
     RefusedByDeletionGrain
+}
+
+/// <summary>A page of the deletions currently under way.</summary>
+[GenerateSerializer, Immutable]
+public sealed record InFlightDeletionsSnapshot
+{
+    [Id(0)] public required IReadOnlyList<InFlightDeletion> Entries { get; init; }
+
+    /// <summary>How many are under way in total, which is the number the console shows as a count.</summary>
+    [Id(1)] public required int TotalCount { get; init; }
+
+    /// <summary>How many of those have stopped part-way and are waiting for an operator.</summary>
+    [Id(2)] public required int FailedCount { get; init; }
+}
+
+/// <summary>One account being deleted.</summary>
+[GenerateSerializer, Immutable]
+public sealed record InFlightDeletion
+{
+    [Id(0)] public required Guid UserId { get; init; }
+    [Id(1)] public required AccountDeletionStatusKind Status { get; init; }
+    [Id(2)] public required DateTimeOffset ArmedAt { get; init; }
+    [Id(3)] public DateTimeOffset? ExecutionAt { get; init; }
+
+    /// <summary>The account asked for this itself, rather than an operator approving it.</summary>
+    [Id(4)] public required bool SelfRequested { get; init; }
 }

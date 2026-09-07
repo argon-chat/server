@@ -1211,6 +1211,47 @@ public class AccountConsoleTests : TestBase
     }
 
     /// <summary>
+    /// The platform's inactivity threshold is configuration, and the sweep measures against it.
+    /// </summary>
+    /// <remarks>
+    /// It was a constant, which made the platform's retention policy a code change and left the one
+    /// number that decides how much of the user table the sweep can see unanswerable from the console.
+    /// This host compresses it, and the account below is idle by that threshold and nowhere near the
+    /// shipped twelve months.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task The_sweep_measures_against_the_configured_default_threshold(CancellationToken ct = default)
+    {
+        var months = AccountTimings.Deletion.DefaultInactivityMonths;
+
+        Assert.That(months, Is.GreaterThan(0), "premise: the host configures a usable threshold");
+
+        var idle = await CreateSessionAsync(ct);
+
+        // Just past the configured threshold, and deliberately expressed the way the grain does it.
+        var justPast = DateTimeOffset.UtcNow - TimeSpan.FromDays(months * 30.44 + 2);
+        await AccountSeed.BackdateLastLoginAsync(idle.UserId, justPast, ct: ct);
+
+        var barelyIdle = await CreateSessionAsync(ct);
+        await AccountSeed.BackdateLastLoginAsync(barelyIdle.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(months * 30.44 / 2), ct: ct);
+
+        await RunScanAsync();
+
+        var queued    = await QueuedAsync(idle.UserId);
+        var notQueued = await QueuedAsync(barelyIdle.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(queued, Is.Not.Null,
+                $"an account idle past the configured {months}-month threshold was not proposed");
+            Assert.That(queued?.ThresholdMonths, Is.EqualTo(months),
+                "the entry reports a threshold the sweep did not measure against");
+            Assert.That(notQueued, Is.Null,
+                "an account half way to the threshold was proposed, so the threshold is not being applied");
+        });
+    }
+
+    /// <summary>
     /// A private space is deleted along with its owner's account.
     /// </summary>
     /// <remarks>

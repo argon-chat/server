@@ -178,6 +178,10 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(GetAutoDeleteScanStatus), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> RunAutoDeleteScan_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(RunAutoDeleteScan), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetDeletionsInFlight_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetDeletionsInFlight), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetEmailJournal_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetEmailJournal), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetAccountDeletionImpact_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetAccountDeletionImpact), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> StartAccountDeletion_Ref = new(() =>
@@ -1596,6 +1600,43 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AutoDeleteScanStatus>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<InFlightDeletionPage> GetDeletionsInFlight(i4 __offset, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetDeletionsInFlight_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<InFlightDeletionPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<EmailJournalPage> GetEmailJournal(guid? __userid, i4 __offset, i4 __limit, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetEmailJournal_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 3;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.WriteNullable(writer, __userid);
+        IonFormatterStorage<i4>.Write(writer, __offset);
+        IonFormatterStorage<i4>.Write(writer, __limit);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<EmailJournalPage>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<AccountDeletionImpact> GetAccountDeletionImpact(guid __userid, CancellationToken ct = default)

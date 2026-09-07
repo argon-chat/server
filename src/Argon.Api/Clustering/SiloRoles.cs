@@ -275,6 +275,7 @@ public sealed class JobsRole : IArgonRole
         features.Add<CacheFeature>();
         features.Add<RepositoriesFeature>();
         features.Add<TemplateEngineFeature>();
+        features.Add<EmailJournalFeature>();
         features.Add<AccountDeletionFeature>();
         features.Add<ReportSystemFeature>();
         features.Add<NotificationsFeature>();

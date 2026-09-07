@@ -228,6 +228,13 @@ public static class TestServerConfiguration
             // hosting four shards and a container stack) and still short enough that a test can wait
             // the far side of it out, which one does.
             yield return ($"{section}:{nameof(AccountDeletionOptions.DecisionRetention)}", "00:00:30");
+
+            // The platform's inactivity threshold, and the one value here that is not compressed: the
+            // fixtures backdate a login by four hundred days to make an account dormant, and a shorter
+            // threshold would make every account another fixture created a candidate as well. Set
+            // explicitly all the same, because it is configuration now rather than a constant, and a
+            // suite that never states it would not notice the shipped default changing under it.
+            yield return ($"{section}:{nameof(AccountDeletionOptions.DefaultInactivityMonths)}", "12");
         }
     }
 

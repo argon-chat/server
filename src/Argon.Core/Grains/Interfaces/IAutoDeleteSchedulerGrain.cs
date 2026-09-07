@@ -93,4 +93,12 @@ public sealed record AutoDeleteScanReport
     [Id(13)] public string? LastError { get; init; }
 
     [Id(14)] public DateTimeOffset? LastErrorAt { get; init; }
+
+    /// <summary>The platform's inactivity threshold for accounts that never chose one.</summary>
+    /// <remarks>
+    /// The single number that decides how much of the user table the sweep can see, and the answer to
+    /// "why is the queue so short" nearly every time it is asked. Shown next to the counts so the
+    /// question answers itself.
+    /// </remarks>
+    [Id(15)] public required int DefaultThresholdMonths { get; init; }
 }

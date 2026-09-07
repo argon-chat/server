@@ -1416,6 +1416,43 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<AutoDeleteScanStatus>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetDeletionsInFlight_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetDeletionsInFlight");
+    
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetDeletionsInFlight(__offset, __limit);
+        
+        IonFormatterStorage<InFlightDeletionPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetEmailJournal_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 3;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetEmailJournal");
+    
+        var __userid = reader.ReadNullable<guid>();
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetEmailJournal(__userid, __offset, __limit);
+        
+        IonFormatterStorage<EmailJournalPage>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetAccountDeletionImpact_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1736,6 +1773,10 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return GetAutoDeleteScanStatus_Execute(reader, writer, ct);
         if (methodName.Equals("RunAutoDeleteScan", StringComparison.InvariantCultureIgnoreCase))
             return RunAutoDeleteScan_Execute(reader, writer, ct);
+        if (methodName.Equals("GetDeletionsInFlight", StringComparison.InvariantCultureIgnoreCase))
+            return GetDeletionsInFlight_Execute(reader, writer, ct);
+        if (methodName.Equals("GetEmailJournal", StringComparison.InvariantCultureIgnoreCase))
+            return GetEmailJournal_Execute(reader, writer, ct);
         if (methodName.Equals("GetAccountDeletionImpact", StringComparison.InvariantCultureIgnoreCase))
             return GetAccountDeletionImpact_Execute(reader, writer, ct);
         if (methodName.Equals("StartAccountDeletion", StringComparison.InvariantCultureIgnoreCase))

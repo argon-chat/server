@@ -117,4 +117,56 @@ public sealed class InMemoryArgonCacheDatabase(IDistributedCache cache) : IArgon
 
     public Task<string[]> SetMembersAsync(string key, CancellationToken ct = default)
         => Task.FromResult(_sets.TryGetValue(key, out var set) ? set.Keys.ToArray() : System.Array.Empty<string>());
+
+    // Ordered logs, for the host that has no Redis. A list under a lock rather than anything clever:
+    // this implementation exists so tests and single-node runs work, and its correctness matters more
+    // than its shape.
+    private readonly ConcurrentDictionary<string, List<(double Score, string Member)>> _sorted = new();
+
+    public Task SortedSetAddAsync(string key, string member, double score, CancellationToken ct = default)
+    {
+        var entries = _sorted.GetOrAdd(key, _ => []);
+
+        lock (entries)
+        {
+            entries.RemoveAll(entry => entry.Member == member);
+            entries.Add((score, member));
+            entries.Sort(static (left, right) => left.Score.CompareTo(right.Score));
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task<string[]> SortedSetRangeAsync(
+        string key, int offset, int count, bool descending, CancellationToken ct = default)
+    {
+        if (!_sorted.TryGetValue(key, out var entries))
+            return Task.FromResult(Array.Empty<string>());
+
+        lock (entries)
+        {
+            var ordered = descending ? entries.AsEnumerable().Reverse() : entries;
+            return Task.FromResult(ordered.Skip(Math.Max(offset, 0)).Take(Math.Max(count, 0))
+               .Select(entry => entry.Member).ToArray());
+        }
+    }
+
+    public Task<long> SortedSetLengthAsync(string key, CancellationToken ct = default)
+    {
+        if (!_sorted.TryGetValue(key, out var entries))
+            return Task.FromResult(0L);
+
+        lock (entries)
+            return Task.FromResult((long)entries.Count);
+    }
+
+    public Task<long> SortedSetRemoveRangeByScoreAsync(
+        string key, double min, double max, CancellationToken ct = default)
+    {
+        if (!_sorted.TryGetValue(key, out var entries))
+            return Task.FromResult(0L);
+
+        lock (entries)
+            return Task.FromResult((long)entries.RemoveAll(entry => entry.Score >= min && entry.Score <= max));
+    }
 }

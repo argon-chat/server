@@ -33,6 +33,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<CdnFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();
+        features.Add<EmailJournalFeature>();
 
         features.Add<PresenceFeature>();
         features.Add<CaptchaFeature>();

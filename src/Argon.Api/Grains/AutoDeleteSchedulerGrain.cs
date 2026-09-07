@@ -47,7 +47,6 @@ public class AutoDeleteSchedulerGrain(
 {
     private const string ReminderName = "auto-delete-scan";
     private const int BatchSize = 100;
-    private const int DefaultAutoDeleteMonths = 12;
 
     /// <summary>
     /// How many candidates one pass hands the queue: the queue's own ceiling, applied on this side of the
@@ -152,7 +151,8 @@ public class AutoDeleteSchedulerGrain(
     public ValueTask<AutoDeleteScanReport> GetScanStatusAsync()
         => ValueTask.FromResult(new AutoDeleteScanReport
         {
-            Enabled         = options.Value.AutoDeleteEnabled,
+            Enabled                 = options.Value.AutoDeleteEnabled,
+            DefaultThresholdMonths  = options.Value.DefaultInactivityMonths,
             ArmedAt         = scan.State.ArmedAt,
             NextDueAt       = scan.State.NextDueAt,
             LastStartedAt   = scan.State.LastStartedAt,
@@ -264,7 +264,8 @@ public class AutoDeleteSchedulerGrain(
         var queue = grainFactory.GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId);
         var held  = await ReadDeclineHoldsAsync(queue);
 
-        var systemUser = UserEntity.SystemUser;
+        var systemUser    = UserEntity.SystemUser;
+        var defaultMonths = options.Value.DefaultInactivityMonths;
         var offset     = 0;
         bool hasMore;
 
@@ -353,7 +354,7 @@ public class AutoDeleteSchedulerGrain(
                     continue;
 
                 var chosen          = row.AutoDeleteEnabled is true && row.AutoDeleteMonths is > 0;
-                var thresholdMonths = chosen ? row.AutoDeleteMonths!.Value : DefaultAutoDeleteMonths;
+                var thresholdMonths = chosen ? row.AutoDeleteMonths!.Value : defaultMonths;
 
                 // The latest thing this account is known to have done, and only then the day it was
                 // made. Creation is the floor rather than the answer: an account that has never signed

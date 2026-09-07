@@ -431,11 +431,27 @@ public sealed record StrandedAccountDeletion(guid userId, string username, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EmailJournalPage(IonArray<EmailJournalEntry> entries, i8 totalCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EmailJournalEntry(guid? userId, string kind, datetime sentAt, bool delivered, string? error);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InFlightDeletionPage(IonArray<InFlightDeletionEntry> entries, i4 totalCount, i4 failedCount, i4 offset, i4 limit);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record InFlightDeletionEntry(guid userId, string username, string displayName, string email, AccountDeletionStatusView status, datetime armedAt, datetime? executionAt, bool selfRequested, string? failureReason, i4 executionAttempts);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AccountDeletionImpact(guid userId, bool found, string username, string displayName, string email, datetime createdAt, datetime? lastActivityAt, datetime? lastLoginAt, datetime? lastMessageAt, i4 thresholdMonths, bool autoDeleteChosen, bool hasActiveSubscription, bool isLocked, bool isBot, i4 spacesDeleted, IonArray<string> spacesDeletedNames, i4 communitiesOwned, IonArray<string> communitiesOwnedNames, i4 memberships, i4 messages, i4 files, i4 conversations, i4 botsOwned, AccountDeletionStatusView deletionStatus, datetime? scheduledAt, datetime? executionAt, string? blockedBy);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record AutoDeleteScanStatus(bool enabled, datetime? armedAt, datetime? nextDueAt, datetime? lastStartedAt, datetime? lastFinishedAt, string? lastTrigger, i4 runs, i4 lastProcessed, i4 lastProposed, i4 lastEnqueued, i4 lastRetired, i4 lastHeld, i4 lastQueueLength, string? lastError, datetime? lastErrorAt);
+public sealed record AutoDeleteScanStatus(bool enabled, datetime? armedAt, datetime? nextDueAt, datetime? lastStartedAt, datetime? lastFinishedAt, string? lastTrigger, i4 runs, i4 lastProcessed, i4 lastProposed, i4 lastEnqueued, i4 lastRetired, i4 lastHeld, i4 lastQueueLength, string? lastError, datetime? lastErrorAt, i4 defaultThresholdMonths);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -830,6 +846,8 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> ResumeAccountDeletion(guid userId, CancellationToken ct = default);
     Task<AutoDeleteScanStatus> GetAutoDeleteScanStatus(CancellationToken ct = default);
     Task<AutoDeleteScanStatus> RunAutoDeleteScan(CancellationToken ct = default);
+    Task<InFlightDeletionPage> GetDeletionsInFlight(i4 offset, i4 limit, CancellationToken ct = default);
+    Task<EmailJournalPage> GetEmailJournal(guid? userId, i4 offset, i4 limit, CancellationToken ct = default);
     Task<AccountDeletionImpact> GetAccountDeletionImpact(guid userId, CancellationToken ct = default);
     Task<UserActionResult> StartAccountDeletion(guid userId, CancellationToken ct = default);
     Task<UserActionResult> ExpireAccountDeletionGrace(guid userId, CancellationToken ct = default);

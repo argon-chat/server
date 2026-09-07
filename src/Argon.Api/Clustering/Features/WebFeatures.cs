@@ -1,5 +1,7 @@
 namespace Argon.Api.Clustering;
 
+using Argon.Features.Email;
+
 using Argon.Features.AccountConsole;
 using Argon.Features.Aegis;
 using Argon.Features.Sentry;
@@ -382,6 +384,27 @@ public sealed class TemplateEngineFeature : IArgonFeature
 
     public void Configure(ArgonFeatureContext ctx)
         => ctx.Builder.AddTemplateEngine();
+}
+
+/// <summary>
+/// The record of what the platform mailed, kept where it can be read back.
+/// </summary>
+/// <remarks>
+/// Registered next to the templates because it belongs to the same act — every role that can send a
+/// message writes one of these — and it needs the cache to keep them and the database to turn an
+/// address into an account id, which is the only identifying thing it stores.
+/// </remarks>
+public sealed class EmailJournalFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("email-journal")
+            .Describing("a fortnight of what the platform mailed, by account and outcome")
+            .Requires<CacheFeature>()
+            .Requires<DatabaseFeature>()
+            .Options<EmailJournalOptions>(EmailJournalOptions.SectionName);
+
+    public void Configure(ArgonFeatureContext ctx)
+        => ctx.Services.AddSingleton<IEmailJournal, EmailJournal>();
 }
 
 public sealed class HostHooksFeature : IArgonFeature

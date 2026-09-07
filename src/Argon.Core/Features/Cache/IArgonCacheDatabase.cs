@@ -58,4 +58,13 @@ public interface IArgonCacheDatabase
     Task<bool>     SetAddAsync(string key, string member, CancellationToken ct = default);
     Task<bool>     SetRemoveAsync(string key, string member, CancellationToken ct = default);
     Task<string[]> SetMembersAsync(string key, CancellationToken ct = default);
+
+    // Ordered logs. A sorted set scored by time is what makes "the last N things that happened, newest
+    // first, and drop everything older than a fortnight" one key rather than a keyspace scan — which is
+    // what the presence work replaced and what this must not reintroduce. Every operation below is a
+    // single command; nothing here needs a script, which matters because production runs Dragonfly.
+    Task           SortedSetAddAsync(string key, string member, double score, CancellationToken ct = default);
+    Task<string[]> SortedSetRangeAsync(string key, int offset, int count, bool descending, CancellationToken ct = default);
+    Task<long>     SortedSetLengthAsync(string key, CancellationToken ct = default);
+    Task<long>     SortedSetRemoveRangeByScoreAsync(string key, double min, double max, CancellationToken ct = default);
 }

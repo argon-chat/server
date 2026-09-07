@@ -318,6 +318,72 @@ public class AccountDeletionQueueGrain(
     }
 
     /// <inheritdoc cref="IAccountDeletionQueueGrain.RefreshAsync"/>
+    /// <inheritdoc cref="IAccountDeletionQueueGrain.TrackDeletionAsync"/>
+    public async ValueTask TrackDeletionAsync(
+        Guid userId, AccountDeletionStatusKind status, DateTimeOffset? executionAt, bool selfRequested)
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        // Over when it is over: a finished or called-off deletion leaves the register rather than
+        // sitting in it as a row the console has to filter out. Completed accounts are still visible —
+        // through the queue's own entries, which keep a decision for DecisionRetention — and that is
+        // the view that belongs to an operator's decision rather than to work in progress.
+        if (status is AccountDeletionStatusKind.None or AccountDeletionStatusKind.Completed)
+        {
+            if (state.State.InFlight.Remove(userId))
+                await state.WriteStateAsync();
+            return;
+        }
+
+        if (state.State.InFlight.TryGetValue(userId, out var existing))
+        {
+            existing.Status      = status;
+            existing.ExecutionAt = executionAt;
+            existing.UpdatedAt   = now;
+        }
+        else
+        {
+            state.State.InFlight[userId] = new InFlightDeletionRecord
+            {
+                ArmedAt       = now,
+                ExecutionAt   = executionAt,
+                SelfRequested = selfRequested,
+                Status        = status,
+                UpdatedAt     = now
+            };
+        }
+
+        await state.WriteStateAsync();
+    }
+
+    /// <inheritdoc cref="IAccountDeletionQueueGrain.ListInFlightAsync"/>
+    public ValueTask<InFlightDeletionsSnapshot> ListInFlightAsync(int offset, int limit)
+    {
+        var page = Math.Clamp(limit, 1, MaxPageSize);
+        var from = Math.Max(offset, 0);
+
+        var all = state.State.InFlight
+           .Select(pair => new InFlightDeletion
+            {
+                UserId        = pair.Key,
+                Status        = pair.Value.Status,
+                ArmedAt       = pair.Value.ArmedAt,
+                ExecutionAt   = pair.Value.ExecutionAt,
+                SelfRequested = pair.Value.SelfRequested
+            })
+            // Soonest first: the erasure about to run is the one an operator still has time to stop.
+           .OrderBy(entry => entry.ExecutionAt ?? DateTimeOffset.MaxValue)
+           .ThenBy(entry => entry.ArmedAt)
+           .ToList();
+
+        return ValueTask.FromResult(new InFlightDeletionsSnapshot
+        {
+            Entries     = all.Skip(from).Take(page).ToList(),
+            TotalCount  = all.Count,
+            FailedCount = all.Count(entry => entry.Status is AccountDeletionStatusKind.Failed)
+        });
+    }
+
     public async ValueTask RefreshAsync(Guid userId)
     {
         if (state.State.Entries.FirstOrDefault(entry => entry.UserId == userId) is not { } entry)

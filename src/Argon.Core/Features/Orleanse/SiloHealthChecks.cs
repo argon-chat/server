@@ -266,6 +266,13 @@ public static class HealthCheckExtensions
     /// the startup probe fails on them, readiness reports them, liveness ignores them. The probes are
     /// mapped by hand rather than through <c>MapHealthChecks</c> because that arithmetic is not one
     /// its options can express; see <see cref="ProbePolicy"/>.</para>
+    ///
+    /// <para>None of the four is measured. <c>DisableHttpMetrics</c> keeps them out of
+    /// <c>http.server.request.duration</c>, which is the metric every request dashboard is built on —
+    /// and which Kubernetes otherwise dominates: three probes per pod on a few seconds' period
+    /// outnumber real traffic by an order of magnitude and drag every latency percentile toward the
+    /// cost of a health check. The tracing side already draws the same line
+    /// (<c>OtelFeature</c> filters <c>/health</c> out of spans); this is its counterpart.</para>
     /// </remarks>
     internal static IEndpointRouteBuilder MapProbeEndpoints(this IEndpointRouteBuilder app)
     {
@@ -285,7 +292,7 @@ public static class HealthCheckExtensions
         app.MapHealthChecks("/health", new()
         {
             ResponseWriter = WriteHealthResponse
-        });
+        }).DisableHttpMetrics();
 
         return app;
     }
@@ -309,7 +316,7 @@ public static class HealthCheckExtensions
             http.Response.Headers.Expires      = "Thu, 01 Jan 1970 00:00:00 GMT";
 
             await WriteProbeResponse(http, verdict);
-        });
+        }).DisableHttpMetrics();
 
     /// <summary>
     /// What a probe gets: the status code, and one word so a human curling it sees something.

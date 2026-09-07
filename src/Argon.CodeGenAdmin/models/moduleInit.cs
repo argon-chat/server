@@ -124,6 +124,10 @@ internal static class IonProjectFormatterStorageModuleInit
       IonFormatterStorage<AccountDeletionQueuePage>.Value = new Ion_AccountDeletionQueuePage_Formatter();
       IonFormatterStorage<AccountDeletionQueueEntry>.Value = new Ion_AccountDeletionQueueEntry_Formatter();
       IonFormatterStorage<StrandedAccountDeletion>.Value = new Ion_StrandedAccountDeletion_Formatter();
+      IonFormatterStorage<EmailJournalPage>.Value = new Ion_EmailJournalPage_Formatter();
+      IonFormatterStorage<EmailJournalEntry>.Value = new Ion_EmailJournalEntry_Formatter();
+      IonFormatterStorage<InFlightDeletionPage>.Value = new Ion_InFlightDeletionPage_Formatter();
+      IonFormatterStorage<InFlightDeletionEntry>.Value = new Ion_InFlightDeletionEntry_Formatter();
       IonFormatterStorage<AccountDeletionImpact>.Value = new Ion_AccountDeletionImpact_Formatter();
       IonFormatterStorage<AutoDeleteScanStatus>.Value = new Ion_AutoDeleteScanStatus_Formatter();
       IonFormatterStorage<StrandedAccountDeletionPage>.Value = new Ion_StrandedAccountDeletionPage_Formatter();

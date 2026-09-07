@@ -28,6 +28,22 @@ public sealed partial record AccountDeletionQueueGrainState
     /// </summary>
     [DataMember(Order = 1), Id(1)]
     public Dictionary<Guid, DateTimeOffset> RejectedUntil { get; set; } = [];
+
+    /// <summary>Every account with a deletion currently running, however it was started.</summary>
+    /// <remarks>
+    /// <para>A deletion lives in its own grain's state, and nothing indexes those: to answer "how many
+    /// accounts are being deleted right now" you would have to know which grains to ask. The queue
+    /// knows about the ones it approved and about nothing else — a person deleting their own account
+    /// from the console never touches it — so this is the register that covers both, written by the
+    /// deletion grain as it arms, finishes or calls a countdown off.</para>
+    ///
+    /// <para>Kept as a belief rather than a fact: the console re-reads each account's own grain before
+    /// it shows anything, so a row left behind by a lost write costs one extra grain call and
+    /// disappears. That is the only reason it is safe to write from a grain that may crash between the
+    /// two writes.</para>
+    /// </remarks>
+    [DataMember(Order = 2), Id(2)]
+    public Dictionary<Guid, InFlightDeletionRecord> InFlight { get; set; } = [];
 }
 
 /// <summary>One queued account, as the grain stores it.</summary>
@@ -115,4 +131,27 @@ public sealed partial record AccountDeletionQueueRecord
     /// </remarks>
     [DataMember(Order = 13), Id(13)]
     public DateTimeOffset? CompletedAt { get; set; }
+}
+
+/// <summary>One account's deletion, as the queue's register remembers it.</summary>
+[DataContract, Serializable, GenerateSerializer]
+public sealed partial record InFlightDeletionRecord
+{
+    [DataMember(Order = 0), Id(0)]
+    public DateTimeOffset ArmedAt { get; set; }
+
+    /// <summary>When the erasure runs, or ran.</summary>
+    [DataMember(Order = 1), Id(1)]
+    public DateTimeOffset? ExecutionAt { get; set; }
+
+    /// <summary>Whether the account asked for this itself, or the inactivity sweep proposed it.</summary>
+    [DataMember(Order = 2), Id(2)]
+    public bool SelfRequested { get; set; }
+
+    /// <summary>The last status the deletion grain reported, so the list can be read without asking every grain.</summary>
+    [DataMember(Order = 3), Id(3)]
+    public AccountDeletionStatusKind Status { get; set; }
+
+    [DataMember(Order = 4), Id(4)]
+    public DateTimeOffset UpdatedAt { get; set; }
 }

@@ -1,5 +1,7 @@
 namespace Argon.Api.Features.AdminApi;
 
+using Argon.Features.Email;
+
 using Argon.Api.Entities.Data;
 using Argon.Api.Features.AdminApi.Diagnostics;
 using Argon.Api.Grains.Interfaces;
@@ -27,7 +29,9 @@ public class AdminConsoleImpl(
     IOperatorAuditService auditService,
     HybridCache lockdownCache,
     IUserSessionDiscoveryService sessionDiscovery,
-    IUserSessionNotifier sessionNotifier
+    IUserSessionNotifier sessionNotifier,
+    IOptions<AccountDeletionOptions> deletionOptions,
+    IEmailJournal emailJournal
 ) : IAdminConsole
 {
     public async Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default)
@@ -3110,6 +3114,98 @@ public class AdminConsoleImpl(
         }
     }
 
+    /// <summary>What the platform mailed, for a fortnight.</summary>
+    /// <remarks>
+    /// <para>The questions this answers — did the reset code go out, why did this person get a deletion
+    /// notice — had no answer at all before: a send is a log line on whichever pod made it, and the log
+    /// line is gone by the time anybody asks.</para>
+    ///
+    /// <para>It holds no address, no subject and no body. An account id, which template it was, when,
+    /// and whether it left the building. That is enough to answer the question and not enough to be a
+    /// record of who was mailed where.</para>
+    /// </remarks>
+    public async Task<EmailJournalPage> GetEmailJournal(Guid? userId, int offset, int limit, CancellationToken ct = default)
+    {
+        var page = await emailJournal.ReadAsync(userId, offset, limit, ct);
+
+        var rows = page.Entries
+           .Select(entry => new EmailJournalEntry(
+                entry.UserId,
+                entry.Kind,
+                entry.SentAt.UtcDateTime,
+                entry.Delivered,
+                entry.Error))
+           .ToList();
+
+        return new EmailJournalPage(new IonArray<EmailJournalEntry>(rows), page.TotalCount, offset, limit);
+    }
+
+    /// <summary>The erasures under way right now, whoever started them.</summary>
+    /// <remarks>
+    /// <para>A deletion lives in one grain per account and nothing indexes those, so this reads the
+    /// register the deletion grain writes as it arms, executes, finishes or is called off. Both kinds
+    /// end up in it: an operator's approval and a person deleting their own account from the console,
+    /// which never touches the queue at all and was previously invisible here.</para>
+    ///
+    /// <para>The names are read with <c>IgnoreQueryFilters</c> and may be blank. That is not a defect
+    /// to paper over: the erasure anonymises the row on its third step of eleven, so an account halfway
+    /// through genuinely no longer has a name or an address, and showing the id alone is the honest
+    /// answer. The register's own copy of the status is trusted for the list — asking every grain would
+    /// turn a page into a fan-out — and the impact panel re-reads the one account an operator opens.</para>
+    /// </remarks>
+    public async Task<InFlightDeletionPage> GetDeletionsInFlight(int offset, int limit, CancellationToken ct = default)
+    {
+        var snapshot = await DeletionQueue.ListInFlightAsync(offset, limit);
+
+        if (snapshot.Entries.Count == 0)
+            return new InFlightDeletionPage(new IonArray<InFlightDeletionEntry>([]),
+                snapshot.TotalCount, snapshot.FailedCount, offset, limit);
+
+        var ids = snapshot.Entries.Select(entry => entry.UserId).ToList();
+
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+
+        var accounts = await ctx.Users
+           .IgnoreQueryFilters()
+           .AsNoTracking()
+           .Where(u => ids.Contains(u.Id))
+           .Select(u => new { u.Id, u.Username, u.DisplayName, u.Email })
+           .ToDictionaryAsync(u => u.Id, ct);
+
+        var rows = new List<InFlightDeletionEntry>(snapshot.Entries.Count);
+
+        foreach (var entry in snapshot.Entries)
+        {
+            accounts.TryGetValue(entry.UserId, out var account);
+
+            // One grain call per row on the page, not per account in the register: the failure and the
+            // attempt count are the two things an operator acts on and the register does not carry them.
+            var status = await grainFactory.GetGrain<IAccountDeletionGrain>(entry.UserId).GetDeletionStatusAsync();
+
+            rows.Add(new InFlightDeletionEntry(
+                entry.UserId,
+                account?.Username ?? "",
+                account?.DisplayName ?? "",
+                account?.Email ?? "",
+                status.Status switch
+                {
+                    AccountDeletionStatusKind.Scheduled => AccountDeletionStatusView.SCHEDULED,
+                    AccountDeletionStatusKind.Executing => AccountDeletionStatusView.EXECUTING,
+                    AccountDeletionStatusKind.Completed => AccountDeletionStatusView.COMPLETED,
+                    AccountDeletionStatusKind.Failed    => AccountDeletionStatusView.FAILED,
+                    _                                   => AccountDeletionStatusView.NONE
+                },
+                entry.ArmedAt.UtcDateTime,
+                (status.ExecutionAt ?? entry.ExecutionAt)?.UtcDateTime,
+                entry.SelfRequested,
+                status.FailureReason,
+                status.ExecutionAttempts));
+        }
+
+        return new InFlightDeletionPage(new IonArray<InFlightDeletionEntry>(rows),
+            snapshot.TotalCount, snapshot.FailedCount, offset, limit);
+    }
+
     /// <summary>What erasing one account would actually destroy.</summary>
     /// <remarks>
     /// <para>Read on demand rather than folded into the queue page: every count below is a query, and
@@ -3172,7 +3268,9 @@ public class AdminConsoleImpl(
         var status = await grainFactory.GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync();
 
         var chosen          = account.AutoDeleteOn is true && account.AutoDeleteMonths is > 0;
-        var thresholdMonths = chosen ? account.AutoDeleteMonths!.Value : DefaultAutoDeleteMonths;
+        var thresholdMonths = chosen
+            ? account.AutoDeleteMonths!.Value
+            : deletionOptions.Value.DefaultInactivityMonths;
 
         var lastActivity = (account.LastLogin, account.LastMessage) switch
         {
@@ -3228,9 +3326,6 @@ public class AdminConsoleImpl(
                 0, new IonArray<string>([]), 0, new IonArray<string>([]), 0, 0, 0, 0, 0,
                 AccountDeletionStatusView.NONE, null, null, "no such account");
     }
-
-    /// <summary>The platform's own inactivity threshold, as <c>AutoDeleteSchedulerGrain</c> applies it.</summary>
-    private const int DefaultAutoDeleteMonths = 12;
 
     /// <summary>Starts the deletion workflow on an account nobody proposed.</summary>
     /// <remarks>
@@ -3337,7 +3432,8 @@ public class AdminConsoleImpl(
             report.LastHeld,
             report.LastQueueLength,
             report.LastError,
-            report.LastErrorAt?.UtcDateTime);
+            report.LastErrorAt?.UtcDateTime,
+            report.DefaultThresholdMonths);
 
     #endregion
 

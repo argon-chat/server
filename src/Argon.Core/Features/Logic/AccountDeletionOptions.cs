@@ -170,6 +170,23 @@ public sealed class AccountDeletionOptions : IValidatableFeatureOptions
     /// </remarks>
     public int MaxExecutionAttempts { get; set; } = 3;
 
+    /// <summary>
+    /// How long an account may be inactive before the sweep proposes it, when the account has not
+    /// chosen a period of its own.
+    /// </summary>
+    /// <remarks>
+    /// <para>It was a constant in the sweep, which made the platform's own retention policy a code
+    /// change. It is the single number that decides how much of the user table the sweep can see: on
+    /// the production data of 2026-09-08, twelve months selects six accounts of seventy, nine months
+    /// selects eighteen, six months thirty-one and three months forty-four. An operator asking why the
+    /// queue is short is almost always asking about this value.</para>
+    ///
+    /// <para>An account that chose its own period is measured against that instead, up to the ceiling
+    /// <c>SecurityGrain.SetAutoDeletePeriodAsync</c> enforces; this is only the default for the accounts
+    /// that never answered.</para>
+    /// </remarks>
+    public int DefaultInactivityMonths { get; set; } = 12;
+
     /// <summary>The grace period actually in force, after the precedence rule.</summary>
     public TimeSpan EffectiveGracePeriod
         => GracePeriodDays is { } days ? TimeSpan.FromDays(days)
@@ -216,6 +233,11 @@ public sealed class AccountDeletionOptions : IValidatableFeatureOptions
         report.Require(grace > TimeSpan.Zero, nameof(GracePeriod),
             $"is {grace}; the grace period is the window in which a person can change their mind, " +
             "and zero or negative deletes the account on the first poll after the request");
+
+        report.Require(DefaultInactivityMonths > 0, nameof(DefaultInactivityMonths),
+            $"is {DefaultInactivityMonths}; the platform's inactivity threshold is a count of months an " +
+            "account may be quiet for, and zero or negative proposes every account that never chose a " +
+            "period of its own on the first pass");
 
         report.Require(CheckInterval > TimeSpan.Zero, nameof(CheckInterval),
             $"is {CheckInterval}; a timer period of zero or less is one Orleans will not register, " +

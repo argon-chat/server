@@ -144,4 +144,20 @@ public class RedisArgonCacheDatabase(
 
     public async Task<string[]> SetMembersAsync(string key, CancellationToken ct = default)
         => (await ExecWithRetry(db => db.SetMembersAsync(key))).Select(v => v.ToString()).ToArray();
+
+    public Task SortedSetAddAsync(string key, string member, double score, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SortedSetAddAsync(key, member, score));
+
+    public async Task<string[]> SortedSetRangeAsync(
+        string key, int offset, int count, bool descending, CancellationToken ct = default)
+        => (await ExecWithRetry(db => db.SortedSetRangeByRankAsync(
+                key, offset, offset + count - 1, descending ? Order.Descending : Order.Ascending)))
+           .Select(v => v.ToString()).ToArray();
+
+    public Task<long> SortedSetLengthAsync(string key, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SortedSetLengthAsync(key));
+
+    public Task<long> SortedSetRemoveRangeByScoreAsync(
+        string key, double min, double max, CancellationToken ct = default)
+        => ExecWithRetry(db => db.SortedSetRemoveRangeByScoreAsync(key, min, max));
 }

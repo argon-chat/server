@@ -298,6 +298,7 @@ public class AccountDeletionGrain(
         AccountDeletionInstrument.DeletionsScheduled.Add(1);
 
         await ArmCheckAsync();
+        await TrackAsync();
 
         // Send email
         var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);
@@ -394,6 +395,7 @@ public class AccountDeletionGrain(
         AccountDeletionInstrument.DeletionsScheduled.Add(1);
 
         await ArmCheckAsync();
+        await TrackAsync();
 
         // Send inactivity notice email (existing template for inactive accounts)
         var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);
@@ -492,6 +494,40 @@ public class AccountDeletionGrain(
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Tells the queue's register what this deletion is doing now.
+    /// </summary>
+    /// <remarks>
+    /// The register is what makes "which accounts are being deleted right now" answerable: the state
+    /// lives here, one grain per account, and nothing else lists them. Fenced because it is
+    /// bookkeeping for a console — a queue that will not answer must never fail a deletion, and the
+    /// next transition writes the register again anyway.
+    /// </remarks>
+    private async Task TrackAsync()
+    {
+        try
+        {
+            await grainFactory.GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId)
+               .TrackDeletionAsync(
+                    UserId,
+                    state.State.Status switch
+                    {
+                        AccountDeletionStatus.Scheduled => AccountDeletionStatusKind.Scheduled,
+                        AccountDeletionStatus.Executing => AccountDeletionStatusKind.Executing,
+                        AccountDeletionStatus.Completed => AccountDeletionStatusKind.Completed,
+                        AccountDeletionStatus.Failed    => AccountDeletionStatusKind.Failed,
+                        _                               => AccountDeletionStatusKind.None
+                    },
+                    state.State.ExecutionAt,
+                    state.State.Trigger is AccountDeletionTrigger.User);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex,
+                "Could not record the deletion of {UserId} in the queue's register", UserId);
+        }
     }
 
     /// <summary>Puts the state into a fresh countdown and answers when it runs out.</summary>
@@ -693,6 +729,7 @@ public class AccountDeletionGrain(
         await state.WriteStateAsync();
 
         await DisarmCheckAsync();
+        await TrackAsync();
 
         AccountDeletionInstrument.DeletionsCancelled.Add(1, new KeyValuePair<string, object?>("cause", cause));
 
@@ -769,6 +806,7 @@ public class AccountDeletionGrain(
 
         await state.WriteStateAsync();
         await ArmCheckAsync(dueNow: true);
+        await TrackAsync();
 
         logger.LogWarning(
             "An operator brought the deletion of user {UserId} forward from {Was} to now",
@@ -830,6 +868,7 @@ public class AccountDeletionGrain(
         state.State.Silent = true;
         MarkRemindersSpent();
         await state.WriteStateAsync();
+        await TrackAsync();
 
         logger.LogWarning(
             "An operator is erasing the account of user {UserId} immediately, with no notification to it",
@@ -1025,6 +1064,7 @@ public class AccountDeletionGrain(
 
         state.State.Status = AccountDeletionStatus.Executing;
         await state.WriteStateAsync();
+        await TrackAsync();
 
         try
         {
@@ -1096,6 +1136,8 @@ public class AccountDeletionGrain(
             await DisarmCheckAsync();
 
             sw.Stop();
+            await TrackAsync();
+
             AccountDeletionInstrument.DeletionsCompleted.Add(1);
             AccountDeletionInstrument.DeletionExecutionDuration.Record(sw.Elapsed.TotalSeconds);
 
@@ -1113,6 +1155,8 @@ public class AccountDeletionGrain(
             // remarks above for what counting entries cost.
             state.State.ExecutionAttempts++;
             await state.WriteStateAsync();
+
+            await TrackAsync();
 
             AccountDeletionInstrument.DeletionsFailed.Add(1);
 

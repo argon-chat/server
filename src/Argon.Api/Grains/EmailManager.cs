@@ -1,5 +1,7 @@
 namespace Argon.Grains;
 
+using Argon.Features.Email;
+
 using System.Globalization;
 using System.Net.Mail;
 using System.Threading;
@@ -20,6 +22,7 @@ public class EmailManager(
     ILogger<EmailManager> logger, 
     EMailFormStorage formStorage,
     IEnumerable<IEmailSink> emailSinks,
+    IEmailJournal journal,
     ITestCodeStore? testCodeStore = null) : Grain, IEmailManager
 {
     /// <summary>
@@ -89,13 +92,20 @@ public class EmailManager(
         return message;
     }
 
-    private async Task SendAsync(string email, MimeMessage message, CancellationToken cancellationToken = default)
+    /// <param name="kind">
+    /// Which message this is, for the journal. Every send passes through here, so this is the one place
+    /// that knows whether a message actually left the building — including the two ways it silently does
+    /// not: an address the validator refuses, and an SMTP server that will not take it.
+    /// </param>
+    private async Task SendAsync(string email, MimeMessage message, string kind, CancellationToken cancellationToken = default)
     {
         var validation = await ValidateEMailDestination(email, cancellationToken);
 
         if (!validation.CanSendEmail)
         {
             logger.LogError("Failed send email to {email}, validation failed, {reason}", email, validation.FailureReason);
+            await journal.RecordAsync(email, kind, delivered: false,
+                $"address refused: {validation.FailureReason}", cancellationToken);
             return;
         }
 
@@ -111,10 +121,13 @@ public class EmailManager(
             client.AuthenticationMechanisms.Remove("XOAUTH2");
             await client.SendAsync(message, cancellationToken);
             await client.DisconnectAsync(true, cancellationToken);
+
+            await journal.RecordAsync(email, kind, delivered: true, null, cancellationToken);
         }
         catch (Exception e)
         {
             logger.LogCritical(e, "Failed to send email to {To}", message.To);
+            await journal.RecordAsync(email, kind, delivered: false, e.Message, cancellationToken);
             throw;
         }
     }
@@ -124,7 +137,7 @@ public class EmailManager(
         Observe(email, EmailKinds.Generic, subject, () => message);
 
         var msg = CreateMessage(email, subject, message);
-        return SendAsync(email, msg);
+        return SendAsync(email, msg, EmailKinds.Generic);
     }
 
     public async Task SendOtpCodeAsync(string email, string otpCode, TimeSpan validity)
@@ -140,6 +153,8 @@ public class EmailManager(
         {
             logger.LogWarning("[OTP CODE]: {Email}, code: {OtpCode}", email, otpCode);
             testCodeStore?.StoreCode(email, otpCode, TestCodeType.Email);
+            await journal.RecordAsync(email, EmailKinds.OtpCode, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -155,7 +170,7 @@ public class EmailManager(
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         var       msg = CreateMessage(email, "Your Argon verification code", form);
-        await SendAsync(email, msg, cts.Token);
+        await SendAsync(email, msg, EmailKinds.OtpCode, cts.Token);
     }
 
     public async Task SendResetCodeAsync(string email, string otpCode, TimeSpan validity)
@@ -167,6 +182,8 @@ public class EmailManager(
         {
             logger.LogWarning("[OTP RESET CODE]: {Email}, code: {OtpCode}", email, otpCode);
             testCodeStore?.StoreCode(email, otpCode, TestCodeType.Email);
+            await journal.RecordAsync(email, EmailKinds.ResetCode, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -181,7 +198,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var       msg = CreateMessage(email, "Your Argon reset password code", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.ResetCode, cts.Token);
         }
         catch (Exception e)
         {
@@ -202,6 +219,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.DeleteNotice, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -219,7 +238,7 @@ public class EmailManager(
         {
             //using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, "Account Deletion Notice", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.DeleteNotice, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -241,6 +260,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[MAGIC LINK]: {Email}, link: {Link}", email, link);
+            await journal.RecordAsync(email, EmailKinds.MagicLink, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -255,7 +276,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, $"Sign in to {appName}", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.MagicLink, cts.Token);
         }
         catch (Exception e)
         {
@@ -277,6 +298,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[INVITE REGISTER]: {Email}, link: {Link}", email, link);
+            await journal.RecordAsync(email, EmailKinds.RegistrationInvite, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -291,7 +314,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, $"You've been invited to {appName}", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.RegistrationInvite, cts.Token);
         }
         catch (Exception e)
         {
@@ -318,7 +341,7 @@ public class EmailManager(
         message.Body = new TextPart("html") { Text = html };
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
-        await SendAsync(to, message, cts.Token);
+        await SendAsync(to, message, EmailKinds.Raw, cts.Token);
 
         var messageId = message.MessageId ?? $"{Guid.NewGuid()}@argon.gl";
         logger.LogInformation("[RAW EMAIL] Sent to={To}, subject={Subject}, messageId={MessageId}", to, subject, messageId);
@@ -434,6 +457,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[NOTIFICATION ABOUT RESET PASS]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.PasswordChanged, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -442,7 +467,7 @@ public class EmailManager(
             using var cts  = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var       form = formStorage.Render("pass_changed", new Dictionary<string, string>());
             var       msg  = CreateMessage(email, "Your Argon password changed", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.PasswordChanged, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -459,6 +484,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[EXPORT STARTED]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.ExportStarted, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -471,7 +498,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, "Your data export has started", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.ExportStarted, cts.Token);
         }
         catch (Exception e)
         {
@@ -497,6 +524,8 @@ public class EmailManager(
             // TTL, and log read access is a wider group than object-store read access (defect R8).
             // Nothing operational is lost: the owner reads the same link from GetDataExportStatus.
             logger.LogWarning("[EXPORT READY]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.ExportReady, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -510,7 +539,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, "Your data export is ready", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.ExportReady, cts.Token);
         }
         catch (Exception e)
         {
@@ -527,6 +556,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[EXPORT FAILED]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.ExportFailed, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -539,7 +570,7 @@ public class EmailManager(
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var msg = CreateMessage(email, "Your data export could not be completed", form);
-            await SendAsync(email, msg, cts.Token);
+            await SendAsync(email, msg, EmailKinds.ExportFailed, cts.Token);
         }
         catch (Exception e)
         {
@@ -560,6 +591,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION SCHEDULED]: {Email}, date: {Date}", email, deletionDate);
+            await journal.RecordAsync(email, EmailKinds.DeletionScheduled, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -572,7 +605,7 @@ public class EmailManager(
         try
         {
             var msg = CreateMessage(email, "Account Deletion Scheduled", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.DeletionScheduled, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -593,6 +626,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION REMINDER]: {Email}, days: {Days}", email, daysRemaining);
+            await journal.RecordAsync(email, EmailKinds.DeletionReminder, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -605,7 +640,7 @@ public class EmailManager(
         try
         {
             var msg = CreateMessage(email, $"Account Deletion in {daysRemaining} Day(s)", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.DeletionReminder, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -622,6 +657,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION COMPLETED]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.DeletionCompleted, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -633,7 +670,7 @@ public class EmailManager(
         try
         {
             var msg = CreateMessage(email, "Your Account Has Been Deleted", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.DeletionCompleted, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -650,6 +687,8 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("[DELETION CANCELLED]: {Email}", email);
+            await journal.RecordAsync(email, EmailKinds.DeletionCancelled, delivered: false, "smtp disabled");
+
             return;
         }
 
@@ -661,7 +700,7 @@ public class EmailManager(
         try
         {
             var msg = CreateMessage(email, "Account Deletion Cancelled", form);
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, EmailKinds.DeletionCancelled, CancellationToken.None);
         }
         catch (Exception e)
         {
@@ -702,13 +741,14 @@ public class EmailManager(
         if (!smtpOptions.Value.Enabled)
         {
             logger.LogWarning("{Prefix}: {Email}, from {Ip} ({Location}) with {Client}", logPrefix, email, ip, location, client);
+            await journal.RecordAsync(email, kind, delivered: false, "smtp disabled");
             return;
         }
 
         try
         {
             var msg = CreateMessage(email, subject, formStorage.Render(form, values));
-            await SendAsync(email, msg, CancellationToken.None);
+            await SendAsync(email, msg, kind, CancellationToken.None);
         }
         catch (Exception e)
         {
