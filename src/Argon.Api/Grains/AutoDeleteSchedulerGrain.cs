@@ -280,6 +280,9 @@ public class AutoDeleteSchedulerGrain(
                 // proposed the one that did. Every bot's last activity is the day it was created (a bot
                 // never signs in), so without this every bot on the platform reaches the threshold and
                 // is proposed for erasure a year after it is made.
+                // A live subscription exempts the account outright. What premium changes about the
+                // feature itself is only the ceiling on the period an account may choose for itself —
+                // seventy-two months against thirty-six (SecurityGrain.SetAutoDeletePeriodAsync).
                 .Where(u => !u.IsDeleted
                          && !u.HasActiveUltima
                          && u.Id != systemUser
@@ -311,11 +314,25 @@ public class AutoDeleteSchedulerGrain(
                         .Select(s => s.Months)
                         .FirstOrDefault(),
 
-                    OwnsSpace = ctx.Spaces.Any(s => s.CreatorId == u.Id && !s.IsDeleted),
-
+                    // Only a community protects its owner. A private space is deleted along with the
+                    // account that made it — see AccountDeletionGrain's Spaces step — because it is
+                    // either the owner's own room or a room whose remaining members are themselves
+                    // gone, and neither is a reason to keep an account alive.
+                    OwnsCommunity = ctx.Spaces.Any(s => s.CreatorId == u.Id && !s.IsDeleted && s.IsCommunity),
                     LastLogin = ctx.DeviceHistories
                         .Where(d => d.UserId == u.Id)
-                        .Max(d => (DateTimeOffset?)d.LastLoginTime)
+                        .Max(d => (DateTimeOffset?)d.LastLoginTime),
+
+                    // The second half of "when was this account last alive", and it exists because the
+                    // first half has a hole: DeviceHistories is only written on sign-in and only since
+                    // the table existed, so an account older than it has no row at all and would be
+                    // dated from its creation. Fifty of ninety-six production accounts have no row.
+                    // A message is the cheapest durable proof of life left behind by somebody the login
+                    // history has forgotten. Indexed by creator; still a lookup per candidate, which is
+                    // affordable at a daily pass and worth watching if the user table grows.
+                    LastMessage = ctx.Messages
+                        .Where(m => m.CreatorId == u.Id)
+                        .Max(m => (DateTimeOffset?)m.CreatedAt)
                 })
                 .ToListAsync();
 
@@ -338,7 +355,10 @@ public class AutoDeleteSchedulerGrain(
                 var chosen          = row.AutoDeleteEnabled is true && row.AutoDeleteMonths is > 0;
                 var thresholdMonths = chosen ? row.AutoDeleteMonths!.Value : DefaultAutoDeleteMonths;
 
-                var lastActivity = row.LastLogin ?? row.CreatedAt;
+                // The latest thing this account is known to have done, and only then the day it was
+                // made. Creation is the floor rather than the answer: an account that has never signed
+                // in and never written has left nothing else to date it by.
+                var lastActivity = Latest(row.LastLogin, row.LastMessage) ?? row.CreatedAt;
 
                 if (now - lastActivity < TimeSpan.FromDays(thresholdMonths * DaysPerMonth))
                     continue;
@@ -351,7 +371,7 @@ public class AutoDeleteSchedulerGrain(
                  && (row.LockDownExpiration is not { } expiry || expiry > now))
                     continue;
 
-                if (row.OwnsSpace)
+                if (row.OwnsCommunity)
                     continue;
 
                 candidates.Add(new AccountDeletionCandidate
@@ -427,6 +447,16 @@ public class AutoDeleteSchedulerGrain(
             "retired {Retired}, held {Held}, queue length {Length}",
             processedCount, proposals.Count, result.Enqueued, result.Retired, result.Held, result.Length);
     }
+
+    /// <summary>The later of two moments, either of which may be unknown.</summary>
+    private static DateTimeOffset? Latest(DateTimeOffset? left, DateTimeOffset? right)
+        => (left, right) switch
+        {
+            ({ } a, { } b) => a > b ? a : b,
+            ({ } a, null)  => a,
+            (null, { } b)  => b,
+            _              => null
+        };
 
     /// <summary>
     /// Keeps a candidate list at <paramref name="ceiling"/>, longest-idle first.

@@ -26,4 +26,15 @@ public interface ISpaceDeletionGrain : IGrainWithGuidKey
     /// <summary>Runs the deletion if its moment has passed. Idempotent; safe to call on a timer.</summary>
     [Alias(nameof(CheckAndExecuteAsync))]
     Task CheckAndExecuteAsync();
+
+    /// <summary>Deletes the space now, without the wait.</summary>
+    /// <remarks>
+    /// For the one caller that has nobody to wait for: the erasure of the account that owns it. The
+    /// delay exists so members can save what matters and the owner can change their mind, and an
+    /// account being erased has already had its own grace period — the space is going with it either
+    /// way. Not reachable from the client surface, and it does not check ownership, because the caller
+    /// is the erasure of the owner rather than the owner.
+    /// </remarks>
+    [Alias(nameof(DeleteNowAsync))]
+    Task DeleteNowAsync(Guid callerId);
 }

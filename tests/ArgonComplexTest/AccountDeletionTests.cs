@@ -789,6 +789,11 @@ public class AccountDeletionTests : TestBase
         var session = await CreateSessionAsync(ct);
         var spaceId = await CreateSpaceAsync(session, "Guarded", ct);
 
+        // A community, because only a community bars its owner: a private space is deleted along with
+        // the account instead of standing in its way, which would take this walk past the bar it is here
+        // to check.
+        await AccountSeed.MakeCommunityAsync(spaceId, ct);
+
         var (consoleScope, console) = AccountConsoleHarness.Console(session);
         await using var scope = consoleScope;
 

@@ -142,6 +142,32 @@ public class SpaceDeletionGrain(
 
     public async Task<SpaceDeletionState> GetStateAsync() => await SnapshotAsync();
 
+    /// <inheritdoc cref="ISpaceDeletionGrain.DeleteNowAsync"/>
+    public async Task DeleteNowAsync(Guid callerId)
+    {
+        if (state.State.Status is SpaceDeletionStatus.EXECUTING)
+            return;
+
+        var now = DateTimeOffset.UtcNow;
+
+        // Written through the same fields a scheduled deletion uses, so a space that already had one
+        // pending ends in the state its own grain expects rather than being deleted behind its back.
+        state.State.Status        = SpaceDeletionStatus.SCHEDULED;
+        state.State.ScheduledAt   = now;
+        state.State.ExecutionAt   = now;
+        state.State.RequestedBy   = callerId;
+        state.State.FailureReason = null;
+        await state.WriteStateAsync();
+
+        logger.LogWarning("Space {SpaceId} is being deleted now, with the account of {CallerId}", SpaceId, callerId);
+
+        await CheckAndExecuteAsync();
+
+        if (state.State.Status is not SpaceDeletionStatus.NONE)
+            throw new InvalidOperationException(
+                $"Space {SpaceId} was not deleted: {state.State.FailureReason ?? "unknown"}");
+    }
+
     public async Task CheckAndExecuteAsync()
     {
         if (state.State.Status is not SpaceDeletionStatus.SCHEDULED)

@@ -83,6 +83,16 @@ public class AccountDeletionGrain(
         public const int Conversations = 9;
         public const int Notified      = 10;
 
+        /// <summary>The private spaces this account owned, deleted with it.</summary>
+        /// <remarks>
+        /// Numbered after the steps that shipped before it and run before <see cref="Memberships"/>,
+        /// which is the order that matters: a space deleted here has no memberships left for that step
+        /// to walk. The number is only an identity in the cursor, so appending is safe — a deletion
+        /// interrupted by the release that added this step resumes with this step not yet done, which
+        /// is correct.
+        /// </remarks>
+        public const int Spaces        = 11;
+
         /// <summary>
         /// The steps that erase nothing about the account, and that a cancellation may discard.
         /// </summary>
@@ -468,10 +478,14 @@ public class AccountDeletionGrain(
             return AccountDeletionRequestError.HasActiveSubscription;
         }
 
-        if (await ctx.Spaces.AnyAsync(s => s.CreatorId == userId && !s.IsDeleted))
+        // Only a community stands in the way. A private space belongs to one person by construction —
+        // their own room, or a room whose other members have themselves gone — and it is deleted with
+        // the account rather than keeping it alive; a community is other people's home and needs an
+        // owner to hand it over before its owner can leave.
+        if (await ctx.Spaces.AnyAsync(s => s.CreatorId == userId && !s.IsDeleted && s.IsCommunity))
         {
             AccountDeletionInstrument.DeletionsRejected.Add(1,
-                new KeyValuePair<string, object?>("reason", "owns_spaces"),
+                new KeyValuePair<string, object?>("reason", "owns_communities"),
                 new KeyValuePair<string, object?>("trigger", trigger));
 
             return AccountDeletionRequestError.OwnsSpaces;
@@ -1032,6 +1046,8 @@ public class AccountDeletionGrain(
             await RunStepAsync(Step.PrivateData, DeletePrivateDataAsync);
 
             // 6. Leave every space, through the grain that owns the roster
+            await RunStepAsync(Step.Spaces, DeleteOwnedSpacesAsync);
+
             await RunStepAsync(Step.Memberships, RemoveMembershipsAsync);
 
             // 7. Soft-delete owned bots
@@ -1784,6 +1800,57 @@ public class AccountDeletionGrain(
     /// that found nothing to do would otherwise return cleanly and let <see cref="RunStepAsync"/>
     /// record the step over an unpaid announcement.</para>
     /// </remarks>
+    /// <summary>
+    /// Deletes the spaces this account owned that are not communities.
+    /// </summary>
+    /// <remarks>
+    /// <para>The other half of the rule <c>BarredAsync</c> applies: a community bars the deletion and
+    /// so is never reached here, and everything else goes. Leaving a private space behind would leave
+    /// a room with an owner who no longer exists — nobody can invite, rename, or delete it, and it sits
+    /// in every remaining member's list for ever.</para>
+    ///
+    /// <para>Through <c>ISpaceDeletionGrain</c> rather than <c>ISpaceGrain.DeleteSpace</c> directly, so
+    /// a space that already had a deletion scheduled ends in a coherent state rather than being
+    /// deleted behind that grain's back. Failures are collected and thrown as one, so the step retries
+    /// as a whole and the spaces that did go are not attempted again — <c>DeleteNowAsync</c> is
+    /// idempotent on a space that is already gone.</para>
+    /// </remarks>
+    private async Task DeleteOwnedSpacesAsync()
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync();
+        var userId = UserId;
+
+        var spaceIds = await ctx.Spaces
+           .Where(s => s.CreatorId == userId && !s.IsDeleted && !s.IsCommunity)
+           .Select(s => s.Id)
+           .ToListAsync();
+
+        if (spaceIds.Count == 0)
+            return;
+
+        var failed = new List<Guid>();
+
+        foreach (var spaceId in spaceIds)
+        {
+            try
+            {
+                await grainFactory.GetGrain<ISpaceDeletionGrain>(spaceId).DeleteNowAsync(userId);
+                logger.LogInformation(
+                    "Deleted space {SpaceId} with the account of its owner {UserId}", spaceId, userId);
+            }
+            catch (Exception ex)
+            {
+                failed.Add(spaceId);
+                logger.LogError(ex,
+                    "Could not delete space {SpaceId} owned by {UserId}", spaceId, userId);
+            }
+        }
+
+        if (failed.Count > 0)
+            throw new InvalidOperationException(
+                $"Could not delete {failed.Count} space(s) owned by this account: {string.Join(", ", failed)}");
+    }
+
     private async Task RemoveMembershipsAsync()
     {
         await using var ctx = await dbFactory.CreateDbContextAsync();

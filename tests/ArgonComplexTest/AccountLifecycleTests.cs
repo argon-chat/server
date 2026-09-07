@@ -51,20 +51,36 @@ public class AccountLifecycleTests : TestBase
         });
     }
 
+    /// <summary>
+    /// Owning a community refuses the deletion; owning a private space does not.
+    /// </summary>
+    /// <remarks>
+    /// A community is other people's home: erasing its owner would leave a place nobody can invite to,
+    /// rename or close, so ownership has to be handed over first. A private space is the owner's own
+    /// room — either empty or left behind by members who have themselves gone — and it is deleted with
+    /// the account rather than keeping it alive.
+    /// </remarks>
     [Test, CancelAfter(120_000)]
-    public async Task RequestDeletion_WhileOwningASpace_IsRefused(CancellationToken ct = default)
+    public async Task RequestDeletion_IsRefusedByACommunityAndNotByAPrivateSpace(CancellationToken ct = default)
     {
-        // Deleting an owner would orphan the space and everyone in it, so ownership has to be
-        // handed over first. This is the guard that enforces it.
-        var (userId, password) = await RegisterAsync(ct);
+        var (ownerId, ownerPassword) = await RegisterAsync(ct);
+        var community = await CreateSpaceAndGetIdAsync(ct);
+        await AccountSeed.MakeCommunityAsync(community, ct);
+
+        var refused = await GetGrainFactory().GetGrain<IAccountDeletionGrain>(ownerId).RequestDeletionAsync(ownerPassword);
+
+        var (privateOwnerId, privatePassword) = await RegisterAsync(ct);
         await CreateSpaceAndGetIdAsync(ct);
 
-        var result = await GetGrainFactory().GetGrain<IAccountDeletionGrain>(userId).RequestDeletionAsync(password);
+        var allowed = await GetGrainFactory().GetGrain<IAccountDeletionGrain>(privateOwnerId)
+           .RequestDeletionAsync(privatePassword);
 
         Assert.Multiple(() =>
         {
-            Assert.That(result.Success, Is.False);
-            Assert.That(result.Error, Is.EqualTo(AccountDeletionRequestError.OwnsSpaces));
+            Assert.That(refused.Success, Is.False, "a community was erased along with its owner");
+            Assert.That(refused.Error, Is.EqualTo(AccountDeletionRequestError.OwnsSpaces));
+            Assert.That(allowed.Success, Is.True,
+                $"a private space held its owner's account hostage: {allowed.Error}");
         });
     }
 

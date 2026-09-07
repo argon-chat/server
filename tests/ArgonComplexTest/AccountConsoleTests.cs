@@ -228,6 +228,10 @@ public class AccountConsoleTests : TestBase
         Assert.That(space, Is.InstanceOf<SuccessCreateSpace>(),
             $"the ownership branch needs an owned space: {(space as FailedCreateSpace)?.error}");
 
+        // Only a community bars its owner. A private space is deleted with the account instead, so it
+        // would take this branch to a success and the mapping under test would never be reached.
+        await AccountSeed.MakeCommunityAsync((space as SuccessCreateSpace)!.space.spaceId, ct);
+
         var first = await AskAsync(repeater, repeater.Credentials.password);
         Assert.That(first.success, Is.True, first.error.ToString());
 
@@ -239,7 +243,7 @@ public class AccountConsoleTests : TestBase
                 Expected: DeleteAccountError.AccountLocked),
             (Branch: "active subscription", Result: await AskAsync(subscriber, subscriber.Credentials.password),
                 Expected: DeleteAccountError.HasActiveSubscription),
-            (Branch: "owns a space", Result: await AskAsync(owner, owner.Credentials.password),
+            (Branch: "owns a community", Result: await AskAsync(owner, owner.Credentials.password),
                 Expected: DeleteAccountError.OwnsSpaces),
             (Branch: "already scheduled", Result: await AskAsync(repeater, repeater.Credentials.password),
                 Expected: DeleteAccountError.AlreadyScheduled)
@@ -741,6 +745,8 @@ public class AccountConsoleTests : TestBase
         Assert.That(space, Is.InstanceOf<SuccessCreateSpace>(),
             $"the ownership bar needs an owned space: {(space as FailedCreateSpace)?.error}");
 
+        await AccountSeed.MakeCommunityAsync((space as SuccessCreateSpace)!.space.spaceId, ct);
+
         await AccountSeed.BackdateLastLoginAsync(idleOwner.UserId, longAgo, ct: ct);
 
         await AccountSeed.LockAsync(idleLocked.UserId, ct: ct);
@@ -756,7 +762,7 @@ public class AccountConsoleTests : TestBase
         Assert.Multiple(() =>
         {
             Assert.That(ownerQueued, Is.Null,
-                "the sweep proposed the erasure of an account that owns a space — the one thing a person "
+                "the sweep proposed the erasure of an account that owns a community — the one thing a person "
               + "asking for the same deletion is refused outright");
             Assert.That(lockedQueued, Is.Null,
                 "the sweep proposed the erasure of an account under investigation, which cannot sign in and "
@@ -1202,6 +1208,113 @@ public class AccountConsoleTests : TestBase
             context.RequestItems.Add(ClientDescriptor.HeaderName, clientHeader);
             await next(context, ct);
         }
+    }
+
+    /// <summary>
+    /// A private space is deleted along with its owner's account.
+    /// </summary>
+    /// <remarks>
+    /// The other half of "only a community bars its owner". A private space left behind belongs to
+    /// somebody who no longer exists: nobody can invite to it, rename it or close it, and it sits in
+    /// every remaining member's list for ever. So the erasure takes it, which is a step of its own
+    /// (<c>Step.Spaces</c>) running before memberships are walked.
+    /// </remarks>
+    [Test, CancelAfter(180_000)]
+    public async Task A_private_space_is_deleted_with_its_owners_account(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        var created = await owner.Users.CreateSpace(
+            new CreateServerRequest("Room of one", "goes with its owner", string.Empty), ct);
+        Assert.That(created, Is.InstanceOf<SuccessCreateSpace>(),
+            $"the test needs an owned space: {(created as FailedCreateSpace)?.error}");
+        var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
+
+        var (consoleScope, console) = AccountConsoleHarness.Console(owner);
+        await using var scope = consoleScope;
+
+        var requested = await console.RequestDeleteAccount(owner.Credentials.password, ct);
+        Assert.That(requested.success, Is.True,
+            $"a private space refused its owner's deletion: {requested.error}");
+
+        var reached = await AccountConsoleHarness.DriveDeletionUntilAsync(
+            owner.UserId, AccountDeletionStatusKind.Completed,
+            AccountTimings.GraceAndABit + AccountTimings.ExecutionBudget, ct);
+
+        bool spaceSurvives;
+        await using (var db = await AccountSeed.NewDbAsync(ct))
+            spaceSurvives = await Microsoft.EntityFrameworkCore.EntityFrameworkQueryableExtensions
+               .AnyAsync(db.Spaces, space => space.Id == spaceId && !space.IsDeleted, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(reached, Is.EqualTo(AccountDeletionStatusKind.Completed),
+                "the erasure did not finish, so nothing below says anything about the space");
+            Assert.That(spaceSurvives, Is.False,
+                "the space outlived the account that owned it, and now nobody can invite to it, "
+              + "rename it or close it");
+        });
+    }
+
+    /// <summary>
+    /// An account with no login history at all is dated from what it wrote, not from the day it was made.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>DeviceHistories</c> is written on sign-in and only exists since the table did, so an
+    /// account older than it has no row — fifty of ninety-six production accounts have none. Dating
+    /// those from <c>CreatedAt</c> alone reads every one of them as abandoned since the day it was
+    /// created, however recently the person was actually here.</para>
+    ///
+    /// <para>So the sweep takes the later of the last login and the last message. Both accounts here
+    /// are old and have no login history; the one that wrote something last week is not proposed and
+    /// the one that never wrote anything is.</para>
+    /// </remarks>
+    [Test, CancelAfter(180_000)]
+    public async Task The_sweep_dates_an_account_with_no_login_history_by_what_it_wrote(CancellationToken ct = default)
+    {
+        var wrote  = await CreateSessionAsync(ct);
+        var silent = await CreateSessionAsync(ct);
+
+        var created = await wrote.Users.CreateSpace(
+            new CreateServerRequest("Somewhere to write", "for the message", string.Empty), ct);
+        Assert.That(created, Is.InstanceOf<SuccessCreateSpace>(),
+            $"the message needs a space: {(created as FailedCreateSpace)?.error}");
+        var spaceId = (created as SuccessCreateSpace)!.space.spaceId;
+
+        // Through this account's own client rather than the fixture's helper: the helper calls as the
+        // fixture's ambient session, which is not a member of a space this account just made.
+        await wrote.Channels.CreateChannel(spaceId, Guid.Empty,
+            new CreateChannelRequest(spaceId, "written-in", ChannelType.Text, "for the message", null), ct);
+
+        var channels  = await wrote.Channels.GetChannels(spaceId, Guid.Empty, ct);
+        var channelId = channels.First(c => c.channel.name == "written-in").channel.channelId;
+
+        await wrote.Channels.SendMessage(spaceId, channelId, "still here",
+            new IonArray<IMessageEntity>([]), Random.Shared.NextInt64(), null, ct);
+
+        // Both accounts predate the login history: old enough to be swept, and with nothing in
+        // DeviceHistories to date them by.
+        var longAgo = DateTimeOffset.UtcNow - TimeSpan.FromDays(400);
+        foreach (var session in new[] { wrote, silent })
+        {
+            await AccountSeed.ClearLoginHistoryAsync(session.UserId, ct);
+            await AccountSeed.BackdateCreatedAtAsync(session.UserId, longAgo, ct);
+        }
+
+        await RunScanAsync();
+
+        var wroteQueued  = await QueuedAsync(wrote.UserId);
+        var silentQueued = await QueuedAsync(silent.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(wroteQueued, Is.Null,
+                "an account that posted a message this week was proposed for erasure as dormant, because "
+              + "it has no login history and was dated from the day it was created");
+            Assert.That(silentQueued, Is.Not.Null,
+                "an account with no login history and nothing ever written was not proposed either, so "
+              + "this pass proves nothing about the ones that were");
+        });
     }
 
     // ── Service accounts ────────────────────────────────────────────────────────────────────────

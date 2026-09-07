@@ -42,6 +42,24 @@ public static class AccountSeed
     /// <para>Assert on the anonymisation through this. A fixture that reaches for the filtered set
     /// gets a null and proves nothing about what the deletion actually wrote.</para>
     /// </remarks>
+    /// <summary>Makes an existing space a community, which is the only kind that bars its owner's deletion.</summary>
+    /// <remarks>
+    /// There is no surface that creates one — <c>CreateSpace</c> always makes a private space — so the
+    /// tests that exercise the ownership bar have to reach for the column. A private space is deleted
+    /// along with its owner's account instead of standing in the way, which is what makes the
+    /// distinction worth seeding rather than assuming.
+    /// </remarks>
+    public static async Task MakeCommunityAsync(Guid spaceId, CancellationToken ct = default)
+    {
+        await using var db = await NewDbAsync(ct);
+
+        var changed = await db.Spaces
+           .Where(s => s.Id == spaceId)
+           .ExecuteUpdateAsync(set => set.SetProperty(s => s.IsCommunity, true), ct);
+
+        Assert.That(changed, Is.EqualTo(1), $"no space {spaceId} to make a community of");
+    }
+
     public static async Task<UserEntity?> ReadUserAsync(Guid userId, CancellationToken ct = default)
     {
         await using var db = await NewDbAsync(ct);
