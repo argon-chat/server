@@ -31,7 +31,7 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
         with:
-          bun-version: 1.4.0
+          bun-version: 1.4.2
 
       # `--frozen-lockfile`, because a suite that resolves a different dependency tree than the image
       # does is a suite that passes for a build nobody shipped.
