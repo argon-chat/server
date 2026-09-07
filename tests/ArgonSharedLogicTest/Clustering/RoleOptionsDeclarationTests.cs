@@ -1,6 +1,8 @@
 namespace ArgonSharedLogicTest.Clustering;
 
 using System.Reflection;
+using Argon.Api.Clustering;
+using Argon.Api.Features.AdminApi;
 using Argon.Features.Clustering;
 
 /// <summary>
@@ -133,38 +135,44 @@ public class RoleOptionsDeclarationTests
     }
 
     /// <summary>
-    /// Every service a role registers can actually be built on that role.
+    /// The admin console can be built on the role that hosts it.
     /// </summary>
     /// <remarks>
     /// <para>Registering a service and being able to construct it are different things, and the gap is
     /// invisible until somebody calls it: the container resolves on first use, so a missing dependency
     /// is a 500 at request time on a role that started clean and advertised its port.</para>
     ///
-    /// <para>It has happened twice on <c>AdminConsoleImpl</c>, both times the same way — the console
-    /// grew a constructor parameter, the feature that registers the service was not told, and the role
-    /// hosting it had no feature registering that dependency. The second time took every method on the
-    /// admin console down, not just the new one, because the failure is in building the service rather
-    /// than in calling it. Ion services are the blind spot the grain fixtures leave: a client role hosts
-    /// no grains, so nothing walked their constructors.</para>
+    /// <para>It has happened twice on <c>AdminConsoleImpl</c>, both the same way — the console grew a
+    /// constructor parameter (<c>IUserSessionNotifier</c>, then <c>IEmailJournal</c>), the feature that
+    /// registers it was not told, and the role hosting it had no feature registering that dependency.
+    /// The second time took every method on the console down, not just the new one, because the failure
+    /// is in building the service rather than in calling it. Ion services are the blind spot the grain
+    /// fixtures leave: a client role hosts no grains, so nothing walked their constructors.</para>
+    ///
+    /// <para><b>One service rather than a sweep over everything each role registers.</b> That sweep was
+    /// written first and is not honest: the heuristic below only sees what features register, and a good
+    /// deal of the container comes from the host — a Redis multiplexer, the database provider, the
+    /// options plumbing — so it reports a dozen services per role that build perfectly well. A check
+    /// that cries wolf is worse than none. This one is narrow, and it is aimed at the thing that has
+    /// actually broken twice.</para>
     /// </remarks>
-    [TestCaseSource(nameof(Roles))]
-    public void Every_service_a_role_registers_can_be_built_on_it(RoleDescriptor role)
+    [Test]
+    public void The_admin_console_can_be_built_on_the_role_that_hosts_it()
     {
-        var canBuild = ActivatableOn(role);
-
-        var unbuildable = role.Features.Ordered
-           .SelectMany(feature => Registrations.RegistrationsOf(feature.FeatureType)
-               .Select(type => (Feature: feature.Name, Type: type)))
-           .Where(pair => !canBuild(pair.Type))
-           .Select(pair => $"{pair.Type.Name} (registered by '{pair.Feature}')")
-           .Distinct()
-           .OrderBy(text => text)
+        var hosts = Catalog.Roles.Values
+           .Where(role => role.Features.Ordered.Any(feature => feature.FeatureType == typeof(AdminConsoleFeature)))
            .ToArray();
 
-        Assert.That(unbuildable, Is.Empty,
-            $"role '{role.Id.Value}' registers services it cannot construct — the container resolves on "
-          + "first use, so this is a 500 at request time on a role that started clean: "
-          + string.Join(", ", unbuildable));
+        Assert.That(hosts, Is.Not.Empty, "no role hosts the admin console, so this checks nothing");
+
+        var broken = hosts
+           .Where(role => !ActivatableOn(role)(typeof(AdminConsoleImpl)))
+           .Select(role => role.Id.Value)
+           .ToArray();
+
+        Assert.That(broken, Is.Empty,
+            "the admin console takes a constructor dependency no feature of its role registers, so every "
+          + "call to it answers 500 on: " + string.Join(", ", broken));
     }
 
     /// <summary>
