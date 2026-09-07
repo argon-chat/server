@@ -167,7 +167,7 @@ jobs:
         run: dotnet tool restore
 
       - name: Download coverage from every shard
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           pattern: coverage-data-${{ inputs.database }}-shard-*
           path: shard-coverage
