@@ -177,5 +177,19 @@ public class DeviceProofFreshnessTests
         public Task<bool>     SetAddAsync(string key, string member, CancellationToken ct = default) => Task.FromResult(true);
         public Task<bool>     SetRemoveAsync(string key, string member, CancellationToken ct = default) => Task.FromResult(true);
         public Task<string[]> SetMembersAsync(string key, CancellationToken ct = default) => Task.FromResult(Array.Empty<string>());
+
+        // The ordered-log half of the cache. Nothing under test here writes one, and a double that
+        // silently answered empty would hide a caller that started to.
+        public Task SortedSetAddAsync(string key, string member, double score, CancellationToken ct = default)
+            => throw new NotSupportedException("this double keeps no ordered log");
+
+        public Task<string[]> SortedSetRangeAsync(string key, int offset, int count, bool descending, CancellationToken ct = default)
+            => throw new NotSupportedException("this double keeps no ordered log");
+
+        public Task<long> SortedSetLengthAsync(string key, CancellationToken ct = default)
+            => throw new NotSupportedException("this double keeps no ordered log");
+
+        public Task<long> SortedSetRemoveRangeByScoreAsync(string key, double min, double max, CancellationToken ct = default)
+            => throw new NotSupportedException("this double keeps no ordered log");
     }
 }

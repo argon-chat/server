@@ -847,6 +847,108 @@ public class AdminConsoleTests : TestBase
 
     /// <summary>Seeds a dormant account and runs one sweep, so there is something in the queue.</summary>
     /// <summary>
+    /// The console lists the erasures under way, including the ones no operator started.
+    /// </summary>
+    /// <remarks>
+    /// A deletion lives in one grain per account and nothing indexed those, so "how many accounts are
+    /// being deleted right now" had no answer — least of all for a person deleting their own account,
+    /// which never touches the queue at all. That is the case exercised here, and calling it off takes
+    /// it off the list again.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task GetDeletionsInFlight_ListsSelfRequestedErasuresAndForgetsCancelledOnes(CancellationToken ct = default)
+    {
+        var leaving = await CreateSessionAsync(ct);
+        var (consoleScope, console) = AccountConsoleHarness.Console(leaving);
+        await using var _ = consoleScope;
+
+        var (scope, admin) = Admin();
+        await using var __ = scope;
+
+        var before = await admin.GetDeletionsInFlight(0, 200, ct);
+
+        var requested = await console.RequestDeleteAccount(leaving.Credentials.password, ct);
+        Assert.That(requested.success, Is.True, requested.error.ToString());
+
+        var during = await admin.GetDeletionsInFlight(0, 200, ct);
+        var listed = during.entries.Values.FirstOrDefault(entry => entry.userId == leaving.UserId);
+
+        var cancelled = await console.CancelDeleteAccount(ct);
+        Assert.That(cancelled.success, Is.True, cancelled.error.ToString());
+
+        var after = await admin.GetDeletionsInFlight(0, 200, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(listed, Is.Not.Null,
+                "an account deleting itself is invisible to the console, which is the case the queue "
+              + "never covered");
+            Assert.That(listed?.selfRequested, Is.True,
+                "the list has to say who asked, or an operator cannot tell their own approvals from a "
+              + "person's own decision");
+            Assert.That(listed?.status, Is.EqualTo(AccountDeletionStatusView.SCHEDULED));
+            Assert.That(listed?.executionAt, Is.Not.Null, "a countdown with no date is not a countdown");
+            Assert.That(during.totalCount, Is.GreaterThan(before.totalCount),
+                "the count did not move, so it is not counting what it says it counts");
+            Assert.That(after.entries.Values.Any(entry => entry.userId == leaving.UserId), Is.False,
+                "a cancelled deletion is still listed as under way");
+        });
+    }
+
+    /// <summary>
+    /// Every message is journalled by account and outcome, and the journal holds no address.
+    /// </summary>
+    /// <remarks>
+    /// <para>"Did the reset code go out" and "why did this person get a deletion notice" had no answer:
+    /// a send is a log line on whichever pod made it. The journal is that fact written where it can be
+    /// read back.</para>
+    ///
+    /// <para>The address assertion is the point of the design and not a detail: the journal records who
+    /// the account was, never where they were written to. This host has SMTP switched off, so the
+    /// outcome recorded is a message that did not go out — which is itself the honest answer and the
+    /// one a dev stand should give.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task GetEmailJournal_RecordsWhatWasSentToWhomWithoutTheAddress(CancellationToken ct = default)
+    {
+        var target = await CreateSessionAsync(ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        // Any message will do; this one is a single call with a known kind.
+        var started = await admin.StartAccountDeletion(target.UserId, ct);
+        Assert.That(started.success, Is.True, started.error);
+
+        await AccountTimings.Emails.WaitForAsync(
+            target.Credentials.email, EmailKinds.DeleteNotice, AccountTimings.Slack, ct);
+
+        var mine = await admin.GetEmailJournal(target.UserId, 0, 50, ct);
+        var all  = await admin.GetEmailJournal(null, 0, 50, ct);
+
+        var entry = mine.entries.Values.FirstOrDefault(row => row.kind == EmailKinds.DeleteNotice);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(entry, Is.Not.Null,
+                "the notice this account was sent is not in its journal, so the journal answers nothing");
+            Assert.That(entry?.userId, Is.EqualTo(target.UserId),
+                "the entry has to name the account, which is the only identifying thing it may hold");
+            Assert.That(mine.totalCount, Is.GreaterThan(0));
+            Assert.That(all.entries.Values.Any(row => row.userId == target.UserId), Is.True,
+                "the platform-wide view is missing a message its per-account view has");
+
+            // The address, nowhere. Serialised and searched rather than field-by-field, because the
+            // guarantee is about the whole record and not about the fields somebody remembered.
+            var serialised = string.Join("\n", mine.entries.Values.Select(row =>
+                $"{row.userId}|{row.kind}|{row.sentAt}|{row.delivered}|{row.error}"));
+
+            Assert.That(serialised, Does.Not.Contain(target.Credentials.email).IgnoreCase,
+                "the journal is holding the address it was told not to keep");
+        });
+    }
+
+    /// <summary>
     /// The impact panel names what an erasure would destroy, and the bar that would refuse it.
     /// </summary>
     /// <remarks>
