@@ -1396,13 +1396,17 @@ public class AdminConsoleTests : TestBase
         var (scope, admin) = Admin();
         await using var _ = scope;
 
+        // Taken before the approval rather than before the erasure, because the stamp under test is
+        // written by whichever reconciliation first sees the deletion finished — and that is very often
+        // a neighbouring fixture's sweep landing the moment the grace elapses, a second or two before
+        // this test stops waiting. "After the decision" is the ordering that is actually guaranteed.
+        var approvedAt = DateTimeOffset.UtcNow;
+
         var approved = await admin.ApproveAccountDeletion(dormant.UserId, ct);
 
         Assert.That(approved.success, Is.True, approved.error);
 
         await Task.Delay(AccountTimings.GraceAndABit, ct);
-
-        var completedAfter = DateTimeOffset.UtcNow;
 
         var finished = await AccountConsoleHarness.DriveDeletionUntilAsync(
             dormant.UserId, AccountDeletionStatusKind.Completed, AccountTimings.ExecutionBudget, ct);
@@ -1430,7 +1434,7 @@ public class AdminConsoleTests : TestBase
             Assert.That(entry.username, Does.StartWith("deleted_"),
                 "the row should render the tombstone the erasure wrote, not the name it no longer has");
             Assert.That(entry.decidedByOperatorId, Is.EqualTo(OperatorId));
-            Assert.That(entry.completedAt, Is.Not.Null.And.GreaterThanOrEqualTo(completedAfter),
+            Assert.That(entry.completedAt, Is.Not.Null.And.GreaterThanOrEqualTo(approvedAt),
                 "the row has to say when the erasure finished; it is what the retention window — and so "
               + "the operator's sense of how long this record will be here — is measured from");
 

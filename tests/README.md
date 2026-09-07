@@ -56,10 +56,11 @@ kinds of shard:
 | `general-N` | everything else | Split by measured serial seconds, longest first, so the shards finish together. The five account fixtures added on 2026-09-06/07 are hand-placed on top of that split rather than regenerated into it — the comment above `$generalShards` says why. |
 
 Measured on this tree, PostgreSQL, no coverage, 32 cores: **250 s over four shards** (per shard:
-general-2 250 s, topology 180 s, presence 160 s, general-1 130 s) for 703 integration tests, of which
-701 pass, one stands down because it is CockroachDB-only and this is PostgreSQL, and one is red only
-when all four shards run at once — see "A test that is red only under four shards" below. The
-947-test unit suite rides along on `topology` inside that number, five seconds of it.
+general-2 250 s, topology 182 s, presence 160 s, general-1 144 s) for 710 integration tests, of which
+709 pass and one stands down because it is CockroachDB-only and this is PostgreSQL. Nothing is red,
+including under four concurrent shard processes — the one test that used to be is written up under
+"A test that was red only under four shards (closed)" below, because the way it failed is worth
+keeping. The 948-test unit suite rides along on `topology` inside that number, five seconds of it.
 
 The floor moved with the account campaign. It used to be `topology` — a container stack plus
 `RoleStartupTests` (68 s) and `GrainMigrationTests` (41 s), two fixtures that stand up silos of their
@@ -176,8 +177,16 @@ what it asserts rather than a hazard it hopes to dodge — and then waits the wi
 another, which pins the other half: retention is a reprieve, not a second permanent queue.
 
 That last wait is why `AdminConsoleTests` costs about half a minute more than it did, all of it in
-this one test. Re-plan the general shards from a `.trx` (`-FromTrx`) after the next full run if they
-have drifted apart.
+this one test — `general-1` went from 130 s to 144 s and is still the fastest shard, so the floor did
+not move. Re-plan the general shards from a `.trx` (`-FromTrx`) if that stops being true.
+
+Two `-Shards 4` runs on 2026-09-07 closed it: the first still failed the test, but on the *new*
+assertion and for a reason worth writing down — `completedAt` came back 1.7 s **before** the
+timestamp the test had taken just after the grace elapsed. That is a neighbouring fixture's sweep
+landing the instant the erasure finished, stamping the completion and leaving the row alone, which is
+the fix working under exactly the interleaving that used to break it. The assertion now reads
+"after the approval", which is the ordering the product actually guarantees. The second run: 710
+integration tests, 709 passed, 1 skipped, 0 failed, 250 s wall.
 
 ## Tests that pin an open bug
 

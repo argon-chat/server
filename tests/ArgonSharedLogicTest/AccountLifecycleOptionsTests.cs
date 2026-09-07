@@ -105,6 +105,13 @@ public class AccountLifecycleOptionsTests
             Assert.That(options.EffectiveReminders, Is.EqualTo(new[] { TimeSpan.FromDays(7), TimeSpan.FromDays(1) }));
             Assert.That(options.CheckInterval, Is.EqualTo(TimeSpan.FromHours(6)));
             Assert.That(options.AutoDeleteEnabled, Is.False, "inactivity deletion is opt-in");
+
+            // Not a former constant — there was no window at all, and the operator queue retired a
+            // decision the first time it reconciled after the erasure finished. A week is the shipped
+            // answer and it is pinned here for the same reason as the rest: it is what decides how long
+            // an operator can still see the outcome of their own approval, and a refactor that moved it
+            // to a day or an hour would be invisible until somebody went looking for a deleted account.
+            Assert.That(options.DecisionRetention, Is.EqualTo(TimeSpan.FromDays(7)));
         });
     }
 
@@ -239,6 +246,7 @@ public class AccountLifecycleOptionsTests
             ($"{AccountLifecycleOptionsFeature.DeletionSection}:ReminderBefore:0", "00:00:06"),
             ($"{AccountLifecycleOptionsFeature.DeletionSection}:ReminderBefore:1", "00:00:03"),
             ($"{AccountLifecycleOptionsFeature.DeletionSection}:CheckInterval", "00:00:02"),
+            ($"{AccountLifecycleOptionsFeature.DeletionSection}:DecisionRetention", "00:00:30"),
             ($"{AccountLifecycleOptionsFeature.ExportSection}:ProcessInterval", "00:00:01"),
             ($"{AccountLifecycleOptionsFeature.ExportSection}:FirstTickDelay", "00:00:01"),
             ($"{AccountLifecycleOptionsFeature.ExportSection}:RateLimitPeriod", "00:00:20"),
@@ -297,6 +305,23 @@ public class AccountLifecycleOptionsTests
             ($"{AccountLifecycleOptionsFeature.DeletionSection}:ReminderDays:1", "7"));
 
         Assert.That(errors, Has.Some.Contains(nameof(AccountDeletionOptions.ReminderDays)).IgnoreCase);
+    }
+
+    /// <summary>
+    /// A retention of zero is the defect the setting exists to close, not a way to switch it off.
+    /// </summary>
+    /// <remarks>
+    /// Zero puts the operator queue back exactly where it was: the first reconciliation after an erasure
+    /// finishes retires the row recording who authorised it, and that reconciliation can land within a
+    /// second of the deletion. "Switch the window off" and "lose the audit row at random" are the same
+    /// configuration, so it is refused rather than honoured.
+    /// </remarks>
+    [Test]
+    public void A_decision_retention_of_zero_is_refused()
+    {
+        var (errors, _) = Validate(($"{AccountLifecycleOptionsFeature.DeletionSection}:DecisionRetention", "00:00:00"));
+
+        Assert.That(errors, Has.Some.Contains(nameof(AccountDeletionOptions.DecisionRetention)).IgnoreCase);
     }
 
     /// <summary>An export batch of zero produces an archive with none of the messages in it.</summary>
