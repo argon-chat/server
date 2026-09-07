@@ -4,6 +4,7 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using AccountContracts;
+using Argon.Core.Entities.Data;
 using Argon.Features.Auth;
 using Argon.Features.Testing;
 using Argon.Grains.Interfaces;
@@ -1026,18 +1027,8 @@ public class AccountConsoleTests : TestBase
         });
     }
 
-    // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
 
-    /// <summary>
-    /// The operator id an approval driven from this fixture is attributed to.
-    /// </summary>
-    /// <remarks>
-    /// A bare id rather than a seeded operator row: the queue stores whoever the caller says decided, and
-    /// checking that the caller is a real operator is the admin console's job, not the grain's — which is
-    /// what <c>AdminConsoleTests</c> exercises. Distinct from that fixture's operator so an audit trail
-    /// never confuses the two.
-    /// </remarks>
-     // ── Signing in ──────────────────────────────────────────────────────────────────────────────
+    // ── Signing in ──────────────────────────────────────────────────────────────────────────────
 
     /// <summary>
     /// Signing in calls off an approved inactivity deletion, and the account is told where the sign-in came from.
@@ -1213,7 +1204,188 @@ public class AccountConsoleTests : TestBase
         }
     }
 
-   private static readonly Guid SweepOperatorId = Guid.Parse("00000000-0000-0000-0000-0000000ad0c2");
+    // ── Service accounts ────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The sweep never proposes a bot's account, however long the bot has been silent.
+    /// </summary>
+    /// <remarks>
+    /// <para>A bot never signs in, so its last activity is the day it was created and never moves: every
+    /// bot on the platform crosses the inactivity threshold a year after it is made and stays across it
+    /// for ever. The production sweep proposed the platform's own echo bot on its first pass.</para>
+    ///
+    /// <para>The bot is seeded the way the product makes one — a <c>Bots</c> row naming the account —
+    /// and deliberately <em>without</em> <c>UserEntity.BotEntityId</c>, which is the column the obvious
+    /// filter would have used and which only one bot account in twenty-three carries in production. A
+    /// dormant person is proposed in the same pass, so this cannot pass by the scan having done
+    /// nothing.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task The_sweep_never_proposes_a_bot_account(CancellationToken ct = default)
+    {
+        var bot    = await CreateSessionAsync(ct);
+        var person = await CreateSessionAsync(ct);
+
+        await SeedBotAsync(bot.UserId, ct);
+
+        var longAgo = DateTimeOffset.UtcNow - TimeSpan.FromDays(400);
+        await AccountSeed.BackdateLastLoginAsync(bot.UserId, longAgo, ct: ct);
+        await AccountSeed.BackdateLastLoginAsync(person.UserId, longAgo, ct: ct);
+
+        await RunScanAsync();
+
+        var queuedBot    = await QueuedAsync(bot.UserId);
+        var queuedPerson = await QueuedAsync(person.UserId);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(queuedBot, Is.Null,
+                "a bot's account was proposed for erasure; approving it would take the application's " +
+                "identity, its membership of every space it serves and its messages with them");
+            Assert.That(queuedPerson, Is.Not.Null,
+                "the dormant person was not proposed either, so this pass proves nothing about bots");
+        });
+    }
+
+    /// <summary>
+    /// A bot's account is refused deletion whoever asks — the operator queue and the account's own console.
+    /// </summary>
+    /// <remarks>
+    /// The scan filter keeps bots out of the operator's inbox; this is the bar behind it, at the one
+    /// gate every caller passes. Both are wanted: a queue entry written before the filter existed, or a
+    /// deletion asked for by any other route, must still be refused rather than merely unlisted.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_bot_account_is_refused_deletion_whoever_asks(CancellationToken ct = default)
+    {
+        var bot = await CreateSessionAsync(ct);
+        await SeedBotAsync(bot.UserId, ct);
+
+        var grain = GetGrainFactory().GetGrain<IAccountDeletionGrain>(bot.UserId);
+
+        // The path an operator's approval takes.
+        var approved = await grain.RequestAutoDeleteAsync();
+
+        // And the path a person's own request takes, in case the account ever holds a session.
+        var (consoleScope, console) = AccountConsoleHarness.Console(bot);
+        await using var scope = consoleScope;
+        var asked = await console.RequestDeleteAccount(bot.Credentials.password, ct);
+
+        var status = await grain.GetDeletionStatusAsync();
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(approved.Success, Is.False,
+                "an operator's approval would have armed the erasure of a bot's account");
+            Assert.That(approved.Error, Is.EqualTo(AccountDeletionRequestError.ServiceAccount),
+                "the refusal has to say why, or the console renders it as a fault");
+            Assert.That(asked.success, Is.False,
+                "a bot's account scheduled its own erasure");
+            Assert.That(status.Status, Is.EqualTo(AccountDeletionStatusKind.None),
+                "something armed a countdown against a bot's account");
+        });
+    }
+
+    /// <summary>
+    /// The scan's reminder is armed even while auto-delete is switched off, and re-arming does not move it.
+    /// </summary>
+    /// <remarks>
+    /// <para>Both halves are the production defect that left the sweep silent for a day after the switch
+    /// was turned on. The reminder used to be registered only when the switch was on, which made arming
+    /// the scan depend on which silo the singleton happened to activate on and what that silo's
+    /// configuration said — and during a rolling restart that is routinely the outgoing pod, carrying
+    /// the configuration the release replaced. Registering regardless, and reading the switch at each
+    /// pass, is what makes the switch take effect without a restart.</para>
+    ///
+    /// <para>The second half: <c>RegisterOrUpdateReminder</c> resets the schedule, so re-registering on
+    /// every activation pushed the next pass out — and because a tick activates the grain and the grain
+    /// is collected between ticks, a daily scan ran every five minutes. This asserts the weaker,
+    /// observable half of that: a second call does not move the schedule. Forcing a real deactivation
+    /// would collect every other fixture's grains in the shared cluster, which is not worth the
+    /// coverage.</para>
+    ///
+    /// <para>The reminder name is spelled out rather than read from the grain because it is durable
+    /// state: renaming it silently abandons the reminder already registered against every live cluster.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task The_scan_reminder_is_armed_even_while_auto_delete_is_switched_off(CancellationToken ct = default)
+    {
+        Assert.That(AccountTimings.Deletion.AutoDeleteEnabled, Is.False,
+            "premise: this host runs with the inactivity sweep switched off, and the fixtures drive it by hand");
+
+        var scheduler = GetGrainFactory().GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId);
+        await scheduler.EnsureSchedulerActiveAsync();
+
+        var reminders = FactoryAsp.Services.GetRequiredService<IReminderTable>();
+        var armed     = await reminders.ReadRow(scheduler.GetGrainId(), "auto-delete-scan");
+
+        Assert.That(armed, Is.Not.Null,
+            "the scan is not armed while the switch is off, so turning the switch on would do nothing " +
+            "until a silo restart happened to activate this grain somewhere carrying the new setting");
+
+        await scheduler.EnsureSchedulerActiveAsync();
+        var again = await reminders.ReadRow(scheduler.GetGrainId(), "auto-delete-scan");
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(again.StartAt, Is.EqualTo(armed.StartAt),
+                "arming the scan again moved its schedule; every activation would postpone the next pass");
+            Assert.That(again.Period, Is.EqualTo(armed.Period));
+        });
+    }
+
+    /// <summary>
+    /// Makes an existing account a bot's account, the way the product does: a row in <c>Bots</c> naming it.
+    /// </summary>
+    /// <remarks>
+    /// <c>UserEntity.BotEntityId</c> is deliberately left alone — see
+    /// <see cref="The_sweep_never_proposes_a_bot_account"/> for why that is the point rather than an
+    /// omission.
+    /// </remarks>
+    private static async Task SeedBotAsync(Guid userId, CancellationToken ct)
+    {
+        await using var db = await AccountSeed.NewDbAsync(ct);
+
+        var teamId = Guid.NewGuid();
+
+        db.TeamEntities.Add(new DevTeamEntity
+        {
+            TeamId  = teamId,
+            OwnerId = userId,
+            Name    = "Deletion fixture team"
+        });
+
+        db.BotEntities.Add(new BotEntity
+        {
+            AppId            = Guid.NewGuid(),
+            TeamId           = teamId,
+            Name             = "Deletion fixture bot",
+            ClientId         = Guid.NewGuid().ToString("N"),
+            ClientSecret     = Guid.NewGuid().ToString("N"),
+            AppType          = DevAppType.Bot,
+            BotToken         = Guid.NewGuid().ToString("N"),
+            BotAsUserId      = userId,
+            LifecycleState   = Argon.Core.Entities.Data.BotLifecycleState.Published,
+            MaxSpaces        = 5,
+            RequiredScopes   = [],
+            AllowedRedirects = []
+        });
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The operator id an approval driven from this fixture is attributed to.
+    /// </summary>
+    /// <remarks>
+    /// A bare id rather than a seeded operator row: the queue stores whoever the caller says decided, and
+    /// checking that the caller is a real operator is the admin console's job, not the grain's — which is
+    /// what <c>AdminConsoleTests</c> exercises. Distinct from that fixture's operator so an audit trail
+    /// never confuses the two.
+    /// </remarks>
+    private static readonly Guid SweepOperatorId = Guid.Parse("00000000-0000-0000-0000-0000000ad0c2");
 
     private async Task<AccountDeletionStatusKind> StatusOfAsync(Guid userId)
         => (await GetGrainFactory().GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync()).Status;

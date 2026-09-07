@@ -82,18 +82,55 @@ public class AutoDeleteSchedulerGrain(
     /// <summary>Days per month, as the threshold arithmetic has always counted them.</summary>
     private const double DaysPerMonth = 30.44;
 
+    /// <summary>How long after the reminder is first armed the first pass runs.</summary>
+    /// <remarks>
+    /// Long enough that a silo coming up has finished joining and is not scanning the whole user table
+    /// while the rest of the fleet is still rolling.
+    /// </remarks>
+    private static readonly TimeSpan FirstScanDelay = TimeSpan.FromMinutes(5);
+
+    /// <summary>How often the scan runs once armed.</summary>
+    private static readonly TimeSpan ScanPeriod = TimeSpan.FromHours(24);
+
+    /// <summary>
+    /// Arms the scan, once, for the life of the cluster.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Registered whatever the switch says.</b> It used to be registered only when
+    /// <see cref="AccountDeletionOptions.AutoDeleteEnabled"/> was on, which made arming the scan
+    /// depend on <em>which silo this grain happened to activate on and what that silo's configuration
+    /// said at the time</em>. The startup call runs on a silo that has just come up, but placement can
+    /// route a singleton to any silo hosting it — during a rolling restart, that is routinely the
+    /// outgoing pod, which is still carrying the configuration the release replaced. That is what
+    /// happened in production the day the switch was first turned on: the new pod's startup call
+    /// reached the pod it was replacing, that pod read a stale <c>false</c>, registered nothing and
+    /// died thirty seconds later, and the scan never ran again. Nothing re-asks: a reminder is
+    /// registered on activation or never.
+    ///
+    /// <para>So the reminder is now unconditional and the switch is read at each pass, in
+    /// <see cref="ReceiveReminder"/>, on whatever silo serves the tick — by then the whole fleet is
+    /// carrying the same configuration. Turning auto-delete on or off takes effect within a day and
+    /// needs no restart at all.</para>
+    ///
+    /// <para><b>And only when it is not already there.</b> <c>RegisterOrUpdateReminder</c> resets the
+    /// schedule, so re-registering on every activation pushed the next pass to
+    /// <see cref="FirstScanDelay"/> — and since a tick activates the grain, and the grain is collected
+    /// for idleness between ticks, each pass re-armed the next one five minutes out. A daily scan ran
+    /// every five minutes. Reading the reminder first costs one store round trip per activation and
+    /// leaves the schedule where it was.</para>
+    /// </remarks>
     public async override Task OnActivateAsync(CancellationToken cancellationToken)
     {
-        if (!options.Value.AutoDeleteEnabled)
-        {
-            logger.LogInformation("Auto-delete is disabled, skipping reminder registration");
+        if (await this.GetReminder(ReminderName) is not null)
             return;
-        }
 
-        await this.RegisterOrUpdateReminder(
-            ReminderName,
-            dueTime: TimeSpan.FromMinutes(5),
-            period: TimeSpan.FromHours(24));
+        await this.RegisterOrUpdateReminder(ReminderName, FirstScanDelay, ScanPeriod);
+
+        logger.LogInformation(
+            "Auto-delete scan armed: first pass in {Delay}, every {Period} after that; each pass reads " +
+            "the {Switch} switch, which is currently {State}",
+            FirstScanDelay, ScanPeriod, nameof(AccountDeletionOptions.AutoDeleteEnabled),
+            options.Value.AutoDeleteEnabled ? "on" : "off");
     }
 
     public ValueTask EnsureSchedulerActiveAsync()
@@ -107,11 +144,13 @@ public class AutoDeleteSchedulerGrain(
         if (reminderName != ReminderName)
             return;
 
+        // Skipped rather than unregistered, which is the other half of "the switch is read at each
+        // pass": a reminder that took itself away could only be brought back by another restart, and
+        // the restart is exactly what this grain must stop depending on. A pass that does nothing is a
+        // few bytes in the reminder table and one log line a day.
         if (!options.Value.AutoDeleteEnabled)
         {
-            logger.LogInformation("Auto-delete is disabled, unregistering reminder");
-            if (await this.GetReminder(ReminderName) is { } reminder)
-                await this.UnregisterReminder(reminder);
+            logger.LogInformation("Auto-delete is disabled; skipping this pass");
             return;
         }
 
@@ -172,14 +211,26 @@ public class AutoDeleteSchedulerGrain(
         var queue = grainFactory.GetGrain<IAccountDeletionQueueGrain>(IAccountDeletionQueueGrain.SingletonId);
         var held  = await ReadDeclineHoldsAsync(queue);
 
-        var offset = 0;
+        var systemUser = UserEntity.SystemUser;
+        var offset     = 0;
         bool hasMore;
 
         do
         {
             var page = await ctx.Users
                 .AsNoTracking()
-                .Where(u => !u.IsDeleted && !u.HasActiveUltima)
+                // Bots and the platform account are not people and have no console to answer from, so
+                // they are excluded here rather than merely barred at approval: an account that can
+                // never be approved does not belong in an operator's inbox. The bot test is the
+                // back-reference and not `u.BotEntityId`, because that column is only set on accounts
+                // seeded with one — in production one bot in twenty-three carries it, and the sweep
+                // proposed the one that did. Every bot's last activity is the day it was created (a bot
+                // never signs in), so without this every bot on the platform reaches the threshold and
+                // is proposed for erasure a year after it is made.
+                .Where(u => !u.IsDeleted
+                         && !u.HasActiveUltima
+                         && u.Id != systemUser
+                         && !ctx.BotEntities.Any(bot => bot.BotAsUserId == u.Id))
                 .OrderBy(u => u.Id)
                 .Skip(offset)
                 .Take(BatchSize)

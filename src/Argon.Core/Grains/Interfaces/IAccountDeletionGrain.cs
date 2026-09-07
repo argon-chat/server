@@ -140,7 +140,16 @@ public enum AccountDeletionRequestError
     /// without a durable record of the refusal the inactivity sweeper re-scheduled a cancelled
     /// account on its very next pass, so "no" lasted a day.
     /// </remarks>
-    RecentlyDeclined
+    RecentlyDeclined,
+
+    /// <summary>A bot's account, or the platform account. Never deletable, by anybody.</summary>
+    /// <remarks>
+    /// Deliberately given no member of the console's own <c>DeleteAccountError</c>: the console
+    /// authenticates a person, so it cannot be reached by the accounts this refuses, and the mapping
+    /// there falls through to <c>InternalError</c>. The refusals that matter are the ones the operator
+    /// queue and the inactivity sweep get.
+    /// </remarks>
+    ServiceAccount
 }
 
 [GenerateSerializer, Immutable]

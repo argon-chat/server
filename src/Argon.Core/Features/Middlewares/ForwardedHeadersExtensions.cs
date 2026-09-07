@@ -57,6 +57,19 @@ public static class ForwardedHeadersExtensions
         // ProxyTrust.
         var logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Argon.ForwardedHeaders");
 
+        // The framework's own copy runs ahead of this one and rewrites the peer address before
+        // ProxyTrust can judge it, so every request looks direct and the edge's geo is discarded.
+        if (Environment.GetEnvironmentVariable("ASPNETCORE_FORWARDEDHEADERS_ENABLED") is { } frameworkSwitch
+         && (frameworkSwitch.Equals("true", StringComparison.OrdinalIgnoreCase) || frameworkSwitch == "1"))
+        {
+            logger.LogWarning(
+                "ASPNETCORE_FORWARDEDHEADERS_ENABLED is set, which puts the framework's forwarded-headers "
+              + "middleware in front of this one and rewrites the peer address before it can be judged. "
+              + "Every request will be treated as arriving direct, so the edge's country and city are "
+              + "discarded. Unset it; this middleware already applies X-Forwarded-For, -Host and -Proto "
+              + "from the same networks.");
+        }
+
         app.Use(async (context, next) =>
         {
             var trusted = ProxyTrust.Evaluate(context, options.KnownIPNetworks, options.KnownProxies);

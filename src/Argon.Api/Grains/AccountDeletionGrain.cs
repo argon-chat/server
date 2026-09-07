@@ -408,6 +408,25 @@ public class AccountDeletionGrain(
     /// </remarks>
     private async Task<AccountDeletionRequestError?> BarredAsync(ApplicationDbContext ctx, UserEntity user, string trigger)
     {
+        var userId = UserId;
+
+        // Not a person's account, so none of what follows means anything: there is nobody to warn, no
+        // console to cancel from, and the eleven steps would take an application's identity, its
+        // membership of every space it serves and its messages with them. The platform account is the
+        // same case with nobody at all behind it. Both are barred here, at the one gate every caller
+        // passes — a person's own request, an operator's approval, and the sweep's proposal, which is
+        // where this was found: the inactivity scan proposed the echo bot on its first pass in
+        // production, because a bot's last activity is the day it was created and never moves.
+        if (user.Id == UserEntity.SystemUser
+         || await ctx.BotEntities.AnyAsync(bot => bot.BotAsUserId == userId))
+        {
+            AccountDeletionInstrument.DeletionsRejected.Add(1,
+                new KeyValuePair<string, object?>("reason", "service_account"),
+                new KeyValuePair<string, object?>("trigger", trigger));
+
+            return AccountDeletionRequestError.ServiceAccount;
+        }
+
         var lockdownStands = user.LockdownReason != LockdownReason.NONE
                           && (user.LockDownExpiration is not { } expiry || expiry > DateTimeOffset.UtcNow);
 
@@ -428,8 +447,6 @@ public class AccountDeletionGrain(
 
             return AccountDeletionRequestError.HasActiveSubscription;
         }
-
-        var userId = UserId;
 
         if (await ctx.Spaces.AnyAsync(s => s.CreatorId == userId && !s.IsDeleted))
         {
