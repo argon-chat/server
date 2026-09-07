@@ -143,6 +143,16 @@ public sealed partial record AccountDeletionGrainState
     /// </remarks>
     [DataMember(Order = 13), Id(13)]
     public AccountDeletionTrigger Trigger { get; set; } = AccountDeletionTrigger.User;
+
+    /// <summary>Whether this erasure tells the account anything at all.</summary>
+    /// <remarks>
+    /// Set only by <c>IAccountDeletionGrain.EraseNowAsync</c>, the operator's last-resort button, and
+    /// cleared by <c>BeginCountdown</c> with the rest of the countdown, so it can never leak into the
+    /// next deletion of the same account. It suppresses the completion mail; the notice and the
+    /// warnings are not suppressed so much as never reached, because that path never waits.
+    /// </remarks>
+    [DataMember(Order = 14), Id(14)]
+    public bool Silent { get; set; }
 }
 
 public enum AccountDeletionStatus

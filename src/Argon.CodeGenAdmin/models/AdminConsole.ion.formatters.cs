@@ -3304,6 +3304,55 @@ public sealed class Ion_StrandedAccountDeletion_Formatter : IonFormatter<Strande
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AutoDeleteScanStatus_Formatter : IonFormatter<AutoDeleteScanStatus>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AutoDeleteScanStatus Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(15, "AutoDeleteScanStatus");
+        var __enabled = IonFormatterStorage<bool>.Read(reader);
+        var __armedat = reader.ReadNullable<datetime>();
+        var __nextdueat = reader.ReadNullable<datetime>();
+        var __laststartedat = reader.ReadNullable<datetime>();
+        var __lastfinishedat = reader.ReadNullable<datetime>();
+        var __lasttrigger = reader.ReadNullable<string>();
+        var __runs = IonFormatterStorage<i4>.Read(reader);
+        var __lastprocessed = IonFormatterStorage<i4>.Read(reader);
+        var __lastproposed = IonFormatterStorage<i4>.Read(reader);
+        var __lastenqueued = IonFormatterStorage<i4>.Read(reader);
+        var __lastretired = IonFormatterStorage<i4>.Read(reader);
+        var __lastheld = IonFormatterStorage<i4>.Read(reader);
+        var __lastqueuelength = IonFormatterStorage<i4>.Read(reader);
+        var __lasterror = reader.ReadNullable<string>();
+        var __lasterrorat = reader.ReadNullable<datetime>();
+        reader.ReadEndArrayAndSkip(arraySize - 15);
+        return new(__enabled, __armedat, __nextdueat, __laststartedat, __lastfinishedat, __lasttrigger, __runs, __lastprocessed, __lastproposed, __lastenqueued, __lastretired, __lastheld, __lastqueuelength, __lasterror, __lasterrorat);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AutoDeleteScanStatus value)
+    {
+        writer.WriteStartArray(15);
+        IonFormatterStorage<bool>.Write(writer, value.enabled);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.armedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.nextDueAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastStartedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastFinishedAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.lastTrigger);
+        IonFormatterStorage<i4>.Write(writer, value.runs);
+        IonFormatterStorage<i4>.Write(writer, value.lastProcessed);
+        IonFormatterStorage<i4>.Write(writer, value.lastProposed);
+        IonFormatterStorage<i4>.Write(writer, value.lastEnqueued);
+        IonFormatterStorage<i4>.Write(writer, value.lastRetired);
+        IonFormatterStorage<i4>.Write(writer, value.lastHeld);
+        IonFormatterStorage<i4>.Write(writer, value.lastQueueLength);
+        IonFormatterStorage<string>.WriteNullable(writer, value.lastError);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastErrorAt);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_StrandedAccountDeletionPage_Formatter : IonFormatter<StrandedAccountDeletionPage>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

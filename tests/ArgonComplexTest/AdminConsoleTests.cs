@@ -1,4 +1,4 @@
-﻿namespace ArgonComplexTest.Tests;
+namespace ArgonComplexTest.Tests;
 
 using Argon.Api.Features.AdminApi;
 using Argon.Entities;
@@ -846,6 +846,158 @@ public class AdminConsoleTests : TestBase
     // them counts entries.
 
     /// <summary>Seeds a dormant account and runs one sweep, so there is something in the queue.</summary>
+    /// <summary>
+    /// Forcing a pass runs one and reports what it did, and says when the timed pass is next due.
+    /// </summary>
+    /// <remarks>
+    /// The sweep leaves log lines and the queue it reconciles, and neither answers "did a pass happen".
+    /// An empty queue reads the same whether nothing was proposable or nothing was running — which is
+    /// the state production spent a day in, undiagnosable from the console. The forced pass runs while
+    /// the host has the sweep switched off, because the switch governs the timer and not the button.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task RunAutoDeleteScan_RunsAPassAndSaysWhatItDid(CancellationToken ct = default)
+    {
+        var dormant = await CreateSessionAsync(ct);
+        await AccountSeed.BackdateLastLoginAsync(dormant.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(400), ct: ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var before = await admin.GetAutoDeleteScanStatus(ct);
+        var after  = await admin.RunAutoDeleteScan(ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(after.enabled, Is.False,
+                "premise: this host runs with the timed sweep off, and the button ran anyway");
+            Assert.That(after.runs, Is.GreaterThan(before.runs),
+                "the forced pass was not recorded, so an operator cannot tell it ran");
+            Assert.That(after.lastFinishedAt, Is.Not.Null, "a pass that finished has to say when");
+            Assert.That(after.lastTrigger, Is.EqualTo("operator"),
+                "the record has to say who asked for the pass, or a forced one reads as a timed one");
+            Assert.That(after.lastProcessed, Is.GreaterThan(0),
+                "the pass reported reading no accounts at all");
+            Assert.That(after.lastError, Is.Null, $"the pass failed: {after.lastError}");
+        });
+    }
+
+    /// <summary>
+    /// An operator starts the workflow on an account nobody proposed: ordinary grace, notice mail now.
+    /// </summary>
+    /// <remarks>
+    /// The sweep decides what is dormant; an operator decides what needs deleting, and the two sets do
+    /// not overlap — a support ticket names an account the sweep will never propose. What the account
+    /// gets is what an approval gives it: the notice, the full grace period, and the ability to call the
+    /// whole thing off from its own console.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task StartAccountDeletion_ArmsTheOrdinaryCountdownAndTellsTheAccount(CancellationToken ct = default)
+    {
+        var target = await CreateSessionAsync(ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var started = await admin.StartAccountDeletion(target.UserId, ct);
+
+        var status = await GetGrainFactory().GetGrain<IAccountDeletionGrain>(target.UserId).GetDeletionStatusAsync();
+        var notice = await AccountTimings.Emails.WaitForAsync(
+            target.Credentials.email, EmailKinds.DeleteNotice, AccountTimings.Slack, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(started.success, Is.True, started.error);
+            Assert.That(status.Status, Is.EqualTo(AccountDeletionStatusKind.Scheduled),
+                "the button reported success without arming anything");
+            Assert.That(status.ExecutionAt, Is.Not.Null.And.GreaterThan(DateTimeOffset.UtcNow),
+                "an account started by an operator still gets its grace period");
+            Assert.That(notice, Is.Not.Null,
+                "nobody told the account, which is the one thing this button is for");
+        });
+    }
+
+    /// <summary>
+    /// Expiring the grace brings the erasure forward now, and posts no warning it has run out of time to send.
+    /// </summary>
+    /// <remarks>
+    /// <para>Collapsing the countdown opens every warning threshold at once, so the poll that follows
+    /// would post "seven days remain" and "one day remains" together, moments before the account is
+    /// gone. They are marked spent instead.</para>
+    ///
+    /// <para>And the button is refused on an account with nothing counting down: it shortens a decision,
+    /// it does not take one.</para>
+    /// </remarks>
+    [Test, CancelAfter(180_000)]
+    public async Task ExpireAccountDeletionGrace_BringsItForwardAndPostsNoStaleWarnings(CancellationToken ct = default)
+    {
+        var untouched = await CreateSessionAsync(ct);
+        var target    = await CreateSessionAsync(ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var refused = await admin.ExpireAccountDeletionGrace(untouched.UserId, ct);
+
+        Assert.That((await admin.StartAccountDeletion(target.UserId, ct)).success, Is.True,
+            "the countdown this test brings forward was never armed");
+
+        var expired = await admin.ExpireAccountDeletionGrace(target.UserId, ct);
+        var grain   = GetGrainFactory().GetGrain<IAccountDeletionGrain>(target.UserId);
+
+        var reached = await AccountConsoleHarness.DriveDeletionUntilAsync(
+            target.UserId, AccountDeletionStatusKind.Completed, AccountTimings.ExecutionBudget, ct);
+
+        var reminders = AccountTimings.Emails.Sent(target.Credentials.email, EmailKinds.DeletionReminder);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(refused.success, Is.False,
+                "an account with nothing scheduled had its non-existent grace expired");
+            Assert.That(expired.success, Is.True, expired.error);
+            Assert.That(reached, Is.EqualTo(AccountDeletionStatusKind.Completed),
+                "the erasure did not run after its grace was expired");
+            Assert.That(reminders, Is.Empty,
+                "the account was posted a 'time is running out' warning after its account was already gone");
+        });
+    }
+
+    /// <summary>
+    /// Erasing now finishes the account inside the call and sends it nothing at all.
+    /// </summary>
+    /// <remarks>
+    /// The last-resort button. No grace, and silence is the point: an operator reaching for it has a
+    /// reason not to tell the account, so the notice, the warnings and the confirmation are all
+    /// suppressed. The bars are not — a bot is still refused, which is asserted where the bar lives.
+    /// </remarks>
+    [Test, CancelAfter(180_000)]
+    public async Task EraseAccountNow_FinishesTheAccountAndTellsItNothing(CancellationToken ct = default)
+    {
+        var target = await CreateSessionAsync(ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var erased = await admin.EraseAccountNow(target.UserId, ct);
+
+        var status  = await GetGrainFactory().GetGrain<IAccountDeletionGrain>(target.UserId).GetDeletionStatusAsync();
+        var visible = await AccountSeed.IsVisibleAsync(target.UserId, ct);
+
+        await Task.Delay(AccountTimings.Slack, ct);
+        var mail = AccountTimings.Emails.Sent(target.Credentials.email);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(erased.success, Is.True, erased.error);
+            Assert.That(status.Status, Is.EqualTo(AccountDeletionStatusKind.Completed),
+                "the button answered before the erasure it promised had finished");
+            Assert.That(visible, Is.False, "the account is still there");
+            Assert.That(mail.Select(m => m.Kind), Is.Empty,
+                "a silent erasure sent the account "
+              + string.Join(", ", mail.Select(m => m.Kind).Distinct()));
+        });
+    }
+
     private async Task<TestUserSession> ProposeDormantAccountAsync(CancellationToken ct)
     {
         var dormant = await CreateSessionAsync(ct);

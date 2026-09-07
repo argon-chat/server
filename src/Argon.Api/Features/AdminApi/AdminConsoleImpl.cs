@@ -3068,6 +3068,155 @@ public class AdminConsoleImpl(
         }
     }
 
+
+    /// <summary>The inactivity sweep as an operator sees it: when it last ran, what it did, when it runs next.</summary>
+    /// <remarks>
+    /// Read-only and unaudited, unlike everything else on this page — it names no account and changes
+    /// nothing. It exists because an empty queue reads the same whether nothing was proposable or
+    /// nothing ran, and telling those apart used to mean reading a pod's log.
+    /// </remarks>
+    public async Task<AutoDeleteScanStatus> GetAutoDeleteScanStatus(CancellationToken ct = default)
+        => Map(await Scheduler.GetScanStatusAsync());
+
+    /// <summary>Runs a pass now and answers with what it did.</summary>
+    /// <remarks>
+    /// Audited, though a pass only ever writes to the queue: what it costs is a full read of the user
+    /// table, and an operator who can trigger that on demand is worth a row in the log. It runs whatever
+    /// the switch says — the switch governs the timer, not the button — and it deliberately does not
+    /// move the timer, so forcing one does not postpone tomorrow's.
+    /// </remarks>
+    public async Task<AutoDeleteScanStatus> RunAutoDeleteScan(CancellationToken ct = default)
+    {
+        await AuditQuietlyAsync("RunAutoDeleteScan", Guid.Empty, "Outcome=attempted");
+
+        try
+        {
+            await Scheduler.RunScanAsync();
+
+            var status = await Scheduler.GetScanStatusAsync();
+
+            await AuditQuietlyAsync("RunAutoDeleteScan", Guid.Empty,
+                $"Outcome=ran; Processed={status.LastProcessed}; Proposed={status.LastProposed}; "
+              + $"Enqueued={status.LastEnqueued}; Retired={status.LastRetired}; Length={status.LastQueueLength}");
+
+            return Map(status);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "An operator's forced inactivity scan failed");
+            await AuditQuietlyAsync("RunAutoDeleteScan", Guid.Empty, $"Outcome=error; {ex.Message}");
+
+            return Map(await Scheduler.GetScanStatusAsync());
+        }
+    }
+
+    /// <summary>Starts the deletion workflow on an account nobody proposed.</summary>
+    /// <remarks>
+    /// The countdown an approval arms, reached without a queue entry: the ordinary grace period, the
+    /// notice mail now, and an account that can still call it off from its own console or by signing in.
+    /// Every bar stands. Not restricted to dormant accounts on purpose — the sweep decides what is
+    /// dormant, an operator decides what needs deleting, and support tickets are the second kind.
+    /// </remarks>
+    public Task<UserActionResult> StartAccountDeletion(Guid userId, CancellationToken ct = default)
+        => DriveDeletionAsync("StartAccountDeletion", userId, grain => grain.StartByOperatorAsync());
+
+    /// <summary>Brings an armed erasure forward to now.</summary>
+    /// <remarks>
+    /// Refused unless something is already counting down: this button shortens a decision, it does not
+    /// take one. The erasure runs on the poll that follows, which is armed to fire immediately.
+    /// </remarks>
+    public Task<UserActionResult> ExpireAccountDeletionGrace(Guid userId, CancellationToken ct = default)
+        => DriveDeletionAsync("ExpireAccountDeletionGrace", userId, grain => grain.ExpireGraceAsync());
+
+    /// <summary>Erases an account immediately, with no mail to it at all.</summary>
+    /// <remarks>
+    /// The last-resort button: no grace, no notice, no confirmation, and the erasure runs inside this
+    /// call rather than on the next poll, so the answer says whether it actually finished. The bars still
+    /// stand — they are the platform's invariants, not a courtesy to the account holder.
+    /// </remarks>
+    public Task<UserActionResult> EraseAccountNow(Guid userId, CancellationToken ct = default)
+        => DriveDeletionAsync("EraseAccountNow", userId, grain => grain.EraseNowAsync());
+
+    /// <summary>The three operator-driven deletion buttons, which differ only in which call they make.</summary>
+    /// <remarks>
+    /// Audited attempt-then-outcome like the queue's own decisions, and for the same reason: each one is
+    /// a step towards an irreversible act on somebody's account, and the row that says who asked has to
+    /// survive whether or not the call succeeded.
+    /// </remarks>
+    private async Task<UserActionResult> DriveDeletionAsync(
+        string action, Guid userId, Func<IAccountDeletionGrain, ValueTask<AccountDeletionRequestResult>> drive)
+    {
+        await AuditQuietlyAsync(action, userId, "Outcome=attempted");
+
+        try
+        {
+            var result = await drive(grainFactory.GetGrain<IAccountDeletionGrain>(userId));
+
+            if (!result.Success)
+            {
+                await AuditQuietlyAsync(action, userId, $"Outcome=refused; Reason={result.Error}");
+                return new UserActionResult(false, Explain(result.Error));
+            }
+
+            await AuditQuietlyAsync(action, userId, $"Outcome=done; ExecutionAt={result.ScheduledDeletionAt:O}");
+
+            // So the queue's own page settles now rather than at the next pass; a queue that will not
+            // answer costs a stale row and nothing else.
+            try
+            {
+                await DeletionQueue.RefreshAsync(userId);
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex,
+                    "Drove the deletion of {UserId} but could not refresh its queue entry; the next scan will", userId);
+            }
+
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Operator action {Action} failed for {UserId}", action, userId);
+            await AuditQuietlyAsync(action, userId, $"Outcome=error; {ex.Message}");
+            return new UserActionResult(false, ex.Message);
+        }
+    }
+
+    /// <summary>The grain's refusal, in words a console can show.</summary>
+    private static string Explain(AccountDeletionRequestError? error)
+        => error switch
+        {
+            AccountDeletionRequestError.AlreadyScheduled      => "That account's deletion is already under way",
+            AccountDeletionRequestError.NotScheduled          => "That account has no deletion counting down",
+            AccountDeletionRequestError.HasActiveSubscription => "That account has an active subscription",
+            AccountDeletionRequestError.OwnsSpaces            => "That account still owns a space",
+            AccountDeletionRequestError.AccountLocked         => "That account is under a standing lockdown",
+            AccountDeletionRequestError.ServiceAccount        => "That is a bot or platform account and cannot be deleted",
+            AccountDeletionRequestError.RecentlyDeclined      => "That account recently refused a deletion",
+            AccountDeletionRequestError.InvalidPassword       => "The account's password was not accepted",
+            _                                                 => "The server refused the request"
+        };
+
+    private IAutoDeleteSchedulerGrain Scheduler
+        => grainFactory.GetGrain<IAutoDeleteSchedulerGrain>(IAutoDeleteSchedulerGrain.SingletonId);
+
+    private static AutoDeleteScanStatus Map(AutoDeleteScanReport report)
+        => new(report.Enabled,
+            report.ArmedAt?.UtcDateTime,
+            report.NextDueAt?.UtcDateTime,
+            report.LastStartedAt?.UtcDateTime,
+            report.LastFinishedAt?.UtcDateTime,
+            report.LastTrigger,
+            report.Runs,
+            report.LastProcessed,
+            report.LastProposed,
+            report.LastEnqueued,
+            report.LastRetired,
+            report.LastHeld,
+            report.LastQueueLength,
+            report.LastError,
+            report.LastErrorAt?.UtcDateTime);
+
     #endregion
 
     #region Feature Flags

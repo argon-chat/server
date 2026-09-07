@@ -1382,6 +1382,91 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<UserActionResult>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task GetAutoDeleteScanStatus_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.GetAutoDeleteScanStatus");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.GetAutoDeleteScanStatus();
+        
+        IonFormatterStorage<AutoDeleteScanStatus>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task RunAutoDeleteScan_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 0;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.RunAutoDeleteScan");
+    
+        
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.RunAutoDeleteScan();
+        
+        IonFormatterStorage<AutoDeleteScanStatus>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task StartAccountDeletion_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.StartAccountDeletion");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.StartAccountDeletion(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task ExpireAccountDeletionGrace_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.ExpireAccountDeletionGrace");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.ExpireAccountDeletionGrace(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task EraseAccountNow_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 1;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.EraseAccountNow");
+    
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.EraseAccountNow(__userid);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task GetTenantDirectory_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1630,6 +1715,16 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return GetStrandedAccountDeletions_Execute(reader, writer, ct);
         if (methodName.Equals("ResumeAccountDeletion", StringComparison.InvariantCultureIgnoreCase))
             return ResumeAccountDeletion_Execute(reader, writer, ct);
+        if (methodName.Equals("GetAutoDeleteScanStatus", StringComparison.InvariantCultureIgnoreCase))
+            return GetAutoDeleteScanStatus_Execute(reader, writer, ct);
+        if (methodName.Equals("RunAutoDeleteScan", StringComparison.InvariantCultureIgnoreCase))
+            return RunAutoDeleteScan_Execute(reader, writer, ct);
+        if (methodName.Equals("StartAccountDeletion", StringComparison.InvariantCultureIgnoreCase))
+            return StartAccountDeletion_Execute(reader, writer, ct);
+        if (methodName.Equals("ExpireAccountDeletionGrace", StringComparison.InvariantCultureIgnoreCase))
+            return ExpireAccountDeletionGrace_Execute(reader, writer, ct);
+        if (methodName.Equals("EraseAccountNow", StringComparison.InvariantCultureIgnoreCase))
+            return EraseAccountNow_Execute(reader, writer, ct);
         if (methodName.Equals("GetTenantDirectory", StringComparison.InvariantCultureIgnoreCase))
             return GetTenantDirectory_Execute(reader, writer, ct);
         if (methodName.Equals("CreateTenant", StringComparison.InvariantCultureIgnoreCase))

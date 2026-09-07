@@ -431,6 +431,10 @@ public sealed record StrandedAccountDeletion(guid userId, string username, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AutoDeleteScanStatus(bool enabled, datetime? armedAt, datetime? nextDueAt, datetime? lastStartedAt, datetime? lastFinishedAt, string? lastTrigger, i4 runs, i4 lastProcessed, i4 lastProposed, i4 lastEnqueued, i4 lastRetired, i4 lastHeld, i4 lastQueueLength, string? lastError, datetime? lastErrorAt);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record StrandedAccountDeletionPage(IonArray<StrandedAccountDeletion> entries, i4 totalCount, i4 offset, i4 limit);
 
 
@@ -786,6 +790,11 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> RejectAccountDeletion(guid userId, CancellationToken ct = default);
     Task<StrandedAccountDeletionPage> GetStrandedAccountDeletions(i4 offset, i4 limit, CancellationToken ct = default);
     Task<UserActionResult> ResumeAccountDeletion(guid userId, CancellationToken ct = default);
+    Task<AutoDeleteScanStatus> GetAutoDeleteScanStatus(CancellationToken ct = default);
+    Task<AutoDeleteScanStatus> RunAutoDeleteScan(CancellationToken ct = default);
+    Task<UserActionResult> StartAccountDeletion(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> ExpireAccountDeletionGrace(guid userId, CancellationToken ct = default);
+    Task<UserActionResult> EraseAccountNow(guid userId, CancellationToken ct = default);
     Task<TenantDirectoryList> GetTenantDirectory(CancellationToken ct = default);
     Task<TenantActionResult> CreateTenant(CreateTenantInput input, CancellationToken ct = default);
     Task<TenantActionResult> UpdateTenant(UpdateTenantInput input, CancellationToken ct = default);

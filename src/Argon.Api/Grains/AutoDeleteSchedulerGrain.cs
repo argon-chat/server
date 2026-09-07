@@ -4,6 +4,8 @@ using Argon.Features.Logic;
 using Argon.Grains.Interfaces;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using Orleans.Providers;
+using Persistence.States;
 
 /// <summary>
 /// The daily pass over dormant accounts. It proposes; it no longer decides.
@@ -35,6 +37,8 @@ using Microsoft.Extensions.Options;
 /// suite drives — and runs whatever the switch says, exactly as it did before.</para>
 /// </remarks>
 public class AutoDeleteSchedulerGrain(
+    [PersistentState("auto-delete-scan-store", ProviderConstants.DEFAULT_STORAGE_PROVIDER_NAME)]
+    IPersistentState<AutoDeleteScanState> scan,
     IDbContextFactory<ApplicationDbContext> dbFactory,
     IGrainFactory grainFactory,
     IOptions<AccountDeletionOptions> options,
@@ -126,6 +130,11 @@ public class AutoDeleteSchedulerGrain(
 
         await this.RegisterOrUpdateReminder(ReminderName, FirstScanDelay, ScanPeriod);
 
+        var now = DateTimeOffset.UtcNow;
+        scan.State.ArmedAt   = now;
+        scan.State.NextDueAt = now + FirstScanDelay;
+        await scan.WriteStateAsync();
+
         logger.LogInformation(
             "Auto-delete scan armed: first pass in {Delay}, every {Period} after that; each pass reads " +
             "the {Switch} switch, which is currently {State}",
@@ -137,7 +146,28 @@ public class AutoDeleteSchedulerGrain(
         => ValueTask.CompletedTask; // activation itself registers the reminder
 
     public async ValueTask RunScanAsync()
-        => await ScanAndQueueAsync();
+        => await ScanAndQueueAsync("operator");
+
+    /// <inheritdoc cref="IAutoDeleteSchedulerGrain.GetScanStatusAsync"/>
+    public ValueTask<AutoDeleteScanReport> GetScanStatusAsync()
+        => ValueTask.FromResult(new AutoDeleteScanReport
+        {
+            Enabled         = options.Value.AutoDeleteEnabled,
+            ArmedAt         = scan.State.ArmedAt,
+            NextDueAt       = scan.State.NextDueAt,
+            LastStartedAt   = scan.State.LastStartedAt,
+            LastFinishedAt  = scan.State.LastFinishedAt,
+            LastTrigger     = scan.State.LastTrigger,
+            Runs            = scan.State.Runs,
+            LastProcessed   = scan.State.LastProcessed,
+            LastProposed    = scan.State.LastProposed,
+            LastEnqueued    = scan.State.LastEnqueued,
+            LastRetired     = scan.State.LastRetired,
+            LastHeld        = scan.State.LastHeld,
+            LastQueueLength = scan.State.LastQueueLength,
+            LastError       = scan.State.LastError,
+            LastErrorAt     = scan.State.LastErrorAt
+        });
 
     public async Task ReceiveReminder(string reminderName, TickStatus status)
     {
@@ -156,9 +186,11 @@ public class AutoDeleteSchedulerGrain(
 
         logger.LogInformation("Auto-delete reminder fired, starting scan");
 
+        scan.State.NextDueAt = DateTimeOffset.UtcNow + ScanPeriod;
+
         try
         {
-            await ScanAndQueueAsync();
+            await ScanAndQueueAsync("reminder");
         }
         catch (Exception ex)
         {
@@ -200,7 +232,28 @@ public class AutoDeleteSchedulerGrain(
     /// that filter exists to remove spent the pass's whole budget and the queue was handed nothing,
     /// which retires the entries already in it: the worklist did not stall, it emptied.</para>
     /// </remarks>
-    private async Task ScanAndQueueAsync()
+    private async Task ScanAndQueueAsync(string trigger)
+    {
+        scan.State.LastStartedAt = DateTimeOffset.UtcNow;
+        scan.State.LastTrigger   = trigger;
+        scan.State.Runs++;
+        await scan.WriteStateAsync();
+
+        try
+        {
+            await RunPassAsync();
+        }
+        catch (Exception ex)
+        {
+            scan.State.LastError   = ex.Message;
+            scan.State.LastErrorAt = DateTimeOffset.UtcNow;
+            await scan.WriteStateAsync();
+            throw;
+        }
+    }
+
+    /// <summary>The pass itself, with <see cref="ScanAndQueueAsync"/> around it doing the bookkeeping.</summary>
+    private async Task RunPassAsync()
     {
         var processedCount = 0;
         var candidates     = new List<AccountDeletionCandidate>();
@@ -357,6 +410,17 @@ public class AutoDeleteSchedulerGrain(
             candidates.Count, collected, proposals.Count);
 
         var result = await queue.ReconcileAsync(proposals);
+
+        scan.State.LastFinishedAt  = DateTimeOffset.UtcNow;
+        scan.State.LastProcessed   = processedCount;
+        scan.State.LastProposed    = proposals.Count;
+        scan.State.LastEnqueued    = result.Enqueued;
+        scan.State.LastRetired     = result.Retired;
+        scan.State.LastHeld        = result.Held;
+        scan.State.LastQueueLength = result.Length;
+        scan.State.LastError       = null;
+        scan.State.LastErrorAt     = null;
+        await scan.WriteStateAsync();
 
         logger.LogInformation(
             "Auto-delete scan completed: processed {Processed}, proposed {Proposed}, enqueued {Enqueued}, " +

@@ -304,12 +304,30 @@ public class AccountDeletionGrain(
         };
     }
 
-    public async ValueTask<AccountDeletionRequestResult> RequestAutoDeleteAsync()
+    public ValueTask<AccountDeletionRequestResult> RequestAutoDeleteAsync()
+        => ScheduleInactivityAsync(honourDeclineHold: true, trigger: "auto_inactivity");
+
+    /// <inheritdoc cref="IAccountDeletionGrain.StartByOperatorAsync"/>
+    public ValueTask<AccountDeletionRequestResult> StartByOperatorAsync()
+        => ScheduleInactivityAsync(honourDeclineHold: false, trigger: "operator");
+
+    /// <summary>
+    /// Arms the countdown the inactivity notice describes: the ordinary grace, the notice mail, and a
+    /// deletion the account can still call off by signing in.
+    /// </summary>
+    /// <param name="honourDeclineHold">
+    /// Whether a refusal the account holder already made stands in the way. It does for the sweep,
+    /// which is the whole of defect CON-4, and does not for an operator, who is the person the hold
+    /// defers to.
+    /// </param>
+    /// <param name="trigger">What the metrics and the bar's own counters record as the cause.</param>
+    private async ValueTask<AccountDeletionRequestResult> ScheduleInactivityAsync(bool honourDeclineHold, string trigger)
     {
         using var activity = AccountDeletionInstrument.ActivitySource.StartActivity("RequestAutoDelete");
         activity?.SetTag("user.id", UserId);
+        activity?.SetTag("deletion.trigger", trigger);
         AccountDeletionInstrument.DeletionsRequested.Add(1,
-            new KeyValuePair<string, object?>("trigger", "auto_inactivity"));
+            new KeyValuePair<string, object?>("trigger", trigger));
 
         if (state.State.Status is AccountDeletionStatus.Scheduled
             or AccountDeletionStatus.Executing
@@ -328,11 +346,13 @@ public class AccountDeletionGrain(
         // max(DeviceHistories.LastLoginTime) ?? Users.CreatedAt, and the console authenticates against
         // Aegis, which never records a login — so without this the sweeper re-scheduled the same
         // account on its very next pass, with a fresh notice mail and a fresh grace, indefinitely.
-        if (state.State.DeclinedAt is { } declinedAt && DateTimeOffset.UtcNow - declinedAt < Options.DeclineHoldsFor)
+        if (honourDeclineHold
+         && state.State.DeclinedAt is { } declinedAt
+         && DateTimeOffset.UtcNow - declinedAt < Options.DeclineHoldsFor)
         {
             AccountDeletionInstrument.DeletionsRejected.Add(1,
                 new KeyValuePair<string, object?>("reason", "recently_declined"),
-                new KeyValuePair<string, object?>("trigger", "auto_inactivity"));
+                new KeyValuePair<string, object?>("trigger", trigger));
 
             return new AccountDeletionRequestResult
             {
@@ -351,7 +371,7 @@ public class AccountDeletionGrain(
                 Error = AccountDeletionRequestError.InternalError
             };
 
-        if (await BarredAsync(ctx, user, trigger: "auto_inactivity") is { } barred)
+        if (await BarredAsync(ctx, user, trigger) is { } barred)
             return new AccountDeletionRequestResult
             {
                 Success = false,
@@ -370,8 +390,8 @@ public class AccountDeletionGrain(
         await emailManager.SendDeleteNoticeAsync(user.Email, user.DisplayName, executionAt);
 
         logger.LogInformation(
-            "Auto-delete scheduled for inactive user {UserId}, execution at {ExecutionAt}",
-            UserId, executionAt);
+            "Deletion scheduled for user {UserId} by {Trigger}, execution at {ExecutionAt}",
+            UserId, trigger, executionAt);
 
         return new AccountDeletionRequestResult
         {
@@ -486,6 +506,7 @@ public class AccountDeletionGrain(
         state.State.FailureReason                 = null;
         state.State.CompletedAt                   = null;
         state.State.Trigger                       = trigger;
+        state.State.Silent                        = false;
 
         return executionAt;
     }
@@ -713,6 +734,123 @@ public class AccountDeletionGrain(
         return await ctx.Users.IgnoreQueryFilters().AnyAsync(u => u.Id == userId && u.IsDeleted);
     }
 
+    /// <inheritdoc cref="IAccountDeletionGrain.ExpireGraceAsync"/>
+    public async ValueTask<AccountDeletionRequestResult> ExpireGraceAsync()
+    {
+        using var activity = AccountDeletionInstrument.ActivitySource.StartActivity("ExpireDeletionGrace");
+        activity?.SetTag("user.id", UserId);
+
+        if (state.State.Status is not AccountDeletionStatus.Scheduled)
+            return new AccountDeletionRequestResult
+            {
+                Success             = false,
+                Error               = AccountDeletionRequestError.NotScheduled,
+                ScheduledDeletionAt = state.State.ExecutionAt
+            };
+
+        var now = DateTimeOffset.UtcNow;
+
+        state.State.ExecutionAt = now;
+        MarkRemindersSpent();
+
+        await state.WriteStateAsync();
+        await ArmCheckAsync(dueNow: true);
+
+        logger.LogWarning(
+            "An operator brought the deletion of user {UserId} forward from {Was} to now",
+            UserId, state.State.ScheduledAt);
+
+        return new AccountDeletionRequestResult { Success = true, ScheduledDeletionAt = now };
+    }
+
+    /// <inheritdoc cref="IAccountDeletionGrain.EraseNowAsync"/>
+    public async ValueTask<AccountDeletionRequestResult> EraseNowAsync()
+    {
+        using var activity = AccountDeletionInstrument.ActivitySource.StartActivity("EraseAccountNow");
+        activity?.SetTag("user.id", UserId);
+
+        switch (state.State.Status)
+        {
+            case AccountDeletionStatus.Completed:
+                return new AccountDeletionRequestResult
+                {
+                    Success = false,
+                    Error   = AccountDeletionRequestError.AlreadyScheduled
+                };
+
+            // Already running, or stopped part-way. Either way the countdown is behind it and the only
+            // useful thing left to do is the thing CheckAndExecuteAsync would do — which this does
+            // below, after silencing what has not been sent yet.
+            case AccountDeletionStatus.Executing:
+            case AccountDeletionStatus.Failed:
+                break;
+
+            case AccountDeletionStatus.Scheduled:
+                state.State.ExecutionAt = DateTimeOffset.UtcNow;
+                break;
+
+            default:
+            {
+                // Nothing scheduled, so this call has to arm the countdown itself — which is where the
+                // bars are checked, and the only reason this path reads the account at all.
+                await using var ctx = await dbFactory.CreateDbContextAsync();
+                var user = await ctx.Users.FirstOrDefaultAsync(x => x.Id == UserId);
+
+                if (user is null)
+                    return new AccountDeletionRequestResult
+                    {
+                        Success = false,
+                        Error   = AccountDeletionRequestError.InternalError
+                    };
+
+                if (await BarredAsync(ctx, user, trigger: "operator_immediate") is { } barred)
+                    return new AccountDeletionRequestResult { Success = false, Error = barred };
+
+                BeginCountdown(user, AccountDeletionTrigger.AutoInactivity);
+                state.State.ExecutionAt = DateTimeOffset.UtcNow;
+                AccountDeletionInstrument.DeletionsScheduled.Add(1);
+                break;
+            }
+        }
+
+        state.State.Silent = true;
+        MarkRemindersSpent();
+        await state.WriteStateAsync();
+
+        logger.LogWarning(
+            "An operator is erasing the account of user {UserId} immediately, with no notification to it",
+            UserId);
+
+        // Synchronously, because the operator pressed a button and wants to know whether it worked;
+        // ExecuteDeletionAsync records its own failure and leaves the poll armed to retry.
+        await ArmCheckAsync();
+        await ExecuteDeletionAsync();
+
+        return new AccountDeletionRequestResult
+        {
+            Success             = state.State.Status is not AccountDeletionStatus.Failed,
+            Error               = state.State.Status is AccountDeletionStatus.Failed
+                ? AccountDeletionRequestError.InternalError
+                : null,
+            ScheduledDeletionAt = state.State.ExecutionAt
+        };
+    }
+
+    /// <summary>
+    /// Marks every warning threshold as already sent.
+    /// </summary>
+    /// <remarks>
+    /// Both operator buttons that stop the waiting need this, and for the same reason: the poll sends a
+    /// warning for every threshold whose window has opened, and collapsing the countdown opens all of
+    /// them at once. Without it, bringing a deletion forward posts "one day remains" and "seven days
+    /// remain" together, moments before the account is gone.
+    /// </remarks>
+    private void MarkRemindersSpent()
+    {
+        foreach (var before in Options.EffectiveReminders)
+            state.State.RemindersSent.Add(AccountDeletionOptions.ReminderKey(before));
+    }
+
     /// <inheritdoc cref="IAccountDeletionGrain.ResumeAsync"/>
     public async ValueTask<AccountDeletionStatusDto> ResumeAsync()
     {
@@ -909,6 +1047,11 @@ public class AccountDeletionGrain(
             await RunStepAsync(Step.Notified, async () =>
             {
                 if (string.IsNullOrEmpty(state.State.OriginalEmail))
+                    return;
+
+                // The step is still run and still recorded, so a silent erasure has the same cursor as
+                // any other and nothing downstream has to know which kind it was.
+                if (state.State.Silent)
                     return;
 
                 var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);

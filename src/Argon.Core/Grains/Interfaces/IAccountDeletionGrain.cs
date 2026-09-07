@@ -112,6 +112,49 @@ public interface IAccountDeletionGrain : IGrainWithGuidKey
     /// </remarks>
     [Alias(nameof(ResumeAsync))]
     ValueTask<AccountDeletionStatusDto> ResumeAsync();
+
+    /// <summary>
+    /// An operator starts the workflow on an account nobody proposed: the ordinary grace period, and
+    /// the notice mail goes out now.
+    /// </summary>
+    /// <remarks>
+    /// The same countdown an approval arms, reached without a queue entry — so it is cancellable from
+    /// the account's own console and by the account signing in, and it carries the same
+    /// <see cref="AccountDeletionTrigger.AutoInactivity"/>. The one difference is that an operator is
+    /// not held by <see cref="AccountDeletionOptions.DeclineHoldsFor"/>: the hold exists to stop the
+    /// sweep re-proposing an account whose owner said no, and a person deciding is not the sweep.
+    /// Every bar still stands.
+    /// </remarks>
+    [Alias(nameof(StartByOperatorAsync))]
+    ValueTask<AccountDeletionRequestResult> StartByOperatorAsync();
+
+    /// <summary>
+    /// An operator collapses what is left of the grace period: the erasure becomes due now.
+    /// </summary>
+    /// <remarks>
+    /// Only ever on a countdown that is already running — this brings a decision forward, it does not
+    /// make one. The warning mails still owed are marked sent rather than sent: their whole content is
+    /// how long is left, and a "three days remain" arriving after the account is gone is worse than
+    /// silence.
+    /// </remarks>
+    [Alias(nameof(ExpireGraceAsync))]
+    ValueTask<AccountDeletionRequestResult> ExpireGraceAsync();
+
+    /// <summary>
+    /// An operator erases the account now, with no mail to it at all.
+    /// </summary>
+    /// <remarks>
+    /// <para>Skips the countdown entirely: an account with nothing scheduled is scheduled and executed
+    /// in one call, and one already counting down stops waiting. Nothing is sent — not the notice, not
+    /// the warnings, not the confirmation — which is the whole point of the button and also what makes
+    /// it the one to reach for last.</para>
+    ///
+    /// <para>The bars still stand, and deliberately: they are not a courtesy to the account holder but
+    /// the platform's own invariants — a bot is not a person, a space with an owner mid-erasure has no
+    /// owner, a live subscription has money behind it.</para>
+    /// </remarks>
+    [Alias(nameof(EraseNowAsync))]
+    ValueTask<AccountDeletionRequestResult> EraseNowAsync();
 }
 
 [GenerateSerializer, Immutable]
@@ -141,6 +184,9 @@ public enum AccountDeletionRequestError
     /// account on its very next pass, so "no" lasted a day.
     /// </remarks>
     RecentlyDeclined,
+
+    /// <summary>Nothing is counting down, so there is nothing to bring forward.</summary>
+    NotScheduled,
 
     /// <summary>A bot's account, or the platform account. Never deletable, by anybody.</summary>
     /// <remarks>
