@@ -3304,6 +3304,79 @@ public sealed class Ion_StrandedAccountDeletion_Formatter : IonFormatter<Strande
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AccountDeletionImpact_Formatter : IonFormatter<AccountDeletionImpact>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AccountDeletionImpact Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(27, "AccountDeletionImpact");
+        var __userid = IonFormatterStorage<guid>.Read(reader);
+        var __found = IonFormatterStorage<bool>.Read(reader);
+        var __username = IonFormatterStorage<string>.Read(reader);
+        var __displayname = IonFormatterStorage<string>.Read(reader);
+        var __email = IonFormatterStorage<string>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __lastactivityat = reader.ReadNullable<datetime>();
+        var __lastloginat = reader.ReadNullable<datetime>();
+        var __lastmessageat = reader.ReadNullable<datetime>();
+        var __thresholdmonths = IonFormatterStorage<i4>.Read(reader);
+        var __autodeletechosen = IonFormatterStorage<bool>.Read(reader);
+        var __hasactivesubscription = IonFormatterStorage<bool>.Read(reader);
+        var __islocked = IonFormatterStorage<bool>.Read(reader);
+        var __isbot = IonFormatterStorage<bool>.Read(reader);
+        var __spacesdeleted = IonFormatterStorage<i4>.Read(reader);
+        var __spacesdeletednames = IonFormatterStorage<string>.ReadArray(reader);
+        var __communitiesowned = IonFormatterStorage<i4>.Read(reader);
+        var __communitiesownednames = IonFormatterStorage<string>.ReadArray(reader);
+        var __memberships = IonFormatterStorage<i4>.Read(reader);
+        var __messages = IonFormatterStorage<i4>.Read(reader);
+        var __files = IonFormatterStorage<i4>.Read(reader);
+        var __conversations = IonFormatterStorage<i4>.Read(reader);
+        var __botsowned = IonFormatterStorage<i4>.Read(reader);
+        var __deletionstatus = IonFormatterStorage<AccountDeletionStatusView>.Read(reader);
+        var __scheduledat = reader.ReadNullable<datetime>();
+        var __executionat = reader.ReadNullable<datetime>();
+        var __blockedby = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 27);
+        return new(__userid, __found, __username, __displayname, __email, __createdat, __lastactivityat, __lastloginat, __lastmessageat, __thresholdmonths, __autodeletechosen, __hasactivesubscription, __islocked, __isbot, __spacesdeleted, __spacesdeletednames, __communitiesowned, __communitiesownednames, __memberships, __messages, __files, __conversations, __botsowned, __deletionstatus, __scheduledat, __executionat, __blockedby);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AccountDeletionImpact value)
+    {
+        writer.WriteStartArray(27);
+        IonFormatterStorage<guid>.Write(writer, value.userId);
+        IonFormatterStorage<bool>.Write(writer, value.found);
+        IonFormatterStorage<string>.Write(writer, value.username);
+        IonFormatterStorage<string>.Write(writer, value.displayName);
+        IonFormatterStorage<string>.Write(writer, value.email);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastActivityAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastLoginAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.lastMessageAt);
+        IonFormatterStorage<i4>.Write(writer, value.thresholdMonths);
+        IonFormatterStorage<bool>.Write(writer, value.autoDeleteChosen);
+        IonFormatterStorage<bool>.Write(writer, value.hasActiveSubscription);
+        IonFormatterStorage<bool>.Write(writer, value.isLocked);
+        IonFormatterStorage<bool>.Write(writer, value.isBot);
+        IonFormatterStorage<i4>.Write(writer, value.spacesDeleted);
+        IonFormatterStorage<string>.WriteArray(writer, value.spacesDeletedNames);
+        IonFormatterStorage<i4>.Write(writer, value.communitiesOwned);
+        IonFormatterStorage<string>.WriteArray(writer, value.communitiesOwnedNames);
+        IonFormatterStorage<i4>.Write(writer, value.memberships);
+        IonFormatterStorage<i4>.Write(writer, value.messages);
+        IonFormatterStorage<i4>.Write(writer, value.files);
+        IonFormatterStorage<i4>.Write(writer, value.conversations);
+        IonFormatterStorage<i4>.Write(writer, value.botsOwned);
+        IonFormatterStorage<AccountDeletionStatusView>.Write(writer, value.deletionStatus);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.scheduledAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.executionAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.blockedBy);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_AutoDeleteScanStatus_Formatter : IonFormatter<AutoDeleteScanStatus>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3509,6 +3582,23 @@ public sealed class Ion_AccountDeletionQueueEntryState_Formatter : IonFormatter<
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, AccountDeletionQueueEntryState value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_AccountDeletionStatusView_Formatter : IonFormatter<AccountDeletionStatusView>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public AccountDeletionStatusView Read(CborReader reader)
+    {
+         return (AccountDeletionStatusView)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, AccountDeletionStatusView value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

@@ -178,6 +178,8 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(GetAutoDeleteScanStatus), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> RunAutoDeleteScan_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(RunAutoDeleteScan), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> GetAccountDeletionImpact_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(GetAccountDeletionImpact), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> StartAccountDeletion_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(StartAccountDeletion), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ExpireAccountDeletionGrace_Ref = new(() =>
@@ -1594,6 +1596,23 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AutoDeleteScanStatus>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<AccountDeletionImpact> GetAccountDeletionImpact(guid __userid, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), GetAccountDeletionImpact_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 1;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __userid);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<AccountDeletionImpact>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<UserActionResult> StartAccountDeletion(guid __userid, CancellationToken ct = default)

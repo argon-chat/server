@@ -847,6 +847,63 @@ public class AdminConsoleTests : TestBase
 
     /// <summary>Seeds a dormant account and runs one sweep, so there is something in the queue.</summary>
     /// <summary>
+    /// The impact panel names what an erasure would destroy, and the bar that would refuse it.
+    /// </summary>
+    /// <remarks>
+    /// <para>The queue says who and how long they have been quiet. This is the other question an
+    /// operator has before approving — how much of somebody else's world goes with the account — and
+    /// the only place the private spaces that go with it are named before they go.</para>
+    ///
+    /// <para>The account here owns one of each: a private space, which is deleted with it, and a
+    /// community, which refuses the deletion instead. Both are asserted together because the whole
+    /// point of the panel is that an operator can tell them apart.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task GetAccountDeletionImpact_NamesWhatWouldGoAndWhatWouldRefuse(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+
+        var privateSpace = await owner.Users.CreateSpace(
+            new CreateServerRequest("Room of one", "goes with the account", string.Empty), ct);
+        var community = await owner.Users.CreateSpace(
+            new CreateServerRequest("The commons", "stays behind", string.Empty), ct);
+
+        Assert.That(privateSpace, Is.InstanceOf<SuccessCreateSpace>());
+        Assert.That(community, Is.InstanceOf<SuccessCreateSpace>());
+        await AccountSeed.MakeCommunityAsync((community as SuccessCreateSpace)!.space.spaceId, ct);
+
+        var (scope, admin) = Admin();
+        await using var _ = scope;
+
+        var impact = await admin.GetAccountDeletionImpact(owner.UserId, ct);
+        var missing = await admin.GetAccountDeletionImpact(Guid.NewGuid(), ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(impact.found, Is.True);
+            Assert.That(impact.username, Is.EqualTo(owner.Credentials.username));
+
+            Assert.That(impact.spacesDeleted, Is.EqualTo(1),
+                "the private space this account owns was not counted as going with it");
+            Assert.That(impact.spacesDeletedNames.Values, Does.Contain("Room of one"),
+                "a count an operator has to take on trust; the names are what make it checkable");
+
+            Assert.That(impact.communitiesOwned, Is.EqualTo(1),
+                "the community was not reported, so nothing says why the approval will be refused");
+            Assert.That(impact.communitiesOwnedNames.Values, Does.Contain("The commons"));
+
+            Assert.That(impact.blockedBy, Is.EqualTo("owns a community"),
+                "the panel has to name the bar, or an operator learns it by pressing the button");
+            Assert.That(impact.memberships, Is.GreaterThanOrEqualTo(2),
+                "the account is a member of both spaces it created");
+            Assert.That(impact.deletionStatus, Is.EqualTo(AccountDeletionStatusView.NONE));
+
+            Assert.That(missing.found, Is.False,
+                "an id nobody owns answered as though it were an account");
+        });
+    }
+
+    /// <summary>
     /// Forcing a pass runs one and reports what it did, and says when the timed pass is next due.
     /// </summary>
     /// <remarks>

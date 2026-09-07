@@ -431,6 +431,10 @@ public sealed record StrandedAccountDeletion(guid userId, string username, strin
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record AccountDeletionImpact(guid userId, bool found, string username, string displayName, string email, datetime createdAt, datetime? lastActivityAt, datetime? lastLoginAt, datetime? lastMessageAt, i4 thresholdMonths, bool autoDeleteChosen, bool hasActiveSubscription, bool isLocked, bool isBot, i4 spacesDeleted, IonArray<string> spacesDeletedNames, i4 communitiesOwned, IonArray<string> communitiesOwnedNames, i4 memberships, i4 messages, i4 files, i4 conversations, i4 botsOwned, AccountDeletionStatusView deletionStatus, datetime? scheduledAt, datetime? executionAt, string? blockedBy);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed record AutoDeleteScanStatus(bool enabled, datetime? armedAt, datetime? nextDueAt, datetime? lastStartedAt, datetime? lastFinishedAt, string? lastTrigger, i4 runs, i4 lastProcessed, i4 lastProposed, i4 lastEnqueued, i4 lastRetired, i4 lastHeld, i4 lastQueueLength, string? lastError, datetime? lastErrorAt);
 
 
@@ -710,6 +714,40 @@ public static class Ion_AccountDeletionQueueEntryState_OpenEnum
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public enum AccountDeletionStatusView : u4
+{
+    NONE = 0,
+    SCHEDULED = 1,
+    EXECUTING = 2,
+    COMPLETED = 3,
+    FAILED = 4,
+}
+
+/// <summary>Open-enum helpers for <see cref="AccountDeletionStatusView"/>.</summary>
+/// <remarks>
+/// A value the peer's schema declares and this one does not is carried through decoding
+/// rather than rejected, so that adding a member stays a safe schema change. These say
+/// whether that happened — a <c>switch</c> over the enum cannot, because an undeclared
+/// value simply matches no arm.
+/// </remarks>
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public static class Ion_AccountDeletionStatusView_OpenEnum
+{
+    /// <summary>Whether <paramref name="value"/> is a member this schema revision declares.</summary>
+    public static bool IsKnown(this AccountDeletionStatusView value)
+        => value == AccountDeletionStatusView.NONE || value == AccountDeletionStatusView.SCHEDULED || value == AccountDeletionStatusView.EXECUTING || value == AccountDeletionStatusView.COMPLETED || value == AccountDeletionStatusView.FAILED;
+
+    /// <summary>
+    /// The raw <c>u4</c> the peer sent when <paramref name="value"/> names no
+    /// declared member, or <see langword="null"/> when it does.
+    /// </summary>
+    /// <remarks>This is the exact number that will be written back out.</remarks>
+    public static u4? UnknownValue(this AccountDeletionStatusView value)
+        => value.IsKnown() ? null : (u4)value;
+}
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public interface IAdminConsole : IIonService
 {
     Task<SearchUserResult> SearchUser(string query, CancellationToken ct = default);
@@ -792,6 +830,7 @@ public interface IAdminConsole : IIonService
     Task<UserActionResult> ResumeAccountDeletion(guid userId, CancellationToken ct = default);
     Task<AutoDeleteScanStatus> GetAutoDeleteScanStatus(CancellationToken ct = default);
     Task<AutoDeleteScanStatus> RunAutoDeleteScan(CancellationToken ct = default);
+    Task<AccountDeletionImpact> GetAccountDeletionImpact(guid userId, CancellationToken ct = default);
     Task<UserActionResult> StartAccountDeletion(guid userId, CancellationToken ct = default);
     Task<UserActionResult> ExpireAccountDeletionGrace(guid userId, CancellationToken ct = default);
     Task<UserActionResult> EraseAccountNow(guid userId, CancellationToken ct = default);

@@ -3110,6 +3110,128 @@ public class AdminConsoleImpl(
         }
     }
 
+    /// <summary>What erasing one account would actually destroy.</summary>
+    /// <remarks>
+    /// <para>Read on demand rather than folded into the queue page: every count below is a query, and
+    /// an operator wants them for the one account they are deciding about. The queue lists who and how
+    /// long they have been quiet; this answers "and what goes with them", which is the question that
+    /// decides whether an approval is routine or needs a conversation first.</para>
+    ///
+    /// <para>The dates are the sweep's own arithmetic spelled out — the later of the last login and the
+    /// last message, the threshold that account is measured against, and whether it chose that
+    /// threshold itself — so an operator can see why the account was proposed rather than trusting that
+    /// it was. <see cref="AccountDeletionImpact.blockedBy"/> is the bar that would refuse a deletion
+    /// asked for right now, which is not always the same as the entry being approvable: a queue entry
+    /// is written by a pass that ran up to a day ago.</para>
+    /// </remarks>
+    public async Task<AccountDeletionImpact> GetAccountDeletionImpact(Guid userId, CancellationToken ct = default)
+    {
+        await using var ctx = await dbFactory.CreateDbContextAsync(ct);
+
+        var account = await ctx.Users
+           .AsNoTracking()
+           .Where(u => u.Id == userId)
+           .Select(u => new
+            {
+                u.Id,
+                u.Username,
+                u.DisplayName,
+                u.Email,
+                u.CreatedAt,
+                u.HasActiveUltima,
+                u.LockdownReason,
+                u.LockDownExpiration,
+                IsBot            = ctx.BotEntities.Any(bot => bot.BotAsUserId == u.Id),
+                AutoDeleteOn     = ctx.AutoDeleteSettings.Where(x => x.UserId == u.Id).Select(x => (bool?)x.Enabled).FirstOrDefault(),
+                AutoDeleteMonths = ctx.AutoDeleteSettings.Where(x => x.UserId == u.Id).Select(x => x.Months).FirstOrDefault(),
+                LastLogin        = ctx.DeviceHistories.Where(d => d.UserId == u.Id).Max(d => (DateTimeOffset?)d.LastLoginTime),
+                LastMessage      = ctx.Messages.Where(m => m.CreatorId == u.Id).Max(m => (DateTimeOffset?)m.CreatedAt),
+                Memberships      = ctx.UsersToServerRelations.Count(m => m.UserId == u.Id && !m.IsDeleted),
+                Messages         = ctx.Messages.Count(m => m.CreatorId == u.Id && !m.IsDeleted),
+                Files            = ctx.Files.Count(f => f.OwnerId == u.Id && !f.IsDeleted),
+                Conversations    = ctx.UserConversations.Count(c => c.UserId == u.Id),
+                BotsOwned        = ctx.BotEntities.Count(b => !b.IsDeleted
+                                    && ctx.TeamEntities.Any(t => t.TeamId == b.TeamId && t.OwnerId == u.Id))
+            })
+           .FirstOrDefaultAsync(ct);
+
+        if (account is null)
+            return Empty(userId);
+
+        // Named rather than counted: "three spaces will be deleted" is a number an operator has to take
+        // on trust, and the names are what let them recognise the one that should not have been there.
+        var owned = await ctx.Spaces
+           .AsNoTracking()
+           .Where(space => space.CreatorId == userId && !space.IsDeleted)
+           .Select(space => new { space.Name, space.IsCommunity })
+           .ToListAsync(ct);
+
+        var deleted     = owned.Where(space => !space.IsCommunity).Select(space => space.Name).ToArray();
+        var communities = owned.Where(space => space.IsCommunity).Select(space => space.Name).ToArray();
+
+        var status = await grainFactory.GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync();
+
+        var chosen          = account.AutoDeleteOn is true && account.AutoDeleteMonths is > 0;
+        var thresholdMonths = chosen ? account.AutoDeleteMonths!.Value : DefaultAutoDeleteMonths;
+
+        var lastActivity = (account.LastLogin, account.LastMessage) switch
+        {
+            ({ } login, { } message) => login > message ? login : message,
+            ({ } login, null)        => login,
+            (null, { } message)      => message,
+            _                        => (DateTimeOffset?)null
+        };
+
+        var locked = account.LockdownReason != LockdownReason.NONE
+                  && (account.LockDownExpiration is not { } expiry || expiry > DateTimeOffset.UtcNow);
+
+        // The order the grain checks them in, so the answer is the one it would actually give.
+        var blockedBy = account.IsBot || userId == UserEntity.SystemUser ? "bot or platform account"
+            : locked                                                    ? "standing lockdown"
+            : account.HasActiveUltima                                   ? "active subscription"
+            : communities.Length > 0                                    ? "owns a community"
+            : status.Status is not AccountDeletionStatusKind.None        ? $"deletion already {status.Status}"
+            : null;
+
+        return new AccountDeletionImpact(
+            userId, true, account.Username, account.DisplayName, account.Email,
+            account.CreatedAt.UtcDateTime,
+            lastActivity?.UtcDateTime,
+            account.LastLogin?.UtcDateTime,
+            account.LastMessage?.UtcDateTime,
+            thresholdMonths,
+            chosen,
+            account.HasActiveUltima,
+            locked,
+            account.IsBot,
+            deleted.Length, new IonArray<string>(deleted),
+            communities.Length, new IonArray<string>(communities),
+            account.Memberships,
+            account.Messages,
+            account.Files,
+            account.Conversations,
+            account.BotsOwned,
+            status.Status switch
+            {
+                AccountDeletionStatusKind.Scheduled => AccountDeletionStatusView.SCHEDULED,
+                AccountDeletionStatusKind.Executing => AccountDeletionStatusView.EXECUTING,
+                AccountDeletionStatusKind.Completed => AccountDeletionStatusView.COMPLETED,
+                AccountDeletionStatusKind.Failed    => AccountDeletionStatusView.FAILED,
+                _                                   => AccountDeletionStatusView.NONE
+            },
+            status.ScheduledAt?.UtcDateTime,
+            status.ExecutionAt?.UtcDateTime,
+            blockedBy);
+
+        static AccountDeletionImpact Empty(Guid id)
+            => new(id, false, "", "", "", default, null, null, null, 0, false, false, false, false,
+                0, new IonArray<string>([]), 0, new IonArray<string>([]), 0, 0, 0, 0, 0,
+                AccountDeletionStatusView.NONE, null, null, "no such account");
+    }
+
+    /// <summary>The platform's own inactivity threshold, as <c>AutoDeleteSchedulerGrain</c> applies it.</summary>
+    private const int DefaultAutoDeleteMonths = 12;
+
     /// <summary>Starts the deletion workflow on an account nobody proposed.</summary>
     /// <remarks>
     /// The countdown an approval arms, reached without a queue entry: the ordinary grace period, the
