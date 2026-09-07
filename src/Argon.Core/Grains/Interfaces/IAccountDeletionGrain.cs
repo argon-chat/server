@@ -23,6 +23,25 @@ public interface IAccountDeletionGrain : IGrainWithGuidKey
     ValueTask<AccountDeletionCancelResult> CancelDeletionAsync();
 
     /// <summary>
+    /// The account holder just signed in, or opened the app. Calls off an inactivity deletion — and
+    /// only that kind — because the notice mail promises exactly this: "open the app and sign in
+    /// before this date. This will cancel the deletion process".
+    /// </summary>
+    /// <remarks>
+    /// <para>A deletion the person asked for themselves is left alone. Signing in to download the
+    /// export, check a setting or say goodbye is not a change of mind, and the only thing that
+    /// withdraws a request a person made is the console's explicit cancel. The two are told apart by
+    /// the <see cref="AccountDeletionTrigger"/> recorded when the countdown began.</para>
+    ///
+    /// <para>Called on every sign-in and every app start of every account, so the common case — nothing
+    /// scheduled — reads the state once and does nothing else. Returns whether a deletion was called
+    /// off; the confirmation mail names where the sign-in came from, so a person who did
+    /// <em>not</em> sign in knows to change their password.</para>
+    /// </remarks>
+    [Alias(nameof(NoticeSignInAsync))]
+    ValueTask<bool> NoticeSignInAsync(SignInEvidence evidence);
+
+    /// <summary>
     /// Returns the current deletion status and scheduling information.
     /// </summary>
     /// <remarks>
@@ -193,6 +212,9 @@ public sealed record AccountDeletionStatusDto
     /// happened yet, and nothing needs to be done about it.</para>
     /// </remarks>
     [Id(7)] public bool Stranded { get; init; }
+
+    /// <summary>Who started the countdown that is running, or ran last. Meaningless while <see cref="Status"/> is None.</summary>
+    [Id(8)] public AccountDeletionTrigger Trigger { get; init; }
 }
 
 public enum AccountDeletionStatusKind
@@ -202,4 +224,51 @@ public enum AccountDeletionStatusKind
     Executing,
     Completed,
     Failed
+}
+
+/// <summary>
+/// Who started a deletion countdown: the account holder from their console, or the inactivity sweep
+/// on an operator's approval.
+/// </summary>
+/// <remarks>
+/// The difference decides what a sign-in means. An inactivity deletion exists because the account
+/// looked abandoned, and the person turning up is the proof it is not — the notice mail promises the
+/// sign-in cancels it. A self-requested deletion is a decision the person made, and turning up to
+/// collect an export is not the withdrawal of it.
+/// </remarks>
+public enum AccountDeletionTrigger
+{
+    User           = 0,
+    AutoInactivity = 1
+}
+
+/// <summary>
+/// Where a sign-in came from, as far as the edge could tell: what the mails that report it say.
+/// </summary>
+[GenerateSerializer, Immutable]
+public sealed record SignInEvidence
+{
+    /// <summary>The caller's address, or "unknown" when the edge did not say.</summary>
+    [Id(0)] public required string Ip { get; init; }
+
+    /// <summary>ISO country, or null when unknown.</summary>
+    [Id(1)] public string? Country { get; init; }
+
+    /// <summary>City, or null when the edge did not resolve one.</summary>
+    [Id(2)] public string? City { get; init; }
+
+    /// <summary>One line naming the client — see <c>ClientIdentity.Describe</c>.</summary>
+    [Id(3)] public required string Client { get; init; }
+
+    [Id(4)] public required DateTimeOffset At { get; init; }
+
+    /// <summary>"Yerevan, AM", "AM", or "an unknown location" — never empty, so a template can print it as is.</summary>
+    public string Location
+        => (City, Country) switch
+        {
+            ({ Length: > 0 } city, { Length: > 0 } country) => $"{city}, {country}",
+            ({ Length: > 0 } city, _)                        => city,
+            (_, { Length: > 0 } country)                     => country,
+            _                                                => "an unknown location"
+        };
 }

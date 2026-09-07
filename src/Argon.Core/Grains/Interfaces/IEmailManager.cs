@@ -64,6 +64,17 @@ public interface IEmailManager : IGrainWithGuidKey
     [Alias(nameof(SendDeletionCancelledAsync)), OneWay]
     Task SendDeletionCancelledAsync(string email, string displayName);
 
+    /// <summary>
+    /// An inactivity deletion was called off because the account signed in. Names the sign-in — address,
+    /// location, client, time — so a person who did not sign in knows somebody else has their password.
+    /// </summary>
+    [Alias(nameof(SendDeletionCancelledBySignInAsync)), OneWay]
+    Task SendDeletionCancelledBySignInAsync(string email, string displayName, string ip, string location, string client, DateTimeOffset at);
+
+    /// <summary>The account was signed in from a device it had never been seen on. Same evidence, same reason.</summary>
+    [Alias(nameof(SendNewDeviceSignInAsync)), OneWay]
+    Task SendNewDeviceSignInAsync(string email, string displayName, string ip, string location, string client, DateTimeOffset at);
+
     [Alias(nameof(ValidateEMailDestination))]
     Task<EmailValidationResult> ValidateEMailDestination(string email, CancellationToken ct = default);
 }

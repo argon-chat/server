@@ -4,11 +4,15 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Text;
 using AccountContracts;
+using Argon.Features.Auth;
 using Argon.Features.Testing;
 using Argon.Grains.Interfaces;
 using ArgonComplexTest.Infrastructure.Account;
 using ArgonComplexTest.Infrastructure.Presence;
 using ArgonContracts;
+using ion.runtime;
+using ion.runtime.client;
+using Microsoft.Extensions.DependencyInjection;
 
 /// <summary>
 /// The account console — the web surface a person uses to delete their account or ask for their data
@@ -1033,7 +1037,183 @@ public class AccountConsoleTests : TestBase
     /// what <c>AdminConsoleTests</c> exercises. Distinct from that fixture's operator so an audit trail
     /// never confuses the two.
     /// </remarks>
-    private static readonly Guid SweepOperatorId = Guid.Parse("00000000-0000-0000-0000-0000000ad0c2");
+     // ── Signing in ──────────────────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Signing in calls off an approved inactivity deletion, and the account is told where the sign-in came from.
+    /// </summary>
+    /// <remarks>
+    /// <para>The notice mail says it in so many words: "open the app and sign in before this date. This
+    /// will cancel the deletion process". Until now nothing did — the countdown ran on, and the only
+    /// escape was a button in the console the mail never mentioned. The sign-in is the cancel.</para>
+    ///
+    /// <para>The confirmation names the device and the address on purpose: a person who did <em>not</em>
+    /// sign in is reading about somebody who has their password. And the next sweep must not propose
+    /// the account again — that half is the CON-4 hold, asserted here because a cancel that is undone a
+    /// day later is not a cancel.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Signing_in_calls_off_an_approved_inactivity_deletion_and_says_where_from(CancellationToken ct = default)
+    {
+        var returning = await CreateSessionAsync(ct);
+        await AccountSeed.BackdateLastLoginAsync(returning.UserId, DateTimeOffset.UtcNow - TimeSpan.FromDays(400), ct: ct);
+        await RunScanAsync();
+        Assert.That(await QueuedAsync(returning.UserId), Is.Not.Null,
+            "the account has to be proposed before an operator can approve it");
+
+        var approved = await Queue.ApproveAsync(returning.UserId, SweepOperatorId, "operator@argon.test");
+        Assert.That(approved.Success, Is.True, approved.Error?.ToString());
+        Assert.That(await StatusOfAsync(returning.UserId), Is.EqualTo(AccountDeletionStatusKind.Scheduled),
+            "the approval did not arm a countdown; nothing below is meaningful");
+
+        await SignInFromAsync(returning,
+            new DescribedDeviceInterceptor("platform=windows; os=Windows%2011; app=1.9.3; device=RETURNING-PC"), ct);
+
+        var afterSignIn = await StatusOfAsync(returning.UserId);
+        var mail = await AccountTimings.Emails.WaitForAsync(
+            returning.Credentials.email, EmailKinds.DeletionCancelledBySignIn, AccountTimings.Slack, ct);
+
+        await RunScanAsync();
+        var reproposed = await QueuedAsync(returning.UserId);
+        var consoleWording = AccountTimings.Emails.Sent(returning.Credentials.email, EmailKinds.DeletionCancelled);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterSignIn, Is.EqualTo(AccountDeletionStatusKind.None),
+                "the account signed in and its inactivity deletion is still counting down — the notice mail promised otherwise");
+            Assert.That(mail, Is.Not.Null,
+                "the deletion was called off and nobody was told why");
+            Assert.That(mail?.Body, Does.Contain("RETURNING-PC").And.Contain("Windows 11"),
+                "the confirmation does not name the device that signed in, so a person who did not sign in cannot tell");
+            Assert.That(consoleWording, Is.Empty,
+                "the account got the console's 'your request was cancelled' wording for a sign-in it may not have made");
+            Assert.That(reproposed, Is.Null,
+                "the next sweep proposed the account again; the sign-in bought it nothing");
+        });
+    }
+
+    /// <summary>
+    /// Signing in leaves a deletion the account asked for itself exactly where it was.
+    /// </summary>
+    /// <remarks>
+    /// A person who requested their own erasure signs in to collect the export, to say goodbye, to
+    /// check the date. None of that is a change of mind; the console's cancel is. Treating the sign-in
+    /// as one would make the request impossible to keep for anybody who ever opens the app again.
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task Signing_in_leaves_a_deletion_the_account_asked_for_in_place(CancellationToken ct = default)
+    {
+        var leaving = await CreateSessionAsync(ct);
+        var (consoleScope, console) = AccountConsoleHarness.Console(leaving);
+        await using var scope = consoleScope;
+
+        var requested = await console.RequestDeleteAccount(leaving.Credentials.password, ct);
+        Assert.That(requested.success, Is.True, requested.error.ToString());
+
+        await SignInFromAsync(leaving,
+            new DescribedDeviceInterceptor("platform=macos; os=macOS%2015; app=1.9.3; device=LEAVING-MAC"), ct);
+
+        // The cancel, had it happened, is awaited inside the sign-in; the mail is one-way, so give a
+        // wrong one the moment it would need to land before saying it did not.
+        var afterSignIn = await StatusOfAsync(leaving.UserId);
+        await Task.Delay(AccountTimings.Slack / 4, ct);
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterSignIn, Is.EqualTo(AccountDeletionStatusKind.Scheduled),
+                "a sign-in withdrew a deletion the person asked for themselves");
+            Assert.That(AccountTimings.Emails.Sent(leaving.Credentials.email, EmailKinds.DeletionCancelledBySignIn), Is.Empty,
+                "the account was told its deletion was cancelled by a sign-in; it was not");
+            Assert.That(AccountTimings.Emails.Sent(leaving.Credentials.email, EmailKinds.DeletionCancelled), Is.Empty,
+                "the account was told its deletion was cancelled; it was not");
+        });
+    }
+
+    /// <summary>
+    /// A sign-in from a device the account has never been seen on is announced, once, and a known device is not.
+    /// </summary>
+    /// <remarks>
+    /// <para>The mail is the only way a person learns that somebody else has their password before that
+    /// somebody does anything with it, so it has to name the device, and it has to come from the first
+    /// sign-in on that device rather than a later one.</para>
+    ///
+    /// <para>The very first device an account is ever seen on is deliberately silent: that is the device it
+    /// registered from, and "new device" a second after the welcome mail is noise. This account signs in
+    /// from three devices — the first is silent, the second is announced, the second again is silent.</para>
+    /// </remarks>
+    [Test, CancelAfter(120_000)]
+    public async Task A_sign_in_from_a_device_never_seen_before_is_announced_once(CancellationToken ct = default)
+    {
+        var owner = await CreateSessionAsync(ct);
+        var to    = owner.Credentials.email;
+
+        var first = new DescribedDeviceInterceptor("platform=windows; os=Windows%2011; app=1.9.3; device=HOME-PC");
+        await SignInFromAsync(owner, first, ct);
+        await Task.Delay(AccountTimings.Slack / 4, ct);
+        var afterFirst = AccountTimings.Emails.Sent(to, EmailKinds.NewDeviceSignIn).Count;
+
+        var second = new DescribedDeviceInterceptor("platform=android; os=Android%2015; app=1.9.3; device=Pixel%209");
+        await SignInFromAsync(owner, second, ct);
+        var announced = await AccountTimings.Emails.WaitForAsync(to, EmailKinds.NewDeviceSignIn, AccountTimings.Slack, ct);
+
+        await SignInFromAsync(owner, second, ct);
+        await SignInFromAsync(owner, first, ct);
+        await Task.Delay(AccountTimings.Slack / 4, ct);
+        var afterRepeats = AccountTimings.Emails.Sent(to, EmailKinds.NewDeviceSignIn).Count;
+
+        Assert.Multiple(() =>
+        {
+            Assert.That(afterFirst, Is.Zero,
+                "the account's very first device was announced as new — that is the welcome mail's job");
+            Assert.That(announced, Is.Not.Null,
+                "a sign-in from a device never seen before went unannounced");
+            Assert.That(announced?.Body, Does.Contain("Pixel 9").And.Contain("Android 15"),
+                "the announcement does not name the device, so the person cannot tell whether it was theirs");
+            Assert.That(afterRepeats, Is.EqualTo(1),
+                "a sign-in from a device already on record was announced as new");
+        });
+    }
+
+    /// <summary>
+    /// A password sign-in by this account from the given device, the way a first-party client does it:
+    /// its own machine id, and a description of itself in the client header.
+    /// </summary>
+    private async Task SignInFromAsync(TestUserSession session, DescribedDeviceInterceptor device, CancellationToken ct)
+    {
+        var client = IonClient.Create(HttpClient, NoWebSockets);
+        client.WithInterceptor(device);
+
+        await using var scope = FactoryAsp.Services.CreateAsyncScope();
+        var result = await client.ForService<IIdentityInteraction>(scope.ServiceProvider).Authorize(
+            new UserCredentialsInput(session.Credentials.email, null, null, session.Credentials.password, null, null), ct);
+
+        Assert.That(result, Is.InstanceOf<SuccessAuthorize>(),
+            $"the sign-in this test needs was refused: {(result as FailedAuthorize)?.error}");
+    }
+
+    /// <summary>A sign-in needs no socket; refusing one loudly beats a hang if that ever changes.</summary>
+    private static Task<System.Net.WebSockets.WebSocket> NoWebSockets(Uri uri, CancellationToken ct, string[]? protocols)
+        => throw new InvalidOperationException("this client only signs in; it never opens a socket");
+
+    /// <summary>A device with a machine id of its own and a first-party client's description of itself.</summary>
+    private sealed class DescribedDeviceInterceptor(string clientHeader) : IIonInterceptor
+    {
+        private readonly Guid sessionId = Guid.CreateVersion7();
+
+        public string MachineId { get; } = Guid.CreateVersion7().ToString();
+
+        public async Task InvokeAsync(IIonCallContext context, Func<IIonCallContext, CancellationToken, Task> next, CancellationToken ct)
+        {
+            context.RequestItems.Add("Sec-Ref", sessionId.ToString());
+            context.RequestItems.Add("X-Ctt", sessionId.ToString());
+            context.RequestItems.Add("Sec-Ner", "1");
+            context.RequestItems.Add("Sec-Carry", MachineId);
+            context.RequestItems.Add(ClientDescriptor.HeaderName, clientHeader);
+            await next(context, ct);
+        }
+    }
+
+   private static readonly Guid SweepOperatorId = Guid.Parse("00000000-0000-0000-0000-0000000ad0c2");
 
     private async Task<AccountDeletionStatusKind> StatusOfAsync(Guid userId)
         => (await GetGrainFactory().GetGrain<IAccountDeletionGrain>(userId).GetDeletionStatusAsync()).Status;

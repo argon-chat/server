@@ -521,19 +521,25 @@ public class UserGrain(
     /// </remarks>
     public async ValueTask UpdateUserDeviceHistory()
     {
+        var userId     = this.GetPrimaryKey();
+        var machineId  = this.GetUserMachineId();
+        var client     = this.GetUserClient();
+        var appId      = this.GetUserAppId();
+        var app        = clientApps.Value.Find(appId, client);
+        var deviceType = ClientIdentity.DeviceType(app, client);
+        var country    = this.GetUserRegion() is { Length: > 0 } known && known != GeoLocation.UnknownCountry ? known : null;
+        var region     = country ?? "unknown";
+        var ip         = this.GetUserIp() ?? "unknown";
+        var now        = DateTimeOffset.UtcNow;
+
+        // Decided before the row is written, because once it is this device is a known one.
+        var firstSightOfDevice = false;
+        var knownElsewhere     = false;
+
         await using var ctx = await context.CreateDbContextAsync();
 
         try
         {
-            var userId     = this.GetPrimaryKey();
-            var machineId  = this.GetUserMachineId();
-            var client     = this.GetUserClient();
-            var appId      = this.GetUserAppId();
-            var deviceType = ClientIdentity.DeviceType(clientApps.Value.Find(appId, client), client);
-            var region     = this.GetUserRegion() is { Length: > 0 } country && country != GeoLocation.UnknownCountry ? country : "unknown";
-            var ip         = this.GetUserIp() ?? "unknown";
-            var now        = DateTimeOffset.UtcNow;
-
             logger.LogDebug("Device history for {UserId}: machine={MachineId} app={AppId} type={DeviceType} region={Region}",
                 userId, machineId, appId, deviceType, region);
 
@@ -544,7 +550,6 @@ public class UserGrain(
                 history.LastKnownIP   = ip;
                 history.RegionAddress = region;
                 history.LastLoginTime = now;
-
                 // Rows written before the application was known say "unknown" and carry a guessed
                 // type; a connection that does know overwrites both, and one that does not leaves
                 // whatever was there rather than degrading it.
@@ -552,11 +557,13 @@ public class UserGrain(
                     history.AppId = appId;
                 if (deviceType != DeviceTypeKind.Unknown)
                     history.DeviceType = deviceType;
-
                 ctx.Update(history);
             }
             else
             {
+                firstSightOfDevice = true;
+                knownElsewhere     = await ctx.DeviceHistories.AnyAsync(x => x.UserId == userId && x.MachineId != machineId);
+
                 await ctx.DeviceHistories.AddAsync(new UserDeviceHistoryEntity
                 {
                     AppId         = string.IsNullOrWhiteSpace(appId) ? "unknown" : appId,
@@ -574,6 +581,51 @@ public class UserGrain(
         catch (Exception e)
         {
             logger.LogCritical(e, "failed update user device history");
+        }
+
+        // What the sign-in means beyond the row: a courtesy mail for a device never seen before, and
+        // the end of an inactivity deletion if one is counting down. Neither may fail the sign-in that
+        // caused it, so each is fenced on its own.
+        var evidence = new SignInEvidence
+        {
+            Ip      = ip,
+            Country = country,
+            City    = this.GetUserCity(),
+            Client  = ClientIdentity.Describe(app, client),
+            At      = now
+        };
+
+        // The very first device an account is ever seen on is the one it registered from, and a mail
+        // saying "new device" a second after the welcome mail is noise; the second device onwards is
+        // news. An account with no history at all — older than the history table, or one whose rows
+        // were pruned — is therefore told about its second device, not its first, which is the
+        // conservative side.
+        if (firstSightOfDevice && knownElsewhere)
+        {
+            try
+            {
+                var who = await ctx.Users
+                   .Where(x => x.Id == userId)
+                   .Select(x => new { x.Email, x.DisplayName })
+                   .FirstOrDefaultAsync();
+
+                if (who is not null && !string.IsNullOrWhiteSpace(who.Email))
+                    await GrainFactory.GetGrain<IEmailManager>(Guid.Empty).SendNewDeviceSignInAsync(
+                        who.Email, who.DisplayName, evidence.Ip, evidence.Location, evidence.Client, evidence.At);
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Could not announce the new device of {UserId}", userId);
+            }
+        }
+
+        try
+        {
+            await GrainFactory.GetGrain<IAccountDeletionGrain>(userId).NoticeSignInAsync(evidence);
+        }
+        catch (Exception e)
+        {
+            logger.LogWarning(e, "Could not tell the deletion grain that {UserId} signed in", userId);
         }
     }
 

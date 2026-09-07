@@ -282,7 +282,7 @@ public class AccountDeletionGrain(
                 Error = barred
             };
 
-        var executionAt = BeginCountdown(user);
+        var executionAt = BeginCountdown(user, AccountDeletionTrigger.User);
         await state.WriteStateAsync();
 
         AccountDeletionInstrument.DeletionsScheduled.Add(1);
@@ -358,7 +358,7 @@ public class AccountDeletionGrain(
                 Error = barred
             };
 
-        var executionAt = BeginCountdown(user);
+        var executionAt = BeginCountdown(user, AccountDeletionTrigger.AutoInactivity);
         await state.WriteStateAsync();
 
         AccountDeletionInstrument.DeletionsScheduled.Add(1);
@@ -451,7 +451,7 @@ public class AccountDeletionGrain(
     /// them — they belong to the run that was abandoned, and the new run walks the memberships from
     /// the database anyway, so replaying them would announce a departure that never happened.
     /// </remarks>
-    private DateTimeOffset BeginCountdown(UserEntity user)
+    private DateTimeOffset BeginCountdown(UserEntity user, AccountDeletionTrigger trigger)
     {
         var now         = DateTimeOffset.UtcNow;
         var executionAt = now + Options.EffectiveGracePeriod;
@@ -468,6 +468,7 @@ public class AccountDeletionGrain(
         state.State.OriginalDisplayName           = user.DisplayName;
         state.State.FailureReason                 = null;
         state.State.CompletedAt                   = null;
+        state.State.Trigger                       = trigger;
 
         return executionAt;
     }
@@ -541,6 +542,77 @@ public class AccountDeletionGrain(
                 return new AccountDeletionCancelResult { Success = false, Error = AccountDeletionCancelError.AlreadyCompleted };
         }
 
+        var (email, displayName) = await CallOffAsync(cause: "console");
+
+        // Send cancellation email
+        if (!string.IsNullOrEmpty(email))
+        {
+            var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);
+            await emailManager.SendDeletionCancelledAsync(email, displayName ?? "User");
+        }
+
+        logger.LogInformation("Account deletion cancelled for user {UserId}", UserId);
+
+        return new AccountDeletionCancelResult { Success = true };
+    }
+
+    /// <inheritdoc cref="IAccountDeletionGrain.NoticeSignInAsync"/>
+    public async ValueTask<bool> NoticeSignInAsync(SignInEvidence evidence)
+    {
+        // The common case, and the one that has to stay cheap: every sign-in and every app start of
+        // every account lands here, and almost none of them has a countdown running.
+        if (state.State.Status is not (AccountDeletionStatus.Scheduled or AccountDeletionStatus.Failed))
+            return false;
+
+        if (state.State.Trigger is not AccountDeletionTrigger.AutoInactivity)
+        {
+            logger.LogInformation(
+                "User {UserId} signed in with a self-requested deletion counting down; leaving it in place — " +
+                "only the console's cancel withdraws a request the person made themselves", UserId);
+            return false;
+        }
+
+        // The same line CancelDeletionAsync draws: a run that has already erased something is past
+        // calling off, whoever asks. Status alone cannot say (see ErasureHasBegunAsync), so this is
+        // the one database read a sign-in ever pays, and only for a Failed countdown.
+        if (state.State.Status is AccountDeletionStatus.Failed && await ErasureHasBegunAsync())
+        {
+            logger.LogWarning(
+                "User {UserId} signed in while their inactivity deletion is half-executed; it cannot be called off", UserId);
+            return false;
+        }
+
+        using var activity = AccountDeletionInstrument.ActivitySource.StartActivity("CancelDeletionOnSignIn");
+        activity?.SetTag("user.id", UserId);
+
+        var (email, displayName) = await CallOffAsync(cause: "sign_in");
+
+        // The confirmation names the device and the address on purpose: a person who did not sign
+        // in is reading about somebody who has their password.
+        if (!string.IsNullOrEmpty(email))
+        {
+            var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);
+            await emailManager.SendDeletionCancelledBySignInAsync(
+                email, displayName ?? "User", evidence.Ip, evidence.Location, evidence.Client, evidence.At);
+        }
+
+        logger.LogInformation(
+            "Inactivity deletion of user {UserId} called off: the account signed in from {Ip} ({Location}) with {Client}",
+            UserId, evidence.Ip, evidence.Location, evidence.Client);
+
+        return true;
+    }
+
+    /// <summary>
+    /// The cancellation itself, once the caller has decided it is allowed: the countdown is cleared,
+    /// the refusal recorded and the check disarmed. Says who to tell, so the caller can pick the mail.
+    /// </summary>
+    /// <param name="cause">
+    /// Which door it came through — <c>console</c> or <c>sign_in</c> — for the metric only. The state
+    /// records the trigger of the countdown, not of its cancellation.
+    /// </param>
+    private async Task<(string? Email, string? DisplayName)> CallOffAsync(string cause)
+    {
         var email = state.State.OriginalEmail;
         var displayName = state.State.OriginalDisplayName;
 
@@ -551,8 +623,9 @@ public class AccountDeletionGrain(
         state.State.StepsDone = [];
 
         // Only ever non-empty for a run that reached step 6, which this cancellation cannot have been
-        // (that is past the point of no return and refused above). Cleared for the same reason the
-        // cursor is: whatever the abandoned run owed, it is not owed by an account that is staying.
+        // (that is past the point of no return and refused by every caller). Cleared for the same
+        // reason the cursor is: whatever the abandoned run owed, it is not owed by an account that is
+        // staying.
         state.State.PendingDepartureAnnouncements = [];
         state.State.ExecutionAttempts = 0;
         state.State.OriginalEmail = null;
@@ -569,18 +642,9 @@ public class AccountDeletionGrain(
 
         await DisarmCheckAsync();
 
-        AccountDeletionInstrument.DeletionsCancelled.Add(1);
+        AccountDeletionInstrument.DeletionsCancelled.Add(1, new KeyValuePair<string, object?>("cause", cause));
 
-        // Send cancellation email
-        if (!string.IsNullOrEmpty(email))
-        {
-            var emailManager = grainFactory.GetGrain<IEmailManager>(Guid.Empty);
-            await emailManager.SendDeletionCancelledAsync(email, displayName ?? "User");
-        }
-
-        logger.LogInformation("Account deletion cancelled for user {UserId}", UserId);
-
-        return new AccountDeletionCancelResult { Success = true };
+        return (email, displayName);
     }
 
     /// <summary>
@@ -674,7 +738,8 @@ public class AccountDeletionGrain(
             FailureReason = state.State.FailureReason,
             DeclinedAt = state.State.DeclinedAt,
             ExecutionAttempts = state.State.ExecutionAttempts,
-            Stranded = IsStranded
+            Stranded = IsStranded,
+            Trigger = state.State.Trigger
         };
 
         return ValueTask.FromResult(dto);

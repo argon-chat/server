@@ -155,6 +155,43 @@ public static class ClientIdentity
     /// The device history's coarse category. The registry says the kind; the descriptor says the OS;
     /// with neither, the User-Agent's platform is the best available answer.
     /// </summary>
+    /// <summary>
+    /// One line naming the client for a person: "Argon Desktop 1.9.3 on Windows 11 (RETURNING-PC)",
+    /// "Chrome on macOS", "an unknown client". For the mails that report a sign-in.
+    /// </summary>
+    public static string Describe(ClientAppEntry? app, ClientDescriptor client)
+    {
+        var name = AppName(app, client);
+        if (name.Length == 0 && client.IsBrowser)
+            name = "a browser";
+        if (name.Length == 0 && client.Platform != ClientPlatform.UNKNOWN)
+            name = "Argon";
+
+        var parts = new List<string>(3);
+        if (name.Length > 0)
+            parts.Add(client.AppVersion.Length > 0 && !client.IsBrowser ? $"{name} {client.AppVersion}" : name);
+
+        var os = client.OsName.Length > 0
+            ? client.OsName
+            : client.Platform switch
+            {
+                ClientPlatform.WINDOWS => "Windows",
+                ClientPlatform.MACOS   => "macOS",
+                ClientPlatform.LINUX   => "Linux",
+                ClientPlatform.ANDROID => "Android",
+                ClientPlatform.IOS     => "iOS",
+                _                      => ""
+            };
+        if (os.Length > 0)
+            parts.Add(parts.Count > 0 ? $"on {os}" : os);
+
+        var line = string.Join(' ', parts);
+        if (client.DeviceName.Length > 0)
+            line = line.Length > 0 ? $"{line} ({client.DeviceName})" : client.DeviceName;
+
+        return line.Length > 0 ? line : "an unknown client";
+    }
+
     public static DeviceTypeKind DeviceType(ClientAppEntry? app, ClientDescriptor client)
     {
         var kind = app?.Kind ?? ClientAppKind.Unknown;

@@ -127,6 +127,22 @@ public sealed partial record AccountDeletionGrainState
     /// </remarks>
     [DataMember(Order = 12), Id(12)]
     public HashSet<Guid> PendingDepartureAnnouncements { get; set; } = [];
+
+    /// <summary>Who started the countdown that is running, or ran last.</summary>
+    /// <remarks>
+    /// <para>Read by <c>NoticeSignInAsync</c>: a sign-in calls off an inactivity deletion and nothing
+    /// else, and this is the only record of which kind a countdown is. Written by
+    /// <c>BeginCountdown</c> alongside the rest of the countdown, and deliberately not cleared by a
+    /// cancellation — it says what the last countdown was, which is what a log line after the fact
+    /// wants to know.</para>
+    ///
+    /// <para>A record written before the field existed reads as <see cref="AccountDeletionTrigger.User"/>,
+    /// the conservative answer: a sign-in leaves it alone. No inactivity deletion was armed by an
+    /// earlier build — the sweep was switched off in production until the approval queue shipped — so
+    /// there is nothing that answer misreads.</para>
+    /// </remarks>
+    [DataMember(Order = 13), Id(13)]
+    public AccountDeletionTrigger Trigger { get; set; } = AccountDeletionTrigger.User;
 }
 
 public enum AccountDeletionStatus

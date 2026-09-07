@@ -60,4 +60,6 @@ public static class EmailKinds
     public const string ExportStarted           = "export-started";
     public const string ExportReady             = "export-ready";
     public const string ExportFailed            = "export-failed";
+    public const string DeletionCancelledBySignIn = "deletion-cancelled-sign-in";
+    public const string NewDeviceSignIn         = "new-device-sign-in";
 }

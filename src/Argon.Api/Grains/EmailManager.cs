@@ -668,4 +668,51 @@ public class EmailManager(
             logger.LogCritical(e, "Failed to send deletion cancelled email to '{email}'", email);
         }
     }
+
+    public Task SendDeletionCancelledBySignInAsync(string email, string displayName, string ip, string location, string client, DateTimeOffset at)
+        => SendSignInReportAsync(
+            email, EmailKinds.DeletionCancelledBySignIn, "deletion_cancelled_signin", "Account Deletion Cancelled",
+            "[DELETION CANCELLED BY SIGN-IN]", displayName, ip, location, client, at);
+
+    public Task SendNewDeviceSignInAsync(string email, string displayName, string ip, string location, string client, DateTimeOffset at)
+        => SendSignInReportAsync(
+            email, EmailKinds.NewDeviceSignIn, "new_device_signin", "New sign-in to your Argon account",
+            "[NEW DEVICE SIGN-IN]", displayName, ip, location, client, at);
+
+    /// <summary>
+    /// The two mails that describe a sign-in share one shape: who, from where, with what, when. The
+    /// values are rendered as given — the edge already sanitised the client's self-description, and
+    /// Fluid encodes what it prints.
+    /// </summary>
+    private async Task SendSignInReportAsync(
+        string email, string kind, string form, string subject, string logPrefix,
+        string displayName, string ip, string location, string client, DateTimeOffset at)
+    {
+        var values = new Dictionary<string, string>
+        {
+            { "displayName", displayName },
+            { "ip", ip },
+            { "location", location },
+            { "client", client },
+            { "signed_in_at", at.ToUniversalTime().ToString("f", System.Globalization.CultureInfo.InvariantCulture) + " UTC" }
+        };
+
+        Observe(email, kind, subject, () => formStorage.Render(form, values));
+
+        if (!smtpOptions.Value.Enabled)
+        {
+            logger.LogWarning("{Prefix}: {Email}, from {Ip} ({Location}) with {Client}", logPrefix, email, ip, location, client);
+            return;
+        }
+
+        try
+        {
+            var msg = CreateMessage(email, subject, formStorage.Render(form, values));
+            await SendAsync(email, msg, CancellationToken.None);
+        }
+        catch (Exception e)
+        {
+            logger.LogCritical(e, "Failed to send {Kind} email to '{email}'", kind, email);
+        }
+    }
 }
