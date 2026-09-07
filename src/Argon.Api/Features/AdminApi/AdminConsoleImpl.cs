@@ -3182,6 +3182,12 @@ public class AdminConsoleImpl(
             // attempt count are the two things an operator acts on and the register does not carry them.
             var status = await grainFactory.GetGrain<IAccountDeletionGrain>(entry.UserId).GetDeletionStatusAsync();
 
+            // And the row that the register still believes in but the account does not. The register is
+            // written one-way, so an update can be lost; the account's own grain is the fact, and a
+            // deletion that is over does not belong on a list of work in progress.
+            if (status.Status is AccountDeletionStatusKind.None or AccountDeletionStatusKind.Completed)
+                continue;
+
             rows.Add(new InFlightDeletionEntry(
                 entry.UserId,
                 account?.Username ?? "",

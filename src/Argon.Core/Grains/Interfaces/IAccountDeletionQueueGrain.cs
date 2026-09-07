@@ -209,12 +209,22 @@ public interface IAccountDeletionQueueGrain : IGrainWithGuidKey
     /// Records that an account's deletion started, changed state, or ended.
     /// </summary>
     /// <remarks>
-    /// Called by the deletion grain itself, for every deletion however it was started — including the
-    /// ones this queue never proposed. It is what makes "which accounts are being deleted right now" a
-    /// question the console can answer at all: the state lives in one grain per account and nothing
-    /// else lists them.
+    /// <para>Called by the deletion grain itself, for every deletion however it was started — including
+    /// the ones this queue never proposed. It is what makes "which accounts are being deleted right now"
+    /// a question the console can answer at all: the state lives in one grain per account and nothing
+    /// else lists them.</para>
+    ///
+    /// <para><b><c>[OneWay]</c>, and it has to be.</b> <c>ApproveAsync</c> on this grain calls the
+    /// deletion grain, which reports back here — a cycle, and a waiting call would deadlock both grains
+    /// until the request times out, which is exactly what it did. One-way breaks the cycle without the
+    /// mid-turn interleaving that letting it run inside another method's turn would allow: an approval
+    /// is a read-modify-write with an await in the middle, and a second writer inside that window can
+    /// persist half of it.</para>
+    ///
+    /// <para>The cost is that the register is a belief and may lag or lose an update. It is read as
+    /// one: the console re-reads each account's own grain and drops the rows whose deletion is over.</para>
     /// </remarks>
-    [Alias(nameof(TrackDeletionAsync))]
+    [Alias(nameof(TrackDeletionAsync)), OneWay]
     ValueTask TrackDeletionAsync(Guid userId, AccountDeletionStatusKind status, DateTimeOffset? executionAt, bool selfRequested);
 
     /// <summary>The deletions currently under way, newest first by when they will run.</summary>
