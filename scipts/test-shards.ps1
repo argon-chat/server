@@ -135,6 +135,7 @@ $generalShards = @(
         'DataExportTests'
         'FeatureFlagTests'
         'IdentityTests'
+        'InviteCardEndpointTests'
         'MediaUploadTests'
         'ModerationTests'
         'NotificationCounterTests'
