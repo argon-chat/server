@@ -30,6 +30,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<AppHubFeature>();
         features.Add<WebSessionFeature>();
         features.Add<DiscoveryFeature>();
+        features.Add<InviteCardFeature>();
         features.Add<CdnFeature>();
         features.Add<RegionRegistryFeature>();
         features.Add<TemplateEngineFeature>();

@@ -1,10 +1,15 @@
 namespace Argon.Grains;
 
+using Argon.Features.Invites;
+using Microsoft.Extensions.Caching.Hybrid;
 using Orleans.Concurrency;
 using InviteCode = Entities.InviteCode;
 
 [StatelessWorker]
-public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFactory<ApplicationDbContext> context) : Grain, IServerInvitesGrain
+public class ServerInviteGrain(
+    ILogger<IServerInvitesGrain>            logger,
+    IDbContextFactory<ApplicationDbContext> context,
+    HybridCache                             cache) : Grain, IServerInvitesGrain
 {
     public async Task<InviteCode> CreateInviteLinkAsync(Guid issuer, TimeSpan expiration, int maxUses, Guid? channelId = null)
     {
@@ -49,5 +54,10 @@ public class ServerInviteGrain(ILogger<IServerInvitesGrain> logger, IDbContextFa
         await db.Invites
            .Where(x => x.Id == inviteId.Value && x.SpaceId == this.GetPrimaryKey())
            .ExecuteDeleteAsync();
+
+        // The public card for this code is cached for a day — an invite row is written once and
+        // then only ever deleted, so this delete is the single act that can make that cached answer
+        // a lie, and therefore the single place that has to drop it.
+        await InviteCardCache.InvalidateAsync(cache, inviteCode);
     }
 }

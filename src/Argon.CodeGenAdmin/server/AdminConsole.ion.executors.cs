@@ -820,6 +820,42 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
         IonFormatterStorage<AdminSpaceMemberPage>.Write(writer, result);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetSpaceCommunity_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetSpaceCommunity");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __iscommunity = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetSpaceCommunity(__spaceid, __iscommunity);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task SetSpaceOfficial_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
+    {
+        var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
+    
+        const int argumentSize = 2;
+    
+        var arraySize = reader.ReadStartMessage(argumentSize, "AdminConsole.SetSpaceOfficial");
+    
+        var __spaceid = IonFormatterStorage<guid>.Read(reader);
+        var __isofficial = IonFormatterStorage<bool>.Read(reader);
+    
+        reader.ReadEndArrayAndSkip(arraySize - argumentSize);
+    
+        var result = await service.SetSpaceOfficial(__spaceid, __isofficial);
+        
+        IonFormatterStorage<UserActionResult>.Write(writer, result);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task CancelUserSubscription_Execute(CborReader reader, CborWriter writer, CancellationToken ct = default)
     {
         var service = scope.ServiceProvider.GetRequiredService<IAdminConsole>();
@@ -1705,6 +1741,10 @@ public sealed class Ion_AdminConsole_ServiceExecutor(AsyncServiceScope scope) : 
             return GetSpaceCard_Execute(reader, writer, ct);
         if (methodName.Equals("GetSpaceMembers", StringComparison.InvariantCultureIgnoreCase))
             return GetSpaceMembers_Execute(reader, writer, ct);
+        if (methodName.Equals("SetSpaceCommunity", StringComparison.InvariantCultureIgnoreCase))
+            return SetSpaceCommunity_Execute(reader, writer, ct);
+        if (methodName.Equals("SetSpaceOfficial", StringComparison.InvariantCultureIgnoreCase))
+            return SetSpaceOfficial_Execute(reader, writer, ct);
         if (methodName.Equals("CancelUserSubscription", StringComparison.InvariantCultureIgnoreCase))
             return CancelUserSubscription_Execute(reader, writer, ct);
         if (methodName.Equals("ExpireUserSubscription", StringComparison.InvariantCultureIgnoreCase))

@@ -2148,8 +2148,38 @@ public class AdminConsoleImpl(
             new IonArray<AdminChannelGroupInfo>(channelGroups),
             new IonArray<AdminArchetypeInfo>(archetypes),
             new IonArray<AdminSpaceBotInfo>(installedBots),
-            new IonArray<AdminInviteInfo>(recentInvites)
+            new IonArray<AdminInviteInfo>(recentInvites),
+            space.IsVerified,
+            space.IsOfficial
         );
+    }
+
+    public Task<UserActionResult> SetSpaceCommunity(Guid spaceId, bool isCommunity, CancellationToken ct = default)
+        => SetSpaceFlag(spaceId, isCommunity: isCommunity, isOfficial: null,
+            "SetSpaceCommunity", $"IsCommunity={isCommunity}", ct);
+
+    public Task<UserActionResult> SetSpaceOfficial(Guid spaceId, bool isOfficial, CancellationToken ct = default)
+        => SetSpaceFlag(spaceId, isCommunity: null, isOfficial: isOfficial,
+            "SetSpaceOfficial", $"IsOfficial={isOfficial}", ct);
+
+    /// <summary>
+    /// Both space-flag buttons: check the space is really there, hand the flip to the grain (which
+    /// owns the write, the cache drop and the broadcast), then audit it.
+    /// </summary>
+    private async Task<UserActionResult> SetSpaceFlag(Guid spaceId, bool? isCommunity, bool? isOfficial,
+        string auditAction, string auditDetails, CancellationToken ct)
+    {
+        try
+        {
+            await using var db = await dbFactory.CreateDbContextAsync(ct);
+            var exists = await db.Spaces.AnyAsync(s => s.Id == spaceId && !s.IsDeleted, ct);
+            if (!exists) return new UserActionResult(false, "Space not found");
+
+            await grainFactory.GetGrain<ISpaceGrain>(spaceId).SetPlatformSpaceFlags(isCommunity, isOfficial, ct);
+            await auditService.LogAsync(auditAction, "Space", spaceId.ToString(), auditDetails);
+            return new UserActionResult(true, null);
+        }
+        catch (Exception ex) { return new UserActionResult(false, ex.Message); }
     }
 
     public async Task<AdminSpaceMemberPage> GetSpaceMembers(Guid spaceId, int offset, int limit, CancellationToken ct = default)

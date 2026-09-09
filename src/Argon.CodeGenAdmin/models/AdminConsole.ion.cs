@@ -263,7 +263,7 @@ public sealed record AdminSpaceSummary(guid spaceId, string name, string? avatar
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record AdminSpaceCard(guid spaceId, string name, string? description, string? avatarFileId, string? topBannerFileId, bool isCommunity, i4 boostCount, i4 boostLevel, AdminUserSummary creator, datetime createdAt, i4 memberCount, i4 channelCount, i4 botCount, IonArray<AdminChannelInfo> channels, IonArray<AdminChannelGroupInfo> channelGroups, IonArray<AdminArchetypeInfo> archetypes, IonArray<AdminSpaceBotInfo> installedBots, IonArray<AdminInviteInfo> recentInvites);
+public sealed record AdminSpaceCard(guid spaceId, string name, string? description, string? avatarFileId, string? topBannerFileId, bool isCommunity, i4 boostCount, i4 boostLevel, AdminUserSummary creator, datetime createdAt, i4 memberCount, i4 channelCount, i4 botCount, IonArray<AdminChannelInfo> channels, IonArray<AdminChannelGroupInfo> channelGroups, IonArray<AdminArchetypeInfo> archetypes, IonArray<AdminSpaceBotInfo> installedBots, IonArray<AdminInviteInfo> recentInvites, bool? isVerified, bool? isOfficial);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -812,6 +812,8 @@ public interface IAdminConsole : IIonService
     Task<AdminSpaceSearchResult> SearchSpace(string query, CancellationToken ct = default);
     Task<AdminSpaceCard> GetSpaceCard(guid spaceId, CancellationToken ct = default);
     Task<AdminSpaceMemberPage> GetSpaceMembers(guid spaceId, i4 offset, i4 limit, CancellationToken ct = default);
+    Task<UserActionResult> SetSpaceCommunity(guid spaceId, bool isCommunity, CancellationToken ct = default);
+    Task<UserActionResult> SetSpaceOfficial(guid spaceId, bool isOfficial, CancellationToken ct = default);
     Task<UserActionResult> CancelUserSubscription(guid userId, CancellationToken ct = default);
     Task<UserActionResult> ExpireUserSubscription(guid userId, CancellationToken ct = default);
     Task<UserActionResult> GrantPremium(guid userId, UltimaPlan tier, i4 durationDays, CancellationToken ct = default);

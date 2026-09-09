@@ -121,6 +121,19 @@ public interface ISpaceGrain : IGrainWithGuidKey
     [Alias(nameof(SetBoostStripHidden))]
     Task SetBoostStripHidden(bool hidden);
 
+    /// <summary>
+    /// Flips the platform-controlled space flags on behalf of an operator. Null leaves a flag
+    /// alone, so the two admin buttons can share one entry point without either clobbering the
+    /// other.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately not on the ion service: unlike <see cref="SetBoostStripHidden"/> there is no
+    /// caller entitlement that grants this. The only way in is the admin console, which has already
+    /// authorised and audited the operator, so the grain does not re-check a caller it does not have.
+    /// </remarks>
+    [Alias(nameof(SetPlatformSpaceFlags))]
+    Task SetPlatformSpaceFlags(bool? isCommunity, bool? isOfficial, CancellationToken ct = default);
+
     [Alias(nameof(GetSpaceStats))]
     Task<SpaceStats> GetSpaceStats();
 

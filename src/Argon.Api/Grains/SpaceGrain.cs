@@ -82,11 +82,13 @@ public class SpaceGrain(
                 x.IsVerified,
                 x.IsOfficial,
                 x.HideBoostStrip,
-                x.InviteImageFileId
+                x.InviteImageFileId,
+                x.IsCommunity
             })
            .FirstAsync(s => s.Id == this.GetPrimaryKey());
         return new ArgonSpaceBase(result.Id, result.Name, result.Description!, result.AvatarFileId, result.TopBannedFileId,
-            result.BoostCount, result.BoostLevel, result.IsVerified, result.IsOfficial, result.HideBoostStrip, result.InviteImageFileId);
+            result.BoostCount, result.BoostLevel, result.IsVerified, result.IsOfficial, result.HideBoostStrip, result.InviteImageFileId,
+            result.IsCommunity);
     }
 
     public async Task<SpaceEntity> GetSpace()
@@ -120,7 +122,8 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync();
 
         var spaceBase = new ArgonSpaceBase(server.Id, server.Name, server.Description!, server.AvatarFileId, server.TopBannedFileId,
-            server.BoostCount, server.BoostLevel, server.IsVerified, server.IsOfficial, server.HideBoostStrip, server.InviteImageFileId);
+            server.BoostCount, server.BoostLevel, server.IsVerified, server.IsOfficial, server.HideBoostStrip, server.InviteImageFileId,
+            server.IsCommunity);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
         await Fire(new ServerModified(spaceId, IonArray<string>.Empty));
         return server;
@@ -294,8 +297,37 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync();
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
-            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId);
+            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
+            space.IsCommunity);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase));
+    }
+
+    public async Task SetPlatformSpaceFlags(bool? isCommunity, bool? isOfficial, CancellationToken ct = default)
+    {
+        if (isCommunity is null && isOfficial is null)
+            return;
+
+        var spaceId = this.GetPrimaryKey();
+
+        await using var ctx = await context.CreateDbContextAsync(ct);
+
+        var space = await ctx.Spaces.FirstAsync(x => x.Id == spaceId, ct);
+
+        if (isCommunity.HasValue)
+            space.IsCommunity = isCommunity.Value;
+        if (isOfficial.HasValue)
+            space.IsOfficial = isOfficial.Value;
+
+        await ctx.SaveChangesAsync(ct);
+
+        // The read cache holds a copy of the space row, so a flip that only pushed the event would
+        // be undone by the next snapshot read.
+        await Invalidate(ct);
+
+        var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
+            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
+            space.IsCommunity);
+        await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 
     public async Task<SpaceStats> GetSpaceStats()
@@ -336,7 +368,7 @@ public class SpaceGrain(
            .Select(x => new
             {
                 x.Id, x.Name, x.Description, x.AvatarFileId, x.TopBannedFileId,
-                x.InviteImageFileId, x.IsVerified, x.IsOfficial
+                x.InviteImageFileId, x.IsVerified, x.IsOfficial, x.IsCommunity
             })
            .FirstAsync(x => x.Id == spaceId);
 
@@ -352,7 +384,8 @@ public class SpaceGrain(
         // The room a voice link points at is a property of the invite, not of the space, so it is
         // stitched on by the caller that resolved the code (UserInteractionImpl.PreviewInvite).
         return new InvitePreview(space.Id, space.Name, space.Description ?? "", space.AvatarFileId, space.TopBannedFileId,
-            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount, null, null);
+            space.InviteImageFileId, space.IsVerified, space.IsOfficial, memberIds.Count, onlineCount, null, null,
+            space.IsCommunity);
     }
 
     public Task DoUserUpdatedAsync(ArgonUser user)
@@ -1118,7 +1151,8 @@ public class SpaceGrain(
         await ctx.SaveChangesAsync(ct);
 
         var spaceBase = new ArgonSpaceBase(space.Id, space.Name, space.Description!, space.AvatarFileId, space.TopBannedFileId,
-            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId);
+            space.BoostCount, space.BoostLevel, space.IsVerified, space.IsOfficial, space.HideBoostStrip, space.InviteImageFileId,
+            space.IsCommunity);
         await Fire(new SpaceDetailsUpdated(spaceId, spaceBase), ct);
     }
 

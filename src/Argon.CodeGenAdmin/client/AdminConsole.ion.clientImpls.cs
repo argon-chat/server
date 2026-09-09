@@ -110,6 +110,10 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         typeof(IAdminConsole).GetMethod(nameof(GetSpaceCard), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> GetSpaceMembers_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(GetSpaceMembers), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetSpaceCommunity_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetSpaceCommunity), BindingFlags.Public | BindingFlags.Instance)!);
+    private static readonly Lazy<MethodInfo> SetSpaceOfficial_Ref = new(() =>
+        typeof(IAdminConsole).GetMethod(nameof(SetSpaceOfficial), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> CancelUserSubscription_Ref = new(() =>
         typeof(IAdminConsole).GetMethod(nameof(CancelUserSubscription), BindingFlags.Public | BindingFlags.Instance)!);
     private static readonly Lazy<MethodInfo> ExpireUserSubscription_Ref = new(() =>
@@ -1004,6 +1008,42 @@ public sealed class Ion_AdminConsole_ClientImpl(IonClientContext context) : IAdm
         writer.WriteEndArray();
     
         return await req.CallAsync<AdminSpaceMemberPage>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetSpaceCommunity(guid __spaceid, bool __iscommunity, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetSpaceCommunity_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<bool>.Write(writer, __iscommunity);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
+    }
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public async Task<UserActionResult> SetSpaceOfficial(guid __spaceid, bool __isofficial, CancellationToken ct = default)
+    {
+        var req = new IonRequest(context, typeof(IAdminConsole), SetSpaceOfficial_Ref.Value);
+    
+        var writer = new CborWriter();
+        
+        const int argsSize = 2;
+    
+        writer.WriteStartArray(argsSize);
+        
+        IonFormatterStorage<guid>.Write(writer, __spaceid);
+        IonFormatterStorage<bool>.Write(writer, __isofficial);
+        
+        writer.WriteEndArray();
+    
+        return await req.CallAsync<UserActionResult>(writer.Encode(), ct: ct);
     }
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public async Task<UserActionResult> CancelUserSubscription(guid __userid, CancellationToken ct = default)

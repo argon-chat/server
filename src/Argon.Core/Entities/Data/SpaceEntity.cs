@@ -41,5 +41,5 @@ public record SpaceEntity : ArgonEntityWithOwnership, IArchetypeSubject, IMapper
     public static ArgonSpace Map(scoped in SpaceEntity self)
         => new(self.Id, self.Name, self.Description ?? "", self.AvatarFileId, self.TopBannedFileId,
             IonArray<ArgonChannel>.Empty, IonArray<SpaceMember>.Empty, IonArray<Archetype>.Empty,
-            self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId);
+            self.IsVerified, self.IsOfficial, self.HideBoostStrip, self.InviteImageFileId, self.IsCommunity);
 }

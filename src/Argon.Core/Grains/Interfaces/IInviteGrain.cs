@@ -24,7 +24,13 @@ public interface IInviteGrain : IGrainWithStringKey
 public sealed record InviteTarget(
     [property: Id(0)] Guid    SpaceId,
     [property: Id(1)] Guid?   VoiceChannelId = null,
-    [property: Id(2)] string? VoiceChannelName = null);
+    [property: Id(2)] string? VoiceChannelName = null,
+    // When the code stops working. PreviewAsync has already refused an expired invite by the time it
+    // builds this, so it is not a second check — it is what lets a caller that KEEPS the answer know
+    // how long the answer is good for. The public card cache is that caller: an invite row never
+    // changes, so its resolution can be held for a day, and the one thing that would make a day a
+    // lie is holding a "still valid" past the moment it stopped being true.
+    [property: Id(3)] DateTimeOffset ExpiresAt = default);
 
 [Alias("Argon.Grains.Interfaces.IServerInvitesGrain")]
 public interface IServerInvitesGrain : IGrainWithGuidKey

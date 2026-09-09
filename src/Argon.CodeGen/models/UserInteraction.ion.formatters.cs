@@ -353,7 +353,7 @@ public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InvitePreview Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(12, "InvitePreview");
+        var arraySize = reader.ReadStartMessage(13, "InvitePreview");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
@@ -366,14 +366,15 @@ public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
         var __onlinecount = IonFormatterStorage<i4>.Read(reader);
         var __voicechannelid = reader.ReadNullable<guid>();
         var __voicechannelname = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 12);
-        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __inviteimagefileid, __isverified, __isofficial, __membercount, __onlinecount, __voicechannelid, __voicechannelname);
+        var __iscommunity = reader.ReadNullable<bool>();
+        reader.ReadEndArrayAndSkip(arraySize - 13);
+        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __inviteimagefileid, __isverified, __isofficial, __membercount, __onlinecount, __voicechannelid, __voicechannelname, __iscommunity);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InvitePreview value)
     {
-        writer.WriteStartArray(12);
+        writer.WriteStartArray(13);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -386,6 +387,7 @@ public sealed class Ion_InvitePreview_Formatter : IonFormatter<InvitePreview>
         IonFormatterStorage<i4>.Write(writer, value.onlineCount);
         IonFormatterStorage<guid>.WriteNullable(writer, value.voiceChannelId);
         IonFormatterStorage<string>.WriteNullable(writer, value.voiceChannelName);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isCommunity);
         writer.WriteEndArray();
     }
 }

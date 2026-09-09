@@ -63,7 +63,7 @@ public sealed record AcceptLegalInput(string tosVersion, string privacyVersion);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InvitePreview(guid spaceId, string name, string description, string? avatarFileId, string? topBannerFileId, string? inviteImageFileId, bool isVerified, bool isOfficial, i4 memberCount, i4 onlineCount, guid? voiceChannelId, string? voiceChannelName);
+public sealed record InvitePreview(guid spaceId, string name, string description, string? avatarFileId, string? topBannerFileId, string? inviteImageFileId, bool isVerified, bool isOfficial, i4 memberCount, i4 onlineCount, guid? voiceChannelId, string? voiceChannelName, bool? isCommunity);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

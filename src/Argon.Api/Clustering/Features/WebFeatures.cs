@@ -1,9 +1,10 @@
-namespace Argon.Api.Clustering;
+﻿namespace Argon.Api.Clustering;
 
 using Argon.Features.Email;
 
 using Argon.Features.AccountConsole;
 using Argon.Features.Aegis;
+using Argon.Features.Invites;
 using Argon.Features.Sentry;
 using Argon.Features.Storage;
 using Argon.Features.Web;
@@ -336,6 +337,32 @@ public sealed class DiscoveryFeature : IArgonFeature
 
     public void Map(ArgonEndpointContext ctx)
         => ctx.App.MapDiscovery();
+}
+
+/// <summary>
+/// The public read of an invite code, for readers who are not signed in.
+/// </summary>
+/// <remarks>
+/// <para>Separate from the Ion surface because its callers are: the landing page that renders
+/// <c>argon.gl/i/{code}</c> before anyone has an account, and the crawler that unfurls that link
+/// into somebody else's chat. Both need the space's name and picture, and neither can hold a
+/// session.</para>
+///
+/// <para>Requires <see cref="DiscoveryFeature"/> for the any-origin CORS policy it shares — the card
+/// is fetched cross-origin from <c>argon.gl</c> and from arbitrary self-hosted front ends, which the
+/// credentialed default allowlist deliberately does not cover.</para>
+/// </remarks>
+public sealed class InviteCardFeature : IArgonFeature
+{
+    public static void Describe(IFeatureDescriptor d)
+        => d.Named("invite-card")
+            .Describing("anonymous invite preview for links opened on the web")
+            .Requires<DiscoveryFeature>()
+            .Requires<CacheFeature>()
+            .After<RoutingFeature>();
+
+    public void Map(ArgonEndpointContext ctx)
+        => ctx.App.MapInviteCard();
 }
 
 /// <summary>

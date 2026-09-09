@@ -1943,7 +1943,7 @@ public sealed class Ion_AdminSpaceCard_Formatter : IonFormatter<AdminSpaceCard>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public AdminSpaceCard Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(18, "AdminSpaceCard");
+        var arraySize = reader.ReadStartMessage(20, "AdminSpaceCard");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = reader.ReadNullable<string>();
@@ -1962,14 +1962,16 @@ public sealed class Ion_AdminSpaceCard_Formatter : IonFormatter<AdminSpaceCard>
         var __archetypes = IonFormatterStorage<AdminArchetypeInfo>.ReadArray(reader);
         var __installedbots = IonFormatterStorage<AdminSpaceBotInfo>.ReadArray(reader);
         var __recentinvites = IonFormatterStorage<AdminInviteInfo>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 18);
-        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __iscommunity, __boostcount, __boostlevel, __creator, __createdat, __membercount, __channelcount, __botcount, __channels, __channelgroups, __archetypes, __installedbots, __recentinvites);
+        var __isverified = reader.ReadNullable<bool>();
+        var __isofficial = reader.ReadNullable<bool>();
+        reader.ReadEndArrayAndSkip(arraySize - 20);
+        return new(__spaceid, __name, __description, __avatarfileid, __topbannerfileid, __iscommunity, __boostcount, __boostlevel, __creator, __createdat, __membercount, __channelcount, __botcount, __channels, __channelgroups, __archetypes, __installedbots, __recentinvites, __isverified, __isofficial);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, AdminSpaceCard value)
     {
-        writer.WriteStartArray(18);
+        writer.WriteStartArray(20);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.WriteNullable(writer, value.description);
@@ -1988,6 +1990,8 @@ public sealed class Ion_AdminSpaceCard_Formatter : IonFormatter<AdminSpaceCard>
         IonFormatterStorage<AdminArchetypeInfo>.WriteArray(writer, value.archetypes);
         IonFormatterStorage<AdminSpaceBotInfo>.WriteArray(writer, value.installedBots);
         IonFormatterStorage<AdminInviteInfo>.WriteArray(writer, value.recentInvites);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isVerified);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isOfficial);
         writer.WriteEndArray();
     }
 }

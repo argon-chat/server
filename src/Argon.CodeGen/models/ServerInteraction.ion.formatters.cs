@@ -46,7 +46,7 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonSpaceBase Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(11, "ArgonSpaceBase");
+        var arraySize = reader.ReadStartMessage(12, "ArgonSpaceBase");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
@@ -58,14 +58,15 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         var __isofficial = IonFormatterStorage<bool>.Read(reader);
         var __hidebooststrip = IonFormatterStorage<bool>.Read(reader);
         var __inviteimagefileid = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 11);
-        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __boostcount, __boostlevel, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid);
+        var __iscommunity = reader.ReadNullable<bool>();
+        reader.ReadEndArrayAndSkip(arraySize - 12);
+        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __boostcount, __boostlevel, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid, __iscommunity);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonSpaceBase value)
     {
-        writer.WriteStartArray(11);
+        writer.WriteStartArray(12);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -77,6 +78,7 @@ public sealed class Ion_ArgonSpaceBase_Formatter : IonFormatter<ArgonSpaceBase>
         IonFormatterStorage<bool>.Write(writer, value.isOfficial);
         IonFormatterStorage<bool>.Write(writer, value.hideBoostStrip);
         IonFormatterStorage<string>.WriteNullable(writer, value.inviteImageFileId);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isCommunity);
         writer.WriteEndArray();
     }
 }
@@ -87,7 +89,7 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public ArgonSpace Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(12, "ArgonSpace");
+        var arraySize = reader.ReadStartMessage(13, "ArgonSpace");
         var __spaceid = IonFormatterStorage<guid>.Read(reader);
         var __name = IonFormatterStorage<string>.Read(reader);
         var __description = IonFormatterStorage<string>.Read(reader);
@@ -100,14 +102,15 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
         var __isofficial = IonFormatterStorage<bool>.Read(reader);
         var __hidebooststrip = IonFormatterStorage<bool>.Read(reader);
         var __inviteimagefileid = reader.ReadNullable<string>();
-        reader.ReadEndArrayAndSkip(arraySize - 12);
-        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __channels, __members, __archetypes, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid);
+        var __iscommunity = reader.ReadNullable<bool>();
+        reader.ReadEndArrayAndSkip(arraySize - 13);
+        return new(__spaceid, __name, __description, __avatarfieldid, __topbannerfileid, __channels, __members, __archetypes, __isverified, __isofficial, __hidebooststrip, __inviteimagefileid, __iscommunity);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, ArgonSpace value)
     {
-        writer.WriteStartArray(12);
+        writer.WriteStartArray(13);
         IonFormatterStorage<guid>.Write(writer, value.spaceId);
         IonFormatterStorage<string>.Write(writer, value.name);
         IonFormatterStorage<string>.Write(writer, value.description);
@@ -120,6 +123,7 @@ public sealed class Ion_ArgonSpace_Formatter : IonFormatter<ArgonSpace>
         IonFormatterStorage<bool>.Write(writer, value.isOfficial);
         IonFormatterStorage<bool>.Write(writer, value.hideBoostStrip);
         IonFormatterStorage<string>.WriteNullable(writer, value.inviteImageFileId);
+        IonFormatterStorage<bool>.WriteNullable(writer, value.isCommunity);
         writer.WriteEndArray();
     }
 }

@@ -56,7 +56,7 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
             return (null, AcceptInviteError.LIMIT_REACHED);
 
         if (invite.ChannelId is not { } channelId)
-            return (new InviteTarget(invite.SpaceId), AcceptInviteError.NONE);
+            return (new InviteTarget(invite.SpaceId, ExpiresAt: invite.ExpireAt), AcceptInviteError.NONE);
 
         // A room that was deleted since the link was minted degrades the invite to a plain space
         // invite rather than breaking it — the space is still a valid place to land.
@@ -67,8 +67,8 @@ public class InviteGrain(IDbContextFactory<ApplicationDbContext> context) : Grai
            .FirstOrDefaultAsync();
 
         return channel is null
-            ? (new InviteTarget(invite.SpaceId), AcceptInviteError.NONE)
-            : (new InviteTarget(invite.SpaceId, channelId, channel.Name), AcceptInviteError.NONE);
+            ? (new InviteTarget(invite.SpaceId, ExpiresAt: invite.ExpireAt), AcceptInviteError.NONE)
+            : (new InviteTarget(invite.SpaceId, channelId, channel.Name, invite.ExpireAt), AcceptInviteError.NONE);
     }
 
     public async ValueTask DropInviteCodeAsync()

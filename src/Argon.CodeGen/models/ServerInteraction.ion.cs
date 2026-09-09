@@ -19,11 +19,11 @@ public sealed record SpaceDeletionState(SpaceDeletionStatus status, datetime? sc
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId);
+public sealed record ArgonSpaceBase(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, i4 boostCount, i4 boostLevel, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId, bool? isCommunity);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonSpace(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, IonArray<ArgonChannel> channels, IonArray<SpaceMember> members, IonArray<Archetype> archetypes, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId);
+public sealed record ArgonSpace(guid spaceId, string name, string description, string? avatarFieldId, string? topBannerFileId, IonArray<ArgonChannel> channels, IonArray<SpaceMember> members, IonArray<Archetype> archetypes, bool isVerified, bool isOfficial, bool hideBoostStrip, string? inviteImageFileId, bool? isCommunity);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
