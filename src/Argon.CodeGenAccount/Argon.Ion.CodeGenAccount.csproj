@@ -11,6 +11,6 @@
         <PackageReference Include="ionpath.runtime.network" Version="1.17.0" />
     </ItemGroup>
     <ItemGroup>
-        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.400" />
+        <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     </ItemGroup>
 </Project>
