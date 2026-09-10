@@ -1,8 +1,13 @@
 namespace Argon.Features.BotApi;
 
 /// <summary>
-/// CLI commands for Bot API contract management.
+/// CLI commands for the Bot API's published artefacts.
 /// Invoked via <c>dotnet run -- bot-api {command}</c>.
+/// <para>
+/// The HTTP surface is described by <c>openapi</c>, generated from the routes themselves. What is
+/// left to pin by hand is the event payloads, which reach bots over SSE and so appear in no OpenAPI
+/// document — <c>verify</c> and <c>rehash</c> are about those.
+/// </para>
 /// </summary>
 public static class BotApiCli
 {
@@ -22,10 +27,6 @@ public static class BotApiCli
 
         switch (command)
         {
-            case "manifest":
-                RunManifest();
-                return true;
-
             case "verify":
                 RunVerify();
                 return true;
@@ -36,6 +37,10 @@ public static class BotApiCli
 
             case "docs":
                 RunDocs(args);
+                return true;
+
+            case "openapi":
+                RunOpenApi(args);
                 return true;
 
             case "help":
@@ -49,115 +54,53 @@ public static class BotApiCli
         }
     }
 
-    private static void RunManifest()
-    {
-        var manifest = BotContractVerifier.GenerateManifest();
-        var json = Newtonsoft.Json.JsonConvert.SerializeObject(manifest, Newtonsoft.Json.Formatting.Indented,
-            new Newtonsoft.Json.JsonSerializerSettings
-            {
-                ContractResolver = new Newtonsoft.Json.Serialization.CamelCasePropertyNamesContractResolver()
-            });
-
-        Console.WriteLine(json);
-
-        // Also write to file
-        var outputPath = Path.Combine(AppContext.BaseDirectory, "bot-api-manifest.json");
-        File.WriteAllText(outputPath, json);
-        Console.Error.WriteLine($"\nManifest written to: {outputPath}");
-
-        // Summary
-        Console.Error.WriteLine($"\n--- Bot API Manifest ---");
-        foreach (var iface in manifest)
-        {
-            var status = iface.IsStable ? "STABLE" : "DRAFT";
-            var match  = iface.IsStable && iface.DeclaredHash == iface.ComputedHash ? "OK" : 
-                        iface.IsStable ? "MISMATCH!" : "";
-            Console.Error.WriteLine(
-                $"  {iface.Name}/v{iface.Version} [{status}] hash={iface.ComputedHash[..16]}... routes={iface.Routes.Count} {match}");
-        }
-
-        // Event definitions
-        var eventDefs = BotContractVerifier.DiscoverEventDefinitions();
-        if (eventDefs.Count > 0)
-        {
-            Console.Error.WriteLine($"\n--- Event Definitions ---");
-            foreach (var (type, defAttr, _, stableAttr) in eventDefs)
-            {
-                var hash   = BotContractVerifier.ComputeEventContractHash(type);
-                var status2 = stableAttr is not null ? "STABLE" : "DRAFT";
-                var match2  = stableAttr is not null && stableAttr.ContractHash == hash ? "OK" :
-                             stableAttr is not null ? "MISMATCH!" : "";
-                Console.Error.WriteLine(
-                    $"  {defAttr.EventType} [{status2}] hash={hash[..16]}... payload={type.Name} {match2}");
-            }
-        }
-    }
-
     private static void RunVerify()
     {
         var mismatches = BotContractVerifier.Verify();
 
         if (mismatches.Count == 0)
         {
-            Console.WriteLine("All stable contracts verified OK.");
+            Console.WriteLine("All pinned event contracts verified OK.");
             Environment.ExitCode = 0;
+            return;
         }
-        else
-        {
-            foreach (var m in mismatches)
-            {
-                Console.Error.WriteLine($"MISMATCH: {m.InterfaceName}");
-                Console.Error.WriteLine($"  declared: {m.DeclaredHash}");
-                Console.Error.WriteLine($"  computed: {m.ComputedHash}");
-            }
 
-            Console.Error.WriteLine($"\n{mismatches.Count} contract(s) broken.");
-            Environment.ExitCode = 1;
+        foreach (var m in mismatches)
+        {
+            Console.Error.WriteLine($"MISMATCH: {m.InterfaceName}");
+            Console.Error.WriteLine($"  declared: {m.DeclaredHash}");
+            Console.Error.WriteLine($"  computed: {m.ComputedHash}");
         }
+
+        Console.Error.WriteLine($"\n{mismatches.Count} contract(s) broken.");
+        Environment.ExitCode = 1;
     }
 
     private static void RunRehash()
     {
-        var manifest = BotContractVerifier.GenerateManifest();
-        var stableInterfaces = manifest.Where(m => m.IsStable).ToList();
-
-        if (stableInterfaces.Count > 0)
-        {
-            Console.WriteLine("Computed hashes for stable interfaces:");
-            Console.WriteLine("Copy these into your [StableContract(\"...\")] attributes:\n");
-
-            foreach (var iface in stableInterfaces)
-            {
-                var status = iface.DeclaredHash == iface.ComputedHash ? "unchanged" : "CHANGED";
-                Console.WriteLine($"  {iface.Name}/v{iface.Version}: [StableContract(\"{iface.ComputedHash}\")] ({status})");
-            }
-        }
-
-        Console.WriteLine("\nAll draft interfaces (no [StableContract]):");
-        foreach (var iface in manifest.Where(m => !m.IsStable))
-        {
-            Console.WriteLine($"  {iface.Name}/v{iface.Version}: hash={iface.ComputedHash}");
-            Console.WriteLine($"    → Add [StableContract(\"{iface.ComputedHash}\")] to freeze this version");
-        }
-
-        // Event definitions
         var eventDefs = BotContractVerifier.DiscoverEventDefinitions();
-        if (eventDefs.Count > 0)
+
+        if (eventDefs.Count == 0)
         {
-            Console.WriteLine("\n--- Event Definitions ---");
-            foreach (var (type, defAttr, _, stableAttr) in eventDefs)
+            Console.WriteLine("No event definitions found.");
+            return;
+        }
+
+        Console.WriteLine("Event payload hashes:");
+
+        foreach (var (type, defAttr, _, stableAttr) in eventDefs)
+        {
+            var hash = BotContractVerifier.ComputeEventContractHash(type);
+
+            if (stableAttr is not null)
             {
-                var hash = BotContractVerifier.ComputeEventContractHash(type);
-                if (stableAttr is not null)
-                {
-                    var status = stableAttr.ContractHash == hash ? "unchanged" : "CHANGED";
-                    Console.WriteLine($"  {defAttr.EventType}: [StableEventContract(\"{hash}\")] ({status})");
-                }
-                else
-                {
-                    Console.WriteLine($"  {defAttr.EventType}: hash={hash}");
-                    Console.WriteLine($"    → Add [StableEventContract(\"{hash}\")] to freeze this event");
-                }
+                var status = stableAttr.ContractHash == hash ? "unchanged" : "CHANGED";
+                Console.WriteLine($"  {defAttr.EventType}: [StableEventContract(\"{hash}\")] ({status})");
+            }
+            else
+            {
+                Console.WriteLine($"  {defAttr.EventType}: hash={hash}");
+                Console.WriteLine($"    → Add [StableEventContract(\"{hash}\")] to freeze this event");
             }
         }
     }
@@ -165,43 +108,74 @@ public static class BotApiCli
     private static void PrintHelp()
     {
         Console.WriteLine("""
-            Bot API Contract Management
+            Bot API artefacts
 
             Usage: dotnet run -- bot-api <command>
 
             Commands:
-              manifest   Generate full API manifest (JSON) with types, routes, events, and hashes
-              verify     Check all [StableContract] and [StableEventContract] hashes (CI-friendly, exit code 1 on fail)
-              rehash     Compute and print new hashes for all stable interfaces and events
-              docs       Generate docs manifest JSON for the documentation site
+              openapi    Write the OpenAPI 3.0 document (--out <path>, default: the docs site)
+              docs       Write the docs data OpenAPI cannot carry: intents, events, rate limits, DTOs
+              verify     Check every [StableEventContract] hash (CI-friendly, exit code 1 on fail)
+              rehash     Print current hashes for all event payloads
               help       Show this help
 
-            Workflow:
-              1. Develop your interface (IBotInterface + [BotRoute] attributes)
-              2. Define events with [BotEventDefinition] on payload records
-              3. Run 'bot-api manifest' to inspect the API surface
-              4. When ready to freeze: add [StableContract("<hash>")] / [StableEventContract("<hash>")]
-              5. CI runs 'bot-api verify' to catch accidental breaking changes
-              6. If intentional change: run 'bot-api rehash' to get new hashes
-              7. Run 'bot-api docs' to regenerate documentation site data
+            The HTTP surface needs no pinning by hand: 'openapi' regenerates it from the routes, and
+            the committed document is what a review sees change.
             """);
+    }
+
+    /// <summary>
+    /// Writes the OpenAPI description of the Bot API. Generated from the endpoints that are mapped,
+    /// so it needs no database, no cluster and no running server.
+    /// </summary>
+    private static void RunOpenApi(string[] args)
+    {
+        var outPath  = ParseOut(args) ?? DocsPath(Path.Combine("public", "openapi.json"));
+        var json     = BotOpenApi.GenerateOfflineAsync().GetAwaiter().GetResult();
+        var fullPath = Path.GetFullPath(outPath);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        File.WriteAllText(fullPath, json);
+
+        Console.WriteLine($"OpenAPI document written to: {fullPath}");
+        Console.WriteLine($"  {json.Length:N0} bytes");
+    }
+
+    private static string? ParseOut(string[] args)
+    {
+        for (var i = 2; i < args.Length - 1; i++)
+        {
+            if (args[i] is "--out" or "-o")
+                return args[i + 1];
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// A path inside the documentation submodule, found by walking up from the binary rather than
+    /// from the working directory: CI invokes these from the repository root and a developer from
+    /// the project directory, and both have to write the same file.
+    /// </summary>
+    private static string DocsPath(string relative)
+    {
+        for (var dir = new DirectoryInfo(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)
+        {
+            var candidate = Path.Combine(dir.FullName, "docs", "bot-api-docs");
+            if (Directory.Exists(candidate))
+                return Path.Combine(candidate, relative);
+        }
+
+        throw new InvalidOperationException(
+            "Could not find docs/bot-api-docs above " + AppContext.BaseDirectory +
+            ". Pass --out to say where the file should go.");
     }
 
     private static void RunDocs(string[] args)
     {
-        var outPath = "../../docs/bot-api-docs/src/data/api-manifest.json";
-
-        // Parse --out argument
-        for (var i = 2; i < args.Length - 1; i++)
-        {
-            if (args[i] is "--out" or "-o")
-            {
-                outPath = args[i + 1];
-                break;
-            }
-        }
-
+        var outPath  = ParseOut(args) ?? DocsPath(Path.Combine("src", "data", "api-manifest.json"));
         var manifest = BotContractVerifier.GenerateDocsManifest();
+
         var json = Newtonsoft.Json.JsonConvert.SerializeObject(manifest, Newtonsoft.Json.Formatting.Indented,
             new Newtonsoft.Json.JsonSerializerSettings
             {
@@ -209,19 +183,17 @@ public static class BotApiCli
             });
 
         var fullPath = Path.GetFullPath(outPath);
-        var dir = Path.GetDirectoryName(fullPath);
-        if (dir is not null && !Directory.Exists(dir))
-            Directory.CreateDirectory(dir);
 
-        File.WriteAllText(fullPath, json);
+        Directory.CreateDirectory(Path.GetDirectoryName(fullPath)!);
+        // "\n" whatever the host: this file is committed and diffed against, and CRLF from a
+        // Windows developer would read as a change to every line of it.
+        File.WriteAllText(fullPath, json.ReplaceLineEndings("\n"));
 
         Console.WriteLine($"Docs manifest written to: {fullPath}");
-        Console.WriteLine($"  Interfaces: {manifest.Interfaces.Count}");
-        Console.WriteLine($"  Stable: {manifest.Interfaces.Count(m => m.IsStable)}");
-        Console.WriteLine($"  Draft: {manifest.Interfaces.Count(m => !m.IsStable)}");
-        Console.WriteLine($"  Total routes: {manifest.Interfaces.Sum(m => m.Routes.Count)}");
         Console.WriteLine($"  Intents: {manifest.Intents.Count}");
         Console.WriteLine($"  Events: {manifest.Events.Count}");
         Console.WriteLine($"  Rate limit rules: {manifest.RateLimits.Count}");
+        Console.WriteLine($"  DTOs: {manifest.Dtos.Count}");
+        Console.WriteLine("Routes are not here — run 'bot-api openapi' for those.");
     }
 }

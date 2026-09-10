@@ -1,7 +1,21 @@
 namespace Argon.Features.BotApi;
 
+using System.Runtime.CompilerServices;
 using Microsoft.AspNetCore.Routing;
 using Microsoft.Extensions.DependencyInjection;
+
+/// <summary>Why the Bot API is being mapped.</summary>
+internal enum BotApiMapMode
+{
+    /// <summary>Normal hosting: authorization, real dependencies, handlers that run.</summary>
+    Serving,
+
+    /// <summary>
+    /// Offline OpenAPI generation: the endpoints exist so their metadata can be read, and the
+    /// request pipeline they would need is never built.
+    /// </summary>
+    DocumentationOnly
+}
 
 /// <summary>
 /// Marks a class as a Bot API interface with Steam-like per-interface versioning.
@@ -54,12 +68,22 @@ public static class BotApiRegistration
     }
 
     public static WebApplication MapBotApi(this WebApplication app)
+        => app.MapBotApi(BotApiMapMode.Serving);
+
+    internal static WebApplication MapBotApi(this WebApplication app, BotApiMapMode mode)
     {
-        var botGroup = app.MapGroup("/api/bot")
-           .RequireAuthorization(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute
+        var botGroup = app.MapGroup("/api/bot");
+
+        if (mode is BotApiMapMode.Serving)
+            botGroup.RequireAuthorization(new Microsoft.AspNetCore.Authorization.AuthorizeAttribute
             {
                 AuthenticationSchemes = BotTokenAuthenticationHandler.SchemeName
             });
+
+        // The token check and the rate limiter sit in front of every bot route, so the responses
+        // they produce belong to every bot route.
+        foreach (var metadata in BotOpenApi.UniversalResponseMetadata())
+            botGroup.WithMetadata(metadata);
 
         var interfaces  = DiscoverInterfaces();
         var metadataMap = new List<BotInterfaceInfo>();
@@ -67,6 +91,14 @@ public static class BotApiRegistration
         foreach (var (type, attr, deprecated) in interfaces)
         {
             var interfaceGroup = botGroup.MapGroup($"/{attr.Name}/v{attr.Version}");
+
+            // Marks every endpoint below as part of this interface: the OpenAPI document is built
+            // from endpoints carrying this, not from a parallel list of attributes.
+            interfaceGroup.WithMetadata(new BotInterfaceMetadata(
+                attr.Name,
+                attr.Version,
+                type.GetCustomAttribute<BotDescriptionAttribute>()?.Description,
+                deprecated?.SunsetDate));
 
             // Add deprecation headers via endpoint filter
             if (deprecated is not null)
@@ -79,8 +111,7 @@ public static class BotApiRegistration
                 });
             }
 
-            var instance = (IBotInterface)ActivatorUtilities.CreateInstance(app.Services, type);
-            instance.MapRoutes(interfaceGroup);
+            CreateInterface(app.Services, type, mode).MapRoutes(interfaceGroup);
 
             metadataMap.Add(new BotInterfaceInfo(
                 attr.Name,
@@ -113,15 +144,83 @@ public static class BotApiRegistration
         return app;
     }
 
+    /// <summary>
+    /// Builds the interface so its routes can be mapped. When only the route metadata is wanted the
+    /// dependencies are not: OpenAPI generation runs outside a configured cluster, so the instance
+    /// is left uninitialised — <see cref="IBotInterface.MapRoutes"/> only closes over the
+    /// dependencies for handlers that never run in that mode.
+    /// </summary>
+    private static IBotInterface CreateInterface(IServiceProvider services, Type type, BotApiMapMode mode)
+    {
+        if (mode is BotApiMapMode.Serving)
+            return (IBotInterface)ActivatorUtilities.CreateInstance(services, type);
+
+        try
+        {
+            return (IBotInterface)ActivatorUtilities.CreateInstance(services, type);
+        }
+        catch (InvalidOperationException)
+        {
+            return (IBotInterface)RuntimeHelpers.GetUninitializedObject(type);
+        }
+    }
+
+    /// <summary>
+    /// Every Argon assembly, loaded rather than merely whatever happened to be loaded already.
+    /// </summary>
+    /// <remarks>
+    /// <para><c>AppDomain.CurrentDomain.GetAssemblies()</c> answers with what the runtime has loaded
+    /// so far, and .NET loads lazily — an assembly nothing has touched yet is simply not in the
+    /// list. The bot interfaces live in <c>Argon.Api</c>, so a caller that had not yet reached into
+    /// it discovers no interfaces and gets no error, which is indistinguishable from an API that
+    /// has no routes.</para>
+    ///
+    /// <para>That matters more now than it did: this scan is what the OpenAPI document — and so the
+    /// published description of the API — is built from.</para>
+    /// </remarks>
+    internal static IEnumerable<Assembly> ArgonAssemblies()
+    {
+        var seen  = new HashSet<string>(StringComparer.Ordinal);
+        var queue = new Queue<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
+           .Where(a => a.FullName?.StartsWith("Argon") == true));
+
+        foreach (var start in new[] { typeof(BotApiRegistration).Assembly, Assembly.GetEntryAssembly() })
+            if (start is not null)
+                queue.Enqueue(start);
+
+        while (queue.Count > 0)
+        {
+            var assembly = queue.Dequeue();
+            if (assembly.FullName is not { } name || !seen.Add(name))
+                continue;
+
+            if (name.StartsWith("Argon"))
+                yield return assembly;
+
+            foreach (var reference in assembly.GetReferencedAssemblies())
+            {
+                if (!reference.FullName.StartsWith("Argon") || seen.Contains(reference.FullName))
+                    continue;
+
+                // A reference that cannot be resolved is not this method's problem to report: the
+                // scan is a best effort over what the deployment actually ships.
+                try
+                {
+                    queue.Enqueue(Assembly.Load(reference));
+                }
+                catch (Exception)
+                {
+                    // ignored — an unresolvable Argon reference simply contributes no types
+                }
+            }
+        }
+    }
+
     private static List<(Type Type, BotInterfaceAttribute Attr, BotInterfaceDeprecatedAttribute? Deprecated)> DiscoverInterfaces()
     {
         var result = new List<(Type, BotInterfaceAttribute, BotInterfaceDeprecatedAttribute?)>();
 
-        // Scan all loaded assemblies for IBotInterface implementations
-        var assemblies = AppDomain.CurrentDomain.GetAssemblies()
-           .Where(a => a.FullName?.StartsWith("Argon") == true);
-
-        foreach (var assembly in assemblies)
+        foreach (var assembly in ArgonAssemblies())
         {
             foreach (var type in assembly.GetTypes())
             {

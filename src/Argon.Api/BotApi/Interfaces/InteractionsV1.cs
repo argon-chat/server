@@ -1,27 +1,13 @@
 namespace Argon.Api.BotApi.Interfaces;
 
 using Argon.Features.BotApi;
-using Argon.Features.BotApi.Contracts;
-using Microsoft.AspNetCore.Mvc;
 
 [BotInterface("IInteractions", 1)]
 [BotDescription("Respond to slash-command, control, and select interactions. Supports ack, defer, modal, reply, and edit.")]
-[StableContract("3a08148ef4f12b63d7b58dbda29862a91ee4d09789d33f504910071fe527117f")]
-[BotRoute("POST",  "/Reply",       RequestType = typeof(ReplyRequest),       ResponseType = typeof(ReplyResponse), Description = "Reply to an interaction by sending a message to the channel. Optionally reply to a specific message via replyTo.")]
-[BotRoute("PATCH", "/EditMessage", RequestType = typeof(EditMessageRequest), Description = "Edit the text or controls of a message previously sent by this bot.")]
-[BotRoute("POST",  "/Ack",         RequestType = typeof(AckRequest),         Description = "Acknowledge an interaction. The client shows a brief confirmation.")]
-[BotRoute("POST",  "/Defer",       RequestType = typeof(DeferRequest),       Description = "Defer an interaction. The client shows a loading state until the bot follows up.")]
-[BotRoute("POST",  "/Modal",       RequestType = typeof(ModalRequest),       ResponseType = typeof(ModalResponse), Description = "Show a modal dialog to the user who triggered the interaction.")]
-[BotError("/Reply",       403, "not_a_member", "Bot is not a member of this space.")]
-[BotError("/EditMessage", 404, "message_not_found", "Message does not exist or was not sent by this bot.")]
-[BotError("/Ack",         404, "interaction_not_found", "Interaction does not exist or has expired.")]
-[BotError("/Defer",       404, "interaction_not_found", "Interaction does not exist or has expired.")]
-[BotError("/Modal",       404, "interaction_not_found", "Interaction does not exist or has expired.")]
-[BotError("/Modal",       400, "validation_error", "Modal definition is invalid.")]
 // InteractionResponsePusher is not a constructor dependency, unlike everything else here. Bot
 // interfaces are constructed once while routes are being mapped, and the closures the handlers make
 // out of the constructor parameters outlive every request — so a scoped service taken that way would
-// be one request's AppHubServer serving all of them. It arrives per request instead.
+// be one request's AppHubServer serving all of them. It is resolved per request instead.
 public sealed class InteractionsV1(
     IGrainFactory           grains,
     InteractionContextStore interactionStore) : IBotInterface
@@ -37,88 +23,110 @@ public sealed class InteractionsV1(
     public sealed record ReplyResponse(long MessageId);
 
     public sealed record EditMessageRequest(
-        Guid                  ChannelId,
-        long                  MessageId,
-        string?               Text     = null,
-        List<ControlRowV1>?   Controls = null);
+        Guid                ChannelId,
+        long                MessageId,
+        string?             Text     = null,
+        List<ControlRowV1>? Controls = null);
 
     public sealed record AckRequest(Guid InteractionId);
+
     public sealed record DeferRequest(Guid InteractionId);
 
     public sealed record ModalRequest(
-        Guid               InteractionId,
-        ModalDefinitionV1  Modal);
+        Guid              InteractionId,
+        ModalDefinitionV1 Modal);
 
     public sealed record ModalResponse(Guid ModalInteractionId);
+
+    private static readonly BotError InteractionNotFound = new(404, "interaction_not_found",
+        "Interaction does not exist or has expired.");
+
+    private static readonly BotError ValidationError = new(400, "validation_error",
+        "Modal definition is invalid.");
 
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.RequireRateLimiting("Bot_IInteractions");
 
-        group.MapPost("/Reply", async (HttpContext ctx, ReplyRequest request) =>
-        {
-            var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
-            var msgId = await channel.SendMessage(
-                request.Text,
-                request.Entities ?? [],
-                request.RandomId,
-                request.ReplyTo,
-                request.Controls);
+        group.Post<ReplyRequest, ReplyResponse>("/Reply")
+           .Summary("Reply to an interaction by sending a message to the channel. Optionally reply to a specific message via replyTo.")
+           .Permission(ArgonEntitlement.SendMessages)
+           .Handle(async (_, request) =>
+            {
+                var msgId = await grains.GetGrain<IChannelGrain>(request.ChannelId).SendMessage(
+                    request.Text,
+                    request.Entities ?? [],
+                    request.RandomId,
+                    request.ReplyTo,
+                    request.Controls);
 
-            return Results.Ok(new ReplyResponse(msgId));
-        });
+                return new ReplyResponse(msgId);
+            });
 
-        group.MapPatch("/EditMessage", async (HttpContext ctx, EditMessageRequest request) =>
-        {
-            var botUserId = ctx.GetBotAsUserId();
-            var channel   = grains.GetGrain<IChannelGrain>(request.ChannelId);
+        group.Patch<EditMessageRequest>("/EditMessage")
+           .Summary("Edit the text or controls of a message previously sent by this bot.")
+           .Handle(async (ctx, request)
+                => await grains.GetGrain<IChannelGrain>(request.ChannelId).EditBotMessage(
+                    request.MessageId, ctx.GetBotAsUserId(), request.Text, request.Controls));
 
-            await channel.EditBotMessage(request.MessageId, botUserId, request.Text, request.Controls);
-            return Results.Ok();
-        });
+        group.Post<AckRequest>("/Ack")
+           .Summary("Acknowledge an interaction. The client shows a brief confirmation.")
+           .Throws(InteractionNotFound)
+           .Handle(async (ctx, request) =>
+            {
+                var interaction = interactionStore.TryPeek(request.InteractionId)
+                               ?? throw InteractionNotFound.Raise();
 
-        group.MapPost("/Ack", async (HttpContext ctx, AckRequest request,
-            [FromServices] InteractionResponsePusher pusher) =>
-        {
-            var interaction = interactionStore.TryPeek(request.InteractionId);
-            if (interaction is null)
-                return Results.NotFound(new { error = "interaction_not_found" });
+                await Pusher(ctx).PushAckAsync(request.InteractionId, interaction.UserId);
+            });
 
-            await pusher.PushAckAsync(request.InteractionId, interaction.UserId);
-            return Results.Ok();
-        });
+        group.Post<DeferRequest>("/Defer")
+           .Summary("Defer an interaction. The client shows a loading state until the bot follows up.")
+           .Throws(InteractionNotFound)
+           .Handle(async (ctx, request) =>
+            {
+                var interaction = interactionStore.TryPeek(request.InteractionId)
+                               ?? throw InteractionNotFound.Raise();
 
-        group.MapPost("/Defer", async (HttpContext ctx, DeferRequest request,
-            [FromServices] InteractionResponsePusher pusher) =>
-        {
-            var interaction = interactionStore.TryPeek(request.InteractionId);
-            if (interaction is null)
-                return Results.NotFound(new { error = "interaction_not_found" });
+                await Pusher(ctx).PushDeferredAsync(request.InteractionId, interaction.UserId);
+            });
 
-            await pusher.PushDeferredAsync(request.InteractionId, interaction.UserId);
-            return Results.Ok();
-        });
+        group.Post<ModalRequest, ModalResponse>("/Modal")
+           .Summary("Show a modal dialog to the user who triggered the interaction.")
+           .Throws(InteractionNotFound)
+           .Throws(ValidationError)
+           .Handle(async (ctx, request) =>
+            {
+                var interaction = interactionStore.TryConsume(request.InteractionId)
+                               ?? throw InteractionNotFound.Raise();
 
-        group.MapPost("/Modal", async (HttpContext ctx, ModalRequest request,
-            [FromServices] InteractionResponsePusher pusher) =>
-        {
-            var interaction = interactionStore.TryConsume(request.InteractionId);
-            if (interaction is null)
-                return Results.NotFound(new { error = "interaction_not_found" });
+                // Validation used to escape as a 500 while the documentation promised a 400. The
+                // declaration and the behaviour are one thing now, so it is the 400 that was
+                // promised.
+                try
+                {
+                    request.Modal.Validate();
+                }
+                catch (ArgumentException e)
+                {
+                    throw ValidationError.Raise(e.Message);
+                }
 
-            request.Modal.Validate();
+                var modalInteractionId = ArgonId.New();
+                interactionStore.Register(
+                    modalInteractionId,
+                    interaction.UserId,
+                    interaction.ChannelId,
+                    interaction.SpaceId,
+                    interaction.BotAppId);
 
-            var modalInteractionId = ArgonId.New();
-            interactionStore.Register(
-                modalInteractionId,
-                interaction.UserId,
-                interaction.ChannelId,
-                interaction.SpaceId,
-                interaction.BotAppId);
+                await Pusher(ctx).PushShowModalAsync(modalInteractionId, interaction.UserId, request.Modal);
 
-            await pusher.PushShowModalAsync(modalInteractionId, interaction.UserId, request.Modal);
-            return Results.Ok(new ModalResponse(modalInteractionId));
-        });
+                return new ModalResponse(modalInteractionId);
+            });
     }
+
+    private static InteractionResponsePusher Pusher(HttpContext ctx)
+        => ctx.RequestServices.GetRequiredService<InteractionResponsePusher>();
 }

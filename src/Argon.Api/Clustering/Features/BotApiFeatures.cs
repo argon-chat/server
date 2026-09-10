@@ -34,9 +34,9 @@ public sealed class BotApiFeature : IArgonFeature
 
         ctx.Services.AddBotRateLimiting(ctx.Options<BotRateLimitOptions>());
         ctx.Services.AddBotApiJson();
-        ctx.Services.AddHostedService<BotContractVerificationStartupFilter>();
+        ctx.Services.AddBotOpenApi();
     }
 
     public void Map(ArgonEndpointContext ctx)
-        => ctx.App.MapBotApi();
+        => ctx.App.MapBotApi().MapBotOpenApi();
 }

@@ -7,127 +7,125 @@ using Argon.Grains.Interfaces;
 
 [BotInterface("ICommands", 1)]
 [BotDescription("Register, update, list, and delete slash commands for your bot.")]
-[StableContract("9287d91b57d858e8f8d10a5d3fb4a5dde39adf9af17a33da4e41517d15fc365e")]
-[BotRoute("POST",   "/Register",     RequestType = typeof(RegisterCommandRequest), ResponseType = typeof(CommandRegisteredResponse), Description = "Registers a new slash command. Commands can be global or scoped to a specific space. Max 50 commands per scope.")]
-[BotRoute("PATCH",  "/Update",       RequestType = typeof(UpdateCommandRequest),   ResponseType = typeof(BotCommand), Description = "Updates an existing slash command's description, options, or default permission.")]
-[BotRoute("DELETE", "/Delete",       ResponseType = typeof(DeletedResponse), Description = "Deletes a slash command by its commandId (query parameter).")]
-[BotRoute("GET",    "/List",         ResponseType = typeof(CommandListResponse), Description = "Lists all commands registered by this bot across all scopes.")]
-[BotRoute("GET",    "/ListForSpace", ResponseType = typeof(CommandListResponse), Description = "Lists commands available in a specific space (global + space-scoped). Pass spaceId as a query parameter.")]
-[BotError("/Register", 400, "invalid_name", "Name must be 1-32 lowercase alphanumeric characters.")]
-[BotError("/Register", 400, "invalid_description", "Description must be max 100 characters.")]
-[BotError("/Register", 400, "command_limit", "Maximum 50 commands per scope.")]
-[BotError("/Update", 404, "not_found", "Command does not exist or is not owned by this bot.")]
-[BotError("/Delete", 404, "not_found", "Command does not exist or is not owned by this bot.")]
 public sealed class CommandsV1(IGrainFactory grains) : IBotInterface
 {
     public sealed record RegisterCommandRequest(
-        string                    Name,
-        string                    Description,
-        Guid?                     SpaceId           = null,
-        List<BotCommandOption>?   Options           = null,
-        bool?                     DefaultPermission = null);
-
-    public sealed record UpdateCommandRequest(
-        Guid                      CommandId,
-        string?                   Description       = null,
-        List<BotCommandOption>?   Options           = null,
-        bool?                     DefaultPermission = null);
-
-    public sealed record CommandRegisteredResponse(
-        Guid    CommandId,
-        string  Name,
-        Guid?   SpaceId);
-
-    public sealed record BotCommand(
-        Guid                    CommandId,
         string                  Name,
         string                  Description,
-        Guid?                   SpaceId,
-        bool                    DefaultPermission,
-        List<BotCommandOption>  Options);
+        Guid?                   SpaceId           = null,
+        List<BotCommandOption>? Options           = null,
+        bool?                   DefaultPermission = null);
+
+    public sealed record UpdateCommandRequest(
+        Guid                    CommandId,
+        string?                 Description       = null,
+        List<BotCommandOption>? Options           = null,
+        bool?                   DefaultPermission = null);
+
+    public sealed record DeleteCommandQuery(Guid CommandId);
+
+    public sealed record SpaceQuery(Guid SpaceId);
+
+    public sealed record CommandRegisteredResponse(
+        Guid   CommandId,
+        string Name,
+        Guid?  SpaceId);
+
+    public sealed record BotCommand(
+        Guid                   CommandId,
+        string                 Name,
+        string                 Description,
+        Guid?                  SpaceId,
+        bool                   DefaultPermission,
+        List<BotCommandOption> Options);
 
     public sealed record CommandListResponse(
         List<BotCommand> Commands);
+
+    private static readonly BotError InvalidName        = new(400, "invalid_name", "Name must be 1-32 lowercase alphanumeric characters.");
+    private static readonly BotError InvalidDescription = new(400, "invalid_description", "Description must be max 100 characters.");
+    private static readonly BotError CommandLimit       = new(400, "command_limit", "Maximum 50 commands per scope.");
+    private static readonly BotError CommandNotFound    = new(404, "not_found", "Command does not exist or is not owned by this bot.");
 
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.RequireRateLimiting("Bot_ICommands");
 
-        group.MapPost("/Register", async (HttpContext ctx, RegisterCommandRequest request) =>
-        {
-            var appId = ctx.GetBotAppId();
-            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
+        group.Post<RegisterCommandRequest, CommandRegisteredResponse>("/Register")
+           .Summary("Registers a new slash command. Commands can be global or scoped to a specific space. Max 50 commands per scope.")
+           .Throws(InvalidName)
+           .Throws(InvalidDescription)
+           .Throws(CommandLimit)
+           .Handle(async (ctx, request) =>
+            {
+                var grain  = grains.GetGrain<IBotCommandsGrain>(ctx.GetBotAppId());
+                var result = await grain.Register(
+                    request.Name, request.Description, request.SpaceId,
+                    request.Options, request.DefaultPermission ?? true);
 
-            var result = await grain.Register(
-                request.Name, request.Description, request.SpaceId,
-                request.Options, request.DefaultPermission ?? true);
+                if (!result.Success)
+                    throw (result.Error switch
+                    {
+                        "command_limit"       => CommandLimit,
+                        "invalid_description" => InvalidDescription,
+                        _                     => InvalidName
+                    }).Raise();
 
-            if (!result.Success)
-                return result.Error switch
-                {
-                    "command_limit" => Results.BadRequest(new BotApiError("command_limit", "Maximum 50 commands per scope")),
-                    "invalid_description" => Results.BadRequest(new BotApiError("invalid_description", "Description must be max 100 characters")),
-                    _ => Results.BadRequest(new BotApiError("invalid_name", "Name must be 1-32 characters"))
-                };
+                return new CommandRegisteredResponse(result.CommandId!.Value, result.Name!, result.SpaceId);
+            });
 
-            return Results.Ok(new CommandRegisteredResponse(result.CommandId!.Value, result.Name!, result.SpaceId));
-        });
+        group.Patch<UpdateCommandRequest, BotCommand>("/Update")
+           .Summary("Updates an existing slash command's description, options, or default permission.")
+           .Throws(CommandNotFound)
+           .Handle(async (ctx, request) =>
+            {
+                var grain  = grains.GetGrain<IBotCommandsGrain>(ctx.GetBotAppId());
+                var result = await grain.Update(
+                    request.CommandId, request.Description,
+                    request.Options, request.DefaultPermission);
 
-        group.MapPatch("/Update", async (HttpContext ctx, UpdateCommandRequest request) =>
-        {
-            var appId = ctx.GetBotAppId();
-            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
+                if (!result.Success)
+                    throw CommandNotFound.Raise();
 
-            var result = await grain.Update(
-                request.CommandId, request.Description,
-                request.Options, request.DefaultPermission);
+                return Describe(result.Command!);
+            });
 
-            if (!result.Success)
-                return Results.NotFound(new BotApiError("not_found"));
+        group.Delete<DeleteCommandQuery, DeletedResponse>("/Delete")
+           .Summary("Deletes a slash command by its commandId.")
+           .Throws(CommandNotFound)
+           .Handle(async (ctx, query) =>
+            {
+                var grain = grains.GetGrain<IBotCommandsGrain>(ctx.GetBotAppId());
 
-            var c = result.Command!;
-            return Results.Ok(new BotCommand(
-                c.CommandId, c.Name, c.Description,
-                c.SpaceId, c.DefaultPermission, c.Options));
-        });
+                if (!await grain.Delete(query.CommandId))
+                    throw CommandNotFound.Raise();
 
-        group.MapDelete("/Delete", async (HttpContext ctx, Guid commandId) =>
-        {
-            var appId = ctx.GetBotAppId();
-            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
+                return new DeletedResponse(true);
+            });
 
-            var deleted = await grain.Delete(commandId);
+        group.Get<CommandListResponse>("/List")
+           .Summary("Lists all commands registered by this bot across all scopes.")
+           .Handle(async ctx =>
+            {
+                var commands = await grains.GetGrain<IBotCommandsGrain>(ctx.GetBotAppId()).List();
 
-            return deleted
-                ? Results.Ok(new DeletedResponse(true))
-                : Results.NotFound(new BotApiError("not_found"));
-        });
+                return new CommandListResponse(commands.Select(Describe).ToList());
+            });
 
-        group.MapGet("/List", async (HttpContext ctx) =>
-        {
-            var appId = ctx.GetBotAppId();
-            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
+        group.Get<SpaceQuery, CommandListResponse>("/ListForSpace")
+           .Summary("Lists commands available in a specific space (global + space-scoped).")
+           .Handle(async (ctx, query) =>
+            {
+                var commands = await grains.GetGrain<IBotCommandsGrain>(ctx.GetBotAppId())
+                   .ListForSpace(query.SpaceId);
 
-            var commands = await grain.List();
-
-            return Results.Ok(new CommandListResponse(
-                commands.Select(c => new BotCommand(
-                    c.CommandId, c.Name, c.Description,
-                    c.SpaceId, c.DefaultPermission, c.Options)).ToList()));
-        });
-
-        group.MapGet("/ListForSpace", async (HttpContext ctx, Guid spaceId) =>
-        {
-            var appId = ctx.GetBotAppId();
-            var grain = grains.GetGrain<IBotCommandsGrain>(appId);
-
-            var commands = await grain.ListForSpace(spaceId);
-
-            return Results.Ok(new CommandListResponse(
-                commands.Select(c => new BotCommand(
-                    c.CommandId, c.Name, c.Description,
-                    c.SpaceId, c.DefaultPermission, c.Options)).ToList()));
-        });
+                return new CommandListResponse(commands.Select(Describe).ToList());
+            });
     }
+
+    private static BotCommand Describe(BotCommandInfo command)
+        => new(
+            command.CommandId, command.Name, command.Description,
+            command.SpaceId, command.DefaultPermission, command.Options);
 }

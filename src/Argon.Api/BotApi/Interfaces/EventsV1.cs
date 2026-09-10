@@ -8,19 +8,25 @@ using Argon.Services.Ion;
 
 [BotInterface("IEvents", 1)]
 [BotDescription("Subscribe to real-time events via Server-Sent Events (SSE). Receive messages, member changes, voice activity, and more.")]
-[StableContract("a2ad75fa17aa104019b95ac85beb1f65ccdf7d704af92b4bb4331866746cc4b4")]
-[BotRoute("GET", "/Stream", ResponseType = typeof(BotSseEvent), Description = "Opens a persistent SSE connection. Pass intents as a bitmask to filter events. Supports reconnection via Last-Event-ID header or lastEventId query parameter.")]
-[BotError("/Stream", 403, "missing_intents", "No valid intents specified.")]
 public sealed class EventsV1(IGrainFactory grains) : IBotInterface
 {
+    public sealed record StreamQuery(
+        long?   Intents     = null,
+        string? LastEventId = null);
+
     public void MapRoutes(RouteGroupBuilder group)
     {
         group.RequireRateLimiting("Bot_IEvents");
 
-        group.MapGet("/Stream", async (HttpContext ctx, long? intents, string? lastEventId) =>
+        // The one route that cannot state its response as a return type: the body is an open stream
+        // rather than a value, so the payload type is declared and the result built by hand.
+        group.Get<StreamQuery, BotSseEvent>("/Stream")
+           .Summary("Opens a persistent SSE connection. Pass intents as a bitmask to filter events. Supports reconnection via Last-Event-ID header or lastEventId query parameter.")
+           .Produces("text/event-stream")
+           .HandleResult(async (ctx, query) =>
         {
             var botUserId        = ctx.GetBotAsUserId();
-            var requestedIntents = (BotIntent)(intents ?? (long)BotIntent.AllNonPrivileged);
+            var requestedIntents = (BotIntent)(query.Intents ?? (long)BotIntent.AllNonPrivileged);
 
             ctx.PropagateToOrleans();
 

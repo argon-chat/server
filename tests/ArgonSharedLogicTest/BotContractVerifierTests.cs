@@ -3,9 +3,9 @@ namespace ArgonSharedLogicTest;
 using Argon.Features.BotApi;
 
 /// <summary>
-/// The bot contract verifier is the guard rail on Argon's public bot API: it hashes each interface's
-/// shape and each event payload, and compares that against the hash pinned in source. If it stops
-/// working, a breaking change to a published contract ships silently.
+/// The bot contract verifier is the guard rail on the event payloads bots receive over SSE: it
+/// hashes each payload type and compares that against the hash pinned in source. If it stops
+/// working, a breaking change to a published event ships silently.
 /// <para>
 /// It is also the mechanism behind <c>dotnet run -- bot-api verify</c> in CI, so these tests double
 /// as a check that the CI gate itself still functions.
@@ -16,63 +16,13 @@ public class BotContractVerifierTests
 {
     [Test]
     public void Verify_FindsNoMismatchesInTheCurrentTree()
-        // The same assertion the CI contract gate makes. Failing here means a published bot
-        // interface or event payload changed shape without its pinned hash being updated.
+        // The same assertion the CI contract gate makes. Failing here means a published event
+        // payload changed shape without its pinned hash being updated.
         => Assert.That(BotContractVerifier.Verify(), Is.Empty,
             "a pinned bot contract hash no longer matches the code it describes");
 
-    [Test]
-    public void GenerateManifest_DiscoversTheVersionedInterfaces()
-    {
-        var manifest = BotContractVerifier.GenerateManifest();
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(manifest, Is.Not.Empty);
-            Assert.That(manifest.Select(m => m.Name), Does.Contain("IBotSelf"));
-            Assert.That(manifest.Select(m => m.Name), Does.Contain("IMessages"));
-            Assert.That(manifest.All(m => m.Version > 0), Is.True);
-        });
-    }
-
-    [Test]
-    public void GenerateManifest_IsOrderedForStableDiffs()
-    {
-        // The manifest feeds generated documentation; unstable ordering would produce noisy diffs
-        // on every regeneration.
-        var manifest = BotContractVerifier.GenerateManifest();
-
-        var expected = manifest.OrderBy(m => m.Name).ThenBy(m => m.Version).ToList();
-
-        Assert.That(manifest.Select(m => $"{m.Name}/v{m.Version}"),
-            Is.EqualTo(expected.Select(m => $"{m.Name}/v{m.Version}")));
-    }
-
-    [Test]
-    public void GenerateManifest_EveryInterfaceExposesRoutes()
-    {
-        var manifest = BotContractVerifier.GenerateManifest();
-
-        Assert.That(manifest.Where(m => m.Routes.Count == 0).Select(m => m.Name), Is.Empty,
-            "an interface with no routes is a contract nobody can call");
-    }
-
-    [Test]
-    public void ComputeContractHash_IsDeterministic()
-    {
-        // Non-determinism here (reflection ordering, hash-set iteration) would make the CI gate
-        // flap between runs rather than catching real changes.
-        var type = typeof(Argon.Api.BotApi.Interfaces.BotSelfV1);
-
-        var first  = BotContractVerifier.ComputeContractHash(type);
-        var second = BotContractVerifier.ComputeContractHash(type);
-
-        Assert.Multiple(() =>
-        {
-            Assert.That(first, Is.EqualTo(second));
-            Assert.That(first, Has.Length.EqualTo(64), "a hex-encoded SHA-256");
-        });
-    }
+    // The HTTP surface used to be asserted here, over [BotRoute] attributes that restated the
+    // routes. It lives in BotOpenApiTests now, over the endpoints that are actually mapped.
 
     [Test]
     public void ComputeEventContractHash_IsDeterministic()
@@ -120,16 +70,16 @@ public class BotContractVerifierTests
     }
 
     [Test]
-    public void GenerateDocsManifest_CoversInterfacesIntentsEventsAndRateLimits()
+    public void GenerateDocsManifest_CoversIntentsEventsRateLimitsAndDtos()
     {
         var docs = BotContractVerifier.GenerateDocsManifest();
 
         Assert.Multiple(() =>
         {
-            Assert.That(docs.Interfaces, Is.Not.Empty);
             Assert.That(docs.Intents, Is.Not.Empty);
             Assert.That(docs.Events, Is.Not.Empty);
             Assert.That(docs.RateLimits, Is.Not.Empty);
+            Assert.That(docs.Dtos, Is.Not.Empty);
         });
     }
 

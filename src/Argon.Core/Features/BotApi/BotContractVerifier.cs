@@ -1,38 +1,23 @@
 namespace Argon.Features.BotApi;
 
 /// <summary>
-/// Computes deterministic hashes of Bot API contract surfaces and verifies
-/// them against declared <see cref="StableContractAttribute"/> values at startup.
+/// Hashes bot event payloads and checks them against the hash pinned in source.
+/// <para>
+/// Only events: the HTTP surface used to be hashed here too, from attributes that restated what
+/// the routes did, so the check compared the restatement against itself. Routes now describe
+/// themselves through the typed route builder, and what guards them is the committed OpenAPI
+/// document. An event payload is a plain type, and hashing a type is a real check.
+/// </para>
 /// </summary>
 public static class BotContractVerifier
 {
     /// <summary>
-    /// Scans all <see cref="IBotInterface"/> implementations, computes their
-    /// contract hash from <see cref="BotRouteAttribute"/> metadata, and checks
-    /// against <see cref="StableContractAttribute"/>.
-    /// Also verifies <see cref="StableEventContractAttribute"/> on event definitions.
+    /// Verifies <see cref="StableEventContractAttribute"/> against the shape of each event payload.
     /// Returns a list of mismatches (empty = all good).
     /// </summary>
     public static List<ContractMismatch> Verify()
     {
         var mismatches = new List<ContractMismatch>();
-
-        foreach (var (type, interfaceAttr, _) in DiscoverInterfaces())
-        {
-            var stable = type.GetCustomAttribute<StableContractAttribute>();
-            if (stable is null)
-                continue;
-
-            var computed = ComputeContractHash(type);
-
-            if (!string.Equals(stable.ContractHash, computed, StringComparison.OrdinalIgnoreCase))
-            {
-                mismatches.Add(new ContractMismatch(
-                    $"{interfaceAttr.Name}/v{interfaceAttr.Version}",
-                    stable.ContractHash,
-                    computed));
-            }
-        }
 
         foreach (var (type, defAttr, _, stableAttr) in DiscoverEventDefinitions())
         {
@@ -54,61 +39,12 @@ public static class BotContractVerifier
     }
 
     /// <summary>
-    /// Generates the full contract manifest for all discovered bot interfaces.
-    /// Used by the CLI tool for hash computation and documentation.
-    /// </summary>
-    public static List<InterfaceManifest> GenerateManifest()
-    {
-        var result = new List<InterfaceManifest>();
-
-        foreach (var (type, interfaceAttr, deprecated) in DiscoverInterfaces())
-        {
-            var desc = type.GetCustomAttribute<BotDescriptionAttribute>();
-            var errors = type.GetCustomAttributes<BotErrorAttribute>()
-               .GroupBy(e => e.Route)
-               .ToDictionary(g => g.Key, g => g.Select(e => new ErrorManifest(e.Status, e.Code, e.Description))
-                   .OrderBy(e => e.Status).ThenBy(e => e.Code).ToList());
-            var routes = type.GetCustomAttributes<BotRouteAttribute>()
-               .Select(r => new RouteManifest(
-                    r.Method,
-                    r.Path,
-                    r.Description,
-                    r.RequestType is not null ? GetSimpleTypeName(r.RequestType) : null,
-                    r.ResponseType is not null ? GetSimpleTypeName(r.ResponseType) : null,
-                    BuildWebTypeShape(r.RequestType),
-                    BuildWebTypeShape(r.ResponseType),
-                    r.Permission,
-                    r.IsPrivileged,
-                    errors.TryGetValue(r.Path, out var routeErrors) ? routeErrors : null))
-               .OrderBy(r => r.Path)
-               .ThenBy(r => r.Method)
-               .ToList();
-
-            var hash   = ComputeContractHash(type);
-            var stable = type.GetCustomAttribute<StableContractAttribute>();
-
-            result.Add(new InterfaceManifest(
-                interfaceAttr.Name,
-                interfaceAttr.Version,
-                hash,
-                stable?.ContractHash,
-                stable is not null,
-                deprecated is not null,
-                desc?.Description,
-                routes));
-        }
-
-        return result.OrderBy(x => x.Name).ThenBy(x => x.Version).ToList();
-    }
-
-    /// <summary>
-    /// Generates the complete documentation manifest: interfaces, intents, events, and rate limits.
-    /// Events are discovered from <see cref="BotEventDefinitionAttribute"/>-decorated types.
+    /// Generates the documentation data the reference pages cannot get from the OpenAPI document:
+    /// intents, events and their payloads, rate limits, and versioned DTOs. The HTTP surface comes
+    /// from <c>openapi.json</c> instead.
     /// </summary>
     public static DocsManifest GenerateDocsManifest()
     {
-        var interfaces = GenerateManifest();
-
         // Build events from discovered [BotEventDefinition]-attributed types
         var eventDefs = DiscoverEventDefinitions();
 
@@ -192,7 +128,7 @@ public static class BotContractVerifier
            .OrderBy(d => d.Name)
            .ToList();
 
-        return new DocsManifest(interfaces, intents, events, rateLimits, dtos);
+        return new DocsManifest(intents, events, rateLimits, dtos);
     }
 
     /// <summary>
@@ -314,53 +250,7 @@ public static class BotContractVerifier
     private static string FormatPeriod(TimeSpan ts)
         => ts.TotalSeconds < 60 ? $"{ts.TotalSeconds}s" : $"{ts.TotalMinutes}m";
 
-    private static string GetSimpleTypeName(Type type)
-    {
-        var name = type.Name.Contains('`') ? type.Name[..type.Name.IndexOf('`')] : type.Name;
-        // Strip nested type prefix (e.g. "ChannelsV1+CreateChannelRequest" → "CreateChannelRequest")
-        if (name.Contains('+'))
-            name = name[(name.LastIndexOf('+') + 1)..];
-        return name;
-    }
-
-    /// <summary>
-    /// Computes SHA-256 hash of the API surface for a given interface type.
-    /// Deterministic: same routes + types = same hash.
-    /// </summary>
-    public static string ComputeContractHash(Type interfaceType)
-    {
-        var routes = interfaceType.GetCustomAttributes<BotRouteAttribute>()
-           .OrderBy(r => r.Path)
-           .ThenBy(r => r.Method);
-
-        var sb = new StringBuilder();
-
-        // Include interface identity
-        var attr = interfaceType.GetCustomAttribute<BotInterfaceAttribute>()!;
-        // Use explicit '\n' — AppendLine uses Environment.NewLine which differs across OS
-        sb.Append($"INTERFACE:{attr.Name}:v{attr.Version}\n");
-
-        foreach (var route in routes)
-        {
-            sb.Append($"ROUTE:{route.Method}:{route.Path}\n");
-
-            if (route.RequestType is not null)
-            {
-                sb.Append($"  REQUEST:{route.RequestType.FullName}\n");
-                AppendTypeShape(sb, route.RequestType, "    ");
-            }
-
-            if (route.ResponseType is not null)
-            {
-                sb.Append($"  RESPONSE:{route.ResponseType.FullName}\n");
-                AppendTypeShape(sb, route.ResponseType, "    ");
-            }
-        }
-
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(sb.ToString()));
-        return Convert.ToHexStringLower(bytes);
-    }
-
+    /// <summary>Appends a deterministic textual shape of a type, for hashing.</summary>
     private static void AppendTypeShape(StringBuilder sb, Type type, string indent, HashSet<Type>? visited = null)
     {
         visited ??= [];
@@ -383,14 +273,6 @@ public static class BotContractVerifier
             if (innerType is not null && !IsSimpleType(innerType) && innerType.Assembly.FullName?.StartsWith("Argon") == true)
                 AppendTypeShape(sb, innerType, indent + "  ", visited);
         }
-    }
-
-    private static string? SerializeTypeShape(Type? type)
-    {
-        if (type is null) return null;
-        var sb = new StringBuilder();
-        AppendTypeShape(sb, type, "");
-        return sb.ToString().TrimEnd();
     }
 
     // --- Structured type shapes for documentation (camelCase, JSON types) ---
@@ -693,112 +575,12 @@ public static class BotContractVerifier
         type.IsPrimitive || type.IsEnum || type == typeof(string) || type == typeof(Guid) ||
         type == typeof(DateTime) || type == typeof(DateTimeOffset) || type == typeof(decimal);
 
-    /// <summary>
-    /// Every Argon assembly, loaded rather than merely whatever happened to be loaded already.
-    /// </summary>
-    /// <remarks>
-    /// <para><c>AppDomain.CurrentDomain.GetAssemblies()</c> answers with what the runtime has loaded
-    /// so far, and .NET loads lazily — an assembly nothing has touched yet is simply not in the
-    /// list. The bot interfaces live in <c>Argon.Api</c>, so a caller that had not yet reached into
-    /// it got an empty manifest and no error: <see cref="Verify"/> compared nothing against nothing
-    /// and reported no mismatches.</para>
-    ///
-    /// <para>That is worse in the CI gate than in a test. <c>bot-api verify</c> exists to fail when
-    /// a published contract changes shape, and discovering zero interfaces is indistinguishable from
-    /// discovering that everything matches. The gate would have gone green on a broken contract.</para>
-    ///
-    /// <para>It surfaced as two tests that passed alone and failed in a full run, depending on
-    /// whether some earlier test had touched <c>Argon.Api</c> first — which is the same fault
-    /// wearing test-flake clothing.</para>
-    /// </remarks>
-    private static IEnumerable<Assembly> ArgonAssemblies()
-    {
-        var seen = new HashSet<string>(StringComparer.Ordinal);
-        var queue = new Queue<Assembly>(AppDomain.CurrentDomain.GetAssemblies()
-           .Where(a => a.FullName?.StartsWith("Argon") == true));
-
-        foreach (var start in new[] { typeof(BotContractVerifier).Assembly, Assembly.GetEntryAssembly() })
-            if (start is not null)
-                queue.Enqueue(start);
-
-        while (queue.Count > 0)
-        {
-            var assembly = queue.Dequeue();
-            if (assembly.FullName is not { } name || !seen.Add(name))
-                continue;
-
-            if (name.StartsWith("Argon"))
-                yield return assembly;
-
-            foreach (var reference in assembly.GetReferencedAssemblies())
-            {
-                if (reference.FullName.StartsWith("Argon") && !seen.Contains(reference.FullName))
-                {
-                    // A reference that cannot be resolved is not this method's problem to report:
-                    // the scan is a best effort over what the deployment actually ships.
-                    try
-                    {
-                        queue.Enqueue(Assembly.Load(reference));
-                    }
-                    catch (Exception)
-                    {
-                        // ignored — an unresolvable Argon reference simply contributes no types
-                    }
-                }
-            }
-        }
-    }
-
-    private static List<(Type Type, BotInterfaceAttribute Attr, BotInterfaceDeprecatedAttribute? Deprecated)> DiscoverInterfaces()
-    {
-        var result = new List<(Type, BotInterfaceAttribute, BotInterfaceDeprecatedAttribute?)>();
-
-        foreach (var assembly in ArgonAssemblies())
-        {
-            foreach (var type in assembly.GetTypes())
-            {
-                if (!typeof(IBotInterface).IsAssignableFrom(type) || type.IsAbstract || type.IsInterface)
-                    continue;
-
-                var attr = type.GetCustomAttribute<BotInterfaceAttribute>();
-                if (attr is null)
-                    continue;
-
-                var deprecated = type.GetCustomAttribute<BotInterfaceDeprecatedAttribute>();
-                result.Add((type, attr, deprecated));
-            }
-        }
-
-        return result;
-    }
 }
 
 public sealed record ContractMismatch(
     string InterfaceName,
     string DeclaredHash,
     string ComputedHash);
-
-public sealed record InterfaceManifest(
-    string             Name,
-    int                Version,
-    string             ComputedHash,
-    string?            DeclaredHash,
-    bool               IsStable,
-    bool               IsDeprecated,
-    string?            Description,
-    List<RouteManifest> Routes);
-
-public sealed record RouteManifest(
-    string               Method,
-    string               Path,
-    string?              Description,
-    string?              RequestTypeName,
-    string?              ResponseTypeName,
-    List<TypeProperty>?  RequestTypeShape,
-    List<TypeProperty>?  ResponseTypeShape,
-    string?              Permission,
-    bool                 IsPrivileged,
-    List<ErrorManifest>? Errors);
 
 public sealed record TypeProperty(
     string              Name,
@@ -819,7 +601,6 @@ public sealed record UnionVariant(
     List<TypeProperty> Properties);
 
 public sealed record DocsManifest(
-    List<InterfaceManifest> Interfaces,
     List<IntentManifest>    Intents,
     List<EventManifest>     Events,
     List<RateLimitManifest> RateLimits,
@@ -852,11 +633,6 @@ public sealed record RateLimitManifest(
     string InterfaceName,
     int    PermitLimit,
     string Window);
-
-public sealed record ErrorManifest(
-    int    Status,
-    string Code,
-    string Description);
 
 public sealed record DtoManifest(
     string                Name,

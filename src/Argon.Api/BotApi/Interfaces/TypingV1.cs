@@ -1,15 +1,9 @@
 namespace Argon.Api.BotApi.Interfaces;
 
 using Argon.Features.BotApi;
-using Argon.Features.BotApi.Contracts;
 
 [BotInterface("ITyping", 1)]
 [BotDescription("Send typing indicators to channels. Typing status automatically expires after 8 seconds.")]
-[StableContract("1665131832ec0d80955b84f0c1508d9ee8c83332b1c012885d2c79b5ac166c21")]
-[BotRoute("POST", "/Start", RequestType = typeof(SendTypingRequest), Description = "Triggers a typing indicator in a channel. The indicator auto-expires after 8 seconds. Call repeatedly to keep it active. Supported kinds: typing, thinking, uploading, searching.", Permission = "SendMessages")]
-[BotRoute("POST", "/Stop",  RequestType = typeof(StopTypingRequest), Description = "Explicitly stops the typing indicator in a channel. Optional — the indicator expires automatically after 8 seconds.")]
-[BotError("/Start", 403, "not_a_member", "Bot is not a member of this space.")]
-[BotError("/Stop",  403, "not_a_member", "Bot is not a member of this space.")]
 public sealed class TypingV1(IGrainFactory grains) : IBotInterface
 {
     public sealed record SendTypingRequest(
@@ -18,6 +12,9 @@ public sealed class TypingV1(IGrainFactory grains) : IBotInterface
 
     public sealed record StopTypingRequest(
         Guid ChannelId);
+
+    private static readonly BotError InvalidKind = new(400, "invalid_kind",
+        "Unknown typing kind. Supported: typing, thinking, uploading, searching.");
 
     private static readonly Dictionary<string, TypingKind> KindMap = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,27 +29,24 @@ public sealed class TypingV1(IGrainFactory grains) : IBotInterface
         group.AddEndpointFilter<BotOrleansPropagationFilter>();
         group.RequireRateLimiting("Bot_ITyping");
 
-        group.MapPost("/Start", async (HttpContext ctx, SendTypingRequest request) =>
-        {
-            var kind = TypingKind.TYPING;
-            if (request.Kind is not null)
+        group.Post<SendTypingRequest>("/Start")
+           .Summary("Triggers a typing indicator in a channel. The indicator auto-expires after 8 seconds. Call repeatedly to keep it active. Supported kinds: typing, thinking, uploading, searching.")
+           .Permission(ArgonEntitlement.SendMessages)
+           .Throws(InvalidKind)
+           .Handle(async (_, request) =>
             {
-                if (!KindMap.TryGetValue(request.Kind, out kind))
-                    return Results.Json(
-                        new BotApiError("invalid_kind", $"Unknown typing kind '{request.Kind}'. Supported: typing, thinking, uploading, searching."),
-                        statusCode: StatusCodes.Status400BadRequest);
-            }
+                var kind = TypingKind.TYPING;
 
-            var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
-            await channel.OnBotTypingEmit(kind);
-            return Results.Ok();
-        });
+                if (request.Kind is not null && !KindMap.TryGetValue(request.Kind, out kind))
+                    throw InvalidKind.Raise(
+                        $"Unknown typing kind '{request.Kind}'. Supported: typing, thinking, uploading, searching.");
 
-        group.MapPost("/Stop", async (HttpContext ctx, StopTypingRequest request) =>
-        {
-            var channel = grains.GetGrain<IChannelGrain>(request.ChannelId);
-            await channel.OnTypingStopEmit();
-            return Results.Ok();
-        });
+                await grains.GetGrain<IChannelGrain>(request.ChannelId).OnBotTypingEmit(kind);
+            });
+
+        group.Post<StopTypingRequest>("/Stop")
+           .Summary("Explicitly stops the typing indicator in a channel. Optional — the indicator expires automatically after 8 seconds.")
+           .Handle(async (_, request)
+                => await grains.GetGrain<IChannelGrain>(request.ChannelId).OnTypingStopEmit());
     }
 }

@@ -37,8 +37,19 @@ jobs:
       - name: Build
         run: dotnet build --no-restore --verbosity normal
 
-      - name: Verify Bot API Contracts
+      - name: Verify bot event contracts
         run: dotnet run --project src/Argon.Api -- bot-api verify
+
+      # The published description of the Bot API is a committed file, generated from the routes.
+      # Regenerating it here and refusing a difference is what replaced hashing the routes: a
+      # change to the API is a change to this file, visible in the diff as itself rather than as a
+      # new hash. Regenerate with `dotnet run --project src/Argon.Api -- bot-api openapi` and
+      # commit the result in docs/bot-api-docs.
+      - name: Check the published Bot API description is current
+        run: |
+          dotnet run --project src/Argon.Api -- bot-api openapi
+          dotnet run --project src/Argon.Api -- bot-api docs
+          git -C docs/bot-api-docs diff --exit-code -- public/openapi.json src/data/api-manifest.json
 
   # PostgreSQL rather than CockroachDB: same migrations, same assertions, a fraction of the
   # start-up cost. The nightly canary replays the suite on CockroachDB.
