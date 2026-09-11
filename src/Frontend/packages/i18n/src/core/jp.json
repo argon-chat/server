@@ -1,5 +1,74 @@
 {
   "cancel": "キャンセル",
+  "consent": {
+    "authorize": "許可する",
+    "authorizing": "許可しています...",
+    "by": "提供:",
+    "deny": "拒否",
+    "permissions": "権限",
+    "revoke_hint": "アクセス権はアカウント設定からいつでも取り消せます",
+    "scopes": {
+      "calendar": {
+        "description": "予定の閲覧と管理",
+        "name": "カレンダー"
+      },
+      "calendar_readonly": {
+        "description": "予定の閲覧",
+        "name": "カレンダー"
+      },
+      "email": {
+        "description": "あなたのメールアドレス",
+        "name": "メールアドレス"
+      },
+      "email_send": {
+        "description": "あなたの代わりにメールを送信します",
+        "name": "メール送信"
+      },
+      "identity": {
+        "description": "ユーザー名とユーザーID",
+        "name": "基本プロフィール"
+      },
+      "infrastructure_read": {
+        "description": "Argonインフラの状態の読み取り",
+        "name": "インフラストラクチャ"
+      },
+      "infrastructure_write": {
+        "description": "Argonインフラの読み取りと変更",
+        "name": "インフラストラクチャ"
+      },
+      "internal_read": {
+        "description": "Argonの内部データの読み取り",
+        "name": "内部データ"
+      },
+      "internal_write": {
+        "description": "Argonの内部データの読み取りと変更",
+        "name": "内部データ"
+      },
+      "offline_access": {
+        "description": "次回以降もセッションを保持します",
+        "name": "ログイン状態の維持"
+      },
+      "profile": {
+        "description": "あなたの表示名",
+        "name": "プロフィール"
+      },
+      "role": {
+        "description": "プロフィールに表示されるバッジ",
+        "name": "バッジ"
+      },
+      "unknown": "この権限へのアクセス",
+      "user_email": {
+        "description": "アカウントに登録されたアドレス",
+        "name": "メールアドレス"
+      },
+      "user_read": {
+        "description": "表示名とアバター",
+        "name": "プロフィール情報"
+      }
+    },
+    "switch_account": "アカウントを切り替える",
+    "unverified": "未確認のアプリケーションです。開発者を信頼できる場合のみ許可してください。"
+  },
   "create_one": "作成する",
   "dont_have_account": "アカウントをお持ちでないですか？",
   "enter_your_otp": "OTPコードを入力してください",

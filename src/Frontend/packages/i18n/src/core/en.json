@@ -1,5 +1,74 @@
 {
   "cancel": "Cancel",
+  "consent": {
+    "authorize": "Authorize",
+    "authorizing": "Authorizing...",
+    "by": "by",
+    "deny": "Deny",
+    "permissions": "Permissions",
+    "revoke_hint": "You can revoke access anytime in account settings",
+    "scopes": {
+      "calendar": {
+        "description": "See and manage your events",
+        "name": "Calendar"
+      },
+      "calendar_readonly": {
+        "description": "See your events",
+        "name": "Calendar"
+      },
+      "email": {
+        "description": "Your email address",
+        "name": "Email address"
+      },
+      "email_send": {
+        "description": "Send email on your behalf",
+        "name": "Send email"
+      },
+      "identity": {
+        "description": "Username and user ID",
+        "name": "Basic profile"
+      },
+      "infrastructure_read": {
+        "description": "Read Argon infrastructure state",
+        "name": "Infrastructure"
+      },
+      "infrastructure_write": {
+        "description": "Read and change Argon infrastructure",
+        "name": "Infrastructure"
+      },
+      "internal_read": {
+        "description": "Read Argon internal data",
+        "name": "Internal data"
+      },
+      "internal_write": {
+        "description": "Read and change Argon internal data",
+        "name": "Internal data"
+      },
+      "offline_access": {
+        "description": "Persist session between visits",
+        "name": "Stay signed in"
+      },
+      "profile": {
+        "description": "Your display name",
+        "name": "Profile"
+      },
+      "role": {
+        "description": "Badges shown on your profile",
+        "name": "Badges"
+      },
+      "unknown": "Access to this permission",
+      "user_email": {
+        "description": "The address on your account",
+        "name": "Email address"
+      },
+      "user_read": {
+        "description": "Display name and avatar",
+        "name": "Profile info"
+      }
+    },
+    "switch_account": "Switch account",
+    "unverified": "Unverified application. Only authorize if you trust this developer."
+  },
   "create_one": "Create one",
   "dont_have_account": "Don’t have an account?",
   "enter_your_otp": "Enter your OTP code",

@@ -3,6 +3,9 @@ import { Button } from "@argon/ui/button";
 import { Badge } from "@argon/ui/badge";
 import { ShieldCheckIcon, ShieldAlertIcon, CheckIcon, ArrowRightLeftIcon, Loader2Icon, XIcon } from "@lucide/vue";
 import { computed, ref, onMounted } from "vue";
+import { useLocale } from "@/store/localeStore";
+
+const { t } = useLocale();
 
 interface ConsentInfo {
   appName: string;
@@ -30,16 +33,42 @@ onMounted(() => {
   requestAnimationFrame(() => (entered.value = true));
 });
 
-const scopeDescriptions: Record<string, { name: string; description: string; icon?: string }> = {
-  "identity": { name: "Basic profile", description: "Username and user ID" },
-  "email": { name: "Email address", description: "Your email address" },
-  "user:read": { name: "Profile info", description: "Display name and avatar" },
-  "offline_access": { name: "Stay signed in", description: "Persist session between visits" },
+/**
+ * The scope as Aegis issues it, against the translation key that describes it.
+ *
+ * A scope missing here is shown exactly as it was requested, with a generic description — which is
+ * what a consent screen should do when it cannot say what a permission means, and is what happened
+ * to `user.read` while this map still spelled it `user:read`. The keys are the ones in
+ * `Argon.Core/Features/Aegis/ArgonScopes.cs`; `nd` is deliberately absent, since nothing here can
+ * state what it grants.
+ */
+const scopeKeys: Record<string, string> = {
+  "identity": "identity",
+  "profile": "profile",
+  "user.read": "user_read",
+  "user.email": "user_email",
+  "email": "email",
+  "offline_access": "offline_access",
+  "role": "role",
+  "internal.read": "internal_read",
+  "internal.write": "internal_write",
+  "infrastructure.read": "infrastructure_read",
+  "infrastructure.write": "infrastructure_write",
+  "calendar.readonly": "calendar_readonly",
+  "calendar": "calendar",
+  "email:send": "email_send",
 };
 
 const readableScopes = computed(() => {
-  return props.consentInfo.requestedScopes
-    .map(scope => scopeDescriptions[scope] || { name: scope, description: "Access to this permission" });
+  return props.consentInfo.requestedScopes.map(scope => {
+    const key = scopeKeys[scope];
+
+    return {
+      scope,
+      name: key ? t(`consent.scopes.${key}.name`) : scope,
+      description: key ? t(`consent.scopes.${key}.description`) : t("consent.scopes.unknown"),
+    };
+  });
 });
 
 const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() ?? "?");
@@ -88,7 +117,7 @@ const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() 
           <div class="text-center space-y-1.5">
             <h2 class="text-lg font-semibold text-white tracking-tight">{{ consentInfo.appName }}</h2>
             <p class="text-xs text-white/35">
-              by <span class="text-white/50">{{ consentInfo.developerName }}</span>
+              {{ t("consent.by") }} <span class="text-white/50">{{ consentInfo.developerName }}</span>
             </p>
           </div>
         </div>
@@ -100,21 +129,21 @@ const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() 
         >
           <ShieldAlertIcon :size="16" class="text-red-400 shrink-0" />
           <p class="text-[12px] text-red-300/80 leading-relaxed">
-            Unverified application. Only authorize if you trust this developer.
+            {{ t("consent.unverified") }}
           </p>
         </div>
 
         <!-- Permissions -->
         <div class="space-y-3">
           <div class="flex items-center justify-between px-1">
-            <span class="text-[11px] font-medium text-white/30 uppercase tracking-wider">Permissions</span>
+            <span class="text-[11px] font-medium text-white/30 uppercase tracking-wider">{{ t("consent.permissions") }}</span>
             <span class="text-[11px] text-white/20">{{ readableScopes.length }}</span>
           </div>
 
           <div class="space-y-1.5">
             <div
               v-for="(scope, i) in readableScopes"
-              :key="scope.name"
+              :key="scope.scope"
               class="flex items-center gap-3 px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.04] transition-all duration-300 hover:bg-white/[0.05]"
               :style="{ transitionDelay: `${i * 50}ms` }"
             >
@@ -141,7 +170,7 @@ const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() 
           >
             <Loader2Icon v-if="isLoading" :size="16" class="mr-2 animate-spin" />
             <ShieldCheckIcon v-else :size="16" class="mr-2" />
-            {{ isLoading ? "Authorizing..." : "Authorize" }}
+            {{ isLoading ? t("consent.authorizing") : t("consent.authorize") }}
           </Button>
 
           <div class="flex gap-2">
@@ -150,7 +179,7 @@ const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() 
               :disabled="isLoading"
               class="flex-1 h-9 text-xs text-white/30 hover:text-white/60 hover:bg-white/[0.04] rounded-xl transition-all border border-transparent hover:border-white/[0.06]"
             >
-              Deny
+              {{ t("consent.deny") }}
             </button>
             <button
               @click="emit('switchAccount')"
@@ -158,14 +187,14 @@ const appInitial = computed(() => props.consentInfo.appName?.[0]?.toUpperCase() 
               class="flex-1 h-9 text-xs text-white/30 hover:text-white/60 hover:bg-white/[0.04] rounded-xl transition-all border border-transparent hover:border-white/[0.06] flex items-center justify-center gap-1.5"
             >
               <ArrowRightLeftIcon :size="11" />
-              Switch account
+              {{ t("consent.switch_account") }}
             </button>
           </div>
         </div>
 
         <!-- Footer -->
         <p class="text-[10px] text-center text-white/15 pt-1">
-          You can revoke access anytime in account settings
+          {{ t("consent.revoke_hint") }}
         </p>
       </div>
     </Transition>
