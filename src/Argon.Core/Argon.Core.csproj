@@ -59,7 +59,7 @@
         <PackageReference Include="ObservableCollections.R3" Version="3.3.4" />
         <PackageReference Include="OpenTelemetry.Exporter.Prometheus.AspNetCore" Version="1.18.0-beta.1" />
         <PackageReference Include="OpenTelemetry.Instrumentation.EntityFrameworkCore" Version="1.18.0-beta.1" />
-        <PackageReference Include="OpenTelemetry.Instrumentation.StackExchangeRedis" Version="1.18.0-beta.1" />
+        <PackageReference Include="OpenTelemetry.Instrumentation.StackExchangeRedis" Version="1.18.0-beta.2" />
         <PackageReference Include="Fido2" Version="5.0.0-preview.3" />
         <PackageReference Include="Otp.NET" Version="1.4.1" />
         <PackageReference Include="OpenIddict.Core" Version="7.7.0" />
