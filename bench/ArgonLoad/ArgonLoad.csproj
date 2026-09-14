@@ -18,7 +18,7 @@
     <ItemGroup>
         <!-- The hub side of the client. Scenario B is about fan-out, and fan-out only exists over a
              real connection: an RPC round trip would measure a different thing entirely. -->
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     </ItemGroup>
 
     <ItemGroup>

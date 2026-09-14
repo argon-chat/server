@@ -14,14 +14,14 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.12" />
     <!--
       The realtime harness (Infrastructure/Presence) drives the /w hub the way the desktop client
       does, over the in-memory TestServer. Pinned to the same 10.0.11 the rest of the ASP.NET
       surface is on: the client and the server-side hub share the connection/handshake protocol, and
       a mismatched pair fails at negotiate rather than anywhere a test could read.
     -->
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.9.0" />
     <PackageReference Include="Microsoft.Orleans.TestingHost" Version="10.3.1" />
     <PackageReference Include="NUnit" Version="4.6.1" />
@@ -48,7 +48,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.400" />
+    <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
   </ItemGroup>
 
 </Project>
