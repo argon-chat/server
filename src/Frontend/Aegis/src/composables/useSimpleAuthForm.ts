@@ -1,7 +1,7 @@
 import { ref, computed, watch } from "vue";
 import { useSimpleAuthStore } from "@/store/simpleAuthStore";
 
-export type TabType = "login" | "otp-code";
+export type TabType = "login" | "otp-code" | "signup";
 
 export function useSimpleAuthForm() {
     const authStore = useSimpleAuthStore();
@@ -45,6 +45,8 @@ export function useSimpleAuthForm() {
 
     const goBackToLogin = () => {
         tabValue.value = "login";
+        authStore.registerError = null;
+        authStore.registerFieldErrors = {};
         otpCode.value = "";
         authStore.passkeyOtpRequired = false;
         authStore.passkeyNonce = null;

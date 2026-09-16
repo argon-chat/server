@@ -25,6 +25,58 @@ public record OAuthAuthorizeRequest
 }
 
 /// <summary>
+/// What the widget sends to create an account.
+/// </summary>
+/// <remarks>
+/// The same fields the installed client collects — see <c>NewUserCredentialsInput</c>, which this is
+/// turned into — plus the OAuth pair, because a registration started from the widget is the first
+/// leg of an authorization request and has to end on the same consent screen a sign-in does.
+/// <para>
+/// <c>BirthDate</c> is a string rather than a date: it arrives from an <c>&lt;input type="date"&gt;</c>
+/// as <c>yyyy-MM-dd</c>, and a value the browser could not produce is a field error to show next to
+/// the field rather than a 400 with a model-binding message nobody wrote.
+/// </para>
+/// </remarks>
+public record OAuthRegisterRequest
+{
+    public string  Email               { get; init; } = "";
+    public string  Username            { get; init; } = "";
+    public string  Password            { get; init; } = "";
+    public string  DisplayName         { get; init; } = "";
+    public string  BirthDate           { get; init; } = "";
+    public bool    AgreeTos            { get; init; }
+    public bool    AgreeOptionalEmails { get; init; }
+    public string? CaptchaToken        { get; init; }
+    public string? TosVersion          { get; init; }
+    public string? PrivacyVersion      { get; init; }
+    public string  ClientId            { get; init; } = "";
+    public string? Scope               { get; init; }
+}
+
+/// <summary>
+/// The outcome of a registration, in the same shape a sign-in answers with.
+/// </summary>
+/// <remarks>
+/// Deliberately the same flags: a registration that succeeds has established exactly the session a
+/// sign-in would have, so the widget carries on into consent through the code it already has rather
+/// than through a second path that would drift.
+/// <para>
+/// <see cref="Field"/> is what registration adds. Its refusals are about one input — this username
+/// is taken, that birth date is too recent — and a form that can point at the field is the whole
+/// difference between a usable sign-up and one that says "registration failed".
+/// </para>
+/// </remarks>
+public record OAuthRegisterResponse
+{
+    public bool         Success         { get; init; }
+    public string?      Error           { get; init; }
+    public string?      Field           { get; init; }
+    public string?      Message         { get; init; }
+    public bool         RequiresConsent { get; init; }
+    public ConsentInfo? ConsentInfo     { get; init; }
+}
+
+/// <summary>
 /// The outcome of a credential check, and whatever the user still has to do.
 /// </summary>
 /// <remarks>

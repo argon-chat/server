@@ -1,6 +1,7 @@
 namespace Argon.Api.Features.Aegis;
 
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json;
 using Argon.Features.Aegis;
@@ -231,6 +232,95 @@ public class AuthController(
         catch (Exception e)
         {
             logger.LogError(e, "[OAuth] Exception in AuthorizeOAuth");
+            return StatusCode(500, new { error = "server_error" });
+        }
+    }
+
+    /// <summary>
+    /// Creates an account and opens the same browser session a sign-in would have.
+    /// </summary>
+    /// <remarks>
+    /// <para>The counterpart of <see cref="AuthorizeOAuth"/>, and deliberately built out of the same
+    /// pieces: the installed client has registered through <c>ExternalRegister</c> all along, and
+    /// what was missing was any way to reach it from a browser. The widget had a registration page,
+    /// but only the invite one — <c>/api/auth/invite/register</c>, which needs a token — so a user
+    /// arriving with no invitation had nowhere to go.</para>
+    ///
+    /// <para>No one-time code stands between the form and the account: <c>ExternalRegister</c>
+    /// creates the user and issues a token in the same call, exactly as it does for the installed
+    /// client. Verifying the address is a later step and is the same later step on both paths.</para>
+    ///
+    /// <para>Rate limited on the same policy as a sign-in. Registration is the more expensive of the
+    /// two — it hashes a password — and it is the one an unauthenticated stranger can reach.</para>
+    /// </remarks>
+    [HttpPost("oauth/register")]
+    [EnableRateLimiting(AegisRateLimitOptions.AuthPolicy)]
+    public async Task<IActionResult> RegisterOAuth([FromBody] OAuthRegisterRequest request)
+    {
+        try
+        {
+            var ct = HttpContext.RequestAborted;
+
+            if (!DateOnly.TryParse(request.BirthDate, CultureInfo.InvariantCulture, out var birthDate))
+                return Ok(new OAuthRegisterResponse
+                {
+                    Error   = "invalid_request",
+                    Field   = "birthDate",
+                    Message = "Enter your date of birth."
+                });
+
+            var result = await Authorization.ExternalRegister(new NewUserCredentialsInput(
+                request.Email, request.Username, request.Password, request.DisplayName,
+                request.AgreeTos, birthDate, request.AgreeOptionalEmails,
+                request.CaptchaToken, request.TosVersion, request.PrivacyVersion));
+
+            if (!result.IsSuccess)
+            {
+                // Logged without the address: a failed registration is the one place where the value
+                // that failed is a stranger's email, and "this one is taken" written into a log is a
+                // record of who has an account here.
+                logger.LogWarning("[OAuth] Registration refused: {Error} on {Field}",
+                    result.Error.error, result.Error.field ?? "-");
+
+                return Ok(new OAuthRegisterResponse
+                {
+                    Error   = result.Error.error.ToString(),
+                    Field   = result.Error.field,
+                    Message = result.Error.message
+                });
+            }
+
+            var (userId, _, _) = jwtFlow.ValidateAccessToken(result.Value.token, "argon.app");
+
+            var app = await directory.GetAppInfoAsync(request.ClientId, ScopesOf(request.Scope), ct);
+
+            if (app is null)
+            {
+                logger.LogWarning("[OAuth] App not found after registration: {ClientId}", request.ClientId);
+                return BadRequest(new { error = "invalid_client" });
+            }
+
+            await session.SignInAsync(userId);
+
+            // Asked even though the account was created a moment ago. An application may be closed
+            // to its team, or unapproved — and answering "you are registered, now you may not come
+            // in" is the honest outcome, where skipping the check would hand out a session the
+            // sign-in path would have refused.
+            var allowed = await directory.CanSignInAsync(request.ClientId, userId, ct);
+
+            if (!allowed.IsAllowed)
+                return BadRequest(new { error = "access_denied", error_description = allowed.Reason });
+
+            return Ok(new OAuthRegisterResponse
+            {
+                Success         = true,
+                RequiresConsent = true,
+                ConsentInfo     = ConsentInfo.Of(app)
+            });
+        }
+        catch (Exception e)
+        {
+            logger.LogError(e, "[OAuth] Exception in RegisterOAuth");
             return StatusCode(500, new { error = "server_error" });
         }
     }

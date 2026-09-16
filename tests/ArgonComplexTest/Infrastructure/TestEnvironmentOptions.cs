@@ -86,8 +86,9 @@ public static class TestEnvironmentOptions
 
     /// <summary>Region names the fixture can draw on, primary first.</summary>
     /// <remarks>
-    /// The same names, in the same order, as the nodes in <c>deploy/docker-compose.local.yml</c>, so a
-    /// developer who has run the local cluster recognises what the tests see.
+    /// Production's own region names, primary first. The local stack runs PostgreSQL rather than a
+    /// Cockroach cluster, so there is no compose file for these to agree with — they agree with the
+    /// deployment instead.
     /// </remarks>
     private static readonly string[] KnownRegions = [DatabaseRegion, "eu-central", "us-east"];
 

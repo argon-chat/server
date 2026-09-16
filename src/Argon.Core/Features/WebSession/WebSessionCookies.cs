@@ -60,14 +60,40 @@ public static class ArgonSecureCookie
         return machineId;
     }
 
+    /// <summary>
+    /// The machine identity this browser already presents, by whichever of the two channels it has.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>The header is not a fallback for old clients here; it is the only channel a tab
+    /// served from another site has.</b> The cookie is written on the API's host with
+    /// <c>SameSite=Lax</c>, so a page on a different site never sends it back — and the machine id
+    /// is what <c>mh</c> on every access token is checked against. Read from the cookie alone, such
+    /// a browser was issued a fresh identity on every exchange, bound its token to an id it could
+    /// never present again, and had the very next call fail with <c>MachineId is not defined</c>.
+    /// The sign-in appeared to work and nothing after it did.</para>
+    ///
+    /// <para>The same precedence <c>GetMachineId</c> reads with, so the id the session is bound to
+    /// and the id the request pipeline resolves can never disagree. <c>X-Sec-Carry</c> is the
+    /// spelling a browser can actually use: <c>Sec-</c> is a forbidden header prefix in fetch, so a
+    /// page setting <c>Sec-Carry</c> has it dropped before the request leaves — which is why both
+    /// names exist and why only one of them is reachable from script.</para>
+    ///
+    /// <para>Trusting a caller-supplied value costs nothing that was not already the case: an
+    /// installed client writes its own <c>ArgonSecure</c> cookie, so this identity has always been
+    /// the caller's to choose. It is a label for a device, not a claim to be one — the unforgeable
+    /// half is the <c>sid</c> inside the token.</para>
+    /// </remarks>
     private static string? ReadMachineId(HttpContext http)
     {
-        if (!http.Request.Cookies.TryGetValue(CookieName, out var cookie) || string.IsNullOrWhiteSpace(cookie))
-            return null;
+        if (http.Request.Cookies.TryGetValue(CookieName, out var cookie) && !string.IsNullOrWhiteSpace(cookie)
+         && QueryHelpers.ParseQuery(cookie).TryGetValue("colt", out var colt) && !string.IsNullOrWhiteSpace(colt))
+            return colt.ToString();
 
-        return QueryHelpers.ParseQuery(cookie).TryGetValue("colt", out var colt) && !string.IsNullOrWhiteSpace(colt)
-            ? colt.ToString()
-            : null;
+        foreach (var header in (ReadOnlySpan<string>)["Sec-Carry", "X-Sec-Carry"])
+            if (http.Request.Headers.TryGetValue(header, out var carried) && !string.IsNullOrWhiteSpace(carried))
+                return carried.ToString();
+
+        return null;
     }
 
     /// <summary>

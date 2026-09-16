@@ -6,7 +6,7 @@ Backend server for [Argon](https://argon.gl) — voice communication platform.
 
 - [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0)
 - [Docker](https://www.docker.com/products/docker-desktop)
-- [mkcert](https://github.com/FiloSottile/mkcert)
+- [mkcert](https://github.com/FiloSottile/mkcert) — only for local voice over TLS, see `deploy/dev/README.md`
 
 ## Quick Start
 
@@ -15,17 +15,17 @@ Backend server for [Argon](https://argon.gl) — voice communication platform.
 git clone --recurse-submodules https://github.com/argon-chat/server.git
 cd server
 
-# Start dependencies
-cd deploy
-./ensure-certs.ps1
-docker compose -f docker-compose.local.yml up -d
+# Start dependencies: PostgreSQL, Redis, NATS, SeaweedFS, LiveKit
+docker compose -f deploy/docker-compose.yml up -d
 
-# Build & run
-cd ..
+# Build & run — one process hosting every role
 dotnet build
-cd src/Argon.Api
-dotnet run
+dotnet run --project src/Argon.Api -- --role dev --topology single-instance
 ```
+
+The compose file and `deploy/dev/` are two halves of one thing: the first starts the services, the
+second is the configuration that points at them. [deploy/dev/README.md](deploy/dev/README.md) covers
+what is required, what is optional, and what is deliberately not configured on a laptop.
 
 ## Submodules
 

@@ -82,8 +82,8 @@ public sealed class PostgresTestDatabase : ITestDatabase
 /// which <c>SURVIVE ZONE FAILURE</c> — the goal our model derives below three regions — describes
 /// something the cluster can do.</para>
 ///
-/// <para>The topology is the one <c>deploy/docker-compose.local.yml</c> already describes — the same
-/// three region names, the same join list — so a developer reading either recognises the other. The
+/// <para>The region names are production's, primary first, so a fixture failure reads the same way a
+/// production one does rather than in invented names. The
 /// stock <see cref="CockroachDbBuilder"/> cannot express it: it starts <c>start-single-node</c>, and
 /// a joining node needs <c>start</c>, an advertised address its peers can resolve, and a cluster that
 /// somebody has run <c>init</c> against.</para>

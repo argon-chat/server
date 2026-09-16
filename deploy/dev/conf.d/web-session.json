@@ -1,0 +1,16 @@
+{
+  "WebSession": {
+    "MetadataAddress": "https://localhost:5003/.well-known/oauth-authorization-server",
+    "ValidIssuer": "https://localhost:5003/",
+    "CookieName": "__Host-ArgonAuth",
+    "SameSite": "Lax",
+    "DeviceCookieDomain": "",
+    "Lifetime": "30.00:00:00",
+    "DeviceLifetime": "365.00:00:00",
+    "TrustedApplications": {
+      "A37E7A1DB06E9610C9C0BD77C61A821B": [
+        "https://localhost:5005"
+      ]
+    }
+  }
+}

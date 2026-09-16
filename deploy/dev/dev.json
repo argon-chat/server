@@ -1,7 +1,8 @@
 {
   "ConnectionStrings": {
     "nats": "nats://localhost:4222",
-    "Sentry": ""
+    "Sentry": "",
+    "Default": "Host=localhost;Port=5432;Username=postgres;Password=postgres;Database=argon;Include Error Detail=true;ConnectionIdleLifetime=15;ConnectionPruningInterval=10"
   },
 
   "Crawler": {

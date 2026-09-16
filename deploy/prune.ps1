@@ -1,1 +1,1 @@
-docker compose -f docker-compose.local.yml -p argonlocal down --volumes --remove-orphans
+docker compose -f docker-compose.yml down --volumes --remove-orphans

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { Button } from "@argon/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@argon/ui/dialog";
 import { onMounted, ref, watch } from "vue";
 import { LogInIcon, ArrowRightIcon, LockKeyholeIcon, Loader2Icon, EyeIcon, EyeOffIcon, FingerprintIcon } from "@lucide/vue";
 import QRStyled from "./QRStyled.vue";
@@ -26,7 +25,6 @@ function pickRandomHeading() {
 const qrLoginUrl = ref("https://www.youtube.com/watch?v=HIcSWuKMwOw");
 
 const step = ref<"email" | "password">("email");
-const showBetaModal = ref(false);
 const showPassword = ref(false);
 const entered = ref(false);
 
@@ -34,6 +32,17 @@ onMounted(() => {
   pickRandomHeading();
   requestAnimationFrame(() => (entered.value = true));
 });
+
+/**
+ * Leaves for the sign-up step.
+ *
+ * A step of the same flow rather than a route: registering ends on the consent screen, and a page of
+ * its own would need its own copy of consent to carry the user the rest of the way.
+ */
+function goToSignUp() {
+  authError.value = "";
+  props.auth.tabValue.value = "signup";
+}
 
 async function getLoginScenario(email: string): Promise<"pwd" | "otp" | "pwd-otp" | "passkey" | "passkey-otp" | ""> {
   const scenario = await authStore.getScenario(email);
@@ -208,7 +217,7 @@ watch(email, (newVal, oldVal) => {
             <p class="text-[11px] text-white/25 text-center">
               {{ t("dont_have_account") }}
               <a
-                @click="showBetaModal = true"
+                @click="goToSignUp"
                 class="cursor-pointer text-indigo-400/70 hover:text-indigo-400 transition font-medium underline underline-offset-2"
               >
                 {{ t("create_one") }}
@@ -251,63 +260,5 @@ watch(email, (newVal, oldVal) => {
       </div>
     </Transition>
 
-    <!-- Beta Registration Modal -->
-    <Dialog v-model:open="showBetaModal">
-      <DialogContent class="max-w-[calc(100vw-2rem)] sm:max-w-sm rounded-3xl border border-white/[0.08] bg-black/60 backdrop-blur-2xl p-8 space-y-5">
-        <!-- Icon -->
-        <div class="flex justify-center">
-          <div class="relative">
-            <div class="absolute inset-0 rounded-full border border-blue-400/20 animate-[pulse_3s_ease-in-out_infinite]" />
-            <div class="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500/15 to-indigo-500/15 flex items-center justify-center">
-              <LockKeyholeIcon :size="24" class="text-blue-400" />
-            </div>
-          </div>
-        </div>
-
-        <!-- Content -->
-        <DialogHeader class="text-center space-y-2">
-          <DialogTitle class="text-lg font-semibold text-white text-center">
-            Closed Beta
-          </DialogTitle>
-          <DialogDescription class="text-xs text-white/35 leading-relaxed text-center">
-            Registration is currently available as part of the closed beta program. To request access, submit an application at
-            <a href="https://argon.gl" target="_blank" class="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition">argon.gl</a>.
-          </DialogDescription>
-        </DialogHeader>
-
-        <!-- Beta portal link -->
-        <div class="rounded-xl bg-white/[0.03] border border-white/[0.04] p-4 space-y-2.5">
-          <p class="text-[11px] text-white/40 text-center leading-relaxed">
-            Already have beta access? Head to the beta portal to complete registration.
-          </p>
-          <a
-            href="https://beta.argon.gl"
-            target="_blank"
-            class="flex items-center justify-center gap-2 w-full h-10 text-sm font-semibold rounded-xl bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 transition-all"
-          >
-            <ArrowRightIcon :size="14" />
-            beta.argon.gl
-          </a>
-        </div>
-
-        <!-- Status indicator -->
-        <div class="flex items-center justify-center gap-2 py-2 px-4 rounded-xl bg-white/[0.02] border border-white/[0.03]">
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-blue-500" />
-          </span>
-          <p class="text-[10px] text-white/25">Public registration coming soon</p>
-        </div>
-
-        <!-- Button -->
-        <DialogFooter>
-          <DialogClose as-child>
-            <Button class="w-full h-11 text-sm font-semibold rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white border border-white/[0.08] transition-all">
-              Got it
-            </Button>
-          </DialogClose>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>

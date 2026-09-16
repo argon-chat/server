@@ -4,6 +4,7 @@ import { useSimpleAuthStore } from "@/store/simpleAuthStore";
 
 import LoginForm from "./LoginForm.vue";
 import OtpForm from "./OtpForm.vue";
+import SignUpForm from "./SignUpForm.vue";
 import ConsentScreen from "./ConsentScreen.vue";
 import AccountPicker from "./AccountPicker.vue";
 import ErrorScreen from "./ErrorScreen.vue";
@@ -49,6 +50,7 @@ const tabValueForTabs = computed({
       @cancel="authStore.requiresOperatorAuth = false"
     />
     <LoginForm v-else-if="tabValueForTabs == 'login'" :auth="auth" />
+    <SignUpForm v-else-if="tabValueForTabs == 'signup'" @back="auth.goBackToLogin" />
     <OtpForm v-else-if="tabValueForTabs == 'otp-code'" :auth="auth" />
     <div v-else>error {{ tabValueForTabs }}</div>
   </div>

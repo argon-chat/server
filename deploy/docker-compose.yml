@@ -1,0 +1,179 @@
+# The five services a checkout needs, and nothing else.
+#
+# This is the other half of `deploy/dev`: that directory holds the configuration a local server reads,
+# and this holds the things that configuration points at. The addresses, ports and credentials here
+# are not a suggestion — they are what `deploy/dev/conf.d/*.json` already names, so the pair works
+# with no edits on either side. Change a port here and you have to change it there.
+#
+#   cd deploy
+#   docker compose up -d
+#   cd .. && dotnet run --project src/Argon.Api -- --role dev --topology single-instance
+#
+# WHAT THIS REPLACED, and why it is not a port of it. `docker-compose.local.yml` stood up a
+# three-node CockroachDB cluster, SeaweedFS, Dragonfly, NATS, LiveKit behind Caddy, and a
+# `kineticafs` service that depended on a `scylla` that was not in the file — which made the whole
+# document invalid, so `docker compose` refused to read it and `start.ps1` had not worked for some
+# time. Underneath that it disagreed with `deploy/dev` about nearly everything that matters: Cockroach
+# where the configuration asks for PostgreSQL, and LiveKit keys that were not the keys the server
+# signs with.
+#
+# The version pins are the ones the integration suite already uses (see
+# `tests/ArgonComplexTest/Infrastructure/TestEnvironmentOptions.cs`) so that what a developer runs by
+# hand and what CI runs are the same three images.
+
+name: argonlocal
+
+services:
+  # `Database:ConnectionString` in deploy/dev/conf.d/database.json, exactly.
+  #
+  # PostgreSQL and not CockroachDB: `Database:Provider` is `PostgreSql` on this path, which suppresses
+  # the Cockroach-only DDL (LOCALITY, row-level TTL) the migrations would otherwise emit. The database
+  # is created and migrated by the server on first start; all this has to do is exist.
+  postgres:
+    image: postgres:17-alpine
+    container_name: argon-postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: argon
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d argon"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Five logical databases, one per Redis profile: cache 0, orleans 1, backplane 2, orleans storage 3,
+  # hybrid cache 10. The stock image allows sixteen, so nothing has to be configured for 10 to exist —
+  # which is the one thing worth checking when swapping this for another Redis-compatible server.
+  redis:
+    image: redis:7-alpine
+    container_name: argon-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # REQUIRED, and it fails in a way worth knowing about. Without NATS the process reaches
+  # "Application started" and then stops a few seconds later, because HybridPermissionCacheAdapter
+  # cannot subscribe. It reads as a healthy start followed by an unexplained exit.
+  #
+  # JetStream is not optional either: NatsContext creates streams through it on every bus the server
+  # opens, so a NATS started without `--jetstream` fails later and less clearly than one not started.
+  nats:
+    image: nats:2.10-alpine
+    container_name: argon-nats
+    command: ["--jetstream", "--http_port", "8222", "--server_name", "argon-local"]
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    volumes:
+      - nats:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # Optional — uploads only. The port is 9321 because that is what `Storage:Endpoint` says, and it is
+  # set explicitly rather than left to the image: `weed server -s3` listens on 8333 by default, so the
+  # previous file exposed a port the configuration never dialled and the mismatch was invisible until
+  # the first upload.
+  #
+  # No credentials are configured, which means the S3 API accepts anyone. That is deliberate for a
+  # laptop and is also what the previous file did by accident — it set S3_ACCESS_KEY and
+  # S3_SECRET_KEY, which SeaweedFS does not read. The argon/argon pair in `cdn.json` is therefore
+  # signed with and ignored, rather than checked.
+  storage:
+    image: chrislusf/seaweedfs:3.97
+    container_name: argon-storage
+    command: ["server", "-s3", "-s3.port=9321", "-dir=/data"]
+    ports:
+      - "9321:9321"
+      - "9333:9333"
+    volumes:
+      - storage:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O- http://127.0.0.1:9321/ >/dev/null 2>&1 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  # The buckets have to exist before the server starts: nothing in the server creates them, and
+  # ObjectStorageHealthCheck lists both and reports the role unhealthy when either is missing. Names
+  # come from `Storage:BucketName` and `Storage:ExportBucketName`.
+  #
+  # Runs to completion and stays exited. Re-running it is harmless — creating a bucket that is already
+  # there is not an error worth failing the stack over, hence the `|| true`.
+  storage-init:
+    image: chrislusf/seaweedfs:3.97
+    container_name: argon-storage-init
+    depends_on:
+      storage:
+        condition: service_healthy
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "printf 's3.bucket.create -name argon-dev\ns3.bucket.create -name argon-dev-exports\n' |
+       weed shell -master=storage:9333 || true"
+    restart: "no"
+
+  # Optional — voice only. The key pair is `CallKit:Sfu:ClientId` and `CallKit:Sfu:Secret` from
+  # deploy/dev/conf.d/sfu.json and has to stay in step with it: the server signs join tokens with the
+  # secret and LiveKit verifies them against this file, so a pair that disagrees fails at join time
+  # with an authentication error rather than at start-up. The previous file carried a different,
+  # shorter pair, so local voice could never have worked.
+  livekit:
+    image: livekit/livekit-server:v1.9.1
+    container_name: argon-livekit
+    command: ["--config", "/etc/livekit.yaml"]
+    ports:
+      - "7880:7880"
+      - "60000-60010:60000-60010/udp"
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    restart: unless-stopped
+
+  # NOT started by default: `docker compose --profile tls up -d`.
+  #
+  # It exists for one case, and it is the web client's. `deploy/dev/conf.d/sfu.json` points at
+  # `ws://localhost:7880`, which an Electron build reaches and a page served over https cannot — a
+  # browser blocks the plain-text socket as mixed content. This terminates TLS in front of LiveKit so
+  # that `wss://localhost:9443` works, and the configuration has to be pointed at it to match:
+  #
+  #   CallKit__Sfu__PublicUrl=wss://localhost:9443
+  #
+  # Behind a profile because it is the one service with a prerequisite the others do not have — the
+  # certificate below. In the default stack a missing certificate would be a container restarting for
+  # ever in a stack that is otherwise fine, which is a bad way to learn that voice needs a step.
+  #
+  #   cd deploy/certs && mkcert localhost
+  livekit-tls:
+    image: caddy:2-alpine
+    container_name: argon-livekit-tls
+    profiles: ["tls"]
+    depends_on:
+      - livekit
+    ports:
+      - "9443:9443"
+    volumes:
+      - ./certs:/certs:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    restart: unless-stopped
+
+volumes:
+  postgres:
+  redis:
+  nats:
+  storage:

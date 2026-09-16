@@ -61,6 +61,11 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
     const errorTitle = ref<string | null>(null);
     const passkeyNonce = ref<string | null>(null);
     const passkeyOtpRequired = ref(false);
+
+    // Registration refusals, kept apart from the sign-in ones: they are about a form that is still
+    // on screen and being corrected, not about an attempt that is over.
+    const registerError = ref<string | null>(null);
+    const registerFieldErrors = ref<Record<string, string>>({});
     
     // Сохраняем OAuth параметры для использования после consent
     const savedOAuthParams = ref<string>("");
@@ -165,6 +170,80 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
                 variant: "destructive",
                 duration: 3000,
             });
+        } finally {
+            isLoading.value = false;
+        }
+    }
+
+    /**
+     * Creates an account and carries straight on into the same consent screen a sign-in reaches.
+     *
+     * The counterpart of `login`, and shaped like it on purpose: the server answers with the same
+     * `requiresConsent` / `consentInfo` pair, so everything after this point is the flow that was
+     * already there. What it adds is `fieldErrors` — registration refuses one input at a time, and a
+     * form that can point at the field is the difference between a usable sign-up and "registration
+     * failed".
+     */
+    async function register(input: {
+        email: string;
+        username: string;
+        displayName: string;
+        password: string;
+        birthDate: string;
+        agreeTos: boolean;
+        agreeOptionalEmails: boolean;
+    }): Promise<boolean> {
+        isLoading.value = true;
+        registerFieldErrors.value = {};
+        registerError.value = null;
+
+        try {
+            const response = await fetchWithRetry("/api/auth/oauth/register", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({
+                    ...input,
+                    clientId: queryParams.client_id,
+                    scope: queryParams.scope,
+                }),
+            });
+
+            if (response.status === 429) {
+                registerError.value = "Too many attempts. Please wait a moment before trying again.";
+                return false;
+            }
+
+            const data = await response.json();
+
+            if (data.error) {
+                if (data.field) registerFieldErrors.value[data.field] = data.message || "Invalid value";
+                // Only when no field owns it: a message shown twice, once under the input and once
+                // above the form, reads as two different problems.
+                else registerError.value = data.message || data.error_description || "Registration failed.";
+                return false;
+            }
+
+            if (data.requiresConsent) {
+                requiresConsent.value = true;
+                consentInfo.value = data.consentInfo;
+                return true;
+            }
+
+            if (data.success) {
+                isAuthenticated.value = true;
+                await completeOAuthFlow();
+                return true;
+            }
+
+            registerError.value = "Registration failed.";
+            return false;
+        } catch (error) {
+            const isTimeout = error instanceof DOMException && error.name === "AbortError";
+            registerError.value = isTimeout
+                ? "The server took too long to respond. Please try again."
+                : "An error occurred during registration.";
+            return false;
         } finally {
             isLoading.value = false;
         }
@@ -669,7 +748,10 @@ export const useSimpleAuthStore = defineStore("simpleAuth", () => {
         errorTitle,
         passkeyNonce,
         passkeyOtpRequired,
+        registerError,
+        registerFieldErrors,
         login,
+        register,
         approveConsent,
         denyConsent,
         selectAccount,

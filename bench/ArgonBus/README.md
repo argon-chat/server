@@ -59,7 +59,7 @@ Redis carriers point at:
 | nats core | 151 445/s | — |
 | nats jetstream | 65 688/s | — |
 
-Fifty times. The dev stack runs Dragonfly (`deploy/docker-compose.local.yml`), and on it the shipped
+Fifty times. The dev stack runs a Redis-compatible server (`deploy/docker-compose.yml`), and on it the shipped
 path tops out at about **1 600 events a second** with publishes taking 77 ms at that depth. On Redis
 it is 87 000 and 1 ms.
 
@@ -181,7 +181,7 @@ that is a long way off.
 
 ## Reproducing
 
-NATS and Dragonfly come from `deploy/docker-compose.local.yml`. Redis for the comparison:
+NATS and Redis come from `deploy/docker-compose.yml`. Redis for the comparison:
 
 ```
 docker run -d --rm --name argon-bench-redis -p 6380:6379 redis:7-alpine

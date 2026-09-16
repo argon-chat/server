@@ -1,8 +1,25 @@
+# LiveKit for the local stack. Paired with `deploy/docker-compose.yml`.
+#
+# THE KEY PAIR IS NOT ARBITRARY. It is `CallKit:Sfu:ClientId` and `CallKit:Sfu:Secret` from
+# `deploy/dev/conf.d/sfu.json`, character for character. The server mints a join token signed with
+# that secret and LiveKit verifies it against this file, so the two drifting apart does not break the
+# stack at start-up — it breaks the first attempt to join a call, with an authentication error that
+# says nothing about configuration. The file this replaced carried a shorter pair that matched
+# nothing, so local voice had never worked.
+#
+# Regenerating the secret means changing it in both places.
+
 port: 7880
 
 rtc:
   port_range_start: 60000
   port_range_end: 60010
+  # The container would otherwise advertise a candidate address from outside the bridge network,
+  # which nothing on the host can reach.
+  use_external_ip: false
 
 keys:
-  devkeydevkey: secretsecretsecretsecret
+  devkeydevkeydevkeydevkeydevkeydevkey: secretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecretsecret
+
+logging:
+  level: info
