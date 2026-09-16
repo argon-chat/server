@@ -51,3 +51,5 @@ deploy/selfhosted/bootstrapper/ui/dist/
 # Per-role build output for deploy/dev/watch.ps1 — two watchers cannot share one bin/, so each
 # gets its own --artifacts-path. Not the same as the `artifacts/` above.
 .artifacts/
+
+deploy/dev/localhost.pfx

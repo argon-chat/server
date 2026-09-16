@@ -119,6 +119,29 @@ if (-not $NoPreflight) {
     Write-Host ''
 }
 
+# ── is a stand already up ────────────────────────────────────────────────────────────────────────
+
+# Because the second copy does not fail in any way that explains itself. Both roles are the same
+# project, so a stand that is already running holds the very artifact directories these windows build
+# into — and what the developer sees is two fresh windows reporting "The build failed" with a wall of
+# MSB3027 above it, naming a file lock rather than the stand they forgot was open.
+$busy = @()
+foreach ($listening in @(
+    @{ Name = 'api';   Port = $ApiPort },
+    @{ Name = 'aegis'; Port = $AegisPort })) {
+
+    if (Test-Dependency $listening.Port) { $busy += "$($listening.Name) on :$($listening.Port)" }
+}
+
+if ($busy.Count -gt 0) {
+    Write-Bad "something is already listening: $($busy -join ', ')"
+    Write-Host ''
+    Write-Step 'a stand is probably already running — close its windows first, or pass different'
+    Write-Step 'ports with -ApiPort / -AegisPort. Starting a second copy cannot work: both build into'
+    Write-Step 'the same place, and the new windows die on a file lock.'
+    exit 1
+}
+
 if (-not (Test-Path $widget)) {
     Write-Step 'no built sign-in widget at src/Frontend/Aegis/dist — the OAuth page will 404'
     Write-Step 'build it once: cd src/Frontend/Aegis; bun install; bun run build'
