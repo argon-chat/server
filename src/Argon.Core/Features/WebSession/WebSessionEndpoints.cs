@@ -42,6 +42,7 @@ public static class WebSessionEndpoints
     {
         app.MapPost(ExchangePath, ExchangeAsync).AllowAnonymous();
         app.MapPost(LogoutPath, LogoutAsync).AllowAnonymous();
+        app.MapDeviceBoundSessions();
 
         return app;
     }
@@ -59,6 +60,7 @@ public static class WebSessionEndpoints
         HttpContext                 http,
         AegisTokenValidator         validator,
         UserManagerService          users,
+        IArgonCacheDatabase         cache,
         IOptions<WebSessionOptions> options,
         CancellationToken           ct)
     {
@@ -76,11 +78,18 @@ public static class WebSessionEndpoints
         var sessionId = ArgonId.New();
         var machineId = ArgonSecureCookie.Issue(http, settings, appId, sessionId);
 
-        var issued = await users.GenerateJwt(identity.UserId, machineId, SessionScopes, sessionId);
+        // Minutes, not the deployment's default days: see WebSessionOptions.AccessTokenLifetime for
+        // why a browser's token is the cheap half and the cookie is the durable one.
+        var issued = await users.GenerateJwt(identity.UserId, machineId, SessionScopes, sessionId,
+            accessLifetime: settings.AccessTokenLifetime);
 
         WebSessionCookie.Write(http, settings, issued.refreshToken!);
 
-        return Results.Ok(new WebSessionResponse(issued.token));
+        // Asks the browser to bind this session to a device key. Chromium answers on its own; every
+        // other browser ignores the header, and the session it just got is unaffected either way.
+        await DeviceBoundSessionEndpoints.OfferAsync(http, settings, cache, sessionId, ct);
+
+        return Results.Ok(new WebSessionResponse(issued.token, sessionId));
     }
 
     /// <summary>
@@ -186,4 +195,15 @@ public static class WebSessionEndpoints
 /// Short-lived, and the client is expected to keep it in memory only — everything that outlives the
 /// tab is in the cookie.
 /// </param>
-public sealed record WebSessionResponse(string AccessToken);
+/// <param name="SessionId">
+/// The <c>scid</c> this session is filed under, handed back so the page can present it.
+/// <para><b>Because a cross-site tab cannot read the cookie that carries it.</b> The device cookie is
+/// written on the API's host with <c>SameSite=Lax</c>, so a front-end served from another site never
+/// sends it back — and <c>GetSessionId</c> then finds nothing, which every Ion call fails on. The
+/// page echoes this in <c>X-Sec-Ref</c> instead, the channel an installed client has always had.</para>
+/// <para>Safe to hand over, and no more than was already true: the session id is a <i>label</i>. Every
+/// client writes its own into the cookie, nothing is authorised on it, and revocation keys on the
+/// <c>sid</c> claim inside the signed token — which the caller cannot choose. See
+/// <c>HttpContextExtensions.GetSessionId</c> for the whole argument.</para>
+/// </param>
+public sealed record WebSessionResponse(string AccessToken, Guid SessionId);

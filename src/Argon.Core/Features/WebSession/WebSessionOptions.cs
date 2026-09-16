@@ -67,6 +67,29 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
           .FirstOrDefault(pair => pair.Value.Any(a => string.Equals(a, audience, StringComparison.OrdinalIgnoreCase)))
            .Key;
 
+    /// <summary>
+    /// How long an access token minted for a browser is good for.
+    /// </summary>
+    /// <remarks>
+    /// <para>Minutes, where an installed client's is days, and the asymmetry is the point. A tab has
+    /// nowhere safe to put a credential: no keystore, and any script that reaches the page reaches
+    /// everything the page holds. So the token it carries is made cheap to lose — what survives is
+    /// the session cookie, which is <c>HttpOnly</c> and which script cannot read at all.</para>
+    ///
+    /// <para>Nothing has to change on the client for this to work. A refused call already goes
+    /// through <c>handleSessionRejected</c>, which mints a new token from the cookie and lets the
+    /// caller retry; shortening the lifetime only makes that path ordinary rather than rare.</para>
+    ///
+    /// <para>Not free, and worth saying where the cost lands: every expiry is a round trip, and a
+    /// browser whose cookie cannot reach the API — a front-end served cross-site — has no way to
+    /// renew, so there the session now ends in minutes rather than lasting until the token ran out.
+    /// That is the same brokenness as before, arriving sooner and more visibly.</para>
+    /// </remarks>
+    public TimeSpan AccessTokenLifetime { get; set; } = TimeSpan.FromMinutes(15);
+
+    /// <summary>Binding a browser session to a key the device cannot export.</summary>
+    public DeviceBindingOptions DeviceBinding { get; set; } = new();
+
     /// <summary>Where the identity server publishes its signing keys.</summary>
     public string MetadataAddress { get; set; } = "";
 
@@ -173,6 +196,18 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
 
         report.Required(CookieName, nameof(CookieName));
         report.RequireRange(Lifetime, TimeSpan.FromMinutes(5), TimeSpan.FromDays(365), nameof(Lifetime));
+
+        // A minute is the floor because the clock skew the validator already tolerates is measured in
+        // seconds, and anything under it spends more requests renewing than serving. A day is the
+        // ceiling because past that this stops being a short-lived token and the cookie stops being
+        // the thing that carries the session.
+        report.RequireRange(AccessTokenLifetime, TimeSpan.FromMinutes(1), TimeSpan.FromDays(1),
+            nameof(AccessTokenLifetime));
+
+        report.Prefer(AccessTokenLifetime <= TimeSpan.FromHours(1), nameof(AccessTokenLifetime),
+            "is over an hour, which is long for a credential a browser keeps in memory and hands to " +
+            "every script on the page — the cookie is what is meant to carry a web session across " +
+            "time, and this is only meant to carry it across a few calls");
         report.RequireRange(DeviceLifetime, TimeSpan.FromDays(1), TimeSpan.FromDays(365 * 5), nameof(DeviceLifetime));
 
         report.Prefer(CookieName.StartsWith("__Host-", StringComparison.Ordinal), nameof(CookieName),
@@ -183,9 +218,52 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
             "is unspecified, which leaves the attribute off the cookie entirely and lets each " +
             "browser pick its own default");
 
+        report.RequireRange(DeviceBinding.BoundCookieLifetime, TimeSpan.FromMinutes(1), TimeSpan.FromHours(1),
+            $"{nameof(DeviceBinding)}:{nameof(DeviceBindingOptions.BoundCookieLifetime)}");
+
+        report.Require(DeviceBinding.BoundCookieLifetime < Lifetime,
+            $"{nameof(DeviceBinding)}:{nameof(DeviceBindingOptions.BoundCookieLifetime)}",
+            "is not shorter than the unbound session's, which is the only thing binding buys — a " +
+            "cookie that lives as long either way is as useful to whoever copies it");
+
         report.Require(DeviceLifetime > Lifetime, nameof(DeviceLifetime),
             "is shorter than the session it identifies, so a browser would lose its machine " +
             "identity while still holding a session bound to it — and every request on that " +
             "session would then fail the machine check");
     }
+}
+
+/// <summary>
+/// Device Bound Session Credentials: how long a bound session's cookie lives, and whether to ask.
+/// </summary>
+/// <remarks>
+/// Binding is offered, never required. A browser that cannot do it keeps the session it would have
+/// had — the same cookie, the same <see cref="WebSessionOptions.Lifetime"/> — because the alternative
+/// is refusing to serve everyone who is not on Chromium.
+/// </remarks>
+public sealed class DeviceBindingOptions
+{
+    /// <summary>
+    /// Whether the registration header is offered at all.
+    /// </summary>
+    /// <remarks>
+    /// On by default and costs one header on one response. Worth a switch only because this is an
+    /// auth path, and an auth path that cannot be turned off without a redeploy is one nobody can
+    /// react with.
+    /// </remarks>
+    public bool Enabled { get; set; } = true;
+
+    /// <summary>
+    /// How long the cookie lives once the session is bound.
+    /// </summary>
+    /// <remarks>
+    /// <b>This is the whole of the protection.</b> A bound cookie is worth only its remaining minutes
+    /// to whoever copies it, because obtaining another needs a signature from a key that never leaves
+    /// the device. Lengthen it and the window to replay a stolen cookie lengthens with it; shorten it
+    /// and the browser refreshes more often, which costs a round trip it makes on its own.
+    /// </remarks>
+    public TimeSpan BoundCookieLifetime { get; set; } = TimeSpan.FromMinutes(10);
+
+    /// <summary>How long a challenge stays answerable. Short: it is answered within one round trip.</summary>
+    public TimeSpan ChallengeLifetime { get; set; } = TimeSpan.FromMinutes(2);
 }

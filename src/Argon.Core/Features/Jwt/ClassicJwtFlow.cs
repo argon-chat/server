@@ -29,7 +29,16 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             Convert.FromBase64String(mhToken));
     }
 
-    public string GenerateAccessToken(Guid userId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null)
+    /// <param name="lifetime">
+    /// How long this token is good for, or null for the deployment's <c>Jwt:AccessTokenLifetime</c>.
+    /// <para>Given by the browser session and by nothing else. A tab cannot hold a credential the way
+    /// an installed client can — it has no keystore, and script on the page reaches everything the
+    /// page has — so its token is cut to minutes and renewed from the session cookie, which is
+    /// <c>HttpOnly</c> and out of script's reach. The installed client keeps the configured lifetime:
+    /// there the token IS the thing that survives a restart.</para>
+    /// </param>
+    public string GenerateAccessToken(Guid userId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null,
+        TimeSpan? lifetime = null)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
         var now   = DateTime.UtcNow;
@@ -47,14 +56,16 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             audience: _options.Audience,
             claims: claims,
             notBefore: now,
-            expires: now + _options.AccessTokenLifetime,
+            expires: now + (lifetime ?? _options.AccessTokenLifetime),
             signingCredentials: creds
         );
 
         return new JwtSecurityTokenHandler().WriteToken(token);
     }
 
-    public string GenerateAccessToken(Guid userId, string machineId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null)
+    /// <inheritdoc cref="GenerateAccessToken(Guid, IEnumerable{string}, IEnumerable{Claim}, TimeSpan?)"/>
+    public string GenerateAccessToken(Guid userId, string machineId, IEnumerable<string> scopes, IEnumerable<Claim>? additionalClaims = null,
+        TimeSpan? lifetime = null)
     {
         var creds = new SigningCredentials(keyProvider.PrivateKey, keyProvider.Algorithm);
         var now   = DateTime.UtcNow;
@@ -73,7 +84,7 @@ public sealed class ClassicJwtFlow(IOptions<JwtOptions> options, WrapperForSignK
             audience: _options.Audience,
             claims: claims,
             notBefore: now,
-            expires: now + _options.AccessTokenLifetime,
+            expires: now + (lifetime ?? _options.AccessTokenLifetime),
             signingCredentials: creds
         );
 

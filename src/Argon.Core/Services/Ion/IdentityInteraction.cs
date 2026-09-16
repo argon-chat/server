@@ -254,8 +254,16 @@ public class IdentityInteraction(
         // cannot read, which is the point of it being there. The argument still wins where it is
         // given, so every installed client keeps the path it has always taken and this branch is
         // only reached by a caller that has nothing to offer otherwise.
+        // Also records WHICH caller this is. A refresh token that came out of the cookie belongs to a
+        // browser, and a browser's access token is cut to minutes — so the one place that can tell
+        // the two apart has to remember, rather than the mint below guessing from something weaker.
+        var fromBrowserCookie = false;
+
         if (string.IsNullOrEmpty(refreshToken) && http.HttpContext is { } context)
-            refreshToken = WebSessionCookie.Read(context, webSession.Value);
+        {
+            refreshToken      = WebSessionCookie.Read(context, webSession.Value);
+            fromBrowserCookie = !string.IsNullOrEmpty(refreshToken);
+        }
 
         if (string.IsNullOrEmpty(refreshToken))
             return new BadAuthStatus(BadAuthKind.REQUIRED_RELOGIN);
@@ -339,7 +347,8 @@ public class IdentityInteraction(
             if (tokenSessionId is { } carriedSession)
                 carried.Add(new System.Security.Claims.Claim("sid", carriedSession.ToString()));
 
-            var newIssued = flow.GenerateAccessToken(userId, machineId, scopes, carried);
+            var newIssued = flow.GenerateAccessToken(userId, machineId, scopes, carried,
+                fromBrowserCookie ? webSession.Value.AccessTokenLifetime : null);
 
             return new GoodAuthStatus(newIssued);
         }

@@ -121,9 +121,17 @@ public static class ArgonSecureCookie
 /// </remarks>
 public static class WebSessionCookie
 {
-    public static void Write(HttpContext http, WebSessionOptions options, string refreshToken)
+    /// <param name="lifetime">
+    /// Overrides <see cref="WebSessionOptions.Lifetime"/>, for a session bound to a device key.
+    /// <para>Those get minutes rather than a month, and that is the point of binding: the cookie
+    /// stops being what carries the session and becomes something the browser is expected to lose
+    /// and replace, by proving it still holds the key. An unbound session keeps the long cookie,
+    /// because for it the cookie is still the only thing that survives.</para>
+    /// </param>
+    public static void Write(HttpContext http, WebSessionOptions options, string refreshToken,
+        TimeSpan? lifetime = null)
         => http.Response.Cookies.Append(options.CookieName, refreshToken, Attributes(options,
-            DateTimeOffset.UtcNow + options.Lifetime));
+            DateTimeOffset.UtcNow + (lifetime ?? options.Lifetime)));
 
     /// <remarks>
     /// Deleted with the same attributes it was written with. A browser matches a deletion by name,

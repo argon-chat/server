@@ -28,11 +28,12 @@ public class UserManagerService(ILogger<UserManagerService> logger, IServiceProv
     /// machine has no key — leaves the token bound to the machine id alone, which is what every
     /// session looked like before hardware keys existed.</para>
     /// </remarks>
-    public async Task<SuccessAuthorize> GenerateJwt(Guid id, string machineId, string[] scopes, Guid sessionId, string? deviceThumbprint = null)
+    public async Task<SuccessAuthorize> GenerateJwt(Guid id, string machineId, string[] scopes, Guid sessionId,
+        string? deviceThumbprint = null, TimeSpan? accessLifetime = null)
     {
         await using var scope   = provider.CreateAsyncScope();
         var             jwt     = scope.ServiceProvider.GetRequiredService<ClassicJwtFlow>();
-        var             access  = jwt.GenerateAccessToken(id, machineId, scopes);
+        var             access  = jwt.GenerateAccessToken(id, machineId, scopes, additionalClaims: null, accessLifetime);
         var             refresh = jwt.GenerateRefreshToken(id, machineId, scopes, sessionId, deviceThumbprint);
 
         if (deviceThumbprint is not null)
