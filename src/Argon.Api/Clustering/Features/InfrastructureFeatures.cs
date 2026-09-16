@@ -300,7 +300,8 @@ public sealed class ArgonAuthorizationFeature : IArgonFeature
             .Options<AndroidAttestationOptions>("attestation:android");
 
     public void Configure(ArgonFeatureContext ctx)
-        => ctx.Builder.AddArgonAuthorization();
+        => ctx.Builder.AddArgonAuthorization(
+            withDatabase: ctx.Role.Features.Ordered.Any(f => f.FeatureType == typeof(DatabaseFeature)));
 }
 
 public sealed class OperatorAuthFeature : IArgonFeature

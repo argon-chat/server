@@ -5,14 +5,28 @@ using Services;
 
 public static class AuthorizationFeature
 {
-    public static void AddArgonAuthorization(this WebApplicationBuilder builder)
+    /// <param name="withDatabase">
+    /// Whether this role opens a connection to the application database.
+    /// <para>Two of the services below take an <c>IDbContextFactory&lt;ApplicationDbContext&gt;</c>,
+    /// and the identity server deliberately has none — it reads everything about applications and
+    /// people through grains, because it is the role exposed to the whole internet and the further
+    /// it sits from the data the less a mistake on it costs. Registered unconditionally they were a
+    /// promise the container could not keep: nothing resolved them there, so nothing failed, until
+    /// the first run with <c>ASPNETCORE_ENVIRONMENT=Development</c> — where the container validates
+    /// every descriptor at build time and the whole role refused to start.</para>
+    /// <para>Which is why this is a parameter rather than a probe of the service collection: whether
+    /// a role has a database is a property of the role, known before anything is registered, and not
+    /// something to infer from what happens to have been added first.</para>
+    /// </param>
+    public static void AddArgonAuthorization(this WebApplicationBuilder builder, bool withDatabase = true)
     {
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddSingleton<IPasswordHashingService, PasswordHashingService>();
         builder.Services.AddSingleton<UserManagerService>();
         builder.Services.AddSingleton<IQrLoginService, QrLoginService>();
         builder.Services.AddDataProtection();
-        builder.Services.AddScoped<IArgonAuthorizationService, ArgonAuthorizationService>();
+        if (withDatabase)
+            builder.Services.AddScoped<IArgonAuthorizationService, ArgonAuthorizationService>();
 
         // Device identity. The fingerprint half is a heuristic and the key half is a proof; both are
         // registered because they answer for different clients — see DeviceFingerprint for what the
@@ -20,7 +34,13 @@ public static class AuthorizationFeature
         // Singleton: it holds the frozen weight table, and rebuilding that per request would be the
         // most expensive part of reading a cookie.
         builder.Services.AddSingleton<DeviceMatcher>();
-        builder.Services.AddScoped<DeviceIdentityService>();
+
+        // The matcher and the verifier stay on every role: one holds a weight table and the other
+        // reads a cache, and neither touches the database. Only the service that writes device rows
+        // needs one.
+        if (withDatabase)
+            builder.Services.AddScoped<DeviceIdentityService>();
+
         builder.Services.AddScoped<DeviceProofVerifier>();
 
         // One verifier per platform. Anything not registered here falls back to the unattested

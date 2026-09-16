@@ -78,7 +78,13 @@ public sealed class AegisOptions : IValidatableFeatureOptions
     /// </summary>
     public string ContentSecurityPolicy { get; set; } =
         "default-src 'self'; style-src 'self' 'unsafe-inline'; " +
-        "connect-src 'self' https://*.aegis.argon.gl https://*.argon.gl; " +
+        // `data:` belongs in connect-src as well as img-src, and this is not belt and braces: the QR
+        // code on the sign-in screen is drawn by qr-code-styling, which loads the logo in its middle
+        // by *fetching* it — and the logo is a data: URI, because the bundler inlines an SVG that
+        // small. Listed only under img-src, the fetch is refused and the console fills with a
+        // violation naming a URI nobody wrote by hand. It is as narrow as an allowance gets: a data:
+        // URI is the document's own bytes and can carry nothing out.
+        "connect-src 'self' data: https://*.aegis.argon.gl https://*.argon.gl; " +
         "img-src 'self' data: https://*.cdn.argon.gl https://*.argon.gl; " +
         "worker-src 'self' blob:; frame-ancestors 'none';";
 

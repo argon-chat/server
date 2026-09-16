@@ -47,3 +47,7 @@ deploy/selfhosted/bootstrapper/node_modules/
 # Built by the image, and by `bun run build` locally. What ships is what the Dockerfile's build
 # stage emitted, never a dist/ somebody happened to have on disk.
 deploy/selfhosted/bootstrapper/ui/dist/
+
+# Per-role build output for deploy/dev/watch.ps1 — two watchers cannot share one bin/, so each
+# gets its own --artifacts-path. Not the same as the `artifacts/` above.
+.artifacts/

@@ -14,6 +14,7 @@
         "@argon/theme": "workspace:*",
         "@argon/ui": "workspace:*",
         "@argon/vite-preset": "workspace:*",
+        "@internationalized/date": "^3.12.3",
         "@lucide/vue": "^1.38.0",
         "@radix-icons/vue": "^1.0.0",
         "@vueuse/core": "^14.4.0",
