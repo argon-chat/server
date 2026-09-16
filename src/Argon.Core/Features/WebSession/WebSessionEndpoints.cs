@@ -20,7 +20,7 @@ using Microsoft.Extensions.Logging;
 /// exchange for a session, instead of carrying it on every call.</para>
 ///
 /// <para>This is the only place where an Aegis token opens the Argon API, and it is gated on the
-/// audience allowlist in <see cref="WebSessionOptions.TrustedAudiences"/>. Applications outside that
+/// audience allowlist in <see cref="WebSessionOptions.TrustedApplications"/>. Applications outside that
 /// list keep the tokens they already get and reach exactly what they already reach — the Ion
 /// interceptor has never accepted an Aegis token and still does not.</para>
 /// </remarks>
@@ -69,7 +69,7 @@ public static class WebSessionEndpoints
             return Results.Unauthorized();
 
         var settings = options.Value;
-        var appId    = settings.TrustedAudiences[identity.Audience];
+        var appId    = identity.ApplicationId;
 
         // One id for both halves: it is the scid the device cookie carries and the sid signed into
         // the refresh token, so the tombstone written at sign-out ends the session on both paths.

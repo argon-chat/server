@@ -22,24 +22,50 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
     public const string SectionName = "WebSession";
 
     /// <summary>
-    /// Token audiences allowed to be exchanged, each mapped to the application id the resulting
-    /// session is recorded under.
+    /// The applications allowed to exchange a token, each with the audiences its tokens may carry.
     /// </summary>
     /// <remarks>
-    /// <para>The audience, and not a client id, because the audience is the one thing this server
-    /// puts on the token itself: the authorization endpoint sets it to the origin of the
-    /// <c>redirect_uri</c> the flow came through, and a redirect_uri is checked against the
-    /// application's own registration before a code is ever minted. So an audience of
-    /// <c>https://app.argon.gl</c> can only have been issued to an application registered to redirect
-    /// there. It is also the pin the developer console already runs on in production — see
-    /// <c>AccountConsoleAuthOptions.ValidAudiences</c> — rather than a second mechanism invented
-    /// here.</para>
+    /// <para>The audience is what decides whether a token may be exchanged, and not a client id,
+    /// because the audience is the one thing this server puts on the token itself: the authorization
+    /// endpoint sets it to the origin of the <c>redirect_uri</c> the flow came through, and a
+    /// redirect_uri is checked against the application's own registration before a code is ever
+    /// minted. So an audience of <c>https://app.argon.gl</c> can only have been issued to an
+    /// application registered to redirect there. It is also the pin the developer console already
+    /// runs on in production — see <c>AccountConsoleAuthOptions.ValidAudiences</c> — rather than a
+    /// second mechanism invented here.</para>
     ///
-    /// <para>The value is what lands in the <c>ner</c> field of the device cookie and therefore in
-    /// every device-history row the session writes, so two web clients sharing one audience would be
-    /// indistinguishable afterwards.</para>
+    /// <para>The key is what lands in the <c>ner</c> field of the device cookie and therefore in
+    /// every device-history row the session writes, so two web clients sharing one application id
+    /// would be indistinguishable afterwards.</para>
+    ///
+    /// <para><b>Why the application is the key and the audience is the value</b>, which is the
+    /// opposite of how this reads. A <c>:</c> in a configuration key is a section separator and
+    /// nothing escapes it — so a JSON property named <c>https://app.argon.gl</c> does not become a
+    /// key at all, it becomes a section called <c>https</c> containing one called
+    /// <c>//app.argon.gl</c>, and binding that to a string yields nothing. Keyed the natural way
+    /// round, every entry an operator wrote was silently dropped except a bare host with no scheme —
+    /// which is the one spelling a token can never carry, because the authorization endpoint always
+    /// writes a full origin. The feature was configured, reported no error, and refused every
+    /// exchange. An application id is hexadecimal and has no such problem.</para>
     /// </remarks>
-    public Dictionary<string, string> TrustedAudiences { get; set; } = [];
+    public Dictionary<string, List<string>> TrustedApplications { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Every audience any trusted application may present. The token validator's allowlist.</summary>
+    public IEnumerable<string> TrustedAudiences
+        => TrustedApplications.Values.SelectMany(audiences => audiences).Where(a => !string.IsNullOrWhiteSpace(a));
+
+    /// <summary>
+    /// The application an audience is registered to, or <c>null</c> if none is.
+    /// </summary>
+    /// <remarks>
+    /// A scan rather than a reversed dictionary: the list is a handful of entries read once per
+    /// sign-in, and a cache built from a mutable property is a second source of truth that a
+    /// configuration reload would leave stale.
+    /// </remarks>
+    public string? ApplicationFor(string audience)
+        => TrustedApplications
+          .FirstOrDefault(pair => pair.Value.Any(a => string.Equals(a, audience, StringComparison.OrdinalIgnoreCase)))
+           .Key;
 
     /// <summary>Where the identity server publishes its signing keys.</summary>
     public string MetadataAddress { get; set; } = "";
@@ -104,17 +130,46 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
         report.RequireUri(MetadataAddress, nameof(MetadataAddress), "https", "http");
         report.RequireUri(ValidIssuer, nameof(ValidIssuer), "https", "http");
 
-        report.Require(TrustedAudiences.Count > 0, nameof(TrustedAudiences),
+        report.Require(TrustedApplications.Count > 0, nameof(TrustedApplications),
             "is empty, so every exchange is refused and the web client can never sign in — the " +
             "feature is registered but does nothing");
 
-        // Not checked as a URI: an audience is whatever string the token carries, and the deployment
-        // lists the spellings it has seen — origin, origin with a trailing slash, bare host — the
-        // same way the developer console's audience list does.
-        foreach (var (audience, appId) in TrustedAudiences)
-            report.Require(!string.IsNullOrWhiteSpace(appId), $"{nameof(TrustedAudiences)}:{audience}",
-                "has no application id, and the session it issues would have nothing to record " +
-                "itself under");
+        foreach (var (appId, audiences) in TrustedApplications)
+        {
+            report.Require(audiences.Count > 0, $"{nameof(TrustedApplications)}:{appId}",
+                "lists no audience, so no token can ever be matched to it and the entry does nothing");
+
+            // Not checked as a URI: an audience is whatever string the token carries, and the
+            // deployment lists the spellings it has seen — the same way the developer console's
+            // audience list does. What IS checked is that it carries a scheme, because the only
+            // spelling the authorization endpoint ever writes is a full origin, and a bare host is
+            // therefore an entry that can never match anything. That was the shape production ran
+            // for months while reporting itself healthy.
+            foreach (var audience in audiences)
+            {
+                report.Require(!string.IsNullOrWhiteSpace(audience), $"{nameof(TrustedApplications)}:{appId}",
+                    "lists an empty audience, which would match a token carrying no audience at all");
+
+                report.Prefer(audience.Contains("://", StringComparison.Ordinal),
+                    $"{nameof(TrustedApplications)}:{appId}",
+                    $"lists '{audience}', which carries no scheme — the authorization endpoint writes "
+                  + "the audience as a full origin, so an entry without one matches no token that can "
+                  + "ever arrive");
+            }
+        }
+
+        // One audience under two applications has no answer: whichever is found first decides the id
+        // every device-history row for that browser is written under, and which one that is depends
+        // on dictionary order.
+        var ambiguous = TrustedApplications
+           .SelectMany(pair => pair.Value.Select(audience => (audience, pair.Key)))
+           .GroupBy(entry => entry.audience, StringComparer.OrdinalIgnoreCase)
+           .Where(group => group.Select(entry => entry.Key).Distinct(StringComparer.OrdinalIgnoreCase).Count() > 1);
+
+        foreach (var group in ambiguous)
+            report.Require(false, nameof(TrustedApplications),
+                $"lists audience '{group.Key}' under more than one application, and nothing decides "
+              + "which of them a session arriving on it belongs to");
 
         report.Required(CookieName, nameof(CookieName));
         report.RequireRange(Lifetime, TimeSpan.FromMinutes(5), TimeSpan.FromDays(365), nameof(Lifetime));

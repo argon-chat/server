@@ -18,7 +18,7 @@ using Argon.Features.WebSession;
 /// entry carries a <em>kind</em> and not an operating system: the OS comes from what the client
 /// reports about itself (<see cref="ClientDescriptor"/>) and the kind says how to read that. The web
 /// client's id is the OAuth <c>client_id</c> the developer console assigned, the same value
-/// <see cref="WebSessionOptions.TrustedAudiences"/> files web sessions under. Both ship as defaults
+/// <see cref="WebSessionOptions.TrustedApplications"/> files web sessions under. Both ship as defaults
 /// here; a deployment that minted its own ids overrides them.</para>
 ///
 /// <para>Configuration merges dictionaries by key, so a deployment adds the ids it minted and keeps
@@ -40,7 +40,7 @@ public sealed class ClientAppsOptions : IValidatableFeatureOptions
 
     /// <summary>
     /// The web client's id — the OAuth <c>client_id</c> it signs in with, and the value
-    /// <c>WebSession:TrustedAudiences</c> files its sessions under.
+    /// <c>WebSession:TrustedApplications</c> files its sessions under.
     /// </summary>
     /// <remarks>
     /// Desktop builds before September 2026 wrote this same id into their cookie, which is the
@@ -91,7 +91,7 @@ public sealed class ClientAppsOptions : IValidatableFeatureOptions
                 "has no name, so a session from it would be shown as an unknown application");
         }
 
-        // The web client's session is filed under the id in WebSession:TrustedAudiences, so an id
+        // The web client's session is filed under the id in WebSession:TrustedApplications, so an id
         // there that is not here is a web session the devices screen cannot name.
         WebSessionOptions? web;
 
@@ -104,13 +104,13 @@ public sealed class ClientAppsOptions : IValidatableFeatureOptions
             return;
         }
 
-        foreach (var webAppId in web.TrustedAudiences.Values.Distinct(StringComparer.OrdinalIgnoreCase))
+        foreach (var webAppId in web.TrustedApplications.Keys.Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (string.IsNullOrWhiteSpace(webAppId) || webAppId.Contains("<<SET"))
                 continue;
 
             report.Prefer(Apps.ContainsKey(webAppId), nameof(Apps),
-                $"does not list '{webAppId}', the id WebSession:TrustedAudiences files web sessions under — " +
+                $"does not list '{webAppId}', the id WebSession:TrustedApplications files web sessions under — " +
                 "those sessions will be shown as an unknown application");
         }
     }

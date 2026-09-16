@@ -9,10 +9,15 @@ using Microsoft.IdentityModel.Tokens;
 /// Who a caller is, according to a token the identity server signed.
 /// </summary>
 /// <param name="Audience">
-/// Which of the trusted audiences the token was issued for — the application, in practice, and what
-/// decides the id the session is recorded under.
+/// Which of the trusted audiences the token was issued for — the origin the web client is served
+/// from, in practice.
 /// </param>
-public sealed record AegisIdentity(Guid UserId, string Audience);
+/// <param name="ApplicationId">
+/// The application that audience is registered to, and the id the session is recorded under. Resolved
+/// here rather than looked up again by the caller: the validator has already had to find it to pin
+/// the token's authorized party against it, and a second lookup is a second chance to disagree.
+/// </param>
+public sealed record AegisIdentity(Guid UserId, string Audience, string ApplicationId);
 
 /// <summary>
 /// Checks an Aegis access token before it is traded for an Argon session.
@@ -36,13 +41,15 @@ public sealed class AegisTokenValidator(IOptions<WebSessionOptions> options, ILo
     {
         var settings = options.Value;
 
-        if (settings.TrustedAudiences.Count == 0)
+        var trusted = settings.TrustedAudiences.ToArray();
+
+        if (trusted.Length == 0)
         {
             // Said out loud, because the silent version of this is indistinguishable from a bad
             // token: every exchange answers 401 and nothing anywhere names the reason. It is also
             // the state a deployment that registered the feature and configured nothing is in.
-            logger.LogWarning("Refused a web session exchange: WebSession:TrustedAudiences is empty, "
-                            + "so no token can ever be exchanged and the web client cannot sign in");
+            logger.LogWarning("Refused a web session exchange: WebSession:TrustedApplications lists no "
+                            + "audience, so no token can ever be exchanged and the web client cannot sign in");
             return null;
         }
 
@@ -51,7 +58,7 @@ public sealed class AegisTokenValidator(IOptions<WebSessionOptions> options, ILo
         var result = await Handler.ValidateTokenAsync(token, new TokenValidationParameters
         {
             ValidIssuer              = settings.ValidIssuer,
-            ValidAudiences           = settings.TrustedAudiences.Keys,
+            ValidAudiences           = trusted,
             ValidateAudience         = true,
             IssuerSigningKeys        = keys.SigningKeys,
             ValidateLifetime         = true,
@@ -73,7 +80,7 @@ public sealed class AegisTokenValidator(IOptions<WebSessionOptions> options, ILo
                 "Rejected a web session exchange: {Error}. The token named [{Presented}]; this deployment trusts [{Trusted}]",
                 result.Exception?.Message,
                 string.Join(", ", DescribeAudiences(token)),
-                string.Join(", ", settings.TrustedAudiences.Keys));
+                string.Join(", ", trusted));
 
             return null;
         }
@@ -91,12 +98,11 @@ public sealed class AegisTokenValidator(IOptions<WebSessionOptions> options, ILo
         if (result.SecurityToken is not JsonWebToken jwt)
             return null;
 
-        var audience = jwt.Audiences.FirstOrDefault(settings.TrustedAudiences.ContainsKey);
-
-        if (audience is null)
+        if (jwt.Audiences.Select(a => (audience: a, appId: settings.ApplicationFor(a)))
+                         .FirstOrDefault(pair => pair.appId is not null) is not { appId: { } appId } matched)
             return null;
 
-        var appId = settings.TrustedAudiences[audience];
+        var audience = matched.audience;
 
         // AND THE APPLICATION ITSELF, not only where the token was going.
         //
@@ -125,7 +131,7 @@ public sealed class AegisTokenValidator(IOptions<WebSessionOptions> options, ILo
             return null;
         }
 
-        return new AegisIdentity(userId, audience);
+        return new AegisIdentity(userId, audience, appId);
     }
 
     /// <summary>
