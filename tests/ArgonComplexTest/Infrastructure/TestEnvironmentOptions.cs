@@ -144,11 +144,17 @@ public static class TestEnvironmentOptions
     /// The S3 the media tests upload to.
     /// </summary>
     /// <remarks>
-    /// Pinned to a release rather than <c>latest</c>: MinIO ships breaking changes to its own console
-    /// and defaults often enough that a floating tag turns an unrelated pull into a red suite, and the
-    /// only thing this suite asks of it is the S3 API, which does not move.
+    /// <para>Pinned to a release rather than <c>latest</c>: MinIO ships breaking changes to its own
+    /// console and defaults often enough that a floating tag turns an unrelated pull into a red
+    /// suite, and the only thing this suite asks of it is the S3 API, which does not move.</para>
+    ///
+    /// <para><b>From quay.io, and not by preference.</b> <c>minio/minio</c> no longer exists on
+    /// Docker Hub — the repository is gone, not the tag, so a pull answers "repository does not
+    /// exist or may require 'docker login'" and every fixture in the process fails in
+    /// <c>OneTimeSetUp</c> with what reads like a credentials problem. quay.io is MinIO's own
+    /// registry, carries the identical tag, and needs no account.</para>
     /// </remarks>
-    public static string MinioImage => Read(MinioImageVariable) ?? "minio/minio:RELEASE.2025-04-22T22-12-26Z";
+    public static string MinioImage => Read(MinioImageVariable) ?? "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z";
 
     public static bool ReuseContainers => IsTruthy(Read(ReuseContainersVariable));
 
