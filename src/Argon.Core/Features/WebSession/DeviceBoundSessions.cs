@@ -291,6 +291,7 @@ public static class DeviceBoundSessionEndpoints
             record.ArgonSessionId, accessLifetime: settings.AccessTokenLifetime);
 
         WebSessionCookie.Write(http, settings, issued.refreshToken!, settings.DeviceBinding.BoundCookieLifetime);
+        WebAccessCookie.Write(http, settings, issued.token);
 
         // So the state endpoint can answer without the browser telling it anything it chose itself.
         await cache.StringSetAsync(BoundKey(record.ArgonSessionId), dbscSessionId, settings.Lifetime, ct);
@@ -301,7 +302,13 @@ public static class DeviceBoundSessionEndpoints
             dbscSessionId,
             RefreshPath,
             new DeviceBoundScope(origin, IncludeSite: false),
-            [new DeviceBoundCredential("cookie", settings.CookieName, "Path=/; Secure; HttpOnly")]));
+            [
+                new DeviceBoundCredential("cookie", settings.CookieName, "Path=/; Secure; HttpOnly"),
+                // The credential that actually authorises calls. Binding the refresh cookie alone
+                // would leave the one spent on every request unprotected — which is what the bearer
+                // header was, and the reason this cookie exists.
+                new DeviceBoundCredential("cookie", settings.AccessCookieName, "Path=/; Secure; HttpOnly"),
+            ]));
     }
 
     // ── what the page is allowed to know ─────────────────────────────────────────────────────────

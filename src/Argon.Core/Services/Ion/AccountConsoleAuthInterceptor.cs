@@ -2,6 +2,7 @@
 
 using Features.AccountConsole;
 using Features.Auth;
+using Features.WebSession;
 using ion.runtime;
 using System.Security.Claims;
 using Microsoft.Extensions.Caching.Hybrid;
@@ -234,15 +235,18 @@ public sealed class AccountConsoleAuthInterceptor(
         LocalCacheExpiration = TimeSpan.FromSeconds(10)
     };
 
+    /// <remarks>
+    /// Unprefixed values are still accepted, which <see cref="WebAccessToken"/> does not do — the
+    /// console has always taken a bare token and tightening that is not this change's business.
+    /// </remarks>
     private static string? ExtractBearerToken(HttpContext httpContext)
     {
-        if (!httpContext.Request.Headers.TryGetValue("Authorization", out var auth) || string.IsNullOrWhiteSpace(auth))
-            return null;
+        if (WebAccessToken.Read(httpContext) is { } token)
+            return token;
 
-        var value = auth.ToString();
-
-        return value.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase)
-            ? value["Bearer ".Length..].Trim()
-            : value.Trim();
+        return httpContext.Request.Headers.TryGetValue("Authorization", out var auth)
+            && auth.ToString() is { Length: > 0 } value
+                ? value.Trim()
+                : null;
     }
 }

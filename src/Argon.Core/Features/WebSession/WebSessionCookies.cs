@@ -2,6 +2,8 @@ namespace Argon.Features.WebSession;
 
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.WebUtilities;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
 
 /// <summary>
 /// The device half of a browser session: the <c>ArgonSecure</c> cookie, written by the server.
@@ -185,4 +187,110 @@ public static class WebSessionCookie
             Expires     = expires,
             IsEssential = true
         };
+}
+
+/// <summary>
+/// The access token, for browsers, as a cookie rather than a bearer header.
+/// </summary>
+/// <remarks>
+/// <para><b>Why this exists.</b> Every Ion call authorises with <c>Authorization: Bearer</c>, which
+/// on a browser means the credential for every call is a string sitting in JavaScript. Anything
+/// that runs on the page can read it, and once copied it works from any machine until it expires.
+/// Shortening its life caps the damage but does not change its nature.</para>
+///
+/// <para>A cookie is a different kind of thing: <c>HttpOnly</c> puts it out of reach of script,
+/// <c>__Host-</c> confines it to this host, and <c>SameSite</c> keeps other sites from spending it.
+/// It is also, unlike a header, something a device-bound session can protect — see
+/// <see cref="DeviceBoundSessionEndpoints"/>, which today guards a refresh cookie while the
+/// credential that actually authorises calls travels beside it in the clear.</para>
+///
+/// <para><b>Both channels are read, bearer first.</b> Native clients have no cookie jar and must
+/// keep sending the header, and a browser holding an older bundle is still sending one too. The
+/// cookie is what a current web build relies on; the header is what everything else uses.</para>
+/// </remarks>
+public static class WebAccessCookie
+{
+    /// <remarks>
+    /// Expires with the token it carries. The two must not disagree: a cookie outliving its token
+    /// buys a round trip that fails, and a cookie dying first ends a session that is still valid.
+    /// </remarks>
+    public static void Write(HttpContext http, WebSessionOptions options, string accessToken,
+        TimeSpan? lifetime = null)
+        => http.Response.Cookies.Append(options.AccessCookieName, accessToken,
+            Attributes(options, DateTimeOffset.UtcNow + (lifetime ?? options.AccessTokenLifetime)));
+
+    /// <inheritdoc cref="WebSessionCookie.Clear"/>
+    public static void Clear(HttpContext http, WebSessionOptions options)
+        => http.Response.Cookies.Delete(options.AccessCookieName, Attributes(options, null));
+
+    /// <summary>
+    /// The access token this browser holds, if the request is one a browser could not have been
+    /// tricked into making.
+    /// </summary>
+    /// <remarks>
+    /// <para>Same <c>Sec-Fetch-Site</c> reasoning as <see cref="WebSessionCookie.Read"/>, with one
+    /// difference: <c>none</c> is not accepted here. That value means a user-initiated navigation —
+    /// a typed address, a bookmark — which is never how an RPC arrives. The refresh endpoint has to
+    /// tolerate it because a sign-in can begin with one; an API call that claims to be one is
+    /// either confused or lying.</para>
+    /// </remarks>
+    public static string? Read(HttpContext http, WebSessionOptions options)
+    {
+        if (!http.Request.Headers.TryGetValue("Sec-Fetch-Site", out var site))
+            return null;
+
+        if (site.ToString() is not ("same-origin" or "same-site"))
+            return null;
+
+        return http.Request.Cookies.TryGetValue(options.AccessCookieName, out var token)
+            && !string.IsNullOrWhiteSpace(token)
+                ? token
+                : null;
+    }
+
+    private static CookieOptions Attributes(WebSessionOptions options, DateTimeOffset? expires)
+        => new()
+        {
+            // __Host- conditions, as on the refresh cookie: no Domain, rooted at "/", Secure.
+            Path        = "/",
+            HttpOnly    = true,
+            Secure      = true,
+            SameSite    = options.SameSite,
+            Expires     = expires,
+            IsEssential = true
+        };
+}
+
+/// <summary>
+/// The access token a request carries, by whichever channel it has.
+/// </summary>
+/// <remarks>
+/// <para>One place, because three of them ask: the Ion interceptor, the console interceptor, and
+/// the realtime hub. They authorise the same credential and must agree about where it can come
+/// from, or a session works over RPC and not over the socket.</para>
+///
+/// <para><b>Bearer wins.</b> A caller that went to the trouble of sending a header meant that
+/// token: native clients have no cookie jar, and a browser on an older bundle still sends one.
+/// Preferring the cookie would let a stale cookie quietly override a fresh header.</para>
+/// </remarks>
+public static class WebAccessToken
+{
+    private const string BearerPrefix = "Bearer ";
+
+    /// <returns>The token, or <c>null</c> when the request carries none this server will accept.</returns>
+    public static string? Read(HttpContext http)
+    {
+        if (http.Request.Headers.TryGetValue("Authorization", out var auth)
+            && auth.ToString() is { Length: > 0 } value
+            && value.StartsWith(BearerPrefix, StringComparison.OrdinalIgnoreCase)
+            && value[BearerPrefix.Length..].Trim() is { Length: > 0 } bearer)
+            return bearer;
+
+        // Resolved per request rather than injected, so this stays a one-line change at each call
+        // site. GetService, not Required: a role with no web sessions configured has no options and
+        // simply has no cookie to read.
+        return http.RequestServices.GetService<IOptions<WebSessionOptions>>()?.Value is { } options
+            ? WebAccessCookie.Read(http, options)
+            : null;
+    }
 }

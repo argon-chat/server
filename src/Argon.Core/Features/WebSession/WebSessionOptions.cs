@@ -107,6 +107,23 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
     public string CookieName { get; set; } = "__Host-ArgonAuth";
 
     /// <summary>
+    /// Name of the cookie carrying the access token, for browsers.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why a second cookie rather than reusing the first.</b> The two have different jobs
+    /// and different lifetimes: the refresh cookie is the session and lives for weeks, while this
+    /// one is spent on individual calls and lives for <see cref="AccessTokenLifetime"/>. Putting
+    /// both in one cookie would mean either a long-lived access token or a session that ends every
+    /// fifteen minutes.</para>
+    ///
+    /// <para><b>And it is what device binding is for.</b> DBSC protects cookies, not headers. While
+    /// the access token travels as a bearer there is nothing for a bound session to protect — a
+    /// stolen token works from anywhere until it expires. Moving it into a cookie is what makes the
+    /// binding meaningful, whenever browsers start honouring it.</para>
+    /// </remarks>
+    public string AccessCookieName { get; set; } = "__Host-ArgonAccess";
+
+    /// <summary>
     /// How long a web sign-in lasts.
     /// </summary>
     /// <remarks>
@@ -195,6 +212,7 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
               + "which of them a session arriving on it belongs to");
 
         report.Required(CookieName, nameof(CookieName));
+        report.Required(AccessCookieName, nameof(AccessCookieName));
         report.RequireRange(Lifetime, TimeSpan.FromMinutes(5), TimeSpan.FromDays(365), nameof(Lifetime));
 
         // A minute is the floor because the clock skew the validator already tolerates is measured in
@@ -213,6 +231,15 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
         report.Prefer(CookieName.StartsWith("__Host-", StringComparison.Ordinal), nameof(CookieName),
             "does not carry the __Host- prefix, so nothing stops a script on another argon.gl " +
             "subdomain from overwriting the session cookie");
+
+        report.Prefer(AccessCookieName.StartsWith("__Host-", StringComparison.Ordinal), nameof(AccessCookieName),
+            "does not carry the __Host- prefix, so nothing stops a script on another argon.gl " +
+            "subdomain from overwriting the access cookie");
+
+        report.Require(!string.Equals(AccessCookieName, CookieName, StringComparison.Ordinal),
+            nameof(AccessCookieName),
+            "is the same as the refresh cookie, so each would overwrite the other and a session " +
+            "would end as soon as its first access token expired");
 
         report.Prefer(SameSite != SameSiteMode.Unspecified, nameof(SameSite),
             "is unspecified, which leaves the attribute off the cookie entirely and lets each " +

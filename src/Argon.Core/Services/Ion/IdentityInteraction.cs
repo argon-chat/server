@@ -350,6 +350,12 @@ public class IdentityInteraction(
             var newIssued = flow.GenerateAccessToken(userId, machineId, scopes, carried,
                 fromBrowserCookie ? webSession.Value.AccessTokenLifetime : null);
 
+            // A browser that refreshed out of its cookie is handed the new token the same way, so
+            // the credential it authorises with never passes through script. It is still returned
+            // in the body as well, for a page holding an older bundle that expects it there.
+            if (fromBrowserCookie && http.HttpContext is { } browser)
+                WebAccessCookie.Write(browser, webSession.Value, newIssued);
+
             return new GoodAuthStatus(newIssued);
         }
         catch (InvalidOperationException e)

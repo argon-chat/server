@@ -85,6 +85,11 @@ public static class WebSessionEndpoints
 
         WebSessionCookie.Write(http, settings, issued.refreshToken!);
 
+        // The credential every subsequent call authorises with, out of reach of script. The body
+        // still carries it as well: a browser running an older bundle authorises with the bearer,
+        // and native clients have no cookie jar at all.
+        WebAccessCookie.Write(http, settings, issued.token);
+
         // Asks the browser to bind this session to a device key. Chromium answers on its own; every
         // other browser ignores the header, and the session it just got is unaffected either way.
         await DeviceBoundSessionEndpoints.OfferAsync(http, settings, cache, sessionId, ct);
@@ -174,6 +179,7 @@ public static class WebSessionEndpoints
         }
 
         WebSessionCookie.Clear(http, settings);
+        WebAccessCookie.Clear(http, settings);
 
         return Results.NoContent();
     }

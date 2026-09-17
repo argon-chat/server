@@ -4,6 +4,7 @@ using Argon.Features.Auth;
 using Argon.Features.BotApi;
 using Argon.Features.Clustering;
 using Argon.Features.Env;
+using Argon.Features.WebSession;
 using Argon.Services;
 using ion.runtime;
 using Microsoft.AspNetCore.Authentication;
@@ -790,10 +791,9 @@ public sealed class TicketAuthHandler(
 
         if (string.IsNullOrEmpty(token))
         {
-            var          auth   = Request.Headers[HeaderNames.Authorization].ToString();
-            const string prefix = "Bearer ";
-            if (auth.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-                token = auth[prefix.Length..].Trim();
+            // Header or cookie, same as every other authorised path. The socket handshake is a
+            // same-site request, so a browser sends the cookie on it without being asked.
+            token = WebAccessToken.Read(Request.HttpContext) ?? string.Empty;
         }
 
         if (string.IsNullOrEmpty(token))
