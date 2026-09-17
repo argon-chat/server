@@ -421,11 +421,19 @@ public static class DeviceBoundSessionEndpoints
         IArgonCacheDatabase cache, WebSessionOptions settings, string dbscSessionId,
         DeviceBoundSession record, CancellationToken ct)
     {
+        // The ACCESS credential is what binding shortens — the token every call spends, and the
+        // cookie carrying it. A bound browser gets another by proving its key, so this can be cut
+        // below an unbound session's.
         var issued = await users.GenerateJwt(record.UserId, record.MachineId, record.Scopes,
-            record.ArgonSessionId, accessLifetime: settings.AccessTokenLifetime);
+            record.ArgonSessionId, accessLifetime: settings.DeviceBinding.BoundCookieLifetime);
 
-        WebSessionCookie.Write(http, settings, issued.refreshToken!, settings.DeviceBinding.BoundCookieLifetime);
-        WebAccessCookie.Write(http, settings, issued.token);
+        // THE REFRESH COOKIE KEEPS ITS FULL LIFE, and that is deliberate. It used to be cut to the
+        // same few minutes, which made the session itself depend on the binding renewing — so a
+        // laptop asleep overnight came back signed out, with a perfectly good device key in hand.
+        // See DeviceBindingOptions.BoundCookieLifetime for why the short window was also buying
+        // very little: this cookie is HttpOnly and __Host-, so script never had it to steal.
+        WebSessionCookie.Write(http, settings, issued.refreshToken!);
+        WebAccessCookie.Write(http, settings, issued.token, settings.DeviceBinding.BoundCookieLifetime);
 
         // So the state endpoint can answer without the browser telling it anything it chose itself.
         await cache.StringSetAsync(BoundKey(record.ArgonSessionId), dbscSessionId, settings.Lifetime, ct);

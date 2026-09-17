@@ -248,6 +248,11 @@ public sealed class WebSessionOptions : IValidatableFeatureOptions
         report.RequireRange(DeviceBinding.BoundCookieLifetime, TimeSpan.FromMinutes(1), TimeSpan.FromHours(1),
             $"{nameof(DeviceBinding)}:{nameof(DeviceBindingOptions.BoundCookieLifetime)}");
 
+        report.Prefer(DeviceBinding.BoundCookieLifetime <= AccessTokenLifetime,
+            $"{nameof(DeviceBinding)}:{nameof(DeviceBindingOptions.BoundCookieLifetime)}",
+            "is longer than an unbound session's access token, so binding a session would lengthen " +
+            "the life of the credential every call spends rather than shortening it");
+
         report.Require(DeviceBinding.BoundCookieLifetime < Lifetime,
             $"{nameof(DeviceBinding)}:{nameof(DeviceBindingOptions.BoundCookieLifetime)}",
             "is not shorter than the unbound session's, which is the only thing binding buys — a " +
@@ -281,13 +286,29 @@ public sealed class DeviceBindingOptions
     public bool Enabled { get; set; } = true;
 
     /// <summary>
-    /// How long the cookie lives once the session is bound.
+    /// How long a bound session's <b>access</b> credential lives — the token, and the cookie that
+    /// carries it. Not the refresh cookie.
     /// </summary>
     /// <remarks>
-    /// <b>This is the whole of the protection.</b> A bound cookie is worth only its remaining minutes
-    /// to whoever copies it, because obtaining another needs a signature from a key that never leaves
-    /// the device. Lengthen it and the window to replay a stolen cookie lengthens with it; shorten it
-    /// and the browser refreshes more often, which costs a round trip it makes on its own.
+    /// <para><b>This once shortened the refresh cookie, and that was a mistake worth recording.</b>
+    /// The refresh cookie is the session: cut it to ten minutes and the session ends ten minutes
+    /// after the browser stops renewing it. Renewal is a brand-new browser feature, it is the only
+    /// thing holding the session up, and when it does not happen — a laptop asleep overnight, a
+    /// browser that decided the session was over, a bug in ours or theirs — the user is signed out
+    /// and their tab reconnects for ever. Binding made sessions <i>fragile</i> rather than safer.
+    /// </para>
+    ///
+    /// <para><b>And it bought almost nothing.</b> Against script the refresh cookie is already out
+    /// of reach: <c>HttpOnly</c>, <c>__Host-</c>, <c>SameSite</c>. Against malware reading the
+    /// profile off disk, ten minutes is ample to spend it. The short window only ever bit the
+    /// honest user.</para>
+    ///
+    /// <para><b>What it governs now is the credential actually spent on every call.</b> A bound
+    /// session's access token — and the cookie holding it — is cut to this, shorter than an unbound
+    /// session's <see cref="AccessTokenLifetime"/>, because a bound browser can quietly get another
+    /// by proving its key. Copied to another machine it is worth its remaining minutes and cannot be
+    /// renewed there, which is the protection binding was for. The session itself now survives on
+    /// the ordinary refresh cookie, whether or not the binding ever renews.</para>
     /// </remarks>
     public TimeSpan BoundCookieLifetime { get; set; } = TimeSpan.FromMinutes(10);
 
