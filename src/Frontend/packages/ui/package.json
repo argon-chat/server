@@ -29,7 +29,7 @@
   "dependencies": {
     "@argon/core": "workspace:*",
     "@lucide/vue": "^1.38.0",
-    "@vueuse/core": "^14.4.0",
+    "@vueuse/core": "^15.0.0",
     "class-variance-authority": "^0.7.1",
     "reka-ui": "^2.6.0"
   },

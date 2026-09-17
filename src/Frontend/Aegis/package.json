@@ -19,7 +19,7 @@
     "@internationalized/date": "^3.12.3",
     "@lucide/vue": "^1.38.0",
     "@radix-icons/vue": "^1.0.0",
-    "@vueuse/core": "^14.4.0",
+    "@vueuse/core": "^15.0.0",
     "@vueuse/motion": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
