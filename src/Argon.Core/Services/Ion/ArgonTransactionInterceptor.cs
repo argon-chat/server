@@ -220,11 +220,8 @@ public sealed class ArgonTransactionInterceptor(
 
     private async Task<AuthorizedCaller?> Authorize(HttpContext httpContext)
     {
-        // A bearer header, or — for a browser — the HttpOnly cookie the session exchange set. The
-        // message still says "header": it reaches a caller that sent neither, and naming the channel
-        // it did not use would be no clearer than naming the one it did not send.
         if (WebAccessToken.Read(httpContext) is not { } token)
-            throw new UnauthorizedAccessException("Authorization header missing");
+            return null;
 
         var authResult = await validationParameters.AuthorizeByToken(token, httpContext.GetMachineId());
 
