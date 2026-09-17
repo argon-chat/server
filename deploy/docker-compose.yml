@@ -135,7 +135,7 @@ services:
   # with an authentication error rather than at start-up. The previous file carried a different,
   # shorter pair, so local voice could never have worked.
   livekit:
-    image: livekit/livekit-server:v1.9.1
+    image: livekit/livekit-server:v1.13.7
     container_name: argon-livekit
     command: ["--config", "/etc/livekit.yaml"]
     ports:
