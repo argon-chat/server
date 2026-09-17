@@ -18,7 +18,7 @@
     <ItemGroup>
         <!-- The hub side of the client. Scenario B is about fan-out, and fan-out only exists over a
              real connection: an RPC round trip would measure a different thing entirely. -->
-        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
+        <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.12" />
     </ItemGroup>
 
     <ItemGroup>
@@ -26,6 +26,10 @@
              format by hand, or reimplementing it in a JS load-testing tool, would be a second
              implementation of the protocol to keep in sync. -->
         <ProjectReference Include="..\..\src\Argon.Core\Argon.Core.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Update="Microsoft.SourceLink.GitHub" Version="10.0.401" />
     </ItemGroup>
 
 </Project>
