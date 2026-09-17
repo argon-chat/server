@@ -475,6 +475,29 @@ public static class DeviceBoundSessionEndpoints
         return Results.Json(new { bound, offered = settings.DeviceBinding.Enabled });
     }
 
+    /// <summary>
+    /// Ends the binding on a session that is over.
+    /// </summary>
+    /// <remarks>
+    /// <para>Deleting the record is also what ends it for the browser: the next refresh finds
+    /// nothing and is answered with <c>continue: false</c>, which is the protocol's way of saying a
+    /// session is finished and what stops the browser asking again.</para>
+    ///
+    /// <para>Left behind, the binding outlives the session it named — the browser keeps showing a
+    /// device session that can never succeed, and the next sign-in registers a second one beside
+    /// it. Two for one browser, one of them dead.</para>
+    /// </remarks>
+    public static async Task EndAsync(IArgonCacheDatabase cache, Guid argonSessionId, CancellationToken ct)
+    {
+        var boundAt = BoundKey(argonSessionId);
+
+        // The record is stored under the binding's own id, which only this pointer knows.
+        if (await cache.StringGetAsync(boundAt, ct) is { } dbscSessionId)
+            await cache.KeyDeleteAsync(SessionKey(dbscSessionId), ct);
+
+        await cache.KeyDeleteAsync(boundAt, ct);
+    }
+
     // ── storage ──────────────────────────────────────────────────────────────────────────────────
 
     private static Task StoreAsync(IArgonCacheDatabase cache, WebSessionOptions settings,

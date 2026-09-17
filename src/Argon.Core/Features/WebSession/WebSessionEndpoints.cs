@@ -138,6 +138,10 @@ public static class WebSessionEndpoints
 
                     await cache.SetAddAsync(key, id.ToString(), ct);
 
+                    // The device binding ends with the session it was made for. See EndAsync: a
+                    // binding left behind is one the browser keeps and can never use again.
+                    await DeviceBoundSessionEndpoints.EndAsync(cache, id, ct);
+
                     // Both halves of the identity, as everywhere else a session is ended. The cookie's
                     // sid is the server-minted credential one, which stops the refresh; the presence
                     // sid is what the hub gate and the interceptor look up, and without it the tab
