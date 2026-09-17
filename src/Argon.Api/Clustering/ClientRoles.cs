@@ -1,4 +1,4 @@
-namespace Argon.Api.Clustering;
+﻿namespace Argon.Api.Clustering;
 
 using Argon.Features.Clustering;
 
@@ -29,6 +29,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<IonProtocolFeature>();
         features.Add<AppHubFeature>();
         features.Add<WebSessionFeature>();
+        features.Add<BrowserReportFeature>();
         features.Add<DiscoveryFeature>();
         features.Add<InviteCardFeature>();
         features.Add<CdnFeature>();
