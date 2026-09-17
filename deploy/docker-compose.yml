@@ -96,7 +96,7 @@ services:
   # S3_SECRET_KEY, which SeaweedFS does not read. The argon/argon pair in `cdn.json` is therefore
   # signed with and ignored, rather than checked.
   storage:
-    image: chrislusf/seaweedfs:3.97
+    image: chrislusf/seaweedfs:3.99
     container_name: argon-storage
     command: ["server", "-s3", "-s3.port=9321", "-dir=/data"]
     ports:
@@ -118,7 +118,7 @@ services:
   # Runs to completion and stays exited. Re-running it is harmless — creating a bucket that is already
   # there is not an error worth failing the stack over, hence the `|| true`.
   storage-init:
-    image: chrislusf/seaweedfs:3.97
+    image: chrislusf/seaweedfs:3.99
     container_name: argon-storage-init
     depends_on:
       storage:
