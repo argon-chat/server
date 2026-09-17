@@ -275,9 +275,16 @@ public static class DeviceBoundSessionEndpoints
         }
 
         // The session this browser already holds, read from the credential rather than from anything
-        // the caller said about itself.
-        if (WebSessionCookie.Read(http, settings) is not { } refreshToken)
+        // the caller said about itself. ReadForDeviceBinding rather than Read: this request has no
+        // fetch metadata because no page made it — see that method for why the check is both
+        // inapplicable and unnecessary here.
+        if (WebSessionCookie.ReadForDeviceBinding(http, settings) is not { } refreshToken)
+        {
+            // Said out loud because this used to be the one silent 401 on the path: a binding that
+            // fails here leaves nothing in the log and a browser retrying for ever.
+            log.LogWarning("A device binding for session {SessionId} arrived without a session cookie", offeredTo);
             return Results.Unauthorized();
+        }
 
         Guid   userId;
         Guid?  boundSession;

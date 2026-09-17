@@ -175,6 +175,28 @@ public static class WebSessionCookie
             : null;
     }
 
+    /// <summary>
+    /// The refresh token, for a request the browser made of its own accord.
+    /// </summary>
+    /// <remarks>
+    /// <para><b>Why <see cref="Read"/> cannot be used here.</b> DBSC registration is issued by the
+    /// browser's network stack, not by a page: no script asked for it, and it carries no fetch
+    /// metadata at all. <see cref="Read"/> requires <c>Sec-Fetch-Site</c> and treats its absence as
+    /// "not a browser" — which is right for an API call and exactly wrong for this one. The cost of
+    /// getting it wrong is a 401 on every registration and sessions that silently never bind.</para>
+    ///
+    /// <para><b>Why dropping the check is safe here.</b> The guard is against another site causing a
+    /// credentialed request. It cannot reach this one: registration is refused unless the proof
+    /// carries a challenge this server issued moments ago, and there is no way to obtain one from
+    /// another origin — the exchange puts it in a response header script cannot read cross-origin,
+    /// and the endpoint that hands one out directly is itself behind <see cref="Read"/>. Without a
+    /// challenge the cookie buys nothing.</para>
+    /// </remarks>
+    public static string? ReadForDeviceBinding(HttpContext http, WebSessionOptions options)
+        => http.Request.Cookies.TryGetValue(options.CookieName, out var token) && !string.IsNullOrWhiteSpace(token)
+            ? token
+            : null;
+
     private static CookieOptions Attributes(WebSessionOptions options, DateTimeOffset? expires)
         => new()
         {
