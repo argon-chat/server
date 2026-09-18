@@ -70,6 +70,7 @@ public class ServerInteractionImpl(IConfiguration configuration) : IServerIntera
     public async Task SetBoostStripHidden(Guid spaceId, bool hidden, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).SetBoostStripHidden(hidden);
 
+
     public async Task<SpaceStats> GetSpaceStats(Guid spaceId, CancellationToken ct = default)
         => await this.GetGrain<ISpaceGrain>(spaceId).GetSpaceStats();
 

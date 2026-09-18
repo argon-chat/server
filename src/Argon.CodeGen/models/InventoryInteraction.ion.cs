@@ -15,7 +15,7 @@
 namespace ArgonContracts;
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record InventoryItem(string id, guid instanceId, datetime grantedDate, bool usable, bool giftable, ItemUseVector? usableVector, guid? receivedFrom, duration? ttl);
+public sealed record InventoryItem(string id, guid instanceId, datetime grantedDate, bool usable, bool giftable, ItemUseVector? usableVector, guid? receivedFrom, duration? ttl, guid? cosmeticId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

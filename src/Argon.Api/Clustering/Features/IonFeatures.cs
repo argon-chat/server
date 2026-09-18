@@ -41,6 +41,7 @@ public sealed class IonProtocolFeature : IArgonFeature
             .Describing("Ion RPC services for the first-party clients")
             .Requires<ArgonAuthorizationFeature>()
             .Requires<IonEndpointsFeature>()
+            .Requires<CosmeticsFeature>()
             .After<RoutingFeature>();
 
     public void Configure(ArgonFeatureContext ctx)
@@ -55,6 +56,7 @@ public sealed class IonProtocolFeature : IArgonFeature
             x.AddService<IServerInteraction, ServerInteractionImpl>();
             x.AddService<IChannelInteraction, ChannelInteractionImpl>();
             x.AddService<IInventoryInteraction, InventoryInteractionImpl>();
+            x.AddService<ICosmeticsInteraction, CosmeticsInteractionImpl>();
             x.AddService<IArchetypeInteraction, ArchetypeInteraction>();
             x.AddService<ICallInteraction, CallInteraction>();
             x.AddService<IFriendsInteraction, FriendsInteractionImpl>();
@@ -88,6 +90,10 @@ public sealed class AdminConsoleFeature : IArgonFeature
     /// — got none. Every method on the console failed with a container error, not just the new one,
     /// because the failure is in building the service rather than in calling it. Anything the console's
     /// constructor takes has to be named here.</para>
+    ///
+    /// <para><c>CosmeticsFeature</c> is the third, declared with the console's cosmetics surface rather
+    /// than after it: the console takes <c>CosmeticKindRegistry</c> to answer what kinds the build
+    /// ships and to hold publication to each kind's rules.</para>
     /// </remarks>
     public static void Describe(IFeatureDescriptor d)
         => d.Describing("IAdminConsole on a port of its own")
@@ -95,6 +101,7 @@ public sealed class AdminConsoleFeature : IArgonFeature
             .Requires<IonEndpointsFeature>()
             .Requires<PresenceFeature>()
             .Requires<EmailJournalFeature>()
+            .Requires<CosmeticsFeature>()
             .After<RoutingFeature>()
             .Options<AdminConsoleOptions>("AdminConsole");
 

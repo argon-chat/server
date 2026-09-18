@@ -98,6 +98,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
 #endregion
 
+#region Cosmetics
+
+    public DbSet<CosmeticItemEntity>            Cosmetics                 => Set<CosmeticItemEntity>();
+    public DbSet<CosmeticOwnershipEntity>       CosmeticOwnerships        => Set<CosmeticOwnershipEntity>();
+    public DbSet<CosmeticLoadoutEntity>         CosmeticLoadouts          => Set<CosmeticLoadoutEntity>();
+    public DbSet<CosmeticEquipEntity>           CosmeticEquips            => Set<CosmeticEquipEntity>();
+    public DbSet<CosmeticScopeAssignmentEntity> CosmeticScopeAssignments  => Set<CosmeticScopeAssignmentEntity>();
+    public DbSet<CosmeticTranslationEntity>     CosmeticTranslations      => Set<CosmeticTranslationEntity>();
+
+#endregion
+
 #region File Storage
 
     public DbSet<FileEntity>        Files        => Set<FileEntity>();
@@ -347,10 +358,12 @@ public static class ArgonTablePlacement
         // the server today — the wire contract has a LeavedFromServerUser event but nothing fires it,
         // only BotEventPublisher:131 translates it — and kicking is a voice-channel operation, so the
         // only later writes are the soft delete when an account is deleted (AccountDeletionGrain:613)
-        // and the hard delete when a bot is uninstalled (SpaceGrain:1123). The row carries no counter
-        // and no column any ordinary path updates — read SpaceMemberEntity and see. So: one write per
-        // row, two at the outside, over the entire life of a membership. A leave path arriving later
-        // adds one more write per row and does not change that answer.
+        // and the hard delete when a bot is uninstalled (SpaceGrain:1123). The row carries no counter.
+        // It now carries one column an ordinary path updates — Nickname, which the person sets for
+        // themselves in one space — and that is a person typing a name, so single digits per row over
+        // the life of a membership and no automated writer at all. So: one write per row, a handful
+        // at the outside, over the entire life of a membership. A leave path arriving later adds one
+        // more write per row and does not change that answer.
         //
         // The read side is not merely attractive here, it is on the message path. Every permission
         // check starts at this table (ArgonPermissionProvider.CanAccess, HybridPermissionCache:24
@@ -416,6 +429,44 @@ public static class ArgonTablePlacement
         // today; the ion surface passes null for it (ChannelInteractionImpl:54). A space has a
         // handful of groups and every bootstrap reads all of them (SpaceReadGrain:323).
         modelBuilder.Entity<ChannelGroupEntity>().PlacementGlobal();
+
+        // Written by an operator: created once, edited while it is being authored, published once,
+        // and then left alone until it is retired. Tens of writes per row, ever, and the writer is a
+        // person in a console rather than any user path. Read by every rendered profile — the card,
+        // the member list row and the message author line all resolve through it — which is the same
+        // shape as ArchetypeEntity above and settled by the same argument.
+        modelBuilder.Entity<CosmeticItemEntity>().PlacementGlobal();
+
+        // One insert per grant and one update per revoke, and most rows never see the second. A
+        // subscription-included cosmetic writes nothing here at all by design, so the busiest
+        // imaginable account — one that buys or is gifted a cosmetic every week — still sits three
+        // orders of magnitude below the message path. Read on every equip validation and on every
+        // catalogue open, and read from wherever the person happens to be.
+        modelBuilder.Entity<CosmeticOwnershipEntity>().PlacementGlobal();
+
+        // A persona is created, named, maybe renamed, and deleted. That is the complete set of
+        // writes, all of them a person in a settings pane. Read on every profile resolution, because
+        // the loadout is the indirection between a person and what they are wearing here.
+        modelBuilder.Entity<CosmeticLoadoutEntity>().PlacementGlobal();
+
+        // The busiest of the five and still not close. One insert per item put on, one delete per
+        // item taken off, and a slot reorder rewrites the kind's rows in one SaveChanges — one
+        // commit-wait whatever the row count, the same argument that keeps ChannelGroupEntity up.
+        // Somebody redressing their profile every day would be tens of writes a month against a read
+        // on every profile render.
+        modelBuilder.Entity<CosmeticEquipEntity>().PlacementGlobal();
+
+        // One row per person per space they dress differently in, written when they choose the
+        // persona and not again. Read on every space bootstrap, to answer which loadout applies
+        // here — and that read is on the path that renders the member list, so it wants to be near
+        // whoever is asking.
+        modelBuilder.Entity<CosmeticScopeAssignmentEntity>().PlacementGlobal();
+
+        // Written whenever an operator writes a name, which is a handful of times per cosmetic and
+        // never again. Read on every catalogue open alongside the rows it names — one query for the
+        // whole page, beside the query for the items themselves — so it belongs wherever
+        // CosmeticItemEntity is.
+        modelBuilder.Entity<CosmeticTranslationEntity>().PlacementGlobal();
 
         // ───── Regional: homed in the primary region, because a column on the row is hot. Not
         // because a person clicked something — every table above is written by a person too.

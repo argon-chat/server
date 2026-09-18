@@ -551,7 +551,7 @@ public sealed class Ion_CreateItemTemplateInput_Formatter : IonFormatter<CreateI
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public CreateItemTemplateInput Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(7, "CreateItemTemplateInput");
+        var arraySize = reader.ReadStartMessage(9, "CreateItemTemplateInput");
         var __templateid = IonFormatterStorage<string>.Read(reader);
         var __isusable = IonFormatterStorage<bool>.Read(reader);
         var __isgiftable = IonFormatterStorage<bool>.Read(reader);
@@ -559,14 +559,16 @@ public sealed class Ion_CreateItemTemplateInput_Formatter : IonFormatter<CreateI
         var __ttl = reader.ReadNullable<i4>();
         var __scenariotype = IonFormatterStorage<ItemScenarioKind>.Read(reader);
         var __boxcontenttemplateids = IonFormatterStorage<string>.ReadArray(reader);
-        reader.ReadEndArrayAndSkip(arraySize - 7);
-        return new(__templateid, __isusable, __isgiftable, __isaffectbadge, __ttl, __scenariotype, __boxcontenttemplateids);
+        var __cosmeticid = reader.ReadNullable<guid>();
+        var __cosmeticdurationdays = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__templateid, __isusable, __isgiftable, __isaffectbadge, __ttl, __scenariotype, __boxcontenttemplateids, __cosmeticid, __cosmeticdurationdays);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, CreateItemTemplateInput value)
     {
-        writer.WriteStartArray(7);
+        writer.WriteStartArray(9);
         IonFormatterStorage<string>.Write(writer, value.templateId);
         IonFormatterStorage<bool>.Write(writer, value.isUsable);
         IonFormatterStorage<bool>.Write(writer, value.isGiftable);
@@ -574,6 +576,8 @@ public sealed class Ion_CreateItemTemplateInput_Formatter : IonFormatter<CreateI
         IonFormatterStorage<i4>.WriteNullable(writer, value.ttl);
         IonFormatterStorage<ItemScenarioKind>.Write(writer, value.scenarioType);
         IonFormatterStorage<string>.WriteArray(writer, value.boxContentTemplateIds);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.cosmeticId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.cosmeticDurationDays);
         writer.WriteEndArray();
     }
 }
@@ -3583,6 +3587,751 @@ public sealed class Ion_StrandedAccountDeletionPage_Formatter : IonFormatter<Str
 }
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticKindList_Formatter : IonFormatter<CosmeticKindList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticKindList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(2, "CosmeticKindList");
+        var __kinds = IonFormatterStorage<CosmeticKindInfo>.ReadArray(reader);
+        var __orphans = IonFormatterStorage<CosmeticOrphanInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__kinds, __orphans);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticKindList value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<CosmeticKindInfo>.WriteArray(writer, value.kinds);
+        IonFormatterStorage<CosmeticOrphanInfo>.WriteArray(writer, value.orphans);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticKindInfo_Formatter : IonFormatter<CosmeticKindInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticKindInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(16, "CosmeticKindInfo");
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        var __primitive = IonFormatterStorage<string>.Read(reader);
+        var __surfaces = IonFormatterStorage<string>.ReadArray(reader);
+        var __scopes = IonFormatterStorage<string>.ReadArray(reader);
+        var __stacking = IonFormatterStorage<string>.Read(reader);
+        var __layer = IonFormatterStorage<i4>.Read(reader);
+        var __maxslots = IonFormatterStorage<i4>.Read(reader);
+        var __boardcapability = reader.ReadNullable<CosmeticBoardCapability>();
+        var __entitlement = IonFormatterStorage<string>.Read(reader);
+        var __legacyfield = reader.ReadNullable<string>();
+        var __featureflagkey = IonFormatterStorage<string>.Read(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+        var __assets = IonFormatterStorage<CosmeticAssetRequirementInfo>.ReadArray(reader);
+        var __itemcount = IonFormatterStorage<i4>.Read(reader);
+        var __publisheditemcount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 16);
+        return new(__kindkey, __description, __primitive, __surfaces, __scopes, __stacking, __layer, __maxslots, __boardcapability, __entitlement, __legacyfield, __featureflagkey, __isenabled, __assets, __itemcount, __publisheditemcount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticKindInfo value)
+    {
+        writer.WriteStartArray(16);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        IonFormatterStorage<string>.Write(writer, value.primitive);
+        IonFormatterStorage<string>.WriteArray(writer, value.surfaces);
+        IonFormatterStorage<string>.WriteArray(writer, value.scopes);
+        IonFormatterStorage<string>.Write(writer, value.stacking);
+        IonFormatterStorage<i4>.Write(writer, value.layer);
+        IonFormatterStorage<i4>.Write(writer, value.maxSlots);
+        IonFormatterStorage<CosmeticBoardCapability>.WriteNullable(writer, value.boardCapability);
+        IonFormatterStorage<string>.Write(writer, value.entitlement);
+        IonFormatterStorage<string>.WriteNullable(writer, value.legacyField);
+        IonFormatterStorage<string>.Write(writer, value.featureFlagKey);
+        IonFormatterStorage<bool>.Write(writer, value.isEnabled);
+        IonFormatterStorage<CosmeticAssetRequirementInfo>.WriteArray(writer, value.assets);
+        IonFormatterStorage<i4>.Write(writer, value.itemCount);
+        IonFormatterStorage<i4>.Write(writer, value.publishedItemCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAssetRequirementInfo_Formatter : IonFormatter<CosmeticAssetRequirementInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAssetRequirementInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "CosmeticAssetRequirementInfo");
+        var __slot = IonFormatterStorage<CosmeticAssetSlotKind>.Read(reader);
+        var __kind = IonFormatterStorage<string>.Read(reader);
+        var __maxbytes = IonFormatterStorage<i8>.Read(reader);
+        var __isrequired = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__slot, __kind, __maxbytes, __isrequired);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAssetRequirementInfo value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<CosmeticAssetSlotKind>.Write(writer, value.slot);
+        IonFormatterStorage<string>.Write(writer, value.kind);
+        IonFormatterStorage<i8>.Write(writer, value.maxBytes);
+        IonFormatterStorage<bool>.Write(writer, value.isRequired);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticOrphanInfo_Formatter : IonFormatter<CosmeticOrphanInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticOrphanInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "CosmeticOrphanInfo");
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __itemcount = IonFormatterStorage<i4>.Read(reader);
+        var __equippedcount = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__kindkey, __itemcount, __equippedcount);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticOrphanInfo value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<i4>.Write(writer, value.itemCount);
+        IonFormatterStorage<i4>.Write(writer, value.equippedCount);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticQuery_Formatter : IonFormatter<CosmeticQuery>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticQuery Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(7, "CosmeticQuery");
+        var __kindkey = reader.ReadNullable<string>();
+        var __text = reader.ReadNullable<string>();
+        var __onlypublished = IonFormatterStorage<bool>.Read(reader);
+        var __onlyenabled = IonFormatterStorage<bool>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        var __onlyshipped = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 7);
+        return new(__kindkey, __text, __onlypublished, __onlyenabled, __offset, __limit, __onlyshipped);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticQuery value)
+    {
+        writer.WriteStartArray(7);
+        IonFormatterStorage<string>.WriteNullable(writer, value.kindKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.text);
+        IonFormatterStorage<bool>.Write(writer, value.onlyPublished);
+        IonFormatterStorage<bool>.Write(writer, value.onlyEnabled);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        IonFormatterStorage<bool>.Write(writer, value.onlyShipped);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticPage_Formatter : IonFormatter<CosmeticPage>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticPage Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "CosmeticPage");
+        var __items = IonFormatterStorage<CosmeticSummary>.ReadArray(reader);
+        var __totalcount = IonFormatterStorage<i4>.Read(reader);
+        var __offset = IonFormatterStorage<i4>.Read(reader);
+        var __limit = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__items, __totalcount, __offset, __limit);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticPage value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<CosmeticSummary>.WriteArray(writer, value.items);
+        IonFormatterStorage<i4>.Write(writer, value.totalCount);
+        IonFormatterStorage<i4>.Write(writer, value.offset);
+        IonFormatterStorage<i4>.Write(writer, value.limit);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticSummary_Formatter : IonFormatter<CosmeticSummary>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticSummary Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(16, "CosmeticSummary");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __slug = IonFormatterStorage<string>.Read(reader);
+        var __namekey = IonFormatterStorage<string>.Read(reader);
+        var __rarity = reader.ReadNullable<string>();
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+        var __ispublished = IonFormatterStorage<bool>.Read(reader);
+        var __acquisition = IonFormatterStorage<CosmeticAcquisitionKind>.ReadArray(reader);
+        var __hasrequiredassets = IonFormatterStorage<bool>.Read(reader);
+        var __legacyid = reader.ReadNullable<i4>();
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __publishedat = reader.ReadNullable<datetime>();
+        var __shippedinclientat = reader.ReadNullable<datetime>();
+        var __shippedinclientbuild = reader.ReadNullable<string>();
+        var __name = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 16);
+        return new(__cosmeticid, __kindkey, __slug, __namekey, __rarity, __version, __isenabled, __ispublished, __acquisition, __hasrequiredassets, __legacyid, __createdat, __publishedat, __shippedinclientat, __shippedinclientbuild, __name);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticSummary value)
+    {
+        writer.WriteStartArray(16);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<string>.Write(writer, value.slug);
+        IonFormatterStorage<string>.Write(writer, value.nameKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.rarity);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<bool>.Write(writer, value.isEnabled);
+        IonFormatterStorage<bool>.Write(writer, value.isPublished);
+        IonFormatterStorage<CosmeticAcquisitionKind>.WriteArray(writer, value.acquisition);
+        IonFormatterStorage<bool>.Write(writer, value.hasRequiredAssets);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.legacyId);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.publishedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.shippedInClientAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.shippedInClientBuild);
+        IonFormatterStorage<string>.WriteNullable(writer, value.name);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticDetails_Formatter : IonFormatter<CosmeticDetails>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticDetails Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(31, "CosmeticDetails");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __kind = reader.ReadNullable<CosmeticKindInfo>();
+        var __slug = IonFormatterStorage<string>.Read(reader);
+        var __namekey = IonFormatterStorage<string>.Read(reader);
+        var __descriptionkey = reader.ReadNullable<string>();
+        var __rarity = reader.ReadNullable<string>();
+        var __sortorder = IonFormatterStorage<i4>.Read(reader);
+        var __version = IonFormatterStorage<i4>.Read(reader);
+        var __payloadjson = IonFormatterStorage<string>.Read(reader);
+        var __payloadisvalid = IonFormatterStorage<bool>.Read(reader);
+        var __payloaderrors = IonFormatterStorage<string>.ReadArray(reader);
+        var __board = reader.ReadNullable<CosmeticBoardPolicy>();
+        var __assetsource = IonFormatterStorage<CosmeticAssetSourceKind>.Read(reader);
+        var __assets = IonFormatterStorage<CosmeticAssetInfo>.ReadArray(reader);
+        var __isenabled = IonFormatterStorage<bool>.Read(reader);
+        var __ispublished = IonFormatterStorage<bool>.Read(reader);
+        var __publishedat = reader.ReadNullable<datetime>();
+        var __availablefrom = reader.ReadNullable<datetime>();
+        var __availableuntil = reader.ReadNullable<datetime>();
+        var __acquisition = IonFormatterStorage<CosmeticAcquisitionKind>.ReadArray(reader);
+        var __ultimatierrequired = reader.ReadNullable<UltimaPlan>();
+        var __pricesku = reader.ReadNullable<string>();
+        var __grantitemtemplateid = reader.ReadNullable<string>();
+        var __legacyid = reader.ReadNullable<i4>();
+        var __ownercount = IonFormatterStorage<i4>.Read(reader);
+        var __equippedcount = IonFormatterStorage<i4>.Read(reader);
+        var __createdat = IonFormatterStorage<datetime>.Read(reader);
+        var __shippedinclientat = reader.ReadNullable<datetime>();
+        var __shippedinclientbuild = reader.ReadNullable<string>();
+        var __translations = IonFormatterStorage<CosmeticTranslationInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 31);
+        return new(__cosmeticid, __kindkey, __kind, __slug, __namekey, __descriptionkey, __rarity, __sortorder, __version, __payloadjson, __payloadisvalid, __payloaderrors, __board, __assetsource, __assets, __isenabled, __ispublished, __publishedat, __availablefrom, __availableuntil, __acquisition, __ultimatierrequired, __pricesku, __grantitemtemplateid, __legacyid, __ownercount, __equippedcount, __createdat, __shippedinclientat, __shippedinclientbuild, __translations);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticDetails value)
+    {
+        writer.WriteStartArray(31);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<CosmeticKindInfo>.WriteNullable(writer, value.kind);
+        IonFormatterStorage<string>.Write(writer, value.slug);
+        IonFormatterStorage<string>.Write(writer, value.nameKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.descriptionKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.rarity);
+        IonFormatterStorage<i4>.Write(writer, value.sortOrder);
+        IonFormatterStorage<i4>.Write(writer, value.version);
+        IonFormatterStorage<string>.Write(writer, value.payloadJson);
+        IonFormatterStorage<bool>.Write(writer, value.payloadIsValid);
+        IonFormatterStorage<string>.WriteArray(writer, value.payloadErrors);
+        IonFormatterStorage<CosmeticBoardPolicy>.WriteNullable(writer, value.board);
+        IonFormatterStorage<CosmeticAssetSourceKind>.Write(writer, value.assetSource);
+        IonFormatterStorage<CosmeticAssetInfo>.WriteArray(writer, value.assets);
+        IonFormatterStorage<bool>.Write(writer, value.isEnabled);
+        IonFormatterStorage<bool>.Write(writer, value.isPublished);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.publishedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.availableFrom);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.availableUntil);
+        IonFormatterStorage<CosmeticAcquisitionKind>.WriteArray(writer, value.acquisition);
+        IonFormatterStorage<UltimaPlan>.WriteNullable(writer, value.ultimaTierRequired);
+        IonFormatterStorage<string>.WriteNullable(writer, value.priceSku);
+        IonFormatterStorage<string>.WriteNullable(writer, value.grantItemTemplateId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.legacyId);
+        IonFormatterStorage<i4>.Write(writer, value.ownerCount);
+        IonFormatterStorage<i4>.Write(writer, value.equippedCount);
+        IonFormatterStorage<datetime>.Write(writer, value.createdAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.shippedInClientAt);
+        IonFormatterStorage<string>.WriteNullable(writer, value.shippedInClientBuild);
+        IonFormatterStorage<CosmeticTranslationInfo>.WriteArray(writer, value.translations);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAssetInfo_Formatter : IonFormatter<CosmeticAssetInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAssetInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(2, "CosmeticAssetInfo");
+        var __slot = IonFormatterStorage<CosmeticAssetSlotKind>.Read(reader);
+        var __fileid = IonFormatterStorage<string>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 2);
+        return new(__slot, __fileid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAssetInfo value)
+    {
+        writer.WriteStartArray(2);
+        IonFormatterStorage<CosmeticAssetSlotKind>.Write(writer, value.slot);
+        IonFormatterStorage<string>.Write(writer, value.fileId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticTranslationInfo_Formatter : IonFormatter<CosmeticTranslationInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticTranslationInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "CosmeticTranslationInfo");
+        var __locale = IonFormatterStorage<string>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__locale, __name, __description);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticTranslationInfo value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<string>.Write(writer, value.locale);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticTranslationInput_Formatter : IonFormatter<CosmeticTranslationInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticTranslationInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "CosmeticTranslationInput");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __locale = IonFormatterStorage<string>.Read(reader);
+        var __name = IonFormatterStorage<string>.Read(reader);
+        var __description = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__cosmeticid, __locale, __name, __description);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticTranslationInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.Write(writer, value.locale);
+        IonFormatterStorage<string>.Write(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateCosmeticCodesInput_Formatter : IonFormatter<CreateCosmeticCodesInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateCosmeticCodesInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(6, "CreateCosmeticCodesInput");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __referenceitemtemplateid = IonFormatterStorage<string>.Read(reader);
+        var __count = IonFormatterStorage<i4>.Read(reader);
+        var __validfrom = IonFormatterStorage<datetime>.Read(reader);
+        var __validto = IonFormatterStorage<datetime>.Read(reader);
+        var __prefix = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 6);
+        return new(__cosmeticid, __referenceitemtemplateid, __count, __validfrom, __validto, __prefix);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateCosmeticCodesInput value)
+    {
+        writer.WriteStartArray(6);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.Write(writer, value.referenceItemTemplateId);
+        IonFormatterStorage<i4>.Write(writer, value.count);
+        IonFormatterStorage<datetime>.Write(writer, value.validFrom);
+        IonFormatterStorage<datetime>.Write(writer, value.validTo);
+        IonFormatterStorage<string>.WriteNullable(writer, value.prefix);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateCosmeticCodesResult_Formatter : IonFormatter<CreateCosmeticCodesResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateCosmeticCodesResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "CreateCosmeticCodesResult");
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __error = reader.ReadNullable<string>();
+        var __codes = IonFormatterStorage<string>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __error, __codes);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateCosmeticCodesResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        IonFormatterStorage<string>.WriteArray(writer, value.codes);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateCosmeticInput_Formatter : IonFormatter<CreateCosmeticInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateCosmeticInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(10, "CreateCosmeticInput");
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __slug = IonFormatterStorage<string>.Read(reader);
+        var __namekey = IonFormatterStorage<string>.Read(reader);
+        var __descriptionkey = reader.ReadNullable<string>();
+        var __rarity = reader.ReadNullable<string>();
+        var __sortorder = IonFormatterStorage<i4>.Read(reader);
+        var __payloadjson = IonFormatterStorage<string>.Read(reader);
+        var __assetsource = IonFormatterStorage<CosmeticAssetSourceKind>.Read(reader);
+        var __name = reader.ReadNullable<string>();
+        var __description = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__kindkey, __slug, __namekey, __descriptionkey, __rarity, __sortorder, __payloadjson, __assetsource, __name, __description);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateCosmeticInput value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<string>.Write(writer, value.slug);
+        IonFormatterStorage<string>.Write(writer, value.nameKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.descriptionKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.rarity);
+        IonFormatterStorage<i4>.Write(writer, value.sortOrder);
+        IonFormatterStorage<string>.Write(writer, value.payloadJson);
+        IonFormatterStorage<CosmeticAssetSourceKind>.Write(writer, value.assetSource);
+        IonFormatterStorage<string>.WriteNullable(writer, value.name);
+        IonFormatterStorage<string>.WriteNullable(writer, value.description);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CreateCosmeticResult_Formatter : IonFormatter<CreateCosmeticResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CreateCosmeticResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "CreateCosmeticResult");
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __cosmeticid = reader.ReadNullable<guid>();
+        var __error = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __cosmeticid, __error);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CreateCosmeticResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.cosmeticId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.error);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticBoardCapability_Formatter : IonFormatter<CosmeticBoardCapability>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticBoardCapability Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "CosmeticBoardCapability");
+        var __maxwidth = IonFormatterStorage<i4>.Read(reader);
+        var __minheight = IonFormatterStorage<i4>.Read(reader);
+        var __maxheight = IonFormatterStorage<i4>.Read(reader);
+        var __minwidth = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__maxwidth, __minheight, __maxheight, __minwidth);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticBoardCapability value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<i4>.Write(writer, value.maxWidth);
+        IonFormatterStorage<i4>.Write(writer, value.minHeight);
+        IonFormatterStorage<i4>.Write(writer, value.maxHeight);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.minWidth);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticBoardPolicy_Formatter : IonFormatter<CosmeticBoardPolicy>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticBoardPolicy Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "CosmeticBoardPolicy");
+        var __maxperboard = IonFormatterStorage<i4>.Read(reader);
+        var __defaultwidth = IonFormatterStorage<i4>.Read(reader);
+        var __defaultheight = IonFormatterStorage<i4>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__maxperboard, __defaultwidth, __defaultheight);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticBoardPolicy value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<i4>.Write(writer, value.maxPerBoard);
+        IonFormatterStorage<i4>.Write(writer, value.defaultWidth);
+        IonFormatterStorage<i4>.Write(writer, value.defaultHeight);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UpdateCosmeticInput_Formatter : IonFormatter<UpdateCosmeticInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UpdateCosmeticInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(10, "UpdateCosmeticInput");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __namekey = reader.ReadNullable<string>();
+        var __descriptionkey = reader.ReadNullable<string>();
+        var __rarity = reader.ReadNullable<string>();
+        var __sortorder = reader.ReadNullable<i4>();
+        var __payloadjson = reader.ReadNullable<string>();
+        var __availablefrom = reader.ReadNullable<datetime>();
+        var __availableuntil = reader.ReadNullable<datetime>();
+        var __clearavailablefrom = IonFormatterStorage<bool>.Read(reader);
+        var __clearavailableuntil = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__cosmeticid, __namekey, __descriptionkey, __rarity, __sortorder, __payloadjson, __availablefrom, __availableuntil, __clearavailablefrom, __clearavailableuntil);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UpdateCosmeticInput value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.WriteNullable(writer, value.nameKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.descriptionKey);
+        IonFormatterStorage<string>.WriteNullable(writer, value.rarity);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.sortOrder);
+        IonFormatterStorage<string>.WriteNullable(writer, value.payloadJson);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.availableFrom);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.availableUntil);
+        IonFormatterStorage<bool>.Write(writer, value.clearAvailableFrom);
+        IonFormatterStorage<bool>.Write(writer, value.clearAvailableUntil);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticBoardPolicyInput_Formatter : IonFormatter<CosmeticBoardPolicyInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticBoardPolicyInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(4, "CosmeticBoardPolicyInput");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __maxperboard = reader.ReadNullable<i4>();
+        var __defaultwidth = reader.ReadNullable<i4>();
+        var __defaultheight = reader.ReadNullable<i4>();
+        reader.ReadEndArrayAndSkip(arraySize - 4);
+        return new(__cosmeticid, __maxperboard, __defaultwidth, __defaultheight);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticBoardPolicyInput value)
+    {
+        writer.WriteStartArray(4);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.maxPerBoard);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.defaultWidth);
+        IonFormatterStorage<i4>.WriteNullable(writer, value.defaultHeight);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAcquisitionInput_Formatter : IonFormatter<CosmeticAcquisitionInput>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAcquisitionInput Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(5, "CosmeticAcquisitionInput");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __acquisition = IonFormatterStorage<CosmeticAcquisitionKind>.ReadArray(reader);
+        var __ultimatierrequired = reader.ReadNullable<UltimaPlan>();
+        var __pricesku = reader.ReadNullable<string>();
+        var __grantitemtemplateid = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 5);
+        return new(__cosmeticid, __acquisition, __ultimatierrequired, __pricesku, __grantitemtemplateid);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAcquisitionInput value)
+    {
+        writer.WriteStartArray(5);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<CosmeticAcquisitionKind>.WriteArray(writer, value.acquisition);
+        IonFormatterStorage<UltimaPlan>.WriteNullable(writer, value.ultimaTierRequired);
+        IonFormatterStorage<string>.WriteNullable(writer, value.priceSku);
+        IonFormatterStorage<string>.WriteNullable(writer, value.grantItemTemplateId);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_PublishCosmeticResult_Formatter : IonFormatter<PublishCosmeticResult>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public PublishCosmeticResult Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(3, "PublishCosmeticResult");
+        var __success = IonFormatterStorage<bool>.Read(reader);
+        var __error = IonFormatterStorage<PublishCosmeticError>.Read(reader);
+        var __detail = reader.ReadNullable<string>();
+        reader.ReadEndArrayAndSkip(arraySize - 3);
+        return new(__success, __error, __detail);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, PublishCosmeticResult value)
+    {
+        writer.WriteStartArray(3);
+        IonFormatterStorage<bool>.Write(writer, value.success);
+        IonFormatterStorage<PublishCosmeticError>.Write(writer, value.error);
+        IonFormatterStorage<string>.WriteNullable(writer, value.detail);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserCosmeticList_Formatter : IonFormatter<UserCosmeticList>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserCosmeticList Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(1, "UserCosmeticList");
+        var __items = IonFormatterStorage<UserCosmeticInfo>.ReadArray(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 1);
+        return new(__items);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserCosmeticList value)
+    {
+        writer.WriteStartArray(1);
+        IonFormatterStorage<UserCosmeticInfo>.WriteArray(writer, value.items);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_UserCosmeticInfo_Formatter : IonFormatter<UserCosmeticInfo>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public UserCosmeticInfo Read(CborReader reader)
+    {
+        var arraySize = reader.ReadStartMessage(10, "UserCosmeticInfo");
+        var __cosmeticid = IonFormatterStorage<guid>.Read(reader);
+        var __kindkey = IonFormatterStorage<string>.Read(reader);
+        var __slug = IonFormatterStorage<string>.Read(reader);
+        var __namekey = IonFormatterStorage<string>.Read(reader);
+        var __source = IonFormatterStorage<CosmeticOwnershipSourceKind>.Read(reader);
+        var __grantedat = IonFormatterStorage<datetime>.Read(reader);
+        var __expiresat = reader.ReadNullable<datetime>();
+        var __revokedat = reader.ReadNullable<datetime>();
+        var __isactive = IonFormatterStorage<bool>.Read(reader);
+        var __viasubscription = IonFormatterStorage<bool>.Read(reader);
+        reader.ReadEndArrayAndSkip(arraySize - 10);
+        return new(__cosmeticid, __kindkey, __slug, __namekey, __source, __grantedat, __expiresat, __revokedat, __isactive, __viasubscription);
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, UserCosmeticInfo value)
+    {
+        writer.WriteStartArray(10);
+        IonFormatterStorage<guid>.Write(writer, value.cosmeticId);
+        IonFormatterStorage<string>.Write(writer, value.kindKey);
+        IonFormatterStorage<string>.Write(writer, value.slug);
+        IonFormatterStorage<string>.Write(writer, value.nameKey);
+        IonFormatterStorage<CosmeticOwnershipSourceKind>.Write(writer, value.source);
+        IonFormatterStorage<datetime>.Write(writer, value.grantedAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.expiresAt);
+        IonFormatterStorage<datetime>.WriteNullable(writer, value.revokedAt);
+        IonFormatterStorage<bool>.Write(writer, value.isActive);
+        IonFormatterStorage<bool>.Write(writer, value.viaSubscription);
+        writer.WriteEndArray();
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
 public sealed class Ion_SearchMatchKind_Formatter : IonFormatter<SearchMatchKind>
 {
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
@@ -3729,6 +4478,91 @@ public sealed class Ion_AccountDeletionStatusView_Formatter : IonFormatter<Accou
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, AccountDeletionStatusView value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_PublishCosmeticError_Formatter : IonFormatter<PublishCosmeticError>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public PublishCosmeticError Read(CborReader reader)
+    {
+         return (PublishCosmeticError)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, PublishCosmeticError value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAssetSlotKind_Formatter : IonFormatter<CosmeticAssetSlotKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAssetSlotKind Read(CborReader reader)
+    {
+         return (CosmeticAssetSlotKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAssetSlotKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAssetSourceKind_Formatter : IonFormatter<CosmeticAssetSourceKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAssetSourceKind Read(CborReader reader)
+    {
+         return (CosmeticAssetSourceKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAssetSourceKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticAcquisitionKind_Formatter : IonFormatter<CosmeticAcquisitionKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticAcquisitionKind Read(CborReader reader)
+    {
+         return (CosmeticAcquisitionKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticAcquisitionKind value)
+    {
+        var casted = (u4)value;
+        IonFormatterStorage<u4>.Write(writer, casted);
+    }
+}
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed class Ion_CosmeticOwnershipSourceKind_Formatter : IonFormatter<CosmeticOwnershipSourceKind>
+{
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public CosmeticOwnershipSourceKind Read(CborReader reader)
+    {
+         return (CosmeticOwnershipSourceKind)(IonFormatterStorage<u4>.Read(reader));
+    }
+    
+    [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+    public void Write(CborWriter writer, CosmeticOwnershipSourceKind value)
     {
         var casted = (u4)value;
         IonFormatterStorage<u4>.Write(writer, casted);

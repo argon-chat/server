@@ -39,6 +39,7 @@ public sealed class EntryPointRole : IArgonRole
         features.Add<PresenceFeature>();
         features.Add<CaptchaFeature>();
         features.Add<XsollaFeature>();
+        features.Add<CosmeticsFeature>();
         features.Add<SocialFeature>();
         features.Add<GeoIpFeature>();
         features.Add<SfuFeature>();
@@ -119,6 +120,7 @@ public sealed class AdminRole : IArgonRole
         features.Add<HostHooksFeature>();
         features.Add<ClientLifecycleFeature>();
 
+        features.Add<CosmeticsFeature>();
         features.Add<AdminConsoleFeature>();
     }
 }

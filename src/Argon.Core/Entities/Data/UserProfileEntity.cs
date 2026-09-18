@@ -45,7 +45,11 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
 
     public static ArgonUserProfile Map(scoped in UserProfileEntity self)
         => new(
-            self.UserId, 
+            self.UserId,
+            // A look's own name and picture, filled in by the projection: this mapper has no scope,
+            // and the answer differs between them.
+            null,
+            null,
             self.CustomStatus, 
             self.CustomStatusIconId,
             null,
@@ -62,5 +66,12 @@ public record UserProfileEntity : ArgonEntity, IEntityTypeConfiguration<UserProf
             // The user row is the authority on "in Argon since", but most call sites read the profile
             // without joining it. The profile row is inserted in the same transaction as the user
             // (see registration), so its own CreatedAt is the same instant and serves as the fallback.
-            (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime);
+            (self.User is { } owner ? owner.CreatedAt : self.CreatedAt).UtcDateTime,
+
+            // Left empty here and filled by ICosmeticProfileProjection, which needs a database and a
+            // feature-flag read to answer. This mapper is static and has neither — so a profile that
+            // never passes through the projection carries no cosmetics, which is the safe direction:
+            // a missed call site renders as "wearing nothing" rather than as somebody else's look.
+            null,
+            null);
 }

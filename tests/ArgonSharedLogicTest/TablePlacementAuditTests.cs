@@ -159,21 +159,30 @@ public class TablePlacementAuditTests
            .ToArray();
 
     /// <summary>
-    /// Nine tables are replicated to every region, and adding a tenth has to be an argument with a
-    /// number in it.
+    /// Fourteen tables are replicated to every region, and adding a fifteenth has to be an argument
+    /// with a number in it.
     /// </summary>
     /// <remarks>
-    /// <para>All nine are the shape the feature is documented for: a row written a handful of times
-    /// over its whole life and read on every request that renders or authorises anything. An account
-    /// and its profile, written per lifecycle. A space and a channel's metadata, written per
+    /// <para>All fourteen are the shape the feature is documented for: a row written a handful of
+    /// times over its whole life and read on every request that renders or authorises anything. An
+    /// account and its profile, written per lifecycle. A space and a channel's metadata, written per
     /// lifecycle. The four rows a permission decision is made of — the membership, the roles it
     /// holds, the role definitions, and the per-channel overwrites — inserted on a join or by a
     /// moderator and then read by every evaluation. And the channel groups, created and reordered by
     /// a moderator and read by every bootstrap.</para>
     ///
-    /// <para>Asserted as an exact set so that a tenth global cannot arrive unnoticed: nothing else in
-    /// the build would fail, because the annotation produces no migration and no DDL until the
-    /// reconciler applies it. The argument for adding one is the same as the argument that moved
+    /// <para>The five cosmetics tables joined on the same argument and it is worth stating, because
+    /// five at once is what the first audit did in the other direction. A catalogue row is authored
+    /// by an operator and then read by every rendered profile. An ownership row is written once on a
+    /// grant and, for most rows, never again — and a subscription-included cosmetic writes none at
+    /// all, by design. A loadout is created and named; an equip is one insert per item put on, with a
+    /// slot reorder costing one commit whatever the row count; a scope assignment is written when
+    /// somebody picks a persona for a space. Against that, all five are read on the path that renders
+    /// a profile card, a member list row and a message author line.</para>
+    ///
+    /// <para>Asserted as an exact set so that a fifteenth global cannot arrive unnoticed: nothing
+    /// else in the build would fail, because the annotation produces no migration and no DDL until
+    /// the reconciler applies it. The argument for adding one is the same as the argument that moved
     /// these — writes to one row over its life, reads of that row per day — and "the read side is
     /// attractive" on its own is what the first audit was already told.</para>
     /// </remarks>
@@ -182,7 +191,9 @@ public class TablePlacementAuditTests
         => Assert.That(TablesPlaced(Placement.Global), Is.EquivalentTo(new[]
         {
             "Archetypes", "ChannelEntitlementOverwrites", "ChannelGroupEntity", "Channels",
-            "MemberArchetypes", "Spaces", "UserProfiles", "Users", "UsersToServerRelations"
+            "MemberArchetypes", "Spaces", "UserProfiles", "Users", "UsersToServerRelations",
+            "Cosmetics", "CosmeticOwnerships", "CosmeticLoadouts", "CosmeticEquips",
+            "CosmeticScopeAssignments"
         }));
 
     /// <summary>

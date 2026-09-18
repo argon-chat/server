@@ -366,6 +366,9 @@ public class FileStorageGrain(
             case FilePurpose.Video:
                 return _limits.VideoMaxBytes;
 
+            case FilePurpose.CosmeticAsset:
+                return _limits.CosmeticAssetMaxBytes;
+
             // A direct chat has no space to be boosted, so only the base limit and Ultima apply.
             case FilePurpose.ChannelAttachment:
             case FilePurpose.DirectAttachment:
@@ -427,6 +430,13 @@ public class FileStorageGrain(
         FilePurpose.Sticker     => "image/",
         FilePurpose.Banner      => "image/",
         FilePurpose.Video       => "video/",
-        _                       => null // any content type for attachments
+
+        // Deliberately unconstrained here. What a cosmetic asset may be depends on the slot of the
+        // kind it belongs to — an image for a badge, a clip for a background, a font file for a
+        // nickname style — and this table only knows the purpose. The real check runs where the
+        // knowledge is, in CompleteUploadCosmeticAsset, against the slot the kind declared.
+        FilePurpose.CosmeticAsset => null,
+
+        _ => null // any content type for attachments
     };
 }

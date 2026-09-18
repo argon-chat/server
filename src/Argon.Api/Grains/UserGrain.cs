@@ -1,8 +1,8 @@
 namespace Argon.Grains;
 
 using Argon.Api.Grains.Interfaces;
-using Argon.Core.Features.Logic;
 using Argon.Core.Features.Transport;
+using Argon.Features.Cosmetics;
 using Argon.Features.Storage;
 using Argon.Features.Moderation;
 using Features.Logic;
@@ -18,7 +18,9 @@ public class UserGrain(
     ILogger<IUserGrain> logger,
     IUserSessionDiscoveryService sessionDiscovery,
     IOptions<ClientAppsOptions> clientApps,
-    AppHubServer appHubServer) : Grain, IUserGrain
+    AppHubServer appHubServer,
+    ICosmeticProfileProjection cosmetics,
+    CosmeticKindRegistry cosmeticKinds) : Grain, IUserGrain
 {
     private static readonly TimeSpan DisplayNameCooldown = TimeSpan.FromMinutes(10);
 
@@ -42,8 +44,11 @@ public class UserGrain(
         if (hasPremiumField && !user.HasActiveUltima)
             return UpdateMeError.PREMIUM_REQUIRED;
 
-        // Validate preset IDs
-        if (!ProfilePresetValidator.IsValidPresetId(input.backgroundId, input.voiceCardEffectId, input.avatarFrameId, input.nickEffectId))
+        // Which preset ids exist is a question about the catalogue now, not about a list in the
+        // source. ProfilePresetValidator held a FrozenSet of 1..10 that nobody could change without a
+        // deploy, and half of those ids rendered nothing on any client — the five backgrounds that
+        // actually shipped are the five rows this resolves against.
+        if (!await LegacyPresetsResolveAsync(ctx, input, ct))
             return UpdateMeError.INVALID_PRESET_ID;
 
         // DisplayName update with cooldown
@@ -112,13 +117,55 @@ public class UserGrain(
         await ctx.SaveChangesAsync(ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile);
+        var profileDto = await cosmetics.ApplyAsync(UserProfileEntity.Map(profile), null, ct);
 
         // Broadcast to all spaces
         var userServers = await GetMyServersIds(ct);
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
 
         return new UpdateProfileResult(userDto, profileDto);
+    }
+
+    /// <summary>
+    /// Whether every pre-cosmetics preset id in this edit names a catalogue row that exists.
+    /// </summary>
+    /// <remarks>
+    /// <para>This replaced <c>ProfilePresetValidator</c>, which held <c>FrozenSet</c>s of 1..10 and
+    /// 1..5. Those numbers were a claim about what the client could draw, and they were wrong in both
+    /// directions: five backgrounds ever shipped, so ids 6 through 10 were accepted and rendered
+    /// nothing, while a sixth background could not be added without a deploy.</para>
+    ///
+    /// <para>Ownership is not checked here, deliberately. These fields are already behind the premium
+    /// gate above, which is the entitlement they have always had; requiring a catalogue grant as well
+    /// would refuse edits that work today.</para>
+    /// </remarks>
+    private async Task<bool> LegacyPresetsResolveAsync(ApplicationDbContext ctx, UserEditInput input, CancellationToken ct)
+    {
+        if (input.backgroundId is null
+            && input.voiceCardEffectId is null
+            && input.avatarFrameId is null
+            && input.nickEffectId is null)
+            return true;
+
+        return await ResolvesAsync(LegacyCosmeticField.BackgroundId, input.backgroundId)
+               && await ResolvesAsync(LegacyCosmeticField.VoiceCardEffectId, input.voiceCardEffectId)
+               && await ResolvesAsync(LegacyCosmeticField.AvatarFrameId, input.avatarFrameId)
+               && await ResolvesAsync(LegacyCosmeticField.NickEffectId, input.nickEffectId);
+
+        async Task<bool> ResolvesAsync(LegacyCosmeticField field, int? legacyId)
+        {
+            if (legacyId is null)
+                return true;
+
+            // No kind claims this legacy field in this build, so nothing can answer to the id. That
+            // is the state every field except backgroundId is in today, and every client sends null
+            // for those.
+            if (cosmeticKinds.ForLegacyField(field) is not { } kind)
+                return false;
+
+            return await ctx.Cosmetics.AnyAsync(
+                x => x.KindKey == kind.Key && x.LegacyId == legacyId && x.IsEnabled, ct);
+        }
     }
 
     /// <summary>
@@ -162,7 +209,7 @@ public class UserGrain(
         var profile = await ctx.UserProfiles.AsNoTracking().FirstAsync(x => x.UserId == userId, ct);
 
         var userDto = UserEntity.Map(user);
-        var profileDto = UserProfileEntity.Map(profile);
+        var profileDto = await cosmetics.ApplyAsync(UserProfileEntity.Map(profile), null, ct);
 
         var userServers = await GetMyServersIds(ct);
         await BroadcastToSpacesAsync(userServers, userDto, userId, profileDto, ct);
@@ -260,7 +307,10 @@ public class UserGrain(
            .AsNoTracking()
            .FirstAsync(x => x.UserId == this.GetPrimaryKey());
 
-        return profile.ToDto();
+        // Global scope: this is the person's own profile, not their appearance inside one space.
+        // LookupProfile comes through here too, which is why there is no space-scoped variant to
+        // forget to update.
+        return await cosmetics.ApplyAsync(profile.ToDto(), null);
     }
 
     public async Task<List<ArgonSpaceBase>> GetMyServers()
@@ -638,8 +688,9 @@ public class UserGrain(
             var fileGrain = GrainFactory.GetGrain<IFileStorageGrain>(userId);
             var purpose = kind switch
             {
-                UserFileKind.Avatar => FilePurpose.Avatar,
-                _                   => FilePurpose.Avatar
+                UserFileKind.Avatar         => FilePurpose.Avatar,
+                UserFileKind.ProfilePicture => FilePurpose.Banner,
+                _                           => FilePurpose.Avatar
             };
             var response = await fileGrain.RequestUploadAsync(
                 new FileUploadRequest(purpose, "image/", 0, null, null), ct);

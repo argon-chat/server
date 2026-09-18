@@ -19,7 +19,7 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public InventoryItem Read(CborReader reader)
     {
-        var arraySize = reader.ReadStartMessage(8, "InventoryItem");
+        var arraySize = reader.ReadStartMessage(9, "InventoryItem");
         var __id = IonFormatterStorage<string>.Read(reader);
         var __instanceid = IonFormatterStorage<guid>.Read(reader);
         var __granteddate = IonFormatterStorage<datetime>.Read(reader);
@@ -28,14 +28,15 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
         var __usablevector = reader.ReadNullable<ItemUseVector>();
         var __receivedfrom = reader.ReadNullable<guid>();
         var __ttl = reader.ReadNullable<duration>();
-        reader.ReadEndArrayAndSkip(arraySize - 8);
-        return new(__id, __instanceid, __granteddate, __usable, __giftable, __usablevector, __receivedfrom, __ttl);
+        var __cosmeticid = reader.ReadNullable<guid>();
+        reader.ReadEndArrayAndSkip(arraySize - 9);
+        return new(__id, __instanceid, __granteddate, __usable, __giftable, __usablevector, __receivedfrom, __ttl, __cosmeticid);
     }
     
     [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
     public void Write(CborWriter writer, InventoryItem value)
     {
-        writer.WriteStartArray(8);
+        writer.WriteStartArray(9);
         IonFormatterStorage<string>.Write(writer, value.id);
         IonFormatterStorage<guid>.Write(writer, value.instanceId);
         IonFormatterStorage<datetime>.Write(writer, value.grantedDate);
@@ -44,6 +45,7 @@ public sealed class Ion_InventoryItem_Formatter : IonFormatter<InventoryItem>
         IonFormatterStorage<ItemUseVector>.WriteNullable(writer, value.usableVector);
         IonFormatterStorage<guid>.WriteNullable(writer, value.receivedFrom);
         IonFormatterStorage<duration>.WriteNullable(writer, value.ttl);
+        IonFormatterStorage<guid>.WriteNullable(writer, value.cosmeticId);
         writer.WriteEndArray();
     }
 }

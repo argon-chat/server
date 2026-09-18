@@ -75,7 +75,19 @@ public sealed record ArgonUser(guid userId, string username, string displayName,
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
-public sealed record ArgonUserProfile(guid userId, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, i4? primaryColor, i4? accentColor, datetime? registeredAt);
+public sealed record ArgonUserProfile(guid userId, string? displayNameOverride, string? avatarFileIdOverride, string? customStatus, string? customStatusIconId, string? bannerFileID, dateonly? dateOfBirth, string? bio, IonArray<string> badges, IonArray<SpaceMemberArchetype> archetypes, i4? backgroundId, i4? voiceCardEffectId, i4? avatarFrameId, i4? nickEffectId, i4? primaryColor, i4? accentColor, datetime? registeredAt, IonArray<EquippedCosmetic>? cosmetics, guid? loadoutId);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EquippedCosmetic(string kindKey, guid itemId, string slug, i4 layer, i4 slotIndex, string payloadJson, IonArray<EquippedCosmeticAsset> assets, IonArray<EquippedCosmeticOption>? options, string? contentJson, i4? boardX, i4? boardY, i4? boardW, i4? boardH, i4? version);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EquippedCosmeticOption(string facetId, string kindKey, guid itemId, string slug, string payloadJson, IonArray<EquippedCosmeticAsset> assets, i4? version);
+
+
+[GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]
+public sealed record EquippedCosmeticAsset(string slot, string fileId);
 
 
 [GeneratedCodeAttribute("ionc", null), CompilerGeneratedAttribute]

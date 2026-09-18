@@ -13,6 +13,7 @@ using Argon.Features.Moderation;
 using Core.Services;
 using Features.Logic;
 using Features.Repositories;
+using Argon.Features.Cosmetics;
 using ion.runtime;
 using Orleans.GrainDirectory;
 using Persistence.States;
@@ -32,6 +33,7 @@ public class SpaceGrain(
     AppHubServer appHubServer,
     BotEventPublisher botEventPublisher,
     ISpaceReadCache readCache,
+    ICosmeticProfileProjection cosmetics,
     ILogger<ISpaceGrain> logger) : Grain, ISpaceGrain
 {
 
@@ -412,9 +414,10 @@ public class SpaceGrain(
         var caller = this.GetUserId();
 
         if (IsGuestUserId(userId))
-            // Guests never registered, so there is no "in Argon since" to show for them.
-            return new ArgonUserProfile(userId, null, null, null, null, "Guest User", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+            // Guests never registered, so there is no "in Argon since" to show for them, and nothing
+            // they could be wearing.
+            return new ArgonUserProfile(userId, null, null, null, null, null, null, "Guest User", IonArray<string>.Empty,
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null, null, null);
 
         await using var ctx     = await context.CreateDbContextAsync();
         List<Guid>      userIds = [userId, caller];
@@ -429,10 +432,14 @@ public class SpaceGrain(
            .FirstOrDefaultAsync(x => x.UserId == userId);
 
         if (targetMember is null)
-            return new ArgonUserProfile(userId, null, null, null, null, "Deleted Account", IonArray<string>.Empty,
-                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null);
+            return new ArgonUserProfile(userId, null, null, null, null, null, null, "Deleted Account", IonArray<string>.Empty,
+                IonArray<SpaceMemberArchetype>.Empty, null, null, null, null, null, null, null, null, null);
 
-        return targetMember.User.Profile.ToDto() with
+        // Space-scoped: a person can wear one loadout here and another elsewhere, so this is the one
+        // profile read that must not ask for the global answer.
+        var profile = await cosmetics.ApplyAsync(targetMember.User.Profile.ToDto(), this.GetPrimaryKey());
+
+        return profile with
         {
             archetypes = new(targetMember.SpaceMemberArchetypes.Select(x => x.ToDto()))
         };

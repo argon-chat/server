@@ -359,7 +359,7 @@ public class AdminConsoleTests : TestBase
 
         var templateId = $"admin_test_{Guid.NewGuid():N}"[..24];
         var created = await admin.CreateItemTemplate(
-            new CreateItemTemplateInput(templateId, false, true, false, null, ItemScenarioKind.None, new IonArray<string>([])),
+            new CreateItemTemplateInput(templateId, false, true, false, null, ItemScenarioKind.None, new IonArray<string>([]), null, null),
             ct);
 
         Assert.That(created.success, Is.True, created.error);
@@ -389,7 +389,7 @@ public class AdminConsoleTests : TestBase
         await using var _ = scope;
 
         var result = await admin.CreateItemTemplate(
-            new CreateItemTemplateInput("  ", false, false, false, null, ItemScenarioKind.None, new IonArray<string>([])),
+            new CreateItemTemplateInput("  ", false, false, false, null, ItemScenarioKind.None, new IonArray<string>([]), null, null),
             ct);
 
         Assert.That(result.success, Is.False);
